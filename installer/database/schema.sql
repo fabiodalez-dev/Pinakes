@@ -71,6 +71,7 @@ CREATE TABLE `autori` (
   `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `foto` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `collegamenti` json DEFAULT NULL,
+  `gnd_id` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `viaf_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `viaf_uri` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `isni_id` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -83,6 +84,7 @@ CREATE TABLE `autori` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_isni_id` (`isni_id`),
   KEY `idx_viaf_id` (`viaf_id`),
+  UNIQUE KEY `uq_autori_gnd` (`gnd_id`),
   FULLTEXT KEY `ft_autori_nome` (`nome`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

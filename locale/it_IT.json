@@ -7886,5 +7886,19 @@
   "Cita questo articolo": "Cita questo articolo",
   "Copiato": "Copiato",
   "Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)": "Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)",
-  "Opere di %s": "Opere di %s"
+  "Opere di %s": "Opere di %s",
+    "Aggiungi autore": "Aggiungi autore",
+    "Autore collegato": "Autore collegato",
+    "Autore già selezionato.": "Autore già selezionato.",
+    "Autori dell’anagrafica": "Autori dell’anagrafica",
+    "Coautore": "Coautore",
+    "Collega ogni nome a una persona dell’anagrafica comune a libri e articoli. Verifica gli omonimi prima di selezionare; puoi anche creare un nuovo autore o lasciare il credito senza collegamento.": "Collega ogni nome a una persona dell’anagrafica comune a libri e articoli. Verifica gli omonimi prima di selezionare; puoi anche creare un nuovo autore o lasciare il credito senza collegamento.",
+    "Crea nuovo autore": "Crea nuovo autore",
+    "Credito senza collegamento": "Credito senza collegamento",
+    "Identificativo GND confermato per questa persona, oppure URL d-nb.info/gnd. Facoltativo.": "Identificativo GND confermato per questa persona, oppure URL d-nb.info/gnd. Facoltativo.",
+    "Identificativo GND non valido.": "Identificativo GND non valido.",
+    "Il nome è obbligatorio.": "Il nome è obbligatorio.",
+    "Nuovo autore da creare al salvataggio": "Nuovo autore da creare al salvataggio",
+    "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.",
+    "Ricerca non disponibile. Riprova.": "Ricerca non disponibile. Riprova."
 }

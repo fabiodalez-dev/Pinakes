@@ -166,6 +166,13 @@ class AuthorRepository
             $values[] = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
         }
 
+        if (array_key_exists('gnd_id', $data)) {
+            $gnd = \App\Support\GndIdentifier::normalize($data['gnd_id']);
+            if ($this->hasColumn('gnd_id')) {
+                $columns[] = 'gnd_id'; $types .= 's'; $values[] = $gnd;
+            } elseif ($gnd !== null) { throw new \RuntimeException('GND schema unavailable'); }
+        }
+
         $placeholders = implode(', ', array_fill(0, count($columns), '?'));
         $sql = 'INSERT INTO autori (' . implode(', ', $columns) . ', created_at, updated_at)'
              . ' VALUES (' . $placeholders . ', NOW(), NOW())';
@@ -219,6 +226,13 @@ class AuthorRepository
             $assignments[] = 'collegamenti=?';
             $types .= 's';
             $values[] = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
+        }
+
+        if (array_key_exists('gnd_id', $data)) {
+            $gnd = \App\Support\GndIdentifier::normalize($data['gnd_id']);
+            if ($this->hasColumn('gnd_id')) {
+                $assignments[] = 'gnd_id=?'; $types .= 's'; $values[] = $gnd;
+            } elseif ($gnd !== null) { throw new \RuntimeException('GND schema unavailable'); }
         }
 
         $types .= 'i';
@@ -461,6 +475,24 @@ class AuthorRepository
                 $res->free();
             }
 
+            if ($this->hasColumn('gnd_id')) {
+                $ids = array_merge([$primaryId], $duplicateIds);
+                $marks = implode(',', array_fill(0, count($ids), '?'));
+                $gndStmt = $this->db->prepare("SELECT DISTINCT gnd_id FROM autori WHERE id IN ($marks) AND gnd_id IS NOT NULL FOR UPDATE");
+                $gndStmt->bind_param(str_repeat('i', count($ids)), ...$ids);
+                $gndStmt->execute();
+                $gnds = $gndStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $gndStmt->close();
+                if (count($gnds) > 1) { throw new \RuntimeException('Cannot merge different GND identities'); }
+                if ($gnds !== []) {
+                    $gnd = $gnds[0]['gnd_id'];
+                    $gndStmt = $this->db->prepare("UPDATE autori SET gnd_id=NULL WHERE id IN ($marks)");
+                    $gndStmt->bind_param(str_repeat('i', count($ids)), ...$ids); $gndStmt->execute(); $gndStmt->close();
+                    $gndStmt = $this->db->prepare('UPDATE autori SET gnd_id=? WHERE id=?');
+                    $gndStmt->bind_param('si', $gnd, $primaryId); $gndStmt->execute(); $gndStmt->close();
+                }
+            }
+
             // Both ship via migrations, so a pre-migration schema may lack them.
             // Gate their repoint/delete on existence so a merge never fails on a
             // missing optional table.
@@ -565,6 +597,8 @@ class AuthorRepository
                     $stmt->close();
                 }
 
+                (new \App\Services\ArticleAuthorService($this->db))->merge((int)$primaryId, (int)$duplicateId);
+
                 // Delete the duplicate author
                 $stmt = $this->db->prepare("DELETE FROM autori WHERE id = ?");
                 if ($stmt === false) {
@@ -592,25 +626,44 @@ class AuthorRepository
         }
     }
 
+    private function hasActiveTransaction(): bool
+    {
+        $result = $this->db->query('SELECT @@autocommit AS ac');
+        if ($result instanceof \mysqli_result && (int)($result->fetch_assoc()['ac'] ?? 1) === 0) { return true; }
+        $probe = 'author_delete_probe_'.bin2hex(random_bytes(6));
+        try {
+            if (!$this->db->query("SAVEPOINT $probe") || !$this->db->query("ROLLBACK TO SAVEPOINT $probe")) { return false; }
+            $this->db->query("RELEASE SAVEPOINT $probe");
+            return true;
+        } catch (\mysqli_sql_exception) { return false; }
+    }
+
     public function delete(int $id): bool
     {
-        // Snapshot the linked books BEFORE removing the junction rows so their
-        // search_index (which embeds this author's name) can be rebuilt after.
-        $affectedBookIds = \App\Support\SearchIndexBuilder::bookIdsForAuthor($this->db, $id);
-
-        // Optionally handle cascade in DB; here, remove links then author
-        $stmt = $this->db->prepare('DELETE FROM libri_autori WHERE autore_id=?');
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $stmt = $this->db->prepare('DELETE FROM autori WHERE id=?');
-        $stmt->bind_param('i', $id);
-        $result = $stmt->execute();
-
-        if ($result) {
+        $ownsTransaction = !$this->hasActiveTransaction();
+        if ($ownsTransaction) { $this->db->begin_transaction(); }
+        $savepoint = 'author_delete_'.bin2hex(random_bytes(6));
+        $this->db->query("SAVEPOINT $savepoint");
+        try {
+            $affectedBookIds = \App\Support\SearchIndexBuilder::bookIdsForAuthor($this->db, $id);
+            (new \App\Services\ArticleAuthorService($this->db))->beforeDelete($id);
+            foreach (['libri_autori', 'autori'] as $table) {
+                $column = $table === 'autori' ? 'id' : 'autore_id';
+                $stmt = $this->db->prepare("DELETE FROM $table WHERE $column=?");
+                try {
+                    $stmt->bind_param('i', $id);
+                    if (!$stmt->execute()) { throw new \RuntimeException('Author deletion failed'); }
+                } finally { $stmt->close(); }
+            }
             \App\Support\SearchIndexBuilder::rebuildMany($this->db, $affectedBookIds);
-            \App\Support\ContentCache::deferBooksChanged();
+            $this->db->query("RELEASE SAVEPOINT $savepoint");
+            if ($ownsTransaction) { $this->db->commit(); }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) { $this->db->rollback(); }
+            else { $this->db->query("ROLLBACK TO SAVEPOINT $savepoint"); $this->db->query("RELEASE SAVEPOINT $savepoint"); }
+            throw $e;
         }
-
-        return $result;
+        \App\Support\ContentCache::deferBooksChanged();
+        return true;
     }
 }

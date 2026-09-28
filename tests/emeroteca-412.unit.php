@@ -12,7 +12,7 @@ use App\Plugins\Emeroteca\Services\ContributionCsv;
 final class Sandbox412Db extends mysqli
 {
     public string $prefix;
-    public array $tables=['emeroteca_testate','emeroteca_annate','emeroteca_fascicoli','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_contributi','plugin_settings','plugins','plugin_hooks'];
+    public array $tables=['emeroteca_testate','emeroteca_annate','emeroteca_fascicoli','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_contributi','emeroteca_contributi_autori','plugin_settings','plugins','plugin_hooks'];
     public function mapped(string $sql): string {
         foreach($this->tables as $name) { $sql=preg_replace('/\b'.preg_quote($name,'/').'\b/',$this->prefix.$name,$sql); }
         // Constraint names are database-global on MariaDB.
@@ -567,6 +567,6 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
     check412($before>0 && (int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n']===$before,'uninstalling the plugin keeps the standalone articles');
     echo "SUCCESS $n behavioural checks\n";
 } finally {
-    foreach(['emeroteca_contributi','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_fascicoli','emeroteca_annate','emeroteca_testate','plugin_hooks','plugin_settings','plugins'] as $t) { $db->query('DROP TABLE IF EXISTS '.$t); }
+    foreach(['emeroteca_contributi_autori','emeroteca_contributi','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_fascicoli','emeroteca_annate','emeroteca_testate','plugin_hooks','plugin_settings','plugins'] as $t) { $db->query('DROP TABLE IF EXISTS '.$t); }
     $db->close();
 }

@@ -12,13 +12,16 @@ use App\Plugins\Emeroteca\Services\ContributionService;
 final class MixedCatalogDb extends mysqli
 {
     public string $prefix;
-    public array $tables = ['plugins', 'libri', 'autori', 'editori', 'generi', 'emeroteca_testate', 'emeroteca_contributi'];
+    public array $tables = ['plugins', 'libri', 'autori', 'editori', 'generi', 'emeroteca_testate', 'emeroteca_contributi', 'emeroteca_contributi_autori'];
     private function mapped(string $sql): string
     {
         foreach ($this->tables as $table) {
-            $sql = preg_replace('/\b' . $table . '\b/', $this->prefix . $table, $sql);
+            if ($table === 'autori') {
+                $sql = preg_replace('/\b(FROM|JOIN|INTO|UPDATE|TABLE(?: IF (?:NOT )?EXISTS)?|REFERENCES|ON)\s+(`?)autori\b/i', '$1 $2'.$this->prefix.'autori', $sql);
+                $sql = str_replace("'autori'", "'".$this->prefix."autori'", $sql);
+            } else { $sql = preg_replace('/\b' . $table . '\b/', $this->prefix . $table, $sql); }
         }
-        return $sql;
+        return str_replace('fk_contributo_autori_record', $this->prefix.'fk_contributo_autori_record', $sql);
     }
     public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
     { return parent::query($this->mapped($query), $result_mode); }
@@ -51,6 +54,7 @@ try {
     foreach ($schemas as $table => $columns) {
         $db->query("CREATE TABLE $table ($columns) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
+    $db->query(ContributionService::authorsDdl());
     $db->query("INSERT INTO plugins VALUES ('emeroteca',1)");
     $db->query("INSERT INTO autori VALUES (1,'Hans Uwe Petersen',NULL),(2,'',NULL)");
     $db->query("INSERT INTO libri(id,titolo,created_at,test_author,editore_id,genere_id) VALUES (1,'Probe 00 Book','2020-01-01','Petersen',NULL,NULL), (2,'Probe 99 Book','2020-01-02',NULL,NULL,NULL)");
@@ -59,6 +63,7 @@ try {
         $db->query("INSERT INTO emeroteca_contributi (reference_key,id,titolo,autori,sottotitolo,contenitore_titolo,anno_pubblicazione,pubblico,created_at) VALUES ('probe-$i',$i,'$title','Petersen, Hans Uwe; Sørensen, Åse Bjørk','subtitle','Arbejderhistorie',1988,1,'2021-01-01')");
     }
     $db->query("INSERT INTO emeroteca_contributi (reference_key,titolo,autori,pubblico) VALUES ('hidden','Probe Hidden','Petersen, Hans Uwe',0),('unrelated','Unrelated','Petersen, Hans Uwe Junior',1)");
+    $db->query("INSERT INTO emeroteca_contributi_autori(contributo_id,ordine_credito,autore_id,nome_credito,ruolo) SELECT id,0,1,'Hans Uwe Petersen','principale' FROM emeroteca_contributi WHERE id BETWEEN 1 AND 15");
     $service = new UnifiedCatalogService($db);
     $from = 'FROM libri l WHERE l.titolo LIKE ?';
     $authors = 'l.test_author autore, l.test_author autore_principale_nome, l.test_author autore_cognome';
@@ -76,7 +81,7 @@ try {
     check($page(['search'=>'Probe','sort'=>'author_desc'],12)['rows'][4]['id']===2, 'missing author sorts last');
     check($page(['search'=>'Hans Uwe Petersen'])['articles']===16, 'natural-order general author query');
     check($page(['autore'=>'Petersen, Hans Uwe'])['articles']===15, 'author filter matches whole semicolon-delimited credit, not Junior');
-    check($page(['autore_id'=>1])['articles']===15, 'authority ID resolves the inverted article credit');
+    check($page(['autore_id'=>1])['articles']===15, 'shared author identity finds confirmed article credits');
     check($page(['autore_id'=>987654])===null, 'nonexistent authority finds no articles');
     check($page(['autore_id'=>2])===null, 'empty authority name cannot match all articles');
     check($page(['search'=>'Probe 01 Article : subtitle'])['articles']===1, 'complete title and subtitle query');

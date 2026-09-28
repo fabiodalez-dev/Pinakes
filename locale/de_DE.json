@@ -7886,5 +7886,19 @@
   "Cita questo articolo": "Diesen Aufsatz zitieren",
   "Copiato": "Kopiert",
   "Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)": "Zitat im RIS-Format herunterladen (EndNote, Mendeley, Zotero)",
-  "Opere di %s": "Werke von %s"
+  "Opere di %s": "Werke von %s",
+    "Aggiungi autore": "Autor hinzufügen",
+    "Autore collegato": "Verknüpfter Autor",
+    "Autore già selezionato.": "Autor bereits ausgewählt.",
+    "Autori dell’anagrafica": "Autoren aus dem gemeinsamen Verzeichnis",
+    "Coautore": "Mitautor",
+    "Collega ogni nome a una persona dell’anagrafica comune a libri e articoli. Verifica gli omonimi prima di selezionare; puoi anche creare un nuovo autore o lasciare il credito senza collegamento.": "Verknüpfen Sie jeden Namen mit einer Person im gemeinsamen Verzeichnis für Bücher und Artikel. Prüfen Sie Namensgleiche vor der Auswahl; Sie können auch einen neuen Autor anlegen oder die Angabe unverknüpft lassen.",
+    "Crea nuovo autore": "Neuen Autor anlegen",
+    "Credito senza collegamento": "Unverknüpfte Autorenangabe",
+    "Identificativo GND confermato per questa persona, oppure URL d-nb.info/gnd. Facoltativo.": "Bestätigte GND-Kennung dieser Person oder URL von d-nb.info/gnd. Optional.",
+    "Identificativo GND non valido.": "Ungültige GND-Kennung.",
+    "Il nome è obbligatorio.": "Der Name ist erforderlich.",
+    "Nuovo autore da creare al salvataggio": "Neuer Autor wird beim Speichern angelegt",
+    "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Aktivieren Sie JavaScript, um Autoren zu verknüpfen. Textangaben bleiben verfügbar.",
+    "Ricerca non disponibile. Riprova.": "Suche nicht verfügbar. Bitte erneut versuchen."
 }

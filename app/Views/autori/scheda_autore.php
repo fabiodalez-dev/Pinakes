@@ -308,3 +308,12 @@ $btnDanger  = 'btn-danger inline-flex items-center gap-2';
     </div>
   </div>
 </section>
+
+<?php if (!empty($articoli)): ?>
+<section class="max-w-7xl mx-auto px-4 py-6">
+  <h2 class="text-xl font-semibold mb-4"><?= __('Articoli') ?></h2>
+  <ul class="space-y-2"><?php foreach ($articoli as $articolo): ?>
+    <li><a class="underline" href="<?= HtmlHelper::e(url('/admin/periodicals/articles/'.(int)$articolo['id'])) ?>"><?= HtmlHelper::e($articolo['titolo']) ?></a> · <?= $articolo['pubblico'] ? __('Pubblico') : __('Privato') ?></li>
+  <?php endforeach; ?></ul>
+</section>
+<?php endif; ?>

@@ -67,13 +67,17 @@ final class UnifiedCatalogService
         $articleTotal = (int)$this->rows('SELECT COUNT(*) n' . $articleFrom, $types, $params)[0]['n'];
         if ($articleTotal === 0) { return null; }
         $bookSelect = "SELECT l.id, l.titolo, l.created_at, l.anno_pubblicazione, $authorSelect $bookFrom";
+        $articleAuthor = 'c.autori';
+        if ((new ArticleAuthorService($this->db))->available()) {
+            $articleAuthor = "COALESCE((SELECT CASE WHEN ca.autore_id IS NULL THEN ca.nome_credito ELSE COALESCE(NULLIF(a.pseudonimo,''),a.nome) END FROM emeroteca_contributi_autori ca LEFT JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id ORDER BY ca.ordine_credito LIMIT 1),c.autori)";
+        }
         $union = "SELECT id, 'book' AS kind, titolo COLLATE utf8mb4_unicode_ci AS title_sort,
                          created_at, anno_pubblicazione AS publication_sort, autore_cognome COLLATE utf8mb4_unicode_ci AS author_sort FROM ($bookSelect) books
                   UNION ALL
                   SELECT c.id, 'article', c.titolo COLLATE utf8mb4_unicode_ci, c.created_at, c.anno_pubblicazione,
-                         NULLIF(TRIM(CASE WHEN SUBSTRING_INDEX(c.autori, ';', 1) LIKE '%,%'
-                           THEN SUBSTRING_INDEX(SUBSTRING_INDEX(c.autori, ';', 1), ',', 1)
-                           ELSE SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(c.autori, ';', 1)), ' ', -1) END), '') COLLATE utf8mb4_unicode_ci
+                         NULLIF(TRIM(CASE WHEN SUBSTRING_INDEX($articleAuthor, ';', 1) LIKE '%,%'
+                           THEN SUBSTRING_INDEX(SUBSTRING_INDEX($articleAuthor, ';', 1), ',', 1)
+                           ELSE SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX($articleAuthor, ';', 1)), ' ', -1) END), '') COLLATE utf8mb4_unicode_ci
                   $articleFrom";
         $order = match ($filters['sort'] ?? 'newest') {
             'oldest' => 'created_at ASC',
@@ -94,7 +98,9 @@ final class UnifiedCatalogService
             $sql = $kind === 'book'
                 ? "SELECT l.*, $authorSelect, e.nome editore, g.nome genere FROM libri l LEFT JOIN editori e ON e.id=l.editore_id LEFT JOIN generi g ON g.id=l.genere_id WHERE l.deleted_at IS NULL AND l.id IN ($marks)"
                 : "SELECT c.*, c.autori autore, COALESCE(NULLIF(c.copertina_url,''),t.logo_url) copertina_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE c.pubblico=1 AND c.id IN ($marks)";
-            foreach ($this->rows($sql, str_repeat('i', count($ids)), $ids) as $row) {
+            $pageRows = $this->rows($sql, str_repeat('i', count($ids)), $ids);
+            if ($kind === 'article') { $pageRows = (new ArticleAuthorService($this->db))->hydrate($pageRows); }
+            foreach ($pageRows as $row) {
                 $row['_record_kind'] = $kind;
                 $records[$kind . ':' . $row['id']] = $row;
             }
@@ -126,6 +132,7 @@ final class UnifiedCatalogService
         foreach (['genere_id', 'editore', 'disponibilita', 'tipo_media'] as $facet) {
             if (!empty($filters[$facet])) { return null; }
         }
+        $linkedAuthors = (new ArticleAuthorService($this->db))->available();
         $where = ['c.pubblico = 1'];
         $params = [];
         $term = trim((string) ($filters['search'] ?? ''));
@@ -134,8 +141,14 @@ final class UnifiedCatalogService
             // inverted personal name must not prevent a natural-order search.
             $words = preg_split('/[^\p{L}\p{N}_%]+/u', mb_substr($term, 0, 200), -1, PREG_SPLIT_NO_EMPTY) ?: [];
             foreach (array_slice($words, 0, 20) as $word) {
-                $where[] = "CONCAT_WS(' ', c.titolo, c.sottotitolo, c.autori, c.contenitore_titolo, c.keywords, c.abstract, c.issn) LIKE ? ESCAPE '='";
-                $params[] = '%' . strtr($word, ['=' => '==', '%' => '=%', '_' => '=_']) . '%';
+                $textMatch = "CONCAT_WS(' ', c.titolo, c.sottotitolo, c.autori, c.contenitore_titolo, c.keywords, c.abstract, c.issn) LIKE ? ESCAPE '='";
+                $pattern = '%' . strtr($word, ['=' => '==', '%' => '=%', '_' => '=_']) . '%';
+                $params[] = $pattern;
+                if ($linkedAuthors) {
+                    $textMatch = "($textMatch OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND CONCAT_WS(' ',a.nome,a.pseudonimo) LIKE ? ESCAPE '='))";
+                    $params[] = $pattern;
+                }
+                $where[] = $textMatch;
             }
         }
         foreach (['anno_min' => '>=', 'anno_max' => '<='] as $key => $operator) {
@@ -145,7 +158,10 @@ final class UnifiedCatalogService
             }
         }
         $names = [];
-        if (!empty($filters['autore_id'])) {
+        if (!empty($filters['autore_id']) && $linkedAuthors) {
+            $where[] = 'EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca WHERE ca.contributo_id=c.id AND ca.autore_id=?)';
+            $params[] = (string)$filters['autore_id'];
+        } elseif (!empty($filters['autore_id'])) {
             $authors = $this->rows('SELECT nome, pseudonimo FROM autori WHERE id=?', 'i', [(int)$filters['autore_id']]);
             if ($authors === []) { $where[] = '1=0'; }
             else {
@@ -156,12 +172,33 @@ final class UnifiedCatalogService
             $names = [(string)$filters['autore']];
         }
         if ($names !== []) {
-            $where[] = 'c.autori REGEXP ?';
-            $params[] = self::authorPattern($names);
+            $pattern = self::authorPattern($names);
+            $match = 'c.autori REGEXP ?';
+            $params[] = $pattern;
+            if ($linkedAuthors) {
+                $match = "($match OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome REGEXP ? OR a.pseudonimo REGEXP ?)))";
+                array_push($params, $pattern, $pattern);
+            }
+            $where[] = $match;
         }
         $articleFrom = ' FROM emeroteca_contributi c WHERE ' . implode(' AND ', $where);
         $types = str_repeat('s', count($params));
         return [$articleFrom, $types, $params];
+    }
+
+    /** Confirmed article authors for the shared catalogue's remove-self facet.
+     * @param array<string,mixed> $filters @return list<array<string,mixed>>
+     */
+    public function authorFacets(array $filters): array
+    {
+        if (!(new ArticleAuthorService($this->db))->available()) { return []; }
+        $filters['autore_id'] = 0;
+        $query = $this->articleQuery($filters);
+        if ($query === null) { return []; }
+        [$from, $types, $params] = $query;
+        $from = str_replace(' FROM emeroteca_contributi c WHERE ', ' FROM emeroteca_contributi c JOIN emeroteca_contributi_autori credited ON credited.contributo_id=c.id JOIN autori identity_author ON identity_author.id=credited.autore_id WHERE ', $from);
+        $display = \App\Support\AuthorName::displaySql('identity_author');
+        return $this->rows("SELECT identity_author.id, $display nome, COUNT(DISTINCT c.id) cnt $from GROUP BY identity_author.id,identity_author.nome,identity_author.pseudonimo ORDER BY nome LIMIT 100", $types, $params);
     }
 
     /** @param list<mixed> $params @return list<array<string,mixed>> */

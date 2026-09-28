@@ -296,7 +296,7 @@ final class ContributionCsv
         $count = 0;
         $cursor = 0;
         do {
-            $rows = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]);
+            $rows = $this->service->hydrateAuthors($this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]));
             foreach ($rows as $row) {
                 $line = $encode([self::recordTypeFor((string)($row['contenitore_tipo'] ?? '')), ...array_map(static fn($key) => self::encodeCell($row[$key] ?? ''), ContributionService::CSV_FIELDS)]);
                 if ($count >= self::MAX_ROWS || strlen($part) + strlen($line) > self::MAX_BYTES) {

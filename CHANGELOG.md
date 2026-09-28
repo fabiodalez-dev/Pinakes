@@ -5,6 +5,7 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 ## [Unreleased]
 
 ### Added
+- **Shared article author identities (#412):** books and articles can reference the same author record. The article editor selects people by name and dates, supports explicit creation and preserves legacy unlinked credits. Names, pseudonyms, merges and deletion remain consistent across corpora. Core migration 0.7.88 adds a shared GND identifier; article MARCXML includes confirmed authority URIs in 100/700 `$0`.
 - **Emeroteca #412:** “Add article” is available beside “New book” in book management. Article records offer MARCXML downloads with analytic Leader/07, author/title fields, extent (300), and host entry (773), including the existing masthead control number when linked. Public exports exclude unpublished records and private metadata.
 
 ### Fixed

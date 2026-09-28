@@ -1981,6 +1981,29 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $options['autori'] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     }
 
+    // Article-only authors belong to the same named facet as book authors.
+    try {
+        $articleAuthors = (new \App\Services\UnifiedCatalogService($db))->authorFacets($filters);
+        $byAuthor = [];
+        foreach (array_merge($options['autori'], $articleAuthors) as $authorOption) {
+            $id = (int)$authorOption['id'];
+            if (isset($byAuthor[$id])) { $byAuthor[$id]['cnt'] = (int)$byAuthor[$id]['cnt'] + (int)$authorOption['cnt']; }
+            else { $byAuthor[$id] = $authorOption; }
+        }
+        $options['autori'] = array_values($byAuthor);
+        usort($options['autori'], static fn($a, $b) => strcasecmp($a['nome'], $b['nome']));
+        $options['autori'] = array_slice($options['autori'], 0, 100);
+    } catch (\Throwable $e) {
+        \App\Support\SecureLogger::error('Article author facet unavailable: '.$e->getMessage());
+    }
+    $selectedAuthor = (int)($filters['autore_id'] ?? 0);
+    if ($selectedAuthor > 0 && !in_array($selectedAuthor, array_map(static fn($a) => (int)$a['id'], $options['autori']), true)) {
+        $stmt = $db->prepare('SELECT id, '.\App\Support\AuthorName::displaySql('a')." nome, 0 cnt FROM autori a WHERE id=?");
+        $stmt->bind_param('i', $selectedAuthor); $stmt->execute();
+        $selected = $stmt->get_result()->fetch_assoc(); $stmt->close();
+        if ($selected) { $options['autori'][] = $selected; }
+    }
+
     // ---------- Tipo media (remove-self + per-type counts, only types present) ----------
     $options['media_types'] = [];
     if ($this->hasLibriColumn($db, 'tipo_media')) {

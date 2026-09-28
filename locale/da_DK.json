@@ -7886,5 +7886,19 @@
   "Cita questo articolo": "Citér denne artikel",
   "Copiato": "Kopieret",
   "Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)": "Hent citationen i RIS-format (EndNote, Mendeley, Zotero)",
-  "Opere di %s": "Værker af %s"
+  "Opere di %s": "Værker af %s",
+    "Aggiungi autore": "Tilføj forfatter",
+    "Autore collegato": "Tilknyttet forfatter",
+    "Autore già selezionato.": "Forfatteren er allerede valgt.",
+    "Autori dell’anagrafica": "Forfattere fra det fælles register",
+    "Coautore": "Medforfatter",
+    "Collega ogni nome a una persona dell’anagrafica comune a libri e articoli. Verifica gli omonimi prima di selezionare; puoi anche creare un nuovo autore o lasciare il credito senza collegamento.": "Knyt hvert navn til en person i det fælles register for bøger og artikler. Kontrollér personer med samme navn før valg; du kan også oprette en ny forfatter eller lade krediteringen stå uden tilknytning.",
+    "Crea nuovo autore": "Opret ny forfatter",
+    "Credito senza collegamento": "Kreditering uden tilknytning",
+    "Identificativo GND confermato per questa persona, oppure URL d-nb.info/gnd. Facoltativo.": "Bekræftet GND-identifikator for denne person eller d-nb.info/gnd-URL. Valgfrit.",
+    "Identificativo GND non valido.": "Ugyldig GND-identifikator.",
+    "Il nome è obbligatorio.": "Navnet er påkrævet.",
+    "Nuovo autore da creare al salvataggio": "Ny forfatter oprettes ved gemning",
+    "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Aktivér JavaScript for at tilknytte forfattere. Tekstkrediteringer er stadig tilgængelige.",
+    "Ricerca non disponibile. Riprova.": "Søgning er ikke tilgængelig. Prøv igen."
 }

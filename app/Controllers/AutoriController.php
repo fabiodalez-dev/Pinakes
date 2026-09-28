@@ -40,6 +40,17 @@ class AutoriController
         }
 
         $libri = $authorRepo->getBooksByAuthorId($id);
+        $articoli = [];
+        $articleAuthors = new \App\Services\ArticleAuthorService($db);
+        try {
+            if ($articleAuthors->available() && \App\Support\PeriodicalArticlesHint::state($db) === \App\Support\PeriodicalArticlesHint::ACTIVE) {
+                $stmt = $db->prepare('SELECT c.id,c.titolo,c.pubblico FROM emeroteca_contributi c JOIN emeroteca_contributi_autori ca ON ca.contributo_id=c.id WHERE ca.autore_id=? ORDER BY c.anno_pubblicazione DESC,c.titolo LIMIT 100');
+                $stmt->bind_param('i', $id); $stmt->execute();
+                $articoli = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Author article list unavailable: '.$e->getMessage());
+        }
 
         ob_start();
         $data = ['autore' => $autore, 'libri' => $libri];
@@ -106,6 +117,7 @@ class AutoriController
                 'sito_web' => $sitoWeb,
                 'foto' => $photo['foto'],
                 'collegamenti' => $collegamenti,
+                'gnd_id' => $data['gnd_id'] ?? null,
             ]);
         } catch (\Throwable $e) {
             // Persistence failed → roll back the just-written upload so no orphan file is left.
@@ -188,6 +200,7 @@ class AutoriController
                 'sito_web' => $sitoWeb,
                 'foto' => $photo['foto'],
                 'collegamenti' => $collegamenti,
+                'gnd_id' => $data['gnd_id'] ?? null,
             ]);
         } catch (\Throwable $e) {
             // Persistence failed → roll back the just-written upload, keep the old photo intact.

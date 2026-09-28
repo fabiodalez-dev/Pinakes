@@ -38,7 +38,7 @@ final class SandboxAnalyticDb extends mysqli
 {
     public string $prefix = '';
     /** @var list<string> */
-    public array $tables = ['emeroteca_testate','emeroteca_annate','emeroteca_fascicoli','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_contributi','plugin_settings','plugins','plugin_hooks'];
+    public array $tables = ['emeroteca_testate','emeroteca_annate','emeroteca_fascicoli','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_contributi','emeroteca_contributi_autori','plugin_settings','plugins','plugin_hooks'];
 
     public function mapped(string $sql): string
     {

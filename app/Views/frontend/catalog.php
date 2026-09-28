@@ -2064,7 +2064,7 @@ function updateActiveFiltersDisplay() {
         } else if (filterKey === 'genere_id') {
             displayValue = currentGenreName || value;
         } else if (filterKey === 'autore_id') {
-            displayValue = autoreSelectedLabel() || value;
+            displayValue = autoreSelectedLabel() || i18n.autore;
         } else if (filterKey === 'tipo_media') {
             displayValue = mediaSelectedLabel() || value;
         } else if (filterKey === 'editore') {
@@ -2386,7 +2386,7 @@ function autoreSelectedLabel() {
         return '';
     }
     const found = (autoriData || []).find((au) => parseInt(au.id, 10) === id);
-    return found ? String(found.nome) : String(currentFilters.autore_id);
+    return found ? String(found.nome) : i18n.autore;
 }
 
 function mediaSelectedLabel() {

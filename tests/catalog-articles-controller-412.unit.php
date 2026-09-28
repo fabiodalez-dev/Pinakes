@@ -13,7 +13,7 @@ final class ArticleControllerDb extends mysqli
     public bool $throwOnFailure = false;
     private function mapped(string $sql): string
     {
-        return (string)preg_replace('/\b(emeroteca_contributi|emeroteca_testate)\b/', $this->prefix . '$1', $sql);
+        return str_replace('fk_contributo_autori_record', $this->prefix.'fk_contributo_autori_record', (string)preg_replace('/\b(emeroteca_contributi_autori|emeroteca_contributi|emeroteca_testate)\b/', $this->prefix . '$1', $sql));
     }
     public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
     { return parent::query($this->mapped($query), $result_mode); }
@@ -48,6 +48,7 @@ $check = static function(bool $ok,string $label) use (&$checks): void {
 try {
     $db->query("CREATE TABLE emeroteca_contributi ($definitions) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $db->query("CREATE TABLE emeroteca_testate (id INT PRIMARY KEY, logo_url VARCHAR(500)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->query(\App\Plugins\Emeroteca\Services\ContributionService::authorsDdl());
     $db->begin_transaction();
     // The catalogue/plugin state is restored by rollback, even on failure.
     $db->query("UPDATE plugins SET is_active=1 WHERE name='emeroteca'");
@@ -58,6 +59,7 @@ try {
     $db->query("INSERT INTO libri(titolo,copie_totali,copie_disponibili) VALUES ('Mixed book $suffix',1,1)"); $bookId=(int)$db->insert_id;
     $db->query("INSERT INTO libri_autori(libro_id,autore_id,ruolo) VALUES ($bookId,$authorId,'principale')");
     $db->query("INSERT INTO emeroteca_contributi(reference_key,titolo,autori,pubblico) VALUES ('$suffix','Mixed article $suffix','$credit',1)"); $articleId=(int)$db->insert_id;
+    $db->query("INSERT INTO emeroteca_contributi_autori(contributo_id,ordine_credito,autore_id,nome_credito,ruolo) VALUES ($articleId,0,$authorId,'$name','principale')");
     foreach ([['autore'=>$credit],['autore'=>$name],['autore_id'=>$authorId]] as $filter) {
         $data=$call($filter);
         $check($data['pagination']['total_books']===2, 'same author finds book and article: '.json_encode($filter));
@@ -65,6 +67,17 @@ try {
         $check($data['filter_options']['availability_stats']['total']===2, 'all facet counts both corpora');
         $check(str_contains($data['html'],"/emeroteca/articolo/$articleId") && str_contains($data['html'],"Mixed book $suffix"), 'both real record links are rendered');
     }
+    $options=$call(['autore_id'=>$authorId])['filter_options']['autori'];
+    $samePerson=array_values(array_filter($options,static fn($a)=>(int)$a['id']===$authorId));
+    $check(count($samePerson)===1 && (int)$samePerson[0]['cnt']===2 && $samePerson[0]['nome']===$name,'author facet combines both corpora under the person name');
+    $db->query("DELETE FROM libri_autori WHERE libro_id=$bookId");
+    $articleOnly=$call(['autore_id'=>$authorId]);
+    $options=array_values(array_filter($articleOnly['filter_options']['autori'],static fn($a)=>(int)$a['id']===$authorId));
+    $check(count($options)===1 && $options[0]['nome']===$name && (int)$options[0]['cnt']===1,'article-only person remains named in the shared facet');
+    $searched=$call(['search'=>$name]);
+    $options=array_values(array_filter($searched['filter_options']['autori'],static fn($a)=>(int)$a['id']===$authorId));
+    $check(count($options)===1 && (int)$options[0]['cnt']===1,'name search keeps the article author facet accurate');
+    $db->query("INSERT INTO libri_autori(libro_id,autore_id,ruolo) VALUES ($bookId,$authorId,'principale')");
     $db->query("UPDATE libri SET anno_pubblicazione=2020 WHERE id=$bookId");
     $db->query("UPDATE emeroteca_contributi SET anno_pubblicazione=1988 WHERE id=$articleId");
     $request=(new ServerRequestFactory())->createServerRequest('GET','/autore/'.$authorId);
@@ -102,6 +115,7 @@ try {
     echo "SUCCESS $checks controller checks\n";
 } finally {
     $db->rollback();
+    $db->query('DROP TABLE IF EXISTS emeroteca_contributi_autori');
     $db->query('DROP TABLE IF EXISTS emeroteca_contributi');
     $db->query('DROP TABLE IF EXISTS emeroteca_testate');
     $db->close();

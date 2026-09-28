@@ -6,8 +6,8 @@
  * Each row carries its image — its own, else the masthead's, else the
  * catalogue's placeholder, resolved by ContributionService::coverUrl() so this
  * block and the article page cannot disagree — and
- * the links that make the list navigable. Authors open the shared catalogue
- * filter; publication and keywords narrow the article search. Citation names
+ * the links that make the list navigable. Confirmed authors open the shared author archive; unlinked names open a
+ * catalogue filter; publication and keywords narrow the article search. Citation names
  * remain free text and are never automatically merged into authority records.
  *
  * @var array{rows: array<int, array<string, mixed>>} $articleResults
@@ -39,7 +39,7 @@ $articleKeep=static fn(mixed $value):bool=>trim((string)$value)!=='';
          the title; hiding it in the list makes two different articles look
          like the same one. */ ?>
 <?php if(($a['sottotitolo']??'')!==''): ?><span class="text-sm text-gray-600"> : <?= $ae($a['sottotitolo']) ?></span><?php endif; ?>
-<?php if(($a['autori']??'')!==''): $rowAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorList((string)$a['autori']); ?><p><?php if($rowAuthors): foreach($rowAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $ae($articleFilterUrl('autore',$an)) ?>"><?= $ae($an) ?></a><?php endforeach; else: ?><?= $ae($a['autori']) ?><?php endif; ?></p><?php endif; ?>
+<?php if(($a['autori']??'')!==''): $rowAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorLinks($a); ?><p><?php if($rowAuthors): foreach($rowAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $ae(($an['id'] !== null ? route_path('author').'/'.$an['id'] : $articleFilterUrl('autore',$an['name']))) ?>"><?= $ae($an['name']) ?></a><?php endforeach; else: ?><?= $ae($a['autori']) ?><?php endif; ?></p><?php endif; ?>
 <p class="text-sm"><?php if(($a['contenitore_titolo']??'')!==''): ?><a class="underline" href="<?= $ae($articleFilterUrl('pubblicazione',(string)$a['contenitore_titolo'])) ?>"><?= $ae($a['contenitore_titolo']) ?></a><?php $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); if($rest): ?> · <?php endif; ?><?php else: $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); endif; ?><?= $ae(implode(' · ',$rest)) ?></p>
 </div></div></li><?php endforeach; ?></ul>
 <a class="inline-block underline mt-5" href="<?= $ae(url('/emeroteca/articoli').'?'.http_build_query(['q'=>$q??'','testata'=>$testata['id']??0])) ?>"><?= __('Cerca tutti gli articoli') ?></a></section>

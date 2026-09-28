@@ -122,6 +122,23 @@ final class ContributionService
 SQL;
     }
 
+    public static function authorsDdl(): string
+    {
+        return <<<'SQL'
+CREATE TABLE IF NOT EXISTS emeroteca_contributi_autori (
+ contributo_id INT NOT NULL,
+ ordine_credito SMALLINT UNSIGNED NOT NULL,
+ autore_id INT NULL,
+ nome_credito VARCHAR(255) NOT NULL,
+ ruolo VARCHAR(20) NOT NULL DEFAULT 'co-autore',
+ PRIMARY KEY (contributo_id, ordine_credito),
+ UNIQUE KEY uq_contributo_autore (contributo_id, autore_id),
+ KEY idx_contributo_autore (autore_id, contributo_id),
+ CONSTRAINT fk_contributo_autori_record FOREIGN KEY (contributo_id) REFERENCES emeroteca_contributi(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL;
+    }
+
     /** @return list<array<string,mixed>> */
     public function rows(string $sql, array $params = []): array
     {
@@ -147,6 +164,12 @@ SQL;
         return $rows;
     }
 
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    public function hydrateAuthors(array $rows): array
+    {
+        return (new \App\Services\ArticleAuthorService($this->db))->hydrate($rows);
+    }
+
     /**
      * Fetch one contribution by id, or null if it doesn't exist. With $publicOnly, also
      * requires pubblico=1 — used by every public-facing lookup so an unpublished article is
@@ -158,12 +181,13 @@ SQL;
         // rather than one per caller. LEFT JOIN: testata_id is nullable — a
         // standalone article need not belong to a masthead at all — and an
         // inner join would make those articles vanish from their own page.
-        return $this->rows(
+        $rows = $this->rows(
             'SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c'
             . ' LEFT JOIN emeroteca_testate t ON t.id = c.testata_id'
             . ' WHERE c.id = ?' . ($publicOnly ? ' AND c.pubblico = 1' : ''),
             [$id]
-        )[0] ?? null;
+        );
+        return $this->hydrateAuthors($rows)[0] ?? null;
     }
 
     /** The plugin's workflow mode ('simple' or 'complete'), defaulting to 'complete' when unset. */
@@ -297,42 +321,74 @@ SQL;
      */
     public function save(array $data, int $id = 0, ?int $revision = null, array $files = []): int
     {
-        $values = self::normalize($data);
-        foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
-            if (array_key_exists($field, $files)) {
-                $values[$field] = $files[$field];
+        $authors = new \App\Services\ArticleAuthorService($this->db);
+        $ownsTransaction = !$this->hasActiveTransaction();
+        $savepoint = 'article_save_' . bin2hex(random_bytes(6));
+        if ($ownsTransaction) { $this->db->begin_transaction(); }
+        $this->db->query("SAVEPOINT $savepoint");
+        try {
+            $credits = null;
+            if (array_key_exists('credits_present', $data)) {
+                if (!$authors->available()) { throw new \RuntimeException('Article author schema unavailable'); }
+                $credits = $authors->resolve($data['credits'] ?? []);
+                $data['autori'] = implode('; ', array_column($credits, 'nome_credito'));
+            } elseif ($id > 0 && $authors->available()) {
+                $current = $this->get($id);
+                if (trim((string)($data['autori'] ?? '')) !== trim((string)($current['autori'] ?? ''))) {
+                    // An import that replaces the credit string cannot silently keep old identities.
+                    $credits = [];
+                }
             }
+            $values = self::normalize($data);
+            foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
+                if (array_key_exists($field, $files)) {
+                    $values[$field] = $files[$field];
+                }
+            }
+            if ($id > 0) {
+                if ($revision === null) {
+                    throw new \InvalidArgumentException(__('Ricarica la scheda prima di salvare.'));
+                }
+                $sets = implode(',', array_map(static fn ($key) => "$key = ?", array_keys($values)));
+                $this->rows("UPDATE emeroteca_contributi SET $sets, revision=revision+1 WHERE id=? AND revision=?", [...array_values($values),$id,$revision]);
+                if ($this->affectedRows !== 1) {
+                    throw new \InvalidArgumentException(__('La scheda è stata modificata. Ricarica prima di salvare.'));
+                }
+            } else {
+                $key = $data['reference_key'] ?? bin2hex(random_bytes(16));
+                if (!is_string($key) || !preg_match(self::REFERENCE_KEY_PATTERN, $key)) {
+                    throw new \InvalidArgumentException(__('Identificatore non valido.'));
+                }
+                $values['reference_key'] = $key;
+                $columns = implode(',', array_keys($values));
+                $marks = implode(',', array_fill(0, count($values), '?'));
+                $this->rows("INSERT INTO emeroteca_contributi ($columns) VALUES ($marks)", array_values($values));
+                $id = (int)$this->db->insert_id;
+            }
+            if ($credits !== null) { $authors->replace($id, $credits); }
+            $this->db->query("RELEASE SAVEPOINT $savepoint");
+            if ($ownsTransaction) { $this->db->commit(); }
+            return $id;
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) { $this->db->rollback(); }
+            else {
+                $this->db->query("ROLLBACK TO SAVEPOINT $savepoint");
+                $this->db->query("RELEASE SAVEPOINT $savepoint");
+            }
+            throw $e;
         }
-        if ($id > 0) {
-            if ($revision === null) {
-                throw new \InvalidArgumentException(__('Ricarica la scheda prima di salvare.'));
-            }
-            $sets = implode(',', array_map(static fn ($key) => "$key = ?", array_keys($values)));
-            $this->rows("UPDATE emeroteca_contributi SET $sets, revision=revision+1 WHERE id=? AND revision=?", [...array_values($values),$id,$revision]);
-            if ($this->affectedRows !== 1) {
-                throw new \InvalidArgumentException(__('La scheda è stata modificata. Ricarica prima di salvare.'));
-            }
-        } else {
-            $key = $data['reference_key'] ?? bin2hex(random_bytes(16));
-            if (!is_string($key) || !preg_match(self::REFERENCE_KEY_PATTERN, $key)) {
-                throw new \InvalidArgumentException(__('Identificatore non valido.'));
-            }
-            $values['reference_key'] = $key;
-            $columns = implode(',', array_keys($values));
-            $marks = implode(',', array_fill(0, count($values), '?'));
-            $this->rows("INSERT INTO emeroteca_contributi ($columns) VALUES ($marks)", array_values($values));
-            $id = (int)$this->db->insert_id;
-        }
-        return $id;
     }
 
-    /**
-     * The filters the public article search accepts besides the free term:
-     * column => query-string parameter. They exist because on a standalone
-     * article the author, the container and the keywords are free text, not
-     * rows in the core registries, so "everything else by this author" can
-     * only be a filtered search — there is no author page to link to.
-     */
+    /** @param array<string,mixed> $row @return list<array{name:string,id:?int}> */
+    public static function authorLinks(array $row): array
+    {
+        if (!empty($row['author_credits'])) {
+            return array_map(static fn($credit) => ['name'=>(string)$credit['nome_credito'], 'id'=>$credit['autore_id']], $row['author_credits']);
+        }
+        return array_map(static fn($name) => ['name'=>$name, 'id'=>null], self::authorList($row['autori'] ?? null));
+    }
+
+    /** Public search filters: linked names and legacy credits share author filtering. */
     public const FILTER_FIELDS = ['autori' => 'autore', 'contenitore_titolo' => 'pubblicazione', 'keywords' => 'keyword'];
 
     /**
@@ -377,6 +433,8 @@ SQL;
     public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1, array $filters = []): array
     {
         $where = ['1=1'];
+        $linkedAuthors = (new \App\Services\ArticleAuthorService($this->db))->available();
+        $authorMatch = "EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))";
         $params = [];
         if ($public) {
             $where[] = 'c.pubblico=1';
@@ -393,13 +451,17 @@ SQL;
             // Substring, not equality: keywords arrive as one comma-separated
             // string, and an author field holding two names must still answer
             // for each of them.
-            $where[] = "c.$column LIKE ? ESCAPE '='";
-            $params[] = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
+            $where[] = $column === 'autori' && $linkedAuthors ? "(c.$column LIKE ? ESCAPE '=' OR $authorMatch)" : "c.$column LIKE ? ESCAPE '='";
+            $pattern = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
+            $params[] = $pattern;
+            if ($column === 'autori' && $linkedAuthors) { array_push($params, $pattern, $pattern); }
         }
         if ($term !== '') {
-            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.sottotitolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
+            $extraAuthors = $linkedAuthors ? " OR $authorMatch" : '';
+            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.sottotitolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?$extraAuthors)";
             $pattern = '%' . strtr(mb_substr($term, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
             array_push($params, $pattern, $pattern, $pattern, $pattern, $pattern, $term);
+            if ($linkedAuthors) { array_push($params, $pattern, $pattern); }
         }
         $sql = implode(' AND ', $where);
         $total = (int)$this->rows("SELECT COUNT(*) n FROM emeroteca_contributi c WHERE $sql", $params)[0]['n'];
@@ -407,6 +469,7 @@ SQL;
         $page = min($pages, max(1, $page));
         $offset = ($page - 1) * 50;
         $rows = $this->rows("SELECT c.*,t.titolo testata_titolo,t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
+        $rows = $this->hydrateAuthors($rows);
         return compact('rows', 'total', 'page', 'pages');
     }
 

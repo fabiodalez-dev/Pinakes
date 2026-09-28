@@ -2,11 +2,9 @@
 /**
  * Public page of a standalone article.
  *
- * Authors link to the shared catalogue; publication and keywords narrow the article search. They are deliberately NOT links to the core author
- * or publisher pages: on a standalone article these are free-text fields, and
- * the library may hold a single article by someone who has no author record —
- * inventing one would put a person in the catalogue's registry on the strength
- * of a citation string.
+ * Confirmed author links open the common author archive. Unlinked legacy names
+ * open a name search; publication and keywords narrow the article search.
+ * Free-text credits never create authority records automatically.
  *
  * @var array<string, mixed> $article
  */
@@ -17,8 +15,8 @@ $articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' 
 // controller having loaded them: require the service before reading it.
 require_once __DIR__.'/../../Services/ContributionService.php';
 require_once __DIR__.'/../../Support/CitationFormatter.php';
-/** Free-text author credit: semicolon-separated by convention, one link each. */
-$articleAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorList(isset($article['autori'])?(string)$article['autori']:null);
+/** Shared identities or unlinked credit names, one link each. */
+$articleAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorLinks($article);
 /** Free-text keyword list: comma-separated by convention, one link each. */
 $articleKeywords=array_values(array_filter(array_map('trim', explode(',', (string)($article['keywords']??''))), static fn(string $k):bool=>$k!==''));
 /** Own image, else the masthead's, else '' — one owner for the rule. */
@@ -55,7 +53,7 @@ $articleCodeLabel=static function(string $code,bool $region):string{
 <img src="<?= $e(url($articleCover!==''?$articleCover:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:150px;height:200px;object-fit:cover;border-radius:.375rem;flex:0 0 auto;" onerror="this.onerror=null;this.src=<?= $e(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>">
 <div style="flex:1 1 320px;min-width:0;"><h1 class="text-3xl font-bold mb-3"><?= $e($article['titolo']) ?></h1>
 <?php if(!empty($article['sottotitolo'])): ?><p class="text-xl text-gray-600 mb-3"><?= $e($article['sottotitolo']) ?></p><?php endif; ?>
-<?php if(!empty($article['autori'])): ?><p class="text-xl mb-6"><?php if($articleAuthors): foreach($articleAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $e($articleFilterUrl('autore',$an)) ?>"><?= $e($an) ?></a><?php endforeach; else: ?><?= $e($article['autori']) ?><?php endif; ?></p><?php endif; ?>
+<?php if(!empty($article['autori'])): ?><p class="text-xl mb-6"><?php if($articleAuthors): foreach($articleAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $e(($an['id'] !== null ? route_path('author').'/'.$an['id'] : $articleFilterUrl('autore',$an['name']))) ?>"><?= $e($an['name']) ?></a><?php endforeach; else: ?><?= $e($article['autori']) ?><?php endif; ?></p><?php endif; ?>
 </div></div>
 <dl class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8">
 <?php /* What this record IS. A component-part record exists to say "this is a
@@ -137,7 +135,7 @@ if (!empty($article['sottotitolo'])) { $structured['alternativeHeadline']=$artic
 // One Person per credited name. Declaring "Rossi, Mario; Bianchi, Anna" as a
 // single Person was a statement no aggregator could use and none of it true.
 if ($articleAuthors) {
-    $structured['author']=array_map(static fn(string $n):array=>['@type'=>'Person','name'=>$n], $articleAuthors);
+    $structured['author']=array_map(static fn(array $n):array=>['@type'=>'Person','name'=>$n['name']], $articleAuthors);
 } elseif (!empty($article['autori'])) {
     $structured['author']=['@type'=>'Person','name'=>$article['autori']];
 }

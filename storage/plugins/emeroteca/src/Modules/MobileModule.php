@@ -682,11 +682,15 @@ final class MobileModule
                 $limit=$this->clampLimit($q['limit']??20); $where='c.pubblico=1 AND c.id>?'; $params=[(int)$cursor];
                 if (!empty($q['testata_id'])) { $where.=' AND c.testata_id=?'; $params[]=(int)$q['testata_id']; }
                 if (is_string($q['q']??null) && $q['q']!=='') {
-                    $where.=" AND (c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
+                    $extraAuthors = (new \App\Services\ArticleAuthorService($this->db))->available()
+                        ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))" : '';
+                    $where.=" AND (c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?$extraAuthors)";
                     $pat='%'.strtr(mb_substr($q['q'],0,200),['='=>'==','%'=>'=%','_'=>'=_']).'%';
                     array_push($params,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
+                    if ($extraAuthors !== '') { array_push($params,$pat,$pat); }
                 }
                 $rows=$service->rows('SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE '.$where.' ORDER BY c.id LIMIT '.($limit+1),$params);
+                $rows=(new \App\Services\ArticleAuthorService($this->db))->hydrate($rows);
                 $more=count($rows)>$limit; if ($more) { array_pop($rows); }
                 $items=array_map($this->mapContribution(...),$rows);
                 $meta=['next_cursor'=>$more?(string)end($rows)['id']:null,'limit'=>$limit];

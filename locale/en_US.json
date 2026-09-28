@@ -7886,5 +7886,19 @@
   "Cita questo articolo": "Cite this article",
   "Copiato": "Copied",
   "Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)": "Download the citation in RIS format (EndNote, Mendeley, Zotero)",
-  "Opere di %s": "Works by %s"
+  "Opere di %s": "Works by %s",
+    "Aggiungi autore": "Add author",
+    "Autore collegato": "Linked author",
+    "Autore già selezionato.": "Author already selected.",
+    "Autori dell’anagrafica": "Authors from the shared registry",
+    "Coautore": "Coauthor",
+    "Collega ogni nome a una persona dell’anagrafica comune a libri e articoli. Verifica gli omonimi prima di selezionare; puoi anche creare un nuovo autore o lasciare il credito senza collegamento.": "Link each name to a person in the registry shared by books and articles. Check namesakes before selecting; you can also create a new author or leave the credit unlinked.",
+    "Crea nuovo autore": "Create new author",
+    "Credito senza collegamento": "Unlinked credit",
+    "Identificativo GND confermato per questa persona, oppure URL d-nb.info/gnd. Facoltativo.": "Confirmed GND identifier for this person, or d-nb.info/gnd URL. Optional.",
+    "Identificativo GND non valido.": "Invalid GND identifier.",
+    "Il nome è obbligatorio.": "The name is required.",
+    "Nuovo autore da creare al salvataggio": "New author to create on save",
+    "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Enable JavaScript to link authors. Text credits remain available.",
+    "Ricerca non disponibile. Riprova.": "Search unavailable. Try again."
 }

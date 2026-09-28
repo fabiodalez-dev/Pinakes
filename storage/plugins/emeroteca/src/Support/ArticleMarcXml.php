@@ -33,22 +33,34 @@ final class ArticleMarcXml
         $xml->text($fixed);
         $xml->endElement();
         $field = static function(string $tag, array $values, string $ind1 = ' ', string $ind2 = ' ') use ($xml): void {
-            $values = array_filter($values, static fn($value) => $value !== null && trim((string)$value) !== '');
+            $values = array_filter($values, static fn($value) => is_array($value) ? $value !== [] : ($value !== null && trim((string)$value) !== ''));
             if ($values === []) { return; }
             $xml->startElement('datafield');
             $xml->writeAttribute('tag', $tag);
             $xml->writeAttribute('ind1', $ind1);
             $xml->writeAttribute('ind2', $ind2);
             foreach ($values as $code => $value) {
-                $xml->startElement('subfield');
-                $xml->writeAttribute('code', (string)$code);
-                $xml->text((string)$value);
-                $xml->endElement();
+                foreach (is_array($value) ? $value : [$value] as $part) {
+                    $xml->startElement('subfield');
+                    $xml->writeAttribute('code', (string)$code);
+                    $xml->text((string)$part);
+                    $xml->endElement();
+                }
             }
             $xml->endElement();
         };
-        foreach ($parts['authors'] as $i => $author) {
-            $field($i === 0 ? '100' : '700', ['a'=>$author], str_contains($author, ',') ? '1' : '0');
+        $credits = $row['author_credits'] ?? [];
+        if ($credits === []) {
+            $credits = array_map(static fn($name) => ['nome_credito'=>$name], $parts['authors']);
+        }
+        $primary = null;
+        foreach ($credits as $i => $credit) {
+            if (($credit['ruolo'] ?? '') === 'principale') { $primary = $i; break; }
+        }
+        $primary ??= $credits === [] ? null : array_key_first($credits);
+        foreach ($credits as $i => $credit) {
+            $author = (string)$credit['nome_credito'];
+            $field($i === $primary ? '100' : '700', ['a'=>$author, '0'=>$credit['identifiers'] ?? []], str_contains($author, ',') ? '1' : '0');
         }
         $field('245', ['a'=>$row['titolo'] ?? '', 'b'=>$row['sottotitolo'] ?? '', 'c'=>$row['autori'] ?? ''], $parts['authors'] === [] ? '0' : '1', '0');
         $field('300', ['a'=>$row['pagine'] ?? '']);

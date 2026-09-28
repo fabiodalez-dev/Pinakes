@@ -26,7 +26,7 @@ class SearchController
         // resolves people by name — the bulk field editor (#380) — would
         // otherwise create a second author literally called "Pen name (Real
         // name)". Pickers that bind on the id simply ignore the extra key.
-        $select = "id, nome, {$label}";
+        $select = "id, nome, data_nascita, data_morte, {$label}";
         if ($q !== '') {
             // Split query into words — each word must match (AND logic)
             $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
