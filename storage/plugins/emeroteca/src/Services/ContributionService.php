@@ -213,7 +213,12 @@ SQL;
      * TEXT_FIELDS value and rejects any over its length limit, requires a non-empty titolo, checks tipo_contributo/
      * supporto/contenitore_tipo against their allowed enums, validates and normalizes ISSN
      * (checksum) and DOI (strips URL/prefix, requires the 10.xxxx/ shape), validates the year
-     * range, and coerces the pubblico/pdf_pubblico flags to 0/1.
+     * range, lowercases the ISO 639 language code (two or three letters) and uppercases the ISO 3166
+     * alpha-2 country code and rejects any other shape, refuses a line break in the holdings note and
+     * the 856 triple (risorsa_url/risorsa_testo/risorsa_accesso), requires an http(s) risorsa_url to be
+     * a valid URL (any other reference is kept verbatim as opaque text), and coerces the
+     * pubblico/pdf_pubblico/risorsa_pubblica flags to 0/1 — risorsa_pubblica is forced to 0 when there
+     * is no risorsa_url, because a public switch with nothing to publish would be inert.
      *
      * @return array<string, mixed>
      * @throws \InvalidArgumentException on the first field that fails validation
@@ -268,6 +273,8 @@ SQL;
         // as "Dansk" to an Italian reader, while `dan` can be rendered as
         // "danese" to them and "Danish" to someone else. Two or three letters
         // covers ISO 639-1 and 639-2 without making the librarian care which.
+        // The stored code stays as entered (ICU and schema.org inLanguage read
+        // it); ArticleMarcXml maps it to the MARC language code at export.
         if ($out['lingua'] !== null) {
             $out['lingua'] = strtolower($out['lingua']);
             if (preg_match('/^[a-z]{2,3}$/D', $out['lingua']) !== 1) {
@@ -306,6 +313,11 @@ SQL;
             }
             $out[$key] = (int) ($input[$key] ?? 0);
         }
+        if ($out['risorsa_url'] === null) {
+            // Nothing to publish: an inert "public" flag would silently turn
+            // on whatever address is typed in later.
+            $out['risorsa_pubblica'] = 0;
+        }
         return $out;
     }
 
@@ -333,8 +345,17 @@ SQL;
                 $credits = $authors->resolve($data['credits'] ?? []);
                 $data['autori'] = implode('; ', array_column($credits, 'nome_credito'));
             } elseif ($id > 0 && $authors->available()) {
+                // The stored column and the hydrated projection are two forms
+                // of the same credit: the text as last saved, and the linked
+                // identities' current names. A partial import merged onto
+                // either, or an export taken before a rename, sends one of
+                // them back unchanged — only a string matching NEITHER is a
+                // replacement, and only a replacement may drop identities.
+                $posted = self::authorList(isset($data['autori']) ? (string)$data['autori'] : null);
+                $raw = $this->rows('SELECT autori FROM emeroteca_contributi WHERE id=?', [$id])[0]['autori'] ?? null;
                 $current = $this->get($id);
-                if (trim((string)($data['autori'] ?? '')) !== trim((string)($current['autori'] ?? ''))) {
+                if ($posted !== self::authorList($raw === null ? null : (string)$raw)
+                    && $posted !== self::authorList(isset($current['autori']) ? (string)$current['autori'] : null)) {
                     // An import that replaces the credit string cannot silently keep old identities.
                     $credits = [];
                 }
@@ -383,7 +404,9 @@ SQL;
     public static function authorLinks(array $row): array
     {
         if (!empty($row['author_credits'])) {
-            return array_map(static fn($credit) => ['name'=>(string)$credit['nome_credito'], 'id'=>$credit['autore_id']], $row['author_credits']);
+            // Link text is the reader-facing display form ("Pseudonimo (Nome
+            // vero)"); nome_credito is the citation form, for citations only.
+            return array_map(static fn($credit) => ['name'=>(string)($credit['display_name'] ?? $credit['nome_credito']), 'id'=>$credit['autore_id']], $row['author_credits']);
         }
         return array_map(static fn($name) => ['name'=>$name, 'id'=>null], self::authorList($row['autori'] ?? null));
     }
@@ -602,15 +625,6 @@ SQL;
     }
 
     /**
-     * Shape one raw contribution row for public/mobile consumption: keeps only an allowlist of
-     * public columns, so internal ones (note_private, collocazione, pdf_path, reference_key,
-     * revision, pubblico, ...) never leave, casts numeric ids, and adds `kind` and `has_public_pdf` (true only when a PDF is stored
-     * AND opted into public visibility).
-     *
-     * @param array<string, mixed> $r a raw emeroteca_contributi row
-     * @return array<string, mixed>
-     */
-    /**
      * The electronic resource of danMARC2 856, as one decision instead of
      * three fields every caller has to re-combine.
      *
@@ -701,6 +715,15 @@ SQL;
         return $own !== '' ? $own : trim((string) ($row['testata_logo_url'] ?? ''));
     }
 
+    /**
+     * Shape one raw contribution row for public/mobile consumption: keeps only an allowlist of
+     * public columns, so internal ones (note_private, collocazione, pdf_path, reference_key,
+     * revision, pubblico, ...) never leave, casts numeric ids, and adds `kind` and `has_public_pdf` (true only when a PDF is stored
+     * AND opted into public visibility).
+     *
+     * @param array<string, mixed> $r a raw emeroteca_contributi row
+     * @return array<string, mixed>
+     */
     public static function publicData(array $r): array
     {
         $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','testata_id','fascicolo_id','updated_at']));

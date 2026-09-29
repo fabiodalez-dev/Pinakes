@@ -76,32 +76,50 @@ try {
     verifyIdentity(count($authors->getBooksByAuthorId($person))===1,'book and article refer to the same core person');
     $row=$service->get($id);
     verifyIdentity(array_column($row['author_credits'],'autore_id')===[$person,$coauthor],'same shared IDs and coauthor order persist');
-    verifyIdentity($row['autori']==='Hans Uwe Petersen; Åse Sørensen','display comes from shared author registry');
+    verifyIdentity($row['autori']==='Petersen, Hans Uwe; Sørensen, Åse','linked credits are cited in surname-first form from the shared registry');
+verifyIdentity(array_column($row['author_credits'],'display_name')===['Hans Uwe Petersen','Åse Sørensen'],'display name travels separately for link text');
+verifyIdentity(str_starts_with(\App\Plugins\Emeroteca\Support\CitationFormatter::apa($row),'Petersen, H. U.'),'linking an author keeps APA initials instead of a corporate-style name');
+$linkedXml=new DOMDocument();$linkedXml->loadXML(ArticleMarcXml::format($row));$linkedPath=new DOMXPath($linkedXml);$linkedPath->registerNamespace('m','http://www.loc.gov/MARC21/slim');
+verifyIdentity($linkedPath->evaluate('string(//m:datafield[@tag="100"]/@ind1)')==='1' && $linkedPath->evaluate('string(//m:datafield[@tag="100"]/m:subfield[@code="a"])')==='Petersen, Hans Uwe','linked author exports 100 ind1 1 in surname-first form');
+$staleExport=(new \App\Plugins\Emeroteca\Services\ContributionCsv($service))->export();
+$referenceKey=(string)$row['reference_key'];
     verifyIdentity($catalog->countArticles(['autore_id'=>$person])===1 && $catalog->countArticles(['autore_id'=>$homonym])===0,'ID filter distinguishes homonyms');
     $legacy=$service->save(['titolo'=>'Legacy article','autori'=>'Petersen, Hans Uwe','pubblico'=>1]);
     verifyIdentity($catalog->countArticles(['autore_id'=>$person])===1,'legacy text is never silently assigned an identity');
     verifyIdentity($catalog->countArticles(['autore'=>'Petersen, Hans Uwe'])===2,'legacy credits remain discoverable by name');
-    $authors->update($person,['nome'=>'Hans Uwe Renamed','pseudonimo'=>'Archive pen name','gnd_id'=>'118559792']);
+    $authors->update($person,['nome'=>'Hans Uwe Renamed','pseudonimo'=>'Uwe Archivist','gnd_id'=>'118559792']);
     $row=$service->get($id);
-    verifyIdentity(str_contains($row['autori'],'Archive pen name (Hans Uwe Renamed)'),'rename and pseudonym update article without rewriting original credit');
+    verifyIdentity(str_starts_with($row['autori'],'Archivist, Uwe;') && !str_contains($row['autori'],'('),'rename and pseudonym update the cited credit without the real-name suffix');
+    verifyIdentity($row['author_credits'][0]['display_name']==='Uwe Archivist (Hans Uwe Renamed)','display form keeps the real name for readers');
+    $pseudoXml=ArticleMarcXml::format($row);
+    verifyIdentity(str_contains($pseudoXml,'<subfield code="a">Archivist, Uwe</subfield>') && !str_contains($pseudoXml,'(Hans Uwe Renamed)'),'pseudonymous author exports the pseudonym heading without the parenthetical');
+    // A partial import, or an export taken before the rename, carries a credit
+    // that is either the stored text or the current one: identities survive.
+    $staleCsv=new \App\Plugins\Emeroteca\Services\ContributionCsv($service);
+    $staleReport=$staleCsv->commit($staleCsv->preview($staleExport));
+    verifyIdentity(count(array_filter($staleReport,static fn($r)=>$r['error']!==null))===0 && array_column($service->get($id)['author_credits'],'autore_id')===[$person,$coauthor],'re-importing an export taken before a rename keeps linked identities');
+    $partialCsv=new \App\Plugins\Emeroteca\Services\ContributionCsv($service);
+    $partialReport=$partialCsv->commit($partialCsv->preview("record_type,reference_key,titolo,pubblico\narticle,$referenceKey,Probe article,1\n"));
+    verifyIdentity(count(array_filter($partialReport,static fn($r)=>$r['error']!==null))===0 && array_column($service->get($id)['author_credits'],'autore_id')===[$person,$coauthor],'a partial CSV without an autori column keeps linked identities after a rename');
+    $row=$service->get($id);
     verifyIdentity($catalog->countArticles(['search'=>'Renamed'])===1,'general search finds current shared name');
     verifyIdentity($catalog->countArticles(['autore_id'=>$person])===1,'identity search survives a rename');
     verifyIdentity($service->search('Hans Uwe Renamed')['total']===1,'article search uses renamed shared author');
-    verifyIdentity($service->search('',0,false,1,['autore'=>'Archive pen name'])['total']===1,'article author filter uses current pseudonym');
+    verifyIdentity($service->search('',0,false,1,['autore'=>'Uwe Archivist'])['total']===1,'article author filter uses current pseudonym');
     $service->save(['titolo'=>'Sort comparison','autori'=>'Nolan','pubblico'=>1]);
     $sorted=$catalog->page('FROM libri l WHERE l.deleted_at IS NULL AND 1=0','CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore, CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore_principale_nome, CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore_cognome','',[],['sort'=>'author_asc'],0,20,0);
     verifyIdentity((int)$sorted['rows'][0]['id']===$id,'author sort uses current pseudonym rather than stale article text');
     $suggestion=$plugin->suggestEmerotecaSearch([],'Renamed');
-    verifyIdentity(count($suggestion)===1 && $suggestion[0]['total']===1 && str_contains($suggestion[0]['items'][0]['meta'],'Archive pen name'),'catalogue suggestions find and display the current shared author');
+    verifyIdentity(count($suggestion)===1 && $suggestion[0]['total']===1 && str_contains($suggestion[0]['items'][0]['meta'],'Archivist, Uwe'),'catalogue suggestions find and display the current shared author');
     $csv=(new \App\Plugins\Emeroteca\Services\ContributionCsv($service))->export();
-    verifyIdentity(str_contains($csv,'Archive pen name (Hans Uwe Renamed)'),'CSV exports current author names');
+    verifyIdentity(str_contains($csv,'Archivist, Uwe') && !str_contains($csv,'(Hans Uwe Renamed)'),'CSV exports current author names in citation form');
     $csvService=new \App\Plugins\Emeroteca\Services\ContributionCsv($service);
     $report=$csvService->commit($csvService->preview($csv));
     verifyIdentity(count(array_filter($report,static fn($r)=>$r['error']!==null))===0 && array_column($service->get($id)['author_credits'],'autore_id')===[$person,$coauthor],'CSV round trip preserves explicitly linked identities after a rename');
     $xml=ArticleMarcXml::format($row);
     verifyIdentity(str_contains($xml,'<subfield code="0">https://d-nb.info/gnd/118559792</subfield>'),'MARC exports confirmed shared GND URI');
     $doc=new DOMDocument();$doc->loadXML($xml);$xp=new DOMXPath($doc);$xp->registerNamespace('m','http://www.loc.gov/MARC21/slim');
-    verifyIdentity($xp->evaluate('string(//m:datafield[@tag="700"]/m:subfield[@code="a"])')==='Åse Sørensen','coauthor remains 700');
+    verifyIdentity($xp->evaluate('string(//m:datafield[@tag="700"]/m:subfield[@code="a"])')==='Sørensen, Åse' && $xp->evaluate('string(//m:datafield[@tag="700"]/@ind1)')==='1','coauthor remains 700 in surname-first form');
     $db->query("UPDATE autori SET viaf_uri='https://viaf.org/viaf/123',authority_confidence='candidate' WHERE id=$coauthor");
     verifyIdentity(!str_contains(ArticleMarcXml::format($service->get($id)),'viaf.org'),'candidate authority is not exported as confirmed identity');
     $db->query("UPDATE autori SET authority_confidence='exact' WHERE id=$coauthor");
@@ -143,10 +161,10 @@ try {
     try { rejectsIdentity(fn()=>$authors->delete($newPerson),'failed identity deletion is rejected'); }
     finally { $db->query("DROP TRIGGER $trigger"); }
     verifyIdentity($service->get($new)['author_credits'][0]['autore_id']===$newPerson,'failed deletion keeps article identity linked');
-    $authors->update($newPerson,['nome'=>'Latest name']);
+    $authors->update($newPerson,['nome'=>'Latest Name']);
     $authors->delete($newPerson);
     $detached=$service->get($new);
-    verifyIdentity($detached['autori']==='Latest name' && $detached['author_credits'][0]['autore_id']===null,'deleting identity preserves latest credit without dangling ID');
+    verifyIdentity($detached['autori']==='Name, Latest' && $detached['author_credits'][0]['autore_id']===null,'deleting identity preserves latest credit without dangling ID');
     $legacyRow=$service->get($legacy);
     $service->save($legacyRow+['credits_present'=>1,'credits'=>[$credit($person)]],$legacy,(int)$legacyRow['revision']);
     verifyIdentity($catalog->countArticles(['autore_id'=>$person])===3,'legacy record can be explicitly linked without recreating article');
@@ -154,9 +172,36 @@ try {
     $replacementRow=$service->get($replacement);
     $service->save(array_replace($replacementRow,['autori'=>'Different imported credit']),$replacement,(int)$replacementRow['revision']);
     verifyIdentity($service->get($replacement)['author_credits']===[] && $service->get($replacement)['autori']==='Different imported credit','text import replacing authors clears stale identities');
+    $typed=$service->save(['titolo'=>'Typed inverted','credits_present'=>1,'credits'=>[['nome_credito'=>'Kierkegaard, Søren','create'=>'1','ruolo'=>'principale']]]);
+    $typedRow=$service->get($typed);
+    verifyIdentity($typedRow['autori']==='Kierkegaard, Søren' && $db->query("SELECT autori FROM emeroteca_contributi WHERE id=$typed")->fetch_row()[0]==='Kierkegaard, Søren','created author keeps the typed inverted credit at rest');
+    $single=$authors->create(['nome'=>'Plato']);
+    $singleRow=$service->get($service->save(['titolo'=>'Single name','credits_present'=>1,'credits'=>[$credit($single)]]));
+    $singleXml=new DOMDocument();$singleXml->loadXML(ArticleMarcXml::format($singleRow));$singlePath=new DOMXPath($singleXml);$singlePath->registerNamespace('m','http://www.loc.gov/MARC21/slim');
+    verifyIdentity($singleRow['autori']==='Plato' && $singlePath->evaluate('string(//m:datafield[@tag="100"]/@ind1)')==='0','single-token name is never inverted and exports ind1 0');
     $target=$authors->create(['nome'=>'Primary without authority']);
     $sourceAuthor=$authors->create(['nome'=>'Duplicate with authority','gnd_id'=>'119030238']);
     verifyIdentity($authors->mergeAuthors([$target,$sourceAuthor],$target)===$target && $authors->getById($target)['gnd_id']==='119030238','GND transfers from merged duplicate to retained identity');
+    // CodeRabbit #438: a lowercase DNB check digit is canonicalised, and a duplicate GND reaches the caller as MySQL 1062.
+    $lowerGnd=$authors->create(['nome'=>'Lowercase authority','gnd_id'=>'118559792x']);
+    verifyIdentity($authors->getById($lowerGnd)['gnd_id']==='118559792X','lowercase GND check digit is stored as X');
+    try { $authors->create(['nome'=>'Second holder','gnd_id'=>'118559792X']); verifyIdentity(false,'duplicate GND is rejected'); }
+    catch (mysqli_sql_exception $e) { verifyIdentity($e->getCode()===1062,'duplicate GND surfaces as MySQL 1062'); }
+    // mergeAuthors joins an outer transaction instead of committing it implicitly.
+    $outerA=$authors->create(['nome'=>'Outer merge keep']); $outerB=$authors->create(['nome'=>'Outer merge drop']);
+    $db->begin_transaction();
+    verifyIdentity($authors->mergeAuthors([$outerA,$outerB],$outerA)===$outerA,'merge succeeds inside a caller transaction');
+    $db->rollback();
+    verifyIdentity($authors->getById($outerB)!==null,'caller rollback undoes the merge (no implicit commit)');
+    // Bulk delete detaches article credits exactly like the single delete.
+    $bulkPerson=$authors->create(['nome'=>'Bulk Deleted']);
+    $bulkArticle=$service->save(['titolo'=>'Bulk delete article','credits_present'=>1,'credits'=>[$credit($bulkPerson)]]);
+    $authors->update($bulkPerson,['nome'=>'Bulk Renamed']);
+    $bulkRequest=(new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST','/api/autori/bulk-delete')->withParsedBody(['ids'=>[$bulkPerson]]);
+    $bulkResponse=(new App\Controllers\AutoriApiController())->bulkDelete($bulkRequest,new Slim\Psr7\Response(),$db);
+    $bulkCredit=$service->get($bulkArticle)['author_credits'][0] ?? [];
+    verifyIdentity($bulkResponse->getStatusCode()===200 && $authors->getById($bulkPerson)===null,'bulk delete removes the author');
+    verifyIdentity(array_key_exists('autore_id',$bulkCredit) && $bulkCredit['autore_id']===null && ($bulkCredit['nome_credito'] ?? '')==='Renamed, Bulk','bulk delete freezes the latest credit name like the single delete');
     echo "SUCCESS $count identity checks\n";
 } finally {
     foreach ($db->tables as $table) { $db->raw("DROP TABLE IF EXISTS `{$db->prefix}$table`"); }

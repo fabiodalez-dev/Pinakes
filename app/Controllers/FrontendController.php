@@ -1607,6 +1607,20 @@ class FrontendController
             $types .= 'i';
         }
 
+        // Archive-only (never read from the query string by getFilters()): the
+        // author page lists every book the person is credited on, in ANY role
+        // (translator, illustrator, curator...), across all same-named identities.
+        // The catalogue's autore_id filter above stays principale/co-autore.
+        if (!empty($filters['autore_ids']) && is_array($filters['autore_ids'])) {
+            $archiveAuthorIds = array_values(array_unique(array_filter(array_map('intval', $filters['autore_ids']), static fn(int $id): bool => $id > 0)));
+            if ($archiveAuthorIds !== []) {
+                $marks = implode(',', array_fill(0, count($archiveAuthorIds), '?'));
+                $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_f WHERE la_f.libro_id = l.id AND la_f.autore_id IN ($marks))";
+                array_push($params, ...$archiveAuthorIds);
+                $types .= str_repeat('i', count($archiveAuthorIds));
+            }
+        }
+
         return [
             'conditions' => $conditions,
             'params' => $params,
@@ -2221,31 +2235,34 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
     public function authorArchive(Request $request, Response $response, mysqli $db, string $authorName): Response
     {
-        $params = $request->getQueryParams();
-        $limit = 12;
-        $page = max(1, (int)($params['page'] ?? 1));
-        $offset = ($page - 1) * $limit;
-
         // URL decode author name
         $authorName = urldecode($authorName);
 
-        // Query per trovare l'autore
-        // Keep the name-based route feature-equivalent to the ID route: both
-        // expose the public photo, website and authority/source links.
-        $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE nome = ? LIMIT 1";
+        // Find EVERY author with this name. Homonyms are legitimate (autori has no
+        // UNIQUE on nome by design), so resolving a single id with LIMIT 1 would
+        // show an arbitrary homonym and hide the others' bibliography — mirrors
+        // publisherArchive(). The header shows the lowest id, deterministically.
+        $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE nome = ? ORDER BY id";
         $stmt = $db->prepare($authorQuery);
         $stmt->bind_param('s', $authorName);
         $stmt->execute();
         $authorResult = $stmt->get_result();
 
-        if ($authorResult->num_rows === 0) {
+        $author = null;
+        $authorIds = [];
+        while ($arow = $authorResult->fetch_assoc()) {
+            if ($author === null) {
+                $author = $arow;
+            }
+            $authorIds[] = (int) $arow['id'];
+        }
+        $stmt->close();
+
+        if ($author === null) {
             return $this->render404($response);
         }
 
-        $author = $authorResult->fetch_assoc();
-
-        $stmt->close();
-        return $this->authorArchiveById($request, $response, $db, (int)$author['id']);
+        return $this->renderAuthorArchive($request, $response, $db, $author, $authorIds);
     }
 
     public function publisherArchive(Request $request, Response $response, mysqli $db, string $publisherName): Response
@@ -2876,11 +2893,6 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
 
     public function authorArchiveById(Request $request, Response $response, mysqli $db, int $authorId): Response
     {
-        $params = $request->getQueryParams();
-        $limit = 12;
-        $page = max(1, (int)($params['page'] ?? 1));
-        $offset = ($page - 1) * $limit;
-
         // Query per trovare l'autore by ID
         // #163: also load photo + relevant source/website links for the public page.
         $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE id = ? LIMIT 1";
@@ -2894,18 +2906,42 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         }
 
         $author = $authorResult->fetch_assoc();
+        $stmt->close();
+
+        return $this->renderAuthorArchive($request, $response, $db, $author, [$authorId]);
+    }
+
+    /**
+     * Shared author archive for the id route (one identity) and the name route
+     * (every same-named identity). Lists every book the person is credited on in
+     * ANY role — a translator or illustrator linked from a book page must find
+     * that book here — plus their Emeroteca articles when the plugin is active.
+     *
+     * @param array<string,mixed> $author header identity
+     * @param list<int> $authorIds
+     */
+    private function renderAuthorArchive(Request $request, Response $response, mysqli $db, array $author, array $authorIds): Response
+    {
+        $params = $request->getQueryParams();
+        $limit = 12;
+        $page = max(1, (int)($params['page'] ?? 1));
+        $offset = ($page - 1) * $limit;
+
+        $idMarks = implode(',', array_fill(0, count($authorIds), '?'));
+        $idTypes = str_repeat('i', count($authorIds));
 
         // Count total books
         $countQuery = "
             SELECT COUNT(DISTINCT l.id) as total
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
-            WHERE la.autore_id = ? AND la.ruolo IN ('principale','co-autore') AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE la.autore_id IN ($idMarks) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
         ";
         $stmt = $db->prepare($countQuery);
-        $stmt->bind_param('i', $authorId);
+        $stmt->bind_param($idTypes, ...$authorIds);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
         $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
@@ -2926,17 +2962,22 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE la.autore_id = ? AND la.ruolo IN ('principale','co-autore') AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+            WHERE la.autore_id IN ($idMarks) AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.anno_pubblicazione DESC, l.titolo ASC
             LIMIT ? OFFSET ?
         ";
 
         $stmt = $db->prepare($booksQuery);
-        $stmt->bind_param('iii', $authorId, $limit, $offset);
+        $stmt->bind_param($idTypes . 'ii', ...array_merge($authorIds, [$limit, $offset]));
         $stmt->execute();
         $books = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
 
-        $authorFilters = $this->getFilters(['autore_id' => $authorId]);
+        // `autore_ids` is the archive-only any-role filter: the catalogue's
+        // `autore_id` is principale/co-autore only and would re-apply that
+        // restriction when the unified page overwrites $books/$totalBooks.
+        $authorFilters = $this->getFilters([]);
+        $authorFilters['autore_ids'] = $authorIds;
         $authorFilters['sort'] = 'publication_desc';
         $authorConditions = $this->buildWhereConditions($authorFilters, $db);
         $authorFrom = 'FROM libri l LEFT JOIN editori e ON e.id=l.editore_id LEFT JOIN generi g ON g.id=l.genere_id LEFT JOIN generi gp ON gp.id=g.parent_id WHERE l.deleted_at IS NULL AND '

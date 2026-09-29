@@ -13,17 +13,25 @@ use Psr\Http\Message\ServerRequestInterface;
  * OpenURL Z39.88-2004 Resolver + COinS plugin for Pinakes v0.7.2.
  *
  * Endpoints:
- *   GET  /openurl                → Resolver: accepts KEV params, redirects to
- *                                  best available resource (local → WorldCat → Google Books)
- *   GET  /api/coins/book/{id}   → Returns COinS title string and HTML span for a book
+ *   GET  /openurl                   → Resolver: accepts KEV params, redirects to
+ *                                     best available resource (local → WorldCat → Google Books).
+ *                                     mtx:journal requests are first resolved against local
+ *                                     Emeroteca articles by DOI, then by article title, before
+ *                                     falling back to the external targets.
+ *   GET  /api/coins/book/{id}      → Returns COinS title string and HTML span for a book
+ *   GET  /api/coins/article/{id}   → Returns the mtx:journal COinS for a published article
  *
  * Hook: assets.head → injects a small script that embeds a <span class="Z3988">
- *       on book detail pages (detected via data-libro-id attribute).
+ *       on book and article detail pages (detected via the data-libro-id or
+ *       data-articolo-id attribute).
  *
  * KEV context object format (ANSI/NISO Z39.88-2004):
  *   ctx_ver=Z39.88-2004
  *   rft_val_fmt=info:ofi/fmt:kev:mtx:book
- *   rft.btitle, rft.au, rft.isbn, rft.date, rft.pub, rft.language, rft.genre
+ *     rft.btitle, rft.au, rft.isbn, rft.date, rft.pub, rft.language, rft.genre
+ *   rft_val_fmt=info:ofi/fmt:kev:mtx:journal (articles)
+ *     rft.atitle, rft.jtitle, rft.au, rft.issn, rft.date, rft.volume, rft.issue,
+ *     rft.spage, rft.epage, rft_id=info:doi/…
  *
  * Spec: https://www.niso.org/standards-committees/openurl
  */

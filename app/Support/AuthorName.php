@@ -49,6 +49,41 @@ final class AuthorName
     }
 
     /**
+     * Citation (heading) form of an author row: "Surname, Forename".
+     *
+     * Uses the name readers cite — the pseudonym when there is one, otherwise
+     * the real name — and never the "Pseudonimo (Nome vero)" display suffix.
+     * Core names are stored in direct order (AuthorNormalizer::normalize()
+     * turns "Levi, Primo" into "Primo Levi"), so this undoes that: a name
+     * that already carries a comma is returned as it is, otherwise the last
+     * whitespace-separated token moves to the front. A single-token name
+     * ("Plato") is returned unchanged, never with a dangling comma.
+     *
+     * @param array<string,mixed> $author
+     */
+    public static function citation(array $author): string
+    {
+        $nome = trim((string)($author['nome'] ?? ''), ' ');
+        $pseudonimo = trim((string)($author['pseudonimo'] ?? ''), ' ');
+        $name = $pseudonimo !== '' ? $pseudonimo : $nome;
+        return self::invert($name);
+    }
+
+    /** "Primo Levi" → "Levi, Primo"; names with a comma or a single token stay as they are. */
+    public static function invert(string $name): string
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+        if ($name === '' || str_contains($name, ',')) {
+            return $name;
+        }
+        $position = mb_strrpos($name, ' ');
+        if ($position === false) {
+            return $name;
+        }
+        return mb_substr($name, $position + 1) . ', ' . mb_substr($name, 0, $position);
+    }
+
+    /**
      * SQL expression producing the same display name, for use inside SELECT /
      * GROUP_CONCAT. `$alias` is the table alias of `autori` in the query (the
      * columns `nome`/`pseudonimo` are referenced through it). The alias is

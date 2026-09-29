@@ -158,16 +158,28 @@ final class UnifiedCatalogService
             }
         }
         $names = [];
-        if (!empty($filters['autore_id']) && $linkedAuthors) {
-            $where[] = 'EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca WHERE ca.contributo_id=c.id AND ca.autore_id=?)';
-            $params[] = (string)$filters['autore_id'];
+        // The author archive passes every same-named identity (`autore_ids`,
+        // archive-only); the catalogue filter passes a single `autore_id`.
+        $authorIds = [];
+        if (!empty($filters['autore_ids']) && is_array($filters['autore_ids'])) {
+            $authorIds = array_values(array_unique(array_filter(array_map('intval', $filters['autore_ids']), static fn(int $id): bool => $id > 0)));
         } elseif (!empty($filters['autore_id'])) {
-            $authors = $this->rows('SELECT nome, pseudonimo FROM autori WHERE id=?', 'i', [(int)$filters['autore_id']]);
-            if ($authors === []) { $where[] = '1=0'; }
-            else {
-                $names = array_values(array_filter([$authors[0]['nome'], $authors[0]['pseudonimo']], static fn($name): bool => is_string($name) && trim($name) !== ''));
-                if ($names === []) { $where[] = '1=0'; }
+            $authorIds = [(int)$filters['autore_id']];
+        }
+        if ($authorIds !== [] && $linkedAuthors) {
+            $idMarks = implode(',', array_fill(0, count($authorIds), '?'));
+            $where[] = "EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca WHERE ca.contributo_id=c.id AND ca.autore_id IN ($idMarks))";
+            foreach ($authorIds as $authorIdValue) { $params[] = (string)$authorIdValue; }
+        } elseif ($authorIds !== []) {
+            $idMarks = implode(',', array_fill(0, count($authorIds), '?'));
+            $authors = $this->rows("SELECT nome, pseudonimo FROM autori WHERE id IN ($idMarks)", str_repeat('i', count($authorIds)), $authorIds);
+            foreach ($authors as $authorRow) {
+                foreach ([$authorRow['nome'] ?? null, $authorRow['pseudonimo'] ?? null] as $name) {
+                    if (is_string($name) && trim($name) !== '') { $names[] = $name; }
+                }
             }
+            $names = array_values(array_unique($names));
+            if ($names === []) { $where[] = '1=0'; }
         } elseif (!empty($filters['autore'])) {
             $names = [(string)$filters['autore']];
         }

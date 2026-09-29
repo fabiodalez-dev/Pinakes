@@ -7900,5 +7900,8 @@
     "Il nome è obbligatorio.": "Le nom est obligatoire.",
     "Nuovo autore da creare al salvataggio": "Nouvel auteur à créer lors de l’enregistrement",
     "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Activez JavaScript pour associer les auteurs. Les mentions textuelles restent disponibles.",
-    "Ricerca non disponibile. Riprova.": "Recherche indisponible. Réessayez."
+    "Ricerca non disponibile. Riprova.": "Recherche indisponible. Réessayez.",
+    "Puoi collegare al massimo 20 autori a un articolo.": "Vous pouvez lier au maximum 20 auteurs à un article.",
+    "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Indiquez d’abord l’adresse ou le chemin de la ressource : sans elle, il n’y a rien à afficher dans le catalogue public.",
+    "Questo identificativo GND è già assegnato a un altro autore.": "Cet identifiant GND est déjà attribué à un autre auteur."
 }

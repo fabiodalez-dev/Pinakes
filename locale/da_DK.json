@@ -7900,5 +7900,8 @@
     "Il nome è obbligatorio.": "Navnet er påkrævet.",
     "Nuovo autore da creare al salvataggio": "Ny forfatter oprettes ved gemning",
     "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Aktivér JavaScript for at tilknytte forfattere. Tekstkrediteringer er stadig tilgængelige.",
-    "Ricerca non disponibile. Riprova.": "Søgning er ikke tilgængelig. Prøv igen."
+    "Ricerca non disponibile. Riprova.": "Søgning er ikke tilgængelig. Prøv igen.",
+    "Puoi collegare al massimo 20 autori a un articolo.": "Du kan højst knytte 20 forfattere til en artikel.",
+    "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Angiv først ressourcens adresse eller sti: uden den er der intet at vise i det offentlige katalog.",
+    "Questo identificativo GND è già assegnato a un altro autore.": "Denne GND-identifikator er allerede tildelt en anden forfatter."
 }

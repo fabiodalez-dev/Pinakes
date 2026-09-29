@@ -11,6 +11,8 @@ final class GndIdentifier
         $value = trim((string)$value);
         if ($value === '') { return null; }
         $value = preg_replace('~^https?://d-nb\.info/gnd/~i', '', $value) ?? '';
+        // DNB historical records carry a lowercase check digit; store the canonical uppercase X.
+        $value = preg_replace('/x$/D', 'X', $value) ?? '';
         if (preg_match('/^[0-9]{2,12}(?:-?[0-9X])$/D', $value) !== 1) {
             throw new \InvalidArgumentException(__('Identificativo GND non valido.'));
         }

@@ -7900,5 +7900,8 @@
     "Il nome è obbligatorio.": "Il nome è obbligatorio.",
     "Nuovo autore da creare al salvataggio": "Nuovo autore da creare al salvataggio",
     "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.",
-    "Ricerca non disponibile. Riprova.": "Ricerca non disponibile. Riprova."
+    "Ricerca non disponibile. Riprova.": "Ricerca non disponibile. Riprova.",
+    "Puoi collegare al massimo 20 autori a un articolo.": "Puoi collegare al massimo 20 autori a un articolo.",
+    "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.",
+    "Questo identificativo GND è già assegnato a un altro autore.": "Questo identificativo GND è già assegnato a un altro autore."
 }

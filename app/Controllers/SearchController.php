@@ -26,7 +26,11 @@ class SearchController
         // resolves people by name — the bulk field editor (#380) — would
         // otherwise create a second author literally called "Pen name (Real
         // name)". Pickers that bind on the id simply ignore the extra key.
-        $select = "id, nome, data_nascita, data_morte, {$label}";
+        // Life dates tell homonyms apart in the staff article-author picker, but
+        // this route is public: only operator sessions (re-validated by
+        // SessionRoleRefreshMiddleware) receive them, as on the admin-only /api/autori.
+        $lifeDates = $this->isOperatorSession($request) ? ', data_nascita, data_morte' : '';
+        $select = "id, nome{$lifeDates}, {$label}";
         if ($q !== '') {
             // Split query into words — each word must match (AND logic)
             $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);

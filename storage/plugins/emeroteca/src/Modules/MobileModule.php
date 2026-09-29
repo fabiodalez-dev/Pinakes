@@ -652,7 +652,7 @@ final class MobileModule
     /**
      * Standalone published articles for the mobile API: a single article by id, or a
      * keyset-paginated (id ASC) list filtered by masthead/testata_id and free-text query
-     * (title/authors/container title/keywords/ISSN). Only pubblico=1 rows are exposed.
+     * (title/subtitle/authors/container title/keywords/ISSN). Only pubblico=1 rows are exposed.
      * Degrades to an empty/404 result when emeroteca_contributi doesn't exist rather than
      * erroring, and sets an ETag for conditional-GET caching.
      */
@@ -684,9 +684,11 @@ final class MobileModule
                 if (is_string($q['q']??null) && $q['q']!=='') {
                     $extraAuthors = (new \App\Services\ArticleAuthorService($this->db))->available()
                         ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))" : '';
-                    $where.=" AND (c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?$extraAuthors)";
+                    // Same column set as ContributionService::search() and the catalogue
+                    // counter: a subtitle-only term must find the article here too.
+                    $where.=" AND (c.titolo LIKE ? ESCAPE '=' OR c.sottotitolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?$extraAuthors)";
                     $pat='%'.strtr(mb_substr($q['q'],0,200),['='=>'==','%'=>'=%','_'=>'=_']).'%';
-                    array_push($params,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
+                    array_push($params,$pat,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
                     if ($extraAuthors !== '') { array_push($params,$pat,$pat); }
                 }
                 $rows=$service->rows('SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE '.$where.' ORDER BY c.id LIMIT '.($limit+1),$params);

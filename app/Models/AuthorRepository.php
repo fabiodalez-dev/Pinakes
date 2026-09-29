@@ -183,11 +183,17 @@ class AuthorRepository
             $refs[] = &$values[$k];
         }
         call_user_func_array([$stmt, 'bind_param'], $refs);
-        $created = $stmt->execute();
-        if ($created) {
-            \App\Support\ContentCache::deferBooksChanged();
+        // Without MYSQLI_REPORT_STRICT a failed INSERT returns false and leaves
+        // insert_id at 0 or at a previous row: never hand either back as a new author.
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('Author creation failed: ' . $error);
         }
-        return (int)$this->db->insert_id;
+        $newId = (int)$this->db->insert_id;
+        $stmt->close();
+        \App\Support\ContentCache::deferBooksChanged();
+        return $newId;
     }
 
     public function update(int $id, array $data): bool
@@ -457,8 +463,12 @@ class AuthorRepository
             }
         }
 
-        // Start transaction
-        $this->db->begin_transaction();
+        // Join the caller's transaction through a savepoint instead of nesting
+        // begin_transaction(), which would commit the caller's work implicitly.
+        $ownsTransaction = !$this->hasActiveTransaction();
+        if ($ownsTransaction) { $this->db->begin_transaction(); }
+        $savepoint = 'author_merge_'.bin2hex(random_bytes(6));
+        $this->db->query("SAVEPOINT $savepoint");
 
         try {
             // The archives plugin (optional) keeps an author↔authority identity
@@ -611,16 +621,19 @@ class AuthorRepository
                 $stmt->close();
             }
 
-            $this->db->commit();
+            $this->db->query("RELEASE SAVEPOINT $savepoint");
+            if ($ownsTransaction) { $this->db->commit(); }
 
             // Rebuild search_index for the affected books now the surviving links
             // all point at the primary author.
             \App\Support\SearchIndexBuilder::rebuildMany($this->db, array_values($affectedBookIds));
-            \App\Support\ContentCache::booksChanged();
+            if ($ownsTransaction) { \App\Support\ContentCache::booksChanged(); }
+            else { \App\Support\ContentCache::deferBooksChanged(); }
 
             return $primaryId;
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if ($ownsTransaction) { $this->db->rollback(); }
+            else { $this->db->query("ROLLBACK TO SAVEPOINT $savepoint"); $this->db->query("RELEASE SAVEPOINT $savepoint"); }
             error_log("[AuthorRepository] Merge failed: " . $e->getMessage());
             return null;
         }

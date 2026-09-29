@@ -59,12 +59,12 @@ final class ArticleAuthorService
                 $id = (int)$rawId;
                 $author = $this->rows('SELECT * FROM autori WHERE id=? FOR UPDATE', [$id])[0] ?? null;
                 if (!$author) { throw new \InvalidArgumentException(__('Autore non trovato.')); }
-                $name = AuthorName::display($author);
+                $name = self::citationCredit($author, $name);
             } elseif (($credit['create'] ?? '') === '1' || ($credit['create'] ?? '') === 1) {
                 if ($name === '') { throw new \InvalidArgumentException(__('Il nome è obbligatorio.')); }
                 $id = (new AuthorRepository($this->db))->create(['nome'=>$name]);
                 $author = $this->rows('SELECT * FROM autori WHERE id=?', [$id])[0];
-                $name = AuthorName::display($author);
+                $name = self::citationCredit($author, $name);
             }
             if ($name === '') { continue; }
             if ($id !== null && isset($seen[$id])) { throw new \InvalidArgumentException(__('Autore già selezionato.')); }
@@ -88,7 +88,42 @@ final class ArticleAuthorService
         }
     }
 
+    /**
+     * The credit as it is CITED ("Surname, Forename") for a linked identity.
+     *
+     * A written credit that already names this identity in inverted form is
+     * kept, so a librarian's "van Gogh, Vincent" is not re-guessed as
+     * "Gogh, Vincent van". Anything else — a direct-order label from the
+     * picker, a stale spelling after a rename — is replaced by the identity's
+     * current citation form. Never the "Pseudonimo (Nome vero)" display form:
+     * that belongs in display_name and in link text only.
+     *
+     * @param array<string,mixed> $author
+     */
+    private static function citationCredit(array $author, string $written): string
+    {
+        $citation = AuthorName::citation($author);
+        $written = trim($written);
+        if ($written !== '' && str_contains($written, ',')) {
+            [$surname, $rest] = array_map('trim', explode(',', $written, 2));
+            $direct = preg_replace('/\s+/u', ' ', trim($rest . ' ' . $surname)) ?? '';
+            $nome = trim((string)($author['nome'] ?? ''), ' ');
+            $pseudonimo = trim((string)($author['pseudonimo'] ?? ''), ' ');
+            $preferred = preg_replace('/\s+/u', ' ', $pseudonimo !== '' ? $pseudonimo : $nome) ?? '';
+            if ($direct === $preferred || $written === $preferred) {
+                return $written;
+            }
+        }
+        return $citation;
+    }
+
     /** Bulk projection reads current names, pseudonyms and identifiers without mutating the original credit.
+     *
+     * For a linked credit `nome_credito` (and therefore the row's `autori`) is
+     * the identity's current CITATION form, which is what citations and MARC
+     * 100/700 need; the reader-facing "Pseudonimo (Nome vero)" form travels
+     * separately as `display_name`, for link text only.
+     *
      * @param list<array<string,mixed>> $records @return list<array<string,mixed>>
      */
     public function hydrate(array $records): array
@@ -100,7 +135,9 @@ final class ArticleAuthorService
         $byArticle = [];
         foreach ($credits as $credit) {
             $id = $credit['identity_id'] !== null ? (int)$credit['identity_id'] : null;
-            $name = $id !== null ? AuthorName::display($credit) : (string)$credit['nome_credito'];
+            $stored = (string)$credit['nome_credito'];
+            $name = $id !== null ? self::citationCredit($credit, $stored) : $stored;
+            $display = $id !== null ? AuthorName::display($credit) : $stored;
             $identifiers = [];
             $confidence = (string)($credit['authority_confidence'] ?? '');
             $confirmed = $confidence !== 'rejected' && ($confidence === 'exact' || ($credit['authority_source'] ?? '') === 'manual');
@@ -110,7 +147,7 @@ final class ArticleAuthorService
             }
             if (!empty($credit['gnd_id'])) { $identifiers[] = 'https://d-nb.info/gnd/'.$credit['gnd_id']; }
             $byArticle[(int)$credit['article_id']][] = ['autore_id'=>$id, 'nome_credito'=>$name,
-                'ruolo'=>(string)$credit['ruolo'], 'identifiers'=>$identifiers];
+                'display_name'=>$display, 'ruolo'=>(string)$credit['ruolo'], 'identifiers'=>$identifiers];
         }
         foreach ($records as &$record) {
             $record['author_credits'] = $byArticle[(int)$record['id']] ?? [];
@@ -133,13 +170,16 @@ final class ArticleAuthorService
         $this->rows('DELETE FROM emeroteca_contributi_autori WHERE autore_id=?', [$duplicateId]);
     }
 
-    /** Keep the last displayed name if an identity is explicitly deleted. */
+    /** Keep the latest name, in citation form, if an identity is explicitly deleted. */
     public function beforeDelete(int $id): void
     {
         if (!$this->available()) { return; }
         $author = $this->rows('SELECT * FROM autori WHERE id=?', [$id])[0] ?? null;
         if ($author) {
-            $this->rows('UPDATE emeroteca_contributi_autori SET nome_credito=?, autore_id=NULL WHERE autore_id=?', [AuthorName::display($author), $id]);
+            foreach ($this->rows('SELECT contributo_id, ordine_credito, nome_credito FROM emeroteca_contributi_autori WHERE autore_id=?', [$id]) as $credit) {
+                $this->rows('UPDATE emeroteca_contributi_autori SET nome_credito=?, autore_id=NULL WHERE contributo_id=? AND ordine_credito=?',
+                    [self::citationCredit($author, (string)$credit['nome_credito']), $credit['contributo_id'], $credit['ordine_credito']]);
+            }
         }
     }
 }

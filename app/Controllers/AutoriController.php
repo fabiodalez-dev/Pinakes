@@ -41,10 +41,14 @@ class AutoriController
 
         $libri = $authorRepo->getBooksByAuthorId($id);
         $articoli = [];
+        // Unpublished articles are staff-only: patrons (standard/premium) can
+        // reach this page too, so they get the published subset and public links.
+        $isStaff = in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true);
         $articleAuthors = new \App\Services\ArticleAuthorService($db);
         try {
             if ($articleAuthors->available() && \App\Support\PeriodicalArticlesHint::state($db) === \App\Support\PeriodicalArticlesHint::ACTIVE) {
-                $stmt = $db->prepare('SELECT c.id,c.titolo,c.pubblico FROM emeroteca_contributi c JOIN emeroteca_contributi_autori ca ON ca.contributo_id=c.id WHERE ca.autore_id=? ORDER BY c.anno_pubblicazione DESC,c.titolo LIMIT 100');
+                $publishedOnly = $isStaff ? '' : ' AND c.pubblico = 1';
+                $stmt = $db->prepare('SELECT c.id,c.titolo,c.pubblico FROM emeroteca_contributi c JOIN emeroteca_contributi_autori ca ON ca.contributo_id=c.id WHERE ca.autore_id=?' . $publishedOnly . ' ORDER BY c.anno_pubblicazione DESC,c.titolo LIMIT 100');
                 $stmt->bind_param('i', $id); $stmt->execute();
                 $articoli = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
             }
@@ -97,6 +101,15 @@ class AutoriController
             }
         }
 
+        // Validate the GND before any upload is written, so a bad identifier
+        // never costs the librarian the photo they just attached.
+        try {
+            $gndId = \App\Support\GndIdentifier::normalize($data['gnd_id'] ?? null);
+        } catch (\InvalidArgumentException) {
+            $this->flashError(__('Identificativo GND non valido.'));
+            return $response->withHeader('Location', url('/admin/authors/create'))->withStatus(302);
+        }
+
         // Issue #163: author photo (upload or URL) + relevant source/website links.
         $photo = $this->resolveAuthorPhoto($request, $data, '');
         if (isset($photo['error'])) {
@@ -117,7 +130,7 @@ class AutoriController
                 'sito_web' => $sitoWeb,
                 'foto' => $photo['foto'],
                 'collegamenti' => $collegamenti,
-                'gnd_id' => $data['gnd_id'] ?? null,
+                'gnd_id' => $gndId,
             ]);
         } catch (\Throwable $e) {
             // Persistence failed → roll back the just-written upload so no orphan file is left.
@@ -125,7 +138,7 @@ class AutoriController
             if ($photo['deleteOnFailure'] !== null) {
                 $this->deleteLocalPhoto($photo['deleteOnFailure']);
             }
-            $this->flashError(__('Impossibile salvare l\'autore. Riprova.'));
+            $this->flashError($this->authorSaveError($e));
             return $response->withHeader('Location', url('/admin/authors/create'))->withStatus(302);
         }
         // Persistence succeeded → safe to remove any superseded local photo (none on create).
@@ -180,6 +193,12 @@ class AutoriController
         if (!$existing) {
             return $response->withStatus(404);
         }
+        try {
+            $gndId = \App\Support\GndIdentifier::normalize($data['gnd_id'] ?? null);
+        } catch (\InvalidArgumentException) {
+            $this->flashError(__('Identificativo GND non valido.'));
+            return $response->withHeader('Location', url('/admin/authors/edit/' . $id))->withStatus(302);
+        }
         $existingFoto = (string) ($existing['foto'] ?? '');
         $photo = $this->resolveAuthorPhoto($request, $data, $existingFoto);
         if (isset($photo['error'])) {
@@ -200,7 +219,7 @@ class AutoriController
                 'sito_web' => $sitoWeb,
                 'foto' => $photo['foto'],
                 'collegamenti' => $collegamenti,
-                'gnd_id' => $data['gnd_id'] ?? null,
+                'gnd_id' => $gndId,
             ]);
         } catch (\Throwable $e) {
             // Persistence failed → roll back the just-written upload, keep the old photo intact.
@@ -208,7 +227,7 @@ class AutoriController
             if ($photo['deleteOnFailure'] !== null) {
                 $this->deleteLocalPhoto($photo['deleteOnFailure']);
             }
-            $this->flashError(__('Impossibile salvare l\'autore. Riprova.'));
+            $this->flashError($this->authorSaveError($e));
             return $response->withHeader('Location', url('/admin/authors/edit/' . $id))->withStatus(302);
         }
         // Persistence succeeded → now it is safe to drop the superseded local photo.
@@ -216,6 +235,15 @@ class AutoriController
             $this->deleteLocalPhoto($photo['deleteOnSuccess']);
         }
         return $response->withHeader('Location', url('/admin/authors'))->withStatus(302);
+    }
+
+    /** Fixed, user-safe message for a failed author save: never the exception text. */
+    private function authorSaveError(\Throwable $e): string
+    {
+        if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1062) {
+            return __('Questo identificativo GND è già assegnato a un altro autore.');
+        }
+        return __('Impossibile salvare l\'autore. Riprova.');
     }
 
     /**

@@ -7900,5 +7900,8 @@
     "Il nome è obbligatorio.": "Der Name ist erforderlich.",
     "Nuovo autore da creare al salvataggio": "Neuer Autor wird beim Speichern angelegt",
     "Per collegare gli autori attiva JavaScript. I crediti testuali restano disponibili.": "Aktivieren Sie JavaScript, um Autoren zu verknüpfen. Textangaben bleiben verfügbar.",
-    "Ricerca non disponibile. Riprova.": "Suche nicht verfügbar. Bitte erneut versuchen."
+    "Ricerca non disponibile. Riprova.": "Suche nicht verfügbar. Bitte erneut versuchen.",
+    "Puoi collegare al massimo 20 autori a un articolo.": "Einem Artikel können höchstens 20 Autoren zugeordnet werden.",
+    "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Geben Sie zuerst die Adresse oder den Pfad der Ressource an: ohne sie gibt es im öffentlichen Katalog nichts anzuzeigen.",
+    "Questo identificativo GND è già assegnato a un altro autore.": "Diese GND-Kennung ist bereits einem anderen Autor zugeordnet."
 }

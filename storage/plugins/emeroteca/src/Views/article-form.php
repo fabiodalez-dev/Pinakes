@@ -38,7 +38,28 @@ $labels=['titolo'=>__('Titolo'),'sottotitolo'=>__('Sottotitolo'),'autori'=>__('A
 <div><label for="article-risorsa_testo" class="form-label"><?= __('Testo del collegamento') ?></label><input class="form-input" id="article-risorsa_testo" name="risorsa_testo" value="<?= $e($row['risorsa_testo']??'') ?>" maxlength="255"></div>
 <div><label for="article-risorsa_accesso" class="form-label"><?= __('Condizioni di accesso') ?></label><input class="form-input" id="article-risorsa_accesso" name="risorsa_accesso" value="<?= $e($row['risorsa_accesso']??'') ?>" maxlength="255"></div>
 </div>
-<label class="block my-4"><input type="checkbox" name="risorsa_pubblica" value="1" <?= !empty($row['risorsa_pubblica'])?'checked':'' ?>> <?= __('Mostra la risorsa elettronica nel catalogo pubblico') ?></label>
+<?php $resourceMissing=trim((string)($row['risorsa_url']??''))===''; ?>
+<label class="block my-4"><input type="checkbox" id="article-risorsa_pubblica" name="risorsa_pubblica" value="1" <?= !empty($row['risorsa_pubblica'])?'checked':'' ?><?= $resourceMissing?' disabled aria-disabled="true"':'' ?> aria-describedby="article-risorsa-note"> <?= __('Mostra la risorsa elettronica nel catalogo pubblico') ?></label>
+<p class="text-sm text-gray-600" id="article-risorsa-note"<?= $resourceMissing?'':' hidden' ?>><?= __('Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.') ?></p>
+<script>
+(function () {
+  // A public switch with no address publishes nothing (the server forces it
+  // off too): keep it disabled, with the reason beside it, until one is typed.
+  const url = document.getElementById('article-risorsa_url');
+  const flag = document.getElementById('article-risorsa_pubblica');
+  const note = document.getElementById('article-risorsa-note');
+  if (!url || !flag || !note) return;
+  function sync() {
+    const empty = url.value.trim() === '';
+    flag.disabled = empty;
+    if (empty) { flag.checked = false; }
+    flag.setAttribute('aria-disabled', empty ? 'true' : 'false');
+    note.hidden = !empty;
+  }
+  url.addEventListener('input', sync);
+  sync();
+})();
+</script>
 </details>
 <div class="mt-6"><label for="article-copertina" class="form-label"><?= __('Immagine dell’articolo (JPG, PNG o WebP, massimo 5 MB)') ?></label><input id="article-copertina" type="file" name="copertina" accept="image/jpeg,image/png,image/webp" class="form-input">
 <?php if(!empty($row['copertina_url'])): ?><p class="my-3"><img src="<?= $e(url((string)$row['copertina_url'])) ?>" alt="" style="width:110px;height:150px;object-fit:cover;border-radius:.25rem;"></p><label><input type="checkbox" name="remove_copertina" value="1"> <?= __('Rimuovi immagine') ?></label><?php endif; ?></div>

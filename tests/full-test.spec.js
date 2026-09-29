@@ -3009,7 +3009,13 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     expect(descNames.length).toBeGreaterThan(0);
 
     // Verify descending alphabetical order by surname
-    const getSurname = (name) => name.split(/\s+/).pop().toLowerCase();
+    // Same rule as the server's sort key: first credited author; an inverted
+    // "Surname, Forename" credit (articles, issue #412) sorts by the part before
+    // the comma, a direct-order name by its last word.
+    const getSurname = (name) => {
+      const first = name.split(';')[0].trim();
+      return (first.includes(',') ? first.split(',')[0] : first.split(/\s+/).pop()).trim().toLowerCase();
+    };
     const descSurnames = descNames.map(getSurname);
     const sortedDesc = [...descSurnames].sort((a, b) => b.localeCompare(a));
     expect(descSurnames).toEqual(sortedDesc);

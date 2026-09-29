@@ -598,9 +598,12 @@ final class ContributionController extends AbstractAdminController
         $rs = $rs->withHeader('Cache-Control', 'private, no-store');
         $row = $this->service()->get($id, $public);
         if (!$row) { return $rs->withStatus(404); }
+        // 773 $w carries the masthead as the SRU server exports it: SRUServer
+        // builds each periodical record with 001 'periodical:<id>'. The shelf
+        // mark (852 $c) is included only in the admin export.
         $body = \App\Plugins\Emeroteca\Support\ArticleMarcXml::format($row,
             !empty($row['pubblico']) ? absoluteUrl('/emeroteca/articolo/'.$id) : '',
-            !empty($row['testata_id']) ? 'periodical:'.(int)$row['testata_id'] : '');
+            !empty($row['testata_id']) ? 'periodical:'.(int)$row['testata_id'] : '', !$public);
         $rs->getBody()->write($body);
         return $rs->withHeader('Content-Type', 'application/marcxml+xml; charset=UTF-8')
             ->withHeader('Content-Disposition', 'attachment; filename="article-'.$id.'.marc.xml"')

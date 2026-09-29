@@ -423,6 +423,7 @@ class EmerotecaPlugin
 
     public static function ddlContributiAutori(): string
     {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
         return \App\Plugins\Emeroteca\Services\ContributionService::authorsDdl();
     }
 

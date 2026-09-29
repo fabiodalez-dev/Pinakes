@@ -121,6 +121,12 @@ final class ContributionCsv
                 $data['reference_key'] = $key;
                 $existing = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE reference_key=?', [$key])[0] ?? null;
                 if ($existing) {
+                    // Merge onto the SAME representation the commit compares
+                    // against (saveImportRow reads the hydrated get()): a row
+                    // without an autori column then carries the linked
+                    // identities' current credit, not a stale stored string.
+                    $existing = $this->service->hydrateAuthors([$existing])[0];
+                    unset($existing['author_credits']);
                     $item['id'] = (int)$existing['id'];
                     $item['revision'] = (int)$existing['revision'];
                 }

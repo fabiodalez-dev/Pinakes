@@ -109,6 +109,46 @@ try {
     $data=$call(['autore'=>$credit]);
     $check($data['pagination']['total_books']===1 && !str_contains($data['html'],"/emeroteca/articolo/$articleId"),'revoking publication immediately removes the article');
     $db->query("UPDATE emeroteca_contributi SET pubblico=1 WHERE id=$articleId");
+
+    // Secondary roles: a translator linked from a book page must find that book
+    // in their archive, also when the unified page (they have an article too)
+    // replaces the raw book rows. The catalogue ?autore_id= filter stays
+    // principale/co-autore.
+    $translatorName = "Translator Probe$suffix";
+    $db->query("INSERT INTO autori(nome) VALUES ('$translatorName')"); $translatorId = (int)$db->insert_id;
+    $db->query("INSERT INTO libri(titolo,copie_totali,copie_disponibili) VALUES ('Translated book $suffix',1,1)"); $translatedBookId=(int)$db->insert_id;
+    $db->query("INSERT INTO libri_autori(libro_id,autore_id,ruolo) VALUES ($translatedBookId,$translatorId,'traduttore')");
+    $db->query("INSERT INTO emeroteca_contributi(reference_key,titolo,autori,pubblico) VALUES ('t$suffix','Translator article $suffix','$translatorName',1)"); $translatorArticleId=(int)$db->insert_id;
+    $db->query("INSERT INTO emeroteca_contributi_autori(contributo_id,ordine_credito,autore_id,nome_credito,ruolo) VALUES ($translatorArticleId,0,$translatorId,'$translatorName','principale')");
+    $translatorRequest=(new ServerRequestFactory())->createServerRequest('GET','/autore/'.$translatorId);
+    $byId=(string)$controller->authorArchiveById($translatorRequest,new Response(),$db,$translatorId)->getBody();
+    $check(str_contains($byId, 'Translated book '.$suffix) && str_contains($byId, '/emeroteca/articolo/'.$translatorArticleId), 'translator archive by id lists the translated book beside the article');
+    $byName=(string)$controller->authorArchive($translatorRequest,new Response(),$db,$translatorName)->getBody();
+    $check(str_contains($byName, 'Translated book '.$suffix), 'translator archive by name lists the translated book');
+    $db->query("DELETE FROM emeroteca_contributi_autori WHERE contributo_id=$translatorArticleId");
+    $db->query("DELETE FROM emeroteca_contributi WHERE id=$translatorArticleId");
+    $bookOnly=(string)$controller->authorArchiveById($translatorRequest,new Response(),$db,$translatorId)->getBody();
+    $check(str_contains($bookOnly, 'Translated book '.$suffix), 'translator archive without articles lists the translated book');
+    $data=$call(['autore_id'=>$translatorId]);
+    $check($data['pagination']['total_books']===0,'catalogue autore_id filter keeps principale/co-autore scope');
+
+    // Homonyms: the name route aggregates every same-named identity; the id
+    // route shows exactly that identity.
+    $homonym = "Homonym Probe$suffix";
+    $db->query("INSERT INTO autori(nome) VALUES ('$homonym')"); $homonymA = (int)$db->insert_id;
+    $db->query("INSERT INTO autori(nome) VALUES ('$homonym')"); $homonymB = (int)$db->insert_id;
+    $db->query("INSERT INTO libri(titolo,copie_totali,copie_disponibili) VALUES ('Homonym A book $suffix',1,1)"); $homonymBookA=(int)$db->insert_id;
+    $db->query("INSERT INTO libri(titolo,copie_totali,copie_disponibili) VALUES ('Homonym B book $suffix',1,1)"); $homonymBookB=(int)$db->insert_id;
+    $db->query("INSERT INTO libri_autori(libro_id,autore_id,ruolo) VALUES ($homonymBookA,$homonymA,'principale'),($homonymBookB,$homonymB,'principale')");
+    $homonymRequest=(new ServerRequestFactory())->createServerRequest('GET','/autore/'.rawurlencode($homonym));
+    $homonymArchive=(string)$controller->authorArchive($homonymRequest,new Response(),$db,$homonym)->getBody();
+    $check(str_contains($homonymArchive, 'Homonym A book '.$suffix) && str_contains($homonymArchive, 'Homonym B book '.$suffix), 'name archive aggregates every homonym');
+    $homonymById=(string)$controller->authorArchiveById($homonymRequest,new Response(),$db,$homonymB)->getBody();
+    $check(str_contains($homonymById, 'Homonym B book '.$suffix) && !str_contains($homonymById, 'Homonym A book '.$suffix), 'id archive shows only that homonym');
+    $db->query("UPDATE libri SET deleted_at=NOW() WHERE id=$homonymBookA");
+    $homonymArchive=(string)$controller->authorArchive($homonymRequest,new Response(),$db,$homonym)->getBody();
+    $check(!str_contains($homonymArchive, 'Homonym A book '.$suffix) && str_contains($homonymArchive, 'Homonym B book '.$suffix), 'aggregated name archive still hides soft-deleted books');
+
     $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
     $data=$call(['autore'=>$credit]);
     $check($data['pagination']['total_books']===1,'deactivating plugin removes article from controller results');
