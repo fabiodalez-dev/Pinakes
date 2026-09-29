@@ -251,6 +251,15 @@ final class ConfigStore
     }
 
     /**
+     * The per-request connection, for views rendered by controllers that do
+     * not hand their own `$db` to the layout. May throw on a failed connect.
+     */
+    public static function sharedConnection(): ?\mysqli
+    {
+        return self::getConnection();
+    }
+
+    /**
      * Lazily open (once per request) the standalone connection used by
      * ConfigStore. Bootstrap code reads settings before the DI container is
      * built, so ConfigStore cannot rely on the container's 'db' service.

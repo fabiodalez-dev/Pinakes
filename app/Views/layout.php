@@ -188,6 +188,19 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
             </a>
 
+            <?php if (\App\Support\PeriodicalArticlesHint::stateForLayout() === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+            <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-new-article"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                <i class="fas fa-newspaper text-sm text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Nuovo articolo") ?></div>
+                <div class="text-xs text-gray-600"><?= __("Da rivista o giornale") ?></div>
+              </div>
+            </a>
+            <?php endif; ?>
+
             <?php if (!$isCatalogueMode): ?>
               <a href="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>"
                 class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">

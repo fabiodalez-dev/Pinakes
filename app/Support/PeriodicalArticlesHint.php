@@ -36,6 +36,19 @@ final class PeriodicalArticlesHint
     }
 
     /**
+     * The state for the admin layout, which renders on every page and has no
+     * `$db` of its own: it borrows ConfigStore's per-request connection.
+     */
+    public static function stateForLayout(): string
+    {
+        try {
+            return self::state(ConfigStore::sharedConnection());
+        } catch (\Throwable $e) {
+            return self::ABSENT;
+        }
+    }
+
+    /**
      * Resolve the state without ever breaking the page that asks.
      *
      * A missing plugins table, a failed statement or a deleted plugin
