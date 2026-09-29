@@ -67,17 +67,29 @@ final class UnifiedCatalogService
         $articleTotal = (int)$this->rows('SELECT COUNT(*) n' . $articleFrom, $types, $params)[0]['n'];
         if ($articleTotal === 0) { return null; }
         $bookSelect = "SELECT l.id, l.titolo, l.created_at, l.anno_pubblicazione, $authorSelect $bookFrom";
-        $articleAuthor = 'c.autori';
+        // One author sort key for the whole mixed catalogue (issue #412):
+        // - a credit linked to an author identity sorts exactly like that author's
+        //   books (CatalogAuthorProjection: last word of the preferred name,
+        //   principal author first), so one person never lands under two letters;
+        // - a free-text credit has no identity, so it keeps the text rule:
+        //   "Surname, Forename" sorts by the part before the comma, a
+        //   direct-order name by its last word.
+        $textSort = static fn(string $credit): string => "NULLIF(TRIM(CASE WHEN SUBSTRING_INDEX($credit, ';', 1) LIKE '%,%'
+                           THEN SUBSTRING_INDEX(SUBSTRING_INDEX($credit, ';', 1), ',', 1)
+                           ELSE SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX($credit, ';', 1)), ' ', -1) END), '')";
+        $articleSort = $textSort('c.autori');
         if ((new ArticleAuthorService($this->db))->available()) {
-            $articleAuthor = "COALESCE((SELECT CASE WHEN ca.autore_id IS NULL THEN ca.nome_credito ELSE COALESCE(NULLIF(a.pseudonimo,''),a.nome) END FROM emeroteca_contributi_autori ca LEFT JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id ORDER BY ca.ordine_credito LIMIT 1),c.autori)";
+            $linkedSort = "NULLIF(SUBSTRING_INDEX(" . \App\Support\AuthorName::preferredSql('a') . ", ' ', -1), '')";
+            $articleSort = "COALESCE((SELECT CASE WHEN a.id IS NOT NULL THEN $linkedSort ELSE " . $textSort('ca.nome_credito') . " END
+                             FROM emeroteca_contributi_autori ca LEFT JOIN autori a ON a.id=ca.autore_id
+                             WHERE ca.contributo_id=c.id
+                             ORDER BY (ca.ruolo = 'principale') DESC, ca.ordine_credito LIMIT 1), " . $textSort('c.autori') . ")";
         }
         $union = "SELECT id, 'book' AS kind, titolo COLLATE utf8mb4_unicode_ci AS title_sort,
                          created_at, anno_pubblicazione AS publication_sort, autore_cognome COLLATE utf8mb4_unicode_ci AS author_sort FROM ($bookSelect) books
                   UNION ALL
                   SELECT c.id, 'article', c.titolo COLLATE utf8mb4_unicode_ci, c.created_at, c.anno_pubblicazione,
-                         NULLIF(TRIM(CASE WHEN SUBSTRING_INDEX($articleAuthor, ';', 1) LIKE '%,%'
-                           THEN SUBSTRING_INDEX(SUBSTRING_INDEX($articleAuthor, ';', 1), ',', 1)
-                           ELSE SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX($articleAuthor, ';', 1)), ' ', -1) END), '') COLLATE utf8mb4_unicode_ci
+                         ($articleSort) COLLATE utf8mb4_unicode_ci
                   $articleFrom";
         $order = match ($filters['sort'] ?? 'newest') {
             'oldest' => 'created_at ASC',

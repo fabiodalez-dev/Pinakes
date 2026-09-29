@@ -109,6 +109,14 @@ $referenceKey=(string)$row['reference_key'];
     $service->save(['titolo'=>'Sort comparison','autori'=>'Nolan','pubblico'=>1]);
     $sorted=$catalog->page('FROM libri l WHERE l.deleted_at IS NULL AND 1=0','CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore, CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore_principale_nome, CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore_cognome','',[],['sort'=>'author_asc'],0,20,0);
     verifyIdentity((int)$sorted['rows'][0]['id']===$id,'author sort uses current pseudonym rather than stale article text');
+    // F027: a linked article sorts like the author's books — principal author first, last word of the preferred name —
+    // even when a co-author is credited before the principal author.
+    $coFirst=$authors->create(['nome'=>'Anna Zulu']); $principal=$authors->create(['nome'=>'Bruno Aaberg']);
+    $sortArticle=$service->save(['titolo'=>'Sort principal first','pubblico'=>1,'credits_present'=>1,'credits'=>[
+        ['autore_id'=>(string)$coFirst,'nome_credito'=>'Zulu, Anna','ruolo'=>'co-autore'],
+        ['autore_id'=>(string)$principal,'nome_credito'=>'Aaberg, Bruno','ruolo'=>'principale']]]);
+    $sortedAll=$catalog->page('FROM libri l WHERE l.deleted_at IS NULL AND 1=0','CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore, CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore_principale_nome, CAST(NULL AS CHAR CHARACTER SET utf8mb4) autore_cognome','',[],['sort'=>'author_asc'],0,50,0);
+    verifyIdentity((int)$sortedAll['rows'][0]['id']===$sortArticle,'linked article sorts by its principal author like a book, not by the first-credited co-author');
     $suggestion=$plugin->suggestEmerotecaSearch([],'Renamed');
     verifyIdentity(count($suggestion)===1 && $suggestion[0]['total']===1 && str_contains($suggestion[0]['items'][0]['meta'],'Archivist, Uwe'),'catalogue suggestions find and display the current shared author');
     $csv=(new \App\Plugins\Emeroteca\Services\ContributionCsv($service))->export();
