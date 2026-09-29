@@ -7,8 +7,13 @@ namespace App\Plugins\Emeroteca\Controllers;
 require_once __DIR__ . '/AbstractAdminController.php';
 require_once __DIR__ . '/../Services/ContributionService.php';
 require_once __DIR__ . '/../Services/ContributionCsv.php';
+// Plugin classes have no autoloader scope: every file this one names must be
+// required by hand, or the class is missing only at the moment the route runs.
+require_once __DIR__ . '/../Support/CitationFormatter.php';
+require_once __DIR__ . '/../Support/ArticleMarcXml.php';
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
+use App\Plugins\Emeroteca\Support\CitationFormatter;
 use App\Support\SecureLogger;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -212,7 +217,7 @@ final class ContributionController extends AbstractAdminController
             // would win and the re-rendered form would show the article as
             // still published: the operator would republish it by resubmitting.
             $flags = [];
-            foreach (['pubblico','pdf_pubblico','remove_pdf','remove_copertina'] as $flag) {
+            foreach (['pubblico','pdf_pubblico','risorsa_pubblica','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
             return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
@@ -522,6 +527,87 @@ final class ContributionController extends AbstractAdminController
         if (preg_match('/^[a-f0-9]{40}\.pdf$/D', $name) && is_file(self::pdfDir().'/'.$name)) {
             unlink(self::pdfDir().'/'.$name);
         }
+    }
+    /** Admin-only citation download: any contribution, published or not. */
+    public function ris(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveRis($rs, (int)($args['id'] ?? 0), false);
+    }
+    /** Public citation download: only published contributions. */
+    public function publicRis(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveRis($rs, (int)($args['id'] ?? 0), true);
+    }
+    /**
+     * Hand the record to a reference manager.
+     *
+     * The two URLs inside the file go through absoluteUrl(), like every other
+     * URL that leaves this application (mail, Open Graph, schema.org,
+     * OpenUrlResolverPlugin::localBookUrl). They used to be built from
+     * $rq->getUri()->getAuthority() — the client-supplied Host header — so that
+     * an installation reached on a second hostname would export links resolving
+     * on that hostname. absoluteUrl() keeps that: with APP_TRUSTED_HOSTS listing
+     * several hosts it honours whichever listed host was used, and only clamps
+     * to the first entry when the Host is not one of them. With
+     * APP_CANONICAL_URL set the front controller already 301s a foreign Host
+     * before this code runs, so the two spellings agree there anyway.
+     *
+     * It matters here more than in a page: a reference manager follows UR and
+     * L1 unattended, so a poisoned Host would send it somewhere the library
+     * never published. The PDF link is still only included when the reader
+     * could open it anyway — a citation URL that answers 404 is worse than one
+     * that is absent.
+     */
+    private function serveRis(Response $rs, int $id, bool $public): Response
+    {
+        $row = $this->service()->get($id, $public);
+        if (!$row) {
+            return $rs->withStatus(404)->withHeader('Cache-Control', 'private, no-store');
+        }
+        // Both URLs are PUBLIC routes, so both need the article itself to be
+        // published — not just the PDF flag. The public PDF route resolves
+        // through get($id, true), which refuses an unpublished article, so an
+        // admin-side export of a draft used to carry an L1 that answers 404 for
+        // everyone including the cataloguer. pdf_pubblico alone is the flag for
+        // "this file may be served", never for "this record exists publicly".
+        $published = !empty($row['pubblico']);
+        $recordUrl = $published ? absoluteUrl('/emeroteca/articolo/'.$id) : '';
+        $fileUrl = ($published && !empty($row['pdf_path']) && !empty($row['pdf_pubblico']))
+            ? absoluteUrl('/emeroteca/articolo/'.$id.'/pdf')
+            : '';
+        $body = CitationFormatter::ris($row, $recordUrl, $fileUrl);
+        $rs->getBody()->write($body);
+
+        return $rs
+            ->withHeader('Content-Type', 'application/x-research-info-systems; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="'.CitationFormatter::fileName($id).'"')
+            ->withHeader('Content-Length', (string) strlen($body))
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Cache-Control', 'private, no-store');
+    }
+    public function marcXml(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveMarcXml($rs, (int)($args['id'] ?? 0), false);
+    }
+    public function publicMarcXml(Request $rq, Response $rs, array $args = []): Response
+    {
+        return $this->serveMarcXml($rs, (int)($args['id'] ?? 0), true);
+    }
+    private function serveMarcXml(Response $rs, int $id, bool $public): Response
+    {
+        $rs = $rs->withHeader('Cache-Control', 'private, no-store');
+        $row = $this->service()->get($id, $public);
+        if (!$row) { return $rs->withStatus(404); }
+        // 773 $w carries the masthead as the SRU server exports it: SRUServer
+        // builds each periodical record with 001 'periodical:<id>'. The shelf
+        // mark (852 $c) is included only in the admin export.
+        $body = \App\Plugins\Emeroteca\Support\ArticleMarcXml::format($row,
+            !empty($row['pubblico']) ? absoluteUrl('/emeroteca/articolo/'.$id) : '',
+            !empty($row['testata_id']) ? 'periodical:'.(int)$row['testata_id'] : '', !$public);
+        $rs->getBody()->write($body);
+        return $rs->withHeader('Content-Type', 'application/marcxml+xml; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="article-'.$id.'.marc.xml"')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
     }
     /** Admin-only PDF download: any contribution, published or not. */
     public function pdf(Request $rq, Response $rs, array $args = []): Response

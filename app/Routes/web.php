@@ -2296,11 +2296,13 @@ return function (App $app): void {
         return \App\Support\MergeHelper::handleMergeRequest($request, $response, $db, 'editori');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Public picker feed; SessionRoleRefreshMiddleware re-validates the operator
+    // claim that decides whether author life dates are included (CWE-613).
     $app->get('/api/search/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->authors($request, $response, $db);
-    });
+    })->add(new SessionRoleRefreshMiddleware(null, $app->getContainer()));
     $app->get('/api/search/editori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');

@@ -1,4 +1,4 @@
-# Emeroteca 1.6
+# Emeroteca 1.7
 
 Emeroteca supports two workflows. **Simple** starts with standalone articles. **Complete** also exposes the existing mastheads, volume years, issues, Kardex and subscriptions. The same records remain available in either mode. Change the shared setting under **Plugins → Emeroteca → Settings**, or on the Periodicals/Articles page. Only administrators may change the installation-wide setting.
 
@@ -12,11 +12,33 @@ Articles are private initially. Publishing the article and allowing public acces
 
 The existing **Issue article indexes** remain available from the Articles list. They are edited on their issue, while standalone articles have independent IDs and permanent detail URLs. No conversion or duplication occurs when switching views.
 
+## The analytic record
+
+A standalone article is, in library terms, an **analytic** (component-part) record: it describes a piece *of* something the library may not hold at all. Everything needed to say so properly is on the article form, and **all of it is optional** — a collection that only wants a citation fills in the title and stops there.
+
+Under **Advanced bibliographic description** the form carries the subtitle, the language and country of publication, a classification, and a holdings note. The classification is stored as a **scheme plus a value** — `DK5` and `33.129`, or `DDC` and `853.92`, or `UDC`, `LCC`, `RVK`. In the MARCXML export a DDC notation goes to 082, UDC to 080 and LCC to 050, the fields MARC 21 reserves for them; every other scheme (DK5, RVK, …) goes to 084 `$a` with the scheme in `$2`. No scheme is privileged: a notation without the name of the list it comes from cannot be read by anyone who does not already know which list was meant.
+
+Language and country are stored as **ISO codes** (639 for the language, 3166-1 alpha-2 for the country), not as names, and the page renders them in the reader's own language: `dan` reads as “Danish” to one visitor and “danese” to another. A language *name* typed into the box would be that name for everybody. Two-letter and three-letter language codes are both accepted and stored as entered; the MARCXML export converts them to the MARC language code (`de`/`deu` → `ger`, `fr`/`fra` → `fre`, `da` → `dan`).
+
+Under **Electronic resource** the form carries the danMARC2/MARC 21 **856** triple: the address, the link text (`$y`) and the access conditions (`$z`), with its own visibility switch. An `http`/`https` address becomes a link; **anything else** — a UNC share, a `file:` URI, an identifier in a document management system — is kept as written and shown as text, never as something a browser is invited to follow. A record may have both an uploaded PDF and an external address: the PDF is always the primary action, because it is the copy the library actually holds, and the external address becomes secondary. There is never more than one primary action on the page.
+
+## Citing an article
+
+The public page renders the citation in **APA 7** and **Harvard**, each with a copy button, and offers the record as **RIS** for EndNote, Mendeley and Zotero at `/emeroteca/articolo/{id}/citazione.ris`. The same file is available in the admin form for an article that is not published, at `/admin/periodicals/articles/{id}/citation.ris`.
+
+The citation is assembled from the record rather than retyped, so a corrected volume number corrects the bibliography too. A name written inverted (`Petersen, Hans Uwe`) is reduced to initials; a name with no comma is treated as corporate and used verbatim, because guessing which word of `Marc J. Schweissinger` is the surname is wrong often enough, and invisibly enough, not to guess. With no author the title takes the author slot, as both styles prescribe; with no year the citation says `n.d.` rather than inventing one, though a year written only in a free-text date (`June 2019`) is still found.
+
+RIS lines end CR LF and no value may contain a line break — an abstract pasted out of a PDF is collapsed to one line, because in RIS a break starts a new tag and would truncate the record at its first paragraph.
+
+With the **OpenURL Z39.88** plugin active, the article page also carries COinS metadata, so Zotero and Mendeley can import the record straight from the page, and `/openurl` resolves an incoming journal request to a local article by DOI or exact title before falling back to an external resolver.
+
 ## Finding an article, and moving between articles
 
-A catalogue search that matches a published article now answers with the article itself: the results page lists the matching titles, each with its authors, publication, date and page span, and links straight to the article. The catalogue only indexes books, so the matches arrive through the `search.external_suggestions` filter — the same route the mastheads use — and a search that matches nothing in the emeroteca adds nothing to the page. At most five matches are listed per section; the section heading carries the real total and links to the full article search.
+Published standalone articles share the main catalogue grid with books, including its total, sorting and pagination. The same results are returned by the live-search API. Article cards link to their own records and are labelled as articles, never as unavailable books. Loan availability, book genre, publisher and book media-type filters exclude articles because those facets describe book holdings. Mastheads and issue-owned index entries retain their separate discovery links.
 
-On an article, the author, the publication and each keyword are links to the article search narrowed by that value: every article by that author, every article from that publication, every article carrying that keyword. A citation crediting several authors becomes one link per name, so separate authors with a **semicolon**: `Schweissinger, Marc J.; Bianchi, Anna`. A comma is never a separator — a single name is routinely written inverted, as in `Schweissinger, Marc J.`, and splitting on it would turn one author into two half-names. A field written without a semicolon keeps behaving as one name. They are deliberately not links into the catalogue's author and publisher registries — on a standalone article those fields are citation text, and a library holding a single article by someone should not be made to create an author record for them. A narrowed listing is served `noindex, follow`: one canonical article search, not one indexable page per name.
+Author links on article pages and lists open the shared catalogue author filter. It searches both the book author registry and complete semicolon-separated article credits, accepting `Surname, Given name` and `Given name Surname`. Existing author-ID filters and author pages also include matching published articles. This is name-based retrieval, not an authority merge: homonyms are not silently merged or new author records created. Publication and keyword links still narrow the article search. Separate co-authors with a **semicolon**, for example `Schweissinger, Marc J.; Bianchi, Anna`; the comma stays inside a person's name.
+
+The OpenURL resolver accepts both the main title and the complete `title : subtitle` exported by COinS. Host title, ISSN, volume and issue disambiguate title matches; an ambiguous match falls back to the external resolver. Disabled Emeroteca content is excluded from both the shared catalogue and the resolver.
 
 Each article can carry its own image, uploaded on the article form (JPG, PNG or WebP, up to 5 MB) and stored under `public/uploads/emeroteca` like the issue and masthead images. Articles without one show the same placeholder the catalogue uses for a book without a cover. Replacing or removing the image deletes the previous file once no other record refers to it, and never before the new row has been saved.
 
@@ -65,14 +87,34 @@ When both Emeroteca and Mobile API are active:
 - `GET /api/v1/periodicals/articles` lists public standalone articles with `q`, `testata_id`, `limit` (maximum 50) and `cursor` filters. Use `meta.next_cursor` for the next page.
 - `GET /api/v1/periodicals/articles/{id}` returns a public article or 404. Private records are never exposed.
 
+The analytic fields travel with the record: `sottotitolo`, `lingua`, `paese`, `classificazione_schema`, `classificazione` and `nota_possesso`. `has_public_resource` says whether the article carries a published electronic resource; when it does, `risorsa_url`, `risorsa_testo` and `risorsa_accesso` accompany it. When it does not, **those three keys are absent rather than null** — a null address in a payload still tells a client that one exists. Shelf marks and private notes remain out of the payload, as before.
+
 `cover_url` supplies the absolute URL of the article image, or null when it has none. The routes use the existing bearer authentication, quota and response envelope. Lists and details support ETag/304. `kind` is `autonomo`; `has_public_pdf` indicates a public document. `pdf_url` supplies its absolute public streaming URL (including the installation subdirectory), or null when unavailable. Clients must not construct storage paths. Existing issue API responses are unchanged. Android must implement the new endpoints to display standalone articles; its previous issue browser continues to work.
 
 ## Upgrade and verification
 
-Version 1.6 adds one nullable column, `emeroteca_contributi.copertina_url`, through the same idempotent additive-column repair as every column before it: no migration file is involved, and an installation upgraded from 1.5 gets it on the first boot after the update. Articles catalogued before the upgrade keep working with no image.
+Version 1.7 adds ten columns to `emeroteca_contributi` — `sottotitolo`, `lingua`, `paese`, `classificazione_schema`, `classificazione`, `nota_possesso`, `risorsa_url`, `risorsa_testo`, `risorsa_accesso` and `risorsa_pubblica` — through the same idempotent additive-column repair as every column before them: no migration file is involved, and an installation upgraded from 1.6 gets them on the first boot after the update. Nine are nullable and the tenth, the resource visibility flag, arrives as hidden, so every article catalogued before the upgrade keeps working exactly as it did and shows none of the new apparatus until someone fills it in.
+
+The new fragments are appended after `updated_at` and carry no `AFTER` clause. That is not a style choice: the same fragments are interpolated into `CREATE TABLE` by `ContributionService::ddl()`, where `AFTER` is a syntax error, and an `ALTER` without it appends — so a fresh install and an upgraded one end with one column order. `tests/emeroteca-412.unit.php` asserts both.
+
+Version 1.6 added one nullable column, `emeroteca_contributi.copertina_url`, the same way. Articles catalogued before that upgrade keep working with no image.
 
 Pinakes 0.7.84 includes `migrate_0.7.84.sql`, which preserves the workflow for existing plugin registrations. The plugin owns the table creation and repair in `ensureSchema()`, called at installation/activation and by the bundled-plugin schema recovery mechanism. The migration does not alter `libri.tipo_media` or existing holdings.
 
 Tests: `tests/emeroteca-412.unit.php` (real services, disposable MySQL tables), `tests/migration-0.7.84.unit.php` (migration-gate entry point), `tests/emeroteca-412.spec.js` (browser workflow), and `tests/emeroteca-412-upgrade.spec.js` (dedicated disposable fresh/upgrade instance). Existing Emeroteca admin, integration, export, interoperability and full application regression suites remain applicable.
 
 Choosing **Publication only** for an already associated article removes its issue link while retaining the masthead. Because a bulk selection can hold up to 500 articles, the preview asks to confirm that removal explicitly, the same way it asks before reassigning articles that already belong to another masthead; without the confirmation nothing is written. Repeating the same complete destination is idempotent.
+
+### Article workflow and MARCXML (#412)
+
+The book management page offers **Add article** beside **New book** (desktop and mobile) when Emeroteca is active. The existing article form captures authors, title/subtitle, pagination and host metadata without requiring an owned journal. Existing articles can be associated with a local masthead from the Articles list.
+
+Article pages and the admin edit form now offer a MARCXML download. It exports a monographic component (`Leader/07=a`, as defined by the Library of Congress for an individual article), 100/700 (the credit in citation form, `Surname, Forename`), 245, 300 and 773 `$t/$x/$g`; an associated masthead adds `$w=periodical:{id}`, matching the 001 of its record in the local SRU export. Variable fields are written in ascending tag order. 008 carries the date entered on file, a known year (or "no dates") and the MARC language; 041 repeats the language. The country is exported as its ISO 3166 code in 044 `$c`, while 008/15-17 remains unspecified, because ISO 3166 country codes are not MARC country codes. It also carries classification (see above), keywords, abstract and DOI. The holdings note is exported in 852 `$z`; the shelf mark (852 `$c`) appears only in the admin export. The catalogue page is an 856 with second indicator 2 (related resource, `$y Catalogue record`); the electronic resource is an 856 with second indicator 0 only when it is published **and** is an `http`/`https` address — a share, a `file:` URI or an archive identifier is never exported. Private notes and uploaded file paths are excluded; public downloads require publication and are not cached. This is a per-record export, not an extension of the OAI/SRU article harvesting sets. Linked authors open the shared author archive by identity. Legacy credits retain name-based discovery, with no automatic authority merges or fabricated GND identifiers.
+
+### Shared authors (v1.8.0)
+
+The article form's shared-author section searches the same registry used for books and supports explicit creation on save. It displays names and dates, with internal IDs hidden. Homonyms remain distinct people; existing free-text credits require explicit selection before they share an authority record.
+
+Name and pseudonym changes and author merges are reflected in linked articles, search suggestions and CSV exports. The shared author archive includes books and articles; unlinked credits retain name-based search. Deleting a person preserves their latest name as a text credit. Failed saves or deletions roll back the links as well as the record.
+
+Core migration 0.7.88 adds GND to the shared author registry; the plugin's idempotent schema upgrade adds the article-author relation. Article MARCXML exports the manually confirmed GND in 100/700 $0 and VIAF/ISNI URIs of confirmed matches. Different GNDs block an accidental author merge. CSV carries names; reimporting an unchanged export preserves existing identity links, while replacing the author credit clears stale associations.

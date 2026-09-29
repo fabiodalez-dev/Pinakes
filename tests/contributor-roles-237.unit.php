@@ -95,6 +95,19 @@ try {
     $pickerRows = $call('/api/search/autori', fn($request, $response) => $search->authors($request, $response, $db));
     $check(count(array_filter($pickerRows, static fn(array $r): bool => (int)($r['id'] ?? 0) === $authorId)) === 1, 'entity picker finds an author by pseudonym');
     $check(($pickerRows[0]['label'] ?? '') === "{$pseudonym} ({$realName})", 'entity picker displays pseudonym and real name');
+    // The route is public: life dates (homonym hints for the staff article picker) only reach
+    // requests SessionRoleRefreshMiddleware marked as operator — never a raw session claim.
+    $pickerRole = static function (?bool $operator) use ($call, $search, $db): array {
+        $_SESSION['user'] = ['id' => 1, 'tipo_utente' => 'admin'];
+        $rows = $call('/api/search/autori', static function ($request, $response) use ($search, $db, $operator) {
+            if ($operator !== null) { $request = $request->withAttribute(\App\Middleware\SessionRoleRefreshMiddleware::ATTRIBUTE, $operator); }
+            return $search->authors($request, $response, $db);
+        });
+        unset($_SESSION['user']);
+        return $rows[0] ?? [];
+    };
+    $check(!array_key_exists('data_nascita', $pickerRole(null)) && !array_key_exists('data_nascita', $pickerRole(false)), 'non-operator author search omits life dates, even with a stale admin session');
+    $check(array_key_exists('data_nascita', $pickerRole(true)) && array_key_exists('data_morte', $pickerRole(true)), 're-validated operator author search keeps life dates');
 
     $globalRows = $call('/api/search', fn($request, $response) => $search->unifiedSearch($request, $response, $db));
     $globalAuthor = array_values(array_filter($globalRows, static fn(array $r): bool => ($r['type'] ?? '') === 'author' && (int)($r['id'] ?? 0) === $authorId));

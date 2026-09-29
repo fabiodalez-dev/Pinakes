@@ -10,7 +10,7 @@
 
 use App\Support\HtmlHelper;
 
-$title = __("Catalogo Libri - Biblioteca");
+$title = __("Catalogo");
 if (!isset($filters)) {
     $filters = [];
 }
@@ -25,9 +25,10 @@ if ($searchQuery) {
     // thin/duplicate content); links are still followed toward the books.
     $seoRobots = 'noindex,follow';
 } else {
-    $seoTitle = __("Catalogo Completo Libri - Biblioteca Digitale");
+    $seoTitle = __("Catalogo");
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
+if (!empty($filters['autore'])) { $seoRobots = 'noindex,follow'; }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
 $catalogBaseUrl = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
@@ -1340,7 +1341,7 @@ ob_start();
 <section class="catalog-header">
     <div class="container">
         <div class="catalog-header-content text-center">
-            <h1 class="catalog-title"><?= __("Catalogo Libri") ?></h1>
+            <h1 class="catalog-title"><?= __("Catalogo") ?></h1>
             <p class="catalog-subtitle"><?= __("Scopri migliaia di titoli nella nostra collezione digitale") ?></p>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
@@ -1500,7 +1501,7 @@ ob_start();
                                     <i class="fas fa-th-large"></i>
                                 </div>
                                 <div class="availability-text">
-                                    <div class="availability-title"><?= __("Tutti i libri") ?></div>
+                                    <div class="availability-title"><?= __("Tutti") ?></div>
                                     <div class="availability-desc"><?= __("Tutto il catalogo") ?></div>
                                 </div>
                                 <div class="availability-count" id="total-books-count">
@@ -1650,7 +1651,7 @@ ob_start();
                 <div class="results-header">
                     <div class="results-info">
                         <strong id="total-count"><?= number_format($total_books) ?></strong>
-                        <span id="results-text"><?= $total_books == 1 ? __('libro trovato') : __('libri trovati') ?></span>
+                        <span id="results-text"><?= ($total_articles ?? 0) > 0 ? __('Risultati') : ($total_books == 1 ? __('libro trovato') : __('libri trovati')) ?></span>
                     </div>
                     <div style="display: flex; gap: 0.75rem; align-items: center;">
                         <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= __("Rimuovi tutti i filtri") ?>">
@@ -1688,7 +1689,7 @@ ob_start();
                     <!-- Empty State -->
                     <div id="empty-state" style="display: none;" class="empty-state">
                         <i class="fas fa-search empty-state-icon"></i>
-                        <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
+                        <h4 class="empty-state-title"><?= __("Nessun risultato trovato") ?></h4>
                         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
                         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
                             <i class="fas fa-redo mr-2"></i>
@@ -1809,6 +1810,7 @@ $i18nTranslations = [
     // Plurals
     'libro_trovato' => __('libro trovato'),
     'libri_trovati' => __('libri trovati'),
+    'risultati' => __('Risultati'),
 
     // Errors
     'errore_caricamento' => __('Errore nel caricamento. Riprova.')
@@ -2020,6 +2022,7 @@ function updateActiveFiltersDisplay() {
         genere_id: i18n.genere_id,
         editore: i18n.editore,
         autore_id: i18n.autore,
+        autore: i18n.autore,
         disponibilita: i18n.disponibilita,
         anno_min: i18n.anno_min,
         anno_max: i18n.anno_max,
@@ -2061,7 +2064,7 @@ function updateActiveFiltersDisplay() {
         } else if (filterKey === 'genere_id') {
             displayValue = currentGenreName || value;
         } else if (filterKey === 'autore_id') {
-            displayValue = autoreSelectedLabel() || value;
+            displayValue = autoreSelectedLabel() || i18n.autore;
         } else if (filterKey === 'tipo_media') {
             displayValue = mediaSelectedLabel() || value;
         } else if (filterKey === 'editore') {
@@ -2135,7 +2138,7 @@ function loadBooks() {
             const resultsText = document.getElementById('results-text');
             if (totalCount && resultsText && data.pagination) {
                 totalCount.textContent = data.pagination.total_books.toLocaleString();
-                resultsText.textContent = data.pagination.total_books === 1 ? i18n.libro_trovato : i18n.libri_trovati;
+                resultsText.textContent = data.pagination.total_articles > 0 ? i18n.risultati : (data.pagination.total_books === 1 ? i18n.libro_trovato : i18n.libri_trovati);
             }
 
             // Update filter options if provided
@@ -2366,6 +2369,7 @@ function facetLabel(key) {
     const labels = {
         editore: i18n.editore,
         autore_id: i18n.autore,
+        autore: i18n.autore,
         genere_id: i18n.genere_id,
         tipo_media: i18n.tipo_media,
     };
@@ -2382,7 +2386,7 @@ function autoreSelectedLabel() {
         return '';
     }
     const found = (autoriData || []).find((au) => parseInt(au.id, 10) === id);
-    return found ? String(found.nome) : String(currentFilters.autore_id);
+    return found ? String(found.nome) : i18n.autore;
 }
 
 function mediaSelectedLabel() {

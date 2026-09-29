@@ -2,7 +2,7 @@
   "name": "openurl-resolver",
   "display_name": "OpenURL Z39.88 Resolver",
   "description": "Protocollo OpenURL Z39.88-2004 con resolver /openurl e metadati COinS embedded nelle pagine libro. Compatibile con Zotero, Mendeley, EndNote e altri reference manager.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.niso.org/standards-committees/openurl",
@@ -12,8 +12,16 @@
   "main_file": "wrapper.php",
   "metadata": {
     "category": "protocol",
-    "tags": ["openurl", "z3988", "coins", "zotero", "reference-manager", "interoperability"],
+    "tags": [
+      "openurl",
+      "z3988",
+      "coins",
+      "zotero",
+      "reference-manager",
+      "interoperability"
+    ],
     "optional": true,
     "status": "stable"
-  }
+  },
+  "changelog": "v1.1.0: il resolver capisce gli articoli di rivista. Una richiesta OpenURL di tipo journal non viene più respinta con 400: viene risolta su un articolo locale dell'Emeroteca tramite DOI o titolo esatto, e in mancanza di riscontro prosegue verso il resolver esterno. Le pagine degli articoli espongono i metadati COinS (mtx:journal) per l'importazione diretta in Zotero, Mendeley ed EndNote. rft.language accetta ora anche i codici ISO, non solo i nomi di lingua dei libri."
 }

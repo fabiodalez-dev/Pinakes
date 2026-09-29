@@ -396,6 +396,7 @@ class EmerotecaPlugin
     public function expectedForeignKeys(): array
     {
         $out = [
+            ['table' => 'emeroteca_contributi_autori', 'column' => 'contributo_id', 'ref_table' => 'emeroteca_contributi'],
             ['table' => 'emeroteca_contributi', 'column' => 'testata_id', 'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_contributi', 'column' => 'fascicolo_id', 'ref_table' => 'emeroteca_fascicoli'],
             ['table' => 'emeroteca_testate',     'column' => 'testata_precedente_id', 'ref_table' => 'emeroteca_testate'],
@@ -420,6 +421,12 @@ class EmerotecaPlugin
         return $out;
     }
 
+    public static function ddlContributiAutori(): string
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return \App\Plugins\Emeroteca\Services\ContributionService::authorsDdl();
+    }
+
     /** @return array<string,string> table => CREATE DDL, in dependency order. */
     private static function schemaSteps(): array
     {
@@ -430,6 +437,7 @@ class EmerotecaPlugin
             'emeroteca_articoli'    => self::ddlArticoli(),
             'emeroteca_abbonamenti' => self::ddlAbbonamenti(),
             'emeroteca_contributi' => self::ddlContributi(),
+            'emeroteca_contributi_autori' => self::ddlContributiAutori(),
         ];
     }
 
@@ -1263,6 +1271,7 @@ class EmerotecaPlugin
     private static function coreForeignKeyDefs(): array
     {
         return [
+            ['table' => 'emeroteca_contributi_autori', 'column' => 'autore_id', 'ref_table' => 'autori', 'ref_col' => 'id', 'name' => 'fk_contributo_autori_identity'],
             ['table' => 'emeroteca_testate', 'column' => 'editore_id', 'ref_table' => 'editori', 'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_editore'],
             ['table' => 'emeroteca_testate', 'column' => 'genere_id',  'ref_table' => 'generi',  'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_genere'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id', 'ref_table' => 'mensole', 'ref_col' => 'id', 'name' => 'fk_emeroteca_fascicolo_mensola'],
@@ -1667,7 +1676,7 @@ class EmerotecaPlugin
         $public = 'App\\Plugins\\Emeroteca\\Controllers\\PublicController';
 
         $articles = 'App\\Plugins\\Emeroteca\\Controllers\\ContributionController';
-        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf'] as $path => $method) {
+        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf', '/{id:[0-9]+}/citation.ris' => 'ris', '/{id:[0-9]+}/marc.xml' => 'marcXml'] as $path => $method) {
             $app->get('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
                 return $plugin->dispatch($articles, $method, $rq, $rs, $args);
             })->add($adminMiddleware);
@@ -1680,6 +1689,11 @@ class EmerotecaPlugin
         $app->get('/emeroteca/articoli', fn($rq,$rs,$args) => $plugin->dispatch($public, 'articles', $rq,$rs,$args));
         $app->get('/emeroteca/articolo/{id:[0-9]+}', fn($rq,$rs,$args) => $plugin->dispatch($public, 'article', $rq,$rs,$args));
         $app->get('/emeroteca/articolo/{id:[0-9]+}/pdf', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicPdf', $rq,$rs,$args));
+        // The citation as a file a reference manager can swallow. Public route
+        // and admin route are separate because they answer differently for an
+        // unpublished article: 404 out here, the record in there.
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/marc.xml', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicMarcXml', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/citazione.ris', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicRis', $rq,$rs,$args));
 
         // ── Admin — testate (periodical titles) ──────────────────────
 
@@ -2673,13 +2687,24 @@ class EmerotecaPlugin
             return $empty;
         }
         $pattern = $this->likePattern($term);
-        $where = "pubblico = 1
-                  AND (titolo LIKE ? ESCAPE '\\\\'
-                       OR autori LIKE ? ESCAPE '\\\\'
-                       OR contenitore_titolo LIKE ? ESCAPE '\\\\'
-                       OR keywords LIKE ? ESCAPE '\\\\'
-                       OR issn = ?)";
-        $params = [$pattern, $pattern, $pattern, $pattern, $term];
+        // These columns must stay the same set ContributionService::search()
+        // uses, in the same order: this counter labels a link, and the number
+        // beside a link has to be the number of results that link opens. When
+        // sottotitolo became searchable on the article page (#412) and not
+        // here, a term living only in a subtitle produced no suggestion at all
+        // while the linked page listed the article.
+        $authors = new \App\Services\ArticleAuthorService($this->db);
+        $extraAuthors = $authors->available()
+            ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '\\\\' OR a.pseudonimo LIKE ? ESCAPE '\\\\'))" : '';
+        $where = "c.pubblico = 1
+                  AND (c.titolo LIKE ? ESCAPE '\\\\'
+                       OR c.sottotitolo LIKE ? ESCAPE '\\\\'
+                       OR c.autori LIKE ? ESCAPE '\\\\'
+                       OR c.contenitore_titolo LIKE ? ESCAPE '\\\\'
+                       OR c.keywords LIKE ? ESCAPE '\\\\'
+                       OR c.issn = ?$extraAuthors)";
+        $params = [$pattern, $pattern, $pattern, $pattern, $pattern, $term];
+        if ($extraAuthors !== '') { array_push($params,$pattern,$pattern); }
 
         // Fetch first, count only when the page comes back saturated: a term
         // with five or fewer matches already knows its own total, and this
@@ -2688,17 +2713,17 @@ class EmerotecaPlugin
         // about to hand over for free.
         $rows = $this->emerotecaRows(
             "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, pagine
-             FROM emeroteca_contributi WHERE $where ORDER BY id DESC LIMIT 6",
-            'sssss',
+             FROM emeroteca_contributi c WHERE $where ORDER BY id DESC LIMIT 6",
+            str_repeat('s', count($params)),
             $params
         );
         if ($rows === []) {
             return $empty;
         }
         $total = count($rows) > 5
-            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi WHERE $where", 'sssss', $params)
+            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi c WHERE $where", str_repeat('s', count($params)), $params)
             : count($rows);
-        $rows = array_slice($rows, 0, 5);
+        $rows = $authors->hydrate(array_slice($rows, 0, 5));
         $items = [];
         foreach ($rows as $row) {
             $items[] = [

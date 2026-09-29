@@ -46,15 +46,42 @@ final class ContributionService
         'revision' => "INT UNSIGNED NOT NULL DEFAULT 1",
         'created_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
         'updated_at' => "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        // 1.7.0 — what turns a citation into an analytic (component-part)
+        // record: the article's own subtitle, the 008 language and country of
+        // the host publication, a classification carried WITH its scheme, the
+        // holdings note that says the library owns a copy and not the run,
+        // and the danMARC2 856 triple (address, link text, access conditions).
+        //
+        // Appended after updated_at, and with no AFTER clause, on purpose:
+        // these same fragments are interpolated into CREATE TABLE by ddl(),
+        // where AFTER is a syntax error, and an ALTER without AFTER appends —
+        // so a fresh install and an upgraded one end with one column order.
+        'sottotitolo' => "VARCHAR(500) NULL",
+        'lingua' => "VARCHAR(10) NULL",
+        'paese' => "VARCHAR(2) NULL",
+        'classificazione_schema' => "VARCHAR(20) NULL",
+        'classificazione' => "VARCHAR(100) NULL",
+        'nota_possesso' => "VARCHAR(255) NULL",
+        'risorsa_url' => "VARCHAR(500) NULL",
+        'risorsa_testo' => "VARCHAR(255) NULL",
+        'risorsa_accesso' => "VARCHAR(255) NULL",
+        'risorsa_pubblica' => "TINYINT(1) NOT NULL DEFAULT 0",
     ];
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
-        'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000];
+        'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000,
+        // 1.7.0 — appended, never spliced: tests/emeroteca-412.unit.php asserts
+        // the physical column order from this map's key order.
+        'sottotitolo' => 500,'lingua' => 10,'paese' => 2,'classificazione_schema' => 20,
+        'classificazione' => 100,'nota_possesso' => 255,'risorsa_url' => 500,
+        'risorsa_testo' => 255,'risorsa_accesso' => 255];
     /** A reference_key the table accepts: shared by save() and the CSV preview. */
     public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';
 
-    public const CSV_FIELDS = ['reference_key','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
-        'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','collocazione','note_private','pubblico'];
+    public const CSV_FIELDS = ['reference_key','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
+        'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract',
+        'lingua','paese','classificazione_schema','classificazione','nota_possesso',
+        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico'];
 
     /**
      * The header the template and the export carry.
@@ -95,6 +122,23 @@ final class ContributionService
 SQL;
     }
 
+    public static function authorsDdl(): string
+    {
+        return <<<'SQL'
+CREATE TABLE IF NOT EXISTS emeroteca_contributi_autori (
+ contributo_id INT NOT NULL,
+ ordine_credito SMALLINT UNSIGNED NOT NULL,
+ autore_id INT NULL,
+ nome_credito VARCHAR(255) NOT NULL,
+ ruolo VARCHAR(20) NOT NULL DEFAULT 'co-autore',
+ PRIMARY KEY (contributo_id, ordine_credito),
+ UNIQUE KEY uq_contributo_autore (contributo_id, autore_id),
+ KEY idx_contributo_autore (autore_id, contributo_id),
+ CONSTRAINT fk_contributo_autori_record FOREIGN KEY (contributo_id) REFERENCES emeroteca_contributi(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL;
+    }
+
     /** @return list<array<string,mixed>> */
     public function rows(string $sql, array $params = []): array
     {
@@ -112,7 +156,18 @@ SQL;
         $result = $stmt->get_result();
         $rows = $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
+        if ($this->affectedRows > 0 && preg_match('/^\s*(?:INSERT|UPDATE|DELETE)\b/i', $sql) === 1) {
+            // Articles now participate in the main catalogue. Defer until the
+            // caller's transaction finishes, including CSV batches and deletes.
+            \App\Support\ContentCache::deferBooksChanged();
+        }
         return $rows;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    public function hydrateAuthors(array $rows): array
+    {
+        return (new \App\Services\ArticleAuthorService($this->db))->hydrate($rows);
     }
 
     /**
@@ -126,12 +181,13 @@ SQL;
         // rather than one per caller. LEFT JOIN: testata_id is nullable — a
         // standalone article need not belong to a masthead at all — and an
         // inner join would make those articles vanish from their own page.
-        return $this->rows(
+        $rows = $this->rows(
             'SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c'
             . ' LEFT JOIN emeroteca_testate t ON t.id = c.testata_id'
             . ' WHERE c.id = ?' . ($publicOnly ? ' AND c.pubblico = 1' : ''),
             [$id]
-        )[0] ?? null;
+        );
+        return $this->hydrateAuthors($rows)[0] ?? null;
     }
 
     /** The plugin's workflow mode ('simple' or 'complete'), defaulting to 'complete' when unset. */
@@ -157,7 +213,12 @@ SQL;
      * TEXT_FIELDS value and rejects any over its length limit, requires a non-empty titolo, checks tipo_contributo/
      * supporto/contenitore_tipo against their allowed enums, validates and normalizes ISSN
      * (checksum) and DOI (strips URL/prefix, requires the 10.xxxx/ shape), validates the year
-     * range, and coerces the pubblico/pdf_pubblico flags to 0/1.
+     * range, lowercases the ISO 639 language code (two or three letters) and uppercases the ISO 3166
+     * alpha-2 country code and rejects any other shape, refuses a line break in the holdings note and
+     * the 856 triple (risorsa_url/risorsa_testo/risorsa_accesso), requires an http(s) risorsa_url to be
+     * a valid URL (any other reference is kept verbatim as opaque text), and coerces the
+     * pubblico/pdf_pubblico/risorsa_pubblica flags to 0/1 — risorsa_pubblica is forced to 0 when there
+     * is no risorsa_url, because a public switch with nothing to publish would be inert.
      *
      * @return array<string, mixed>
      * @throws \InvalidArgumentException on the first field that fails validation
@@ -206,11 +267,56 @@ SQL;
             throw new \InvalidArgumentException(__('Anno non valido.'));
         }
         $out['anno_pubblicazione'] = $year === '' ? null : (int) $year;
-        foreach (['pubblico','pdf_pubblico'] as $key) {
+
+        // 008 language and country are stored as CODES, never as names. The
+        // application is multilingual per user: "Dansk" typed into a box reads
+        // as "Dansk" to an Italian reader, while `dan` can be rendered as
+        // "danese" to them and "Danish" to someone else. Two or three letters
+        // covers ISO 639-1 and 639-2 without making the librarian care which.
+        // The stored code stays as entered (ICU and schema.org inLanguage read
+        // it); ArticleMarcXml maps it to the MARC language code at export.
+        if ($out['lingua'] !== null) {
+            $out['lingua'] = strtolower($out['lingua']);
+            if (preg_match('/^[a-z]{2,3}$/D', $out['lingua']) !== 1) {
+                throw new \InvalidArgumentException(__('Codice lingua non valido.'));
+            }
+        }
+        if ($out['paese'] !== null) {
+            $out['paese'] = strtoupper($out['paese']);
+            if (preg_match('/^[A-Z]{2}$/D', $out['paese']) !== 1) {
+                throw new \InvalidArgumentException(__('Codice paese non valido.'));
+            }
+        }
+
+        // The 856 triple. A line break inside any of the three would split a
+        // RIS record in two at export time, so it is refused at the door
+        // rather than escaped at every point of use.
+        foreach (['nota_possesso','risorsa_url','risorsa_testo','risorsa_accesso'] as $key) {
+            if ($out[$key] !== null && preg_match('/[\r\n]/', $out[$key]) === 1) {
+                throw new \InvalidArgumentException(__('Il valore non può contenere a capo.'));
+            }
+        }
+        // An http(s) address must be a real one, because it becomes an href.
+        // Anything else — a UNC share, a file: URI, an identifier in a
+        // document management system — is accepted verbatim as an opaque
+        // reference and is NEVER rendered as a link. That asymmetry is what
+        // makes accepting the opaque form safe.
+        if ($out['risorsa_url'] !== null
+            && preg_match('~^https?://~i', $out['risorsa_url']) === 1
+            && filter_var($out['risorsa_url'], FILTER_VALIDATE_URL) === false) {
+            throw new \InvalidArgumentException(__('Indirizzo della risorsa non valido.'));
+        }
+
+        foreach (['pubblico','pdf_pubblico','risorsa_pubblica'] as $key) {
             if (!in_array($input[$key] ?? 0, [0,1,'0','1',null,''], true)) {
                 throw new \InvalidArgumentException(__('Visibilità non valida.'));
             }
             $out[$key] = (int) ($input[$key] ?? 0);
+        }
+        if ($out['risorsa_url'] === null) {
+            // Nothing to publish: an inert "public" flag would silently turn
+            // on whatever address is typed in later.
+            $out['risorsa_pubblica'] = 0;
         }
         return $out;
     }
@@ -227,42 +333,85 @@ SQL;
      */
     public function save(array $data, int $id = 0, ?int $revision = null, array $files = []): int
     {
-        $values = self::normalize($data);
-        foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
-            if (array_key_exists($field, $files)) {
-                $values[$field] = $files[$field];
+        $authors = new \App\Services\ArticleAuthorService($this->db);
+        $ownsTransaction = !$this->hasActiveTransaction();
+        $savepoint = 'article_save_' . bin2hex(random_bytes(6));
+        if ($ownsTransaction) { $this->db->begin_transaction(); }
+        $this->db->query("SAVEPOINT $savepoint");
+        try {
+            $credits = null;
+            if (array_key_exists('credits_present', $data)) {
+                if (!$authors->available()) { throw new \RuntimeException('Article author schema unavailable'); }
+                $credits = $authors->resolve($data['credits'] ?? []);
+                $data['autori'] = implode('; ', array_column($credits, 'nome_credito'));
+            } elseif ($id > 0 && $authors->available()) {
+                // The stored column and the hydrated projection are two forms
+                // of the same credit: the text as last saved, and the linked
+                // identities' current names. A partial import merged onto
+                // either, or an export taken before a rename, sends one of
+                // them back unchanged — only a string matching NEITHER is a
+                // replacement, and only a replacement may drop identities.
+                $posted = self::authorList(isset($data['autori']) ? (string)$data['autori'] : null);
+                $raw = $this->rows('SELECT autori FROM emeroteca_contributi WHERE id=?', [$id])[0]['autori'] ?? null;
+                $current = $this->get($id);
+                if ($posted !== self::authorList($raw === null ? null : (string)$raw)
+                    && $posted !== self::authorList(isset($current['autori']) ? (string)$current['autori'] : null)) {
+                    // An import that replaces the credit string cannot silently keep old identities.
+                    $credits = [];
+                }
             }
+            $values = self::normalize($data);
+            foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
+                if (array_key_exists($field, $files)) {
+                    $values[$field] = $files[$field];
+                }
+            }
+            if ($id > 0) {
+                if ($revision === null) {
+                    throw new \InvalidArgumentException(__('Ricarica la scheda prima di salvare.'));
+                }
+                $sets = implode(',', array_map(static fn ($key) => "$key = ?", array_keys($values)));
+                $this->rows("UPDATE emeroteca_contributi SET $sets, revision=revision+1 WHERE id=? AND revision=?", [...array_values($values),$id,$revision]);
+                if ($this->affectedRows !== 1) {
+                    throw new \InvalidArgumentException(__('La scheda è stata modificata. Ricarica prima di salvare.'));
+                }
+            } else {
+                $key = $data['reference_key'] ?? bin2hex(random_bytes(16));
+                if (!is_string($key) || !preg_match(self::REFERENCE_KEY_PATTERN, $key)) {
+                    throw new \InvalidArgumentException(__('Identificatore non valido.'));
+                }
+                $values['reference_key'] = $key;
+                $columns = implode(',', array_keys($values));
+                $marks = implode(',', array_fill(0, count($values), '?'));
+                $this->rows("INSERT INTO emeroteca_contributi ($columns) VALUES ($marks)", array_values($values));
+                $id = (int)$this->db->insert_id;
+            }
+            if ($credits !== null) { $authors->replace($id, $credits); }
+            $this->db->query("RELEASE SAVEPOINT $savepoint");
+            if ($ownsTransaction) { $this->db->commit(); }
+            return $id;
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) { $this->db->rollback(); }
+            else {
+                $this->db->query("ROLLBACK TO SAVEPOINT $savepoint");
+                $this->db->query("RELEASE SAVEPOINT $savepoint");
+            }
+            throw $e;
         }
-        if ($id > 0) {
-            if ($revision === null) {
-                throw new \InvalidArgumentException(__('Ricarica la scheda prima di salvare.'));
-            }
-            $sets = implode(',', array_map(static fn ($key) => "$key = ?", array_keys($values)));
-            $this->rows("UPDATE emeroteca_contributi SET $sets, revision=revision+1 WHERE id=? AND revision=?", [...array_values($values),$id,$revision]);
-            if ($this->affectedRows !== 1) {
-                throw new \InvalidArgumentException(__('La scheda è stata modificata. Ricarica prima di salvare.'));
-            }
-        } else {
-            $key = $data['reference_key'] ?? bin2hex(random_bytes(16));
-            if (!is_string($key) || !preg_match(self::REFERENCE_KEY_PATTERN, $key)) {
-                throw new \InvalidArgumentException(__('Identificatore non valido.'));
-            }
-            $values['reference_key'] = $key;
-            $columns = implode(',', array_keys($values));
-            $marks = implode(',', array_fill(0, count($values), '?'));
-            $this->rows("INSERT INTO emeroteca_contributi ($columns) VALUES ($marks)", array_values($values));
-            $id = (int)$this->db->insert_id;
-        }
-        return $id;
     }
 
-    /**
-     * The filters the public article search accepts besides the free term:
-     * column => query-string parameter. They exist because on a standalone
-     * article the author, the container and the keywords are free text, not
-     * rows in the core registries, so "everything else by this author" can
-     * only be a filtered search — there is no author page to link to.
-     */
+    /** @param array<string,mixed> $row @return list<array{name:string,id:?int}> */
+    public static function authorLinks(array $row): array
+    {
+        if (!empty($row['author_credits'])) {
+            // Link text is the reader-facing display form ("Pseudonimo (Nome
+            // vero)"); nome_credito is the citation form, for citations only.
+            return array_map(static fn($credit) => ['name'=>(string)($credit['display_name'] ?? $credit['nome_credito']), 'id'=>$credit['autore_id']], $row['author_credits']);
+        }
+        return array_map(static fn($name) => ['name'=>$name, 'id'=>null], self::authorList($row['autori'] ?? null));
+    }
+
+    /** Public search filters: linked names and legacy credits share author filtering. */
     public const FILTER_FIELDS = ['autori' => 'autore', 'contenitore_titolo' => 'pubblicazione', 'keywords' => 'keyword'];
 
     /**
@@ -307,6 +456,8 @@ SQL;
     public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1, array $filters = []): array
     {
         $where = ['1=1'];
+        $linkedAuthors = (new \App\Services\ArticleAuthorService($this->db))->available();
+        $authorMatch = "EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))";
         $params = [];
         if ($public) {
             $where[] = 'c.pubblico=1';
@@ -323,13 +474,17 @@ SQL;
             // Substring, not equality: keywords arrive as one comma-separated
             // string, and an author field holding two names must still answer
             // for each of them.
-            $where[] = "c.$column LIKE ? ESCAPE '='";
-            $params[] = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
+            $where[] = $column === 'autori' && $linkedAuthors ? "(c.$column LIKE ? ESCAPE '=' OR $authorMatch)" : "c.$column LIKE ? ESCAPE '='";
+            $pattern = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
+            $params[] = $pattern;
+            if ($column === 'autori' && $linkedAuthors) { array_push($params, $pattern, $pattern); }
         }
         if ($term !== '') {
-            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?)";
+            $extraAuthors = $linkedAuthors ? " OR $authorMatch" : '';
+            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.sottotitolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?$extraAuthors)";
             $pattern = '%' . strtr(mb_substr($term, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
-            array_push($params, $pattern, $pattern, $pattern, $pattern, $term);
+            array_push($params, $pattern, $pattern, $pattern, $pattern, $pattern, $term);
+            if ($linkedAuthors) { array_push($params, $pattern, $pattern); }
         }
         $sql = implode(' AND ', $where);
         $total = (int)$this->rows("SELECT COUNT(*) n FROM emeroteca_contributi c WHERE $sql", $params)[0]['n'];
@@ -337,6 +492,7 @@ SQL;
         $page = min($pages, max(1, $page));
         $offset = ($page - 1) * 50;
         $rows = $this->rows("SELECT c.*,t.titolo testata_titolo,t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
+        $rows = $this->hydrateAuthors($rows);
         return compact('rows', 'total', 'page', 'pages');
     }
 
@@ -469,14 +625,62 @@ SQL;
     }
 
     /**
-     * Shape one raw contribution row for public/mobile consumption: keeps only an allowlist of
-     * public columns, so internal ones (note_private, collocazione, pdf_path, reference_key,
-     * revision, pubblico, ...) never leave, casts numeric ids, and adds `kind` and `has_public_pdf` (true only when a PDF is stored
-     * AND opted into public visibility).
+     * The electronic resource of danMARC2 856, as one decision instead of
+     * three fields every caller has to re-combine.
      *
-     * @param array<string, mixed> $r a raw emeroteca_contributi row
-     * @return array<string, mixed>
+     * Returns null when there is nothing to show — no address, or an address
+     * the librarian has not published — so a caller cannot accidentally leak
+     * it by reading the columns directly. `linkable` is the whole point of the
+     * shape: an http(s) address becomes an href, and ANY other value (a UNC
+     * share, a file: URI, an identifier in a document management system) is a
+     * reference the library can read and a browser cannot, so it is rendered
+     * as text. Deciding that here, once, is what stops one of the four call
+     * sites from putting a `file:` path in an anchor.
+     *
+     * @param array<string,mixed> $row
+     * @param bool $public true on the website and the mobile API, false in the
+     *        admin interface, where an unpublished resource is still shown
+     * @return array{url:string,text:string,access:string,linkable:bool}|null
      */
+    public static function resource(array $row, bool $public): ?array
+    {
+        $url = trim((string) ($row['risorsa_url'] ?? ''));
+        if ($url === '' || ($public && empty($row['risorsa_pubblica']))) {
+            return null;
+        }
+
+        return [
+            'url' => $url,
+            'text' => trim((string) ($row['risorsa_testo'] ?? '')),
+            'access' => trim((string) ($row['risorsa_accesso'] ?? '')),
+            'linkable' => preg_match('~^https?://~i', $url) === 1,
+        ];
+    }
+
+    /**
+     * What this record IS, in one line, for a reader who does not know what an
+     * analytic record is.
+     *
+     * The distinction a component-part record exists to make — this is a piece
+     * OF something, not a thing the library holds — is currently implicit: it
+     * lives in the table the row sits in and in the JSON-LD nobody reads. A
+     * catalogue that knows the difference should say it on the page.
+     *
+     * @param array<string,mixed> $row
+     */
+    public static function materialType(array $row): string
+    {
+        $container = (string) ($row['contenitore_tipo'] ?? '');
+        if ($container === 'giornale') {
+            return __('Articolo di giornale');
+        }
+        if ($container !== '') {
+            return __('Articolo di rivista');
+        }
+
+        return __('Articolo');
+    }
+
     /**
      * The image to show for an article: its own, else the masthead's.
      *
@@ -511,14 +715,35 @@ SQL;
         return $own !== '' ? $own : trim((string) ($row['testata_logo_url'] ?? ''));
     }
 
+    /**
+     * Shape one raw contribution row for public/mobile consumption: keeps only an allowlist of
+     * public columns, so internal ones (note_private, collocazione, pdf_path, reference_key,
+     * revision, pubblico, ...) never leave, casts numeric ids, and adds `kind` and `has_public_pdf` (true only when a PDF is stored
+     * AND opted into public visibility).
+     *
+     * @param array<string, mixed> $r a raw emeroteca_contributi row
+     * @return array<string, mixed>
+     */
     public static function publicData(array $r): array
     {
-        $out = array_intersect_key($r, array_flip(['id','titolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','testata_id','fascicolo_id','updated_at']));
+        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','testata_id','fascicolo_id','updated_at']));
         foreach (['id','anno_pubblicazione','testata_id','fascicolo_id'] as $key) {
             if (isset($out[$key])) { $out[$key] = (int) $out[$key]; }
         }
         $out['kind'] = 'autonomo';
         $out['has_public_pdf'] = !empty($r['pdf_path']) && !empty($r['pdf_pubblico']);
+        // The 856 triple travels only when it has been published, and the
+        // three keys are ABSENT rather than null when it has not: a null
+        // address in a payload still says one exists. `collocazione`, the
+        // archive box, stays out of both cases — it is a shelf mark, and this
+        // whitelist has never carried one.
+        $resource = self::resource($r, true);
+        $out['has_public_resource'] = $resource !== null;
+        if ($resource !== null) {
+            $out['risorsa_url'] = $resource['url'];
+            $out['risorsa_testo'] = $resource['text'];
+            $out['risorsa_accesso'] = $resource['access'];
+        }
         return $out;
     }
 }

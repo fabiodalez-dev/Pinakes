@@ -399,6 +399,7 @@ class LibriController
         }
 
         ob_start();
+        $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
         $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName];
         // extract($data);
         require __DIR__ . '/../Views/libri/index.php';

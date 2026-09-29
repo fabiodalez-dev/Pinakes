@@ -64,7 +64,7 @@ final class ContributionCsv
             fclose($stream);
             throw new \InvalidArgumentException(__('CSV vuoto.'));
         }
-        $aliases = ['title' => 'titolo','authors' => 'autori','container_title' => 'contenitore_titolo','journal_title' => 'contenitore_titolo','issue' => 'numero','pages' => 'pagine','volume' => 'volume','date' => 'data_pubblicazione_testo','year' => 'anno_pubblicazione','media_type' => 'record_type'];
+        $aliases = ['title' => 'titolo','authors' => 'autori','container_title' => 'contenitore_titolo','journal_title' => 'contenitore_titolo','issue' => 'numero','pages' => 'pagine','volume' => 'volume','date' => 'data_pubblicazione_testo','year' => 'anno_pubblicazione','media_type' => 'record_type','subtitle' => 'sottotitolo','language' => 'lingua','country' => 'paese','classification' => 'classificazione','classification_scheme' => 'classificazione_schema','holdings_note' => 'nota_possesso','url' => 'risorsa_url','link_text' => 'risorsa_testo','access_conditions' => 'risorsa_accesso'];
         $headers = array_map(static fn ($h) => $aliases[strtolower(trim((string)$h))] ?? strtolower(trim((string)$h)), $headers);
         if (count($headers) !== count(array_unique($headers)) || !in_array('titolo', $headers, true)) {
             fclose($stream);
@@ -121,6 +121,12 @@ final class ContributionCsv
                 $data['reference_key'] = $key;
                 $existing = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE reference_key=?', [$key])[0] ?? null;
                 if ($existing) {
+                    // Merge onto the SAME representation the commit compares
+                    // against (saveImportRow reads the hydrated get()): a row
+                    // without an autori column then carries the linked
+                    // identities' current credit, not a stale stored string.
+                    $existing = $this->service->hydrateAuthors([$existing])[0];
+                    unset($existing['author_credits']);
                     $item['id'] = (int)$existing['id'];
                     $item['revision'] = (int)$existing['revision'];
                 }
@@ -296,7 +302,7 @@ final class ContributionCsv
         $count = 0;
         $cursor = 0;
         do {
-            $rows = $this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]);
+            $rows = $this->service->hydrateAuthors($this->service->rows('SELECT * FROM emeroteca_contributi WHERE id>? ORDER BY id LIMIT 500', [$cursor]));
             foreach ($rows as $row) {
                 $line = $encode([self::recordTypeFor((string)($row['contenitore_tipo'] ?? '')), ...array_map(static fn($key) => self::encodeCell($row[$key] ?? ''), ContributionService::CSV_FIELDS)]);
                 if ($count >= self::MAX_ROWS || strlen($part) + strlen($line) > self::MAX_BYTES) {

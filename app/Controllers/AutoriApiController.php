@@ -302,6 +302,14 @@ class AutoriApiController
         $db->begin_transaction();
 
         try {
+            // Same pre-delete step as AuthorRepository::delete(): linked article
+            // credits keep the author's name as text instead of being left to
+            // the FK's ON DELETE SET NULL with whatever name they were saved with.
+            $articleAuthors = new \App\Services\ArticleAuthorService($db);
+            foreach ($cleanIds as $authorId) {
+                $articleAuthors->beforeDelete((int) $authorId);
+            }
+
             // Delete author-book relationships first
             $delRelSql = "DELETE FROM libri_autori WHERE autore_id IN ($placeholders)";
             $delRelStmt = $db->prepare($delRelSql);

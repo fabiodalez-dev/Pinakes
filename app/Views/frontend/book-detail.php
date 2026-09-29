@@ -1951,14 +1951,20 @@ ob_start();
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
                             <?php
-                                // Pseudonym-aware display "Pseudonimo (Nome)"; the link still
-                                // targets the real name (author page keys on nome). Issue #237.
+                                // Pseudonym-aware display "Pseudonimo (Nome)". Issue #237.
+                                // The link targets the author id, not the name: homonyms
+                                // are legitimate, so a name URL could open another
+                                // person's archive that does not list this book.
+                                $authorHrefId = (int) ($author['id'] ?? 0);
+                                $authorHref = $authorHrefId > 0
+                                    ? route_path('author') . '/' . $authorHrefId
+                                    : route_path('author') . '/' . rawurlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8'));
                                 $authorDisplay = \App\Support\AuthorName::display([
                                     'nome' => html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8'),
                                     'pseudonimo' => html_entity_decode($author['pseudonimo'] ?? '', ENT_QUOTES, 'UTF-8'),
                                 ]);
                             ?>
-                            <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
+                            <a href="<?= htmlspecialchars($authorHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
                                 <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars($authorDisplay, ENT_QUOTES, 'UTF-8') ?><?php if ($author['ruolo'] !== 'principale'): ?> <span class="contributor-role-sep">·</span> <?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
                                 </span>

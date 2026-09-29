@@ -196,7 +196,7 @@ try {
 
     $expected = $plugin->expectedTables();
     // 6 since plugin 1.5.0 (standalone contributions joined the five originals).
-    check(is_array($expected) && count($expected) === 6, 'expectedTables() declares exactly 6 tables');
+    check(is_array($expected) && count($expected) === 7, 'expectedTables() declares exactly 7 tables');
 
     $sortedExpected = array_values(array_unique(array_map('strval', $expected)));
     sort($sortedExpected);

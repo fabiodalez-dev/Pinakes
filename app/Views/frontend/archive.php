@@ -73,7 +73,7 @@ $publisherWebsite = $archive_type === 'editore'
 $hasArchiveDetails = ($archive_type === 'autore' && (!empty($archive_info['biografia']) || $authorWebsite !== '' || $authorLinks !== []))
     || ($archive_type === 'editore' && (!empty($archive_info['indirizzo']) || $publisherWebsite !== ''));
 
-$createBookUrl = static fn(array $book): string => book_url($book);
+$createBookUrl = static fn(array $book): string => ($book['_record_kind'] ?? '') === 'article' ? url('/emeroteca/articolo/' . (int)$book['id']) : book_url($book);
 $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 // ── SEO: shared by ALL archive types (author, publisher, genre) and by both
@@ -89,7 +89,7 @@ $archiveBaseRoute = match ($archive_type) {
     default => $genreRoute,
 };
 $seoTitle = match ($archive_type) {
-    'autore' => __('Libri di %s', $archiveDisplayName),
+    'autore' => ($totalArticles ?? 0) > 0 ? __('Opere di %s', $archiveDisplayName) : __('Libri di %s', $archiveDisplayName),
     'editore' => __("Libri dell'editore %s", $archiveDisplayName),
     default => __('Libri del genere %s', $archiveDisplayName),
 };
@@ -172,7 +172,7 @@ ob_start();
                     <h1 class="archive-title" id="archive-title"><?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
                     <p class="archive-count">
                         <i class="fas fa-book" aria-hidden="true"></i>
-                        <span><?= (int) $totalBooks ?> <?= __n('libro', 'libri', (int) $totalBooks) ?></span>
+                        <span><?= (int) $totalBooks ?> <?= ($totalArticles ?? 0) > 0 ? __('Risultati') : __n('libro', 'libri', (int) $totalBooks) ?></span>
                         <?php if ((int) $totalPages > 1): ?>
                             <span aria-hidden="true">·</span>
                             <span><?= (int) $totalPages ?> <?= __n('pagina', 'pagine', (int) $totalPages) ?></span>
@@ -240,7 +240,11 @@ ob_start();
                         $coverUrl = absoluteUrl(($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg');
                         $available = (int) ($book['copie_disponibili'] ?? 0) > 0;
                         $state = (string) ($book['stato'] ?? '');
-                        if ($available) {
+                        if (($book['_record_kind'] ?? '') === 'article') {
+                            $statusClass = '';
+                            $statusIcon = 'fa-newspaper';
+                            $statusLabel = __('Articolo');
+                        } elseif ($available) {
                             $statusClass = 'is-available';
                             $statusIcon = 'fa-check';
                             $statusLabel = __('Disponibile');
@@ -268,7 +272,7 @@ ob_start();
                                      onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
                                 <span class="archive-book-status <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas <?= htmlspecialchars($statusIcon, ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
-                                    <?php do_action('book.badge.digital_icons', $book); ?>
+                                    <?php if (($book['_record_kind'] ?? '') !== 'article') { do_action('book.badge.digital_icons', $book); } ?>
                                 </span>
                             </a>
                             <div class="archive-book-copy">
@@ -283,6 +287,7 @@ ob_start();
                                     </p>
                                 <?php endif; ?>
                                 <div class="archive-book-meta">
+                                    <?php if (!empty($book['contenitore_titolo'])): ?><span><?= htmlspecialchars((string)$book['contenitore_titolo'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                                     <?php if (!empty($book['genere']) && $archive_type !== 'genere'): ?>
                                         <a href="<?= htmlspecialchars($genreRoute . '/' . urlencode(html_entity_decode((string) $book['genere'], ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) $book['genere'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a>
                                     <?php endif; ?>

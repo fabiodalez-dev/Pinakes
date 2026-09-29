@@ -41,7 +41,17 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.86 — latest
+### v0.7.88 — latest
+
+**An article you hold a copy of is catalogued as what it is** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). A photocopy, an offprint or the PDF of one paper out of a journal the library does not take can now carry the apparatus of an analytic record: subtitle, language and country of the host, a classification stored as scheme plus value, a note that the library holds a copy and not the run, and the electronic location with its access conditions. Every one of those fields is optional, so a collection that only wants a citation still fills in a title and stops. "Add article" sits beside "New book" in book management.
+
+**Books and articles share their authors.** An article credit can point at the same author record a book uses, chosen by name and life dates, with an optional GND identifier (core migration `migrate_0.7.88.sql`). Renames, pseudonyms, merges and deletions follow through to both, and credits typed before this release stay as they were until someone links them.
+
+**The catalogue answers the way a researcher asks.** Published articles appear in the same results, sort order and pages as books; an author's page gathers both, sorted by publication date; the record page renders APA 7 and Harvard citations, exports RIS for Zotero, EndNote and Mendeley, and downloads as MARCXML (analytic Leader/07, 773 host entry, classification in its own field) that another catalogue can load. The OpenURL resolver finds a local article by DOI or exact title and hands anything ambiguous to the external resolver.
+
+**What a visitor sees stays what a visitor may see.** Unpublished articles, shelf marks and the life dates of authors are shown only to staff whose role is checked on that request.
+
+### v0.7.86
 
 **Books the library is looking for, and donations from readers.** A reader who owns a book the library wants should be able to find that out and offer it in the same gesture. The new bundled **Desiderata** plugin publishes the wanted list with a donation form, and gives the operator the other half of the exchange: evaluating a proposal, receiving the book, and the record of what arrived. A wanted title is findable by name and reachable by link, and stays out of catalogue browsing, the feeds, the sitemap, the mobile API and every interop protocol — it is a request, not a holding, and announcing it as one would tell harvesters the library owns something it does not. The homepage section it adds is an ordinary `home_content` row, so the existing ordering list and visibility toggle govern it like any other section, and its texts are editable per language from the CMS. The donation form works on pages served without a session, which is what makes it usable on the cacheable homepage and on a book's own page. Inactive by default; with the plugin off, every one of those surfaces behaves exactly as it did before the feature existed.
 

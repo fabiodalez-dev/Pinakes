@@ -232,9 +232,10 @@ class MARCXMLFormatter extends RecordFormatter
             }
         }
 
-        // Electronic Location - 856 ind1='4' (HTTP) ind2='0' (resource itself)
+        // Electronic Location - 856 ind1='4' (HTTP) ind2='2' (related resource):
+        // the catalogue page describes the book, it is not the book itself.
         if (!empty($record['public_url'])) {
-            $recordEl->appendChild($this->createDataField('856', '4', '0', [
+            $recordEl->appendChild($this->createDataField('856', '4', '2', [
                 ['u', (string) $record['public_url']],
                 ['y', 'Catalogue record']
             ]));

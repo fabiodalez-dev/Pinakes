@@ -121,6 +121,15 @@ test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ pa
         expect(db("SELECT COUNT(*) FROM emeroteca_articoli WHERE titolo='Legacy412 article' AND pagina_inizio=138 AND pagina_fine=148")).toBe('1');
         expect(db("SELECT COUNT(*) FROM emeroteca_fascicoli WHERE stato='posseduto'")).toBe('1');
         expect(db('SELECT COUNT(*) FROM emeroteca_contributi')).toBe('0');
+        // The 1.7 analytic columns arrive through the additive repair, with no
+        // migration file. This is the only place that proves it on a database
+        // that really was created by an older version — the sandbox unit test
+        // simulates the old shape, this one lived through it.
+        expect(db("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME IN ('sottotitolo','lingua','paese','classificazione_schema','classificazione','nota_possesso','risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica')")).toBe('10');
+        // And they arrive AFTER updated_at: an ALTER without AFTER appends, so
+        // a fresh install that disagreed would mean CREATE TABLE and the
+        // repair had drifted apart.
+        expect(db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' ORDER BY ORDINAL_POSITION DESC LIMIT 1")).toBe('risorsa_pubblica');
         await page.goto(BASE + '/admin/periodicals/articles/create');
         await page.locator('[name=titolo]').fill('Upgraded412 article');
         await page.getByRole('button', { name: 'Salva articolo', exact: true }).click();
