@@ -105,6 +105,10 @@ try {
     $db->query("INSERT INTO emeroteca_contributi(reference_key,titolo,sottotitolo,contenitore_titolo,pubblico) VALUES ('duplicate','Probe 01 Article','subtitle','Other host',1)");
     check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle'])===null, 'ambiguous title cannot resolve arbitrary record');
     check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle','rft.jtitle'=>'Arbejderhistorie'])['id']===1, 'host disambiguates common title');
+    $db->query("UPDATE emeroteca_contributi SET doi='10.1000/probe.2' WHERE id=2");
+    check((int)$find->invoke($resolver,['rft_id'=>'info:doi/10.1000/PROBE.2'])['id']===2, 'unique DOI resolves its article');
+    $db->query("UPDATE emeroteca_contributi SET doi='10.1000/probe.2' WHERE id=3");
+    check($find->invoke($resolver,['rft_id'=>'info:doi/10.1000/probe.2'])===null, 'duplicate DOI is ambiguous, not an arbitrary record');
     $db->query("UPDATE plugins SET is_active=0");
     check($page(['search'=>'Probe'])===null, 'disabled plugin is absent from catalogue');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'])===null, 'disabled plugin is absent from resolver');

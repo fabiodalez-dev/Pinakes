@@ -629,16 +629,21 @@ class OpenUrlResolverPlugin
         $doi = (string) preg_replace('~^(?:info:doi/|https?://(?:dx\.)?doi\.org/|doi:\s*)~i', '', $doi);
         if ($doi !== '') {
             $stmt = $this->db->prepare(
-                'SELECT id FROM emeroteca_contributi WHERE pubblico = 1 AND doi = ? LIMIT 1'
+                'SELECT id FROM emeroteca_contributi WHERE pubblico = 1 AND doi = ? LIMIT 2'
             );
             if ($stmt !== false) {
                 $lower = strtolower($doi);
                 $stmt->bind_param('s', $lower);
                 $stmt->execute();
-                $row = $stmt->get_result()->fetch_assoc();
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
-                if (is_array($row)) {
-                    return $row;
+                // The schema does not make the DOI unique. Two published
+                // articles sharing it are as ambiguous as a common title.
+                if (count($rows) > 1) {
+                    return null;
+                }
+                if (count($rows) === 1) {
+                    return $rows[0];
                 }
             }
         }
