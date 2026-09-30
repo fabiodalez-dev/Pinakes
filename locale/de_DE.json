@@ -7906,5 +7906,6 @@
     "Questo identificativo GND è già assegnato a un altro autore.": "Diese GND-Kennung ist bereits einem anderen Autor zugeordnet.",
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titel und Untertitel oben auf der Katalogseite, für jede Sprache. Ein leeres Feld verwendet den Standardtext.",
   "Salva intestazione del catalogo": "Katalogkopf speichern",
-  "Intestazione del catalogo aggiornata.": "Katalogkopf aktualisiert."
+  "Intestazione del catalogo aggiornata.": "Katalogkopf aktualisiert.",
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Katalogkopf nicht gespeichert: Die Formulardaten sind ungültig."
 }

@@ -1575,11 +1575,18 @@ class SettingsController
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        \App\Support\CatalogHeader::save(
-            $repository,
-            is_array($data['catalog_title'] ?? null) ? $data['catalog_title'] : [],
-            is_array($data['catalog_subtitle'] ?? null) ? $data['catalog_subtitle'] : []
-        );
+        // Both fields arrive as locale => text maps. Anything else (a missing
+        // field, a scalar, a nested array) is rejected before touching the
+        // database: read as an empty map, it would reset every language.
+        $titles = $data['catalog_title'] ?? null;
+        $subtitles = $data['catalog_subtitle'] ?? null;
+        if (!\App\Support\CatalogHeader::isTextMap($titles) || !\App\Support\CatalogHeader::isTextMap($subtitles)) {
+            $_SESSION['error_message'] = __('Intestazione del catalogo non salvata: dati del modulo non validi.');
+            return $this->redirect($response, '/admin/settings?tab=cms#cms');
+        }
+
+        \App\Support\CatalogHeader::save($repository, $titles, $subtitles);
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_CATALOG]);
 
         $_SESSION['success_message'] = __('Intestazione del catalogo aggiornata.');
         return $this->redirect($response, '/admin/settings?tab=cms#cms');
@@ -1669,6 +1676,8 @@ class SettingsController
 
     private function redirect(Response $response, string $location): Response
     {
-        return $response->withHeader('Location', $location)->withStatus(302);
+        // url() adds the base path of an installation in a subfolder (and
+        // leaves a path that already carries it alone).
+        return $response->withHeader('Location', url($location))->withStatus(302);
     }
 }

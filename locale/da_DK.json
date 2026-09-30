@@ -7906,5 +7906,6 @@
     "Questo identificativo GND è già assegnato a un altro autore.": "Denne GND-identifikator er allerede tildelt en anden forfatter.",
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titel og undertitel øverst på katalogsiden for hvert sprog. Et tomt felt bruger standardteksten.",
   "Salva intestazione del catalogo": "Gem katalogets overskrift",
-  "Intestazione del catalogo aggiornata.": "Katalogets overskrift er opdateret."
+  "Intestazione del catalogo aggiornata.": "Katalogets overskrift er opdateret.",
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Katalogets overskrift blev ikke gemt: formulardataene er ugyldige."
 }

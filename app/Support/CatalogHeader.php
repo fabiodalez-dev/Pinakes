@@ -60,18 +60,41 @@ final class CatalogHeader
     }
 
     /**
-     * Save the submitted texts of every active language. An empty field
-     * removes the override, so that language goes back to the default.
+     * True for what the settings form posts: a map of locale => text.
      *
-     * @param array<string, mixed> $titles    locale => title
-     * @param array<string, mixed> $subtitles locale => subtitle
+     * @phpstan-assert-if-true array<string, string> $value
+     */
+    public static function isTextMap(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+        foreach ($value as $locale => $text) {
+            if (!is_string($locale) || !is_string($text)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Save the submitted texts of the active languages. An empty field
+     * removes the override, so that language goes back to the default; a
+     * language the form did not send is left as it is.
+     *
+     * @param array<string, string> $titles    locale => title
+     * @param array<string, string> $subtitles locale => subtitle
      */
     public static function save(SettingsRepository $repository, array $titles, array $subtitles): void
     {
         foreach (array_keys(I18n::getAvailableLocales()) as $locale) {
             $locale = I18n::normalizeLocaleCode((string) $locale);
             foreach (['title' => [$titles, self::TITLE_MAX], 'subtitle' => [$subtitles, self::SUBTITLE_MAX]] as $field => [$values, $max]) {
-                $value = self::clean($values[$locale] ?? '', $max);
+                if (!array_key_exists($locale, $values)) {
+                    continue;
+                }
+                $value = self::clean($values[$locale], $max);
                 if ($value === '') {
                     $repository->delete(self::CATEGORY, $field . '.' . $locale);
                 } else {

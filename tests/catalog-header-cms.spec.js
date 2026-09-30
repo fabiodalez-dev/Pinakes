@@ -45,20 +45,21 @@ async function catalogHeader(page, locale) {
 }
 
 test.describe.serial('Catalogue header editable per language (Settings → CMS)', () => {
-  let saved = '';
+  // One row per setting, key and value in hex: the backup survives newlines,
+  // any length and NULL values, and goes back exactly as it was.
+  let saved = [];
 
   test.beforeAll(() => {
-    saved = db("SELECT COALESCE(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) SEPARATOR '\\n'), '') FROM system_settings WHERE category='catalog'");
+    saved = db("SELECT HEX(setting_key), IF(setting_value IS NULL, 'NULL', HEX(setting_value)) FROM system_settings WHERE category='catalog'")
+      .split('\n').filter(Boolean).map((line) => line.split('\t'));
     db("DELETE FROM system_settings WHERE category='catalog'");
   });
 
   test.afterAll(async ({ browser }) => {
     db("DELETE FROM system_settings WHERE category='catalog'");
-    for (const line of saved.split('\n').filter(Boolean)) {
-      const at = line.indexOf('=');
-      const key = line.slice(0, at).replace(/'/g, "''");
-      const value = line.slice(at + 1).replace(/'/g, "''");
-      db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('catalog', '${key}', '${value}')`);
+    for (const [keyHex, valueHex] of saved) {
+      const value = valueHex === 'NULL' ? 'NULL' : `CONVERT(UNHEX('${valueHex}') USING utf8mb4)`;
+      db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('catalog', CONVERT(UNHEX('${keyHex}') USING utf8mb4), ${value})`);
     }
     // Back to the admin's language for whatever runs next.
     const page = await browser.newPage();
@@ -94,7 +95,9 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     // en_US subtitle left empty: it keeps the default.
     await form.locator('button[type=submit]').click();
     await page.waitForURL(/\/admin\/settings\?tab=cms/);
+    // The settings page confirms with its inline banner, not a SweetAlert dialog.
     await expect(page.getByText('Intestazione del catalogo aggiornata.')).toBeVisible();
+    await expect(page.locator('.swal2-confirm')).toHaveCount(0);
 
     // The form shows what was saved.
     await expect(page.locator('input[name="catalog_title[it_IT]"]')).toHaveValue('Catalogo della Biblioteca femminista');
@@ -123,7 +126,26 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     await page.locator('input[name="catalog_title[it_IT]"]').fill('');
     await page.locator('#catalog-header-form button[type=submit]').click();
     await page.waitForURL(/\/admin\/settings\?tab=cms/);
+    await expect(page.getByText('Intestazione del catalogo aggiornata.')).toBeVisible();
+    await expect(page.locator('.swal2-confirm')).toHaveCount(0);
     expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog' AND setting_key='title.it_IT'")).toBe('0');
     expect((await catalogHeader(page, 'it_IT')).title).toBe('Catalogo');
+  });
+
+  test('a malformed post changes nothing', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
+    const before = db("SELECT COUNT(*) FROM system_settings WHERE category='catalog'");
+    expect(Number(before)).toBeGreaterThan(0);
+    const csrf = await page.locator('#catalog-header-form input[name=csrf_token]').inputValue();
+    // A scalar instead of the locale map must not be read as "reset every language".
+    const response = await page.request.post(`${BASE}/admin/settings/catalog-header`, {
+      form: { csrf_token: csrf, catalog_title: 'testo', catalog_subtitle: 'testo' },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
+    expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog'")).toBe(before);
+    await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
+    await expect(page.getByText('Intestazione del catalogo non salvata: dati del modulo non validi.')).toBeVisible();
   });
 });

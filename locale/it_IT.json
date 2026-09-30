@@ -7906,5 +7906,6 @@
     "Questo identificativo GND è già assegnato a un altro autore.": "Questo identificativo GND è già assegnato a un altro autore.",
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.",
   "Salva intestazione del catalogo": "Salva intestazione del catalogo",
-  "Intestazione del catalogo aggiornata.": "Intestazione del catalogo aggiornata."
+  "Intestazione del catalogo aggiornata.": "Intestazione del catalogo aggiornata.",
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Intestazione del catalogo non salvata: dati del modulo non validi."
 }
