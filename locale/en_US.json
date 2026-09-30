@@ -7903,5 +7903,8 @@
     "Ricerca non disponibile. Riprova.": "Search unavailable. Try again.",
     "Puoi collegare al massimo 20 autori a un articolo.": "You can link at most 20 authors to an article.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Enter the resource address or path first: without it there is nothing to show in the public catalogue.",
-    "Questo identificativo GND è già assegnato a un altro autore.": "This GND identifier is already assigned to another author."
+    "Questo identificativo GND è già assegnato a un altro autore.": "This GND identifier is already assigned to another author.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Title and subtitle at the top of the catalogue page, for each language. An empty field uses the default text.",
+  "Salva intestazione del catalogo": "Save catalogue header",
+  "Intestazione del catalogo aggiornata.": "Catalogue header updated."
 }

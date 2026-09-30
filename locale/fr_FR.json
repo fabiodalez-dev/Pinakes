@@ -7903,5 +7903,8 @@
     "Ricerca non disponibile. Riprova.": "Recherche indisponible. Réessayez.",
     "Puoi collegare al massimo 20 autori a un articolo.": "Vous pouvez lier au maximum 20 auteurs à un article.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Indiquez d’abord l’adresse ou le chemin de la ressource : sans elle, il n’y a rien à afficher dans le catalogue public.",
-    "Questo identificativo GND è già assegnato a un altro autore.": "Cet identifiant GND est déjà attribué à un autre auteur."
+    "Questo identificativo GND è già assegnato a un altro autore.": "Cet identifiant GND est déjà attribué à un autre auteur.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titre et sous-titre en haut de la page du catalogue, pour chaque langue. Un champ vide utilise le texte par défaut.",
+  "Salva intestazione del catalogo": "Enregistrer l’en-tête du catalogue",
+  "Intestazione del catalogo aggiornata.": "En-tête du catalogue mis à jour."
 }

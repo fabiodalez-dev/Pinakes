@@ -10,7 +10,12 @@
 
 use App\Support\HtmlHelper;
 
-$title = __("Catalogo");
+// Header texts are editable per language (Settings → CMS); the page title follows them.
+$catalogHeader = $catalogHeader ?? [
+    'title' => __(\App\Support\CatalogHeader::DEFAULT_TITLE),
+    'subtitle' => __(\App\Support\CatalogHeader::DEFAULT_SUBTITLE),
+];
+$title = $catalogHeader['title'];
 if (!isset($filters)) {
     $filters = [];
 }
@@ -25,7 +30,7 @@ if ($searchQuery) {
     // thin/duplicate content); links are still followed toward the books.
     $seoRobots = 'noindex,follow';
 } else {
-    $seoTitle = __("Catalogo");
+    $seoTitle = $catalogHeader['title'];
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
 if (!empty($filters['autore'])) { $seoRobots = 'noindex,follow'; }
@@ -1341,8 +1346,8 @@ ob_start();
 <section class="catalog-header">
     <div class="container">
         <div class="catalog-header-content text-center">
-            <h1 class="catalog-title"><?= __("Catalogo") ?></h1>
-            <p class="catalog-subtitle"><?= __("Scopri migliaia di titoli nella nostra collezione digitale") ?></p>
+            <h1 class="catalog-title"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
+            <p class="catalog-subtitle"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
                     <li class="breadcrumb-item">

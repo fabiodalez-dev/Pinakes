@@ -65,6 +65,14 @@ class SettingsController
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
         $eventSettings = $this->resolveEventSettings($repository);
+        // Catalogue header (Settings → CMS): one title and subtitle per active
+        // language, with the shipped wording of each language as placeholder.
+        $catalogHeaderLocales = \App\Support\I18n::getAvailableLocales();
+        $catalogHeaderTexts = \App\Support\CatalogHeader::stored($repository);
+        $catalogHeaderDefaults = [];
+        foreach (array_keys($catalogHeaderLocales) as $catalogLocale) {
+            $catalogHeaderDefaults[$catalogLocale] = \App\Support\CatalogHeader::defaultsIn((string) $catalogLocale);
+        }
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
@@ -93,6 +101,9 @@ class SettingsController
             'privacySettings',
             'labelSettings',
             'eventSettings',
+            'catalogHeaderLocales',
+            'catalogHeaderTexts',
+            'catalogHeaderDefaults',
             'advancedSettings',
             'loansSettings',
             'contactMessages',
@@ -1554,6 +1565,24 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni eventi aggiornate.');
         return $this->redirect($response, '/admin/settings?tab=cms');
+    }
+
+    public function updateCatalogHeader(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        \App\Support\CatalogHeader::save(
+            $repository,
+            is_array($data['catalog_title'] ?? null) ? $data['catalog_title'] : [],
+            is_array($data['catalog_subtitle'] ?? null) ? $data['catalog_subtitle'] : []
+        );
+
+        $_SESSION['success_message'] = __('Intestazione del catalogo aggiornata.');
+        return $this->redirect($response, '/admin/settings?tab=cms#cms');
     }
 
     /**

@@ -7903,5 +7903,8 @@
     "Ricerca non disponibile. Riprova.": "Suche nicht verfügbar. Bitte erneut versuchen.",
     "Puoi collegare al massimo 20 autori a un articolo.": "Einem Artikel können höchstens 20 Autoren zugeordnet werden.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Geben Sie zuerst die Adresse oder den Pfad der Ressource an: ohne sie gibt es im öffentlichen Katalog nichts anzuzeigen.",
-    "Questo identificativo GND è già assegnato a un altro autore.": "Diese GND-Kennung ist bereits einem anderen Autor zugeordnet."
+    "Questo identificativo GND è già assegnato a un altro autore.": "Diese GND-Kennung ist bereits einem anderen Autor zugeordnet.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titel und Untertitel oben auf der Katalogseite, für jede Sprache. Ein leeres Feld verwendet den Standardtext.",
+  "Salva intestazione del catalogo": "Katalogkopf speichern",
+  "Intestazione del catalogo aggiornata.": "Katalogkopf aktualisiert."
 }
