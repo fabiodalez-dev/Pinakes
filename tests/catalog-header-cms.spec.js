@@ -138,9 +138,6 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     const before = db("SELECT COUNT(*) FROM system_settings WHERE category='catalog'");
     expect(Number(before)).toBeGreaterThan(0);
     const csrf = await page.locator('#catalog-header-form input[name=csrf_token]').inputValue();
-    // Let the page's own background requests finish first: one still in
-    // flight would write its copy of the session back over the flash message.
-    await page.waitForLoadState('networkidle');
     // A scalar instead of the locale map must not be read as "reset every language".
     const status = await page.evaluate(async (token) => {
       const body = new URLSearchParams({ csrf_token: token, catalog_title: 'testo', catalog_subtitle: 'testo' });
@@ -151,7 +148,8 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     }, csrf);
     expect(status, 'the save answers with a redirect back to the CMS tab').toBe('opaqueredirect');
     expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog'")).toBe(before);
-    await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
+    // reload(): a goto to the same URL with #cms would only move the fragment.
+    await page.reload();
     await expect(page.getByText('Intestazione del catalogo non salvata: dati del modulo non validi.')).toBeVisible();
   });
 });
