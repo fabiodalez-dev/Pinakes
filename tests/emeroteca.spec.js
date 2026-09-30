@@ -328,8 +328,9 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     // Fascicolo page responds 200 with the right issue number.
     const resp = await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
     expect(resp.status()).toBe(200);
-    await expect(page.locator('h1')).toContainText('n. 1');
-    await expect(page.locator('h1')).toContainText(TITLE);
+    // The cookie banner carries an <h1> of its own: read the page's heading.
+    const heading = page.locator('h1', { hasText: TITLE });
+    await expect(heading).toContainText('n. 1');
 
     // Unknown fascicolo → 404 rendered inside the public layout.
     const missing = await page.goto(`${BASE}/emeroteca/fascicolo/99999999`);
@@ -748,7 +749,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const next = page.locator(`a[href$="/emeroteca/fascicolo/${fascicoloIds[1]}"]`).first();
     await expect(next).toBeVisible({ timeout: 10000 });
     await next.click();
-    await expect(page.locator('h1')).toContainText('n. 2', { timeout: 10000 });
+    await expect(page.locator('h1', { hasText: TITLE })).toContainText('n. 2', { timeout: 10000 });
   });
 
   test('schema.org: Periodical on the testata, PublicationIssue on the issue', async ({ page }) => {
@@ -839,7 +840,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await expect(page.locator('#ab-fornitore')).toBeVisible({ timeout: 10000 });
     await page.fill('#ab-fornitore', 'Fornitore E2E');
     await page.fill('#ab-costo', '129,90');
-    await page.fill('#ab-valuta', 'EUR');
+    await expect(page.locator('#ab-valuta'), 'the currency picker preselects the euro').toHaveValue('EUR');
     await setDateField(page, '#ab-inizio', inDays(-300));
     // Inside the 60-day renewal window → the list must warn.
     await setDateField(page, '#ab-scadenza', inDays(20));

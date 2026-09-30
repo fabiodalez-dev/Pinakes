@@ -7942,5 +7942,12 @@
     "Con la Dewey la notazione si sceglie dall’elenco, come per i libri.": "With Dewey, the notation is picked from the list, as for books.",
     "Nome dello schema": "Name of the scheme",
     "Solo se hai scelto «Altro schema».": "Only if you chose “Other scheme”.",
-    "Cerca per nome o codice": "Search by name or code"
+    "Cerca per nome o codice": "Search by name or code",
+    "Un articolo di rivista o di giornale, o un capitolo di un’antologia, anche senza possedere la pubblicazione intera.": "A journal or newspaper article, or a chapter in an anthology, even without holding the whole publication.",
+    "La rivista, il giornale o il volume in cui l’articolo è apparso.": "The journal, newspaper or volume in which the article appeared.",
+    "Solo articoli: la scheda di un articolo, anche senza la rivista.": "Articles only: an article record, even without the journal.",
+    "Anche annate, fascicoli e abbonamenti delle testate.": "Also the volumes, issues and subscriptions of each title.",
+    "Trascina qui il file o %{browse}": "Drop the file here or %{browse}",
+    "Formato del file": "File format",
+    "Cerca per codice o argomento, es. 599.9 o mammiferi": "Search by code or subject, e.g. 599.9 or mammals"
 }

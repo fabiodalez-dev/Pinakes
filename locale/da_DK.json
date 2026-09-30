@@ -7942,5 +7942,12 @@
     "Con la Dewey la notazione si sceglie dall’elenco, come per i libri.": "Med Dewey vælges notationen fra listen, som for bøger.",
     "Nome dello schema": "Systemets navn",
     "Solo se hai scelto «Altro schema».": "Kun hvis du har valgt »Andet system«.",
-    "Cerca per nome o codice": "Søg efter navn eller kode"
+    "Cerca per nome o codice": "Søg efter navn eller kode",
+    "Un articolo di rivista o di giornale, o un capitolo di un’antologia, anche senza possedere la pubblicazione intera.": "En tidsskrift- eller avisartikel eller et kapitel i en antologi, også uden at eje hele publikationen.",
+    "La rivista, il giornale o il volume in cui l’articolo è apparso.": "Tidsskriftet, avisen eller bindet, hvor artiklen er udkommet.",
+    "Solo articoli: la scheda di un articolo, anche senza la rivista.": "Kun artikler: en artikelpost, også uden tidsskriftet.",
+    "Anche annate, fascicoli e abbonamenti delle testate.": "Også årgange, numre og abonnementer for titlerne.",
+    "Trascina qui il file o %{browse}": "Træk filen hertil eller %{browse}",
+    "Formato del file": "Filformat",
+    "Cerca per codice o argomento, es. 599.9 o mammiferi": "Søg efter kode eller emne, f.eks. 599.9 eller pattedyr"
 }

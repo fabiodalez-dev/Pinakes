@@ -93,6 +93,40 @@ final class CodeLists
     }
 
     /**
+     * ISO 4217 code => name in $locale, sorted by name, from ICU's currency
+     * names. The X* codes that are not money (gold, test, "unknown", the
+     * IMF's units) are left out; the West and Central African francs and the
+     * CFP franc, which are X-codes and real currencies, stay. Former
+     * currencies (lira, mark) stay too: with the search box they cost nothing.
+     *
+     * @return array<string,string>
+     */
+    public static function currencies(string $locale): array
+    {
+        if (!class_exists(\ResourceBundle::class)) {
+            return [];
+        }
+        $bundle = \ResourceBundle::create($locale, 'ICUDATA-curr');
+        $table = $bundle instanceof \ResourceBundle ? $bundle->get('Currencies') : null;
+        if (!$table instanceof \ResourceBundle) {
+            return [];
+        }
+        $names = [];
+        foreach ($table as $code => $entry) {
+            $code = (string) $code;
+            if (preg_match('/^[A-Z]{3}$/D', $code) !== 1) {
+                continue;
+            }
+            if ($code[0] === 'X' && !in_array($code, ['XAF', 'XOF', 'XPF', 'XCD', 'XCG'], true)) {
+                continue;
+            }
+            $name = $entry instanceof \ResourceBundle ? (string) $entry->get(1) : '';
+            $names[$code] = $name === '' ? $code : mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
+        }
+        return self::sorted($names, $locale);
+    }
+
+    /**
      * The display name of one code, capitalised as a list entry. Without intl
      * the code stands for itself, which still lets the list work.
      */

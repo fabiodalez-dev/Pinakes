@@ -7942,5 +7942,12 @@
     "Con la Dewey la notazione si sceglie dall’elenco, come per i libri.": "Con la Dewey la notazione si sceglie dall’elenco, come per i libri.",
     "Nome dello schema": "Nome dello schema",
     "Solo se hai scelto «Altro schema».": "Solo se hai scelto «Altro schema».",
-    "Cerca per nome o codice": "Cerca per nome o codice"
+    "Cerca per nome o codice": "Cerca per nome o codice",
+    "Un articolo di rivista o di giornale, o un capitolo di un’antologia, anche senza possedere la pubblicazione intera.": "Un articolo di rivista o di giornale, o un capitolo di un’antologia, anche senza possedere la pubblicazione intera.",
+    "La rivista, il giornale o il volume in cui l’articolo è apparso.": "La rivista, il giornale o il volume in cui l’articolo è apparso.",
+    "Solo articoli: la scheda di un articolo, anche senza la rivista.": "Solo articoli: la scheda di un articolo, anche senza la rivista.",
+    "Anche annate, fascicoli e abbonamenti delle testate.": "Anche annate, fascicoli e abbonamenti delle testate.",
+    "Trascina qui il file o %{browse}": "Trascina qui il file o %{browse}",
+    "Formato del file": "Formato del file",
+    "Cerca per codice o argomento, es. 599.9 o mammiferi": "Cerca per codice o argomento, es. 599.9 o mammiferi"
 }

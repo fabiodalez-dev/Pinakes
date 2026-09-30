@@ -41,13 +41,13 @@ $autoriFallback = implode('; ', array_column($chips, 'credit'));
 <label for="article-authors-select" class="form-label"><?= __('Autori') ?></label>
 <div id="article-authors-picker" hidden>
 <select id="article-authors-select" multiple></select>
-<p class="text-sm text-gray-600"><?= __('Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.') ?></p>
-<p class="text-sm text-gray-600" id="article-author-limit" role="status" hidden><?= __('Puoi collegare al massimo 20 autori a un articolo.') ?></p>
+<p class="text-xs text-gray-500 mt-1"><?= __('Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.') ?></p>
+<p class="text-xs text-gray-500 mt-1" id="article-author-limit" role="status" hidden><?= __('Puoi collegare al massimo 20 autori a un articolo.') ?></p>
 </div>
 <div id="article-credits"></div>
 <div id="article-authors-fallback">
 <input class="form-input" id="article-autori" name="autori" value="<?= htmlspecialchars($autoriFallback, ENT_QUOTES, 'UTF-8') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS['autori'] ?>">
-<p class="text-sm text-gray-600"><?= __('Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.') ?></p>
+<p class="text-xs text-gray-500 mt-1"><?= __('Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.') ?></p>
 </div>
 </div>
 <script>

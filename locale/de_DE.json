@@ -7942,5 +7942,12 @@
     "Con la Dewey la notazione si sceglie dall’elenco, come per i libri.": "Bei Dewey wird die Notation aus der Liste gewählt, wie bei Büchern.",
     "Nome dello schema": "Name des Systems",
     "Solo se hai scelto «Altro schema».": "Nur wenn „Anderes System“ gewählt ist.",
-    "Cerca per nome o codice": "Nach Name oder Code suchen"
+    "Cerca per nome o codice": "Nach Name oder Code suchen",
+    "Un articolo di rivista o di giornale, o un capitolo di un’antologia, anche senza possedere la pubblicazione intera.": "Ein Zeitschriften- oder Zeitungsartikel oder ein Kapitel eines Sammelbands, auch ohne die ganze Publikation zu besitzen.",
+    "La rivista, il giornale o il volume in cui l’articolo è apparso.": "Die Zeitschrift, die Zeitung oder der Band, in dem der Artikel erschienen ist.",
+    "Solo articoli: la scheda di un articolo, anche senza la rivista.": "Nur Artikel: ein Artikeldatensatz, auch ohne die Zeitschrift.",
+    "Anche annate, fascicoli e abbonamenti delle testate.": "Auch Jahrgänge, Hefte und Abonnements der Titel.",
+    "Trascina qui il file o %{browse}": "Datei hierher ziehen oder %{browse}",
+    "Formato del file": "Dateiformat",
+    "Cerca per codice o argomento, es. 599.9 o mammiferi": "Nach Code oder Thema suchen, z. B. 599.9 oder Säugetiere"
 }

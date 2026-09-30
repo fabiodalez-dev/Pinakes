@@ -164,6 +164,13 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await expect(page.locator('#article-classificazione'), 'the text box steps aside').toBeHidden();
     // 33.129 is a DK5 notation, not a Dewey code: it is not carried over.
     await expect(page.locator('#dewey_chip_container')).toBeHidden();
+    // The Dewey box searches by subject as well as by code (#412).
+    await page.locator('#dewey_manual_input').pressSequentially('mammif');
+    await expect(page.locator('#dewey_suggest li').filter({ hasText: /^599 — / })).toBeVisible();
+    await page.locator('#dewey_suggest li').filter({ hasText: /^599 — / }).click();
+    await expect(page.locator('#dewey_chip_code')).toContainText('599');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('599');
+    // And any code can still be typed and added, listed or not.
     await page.locator('#dewey_manual_input').fill('305.8');
     await page.locator('#dewey_add_btn').click();
     await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
