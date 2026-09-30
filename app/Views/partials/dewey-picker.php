@@ -34,7 +34,10 @@ $deweyValue = (string) ($deweyValue ?? '');
 <div class="mb-4">
   <label for="dewey_manual_input" class="form-label"><?= __("Codice Dewey") ?></label>
   <div class="flex gap-2">
-    <input type="text" id="dewey_manual_input" class="form-input" placeholder="<?= __('es. 599.9, 004.6782, 641.5945, 599.1') ?>" />
+    <div class="relative flex-1">
+      <input type="text" id="dewey_manual_input" class="form-input" placeholder="<?= __('Cerca per codice o argomento, es. 599.9 o mammiferi') ?>" role="combobox" aria-autocomplete="list" aria-controls="dewey_suggest" aria-expanded="false" autocomplete="off" />
+      <ul id="dewey_suggest" role="listbox" aria-label="<?= htmlspecialchars(__('Classificazione Dewey'), ENT_QUOTES, 'UTF-8') ?>" hidden></ul>
+    </div>
     <button type="button" id="dewey_add_btn" class="ui-button btn-primary">
       <i class="fas fa-plus"></i> <?= __("Aggiungi") ?>
     </button>
@@ -200,13 +203,98 @@ async function initializeDewey(initialValue) {
     clearDeweyCode();
   });
 
-  // Gestione Enter nell'input
-  manualInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+  // Autocomplete: typing a code prefix or a word of the subject lists the
+  // matching classes (GET /api/dewey/autocomplete); picking one moves the
+  // category menus to it. Enter with nothing highlighted keeps the old
+  // behaviour: add the typed code, even one that is not in the list.
+  const suggest = document.getElementById('dewey_suggest');
+  let suggestItems = [];
+  let suggestIndex = -1;
+  let suggestTimer = null;
+  let suggestRequest = 0;
+  const closeSuggest = () => {
+    suggest.hidden = true;
+    suggest.replaceChildren();
+    suggestItems = [];
+    suggestIndex = -1;
+    manualInput.setAttribute('aria-expanded', 'false');
+    manualInput.removeAttribute('aria-activedescendant');
+  };
+  const highlight = (index) => {
+    suggestIndex = index;
+    Array.from(suggest.children).forEach((li, i) => li.setAttribute('aria-selected', i === index ? 'true' : 'false'));
+    if (index >= 0 && suggest.children[index]) {
+      manualInput.setAttribute('aria-activedescendant', suggest.children[index].id);
+      suggest.children[index].scrollIntoView({ block: 'nearest' });
+    } else {
+      manualInput.removeAttribute('aria-activedescendant');
+    }
+  };
+  const pickSuggestion = async (item) => {
+    closeSuggest();
+    manualInput.value = '';
+    await navigateToCode(item.code);
+  };
+  const renderSuggest = (items) => {
+    suggest.replaceChildren();
+    suggestItems = items;
+    suggestIndex = -1;
+    if (!items.length) { closeSuggest(); return; }
+    items.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.id = 'dewey_suggest_' + i;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', 'false');
+      const code = document.createElement('span');
+      code.className = 'font-mono font-bold';
+      code.textContent = item.code;
+      li.appendChild(code);
+      li.appendChild(document.createTextNode(' — ' + item.name));
+      // mousedown, not click: the input must not lose the list to its blur first.
+      li.addEventListener('mousedown', (event) => { event.preventDefault(); pickSuggestion(item); });
+      suggest.appendChild(li);
+    });
+    suggest.hidden = false;
+    manualInput.setAttribute('aria-expanded', 'true');
+  };
+  manualInput.addEventListener('input', () => {
+    clearTimeout(suggestTimer);
+    const query = manualInput.value.trim();
+    if (query.length < 2) { closeSuggest(); return; }
+    suggestTimer = setTimeout(async () => {
+      const request = ++suggestRequest;
+      try {
+        const response = await fetch(`${window.BASE_PATH}/api/dewey/autocomplete?q=${encodeURIComponent(query)}`, { credentials: 'same-origin' });
+        if (!response.ok || request !== suggestRequest) return;
+        const items = await response.json();
+        if (request !== suggestRequest) return;
+        renderSuggest(Array.isArray(items) ? items : []);
+      } catch (e) {
+        closeSuggest();
+      }
+    }, 200);
+  });
+  manualInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && suggestItems.length) {
       e.preventDefault();
-      addBtn.click();
+      highlight(Math.min(suggestIndex + 1, suggestItems.length - 1));
+    } else if (e.key === 'ArrowUp' && suggestItems.length) {
+      e.preventDefault();
+      highlight(Math.max(suggestIndex - 1, 0));
+    } else if (e.key === 'Escape' && !suggest.hidden) {
+      e.preventDefault();
+      closeSuggest();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (suggestIndex >= 0 && suggestItems[suggestIndex]) {
+        pickSuggestion(suggestItems[suggestIndex]);
+      } else {
+        closeSuggest();
+        addBtn.click();
+      }
     }
   });
+  manualInput.addEventListener('blur', () => { setTimeout(closeSuggest, 150); });
 
   // Build breadcrumb from all currently selected dropdowns
   const updateBreadcrumbFromDropdowns = () => {
@@ -453,3 +541,12 @@ async function initializeDewey(initialValue) {
   }
 }
 </script>
+<style>
+  /* The suggestion list of the Dewey box: the look of the Choices.js dropdown
+     in admin-ui.css (white, grey border, highlighted row #dbeafe). */
+  #dewey_suggest { position: absolute; z-index: 100; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 0; list-style: none; background: #fff; border: 1px solid #d1d5db; border-radius: .375rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06); max-height: 18rem; overflow-y: auto; }
+  #dewey_suggest[hidden] { display: none; }
+  #dewey_suggest li { padding: 8px 12px; font-size: .875rem; color: #111827; cursor: pointer; }
+  #dewey_suggest li:hover { background: #f3f4f6; }
+  #dewey_suggest li[aria-selected="true"] { background: #dbeafe; }
+</style>
