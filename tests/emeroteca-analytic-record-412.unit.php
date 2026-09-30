@@ -127,6 +127,9 @@ $rejects = static function (callable $fn, string $label) use ($check): void {
 /** The ten columns the analytic record adds, in the order they must appear. */
 const ANALYTIC_COLUMNS = ['sottotitolo','lingua','paese','classificazione_schema','classificazione','nota_possesso','risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica'];
 
+/** The four columns 1.9.0 adds for a chapter's host volume, after the ten above. */
+const HOST_COLUMNS = ['contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
+
 /** Uwe's own article, as the Royal Danish Library records it. */
 const UWE = [
     'titolo' => 'På sporet af et internationalt samarbejde blandt kedel- og maskinpassere i den anti-fascistiske kamp',
@@ -176,11 +179,11 @@ try {
     $check($db->query(ContributionService::ddl()) !== false,
         'and the DDL is still executable a second time');
 
-    foreach (ANALYTIC_COLUMNS as $column) {
+    foreach ([...ANALYTIC_COLUMNS, ...HOST_COLUMNS] as $column) {
         $db->query("ALTER TABLE emeroteca_contributi DROP COLUMN {$column}");
     }
     $legacy = $columns();
-    $check($legacy === array_values(array_diff($legacy, ANALYTIC_COLUMNS)) && end($legacy) === 'updated_at',
+    $check($legacy === array_values(array_diff($legacy, [...ANALYTIC_COLUMNS, ...HOST_COLUMNS])) && end($legacy) === 'updated_at',
         'the table is back to the 1.6.0 shape, ending at updated_at');
     $db->query("INSERT INTO emeroteca_contributi (reference_key, titolo, autori) VALUES ('legacy-1', 'Un articolo del 1.6', 'Rossi, Mario')");
 
@@ -189,8 +192,8 @@ try {
     $check($upgrade['failed'] === [], 'the real upgrade reports no failed table');
 
     $after = $columns();
-    $check(array_slice($after, -count(ANALYTIC_COLUMNS)) === ANALYTIC_COLUMNS,
-        'the ten analytic columns are appended, in order, after updated_at');
+    $check(array_slice($after, -count(ANALYTIC_COLUMNS) - count(HOST_COLUMNS)) === [...ANALYTIC_COLUMNS, ...HOST_COLUMNS],
+        'the ten analytic columns and the four host-volume columns are appended, in order, after updated_at');
 
     $types = [];
     foreach ($inventory() as $row) {
@@ -207,6 +210,10 @@ try {
         'risorsa_testo' => ['varchar(255)','YES',null],
         'risorsa_accesso' => ['varchar(255)','YES',null],
         'risorsa_pubblica' => ['tinyint(1)','NO','0'],
+        'contenitore_curatori' => ['varchar(500)','YES',null],
+        'contenitore_editore' => ['varchar(255)','YES',null],
+        'contenitore_luogo' => ['varchar(255)','YES',null],
+        'isbn' => ['varchar(17)','YES',null],
     ];
     // "No default" has two spellings. MySQL reports COLUMN_DEFAULT as SQL NULL
     // for a nullable column that declares no default; MariaDB reports the
@@ -253,8 +260,26 @@ try {
     // Without the sentinel a half-applied upgrade stays half-applied for ever.
     $expectedColumns = (new ReflectionMethod(EmerotecaPlugin::class, 'expectedColumns'))->invoke($plugin);
     $sentinels = array_column(array_filter($expectedColumns, static fn ($e) => $e['table'] === 'emeroteca_contributi'), 'column');
-    $check(array_diff(ANALYTIC_COLUMNS, $sentinels) === [],
+    $check(array_diff([...ANALYTIC_COLUMNS, ...HOST_COLUMNS], $sentinels) === [],
         'each new column is a boot-time self-heal sentinel');
+
+    // 1.8.0 -> 1.9.0: an installation that already has the analytic record
+    // gains only the host-volume columns, after risorsa_pubblica, and keeps
+    // what it had catalogued.
+    foreach (HOST_COLUMNS as $column) {
+        $db->query("ALTER TABLE emeroteca_contributi DROP COLUMN {$column}");
+    }
+    $shape18 = $columns();
+    $check(end($shape18) === 'risorsa_pubblica', 'the table is back to the 1.8.0 shape, ending at risorsa_pubblica');
+    $db->query("UPDATE emeroteca_contributi SET lingua='dan' WHERE reference_key='legacy-1'");
+    $upgrade19 = (new EmerotecaPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
+    $check($upgrade19['failed'] === [], 'the 1.9.0 upgrade reports no failed table');
+    $check(array_slice($columns(), -count(HOST_COLUMNS) - 1) === ['risorsa_pubblica', ...HOST_COLUMNS],
+        'the host-volume columns are appended after risorsa_pubblica, in order');
+    $row18 = $svc->rows("SELECT * FROM emeroteca_contributi WHERE reference_key='legacy-1'")[0];
+    $check($row18['lingua'] === 'dan' && $row18['contenitore_curatori'] === null && $row18['isbn'] === null,
+        'the row catalogued under 1.8.0 keeps its data, and the new fields are NULL');
+    $check($inventory() === $snapshot, 'and the upgraded table is identical to a fresh one');
 
     // -----------------------------------------------------------------------
     echo "\nB. What the record refuses to store\n";
@@ -386,6 +411,34 @@ try {
     $check(str_contains(CitationFormatter::ris(['data_pubblicazione_testo' => 'Nr. 31 (1988)'] + $sz), "DA  - Nr. 31 (1988)\r\n"),
         'a free date that is not a date travels as written');
 
+    // A chapter in an anthology (#412): the host is a book with editors,
+    // a publisher and a place, and each style has its own form for it.
+    $chapter = ['titolo' => 'Die Emigration','autori' => 'Petersen, Hans Uwe','contenitore_tipo' => 'antologia',
+        'contenitore_titolo' => 'Exil in Dänemark','contenitore_curatori' => 'Müller, Anna; Jensen, Per',
+        'contenitore_editore' => 'Museum Tusculanum','contenitore_luogo' => 'København','isbn' => '9780306406157',
+        'anno_pubblicazione' => 1991,'pagine' => '45-67'];
+    $check(CitationFormatter::apa($chapter) === 'Petersen, H. U. (1991). Die Emigration. In A. Müller & P. Jensen (Eds.), Exil in Dänemark (pp. 45–67). Museum Tusculanum.',
+        'APA: a chapter is cited "In editors (Eds.), book (pp.). Publisher."');
+    $check(CitationFormatter::harvard($chapter) === "Petersen, H.U. (1991) 'Die Emigration', in Müller, A. and Jensen, P. (eds) Exil in Dänemark. København: Museum Tusculanum, pp. 45–67.",
+        'Harvard: a chapter is cited "in Editor (eds) Book. Place: Publisher, pp."');
+    $check(str_contains(CitationFormatter::apa(['contenitore_curatori' => 'Müller, Anna'] + $chapter), 'In A. Müller (Ed.), '),
+        'one editor is (Ed.), not (Eds.)');
+    $chapterRis = CitationFormatter::ris($chapter);
+    $check(str_starts_with($chapterRis, "TY  - CHAP\r\n") && str_contains($chapterRis, "T2  - Exil in Dänemark\r\n")
+        && str_contains($chapterRis, "A2  - Müller, Anna\r\n") && str_contains($chapterRis, "A2  - Jensen, Per\r\n"),
+        'RIS: a chapter is CHAP, with the book as T2 and its editors as A2');
+    $check(str_contains($chapterRis, "PB  - Museum Tusculanum\r\n") && str_contains($chapterRis, "CY  - København\r\n")
+        && str_contains($chapterRis, "SN  - 9780306406157\r\n"),
+        'and the publisher, place and ISBN of the book');
+    $check(ContributionService::normalize(['titolo' => 'x','isbn' => '978-0-306-40615-7'])['isbn'] === '9780306406157',
+        'a hyphenated ISBN is stored clean');
+    $rejects(static fn () => ContributionService::normalize(['titolo' => 'x','isbn' => '978-0-306-40615-8']),
+        'an ISBN with a wrong check digit is refused');
+    $check(ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia'])['contenitore_tipo'] === 'antologia',
+        'anthology is an accepted publication type');
+    $check(ContributionService::materialType(['contenitore_tipo' => 'antologia']) !== ContributionService::materialType(['contenitore_tipo' => 'rivista']),
+        'and the public page names it as a chapter, not a journal article');
+
     $parts = CitationFormatter::parts(['pagine' => '138–148']);
     $check($parts['pageStart'] === '138' && $parts['pageEnd'] === '148', 'an en-dashed span splits');
     $parts = CitationFormatter::parts(['pagine' => 'S. 18-38']);
@@ -463,6 +516,16 @@ try {
     $roundTrip = $csv->preview($exported);
     $check(array_filter(array_column($roundTrip, 'error')) === [],
         'the catalogue can re-import its own export without an error');
+    foreach (HOST_COLUMNS as $column) {
+        $check(in_array($column, $header, true), "  the export header carries {$column}");
+    }
+    $chapterCsv = "record_type,reference_key,titolo,contenitore_titolo,contenitore_curatori,isbn\n"
+        . "book_chapter,analytic-chapter-1,Die Emigration,Exil in Dänemark,\"Müller, Anna\",9780306406157\n";
+    $chapterPreview = $csv->preview($chapterCsv);
+    $check(array_filter(array_column($chapterPreview, 'error')) === [], 'a book_chapter row imports');
+    $check(($chapterPreview[0]['data']['contenitore_tipo'] ?? null) === 'antologia'
+        && ($chapterPreview[0]['data']['contenitore_curatori'] ?? null) === 'Müller, Anna',
+        'as an anthology chapter with its editors');
     $reimported = null;
     foreach ($roundTrip as $line) {
         if (($line['data']['reference_key'] ?? '') === 'analytic-csv-1') {

@@ -15,8 +15,28 @@ $labels=['titolo'=>__('Titolo'),'sottotitolo'=>__('Sottotitolo'),'autori'=>__('A
      that instruction reaches this one and uses a semicolon here too. Keywords
      split on a COMMA everywhere in the plugin — public page, JSON-LD, RIS — so
      a semicolon silently yields one keyword containing it. Say so here. */ ?><?php if($key==='keywords'): ?><p class="text-sm text-gray-600"><?= __('Separa le parole chiave con una virgola, non con un punto e virgola come gli autori.') ?></p><?php endif; ?></div><?php endforeach; ?>
-<?php foreach(['tipo_contributo'=>[__('Tipo di contributo'),\EmerotecaPlugin::TIPI_ARTICOLO],'contenitore_tipo'=>[__('Tipo di pubblicazione'),[''=>__('Non specificato')]+\EmerotecaPlugin::TIPI_TESTATA],'supporto'=>[__('Formato'),['cartaceo'=>'Cartaceo','digitale'=>'Digitale','entrambi'=>'Cartaceo e digitale']]] as $key=>[$label,$choices]): ?><div><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?></label><select id="article-<?= $e($key) ?>" class="form-input" name="<?= $e($key) ?>"><?php foreach($choices as $value=>$text): ?><option value="<?= $e($value) ?>" <?= ($row[$key]??($key==='supporto'?'cartaceo':'articolo'))===$value?'selected':'' ?>><?= $e(__($text)) ?></option><?php endforeach; ?></select><?php if($key==='supporto'): ?><p class="text-sm text-gray-600"><?= __('In quale forma la biblioteca possiede l’articolo: su carta, in digitale o in entrambe.') ?></p><?php endif; ?></div><?php endforeach; ?>
+<?php foreach(['tipo_contributo'=>[__('Tipo di contributo'),\EmerotecaPlugin::TIPI_ARTICOLO],'contenitore_tipo'=>[__('Tipo di pubblicazione'),[''=>__('Non specificato')]+\EmerotecaPlugin::TIPI_CONTENITORE],'supporto'=>[__('Formato'),['cartaceo'=>'Cartaceo','digitale'=>'Digitale','entrambi'=>'Cartaceo e digitale']]] as $key=>[$label,$choices]): ?><div><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?></label><select id="article-<?= $e($key) ?>" class="form-input" name="<?= $e($key) ?>"><?php foreach($choices as $value=>$text): ?><option value="<?= $e($value) ?>" <?= ($row[$key]??($key==='supporto'?'cartaceo':'articolo'))===$value?'selected':'' ?>><?= $e(__($text)) ?></option><?php endforeach; ?></select><?php if($key==='supporto'): ?><p class="text-sm text-gray-600"><?= __('In quale forma la biblioteca possiede l’articolo: su carta, in digitale o in entrambe.') ?></p><?php endif; ?></div><?php endforeach; ?>
 </div>
+<?php /* A chapter in an anthology (#412): the host is a book, cited with its
+         editors, publisher and place. Shown when "Anthology" is the
+         publication type; without JavaScript it is simply always there. */ ?>
+<fieldset class="mt-6" id="article-host-volume">
+<legend class="font-semibold py-3"><?= __('Volume ospite (per un’antologia)') ?></legend>
+<p class="text-sm text-gray-600 mb-3"><?= __('Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.') ?></p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+<?php foreach(['contenitore_curatori'=>[__('Curatori del volume'),__('Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.')],'contenitore_editore'=>[__('Editore'),''],'contenitore_luogo'=>[__('Luogo di pubblicazione'),''],'isbn'=>['ISBN',__('L’ISBN del volume.')]] as $key=>[$label,$hint]): ?><div<?= $key==='contenitore_curatori'?' class="md:col-span-2"':'' ?>><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?></label><input class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" value="<?= $e($row[$key]??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key] ?>"><?php if($hint!==''): ?><p class="text-sm text-gray-600"><?= $e($hint) ?></p><?php endif; ?></div><?php endforeach; ?>
+</div>
+</fieldset>
+<script>
+(function () {
+  var type = document.getElementById('article-contenitore_tipo');
+  var host = document.getElementById('article-host-volume');
+  if (!type || !host) { return; }
+  function sync() { host.hidden = type.value !== 'antologia'; }
+  type.addEventListener('change', sync);
+  sync();
+})();
+</script>
 <?php /* Uwe (#412) could not find "Associated publication" on this form: it is
          not a field here, because linking to a masthead record goes through a
          preview in the article list. Say what it is, and what it is now. */ ?>

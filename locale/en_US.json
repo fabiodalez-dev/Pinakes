@@ -7912,5 +7912,13 @@
     "Apri la lista Articoli": "Open the Articles list",
     "«Pubblicazione» è il titolo della rivista o del giornale scritto nella scheda dell’articolo; «Testata associata» è la scheda della rivista nell’Emeroteca, quando l’articolo vi è collegato.": "“Publication” is the journal or newspaper title typed in the article record; “Associated publication” is that journal’s own record in the Periodicals section, when the article is linked to it.",
     "nuovo": "new",
-    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Search for the author in the registry shared by books and articles; if they are not there, type the name and press Enter to create them. The first author is the principal author."
+    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Search for the author in the registry shared by books and articles; if they are not there, type the name and press Enter to create them. The first author is the principal author.",
+    "Antologia (volume collettaneo)": "Anthology (edited volume)",
+    "Capitolo di un volume": "Chapter in a book",
+    "ISBN non valido.": "Invalid ISBN.",
+    "Volume ospite (per un’antologia)": "Host volume (for an anthology)",
+    "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "The “Publication title” is the title of the book. These details are used in the chapter citation.",
+    "Curatori del volume": "Editors of the book",
+    "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Separate several editors with a semicolon, for example Petersen, Hans Uwe.",
+    "L’ISBN del volume.": "The ISBN of the book."
 }

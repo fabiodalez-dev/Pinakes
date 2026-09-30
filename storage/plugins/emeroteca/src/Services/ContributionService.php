@@ -66,6 +66,13 @@ final class ContributionService
         'risorsa_testo' => "VARCHAR(255) NULL",
         'risorsa_accesso' => "VARCHAR(255) NULL",
         'risorsa_pubblica' => "TINYINT(1) NOT NULL DEFAULT 0",
+        // 1.9.0 — a chapter in an anthology (#412): the host is a book, and a
+        // chapter citation names its editors, publisher and place. Appended
+        // after risorsa_pubblica for the same reason as the 1.7 block.
+        'contenitore_curatori' => "VARCHAR(500) NULL",
+        'contenitore_editore' => "VARCHAR(255) NULL",
+        'contenitore_luogo' => "VARCHAR(255) NULL",
+        'isbn' => "VARCHAR(17) NULL",
     ];
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
@@ -74,14 +81,17 @@ final class ContributionService
         // the physical column order from this map's key order.
         'sottotitolo' => 500,'lingua' => 10,'paese' => 2,'classificazione_schema' => 20,
         'classificazione' => 100,'nota_possesso' => 255,'risorsa_url' => 500,
-        'risorsa_testo' => 255,'risorsa_accesso' => 255];
+        'risorsa_testo' => 255,'risorsa_accesso' => 255,
+        // 1.9.0 — the host volume of an anthology chapter.
+        'contenitore_curatori' => 500,'contenitore_editore' => 255,'contenitore_luogo' => 255,'isbn' => 17];
     /** A reference_key the table accepts: shared by save() and the CSV preview. */
     public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';
 
     public const CSV_FIELDS = ['reference_key','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
         'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract',
         'lingua','paese','classificazione_schema','classificazione','nota_possesso',
-        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico'];
+        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico',
+        'contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
 
     /**
      * The header the template and the export carry.
@@ -243,7 +253,7 @@ SQL;
         $out['supporto'] ??= 'cartaceo';
         if (!in_array($out['tipo_contributo'], ['articolo','editoriale','recensione','intervista','dossier','rubrica'], true)
             || !in_array($out['supporto'], ['cartaceo','digitale','entrambi'], true)
-            || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine'], true))) {
+            || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine','antologia'], true))) {
             throw new \InvalidArgumentException(__('Tipo non valido.'));
         }
         if ($out['issn'] !== null) {
@@ -251,6 +261,13 @@ SQL;
                 throw new \InvalidArgumentException(__('ISSN non valido.'));
             }
             $out['issn'] = IssnHelper::normalize($out['issn']);
+        }
+        if ($out['isbn'] !== null) {
+            $isbn = \App\Support\IsbnFormatter::clean($out['isbn']);
+            if (!\App\Support\IsbnFormatter::isValid($isbn)) {
+                throw new \InvalidArgumentException(__('ISBN non valido.'));
+            }
+            $out['isbn'] = $isbn;
         }
         if ($out['doi'] !== null) {
             $out['doi'] = strtolower(preg_replace('~^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)~i', '', $out['doi']) ?? '');
@@ -674,6 +691,9 @@ SQL;
         if ($container === 'giornale') {
             return __('Articolo di giornale');
         }
+        if ($container === 'antologia') {
+            return __('Capitolo di un volume');
+        }
         if ($container !== '') {
             return __('Articolo di rivista');
         }
@@ -726,7 +746,7 @@ SQL;
      */
     public static function publicData(array $r): array
     {
-        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','testata_id','fascicolo_id','updated_at']));
+        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','contenitore_curatori','contenitore_editore','contenitore_luogo','isbn','testata_id','fascicolo_id','updated_at']));
         foreach (['id','anno_pubblicazione','testata_id','fascicolo_id'] as $key) {
             if (isset($out[$key])) { $out[$key] = (int) $out[$key]; }
         }

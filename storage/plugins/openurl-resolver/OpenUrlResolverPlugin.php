@@ -241,6 +241,19 @@ class OpenUrlResolverPlugin
                 ->withHeader('Location', $this->buildExternalUrl($params, ''));
         }
 
+        // A chapter of an anthology arrives as a book item (#412). The chapter
+        // record is the more precise answer than the volume, so it is tried
+        // first; when no chapter matches, the volume's ISBN is looked up below.
+        if (strtolower(self::param($params, 'rft.genre')) === 'bookitem' && self::param($params, 'rft.atitle') !== '') {
+            $chapter = $this->findArticle($params);
+            if ($chapter !== null) {
+                return $response->withStatus(302)->withHeader(
+                    'Location',
+                    absoluteUrl('/emeroteca/articolo/' . (int) $chapter['id'])
+                );
+            }
+        }
+
         // 1. Try to match locally by ISBN
         $isbn = $this->extractIsbn($params);
         if ($isbn !== '') {
@@ -339,12 +352,18 @@ class OpenUrlResolverPlugin
             $parts['rft.atitle'] = $title;
         }
 
-        foreach ([
-            'rft.jtitle' => 'contenitore_titolo',
-            'rft.issn'   => 'issn',
-            'rft.volume' => 'volume',
-            'rft.issue'  => 'numero',
-        ] as $key => $column) {
+        // A chapter in an anthology (#412) is a book item: Zotero and
+        // Mendeley import it as a book section, with the volume's title,
+        // ISBN, publisher and place instead of a journal's.
+        $isChapter = ($article['contenitore_tipo'] ?? '') === 'antologia';
+        if ($isChapter) {
+            $parts['rft_val_fmt'] = 'info:ofi/fmt:kev:mtx:book';
+            $parts['rft.genre'] = 'bookitem';
+        }
+        $hostFields = $isChapter
+            ? ['rft.btitle' => 'contenitore_titolo', 'rft.isbn' => 'isbn', 'rft.pub' => 'contenitore_editore', 'rft.place' => 'contenitore_luogo']
+            : ['rft.jtitle' => 'contenitore_titolo', 'rft.issn' => 'issn', 'rft.volume' => 'volume', 'rft.issue' => 'numero'];
+        foreach ($hostFields as $key => $column) {
             $value = trim((string) ($article[$column] ?? ''));
             if ($value !== '') {
                 $parts[$key] = $value;
@@ -656,7 +675,7 @@ class OpenUrlResolverPlugin
         // colon: it may be part of the actual title rather than punctuation.
         $where = ["pubblico = 1", "(titolo = ? OR CONCAT(titolo, CASE WHEN COALESCE(sottotitolo, '') = '' THEN '' ELSE CONCAT(' : ', sottotitolo) END) = ?)"];
         $values = [$title, $title];
-        foreach (['rft.issn' => 'issn', 'rft.jtitle' => 'contenitore_titolo',
+        foreach (['rft.issn' => 'issn', 'rft.jtitle' => 'contenitore_titolo', 'rft.btitle' => 'contenitore_titolo',
                   'rft.volume' => 'volume', 'rft.issue' => 'numero'] as $key => $column) {
             $value = self::param($params, $key);
             if ($value !== '') {
@@ -688,7 +707,8 @@ class OpenUrlResolverPlugin
         }
         $stmt = $this->db->prepare(
             'SELECT id, titolo, sottotitolo, autori, contenitore_titolo, contenitore_tipo, issn,
-                    volume, numero, pagine, anno_pubblicazione, data_pubblicazione_testo, doi, lingua
+                    volume, numero, pagine, anno_pubblicazione, data_pubblicazione_testo, doi, lingua,
+                    contenitore_editore, contenitore_luogo, isbn
                FROM emeroteca_contributi
               WHERE id = ? AND pubblico = 1 LIMIT 1'
         );

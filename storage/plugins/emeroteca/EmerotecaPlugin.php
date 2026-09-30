@@ -64,6 +64,15 @@ class EmerotecaPlugin
         'fanzine'    => 'Fanzine',
     ];
 
+    /**
+     * What an article can come out of: any masthead type, or an anthology — a
+     * book with chapters by different authors (#412). Never a masthead type
+     * itself, which is why it is not in TIPI_TESTATA.
+     */
+    public const TIPI_CONTENITORE = self::TIPI_TESTATA + [
+        'antologia' => 'Antologia (volume collettaneo)',
+    ];
+
     /** Collection status of a testata. */
     public const STATI_RACCOLTA = [
         'attiva'   => 'Attiva',

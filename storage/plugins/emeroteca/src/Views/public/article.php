@@ -60,7 +60,7 @@ $articleCodeLabel=static function(string $code,bool $region):string{
          piece of something", and until now that lived only in the table it sat
          in and in structured data nobody reads. */ ?>
 <div><dt class="text-sm text-gray-600"><?= __('Tipo di materiale') ?></dt><dd><?= $e(\App\Plugins\Emeroteca\Services\ContributionService::materialType($article)) ?></dd></div>
-<?php foreach(['contenitore_titolo'=>__('Pubblicazione'),'data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'issn'=>'ISSN','doi'=>'DOI'] as $key=>$label): if(empty($article[$key]))continue; ?><div><dt class="text-sm text-gray-600"><?= $e($label) ?></dt><dd><?php if($key==='contenitore_titolo'): ?><a class="underline" href="<?= $e($articleFilterUrl('pubblicazione',(string)$article[$key])) ?>"><?= $e($article[$key]) ?></a><?php else: ?><?= $e($article[$key]) ?><?php endif; ?></dd></div><?php endforeach; ?>
+<?php foreach(['contenitore_titolo'=>__('Pubblicazione'),'contenitore_curatori'=>__('Curatori del volume'),'contenitore_editore'=>__('Editore'),'contenitore_luogo'=>__('Luogo di pubblicazione'),'isbn'=>'ISBN','data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'issn'=>'ISSN','doi'=>'DOI'] as $key=>$label): if(empty($article[$key]))continue; ?><div><dt class="text-sm text-gray-600"><?= $e($label) ?></dt><dd><?php if($key==='contenitore_titolo'): ?><a class="underline" href="<?= $e($articleFilterUrl('pubblicazione',(string)$article[$key])) ?>"><?= $e($article[$key]) ?></a><?php else: ?><?= $e($article[$key]) ?><?php endif; ?></dd></div><?php endforeach; ?>
 <?php if($articleKeywords): ?><div><dt class="text-sm text-gray-600"><?= __('Parole chiave') ?></dt><dd><?php foreach($articleKeywords as $i=>$kw): ?><?= $i?', ':'' ?><a class="underline" href="<?= $e($articleFilterUrl('keyword',$kw)) ?>"><?= $e($kw) ?></a><?php endforeach; ?></dd></div><?php endif; ?>
 <?php if(!empty($article['lingua'])): ?><div><dt class="text-sm text-gray-600"><?= __('Lingua') ?></dt><dd><?= $e($articleCodeLabel((string)$article['lingua'],false)) ?></dd></div><?php endif; ?>
 <?php if(!empty($article['paese'])): ?><div><dt class="text-sm text-gray-600"><?= __('Paese di pubblicazione') ?></dt><dd><?= $e($articleCodeLabel((string)$article['paese'],true)) ?></dd></div><?php endif; ?>
@@ -139,7 +139,13 @@ if ($articleAuthors) {
 } elseif (!empty($article['autori'])) {
     $structured['author']=['@type'=>'Person','name'=>$article['autori']];
 }
-if (!empty($article['contenitore_titolo'])) {
+if (($article['contenitore_tipo']??'')==='antologia' && !empty($article['contenitore_titolo'])) {
+    // A chapter is part of a book, not of a periodical (#412).
+    $editors=array_map(static fn(string $n):array=>['@type'=>'Person','name'=>$n], \App\Plugins\Emeroteca\Services\ContributionService::authorList((string)($article['contenitore_curatori']??'')));
+    $structured['@type']='Chapter';
+    $structured['isPartOf']=array_filter(['@type'=>'Book','name'=>$article['contenitore_titolo'],'isbn'=>$article['isbn']??null,
+        'editor'=>$editors?:null,'publisher'=>!empty($article['contenitore_editore'])?['@type'=>'Organization','name'=>$article['contenitore_editore']]:null]);
+} elseif (!empty($article['contenitore_titolo'])) {
     $periodical=array_filter(['@type'=>'Periodical','name'=>$article['contenitore_titolo'],'issn'=>$article['issn']??null]);
     // The real chain when the record carries one: an article is part of an
     // issue, which is part of a volume, which is part of the periodical.

@@ -7912,5 +7912,13 @@
     "Apri la lista Articoli": "Artikelliste öffnen",
     "«Pubblicazione» è il titolo della rivista o del giornale scritto nella scheda dell’articolo; «Testata associata» è la scheda della rivista nell’Emeroteca, quando l’articolo vi è collegato.": "„Erscheinen“ ist der im Artikeldatensatz eingegebene Titel der Zeitschrift oder Zeitung; „Zugeordnete Zeitschrift“ ist der eigene Datensatz dieser Zeitschrift in der Zeitschriftensammlung, wenn der Artikel damit verknüpft ist.",
     "nuovo": "neu",
-    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Suchen Sie den Autor im gemeinsamen Verzeichnis von Büchern und Artikeln; ist er nicht vorhanden, geben Sie den Namen ein und drücken Sie Enter, um ihn anzulegen. Der erste Autor ist der Hauptautor."
+    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Suchen Sie den Autor im gemeinsamen Verzeichnis von Büchern und Artikeln; ist er nicht vorhanden, geben Sie den Namen ein und drücken Sie Enter, um ihn anzulegen. Der erste Autor ist der Hauptautor.",
+    "Antologia (volume collettaneo)": "Sammelband",
+    "Capitolo di un volume": "Beitrag in einem Sammelband",
+    "ISBN non valido.": "Ungültige ISBN.",
+    "Volume ospite (per un’antologia)": "Sammelband (Quelle des Beitrags)",
+    "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "Der „Titel der Publikation“ ist der Titel des Sammelbands. Diese Angaben werden für das Zitat des Beitrags verwendet.",
+    "Curatori del volume": "Herausgeber des Sammelbands",
+    "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Mehrere Herausgeber mit einem Semikolon trennen, zum Beispiel Petersen, Hans Uwe.",
+    "L’ISBN del volume.": "Die ISBN des Sammelbands."
 }

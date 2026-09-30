@@ -109,6 +109,19 @@ try {
     check((int)$find->invoke($resolver,['rft_id'=>'info:doi/10.1000/PROBE.2'])['id']===2, 'unique DOI resolves its article');
     $db->query("UPDATE emeroteca_contributi SET doi='10.1000/probe.2' WHERE id=3");
     check($find->invoke($resolver,['rft_id'=>'info:doi/10.1000/probe.2'])===null, 'duplicate DOI is ambiguous, not an arbitrary record');
+    // A chapter in an anthology (#412) is a book item: its COinS lets Zotero
+    // import a book section, and an incoming book-item request finds it.
+    $db->query("UPDATE emeroteca_contributi SET contenitore_tipo='antologia', contenitore_titolo='Exil in Dänemark', isbn='9780306406157', contenitore_editore='Museum Tusculanum', contenitore_luogo='København' WHERE id=4");
+    (new ReflectionMethod($resolver,'loadCitationFormatter'))->invoke($resolver);
+    $kev = (new ReflectionMethod($resolver,'buildArticleKev'))->invoke($resolver, $db->query('SELECT * FROM emeroteca_contributi WHERE id=4')->fetch_assoc(),
+        (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET','https://biblioteca.example/emeroteca/articolo/4/coins'));
+    // parse_str() would turn every "rft.x" key into "rft_x": split by hand.
+    $kevParams = [];
+    foreach (explode('&', $kev) as $pair) { [$k, $v] = array_pad(explode('=', $pair, 2), 2, ''); $kevParams[rawurldecode($k)] = rawurldecode($v); }
+    check(($kevParams['rft_val_fmt'] ?? '')==='info:ofi/fmt:kev:mtx:book' && ($kevParams['rft.genre'] ?? '')==='bookitem', 'a chapter COinS is a book item');
+    check(($kevParams['rft.btitle'] ?? '')==='Exil in Dänemark' && ($kevParams['rft.isbn'] ?? '')==='9780306406157' && !isset($kevParams['rft.jtitle']), 'with the volume as btitle and its ISBN, not a journal title');
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.btitle'=>'Exil in Dänemark'])['id']===4, 'a book-item request with the volume title finds the chapter');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.btitle'=>'Another volume'])===null, 'and a different volume does not');
     $db->query("UPDATE plugins SET is_active=0");
     check($page(['search'=>'Probe'])===null, 'disabled plugin is absent from catalogue');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'])===null, 'disabled plugin is absent from resolver');

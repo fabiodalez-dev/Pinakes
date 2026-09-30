@@ -7912,5 +7912,13 @@
     "Apri la lista Articoli": "Åbn artikellisten",
     "«Pubblicazione» è il titolo della rivista o del giornale scritto nella scheda dell’articolo; «Testata associata» è la scheda della rivista nell’Emeroteca, quando l’articolo vi è collegato.": "“Udgivelse” er titlen på tidsskriftet eller avisen, som den er skrevet i artikelposten; “Tilknyttet tidsskrift” er tidsskriftets egen post i tidsskriftssamlingen, når artiklen er knyttet til den.",
     "nuovo": "ny",
-    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Søg efter forfatteren i registret, som bøger og artikler deler; findes forfatteren ikke, skriv navnet og tryk Enter for at oprette den. Den første forfatter er hovedforfatteren."
+    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Søg efter forfatteren i registret, som bøger og artikler deler; findes forfatteren ikke, skriv navnet og tryk Enter for at oprette den. Den første forfatter er hovedforfatteren.",
+    "Antologia (volume collettaneo)": "Antologi",
+    "Capitolo di un volume": "Bidrag i antologi",
+    "ISBN non valido.": "Ugyldigt ISBN.",
+    "Volume ospite (per un’antologia)": "Værtsbind (for en antologi)",
+    "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "“Publikationens titel” er bogens titel. Oplysningerne bruges i citationen af bidraget.",
+    "Curatori del volume": "Bindets redaktører",
+    "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Adskil flere redaktører med semikolon, for eksempel Petersen, Hans Uwe.",
+    "L’ISBN del volume.": "Bogens ISBN."
 }

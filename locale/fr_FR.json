@@ -7912,5 +7912,13 @@
     "Apri la lista Articoli": "Ouvrir la liste des articles",
     "«Pubblicazione» è il titolo della rivista o del giornale scritto nella scheda dell’articolo; «Testata associata» è la scheda della rivista nell’Emeroteca, quando l’articolo vi è collegato.": "« Publication » est le titre de la revue ou du journal saisi dans la notice de l’article ; « Périodique associé » est la notice de cette revue dans l’Hémérothèque, lorsque l’article y est lié.",
     "nuovo": "nouveau",
-    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Cherchez l’auteur dans le fichier commun aux livres et aux articles ; s’il n’y figure pas, saisissez le nom et appuyez sur Entrée pour le créer. Le premier auteur est l’auteur principal."
+    "Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.": "Cherchez l’auteur dans le fichier commun aux livres et aux articles ; s’il n’y figure pas, saisissez le nom et appuyez sur Entrée pour le créer. Le premier auteur est l’auteur principal.",
+    "Antologia (volume collettaneo)": "Ouvrage collectif",
+    "Capitolo di un volume": "Chapitre d’ouvrage",
+    "ISBN non valido.": "ISBN non valide.",
+    "Volume ospite (per un’antologia)": "Ouvrage hôte (pour un ouvrage collectif)",
+    "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "Le « Titre de la publication » est le titre de l’ouvrage. Ces informations servent à la citation du chapitre.",
+    "Curatori del volume": "Directeurs de l’ouvrage",
+    "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Séparez plusieurs directeurs par un point-virgule, par exemple Petersen, Hans Uwe.",
+    "L’ISBN del volume.": "L’ISBN de l’ouvrage."
 }

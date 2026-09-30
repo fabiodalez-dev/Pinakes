@@ -57,7 +57,8 @@ final class CitationFormatter
      * @return array{authors:list<string>,year:string,title:string,container:string,
      *               volume:string,issue:string,pageStart:string,pageEnd:string,
      *               doi:string,issn:string,language:string,keywords:list<string>,
-     *               abstract:string,isNewspaper:bool,isMagazine:bool,month:int,day:int}
+     *               abstract:string,isNewspaper:bool,isMagazine:bool,month:int,day:int,
+     *               isAnthology:bool,editors:list<string>,publisher:string,place:string,isbn:string}
      */
     public static function parts(array $row): array
     {
@@ -105,6 +106,15 @@ final class CitationFormatter
             'abstract' => self::clean($row['abstract'] ?? ''),
             'isNewspaper' => ($row['contenitore_tipo'] ?? '') === 'giornale',
             'isMagazine' => ($row['contenitore_tipo'] ?? '') === 'magazine',
+            // A chapter in an anthology: the host is a book, with editors, a
+            // publisher and a place instead of a volume and an issue.
+            'isAnthology' => ($row['contenitore_tipo'] ?? '') === 'antologia',
+            'editors' => ContributionService::authorList(
+                isset($row['contenitore_curatori']) ? (string) $row['contenitore_curatori'] : null
+            ),
+            'publisher' => self::clean($row['contenitore_editore'] ?? ''),
+            'place' => self::clean($row['contenitore_luogo'] ?? ''),
+            'isbn' => self::clean($row['isbn'] ?? ''),
         ];
     }
 
@@ -280,6 +290,9 @@ final class CitationFormatter
             $out .= self::terminate($p['title']) . ' (' . $year . '). ';
         }
 
+        if ($p['isAnthology']) {
+            return self::clean($out . self::apaChapterHost($p));
+        }
         if ($p['container'] !== '') {
             $out .= $p['container'];
             if ($p['volume'] !== '') {
@@ -327,6 +340,9 @@ final class CitationFormatter
             $out .= self::terminate($p['title']) . ' (' . $year . ')';
         }
 
+        if ($p['isAnthology']) {
+            return self::clean($out . self::harvardChapterHost($p));
+        }
         if ($p['container'] !== '') {
             $out .= ', ' . $p['container'];
             // Harvard puts the day and month of a newspaper or magazine after
@@ -351,6 +367,90 @@ final class CitationFormatter
         }
 
         return self::clean($out);
+    }
+
+    /**
+     * An editor's name with the initials first, as APA prints editors:
+     * "Petersen, Hans Uwe" becomes "H. U. Petersen". A name without a comma
+     * is corporate and stays as written, as for authors.
+     */
+    private static function initialsFirst(string $name): string
+    {
+        if (!str_contains($name, ',')) {
+            return $name;
+        }
+        $inverted = self::initials($name, ' ');
+        [$surname, $letters] = array_map('trim', explode(',', $inverted, 2));
+
+        return $letters === '' ? $surname : $letters . ' ' . $surname;
+    }
+
+    /**
+     * APA 7, chapter in an edited book: "In H. U. Petersen (Ed.), Book title
+     * (pp. 18–38). Publisher." Each part is left out when the record lacks it.
+     *
+     * @param array<string,mixed> $p
+     */
+    private static function apaChapterHost(array $p): string
+    {
+        $out = '';
+        if ($p['container'] !== '' || $p['editors'] !== []) {
+            $out .= ' In ';
+            if ($p['editors'] !== []) {
+                $editors = array_map(static fn (string $n): string => self::initialsFirst($n), $p['editors']);
+                $out .= self::joinNames($editors, ', ', ', & ', ' & ')
+                    . (count($editors) > 1 ? ' (Eds.)' : ' (Ed.)') . ($p['container'] !== '' ? ', ' : '');
+            }
+            $out .= $p['container'];
+            $span = self::span($p);
+            if ($span !== '') {
+                $out .= ' (' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span . ')';
+            }
+            $out .= '.';
+        }
+        if ($p['publisher'] !== '') {
+            $out .= ' ' . self::terminate($p['publisher']);
+        }
+        if ($p['doi'] !== '') {
+            $out .= ' https://doi.org/' . $p['doi'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Harvard, chapter in an edited book: ", in Petersen, H.U. (ed.) Book
+     * title. Place: Publisher, pp. 18–38."
+     *
+     * @param array<string,mixed> $p
+     */
+    private static function harvardChapterHost(array $p): string
+    {
+        $out = '';
+        if ($p['container'] !== '' || $p['editors'] !== []) {
+            $out .= ', in ';
+            if ($p['editors'] !== []) {
+                $editors = array_map(static fn (string $n): string => self::initials($n, ''), $p['editors']);
+                $out .= self::joinNames($editors, ', ', ' and ', ' and ') . (count($editors) > 1 ? ' (eds) ' : ' (ed.) ');
+            }
+            $out .= $p['container'];
+        }
+        $imprint = $p['place'] !== '' && $p['publisher'] !== ''
+            ? $p['place'] . ': ' . $p['publisher']
+            : $p['place'] . $p['publisher'];
+        if ($imprint !== '') {
+            $out .= '. ' . $imprint;
+        }
+        $span = self::span($p);
+        if ($span !== '') {
+            $out .= ', ' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span;
+        }
+        $out .= '.';
+        if ($p['doi'] !== '') {
+            $out .= ' doi:' . $p['doi'];
+        }
+
+        return $out;
     }
 
     /**
@@ -429,7 +529,9 @@ final class CitationFormatter
         // came out of, and claiming JOUR there would assert a journal nobody
         // recorded.
         $type = 'GEN';
-        if ($p['isNewspaper']) {
+        if ($p['isAnthology']) {
+            $type = 'CHAP';
+        } elseif ($p['isNewspaper']) {
             $type = 'NEWS';
         } elseif ($p['container'] !== '') {
             $type = 'JOUR';
@@ -440,6 +542,9 @@ final class CitationFormatter
             $lines[] = ['AU', $author];
         }
         $lines[] = ['TI', $p['title']];
+        foreach ($p['editors'] as $editor) {
+            $lines[] = ['A2', $editor];
+        }
         foreach ([
             'T2' => $p['container'],
             'VL' => $p['volume'],
@@ -450,7 +555,9 @@ final class CitationFormatter
             'DA' => $p['month'] > 0
                 ? sprintf('%s/%02d/%s/', $p['year'], $p['month'], $p['day'] > 0 ? sprintf('%02d', $p['day']) : '')
                 : self::clean($row['data_pubblicazione_testo'] ?? ''),
-            'SN' => $p['issn'],
+            'SN' => $p['isAnthology'] && $p['isbn'] !== '' ? $p['isbn'] : $p['issn'],
+            'PB' => $p['publisher'],
+            'CY' => $p['place'],
             'DO' => $p['doi'],
         ] as $tag => $value) {
             if ($value !== '') {

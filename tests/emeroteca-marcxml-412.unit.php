@@ -98,6 +98,14 @@ verify($sparse->evaluate('count(//m:datafield[@tag="024"])')===0.0, 'missing DOI
 verify($sparse->evaluate('count(//m:datafield[@tag="044"])')===0.0 && $sparse->evaluate('count(//m:datafield[@tag="852"])')===0.0 && $sparse->evaluate('count(//m:datafield[@tag="041"])')===0.0, 'sparse article invents no country, language or holdings');
 $standalone = $parse(ArticleMarcXml::format($row));
 verify($standalone->evaluate('count(//m:datafield[@tag="773"]/m:subfield[@code="w"])')===0.0, 'standalone citation needs no owned masthead');
+// A chapter in an anthology (#412): the host is a book, so 773 carries its
+// imprint in $d and its ISBN in $z, never an ISSN in $x.
+$chapter = $parse(ArticleMarcXml::format(['titolo'=>'Die Emigration','autori'=>'Petersen, Hans Uwe','contenitore_tipo'=>'antologia',
+    'contenitore_titolo'=>'Exil in Dänemark','contenitore_curatori'=>'Müller, Anna','contenitore_editore'=>'Museum Tusculanum',
+    'contenitore_luogo'=>'København','isbn'=>'9780306406157','issn'=>'0107-8461','anno_pubblicazione'=>1991,'pagine'=>'45-67']));
+$chapterValue = static fn(string $code): string => $chapter->evaluate("string(//m:datafield[@tag='773']/m:subfield[@code='$code'])");
+verify($chapterValue('t')==='Exil in Dänemark' && $chapterValue('d')==='København : Museum Tusculanum, 1991', 'a chapter host carries title and imprint in 773 $t $d');
+verify($chapterValue('z')==='9780306406157' && $chapterValue('x')==='', 'and the volume ISBN in 773 $z instead of an ISSN');
 // Book export: the catalogue page is a related resource too.
 require_once dirname(__DIR__).'/storage/plugins/z39-server/classes/RecordFormatter.php';
 require_once dirname(__DIR__).'/storage/plugins/z39-server/classes/MARCXMLFormatter.php';
