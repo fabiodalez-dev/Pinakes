@@ -7930,5 +7930,17 @@
     "APA (7ª edizione)": "APA (7th edition)",
     "Chicago (17ª edizione, autore-data)": "Chicago (17th edition, author-date)",
     "MLA (9ª edizione)": "MLA (9th edition)",
-    "Harvard": "Harvard"
+    "Harvard": "Harvard",
+    "Scrivi il nome o il codice, per esempio «danese» o «dan».": "Type the name or the code, for example “Danish” or “dan”.",
+    "Scrivi il nome o il codice, per esempio «Danimarca» o «DK».": "Type the name or the code, for example “Denmark” or “DK”.",
+    "DDC — Classificazione decimale Dewey": "DDC — Dewey Decimal Classification",
+    "DK5 — Classificazione decimale danese": "DK5 — Danish decimal classification",
+    "UDC — Classificazione decimale universale": "UDC — Universal Decimal Classification",
+    "LCC — Classificazione della Library of Congress": "LCC — Library of Congress Classification",
+    "RVK — Regensburger Verbundklassifikation": "RVK — Regensburger Verbundklassifikation",
+    "Altro schema": "Other scheme",
+    "Con la Dewey la notazione si sceglie dall’elenco, come per i libri.": "With Dewey, the notation is picked from the list, as for books.",
+    "Nome dello schema": "Name of the scheme",
+    "Solo se hai scelto «Altro schema».": "Only if you chose “Other scheme”.",
+    "Cerca per nome o codice": "Search by name or code"
 }

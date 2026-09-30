@@ -74,6 +74,11 @@ final class ContributionService
         'contenitore_luogo' => "VARCHAR(255) NULL",
         'isbn' => "VARCHAR(17) NULL",
     ];
+    /**
+     * The article form's "Other scheme" choice: the scheme's name is then
+     * typed into classificazione_schema_altro and stored in its place.
+     */
+    public const OTHER_SCHEME = '__altro';
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
         'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000,
@@ -235,6 +240,9 @@ SQL;
      */
     public static function normalize(array $input): array
     {
+        if (($input['classificazione_schema'] ?? null) === self::OTHER_SCHEME) {
+            $input['classificazione_schema'] = $input['classificazione_schema_altro'] ?? '';
+        }
         $out = [];
         foreach (self::TEXT_FIELDS as $key => $max) {
             if (isset($input[$key]) && !is_scalar($input[$key])) {

@@ -49,9 +49,75 @@ $labels=['titolo'=>__('Titolo'),'sottotitolo'=>__('Sottotitolo'),'autori'=>__('A
 <details class="mt-6"><summary class="font-semibold py-3 cursor-pointer"><?= __('Descrizione bibliografica avanzata (facoltativa)') ?></summary>
 <p class="text-sm text-gray-600 mt-2"><?= __('Serve a chi cataloga secondo uno standard bibliografico. Lasciando tutto vuoto la scheda resta valida.') ?></p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-3">
-<?php foreach(['lingua'=>__('Codice ISO 639, per esempio dan, ita, eng.'),'paese'=>__('Codice ISO 3166, per esempio DK, IT.'),'classificazione_schema'=>__('Per esempio DK5, DDC, UDC, LCC, RVK.'),'classificazione'=>__('La notazione, per esempio 33.129.'),'nota_possesso'=>__('Che cosa possiede la biblioteca di questo articolo, per esempio una fotocopia o un estratto, e non l’intera annata. Il formato, su carta o digitale, si sceglie più sopra.')] as $key=>$hint): ?><div<?= $key==='nota_possesso'?' class="md:col-span-2"':'' ?>><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($labels[$key]) ?></label><input class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" value="<?= $e($row[$key]??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key] ?>"<?= $key==='classificazione_schema'?' list="article-schema-list"':'' ?>><p class="text-sm text-gray-600"><?= $e($hint) ?></p></div><?php endforeach; ?>
+<?php /* Language, country and scheme are picked, not typed (#412): the columns
+         hold ISO codes so that a record reads in each user's language, and
+         the pickers list the names, in the language of whoever catalogues,
+         searchable by name or by code. A stored code outside the lists (a
+         two-letter "da" from before the pickers) stays selectable, so opening
+         and saving a record never changes it behind the cataloguer's back. */
+$codeLocale=\App\Support\I18n::getLocale();
+$otherScheme=\App\Plugins\Emeroteca\Services\ContributionService::OTHER_SCHEME;
+$codePickers=['lingua'=>[\App\Plugins\Emeroteca\Support\CodeLists::languages($codeLocale),false,__('Scrivi il nome o il codice, per esempio «danese» o «dan».'),__('Codice ISO 639, per esempio dan, ita, eng.')],'paese'=>[\App\Plugins\Emeroteca\Support\CodeLists::countries($codeLocale),true,__('Scrivi il nome o il codice, per esempio «Danimarca» o «DK».'),__('Codice ISO 3166, per esempio DK, IT.')]];
+$schemes=['DDC'=>__('DDC — Classificazione decimale Dewey'),'DK5'=>__('DK5 — Classificazione decimale danese'),'UDC'=>__('UDC — Classificazione decimale universale'),'LCC'=>__('LCC — Classificazione della Library of Congress'),'RVK'=>__('RVK — Regensburger Verbundklassifikation')];
+$scheme=trim((string)($row['classificazione_schema']??''));$schemeOther=trim((string)($row['classificazione_schema_altro']??''));
+if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])){$scheme=strtoupper($scheme);}else{$schemeOther=$scheme;$scheme=$otherScheme;}}
+?>
+<?php foreach($codePickers as $key=>[$names,$region,$hint,$codeHint]): $current=trim((string)($row[$key]??'')); ?><div><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($labels[$key]) ?></label><?php if($names===[]): /* no intl, so no names to list: the code is typed */ ?><input class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" value="<?= $e($current) ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key] ?>"><p class="text-sm text-gray-600"><?= $e($codeHint) ?></p><?php else: ?><select class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" data-code-picker><option value=""><?= __('Non specificato') ?></option><?php if($current!==''&&!isset($names[$current])): ?><option value="<?= $e($current) ?>" selected><?= $e(\App\Plugins\Emeroteca\Support\CodeLists::name($current,$codeLocale,$region)) ?> (<?= $e($current) ?>)</option><?php endif; ?><?php foreach($names as $code=>$name): ?><option value="<?= $e($code) ?>"<?= $current===(string)$code?' selected':'' ?>><?= $e($name) ?> (<?= $e($code) ?>)</option><?php endforeach; ?></select><p class="text-sm text-gray-600"><?= $e($hint) ?></p><?php endif; ?></div><?php endforeach; ?>
+<div><label for="article-classificazione_schema" class="form-label"><?= $e($labels['classificazione_schema']) ?></label><select class="form-input" id="article-classificazione_schema" name="classificazione_schema"><option value=""><?= __('Non specificato') ?></option><?php foreach($schemes as $code=>$name): ?><option value="<?= $e($code) ?>"<?= $scheme===$code?' selected':'' ?>><?= $e($name) ?></option><?php endforeach; ?><option value="<?= $e($otherScheme) ?>"<?= $scheme===$otherScheme?' selected':'' ?>><?= __('Altro schema') ?></option></select><p class="text-sm text-gray-600"><?= __('Con la Dewey la notazione si sceglie dall’elenco, come per i libri.') ?></p>
+<div class="mt-3" id="article-scheme-other"><label for="article-classificazione_schema_altro" class="form-label"><?= __('Nome dello schema') ?></label><input class="form-input" id="article-classificazione_schema_altro" name="classificazione_schema_altro" value="<?= $e($schemeOther) ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS['classificazione_schema'] ?>"><p class="text-sm text-gray-600"><?= __('Solo se hai scelto «Altro schema».') ?></p></div></div>
+<?php /* The Dewey picker comes first in the page on purpose: both it and the
+         text box post "classificazione", and without JavaScript (which is
+         what switches one of them off) PHP keeps the last one — the text box
+         the operator can actually see and use. */ ?>
+<div class="md:col-span-2"><div id="article-class-dewey" hidden><?php $deweyFieldName='classificazione'; $deweyValue=(string)($row['classificazione']??''); include dirname(__DIR__, 5) . '/app/Views/partials/dewey-picker.php'; ?></div>
+<div id="article-class-text"><label for="article-classificazione" class="form-label"><?= $e($labels['classificazione']) ?></label><input class="form-input" id="article-classificazione" name="classificazione" value="<?= $e($row['classificazione']??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS['classificazione'] ?>"><p class="text-sm text-gray-600"><?= __('La notazione, per esempio 33.129.') ?></p></div></div>
+<div class="md:col-span-2"><label for="article-nota_possesso" class="form-label"><?= $e($labels['nota_possesso']) ?></label><input class="form-input" id="article-nota_possesso" name="nota_possesso" value="<?= $e($row['nota_possesso']??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS['nota_possesso'] ?>"><p class="text-sm text-gray-600"><?= __('Che cosa possiede la biblioteca di questo articolo, per esempio una fotocopia o un estratto, e non l’intera annata. Il formato, su carta o digitale, si sceglie più sopra.') ?></p></div>
 </div>
-<datalist id="article-schema-list"><option value="DDC"><option value="DK5"><option value="UDC"><option value="LCC"><option value="RVK"></datalist>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Language and country: the same searchable picker as the authors.
+  if (typeof window.Choices === 'function') {
+    document.querySelectorAll('select[data-code-picker]').forEach(function (select) {
+      new Choices(select, {
+        searchEnabled: true,
+        shouldSort: false,
+        searchResultLimit: -1,
+        itemSelectText: '',
+        allowHTML: false,
+        noResultsText: <?= json_encode(__('Nessun risultato'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        searchPlaceholderValue: <?= json_encode(__('Cerca per nome o codice'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        fuseOptions: { threshold: 0.3 }
+      });
+    });
+  }
+  // Scheme: "Other" asks for its name; Dewey swaps the text box for the
+  // Dewey picker. Only one of the two "classificazione" inputs is enabled.
+  const scheme = document.getElementById('article-classificazione_schema');
+  const other = document.getElementById('article-scheme-other');
+  const textBox = document.getElementById('article-class-text');
+  const text = document.getElementById('article-classificazione');
+  const deweyBox = document.getElementById('article-class-dewey');
+  const dewey = document.getElementById('classificazione_dewey');
+  if (!scheme || !other || !textBox || !text || !deweyBox || !dewey) return;
+  let deweyStarted = false;
+  function sync() {
+    const isDewey = scheme.value === 'DDC';
+    other.hidden = scheme.value !== <?= json_encode($otherScheme, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    textBox.hidden = isDewey;
+    text.disabled = isDewey;
+    deweyBox.hidden = !isDewey;
+    dewey.disabled = !isDewey;
+    if (isDewey && !deweyStarted && typeof window.initializeDewey === 'function') {
+      deweyStarted = true;
+      // A notation typed under another scheme is not a Dewey code.
+      const typed = text.value.trim();
+      window.initializeDewey(/^[0-9]{3}(\.[0-9]{1,4})?$/.test(typed) ? typed : '');
+    }
+  }
+  scheme.addEventListener('change', sync);
+  sync();
+});
+</script>
 </details>
 <?php /* danMARC2 856 / MARC 21 856: where the digital copy lives, what the
          link should say, and who may open it. */ ?>

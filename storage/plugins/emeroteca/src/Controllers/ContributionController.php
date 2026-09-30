@@ -11,6 +11,7 @@ require_once __DIR__ . '/../Services/ContributionCsv.php';
 // required by hand, or the class is missing only at the moment the route runs.
 require_once __DIR__ . '/../Support/CitationFormatter.php';
 require_once __DIR__ . '/../Support/ArticleMarcXml.php';
+require_once __DIR__ . '/../Support/CodeLists.php';
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
 use App\Plugins\Emeroteca\Support\CitationFormatter;

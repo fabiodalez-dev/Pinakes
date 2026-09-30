@@ -29,6 +29,7 @@ require dirname(__DIR__).'/storage/plugins/emeroteca/EmerotecaPlugin.php';
 require dirname(__DIR__).'/storage/plugins/emeroteca/src/Services/ContributionService.php';
 require dirname(__DIR__).'/storage/plugins/emeroteca/src/Services/ContributionCsv.php';
 require dirname(__DIR__).'/storage/plugins/emeroteca/src/Support/CitationFormatter.php';
+require dirname(__DIR__).'/storage/plugins/emeroteca/src/Support/CodeLists.php';
 
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
@@ -304,6 +305,27 @@ try {
         'a DK5 notation is stored as typed — no scheme is privileged');
     $check(ContributionService::normalize(['titolo' => 'x','classificazione_schema' => 'DDC','classificazione' => '853.92'])['classificazione_schema'] === 'DDC',
         'and so is a Dewey one: the scheme is data, not a branch in the code');
+    // The form's "Other scheme": the typed name is stored, never the sentinel.
+    $other = ContributionService::normalize(['titolo' => 'x','classificazione_schema' => ContributionService::OTHER_SCHEME,'classificazione_schema_altro' => ' SAB ','classificazione' => 'Kbb']);
+    $check($other['classificazione_schema'] === 'SAB' && $other['classificazione'] === 'Kbb',
+        '"Other scheme" stores the name the cataloguer typed');
+    $check(ContributionService::normalize(['titolo' => 'x','classificazione_schema' => ContributionService::OTHER_SCHEME])['classificazione_schema'] === null,
+        '"Other scheme" with no name stores no scheme rather than the sentinel');
+    // The pickers' lists: names from ICU, codes the validator accepts.
+    $languages = \App\Plugins\Emeroteca\Support\CodeLists::languages('it_IT');
+    $countries = \App\Plugins\Emeroteca\Support\CodeLists::countries('it_IT');
+    $check(($languages['dan'] ?? '') === 'Danese' && ($languages['deu'] ?? '') === 'Tedesco' && isset($languages['non']),
+        'languages: terminology codes, named in the user\'s language, historic languages included');
+    $check(($countries['DK'] ?? '') === 'Danimarca' && !isset($countries['EU']) && !isset($countries['ZZ']) && count($countries) >= 249,
+        'countries: from ICU, without groupings or unknown codes');
+    $valid = true;
+    foreach (array_keys($languages) as $code) {
+        $valid = $valid && ContributionService::normalize(['titolo' => 'x','lingua' => (string) $code])['lingua'] === (string) $code;
+    }
+    foreach (array_keys($countries) as $code) {
+        $valid = $valid && ContributionService::normalize(['titolo' => 'x','paese' => (string) $code])['paese'] === (string) $code;
+    }
+    $check($valid, 'every code a picker offers is one the validator accepts unchanged');
 
     // -----------------------------------------------------------------------
     echo "\nC. The 856 triple decides once, for every reader\n";

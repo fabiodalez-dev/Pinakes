@@ -9,7 +9,7 @@ final class ArticleMarcXml
     /**
      * ISO 639-1 → MARC Code List for Languages (the ISO 639-2/B-equivalent codes).
      */
-    private const LANGUAGE_639_1 = [
+    public const LANGUAGE_639_1 = [
         'aa'=>'aar','ab'=>'abk','af'=>'afr','ak'=>'aka','am'=>'amh','an'=>'arg','ar'=>'ara','as'=>'asm','av'=>'ava',
         'ay'=>'aym','az'=>'aze','ba'=>'bak','be'=>'bel','bg'=>'bul','bi'=>'bis','bm'=>'bam','bn'=>'ben','bo'=>'tib',
         'br'=>'bre','bs'=>'bos','ca'=>'cat','ce'=>'che','ch'=>'cha','co'=>'cos','cr'=>'cre','cs'=>'cze','cu'=>'chu',
@@ -34,7 +34,7 @@ final class ArticleMarcXml
     ];
 
     /** ISO 639-2/T codes whose MARC (bibliographic) code differs. */
-    private const LANGUAGE_639_2T = [
+    public const LANGUAGE_639_2T = [
         'bod'=>'tib','ces'=>'cze','cym'=>'wel','deu'=>'ger','ell'=>'gre','eus'=>'baq','fas'=>'per','fra'=>'fre',
         'hye'=>'arm','isl'=>'ice','kat'=>'geo','mkd'=>'mac','mri'=>'mao','msa'=>'may','mya'=>'bur','nld'=>'dut',
         'ron'=>'rum','slk'=>'slo','sqi'=>'alb','zho'=>'chi',

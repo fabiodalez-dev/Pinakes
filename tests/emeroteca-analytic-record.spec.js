@@ -52,6 +52,18 @@ async function ensureEmerotecaActive(page) {
   expect(active(), 'emeroteca could not be activated').toBe(true);
 }
 
+// Open a Choices.js single select, search, and pick the first match. The
+// option label is "Name (code)", so the same search finds by name or by code.
+async function pickCode(page, field, query, expected) {
+  const box = page.locator(`#article-${field}`).locator('xpath=ancestor::div[contains(concat(" ",normalize-space(@class)," ")," choices ")][1]');
+  await box.click();
+  const search = box.locator('input.choices__input--cloned');
+  await search.fill(query);
+  await expect(box.locator('.choices__list--dropdown .choices__item--choice').first()).toHaveText(expected);
+  await search.press('Enter');
+  await expect(box.locator('.choices__list--single .choices__item')).toHaveText(expected);
+}
+
 test.describe.serial('Emeroteca analytic record (#412)', () => {
   let articleId = 0;
 
@@ -101,10 +113,14 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.locator('#article-numero').fill('31');
     await page.locator('#article-pagine').fill('18-38');
 
-    await advanced.locator('summary').click();
-    await page.locator('#article-lingua').fill('dan');
-    await page.locator('#article-paese').fill('DK');
-    await page.locator('#article-classificazione_schema').fill('DK5');
+    await advanced.locator(':scope > summary').click();
+    // Language and country are picked from searchable lists of names, and
+    // the code is what gets stored (#412): nobody has to know "dan" by heart.
+    await pickCode(page, 'lingua', 'danese', /^Danese \(dan\)$/);
+    await pickCode(page, 'paese', 'DK', /^Danimarca \(DK\)$/);
+    await page.locator('#article-classificazione_schema').selectOption('DK5');
+    await expect(page.locator('#article-scheme-other'), 'the free scheme name appears only for "Other"').toBeHidden();
+    await expect(page.locator('#article-class-dewey'), 'the Dewey picker appears only for DDC').toBeHidden();
     await page.locator('#article-classificazione').fill('33.129');
     await page.locator('#article-nota_possesso').fill('Copy / offprint only');
 
@@ -132,6 +148,48 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
 
     const stored = db(`SELECT CONCAT_WS('|', lingua, paese, classificazione_schema, classificazione, nota_possesso, risorsa_pubblica) FROM emeroteca_contributi WHERE id=${articleId}`);
     expect(stored, 'every analytic field reached the database').toBe('dan|DK|DK5|33.129|Copy / offprint only|1');
+  });
+
+  test('Dewey notation comes from the book form picker; other schemes are named', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    await login(page);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    const advanced = page.locator('details', { hasText: /Descrizione bibliografica avanzata|Advanced bibliographic/ }).first();
+    await advanced.locator(':scope > summary').click();
+    // A stored code comes back selected, shown by name.
+    await expect(page.locator('#article-lingua').locator('xpath=ancestor::div[contains(concat(" ",normalize-space(@class)," ")," choices ")][1]').locator('.choices__list--single .choices__item')).toHaveText(/^Danese \(dan\)$/);
+
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#article-class-dewey')).toBeVisible();
+    await expect(page.locator('#article-classificazione'), 'the text box steps aside').toBeHidden();
+    // 33.129 is a DK5 notation, not a Dewey code: it is not carried over.
+    await expect(page.locator('#dewey_chip_container')).toBeHidden();
+    await page.locator('#dewey_manual_input').fill('305.8');
+    await page.locator('#dewey_add_btn').click();
+    await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
+    await page.locator('button[type=submit]:has-text("Salva")').first().click();
+    await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('DDC|305.8');
+
+    // Reopened, the Dewey picker shows the stored code.
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
+
+    // A scheme outside the list is named, and stored under that name.
+    await advanced.locator(':scope > summary').click();
+    await page.locator('#article-classificazione_schema').selectOption('__altro');
+    await expect(page.locator('#article-scheme-other')).toBeVisible();
+    await page.locator('#article-classificazione_schema_altro').fill('SAB');
+    await page.locator('#article-classificazione').fill('Kbb');
+    await page.locator('button[type=submit]:has-text("Salva")').first().click();
+    await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('SAB|Kbb');
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#article-classificazione_schema')).toHaveValue('__altro');
+    await expect(page.locator('#article-classificazione_schema_altro')).toHaveValue('SAB');
+
+    // Back to the values the public-page tests below read.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DK5', classificazione='33.129' WHERE id=${articleId}`);
   });
 
   test('the public page reads as an analytic record', async ({ page }) => {
