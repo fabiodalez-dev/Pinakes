@@ -184,6 +184,16 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.getByRole('button',{name:'Conferma associazione'}).click();
     expect(issueOf(),'confirmed detach removes the issue link').toBe('0');
     expect(Number(db(`SELECT testata_id FROM emeroteca_contributi WHERE id=${articleId}`)),'the masthead survives the detach').toBe(testataId);
+    // The form names the linked masthead, and a rejected save must not turn
+    // that into "not linked": the 422 re-render looks the record up too.
+    await page.goto(BASE+`/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#article-host-record')).toContainText(marker+' Journal');
+    await page.getByText('Identificativi e collocazione',{exact:true}).click();
+    await page.locator('#article-doi').fill('not-a-doi');
+    await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
+    await expect(page.getByText('DOI non valido.')).toBeVisible();
+    await expect(page.locator('#article-host-record')).toContainText(marker+' Journal');
+    await page.goto(BASE+'/admin/periodicals/articles');
     await publicPage.goto(BASE+`/emeroteca/${testataId}`);await expect(publicPage.getByRole('link',{name:marker+' Tyll'})).toBeVisible();
     // The chooser is radio rows now (the plugin's emt-choice pattern, shared by
     // the mastheads list, the articles list and the plugin settings page) and it
