@@ -93,7 +93,15 @@ final class ContributionController extends AbstractAdminController
         if ($row === null) {
             return $rs->withStatus(404);
         }
-        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null]);
+        // The masthead record this article is linked to, if any: the form says
+        // so, because "Publication" (typed here) and the linked record are
+        // two different things and the list shows both side by side.
+        $hostTitle = '';
+        if (!empty($row['testata_id'])) {
+            $host = $this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [(int) $row['testata_id']]);
+            $hostTitle = (string) ($host[0]['titolo'] ?? '');
+        }
+        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostTitle' => $hostTitle]);
     }
     /**
      * Create or update a contribution, including an optional PDF upload (validated by magic

@@ -57,7 +57,7 @@ final class CitationFormatter
      * @return array{authors:list<string>,year:string,title:string,container:string,
      *               volume:string,issue:string,pageStart:string,pageEnd:string,
      *               doi:string,issn:string,language:string,keywords:list<string>,
-     *               abstract:string,isNewspaper:bool}
+     *               abstract:string,isNewspaper:bool,isMagazine:bool,month:int,day:int}
      */
     public static function parts(array $row): array
     {
@@ -70,12 +70,22 @@ final class CitationFormatter
         }
 
         [$pageStart, $pageEnd] = self::pages(self::clean($row['pagine'] ?? ''));
+        $year = self::year($row);
+        $date = self::date(self::clean($row['data_pubblicazione_testo'] ?? ''));
+        // A day and month only count when they belong to the year the record
+        // cites: a free date that disagrees with the year column is not
+        // grafted onto it.
+        if ($date['year'] !== $year) {
+            $date = ['year' => '', 'month' => 0, 'day' => 0];
+        }
 
         return [
             'authors' => ContributionService::authorList(
                 isset($row['autori']) ? (string) $row['autori'] : null
             ),
-            'year' => self::year($row),
+            'year' => $year,
+            'month' => $date['month'],
+            'day' => $date['day'],
             'title' => $title,
             'container' => self::clean($row['contenitore_titolo'] ?? ''),
             'volume' => self::clean($row['volume'] ?? ''),
@@ -94,7 +104,66 @@ final class CitationFormatter
             )),
             'abstract' => self::clean($row['abstract'] ?? ''),
             'isNewspaper' => ($row['contenitore_tipo'] ?? '') === 'giornale',
+            'isMagazine' => ($row['contenitore_tipo'] ?? '') === 'magazine',
         ];
+    }
+
+    /** Month names as a free date may spell them, in the languages Pinakes ships. */
+    private const MONTHS = [
+        'january' => 1, 'february' => 2, 'march' => 3, 'april' => 4, 'may' => 5, 'june' => 6,
+        'july' => 7, 'august' => 8, 'september' => 9, 'october' => 10, 'november' => 11, 'december' => 12,
+        'gennaio' => 1, 'febbraio' => 2, 'marzo' => 3, 'aprile' => 4, 'maggio' => 5, 'giugno' => 6,
+        'luglio' => 7, 'agosto' => 8, 'settembre' => 9, 'ottobre' => 10, 'dicembre' => 12,
+        'januar' => 1, 'februar' => 2, 'märz' => 3, 'mai' => 5, 'juni' => 6, 'juli' => 7,
+        'oktober' => 10, 'dezember' => 12,
+        'janvier' => 1, 'février' => 2, 'mars' => 3, 'avril' => 4, 'juin' => 6, 'juillet' => 7,
+        'août' => 8, 'septembre' => 9, 'octobre' => 10, 'novembre' => 11, 'décembre' => 12,
+        'marts' => 3, 'maj' => 5,
+    ];
+
+    /** English month names, as the citation styles print them. */
+    private const MONTH_NAMES = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July',
+        'August', 'September', 'October', 'November', 'December'];
+
+    /**
+     * Day and month out of the free publication date, when it states them.
+     *
+     * A newspaper is identified by its day, and APA and Harvard both print it:
+     * "(2026, September 28)". The column stays free text — "Nr. 31 (1988)" is a
+     * real value — so this recognises the shapes a cataloguer actually types
+     * and leaves everything else alone: day-month-year with a hyphen, dot or
+     * slash (the European order), ISO year-month-day, and a month written out
+     * in any of the application's languages, with or without a day. A numeric
+     * date is never read month-first: 03-04-2026 is the 3rd of April.
+     *
+     * @return array{year:string,month:int,day:int}
+     */
+    private static function date(string $text): array
+    {
+        $none = ['year' => '', 'month' => 0, 'day' => 0];
+        if ($text === '') {
+            return $none;
+        }
+        $valid = static function (int $y, int $m, int $d) use ($none): array {
+            if ($y < 1500 || $y > 2099 || $m < 1 || $m > 12 || ($d !== 0 && !checkdate($m, $d, $y))) {
+                return $none;
+            }
+            return ['year' => (string) $y, 'month' => $m, 'day' => $d];
+        };
+        if (preg_match('/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/', $text, $m) === 1) {
+            return $valid((int) $m[1], (int) $m[2], (int) $m[3]);
+        }
+        if (preg_match('/^(\d{1,2})[-\/.]\s?(\d{1,2})[-\/.]\s?(\d{4})$/', $text, $m) === 1) {
+            return $valid((int) $m[3], (int) $m[2], (int) $m[1]);
+        }
+        $lower = mb_strtolower($text);
+        if (preg_match('/^(?:(\d{1,2})\.?\s+)?(\p{L}+)\s+(?:(\d{1,2}),\s*)?(\d{4})$/u', $lower, $m) === 1
+            && isset(self::MONTHS[$m[2]])) {
+            $day = $m[1] !== '' ? (int) $m[1] : (int) $m[3];
+            return $valid((int) $m[4], self::MONTHS[$m[2]], $day);
+        }
+
+        return $none;
     }
 
     /**
@@ -191,6 +260,11 @@ final class CitationFormatter
     {
         $p = self::parts($row);
         $year = $p['year'] === '' ? 'n.d.' : $p['year'];
+        // APA dates a newspaper or magazine article to the day or month it
+        // carries; a journal keeps the year alone.
+        if (($p['isNewspaper'] || $p['isMagazine']) && $p['month'] > 0) {
+            $year .= ', ' . self::MONTH_NAMES[$p['month']] . ($p['day'] > 0 ? ' ' . $p['day'] : '');
+        }
 
         $names = array_map(static fn (string $n): string => self::initials($n, ' '), $p['authors']);
         $authors = self::joinNames($names, ', ', ', & ', ' & ');
@@ -255,6 +329,11 @@ final class CitationFormatter
 
         if ($p['container'] !== '') {
             $out .= ', ' . $p['container'];
+            // Harvard puts the day and month of a newspaper or magazine after
+            // its title: "Süddeutsche Zeitung, 28 September, p. 3".
+            if (($p['isNewspaper'] || $p['isMagazine']) && $p['month'] > 0) {
+                $out .= ', ' . ($p['day'] > 0 ? $p['day'] . ' ' : '') . self::MONTH_NAMES[$p['month']];
+            }
             if ($p['volume'] !== '') {
                 $out .= ', ' . $p['volume'];
             }
@@ -368,7 +447,9 @@ final class CitationFormatter
             'SP' => $p['pageStart'],
             'EP' => $p['pageEnd'],
             'PY' => $p['year'],
-            'DA' => self::clean($row['data_pubblicazione_testo'] ?? ''),
+            'DA' => $p['month'] > 0
+                ? sprintf('%s/%02d/%s/', $p['year'], $p['month'], $p['day'] > 0 ? sprintf('%02d', $p['day']) : '')
+                : self::clean($row['data_pubblicazione_testo'] ?? ''),
             'SN' => $p['issn'],
             'DO' => $p['doi'],
         ] as $tag => $value) {

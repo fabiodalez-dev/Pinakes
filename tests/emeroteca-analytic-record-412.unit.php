@@ -359,6 +359,33 @@ try {
     $check(str_contains(CitationFormatter::apa(['titolo' => 'x','autori' => 'Rossi, Mario; Bianchi, Anna','anno_pubblicazione' => 2001]), 'Rossi, M. & Bianchi, A.'),
         'two authors are joined, and the comma inside a name is not a separator');
 
+    // A newspaper is identified by its day (#412, Uwe's Süddeutsche Zeitung
+    // example): APA 7 and Harvard both print it, a journal keeps the year.
+    $sz = ['titolo' => 'Warum es erhellend sein kann, AfD und NSDAP zu vergleichen','autori' => 'Hacke, Axel',
+        'contenitore_tipo' => 'giornale','contenitore_titolo' => 'Süddeutsche Zeitung','pagine' => '3',
+        'data_pubblicazione_testo' => '28-09-2026','anno_pubblicazione' => 2026];
+    $check(str_starts_with(CitationFormatter::apa($sz), 'Hacke, A. (2026, September 28). '),
+        'APA: a newspaper article is dated to the day, from day-month-year');
+    $check(str_contains(CitationFormatter::harvard($sz), "Süddeutsche Zeitung, 28 September, p. 3."),
+        'Harvard: day and month follow the newspaper title');
+    $check(str_contains(CitationFormatter::ris($sz), "DA  - 2026/09/28/\r\n"), 'RIS: the date travels in the normalised form');
+    foreach (['2026-09-28', '28.09.2026', '28/09/2026', '28 September 2026', '28. September 2026', '28 settembre 2026', 'September 28, 2026', '28 septembre 2026'] as $written) {
+        $check(str_contains(CitationFormatter::apa(['data_pubblicazione_testo' => $written] + $sz), '(2026, September 28)'),
+            "the day is read from «{$written}»");
+    }
+    $check(str_contains(CitationFormatter::apa(['data_pubblicazione_testo' => '03-04-2026'] + $sz), '(2026, April 3)'),
+        'a numeric date is read day first, never month first');
+    $check(str_contains(CitationFormatter::apa(['contenitore_tipo' => 'magazine','data_pubblicazione_testo' => 'giugno 2026'] + $sz), '(2026, June)'),
+        'a magazine with month and year is dated to the month');
+    $check(str_contains(CitationFormatter::apa(['contenitore_tipo' => 'rivista'] + $sz), '(2026).'),
+        'a journal article keeps the year alone, as APA prescribes');
+    $check(str_contains(CitationFormatter::apa(['data_pubblicazione_testo' => '31-02-2026'] + $sz), '(2026).'),
+        'an impossible date is not printed');
+    $check(str_contains(CitationFormatter::apa(['anno_pubblicazione' => 2025] + $sz), '(2025).'),
+        'a free date that disagrees with the year column is not grafted onto it');
+    $check(str_contains(CitationFormatter::ris(['data_pubblicazione_testo' => 'Nr. 31 (1988)'] + $sz), "DA  - Nr. 31 (1988)\r\n"),
+        'a free date that is not a date travels as written');
+
     $parts = CitationFormatter::parts(['pagine' => '138–148']);
     $check($parts['pageStart'] === '138' && $parts['pageEnd'] === '148', 'an en-dashed span splits');
     $parts = CitationFormatter::parts(['pagine' => 'S. 18-38']);
