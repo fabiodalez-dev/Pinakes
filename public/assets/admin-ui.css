@@ -337,6 +337,16 @@
     color: #111827 !important;
 }
 
+/* The rule above is for list rows: a chip keeps its light text while it is
+   hovered, focused or highlighted for removal. */
+.choices__list--multiple .choices__item:hover,
+.choices__list--multiple .choices__item:active,
+.choices__list--multiple .choices__item:focus,
+.choices__list--multiple .choices__item.is-highlighted,
+.choices__list--multiple .choices__item.is-selected {
+    color: #f1f5f9 !important;
+}
+
 /* Mobile styles for Choices.js chips */
 @media screen and (max-width: 768px) {
     .choices .choices__inner,

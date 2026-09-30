@@ -59,8 +59,10 @@ async function pickCode(page, field, query, expected) {
   await box.click();
   const search = box.locator('input.choices__input--cloned');
   await search.fill(query);
-  await expect(box.locator('.choices__list--dropdown .choices__item--choice').first()).toHaveText(expected);
-  await search.press('Enter');
+  await page.waitForTimeout(300);
+  const suggestion = box.locator('.choices__list--dropdown .choices__item--choice').first();
+  await expect(suggestion).toHaveText(expected);
+  await suggestion.click();
   await expect(box.locator('.choices__list--single .choices__item')).toHaveText(expected);
 }
 
@@ -170,6 +172,12 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.locator('#dewey_suggest li').filter({ hasText: /^599 — / }).click();
     await expect(page.locator('#dewey_chip_code')).toContainText('599');
     await expect(page.locator('#classificazione_dewey')).toHaveValue('599');
+    // Picking a shallower class drops the menus of the old path (500 > 590 > 599).
+    await page.locator('#dewey_manual_input').pressSequentially('100');
+    await page.locator('#dewey_suggest li').filter({ hasText: /^100 — / }).click();
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('100');
+    await expect(page.locator('#dewey_levels_container select'), 'only the main classes are left').toHaveCount(1);
+    await expect(page.locator('#dewey_levels_container select').first()).toHaveValue('100');
     // And any code can still be typed and added, listed or not.
     await page.locator('#dewey_manual_input').fill('305.8');
     await page.locator('#dewey_add_btn').click();
@@ -194,6 +202,19 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
     await expect(page.locator('#article-classificazione_schema')).toHaveValue('__altro');
     await expect(page.locator('#article-classificazione_schema_altro')).toHaveValue('SAB');
+
+    // A Dewey code deeper than the list comes back in the picker as it is.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.91409' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
+    // A stored notation the picker cannot show stays in the text box, not behind an empty picker.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await advanced.locator(':scope > summary').click();
+    await expect(page.locator('#article-classificazione')).toBeVisible();
+    await expect(page.locator('#article-classificazione')).toHaveValue('823.914 BRO');
+    await expect(page.locator('#article-class-dewey')).toBeHidden();
 
     // Back to the values the public-page tests below read.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DK5', classificazione='33.129' WHERE id=${articleId}`);

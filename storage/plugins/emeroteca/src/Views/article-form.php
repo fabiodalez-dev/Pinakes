@@ -175,8 +175,13 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
             const dewey = document.getElementById('classificazione_dewey');
             if (!scheme || !other || !textBox || !text || !deweyBox || !dewey) return;
             let deweyStarted = false;
+            const looksDewey = (value) => /^[0-9]{3}(\.[0-9]+)?$/.test(value);
+            // A stored DDC notation the picker cannot show ("823.914 BRO") stays
+            // in the text box on load, visible and editable, rather than hiding
+            // behind an empty picker. Choosing a scheme again ends that.
+            let keepText = scheme.value === 'DDC' && text.value.trim() !== '' && !looksDewey(text.value.trim());
             function sync() {
-              const isDewey = scheme.value === 'DDC';
+              const isDewey = scheme.value === 'DDC' && !keepText;
               other.hidden = scheme.value !== <?= json_encode($otherScheme, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
               textBox.hidden = isDewey;
               text.disabled = isDewey;
@@ -184,12 +189,15 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
               dewey.disabled = !isDewey;
               if (isDewey && !deweyStarted && typeof window.initializeDewey === 'function') {
                 deweyStarted = true;
-                // A notation typed under another scheme is not a Dewey code.
+                // A notation typed under another scheme is not a Dewey code; one
+                // deeper than the Dewey list (823.91409) is shown as it is.
                 const typed = text.value.trim();
-                window.initializeDewey(/^[0-9]{3}(\.[0-9]{1,4})?$/.test(typed) ? typed : '');
+                const code = looksDewey(typed) ? typed : '';
+                dewey.value = code;
+                window.initializeDewey(code);
               }
             }
-            scheme.addEventListener('change', sync);
+            scheme.addEventListener('change', () => { keepText = false; sync(); });
             sync();
           });
           </script>

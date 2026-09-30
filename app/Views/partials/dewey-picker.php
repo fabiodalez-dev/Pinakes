@@ -213,6 +213,10 @@ async function initializeDewey(initialValue) {
   let suggestTimer = null;
   let suggestRequest = 0;
   const closeSuggest = () => {
+    // A closed list also drops what is still in flight, so a late answer
+    // cannot reopen it with results for text that is no longer there.
+    clearTimeout(suggestTimer);
+    suggestRequest++;
     suggest.hidden = true;
     suggest.replaceChildren();
     suggestItems = [];
@@ -258,11 +262,11 @@ async function initializeDewey(initialValue) {
     manualInput.setAttribute('aria-expanded', 'true');
   };
   manualInput.addEventListener('input', () => {
-    clearTimeout(suggestTimer);
     const query = manualInput.value.trim();
     if (query.length < 2) { closeSuggest(); return; }
+    const request = ++suggestRequest;
     suggestTimer = setTimeout(async () => {
-      const request = ++suggestRequest;
+      if (request !== suggestRequest) return;
       try {
         const response = await fetch(`${window.BASE_PATH}/api/dewey/autocomplete?q=${encodeURIComponent(query)}`, { credentials: 'same-origin' });
         if (!response.ok || request !== suggestRequest) return;
@@ -458,6 +462,12 @@ async function initializeDewey(initialValue) {
   // Naviga ai dropdown fino al codice specificato
   const navigateToCode = async (targetCode) => {
     const path = getCodePath(targetCode);
+    // Start again from the main classes: menus left from the previous code
+    // (500 > 590 > 599 before picking 100) would otherwise stay on screen
+    // and could still write a code of the old path into the field.
+    while (container.children.length > 1) {
+      container.removeChild(container.lastChild);
+    }
     let lastFoundCode = null;
     let lastFoundName = null;
 
