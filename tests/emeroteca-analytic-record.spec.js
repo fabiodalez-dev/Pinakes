@@ -56,7 +56,12 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
   let articleId = 0;
 
   test.afterAll(() => {
-    if (articleId > 0) db(`DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
+    if (articleId > 0) {
+      // The author was added through the picker and became a registry entry.
+      const authorIds = db(`SELECT autore_id FROM emeroteca_contributi_autori WHERE contributo_id=${articleId} AND autore_id IS NOT NULL`).split('\n').filter(Boolean);
+      db(`DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
+      for (const id of authorIds) db(`DELETE FROM autori WHERE id=${Number(id)} AND NOT EXISTS (SELECT 1 FROM libri_autori WHERE autore_id=${Number(id)}) AND NOT EXISTS (SELECT 1 FROM emeroteca_contributi_autori WHERE autore_id=${Number(id)})`);
+    }
   });
 
   test('the analytic apparatus is reachable from the real form', async ({ page }) => {
@@ -85,7 +90,12 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
 
     await page.locator('#article-titolo').fill(`${marker} On the trail`);
     await page.locator('#article-sottotitolo').fill('a subtitle that carries half the meaning');
-    await page.locator('#article-autori').fill('Petersen, Hans Uwe');
+    // Picked as on the book form: type the name, Enter adds it (#412).
+    const authorInput = page.locator('#article-author-editor .choices__input--cloned');
+    await authorInput.click();
+    await authorInput.pressSequentially('Petersen, Hans Uwe');
+    await authorInput.press('Enter');
+    await expect(page.locator('#article-credits input[name$="[nome_credito]"]').last()).toHaveValue('Petersen, Hans Uwe');
     await page.locator('#article-contenitore_titolo').fill('Arbejderhistorie');
     await page.locator('#article-anno_pubblicazione').fill('1988');
     await page.locator('#article-numero').fill('31');

@@ -67,6 +67,12 @@ async function restoreEmerotecaActivation(browser) {
   if(active()) throw new Error('emeroteca was activated by this suite and could not be deactivated again');
 }
 let originalMode; let wasActive; let articleId; let testataId;
+// Authors are picked as on the book form (#412): type the name, Enter adds it.
+async function addArticleAuthor(page,name){
+  const input=page.locator('#article-author-editor .choices__input--cloned');
+  await input.click();await input.pressSequentially(name);await input.press('Enter');
+  await expect(page.locator('#article-credits input[name$="[nome_credito]"]').last()).toHaveValue(name);
+}
 test.describe.serial('Emeroteca 412 complete workflow',()=>{
   test.beforeAll(()=>{
     if(!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
@@ -76,7 +82,10 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
   test.afterAll(async({browser})=>{
     try {
       const pdf=db(`SELECT COALESCE(pdf_path,'') FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
+      // Names added through the picker became authors: remove the ones only this suite used.
+      const authorIds=db(`SELECT DISTINCT ca.autore_id FROM emeroteca_contributi_autori ca JOIN emeroteca_contributi c ON c.id=ca.contributo_id WHERE c.titolo LIKE '${marker}%' AND ca.autore_id IS NOT NULL`).split('\n').filter(Boolean);
       db(`DELETE FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
+      for(const id of authorIds) db(`DELETE FROM autori WHERE id=${Number(id)} AND NOT EXISTS (SELECT 1 FROM libri_autori WHERE autore_id=${Number(id)}) AND NOT EXISTS (SELECT 1 FROM emeroteca_contributi_autori WHERE autore_id=${Number(id)})`);
       db(`DELETE FROM emeroteca_testate WHERE titolo LIKE '${marker}%'`);
       if(originalMode) db(`UPDATE plugin_settings SET setting_value='${originalMode==='simple'?'simple':'complete'}' WHERE plugin_id=(SELECT id FROM plugins WHERE name='emeroteca') AND setting_key='mode'`);
       // A clean collection has no mode row until the administrator chooses; the
@@ -93,9 +102,10 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.goto(BASE+'/admin/periodicals/articles');
     await expect(page.getByRole('heading',{name:'Articoli',exact:true})).toBeVisible();
     await page.getByRole('link',{name:'Aggiungi articolo',exact:true}).click();
-    for(const [name,value] of Object.entries({titolo:marker+' Tyll',autori:'Marc J. Schweissinger',contenitore_titolo:'International Journal of Language and Literature',data_pubblicazione_testo:'giugno 2019',anno_pubblicazione:'2019',volume:'7',numero:'1',pagine:'138–148'})) {
+    for(const [name,value] of Object.entries({titolo:marker+' Tyll',contenitore_titolo:'International Journal of Language and Literature',data_pubblicazione_testo:'giugno 2019',anno_pubblicazione:'2019',volume:'7',numero:'1',pagine:'138–148'})) {
       await page.locator(`[name="${name}"]`).fill(value);
     }
+    await addArticleAuthor(page,'Schweissinger, Marc J.');
     await page.locator('[name=pubblico]').check();
     await page.getByText('Descrizione, note e PDF',{exact:true}).click();
     await page.locator('[name=note_private]').fill('SECRET412');
