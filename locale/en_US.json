@@ -7920,5 +7920,15 @@
     "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "The “Publication title” is the title of the book. These details are used in the chapter citation.",
     "Curatori del volume": "Editors of the book",
     "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Separate several editors with a semicolon, for example Petersen, Hans Uwe.",
-    "L’ISBN del volume.": "The ISBN of the book."
+    "L’ISBN del volume.": "The ISBN of the book.",
+    "Cita": "Cite",
+    "Cita «%s»": "Cite “%s”",
+    "Tutti i formati": "All formats",
+    "Copia negli appunti": "Copy to clipboard",
+    "Copia non riuscita: seleziona il testo e copialo a mano.": "Copying failed: select the text and copy it by hand.",
+    "Cita questo libro": "Cite this book",
+    "APA (7ª edizione)": "APA (7th edition)",
+    "Chicago (17ª edizione, autore-data)": "Chicago (17th edition, author-date)",
+    "MLA (9ª edizione)": "MLA (9th edition)",
+    "Harvard": "Harvard"
 }

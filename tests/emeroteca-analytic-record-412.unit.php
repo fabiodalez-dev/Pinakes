@@ -381,8 +381,8 @@ try {
         'and a page number in that field is not mistaken for one');
     $check(str_starts_with(CitationFormatter::apa(['titolo' => 'x','autori' => 'Institute of Science and Technology','anno_pubblicazione' => 2001]), 'Institute of Science and Technology '),
         'a corporate author is never initialised: guessing its surname would be wrong');
-    $check(str_contains(CitationFormatter::apa(['titolo' => 'x','autori' => 'Rossi, Mario; Bianchi, Anna','anno_pubblicazione' => 2001]), 'Rossi, M. & Bianchi, A.'),
-        'two authors are joined, and the comma inside a name is not a separator');
+    $check(str_contains(CitationFormatter::apa(['titolo' => 'x','autori' => 'Rossi, Mario; Bianchi, Anna','anno_pubblicazione' => 2001]), 'Rossi, M., & Bianchi, A.'),
+        'two authors are joined with ", &" as APA 7 prints them, and the comma inside a name is not a separator');
 
     // A newspaper is identified by its day (#412, Uwe's Süddeutsche Zeitung
     // example): APA 7 and Harvard both print it, a journal keeps the year.

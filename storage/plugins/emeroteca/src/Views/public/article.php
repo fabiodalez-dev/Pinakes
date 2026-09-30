@@ -26,8 +26,7 @@ $articleResource=\App\Plugins\Emeroteca\Services\ContributionService::resource($
 $articleHasPdf=!empty($article['pdf_path']) && !empty($article['pdf_pubblico']);
 /** The reader may open at most one primary action; the PDF is the library's own copy and wins. */
 $articleResourceIsPrimary=$articleResource!==null && $articleResource['linkable'] && !$articleHasPdf;
-$articleApa=\App\Plugins\Emeroteca\Support\CitationFormatter::apa($article);
-$articleHarvard=\App\Plugins\Emeroteca\Support\CitationFormatter::harvard($article);
+$articleCitations=\App\Plugins\Emeroteca\Support\CitationFormatter::all($article);
 $articleParts=\App\Plugins\Emeroteca\Support\CitationFormatter::parts($article);
 /**
  * A stored ISO code rendered in the READER's language, not the cataloguer's.
@@ -87,47 +86,19 @@ $articleCodeLabel=static function(string $code,bool $region):string{
          retype a string the database already knew. */ ?>
 <section class="mt-8" id="article-citation">
 <h2 class="text-xl font-bold mb-3"><?= __('Cita questo articolo') ?></h2>
-<?php foreach(['APA'=>$articleApa,'Harvard'=>$articleHarvard] as $style=>$text): ?>
-<div class="bg-gray-50 rounded p-3 mb-3">
-<p class="text-sm text-gray-600 mb-1"><?= $e($style) ?></p>
-<p class="whitespace-pre-wrap select-all" data-citation-text><?= $e($text) ?></p>
-<button type="button" class="btn-secondary mt-3" data-citation-copy><?= __('Copia') ?></button>
-</div>
-<?php endforeach; ?>
-<p class="mt-5"><a class="underline" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')) ?>"><?= __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)') ?></a> · <a class="underline" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/marc.xml')) ?>">MARCXML</a></p>
+<?php
+// One "Cite" button and a dialog with every style (#412), as on the book page.
+$citeCitations = $articleCitations;
+$citeTitle = (string) $article['titolo'];
+$citeDownloads = [
+    ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')],
+    ['label' => 'MARCXML', 'url' => url('/emeroteca/articolo/'.(int)$article['id'].'/marc.xml')],
+];
+include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
+?>
 </section>
 </main>
 
-<script>
-(function(){
-  var copied = <?= json_encode(__('Copiato'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-  function feedback(btn){
-    var original = btn.textContent;
-    btn.textContent = copied;
-    setTimeout(function(){ btn.textContent = original; }, 2000);
-  }
-  function fallback(text, btn){
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); } catch (e) { /* nothing to do but leave the text selectable */ }
-    document.body.removeChild(ta);
-    feedback(btn);
-  }
-  document.querySelectorAll('[data-citation-copy]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var box = btn.parentNode.querySelector('[data-citation-text]');
-      if (!box) { return; }
-      var text = box.textContent;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function(){ feedback(btn); }).catch(function(){ fallback(text, btn); });
-      } else {
-        fallback(text, btn);
-      }
-    });
-  });
-})();
-</script>
 
 <?php
 $structured=['@context'=>'https://schema.org','@type'=>'Article','headline'=>$article['titolo'],'url'=>absoluteUrl('/emeroteca/articolo/'.(int)$article['id'])];

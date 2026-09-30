@@ -154,7 +154,9 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
 
     await expect(page.locator('main[data-articolo-id]')).toContainText(/Cita questo articolo|Cite this article/);
     await expect(page.locator('main[data-articolo-id]')).toContainText('Petersen, H. U. (1988).');
-    await expect(page.locator('[data-citation-copy]')).toHaveCount(2);
+    // One "Cite" button; the dialog holds every style (#412).
+    await expect(page.locator('#cite-open')).toBeVisible();
+    await expect(page.locator('#cite-list [data-cite-copy]')).toHaveCount(4);
   });
 
   test('exactly one primary action, and it is never a link a browser cannot follow', async ({ page }) => {
@@ -190,13 +192,43 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
 
-    const button = page.locator('[data-citation-copy]').first();
-    const expected = (await page.locator('[data-citation-text]').first().textContent() || '').trim();
+    await page.locator('#cite-open').click();
+    await expect(page.locator('#cite-dialog')).toBeVisible();
+    const button = page.locator('#cite-list [data-cite-copy]').first();
+    const expected = (await button.getAttribute('data-cite-text') || '').trim();
     await button.click();
 
     await expect(button).toHaveText(/Copiato|Copied|Kopiert|Copié|Kopieret/);
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard.trim(), 'the clipboard holds the citation as rendered').toBe(expected);
+  });
+
+  test('the Cite dialog lists every style, filters to one and closes', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
+    await page.locator('#cite-open').click();
+    const dialog = page.locator('#cite-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('[data-cite-style]')).toHaveCount(4);
+    // Titles the style italicises are italic in the HTML a word processor receives.
+    await expect(dialog.locator('[data-cite-style="apa"] [data-cite-html] i').first()).toHaveText('Arbejderhistorie');
+    await dialog.locator('#cite-style').selectOption('mla');
+    await expect(dialog.locator('[data-cite-style]:visible')).toHaveCount(1);
+    await expect(dialog.locator('[data-cite-style="mla"]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('#cite-open'), 'focus returns to the button that opened it').toBeFocused();
+  });
+
+  test('a book page offers the same Cite dialog', async ({ page }) => {
+    const bookPath = db(`SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1`);
+    test.skip(!bookPath, 'no book in the catalogue');
+    await page.goto(`${BASE}/catalogo`);
+    await page.locator('a[href*="/libro"], .book-card a').first().click();
+    await page.locator('#cite-open').click();
+    await expect(page.locator('#cite-dialog [data-cite-style]')).toHaveCount(4);
+    const apa = await page.locator('#cite-dialog [data-cite-style="apa"] [data-cite-copy]').getAttribute('data-cite-text');
+    expect(apa, 'a book citation is never empty').toBeTruthy();
   });
 
   test('RIS downloads as a file a reference manager accepts', async ({ page }) => {

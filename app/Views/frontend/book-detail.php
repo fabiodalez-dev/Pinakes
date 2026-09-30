@@ -2601,6 +2601,47 @@ ob_start();
 
                 <!-- Share Card (configurable via Settings > Sharing) -->
                 <?php include __DIR__ . '/partials/social-sharing.php'; ?>
+
+                <?php
+                // "Cite" (#412): the book as the shared citation styles read it.
+                // Authors and co-authors are cited as authors, editors
+                // (curatore) as editors; the other roles are not part of a
+                // reference.
+                $citeAuthors = [];
+                $citeEditors = [];
+                foreach ($authors as $authorData) {
+                    $citeName = trim(html_entity_decode(AuthorName::citation($authorData), ENT_QUOTES, 'UTF-8'));
+                    $citeRole = (string) ($authorData['ruolo'] ?? 'principale');
+                    if ($citeName === '') {
+                        continue;
+                    }
+                    if ($citeRole === 'principale' || $citeRole === 'co-autore') {
+                        $citeAuthors[] = $citeName;
+                    } elseif ($citeRole === 'curatore') {
+                        $citeEditors[] = $citeName;
+                    }
+                }
+                $citeSubtitle = trim(html_entity_decode((string) ($book['sottotitolo'] ?? ''), ENT_QUOTES, 'UTF-8'));
+                $citeCitations = \App\Support\CitationStyles::all([
+                    'type' => 'book',
+                    'authors' => array_values(array_unique($citeAuthors)),
+                    'editors' => array_values(array_unique($citeEditors)),
+                    'year' => !empty($book['anno_pubblicazione']) ? (string) (int) $book['anno_pubblicazione'] : '',
+                    'title' => $citeSubtitle !== '' ? $bookTitle . ' : ' . $citeSubtitle : $bookTitle,
+                    'publisher' => $bookPublisher,
+                    'edition' => html_entity_decode((string) ($book['edizione'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                ]);
+                $citeTitle = $bookTitle;
+                $citeDownloads = [];
+                ?>
+                <div class="card" id="book-cite-card">
+                  <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-quote-left mr-2"></i><?= htmlspecialchars(__('Cita questo libro'), ENT_QUOTES, 'UTF-8') ?></h6>
+                  </div>
+                  <div class="card-body py-2 px-3">
+                    <?php include dirname(__DIR__) . '/partials/cite-dialog.php'; ?>
+                  </div>
+                </div>
             </div>
         </div>
     </div>

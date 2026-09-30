@@ -7920,5 +7920,15 @@
     "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "Der „Titel der Publikation“ ist der Titel des Sammelbands. Diese Angaben werden für das Zitat des Beitrags verwendet.",
     "Curatori del volume": "Herausgeber des Sammelbands",
     "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Mehrere Herausgeber mit einem Semikolon trennen, zum Beispiel Petersen, Hans Uwe.",
-    "L’ISBN del volume.": "Die ISBN des Sammelbands."
+    "L’ISBN del volume.": "Die ISBN des Sammelbands.",
+    "Cita": "Zitieren",
+    "Cita «%s»": "„%s“ zitieren",
+    "Tutti i formati": "Alle Formate",
+    "Copia negli appunti": "In die Zwischenablage kopieren",
+    "Copia non riuscita: seleziona il testo e copialo a mano.": "Kopieren fehlgeschlagen: Text markieren und von Hand kopieren.",
+    "Cita questo libro": "Dieses Buch zitieren",
+    "APA (7ª edizione)": "APA (7. Auflage)",
+    "Chicago (17ª edizione, autore-data)": "Chicago (17. Auflage, Autor-Jahr)",
+    "MLA (9ª edizione)": "MLA (9. Auflage)",
+    "Harvard": "Harvard"
 }

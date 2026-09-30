@@ -7920,5 +7920,15 @@
     "Il «Titolo della pubblicazione» è il titolo del volume. Questi dati servono alla citazione del capitolo.": "“Publikationens titel” er bogens titel. Oplysningerne bruges i citationen af bidraget.",
     "Curatori del volume": "Bindets redaktører",
     "Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.": "Adskil flere redaktører med semikolon, for eksempel Petersen, Hans Uwe.",
-    "L’ISBN del volume.": "Bogens ISBN."
+    "L’ISBN del volume.": "Bogens ISBN.",
+    "Cita": "Citér",
+    "Cita «%s»": "Citér “%s”",
+    "Tutti i formati": "Alle formater",
+    "Copia negli appunti": "Kopiér til udklipsholder",
+    "Copia non riuscita: seleziona il testo e copialo a mano.": "Kopiering mislykkedes: markér teksten og kopiér den manuelt.",
+    "Cita questo libro": "Citér denne bog",
+    "APA (7ª edizione)": "APA (7. udgave)",
+    "Chicago (17ª edizione, autore-data)": "Chicago (17. udgave, forfatter-år)",
+    "MLA (9ª edizione)": "MLA (9. udgave)",
+    "Harvard": "Harvard"
 }

@@ -6,6 +6,7 @@ namespace App\Plugins\Emeroteca\Support;
 require_once __DIR__ . '/../Services/ContributionService.php';
 
 use App\Plugins\Emeroteca\Services\ContributionService;
+use App\Support\CitationStyles;
 
 /**
  * Citations for a standalone article, in the three shapes a researcher asks
@@ -131,9 +132,6 @@ final class CitationFormatter
         'marts' => 3, 'maj' => 5,
     ];
 
-    /** English month names, as the citation styles print them. */
-    private const MONTH_NAMES = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July',
-        'August', 'September', 'October', 'November', 'December'];
 
     /**
      * Day and month out of the free publication date, when it states them.
@@ -226,98 +224,62 @@ final class CitationFormatter
     }
 
     /**
-     * A personal name reduced to initials, or left exactly as written.
+     * The article as the shared citation styles read it (App\Support\CitationStyles):
+     * an article, or a chapter when the host is an anthology.
      *
-     * The comma is the signal. "Petersen, Hans Uwe" is an inverted personal
-     * name and becomes "Petersen, H. U."; "Institute of Science and
-     * Technology" has no comma, is very likely a corporate author, and is used
-     * verbatim. Guessing which word of an uninverted name is the surname is
-     * wrong often enough — and invisibly enough — that not guessing is the
-     * better rule. The form already recommends the inverted form, and the
-     * README documents it.
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
      */
-    private static function initials(string $name, string $gap): string
+    public static function record(array $row): array
     {
-        if (!str_contains($name, ',')) {
-            return $name;
-        }
-        [$surname, $rest] = explode(',', $name, 2);
-        $surname = trim($surname);
-        $given = preg_split('/[\s.]+/u', trim($rest), -1, PREG_SPLIT_NO_EMPTY);
-        if (!is_array($given) || $given === []) {
-            return $surname;
-        }
-        $letters = array_map(
-            static fn (string $part): string => mb_strtoupper(mb_substr($part, 0, 1)) . '.',
-            $given
-        );
+        $p = self::parts($row);
 
-        return $surname . ', ' . implode($gap, $letters);
+        return [
+            'type' => $p['isAnthology'] ? 'chapter' : 'article',
+            'authors' => $p['authors'],
+            'editors' => $p['editors'],
+            'year' => $p['year'],
+            'month' => $p['month'],
+            'day' => $p['day'],
+            'title' => $p['title'],
+            'container' => $p['container'],
+            'volume' => $p['volume'],
+            'issue' => $p['issue'],
+            'pageStart' => $p['pageStart'],
+            'pageEnd' => $p['pageEnd'],
+            'doi' => $p['doi'],
+            'publisher' => $p['publisher'],
+            'place' => $p['place'],
+            'isNewspaper' => $p['isNewspaper'],
+            'isMagazine' => $p['isMagazine'],
+        ];
     }
 
     /**
-     * APA 7th edition, journal article.
+     * Every citation style the catalogue offers, for the "Cite" dialog.
+     *
+     * @param array<string,mixed> $row
+     * @return list<array{key:string,label:string,text:string,html:string}>
+     */
+    public static function all(array $row): array
+    {
+        return CitationStyles::all(self::record($row));
+    }
+
+    /**
+     * APA 7th edition, as plain text.
      *
      * Petersen, H. U. (1988). Title : Subtitle. Arbejderhistorie, 31, 18–38.
-     *
-     * With no author the title takes the author slot, which is the APA rule
-     * for an anonymous work — not a fallback invented here. With no year
-     * anywhere the record says so: "(n.d.)".
      *
      * @param array<string,mixed> $row
      */
     public static function apa(array $row): string
     {
-        $p = self::parts($row);
-        $year = $p['year'] === '' ? 'n.d.' : $p['year'];
-        // APA dates a newspaper or magazine article to the day or month it
-        // carries; a journal keeps the year alone.
-        if (($p['isNewspaper'] || $p['isMagazine']) && $p['month'] > 0) {
-            $year .= ', ' . self::MONTH_NAMES[$p['month']] . ($p['day'] > 0 ? ' ' . $p['day'] : '');
-        }
-
-        $names = array_map(static fn (string $n): string => self::initials($n, ' '), $p['authors']);
-        $authors = self::joinNames($names, ', ', ', & ', ' & ');
-
-        // An anonymous work is alphabetised by its title, so the title takes
-        // the author slot and the year follows it. Leaving the slot empty and
-        // opening with "(2020)." would sort every untitled-author record
-        // together under the same bracket.
-        $out = '';
-        if ($authors !== '') {
-            $out .= $authors . ' (' . $year . '). ' . self::terminate($p['title']) . ' ';
-        } else {
-            $out .= self::terminate($p['title']) . ' (' . $year . '). ';
-        }
-
-        if ($p['isAnthology']) {
-            return self::clean($out . self::apaChapterHost($p));
-        }
-        if ($p['container'] !== '') {
-            $out .= $p['container'];
-            if ($p['volume'] !== '') {
-                $out .= ', ' . $p['volume'];
-                if ($p['issue'] !== '') {
-                    $out .= '(' . $p['issue'] . ')';
-                }
-            } elseif ($p['issue'] !== '') {
-                $out .= ', ' . $p['issue'];
-            }
-            $span = self::span($p);
-            if ($span !== '') {
-                $out .= ', ' . $span;
-            }
-            $out .= '.';
-        }
-        if ($p['doi'] !== '') {
-            $out .= ' https://doi.org/' . $p['doi'];
-        }
-
-        return self::clean($out);
+        return CitationStyles::apa(self::record($row))['text'];
     }
 
     /**
-     * Harvard (author–date), journal article.
+     * Harvard (author–date), as plain text.
      *
      * Petersen, H.U. (1988) 'Title : Subtitle', Arbejderhistorie, (31), pp. 18–38.
      *
@@ -325,184 +287,7 @@ final class CitationFormatter
      */
     public static function harvard(array $row): string
     {
-        $p = self::parts($row);
-        $year = $p['year'] === '' ? 'no date' : $p['year'];
-
-        $names = array_map(static fn (string $n): string => self::initials($n, ''), $p['authors']);
-        $authors = self::joinNames($names, ', ', ' and ', ' and ');
-
-        // Same rule as APA for an anonymous work: the title leads, and it is
-        // not put in quotation marks when it is standing in for the author.
-        $out = '';
-        if ($authors !== '') {
-            $out .= $authors . ' (' . $year . ') ' . "'" . rtrim($p['title'], '.') . "'";
-        } else {
-            $out .= self::terminate($p['title']) . ' (' . $year . ')';
-        }
-
-        if ($p['isAnthology']) {
-            return self::clean($out . self::harvardChapterHost($p));
-        }
-        if ($p['container'] !== '') {
-            $out .= ', ' . $p['container'];
-            // Harvard puts the day and month of a newspaper or magazine after
-            // its title: "Süddeutsche Zeitung, 28 September, p. 3".
-            if (($p['isNewspaper'] || $p['isMagazine']) && $p['month'] > 0) {
-                $out .= ', ' . ($p['day'] > 0 ? $p['day'] . ' ' : '') . self::MONTH_NAMES[$p['month']];
-            }
-            if ($p['volume'] !== '') {
-                $out .= ', ' . $p['volume'];
-            }
-            if ($p['issue'] !== '') {
-                $out .= ', (' . $p['issue'] . ')';
-            }
-            $span = self::span($p);
-            if ($span !== '') {
-                $out .= ', ' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span;
-            }
-        }
-        $out .= '.';
-        if ($p['doi'] !== '') {
-            $out .= ' doi:' . $p['doi'];
-        }
-
-        return self::clean($out);
-    }
-
-    /**
-     * An editor's name with the initials first, as APA prints editors:
-     * "Petersen, Hans Uwe" becomes "H. U. Petersen". A name without a comma
-     * is corporate and stays as written, as for authors.
-     */
-    private static function initialsFirst(string $name): string
-    {
-        if (!str_contains($name, ',')) {
-            return $name;
-        }
-        $inverted = self::initials($name, ' ');
-        [$surname, $letters] = array_map('trim', explode(',', $inverted, 2));
-
-        return $letters === '' ? $surname : $letters . ' ' . $surname;
-    }
-
-    /**
-     * APA 7, chapter in an edited book: "In H. U. Petersen (Ed.), Book title
-     * (pp. 18–38). Publisher." Each part is left out when the record lacks it.
-     *
-     * @param array<string,mixed> $p
-     */
-    private static function apaChapterHost(array $p): string
-    {
-        $out = '';
-        if ($p['container'] !== '' || $p['editors'] !== []) {
-            $out .= ' In ';
-            if ($p['editors'] !== []) {
-                $editors = array_map(static fn (string $n): string => self::initialsFirst($n), $p['editors']);
-                $out .= self::joinNames($editors, ', ', ', & ', ' & ')
-                    . (count($editors) > 1 ? ' (Eds.)' : ' (Ed.)') . ($p['container'] !== '' ? ', ' : '');
-            }
-            $out .= $p['container'];
-            $span = self::span($p);
-            if ($span !== '') {
-                $out .= ' (' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span . ')';
-            }
-            $out .= '.';
-        }
-        if ($p['publisher'] !== '') {
-            $out .= ' ' . self::terminate($p['publisher']);
-        }
-        if ($p['doi'] !== '') {
-            $out .= ' https://doi.org/' . $p['doi'];
-        }
-
-        return $out;
-    }
-
-    /**
-     * Harvard, chapter in an edited book: ", in Petersen, H.U. (ed.) Book
-     * title. Place: Publisher, pp. 18–38."
-     *
-     * @param array<string,mixed> $p
-     */
-    private static function harvardChapterHost(array $p): string
-    {
-        $out = '';
-        if ($p['container'] !== '' || $p['editors'] !== []) {
-            $out .= ', in ';
-            if ($p['editors'] !== []) {
-                $editors = array_map(static fn (string $n): string => self::initials($n, ''), $p['editors']);
-                $out .= self::joinNames($editors, ', ', ' and ', ' and ') . (count($editors) > 1 ? ' (eds) ' : ' (ed.) ');
-            }
-            $out .= $p['container'];
-        }
-        $imprint = $p['place'] !== '' && $p['publisher'] !== ''
-            ? $p['place'] . ': ' . $p['publisher']
-            : $p['place'] . $p['publisher'];
-        if ($imprint !== '') {
-            $out .= '. ' . $imprint;
-        }
-        $span = self::span($p);
-        if ($span !== '') {
-            $out .= ', ' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span;
-        }
-        $out .= '.';
-        if ($p['doi'] !== '') {
-            $out .= ' doi:' . $p['doi'];
-        }
-
-        return $out;
-    }
-
-    /**
-     * The page span as a citation prints it, with an en dash between the ends.
-     *
-     * @param array{pageStart:string,pageEnd:string} $p
-     */
-    private static function span(array $p): string
-    {
-        if ($p['pageStart'] === '') {
-            return '';
-        }
-
-        return $p['pageEnd'] === '' ? $p['pageStart'] : $p['pageStart'] . '–' . $p['pageEnd'];
-    }
-
-    /**
-     * Join credited names with the separators the style asks for, and cut a
-     * very long list the way both styles do rather than printing forty names.
-     *
-     * @param list<string> $names
-     */
-    private static function joinNames(array $names, string $sep, string $last, string $pair): string
-    {
-        if ($names === []) {
-            return '';
-        }
-        if (count($names) === 1) {
-            return $names[0];
-        }
-        if (count($names) === 2) {
-            return $names[0] . $pair . $names[1];
-        }
-        if (count($names) > 20) {
-            $head = array_slice($names, 0, 19);
-            $tail = $names[count($names) - 1];
-
-            return implode($sep, $head) . $sep . '…' . $sep . $tail;
-        }
-        $tail = array_pop($names);
-
-        return implode($sep, $names) . $last . $tail;
-    }
-
-    /** A title ends in exactly one full stop, whatever punctuation it arrived with. */
-    private static function terminate(string $title): string
-    {
-        if ($title === '') {
-            return '';
-        }
-
-        return preg_match('/[.!?]$/u', $title) === 1 ? $title : $title . '.';
+        return CitationStyles::harvard(self::record($row))['text'];
     }
 
     /**
