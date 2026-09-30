@@ -139,11 +139,14 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     expect(Number(before)).toBeGreaterThan(0);
     const csrf = await page.locator('#catalog-header-form input[name=csrf_token]').inputValue();
     // A scalar instead of the locale map must not be read as "reset every language".
-    const response = await page.request.post(`${BASE}/admin/settings/catalog-header`, {
-      form: { csrf_token: csrf, catalog_title: 'testo', catalog_subtitle: 'testo' },
-      maxRedirects: 0,
-    });
-    expect(response.status()).toBe(302);
+    const status = await page.evaluate(async (token) => {
+      const body = new URLSearchParams({ csrf_token: token, catalog_title: 'testo', catalog_subtitle: 'testo' });
+      const response = await fetch(`${window.BASE_PATH || ''}/admin/settings/catalog-header`, {
+        method: 'POST', body, redirect: 'manual', credentials: 'same-origin',
+      });
+      return response.type;
+    }, csrf);
+    expect(status, 'the save answers with a redirect back to the CMS tab').toBe('opaqueredirect');
     expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog'")).toBe(before);
     await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
     await expect(page.getByText('Intestazione del catalogo non salvata: dati del modulo non validi.')).toBeVisible();
