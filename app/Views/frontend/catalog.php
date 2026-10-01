@@ -1389,7 +1389,7 @@ ob_start();
                         <div class="search-box">
                             <input type="text"
                                    id="search-input"
-                                   placeholder="<?= __("Cerca titoli, autori, ISBN...") ?>"
+                                   placeholder="<?= htmlspecialchars(__("Cerca titoli, autori, ISBN..."), ENT_QUOTES, 'UTF-8') ?>"
                                    value="<?= htmlspecialchars($filters['search'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                    onkeyup="debounceSearch(this.value)">
                             <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true">
@@ -1426,7 +1426,7 @@ ob_start();
                         <div class="filter-options" id="genres-filter">
                             <?php if($genre_display['level'] > 0): ?>
                             <div class="filter-back-container">
-                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere_id', <?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>); return false;" title="<?= __("Torna alla categoria superiore") ?>">
+                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere_id', <?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>); return false;" title="<?= htmlspecialchars(__("Torna alla categoria superiore"), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-arrow-left"></i>
                                     <span><?= __("Torna alla categoria superiore") ?></span>
                                 </a>
@@ -1605,7 +1605,7 @@ ob_start();
                                        min="<?= $yearMinBound ?>"
                                        max="<?= $yearMaxBound ?>"
                                        value="<?= $annoMinValue ?>"
-                                       aria-label="<?= __("Anno minimo") ?>"
+                                       aria-label="<?= htmlspecialchars(__("Anno minimo"), ENT_QUOTES, 'UTF-8') ?>"
                                        oninput="updateYearRange(false, this)"
                                        onchange="updateYearRange(true, this)">
                                 <input type="range"
@@ -1614,13 +1614,13 @@ ob_start();
                                        min="<?= $yearMinBound ?>"
                                        max="<?= $yearMaxBound ?>"
                                        value="<?= $annoMaxValue ?>"
-                                       aria-label="<?= __("Anno massimo") ?>"
+                                       aria-label="<?= htmlspecialchars(__("Anno massimo"), ENT_QUOTES, 'UTF-8') ?>"
                                        oninput="updateYearRange(false, this)"
                                        onchange="updateYearRange(true, this)">
                             </div>
                             <div class="year-values">
                                 <span class="year-value" id="year-min-value"><?= $annoMinValue ?></span>
-                                <button type="button" class="year-reset" onclick="resetYearRange()" title="<?= __("Reset anni") ?>">
+                                <button type="button" class="year-reset" onclick="resetYearRange()" title="<?= htmlspecialchars(__("Reset anni"), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-undo"></i>
                                 </button>
                                 <span class="year-value" id="year-max-value"><?= $annoMaxValue ?></span>
@@ -1654,12 +1654,12 @@ ob_start();
                         <span id="results-text"><?= ($total_articles ?? 0) > 0 ? __('Risultati') : ($total_books == 1 ? __('libro trovato') : __('libri trovati')) ?></span>
                     </div>
                     <div style="display: flex; gap: 0.75rem; align-items: center;">
-                        <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= __("Rimuovi tutti i filtri") ?>">
+                        <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= htmlspecialchars(__("Rimuovi tutti i filtri"), ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fas fa-filter-circle-xmark"></i>
                             <span class="clear-filters-text"><?= __("Pulisci filtri") ?></span>
                         </button>
                         <select class="sort-select" onchange="updateFilter('sort', this.value)" id="sort-select"
-                            aria-label="<?= __('Ordina per') ?>">
+                            aria-label="<?= htmlspecialchars(__('Ordina per'), ENT_QUOTES, 'UTF-8') ?>">
                             <option value="newest" <?= ($filters['sort'] ?? 'newest') === 'newest' ? 'selected' : '' ?>><?= __("Più recenti") ?></option>
                             <option value="oldest" <?= ($filters['sort'] ?? 'newest') === 'oldest' ? 'selected' : '' ?>><?= __("Più vecchi") ?></option>
                             <option value="title_asc" <?= ($filters['sort'] ?? 'newest') === 'title_asc' ? 'selected' : '' ?>><?= __("Titolo A-Z") ?></option>

@@ -133,7 +133,7 @@ $registerRoute = route_path('register');
               required aria-required="true"
               aria-describedby="nome-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="<?= __('Mario') ?>"
+              placeholder="<?= htmlspecialchars(__('Mario'), ENT_QUOTES, 'UTF-8') ?>"
               value="<?php echo htmlspecialchars($_GET['nome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
             <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -150,7 +150,7 @@ $registerRoute = route_path('register');
               <?= !empty($registrationRequired['cognome']) ? 'required aria-required="true"' : '' ?>
               aria-describedby="cognome-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="<?= __('Rossi') ?>"
+              placeholder="<?= htmlspecialchars(__('Rossi'), ENT_QUOTES, 'UTF-8') ?>"
               value="<?php echo htmlspecialchars($_GET['cognome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
             <span id="cognome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -168,7 +168,7 @@ $registerRoute = route_path('register');
             required aria-required="true"
             aria-describedby="email-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="<?= __('mario.rossi@email.it') ?>"
+            placeholder="<?= htmlspecialchars(__('mario.rossi@email.it'), ENT_QUOTES, 'UTF-8') ?>"
             value="<?php echo htmlspecialchars($_GET['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -185,7 +185,7 @@ $registerRoute = route_path('register');
             <?= !empty($registrationRequired['telefono']) ? 'required aria-required="true"' : '' ?>
             aria-describedby="telefono-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="<?= __('+39 123 456 7890') ?>"
+            placeholder="<?= htmlspecialchars(__('+39 123 456 7890'), ENT_QUOTES, 'UTF-8') ?>"
             value="<?php echo htmlspecialchars($_GET['telefono'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <span id="telefono-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -202,7 +202,7 @@ $registerRoute = route_path('register');
             aria-describedby="indirizzo-error"
             rows="3"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="<?= __('Via, numero civico, città, CAP') ?>"
+            placeholder="<?= htmlspecialchars(__('Via, numero civico, città, CAP'), ENT_QUOTES, 'UTF-8') ?>"
           ><?php echo htmlspecialchars($_GET['indirizzo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
           <span id="indirizzo-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
@@ -248,7 +248,7 @@ $registerRoute = route_path('register');
             name="cod_fiscale"
             maxlength="16"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            placeholder="<?= __('es. RSSMRA80A01H501U') ?>"
+            placeholder="<?= htmlspecialchars(__('es. RSSMRA80A01H501U'), ENT_QUOTES, 'UTF-8') ?>"
             style="text-transform: uppercase;"
             value="<?php echo htmlspecialchars($_GET['cod_fiscale'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
@@ -325,7 +325,7 @@ $registerRoute = route_path('register');
               autocomplete="new-password"
               aria-describedby="password-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="<?= __('••••••••') ?>"
+              placeholder="<?= htmlspecialchars(__('••••••••'), ENT_QUOTES, 'UTF-8') ?>"
             />
             <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>
@@ -342,7 +342,7 @@ $registerRoute = route_path('register');
               autocomplete="new-password"
               aria-describedby="password_confirm-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder="<?= __('••••••••') ?>"
+              placeholder="<?= htmlspecialchars(__('••••••••'), ENT_QUOTES, 'UTF-8') ?>"
             />
             <span id="password_confirm-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
           </div>

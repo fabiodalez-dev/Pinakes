@@ -427,7 +427,7 @@ ob_start();
 
 <section class="event-hero">
     <div class="container">
-        <div class="event-breadcrumb" aria-label="<?= __("Percorso di navigazione") ?>">
+        <div class="event-breadcrumb" aria-label="<?= htmlspecialchars(__("Percorso di navigazione"), ENT_QUOTES, 'UTF-8') ?>">
             <a href="<?= HtmlHelper::e(url('/')) ?>"><?= __("Home") ?></a>
             <span>/</span>
             <a href="<?= HtmlHelper::e(route_path('events')) ?>"><?= __("Eventi") ?></a>

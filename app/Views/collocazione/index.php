@@ -185,11 +185,11 @@
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Codice *") ?></label>
-                  <input name="codice" maxlength="20" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= __('A') ?>" required aria-required="true">
+                  <input name="codice" maxlength="20" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= htmlspecialchars(__('A'), ENT_QUOTES, 'UTF-8') ?>" required aria-required="true">
                 </div>
                 <div class="md:col-span-2">
                   <label class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Nome") ?></label>
-                  <input name="nome" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= __('Scaffale Narrativa') ?>">
+                  <input name="nome" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= htmlspecialchars(__('Scaffale Narrativa'), ENT_QUOTES, 'UTF-8') ?>">
                 </div>
                 <div class="flex items-end">
                   <button type="submit" class="inline-flex items-center justify-center px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors w-full">
@@ -225,7 +225,7 @@
                                 data-swal-confirm="<?= htmlspecialchars(__("Eliminare questo scaffale? (Solo se vuoto)"), ENT_QUOTES, 'UTF-8') ?>"
                                 data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= htmlspecialchars(__("Elimina"), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-trash"></i></button>
                           </form>
                         </div>
                       </div>
@@ -327,7 +327,7 @@
                               data-swal-confirm="<?= htmlspecialchars(__("Eliminare questa mensola? (Solo se vuota)"), ENT_QUOTES, 'UTF-8') ?>"
                               data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
-                          <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
+                          <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= htmlspecialchars(__("Elimina"), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-trash"></i></button>
                         </form>
                       </div>
                     </div>

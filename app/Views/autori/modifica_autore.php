@@ -56,11 +56,11 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
               <label for="nome" class="form-label">
                 <?= __("Nome completo") ?> <span class="text-red-500">*</span>
               </label>
-              <input id="nome" name="nome" value="<?php echo App\Support\HtmlHelper::e($autore['nome'] ?? ''); ?>" required class="form-input" placeholder="<?= __('Nome e cognome dell\'autore') ?>" />
+              <input id="nome" name="nome" value="<?php echo App\Support\HtmlHelper::e($autore['nome'] ?? ''); ?>" required class="form-input" placeholder="<?= htmlspecialchars(__('Nome e cognome dell\'autore'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
             <div>
               <label for="pseudonimo" class="form-label"><?= __("Pseudonimo") ?></label>
-              <input id="pseudonimo" name="pseudonimo" value="<?php echo App\Support\HtmlHelper::e($autore['pseudonimo'] ?? ''); ?>" class="form-input" placeholder="<?= __('Nome d\'arte o pseudonimo') ?>" />
+              <input id="pseudonimo" name="pseudonimo" value="<?php echo App\Support\HtmlHelper::e($autore['pseudonimo'] ?? ''); ?>" class="form-input" placeholder="<?= htmlspecialchars(__('Nome d\'arte o pseudonimo'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
           </div>
 
@@ -78,12 +78,12 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
 
           <div>
             <label for="nazionalita" class="form-label"><?= __("Nazionalità") ?></label>
-            <input id="nazionalita" name="nazionalita" value="<?php echo App\Support\HtmlHelper::e($autore['nazionalità'] ?? ''); ?>" class="form-input" placeholder="<?= __('Es. Italiana, Americana, Francese...') ?>" />
+            <input id="nazionalita" name="nazionalita" value="<?php echo App\Support\HtmlHelper::e($autore['nazionalità'] ?? ''); ?>" class="form-input" placeholder="<?= htmlspecialchars(__('Es. Italiana, Americana, Francese...'), ENT_QUOTES, 'UTF-8') ?>" />
           </div>
 
           <div>
             <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
-            <input type="url" id="sito_web" name="sito_web" value="<?php echo App\Support\HtmlHelper::e($autore['sito_web'] ?? ''); ?>" class="form-input" placeholder="<?= __('https://www.esempio.com') ?>" />
+            <input type="url" id="sito_web" name="sito_web" value="<?php echo App\Support\HtmlHelper::e($autore['sito_web'] ?? ''); ?>" class="form-input" placeholder="<?= htmlspecialchars(__('https://www.esempio.com'), ENT_QUOTES, 'UTF-8') ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'autore (se disponibile)") ?></p>
           </div>
         </div>
@@ -100,7 +100,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
         <div class="card-body form-section">
           <div>
             <label for="biografia" class="form-label"><?= __("Biografia dell'autore") ?></label>
-            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci una breve biografia dell'autore...") ?>"><?php echo App\Support\HtmlHelper::e($autore['biografia'] ?? ''); ?></textarea>
+            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= htmlspecialchars(__("Inserisci una breve biografia dell'autore..."), ENT_QUOTES, 'UTF-8') ?>"><?php echo App\Support\HtmlHelper::e($autore['biografia'] ?? ''); ?></textarea>
             <p class="text-xs text-gray-500 mt-1"><?= __("Una descrizione completa aiuta gli utenti a conoscere meglio l'autore") ?></p>
           </div>
         </div>
@@ -144,7 +144,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
             <!-- Hidden file input fed by Uppy on file-added; the file rides the form's multipart submit -->
             <input type="file" id="author-fallback-file-input" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
             <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
-            <input type="url" id="foto_url" name="foto_url" value="<?= $fotoIsUrl ? htmlspecialchars($fotoVal, ENT_QUOTES, 'UTF-8') : '' ?>" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
+            <input type="url" id="foto_url" name="foto_url" value="<?= $fotoIsUrl ? htmlspecialchars($fotoVal, ENT_QUOTES, 'UTF-8') : '' ?>" class="form-input mt-2" placeholder="<?= htmlspecialchars(__('https://www.esempio.com/foto.jpg'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
 
           <div class="mt-6">
@@ -153,9 +153,9 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
             <div id="collegamenti-list" class="space-y-2">
               <?php foreach ($collegamentiArr as $c): if (!is_array($c)) { continue; } ?>
                 <div class="collegamento-row flex flex-col sm:flex-row gap-2">
-                  <input type="text" name="collegamenti_etichetta[]" value="<?= htmlspecialchars((string) ($c['etichetta'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="w-full form-input sm:w-1/3" placeholder="<?= __('Etichetta (es. Wikipedia)') ?>">
-                  <input type="url" name="collegamenti_url[]" value="<?= htmlspecialchars((string) ($c['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:flex-1" placeholder="<?= __('https://...') ?>">
-                  <button type="button" class="ui-button btn-secondary collegamento-remove" title="<?= __('Rimuovi') ?>"><i class="fas fa-times"></i></button>
+                  <input type="text" name="collegamenti_etichetta[]" value="<?= htmlspecialchars((string) ($c['etichetta'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="w-full form-input sm:w-1/3" placeholder="<?= htmlspecialchars(__('Etichetta (es. Wikipedia)'), ENT_QUOTES, 'UTF-8') ?>">
+                  <input type="url" name="collegamenti_url[]" value="<?= htmlspecialchars((string) ($c['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:flex-1" placeholder="<?= htmlspecialchars(__('https://...'), ENT_QUOTES, 'UTF-8') ?>">
+                  <button type="button" class="ui-button btn-secondary collegamento-remove" title="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-times"></i></button>
                 </div>
               <?php endforeach; ?>
             </div>

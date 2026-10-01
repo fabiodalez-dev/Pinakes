@@ -174,7 +174,7 @@ $csrfToken = Csrf::ensureToken();
                         id="note"
                         name="note"
                         rows="4"
-                        placeholder="<?= __('Eventuali annotazioni sullo stato del libro...') ?>"
+                        placeholder="<?= htmlspecialchars(__('Eventuali annotazioni sullo stato del libro...'), ENT_QUOTES, 'UTF-8') ?>"
                         class="rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:outline-none"
                     ><?= HtmlHelper::e($prestito['note'] ?? ''); ?></textarea>
                 </label>

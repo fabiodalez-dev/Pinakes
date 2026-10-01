@@ -37,7 +37,7 @@
         <div class="grid grid-cols-1 gap-6">
           <div>
             <label for="nome" class="form-label"><?= __('Nome genere') ?> <span class="text-red-500">*</span></label>
-            <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('es. Fantasy contemporaneo') ?>" />
+            <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fantasy contemporaneo'), ENT_QUOTES, 'UTF-8') ?>" />
           </div>
           <div>
             <label for="parent_id" class="form-label"><?= __('Genere padre (opzionale)') ?></label>

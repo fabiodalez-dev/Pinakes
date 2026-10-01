@@ -51,7 +51,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
         <div class="flex-1">
             <label for="reicat_import_isbn" class="form-label"><?= __("ISBN per import SBN") ?></label>
             <input type="text" id="reicat_import_isbn" class="form-input w-full"
-                   placeholder="<?= __('es. 9788845292866') ?>" />
+                   placeholder="<?= htmlspecialchars(__('es. 9788845292866'), ENT_QUOTES, 'UTF-8') ?>" />
         </div>
         <button type="button" id="reicat-import-btn"
                 class="btn btn-primary flex items-center justify-center gap-2">
@@ -101,7 +101,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
             <label for="sbn_polo" class="form-label"><?= __("Polo SBN") ?></label>
             <input type="text" id="sbn_polo" name="sbn_polo" class="form-input"
                    value="<?php echo HtmlHelper::e($reicat['sbn_polo']); ?>"
-                   placeholder="<?= __('es. RMB') ?>" />
+                   placeholder="<?= htmlspecialchars(__('es. RMB'), ENT_QUOTES, 'UTF-8') ?>" />
         </div>
     </div>
 
@@ -126,7 +126,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
         </label>
         <div class="relative">
             <input type="text" id="reicat_soggettario_search" class="form-input w-full" autocomplete="off"
-                   placeholder="<?= __('Cerca un soggetto e premi Invio per aggiungere…') ?>" />
+                   placeholder="<?= htmlspecialchars(__('Cerca un soggetto e premi Invio per aggiungere…'), ENT_QUOTES, 'UTF-8') ?>" />
             <div id="reicat_soggettario_results"
                  class="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-64 overflow-auto"></div>
         </div>

@@ -82,7 +82,7 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
             </label>
             <div class="relative">
                 <input type="text" id="frbr_opera_search" class="form-input w-full" autocomplete="off"
-                       placeholder="<?= __('Digita un titolo uniforme…') ?>" />
+                       placeholder="<?= htmlspecialchars(__('Digita un titolo uniforme…'), ENT_QUOTES, 'UTF-8') ?>" />
                 <div id="frbr_opera_results"
                      class="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-64 overflow-auto"></div>
             </div>

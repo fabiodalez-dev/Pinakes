@@ -114,7 +114,7 @@ $activeTab = $activeTab ?? 'general';
                      data-original-src="<?php echo HtmlHelper::e($currentLogoUrl); ?>">
                   <img id="logo-preview-image"
                        src="<?php echo $currentLogoUrl !== '' ? HtmlHelper::e($currentLogoUrl) : ''; ?>"
-                       alt="<?= __("Anteprima logo") ?>"
+                       alt="<?= htmlspecialchars(__("Anteprima logo"), ENT_QUOTES, 'UTF-8') ?>"
                        class="h-16 object-contain <?php echo $currentLogo === '' ? 'hidden' : ''; ?>">
                   <div id="logo-preview-label" class="text-xs text-gray-500">
                     <?php echo $currentLogo !== '' ? __("Anteprima logo") : __("Nessun logo caricato"); ?>
@@ -152,7 +152,7 @@ $activeTab = $activeTab ?? 'general';
                   name="footer_description"
                   rows="3"
                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                  placeholder="<?= __('La tua biblioteca digitale...') ?>"><?php echo HtmlHelper::e((string)($appSettings['footer_description'] ?? '')); ?></textarea>
+                  placeholder="<?= htmlspecialchars(__('La tua biblioteca digitale...'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e((string)($appSettings['footer_description'] ?? '')); ?></textarea>
                 <p class="text-xs text-gray-500 mt-1"><?= __("Testo che apparirà nel footer del sito") ?></p>
               </div>
 
@@ -170,7 +170,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_facebook"
                            value="<?php echo htmlspecialchars((string)($appSettings['social_facebook'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('https://facebook.com/tuapagina') ?>">
+                           placeholder="<?= htmlspecialchars(__('https://facebook.com/tuapagina'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div>
                     <label for="social_twitter" class="block text-xs text-gray-600 mb-1">
@@ -181,7 +181,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_twitter"
                            value="<?php echo htmlspecialchars((string)($appSettings['social_twitter'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('https://twitter.com/tuoprofilo') ?>">
+                           placeholder="<?= htmlspecialchars(__('https://twitter.com/tuoprofilo'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div>
                     <label for="social_instagram" class="block text-xs text-gray-600 mb-1">
@@ -192,7 +192,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_instagram"
                            value="<?php echo htmlspecialchars((string)($appSettings['social_instagram'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('https://instagram.com/tuoprofilo') ?>">
+                           placeholder="<?= htmlspecialchars(__('https://instagram.com/tuoprofilo'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div>
                     <label for="social_linkedin" class="block text-xs text-gray-600 mb-1">
@@ -203,7 +203,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_linkedin"
                            value="<?php echo htmlspecialchars((string)($appSettings['social_linkedin'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('https://linkedin.com/company/tuaazienda') ?>">
+                           placeholder="<?= htmlspecialchars(__('https://linkedin.com/company/tuaazienda'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div>
                     <label for="social_bluesky" class="block text-xs text-gray-600 mb-1">
@@ -214,7 +214,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_bluesky"
                            value="<?php echo htmlspecialchars((string)($appSettings['social_bluesky'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('https://bsky.app/profile/tuoprofilo') ?>">
+                           placeholder="<?= htmlspecialchars(__('https://bsky.app/profile/tuoprofilo'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div>
                     <label for="social_telegram" class="block text-xs text-gray-600 mb-1">
@@ -225,7 +225,7 @@ $activeTab = $activeTab ?? 'general';
                            name="social_telegram"
                            value="<?php echo htmlspecialchars((string)($appSettings['social_telegram'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('https://t.me/tuocanale') ?>">
+                           placeholder="<?= htmlspecialchars(__('https://t.me/tuocanale'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">
@@ -272,11 +272,11 @@ $activeTab = $activeTab ?? 'general';
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label for="from_email" class="block text-sm font-medium text-gray-700"><?= __("Mittente (email)") ?></label>
-                  <input type="email" id="from_email" name="from_email" value="<?php echo HtmlHelper::e((string)($emailSettings['from_email'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('es. noreply@biblioteca.local') ?>">
+                  <input type="email" id="from_email" name="from_email" value="<?php echo HtmlHelper::e((string)($emailSettings['from_email'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= htmlspecialchars(__('es. noreply@biblioteca.local'), ENT_QUOTES, 'UTF-8') ?>">
                 </div>
                 <div>
                   <label for="from_name" class="block text-sm font-medium text-gray-700"><?= __("Mittente (nome)") ?></label>
-                  <input type="text" id="from_name" name="from_name" value="<?php echo HtmlHelper::e((string)($emailSettings['from_name'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('es. Biblioteca Civica') ?>">
+                  <input type="text" id="from_name" name="from_name" value="<?php echo HtmlHelper::e((string)($emailSettings['from_name'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= htmlspecialchars(__('es. Biblioteca Civica'), ENT_QUOTES, 'UTF-8') ?>">
                 </div>
               </div>
             </div>
@@ -290,7 +290,7 @@ $activeTab = $activeTab ?? 'general';
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label for="smtp_host" class="block text-sm font-medium text-gray-700"><?= __("Host") ?></label>
-                <input type="text" id="smtp_host" name="smtp_host" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_host'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= __('smtp.example.com') ?>">
+                <input type="text" id="smtp_host" name="smtp_host" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_host'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" placeholder="<?= htmlspecialchars(__('smtp.example.com'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="smtp_port" class="block text-sm font-medium text-gray-700"><?= __("Porta") ?></label>
@@ -330,7 +330,7 @@ $activeTab = $activeTab ?? 'general';
             <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide"><?= __("Prova invio") ?></h3>
             <p class="text-sm text-gray-500 mt-1 mb-3"><?= __("Invia un'email di prova con le impostazioni attuali e vedi subito se funziona o qual è l'errore. Salva prima le impostazioni.") ?></p>
             <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-              <input type="email" id="test_email" placeholder="<?= __('Destinatario (vuoto = la tua email admin)') ?>" class="flex-1 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+              <input type="email" id="test_email" placeholder="<?= htmlspecialchars(__('Destinatario (vuoto = la tua email admin)'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               <button type="button" id="btn-test-email" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gray-100 text-gray-900 text-sm font-semibold hover:bg-gray-200 transition-colors whitespace-nowrap">
                 <i class="fas fa-paper-plane"></i>
                 <?= __("Invia email di prova") ?>
@@ -450,7 +450,7 @@ $activeTab = $activeTab ?? 'general';
                 </div>
               <?php endif; ?>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                <input type="text" name="new_custom_field_label" maxlength="100" placeholder="<?= __("Etichetta nuovo campo") ?>"
+                <input type="text" name="new_custom_field_label" maxlength="100" placeholder="<?= htmlspecialchars(__("Etichetta nuovo campo"), ENT_QUOTES, 'UTF-8') ?>"
                   class="flex-1 min-w-[10rem] px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-900">
                 <select name="new_custom_field_type" class="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-900">
                   <?php foreach ($cfTypeLabels as $tVal => $tLabel): ?>

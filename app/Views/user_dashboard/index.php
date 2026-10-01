@@ -402,7 +402,7 @@ $profileRoute = route_path('profile');
                 </div>
               </div>
               <div class="book-card-action">
-                <a href="<?= HtmlHelper::e($bookUrl) ?>" class="btn-view" title="<?= __('Visualizza dettagli') ?>">
+                <a href="<?= HtmlHelper::e($bookUrl) ?>" class="btn-view" title="<?= htmlspecialchars(__('Visualizza dettagli'), ENT_QUOTES, 'UTF-8') ?>">
                   <i class="fas fa-eye"></i>
                 </a>
               </div>
@@ -483,7 +483,7 @@ $profileRoute = route_path('profile');
                 </div>
               </div>
               <div class="book-card-action">
-                <a href="<?= HtmlHelper::e($bookUrl) ?>" class="btn-view" title="<?= __('Visualizza dettagli') ?>">
+                <a href="<?= HtmlHelper::e($bookUrl) ?>" class="btn-view" title="<?= htmlspecialchars(__('Visualizza dettagli'), ENT_QUOTES, 'UTF-8') ?>">
                   <i class="fas fa-info-circle"></i>
                 </a>
               </div>

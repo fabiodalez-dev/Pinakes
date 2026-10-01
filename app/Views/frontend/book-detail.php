@@ -2060,7 +2060,7 @@ ob_start();
                                   echo __("Prestito richiesto con successo.");
                               }
                             ?>
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
                         <div class="alert alert-error relative pr-12 fade show" role="alert">
@@ -2078,13 +2078,13 @@ ob_start();
                             <?php else: ?>
                               <?= __('Errore nella richiesta di prestito.') ?>
                             <?php endif; ?>
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($_GET['reserve_success'])): ?>
                         <div class="alert alert-success relative pr-12 fade show" role="alert">
                             <i class="fas fa-check-circle mr-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date'], ENT_QUOTES, 'UTF-8') ?></strong><?php endif; ?>.
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['reserve_error'])): ?>
                         <div class="alert alert-error relative pr-12 fade show" role="alert">
@@ -2114,7 +2114,7 @@ ob_start();
                                   'UTF-8'
                               );
                             ?>
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -3131,7 +3131,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `<div class="loan-request-form">`+
             `<div class="loan-request-field">`+
             `<label class="loan-request-label" data-for-picker="start">${__('Quando vuoi iniziare il prestito?')}</label>`+
-            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="<?= __('Data inizio') ?>">`+
+            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="<?= htmlspecialchars(__('Data inizio'), ENT_QUOTES, 'UTF-8') ?>">`+
             `</div>`+
             `<div class="loan-request-field">`+
             `<label class="loan-request-label" data-for-picker="end">${__('Fino a quando? (opzionale):')}</label>`+

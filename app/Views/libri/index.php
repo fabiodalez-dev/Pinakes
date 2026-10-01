@@ -10,7 +10,7 @@ $libri = $data['libri'];
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="flex items-center text-sm text-gray-500 mb-2">
-      <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700" aria-label="<?= __('Home') ?>"><i class="fas fa-home" aria-hidden="true"></i></a>
+      <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-gray-700" aria-label="<?= htmlspecialchars(__('Home'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-home" aria-hidden="true"></i></a>
       <i class="fas fa-chevron-right mx-2 text-xs text-gray-400" aria-hidden="true"></i>
       <span class="text-gray-900 font-medium" aria-current="page"><?= __("Libri") ?></span>
     </nav>
@@ -25,17 +25,17 @@ $libri = $data['libri'];
         </div>
         <div class="hidden md:flex items-center gap-2 books-page-actions">
           <!-- View Toggle -->
-          <div class="books-view-toggle" role="group" aria-label="<?= __('Tipo di visualizzazione') ?>">
-            <button id="view-table" class="books-view-button is-active" title="<?= __('Vista tabella') ?>" aria-pressed="true">
+          <div class="books-view-toggle" role="group" aria-label="<?= htmlspecialchars(__('Tipo di visualizzazione'), ENT_QUOTES, 'UTF-8') ?>">
+            <button id="view-table" class="books-view-button is-active" title="<?= htmlspecialchars(__('Vista tabella'), ENT_QUOTES, 'UTF-8') ?>" aria-pressed="true">
               <i class="fas fa-list" aria-hidden="true"></i><span class="sr-only"><?= __('Vista tabella') ?></span>
             </button>
-            <button id="view-grid" class="books-view-button" title="<?= __('Vista griglia') ?>" aria-pressed="false">
+            <button id="view-grid" class="books-view-button" title="<?= htmlspecialchars(__('Vista griglia'), ENT_QUOTES, 'UTF-8') ?>" aria-pressed="false">
               <i class="fas fa-th-large" aria-hidden="true"></i><span class="sr-only"><?= __('Vista griglia') ?></span>
             </button>
           </div>
           <!-- Export Dropdown -->
           <div class="relative export-dropdown">
-            <button class="btn-secondary export-btn" title="<?= __("Esporta") ?>" type="button" aria-haspopup="true" aria-expanded="false">
+            <button class="btn-secondary export-btn" title="<?= htmlspecialchars(__("Esporta"), ENT_QUOTES, 'UTF-8') ?>" type="button" aria-haspopup="true" aria-expanded="false">
               <i class="fas fa-download mr-2"></i><?= __("Export") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="export-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -50,7 +50,7 @@ $libri = $data['libri'];
 
           <!-- Import Dropdown -->
           <div class="relative import-dropdown">
-            <button class="btn-secondary import-btn" title="<?= __("Importa") ?>" type="button" aria-haspopup="true" aria-expanded="false">
+            <button class="btn-secondary import-btn" title="<?= htmlspecialchars(__("Importa"), ENT_QUOTES, 'UTF-8') ?>" type="button" aria-haspopup="true" aria-expanded="false">
               <i class="fas fa-upload mr-2"></i><?= __("Import") ?><i class="fas fa-chevron-down ml-2 text-xs"></i>
             </button>
             <div class="import-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -76,11 +76,11 @@ $libri = $data['libri'];
       </div>
       <!-- Mobile Actions -->
       <div class="grid grid-cols-[auto_1fr_1fr] md:hidden gap-2 mt-4">
-        <div class="books-view-toggle" role="group" aria-label="<?= __('Tipo di visualizzazione') ?>">
-          <button id="view-table-mobile" class="books-view-button is-active" title="<?= __('Vista tabella') ?>" aria-pressed="true">
+        <div class="books-view-toggle" role="group" aria-label="<?= htmlspecialchars(__('Tipo di visualizzazione'), ENT_QUOTES, 'UTF-8') ?>">
+          <button id="view-table-mobile" class="books-view-button is-active" title="<?= htmlspecialchars(__('Vista tabella'), ENT_QUOTES, 'UTF-8') ?>" aria-pressed="true">
             <i class="fas fa-list" aria-hidden="true"></i><span class="sr-only"><?= __('Vista tabella') ?></span>
           </button>
-          <button id="view-grid-mobile" class="books-view-button" title="<?= __('Vista griglia') ?>" aria-pressed="false">
+          <button id="view-grid-mobile" class="books-view-button" title="<?= htmlspecialchars(__('Vista griglia'), ENT_QUOTES, 'UTF-8') ?>" aria-pressed="false">
             <i class="fas fa-th-large" aria-hidden="true"></i><span class="sr-only"><?= __('Vista griglia') ?></span>
           </button>
         </div>
@@ -117,7 +117,7 @@ $libri = $data['libri'];
             <label for="search_text" class="form-label books-filter-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_text" type="text" placeholder="<?= __('Titolo, sottotitolo, descrizione...') ?>"
+            <input id="search_text" type="text" placeholder="<?= htmlspecialchars(__('Titolo, sottotitolo, descrizione...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -126,7 +126,7 @@ $libri = $data['libri'];
             <label for="search_isbn" class="form-label books-filter-label">
               <i class="fas fa-barcode mr-1"></i>ISBN/EAN
             </label>
-            <input id="search_isbn" type="text" placeholder="<?= __('ISBN o EAN...') ?>"
+            <input id="search_isbn" type="text" placeholder="<?= htmlspecialchars(__('ISBN o EAN...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -135,7 +135,7 @@ $libri = $data['libri'];
             <label for="filter_autore" class="form-label books-filter-label">
               <i class="fas fa-user-edit mr-1"></i><?= __("Autore") ?>
             </label>
-            <input id="filter_autore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+            <input id="filter_autore" type="text" placeholder="<?= htmlspecialchars(__('Cerca...'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off"
                    class="form-input" />
             <ul id="filter_autore_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="autore_id" />
@@ -146,7 +146,7 @@ $libri = $data['libri'];
             <label for="filter_editore" class="form-label books-filter-label">
               <i class="fas fa-building mr-1"></i><?= __("Editore") ?>
             </label>
-            <input id="filter_editore" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+            <input id="filter_editore" type="text" placeholder="<?= htmlspecialchars(__('Cerca...'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off"
                    class="form-input" />
             <ul id="filter_editore_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="editore_filter" />
@@ -157,7 +157,7 @@ $libri = $data['libri'];
             <label for="filter_genere" class="form-label books-filter-label">
               <i class="fas fa-tags mr-1"></i><?= __("Genere") ?>
             </label>
-            <input id="filter_genere" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+            <input id="filter_genere" type="text" placeholder="<?= htmlspecialchars(__('Cerca...'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off"
                    class="form-input" />
             <ul id="filter_genere_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="genere_id" />
@@ -201,13 +201,13 @@ $libri = $data['libri'];
           </button>
 
           <!-- Clear All -->
-          <button id="clear-filters" class="btn-secondary books-filter-action" type="button" title="<?= __('Cancella tutti i filtri') ?>">
+          <button id="clear-filters" class="btn-secondary books-filter-action" type="button" title="<?= htmlspecialchars(__('Cancella tutti i filtri'), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-times"></i><span><?= __('Azzera') ?></span>
           </button>
 
           <!-- Recent Searches -->
           <div class="relative books-recent-searches">
-            <button id="recent-searches-btn" class="btn-secondary books-filter-action" type="button" title="<?= __('Ricerche recenti') ?>" aria-haspopup="true" aria-expanded="false">
+            <button id="recent-searches-btn" class="btn-secondary books-filter-action" type="button" title="<?= htmlspecialchars(__('Ricerche recenti'), ENT_QUOTES, 'UTF-8') ?>" aria-haspopup="true" aria-expanded="false">
               <i class="fas fa-history"></i><span class="lg:sr-only"><?= __('Recenti') ?></span>
             </button>
             <div id="recent-searches-dropdown" class="hidden absolute top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-64 overflow-y-auto">
@@ -237,7 +237,7 @@ $libri = $data['libri'];
             <label for="filter_posizione" class="form-label books-filter-label">
               <i class="fas fa-map-marker-alt mr-1"></i><?= __("Posizione") ?>
             </label>
-            <input id="filter_posizione" type="text" placeholder="<?= __('Cerca...') ?>" autocomplete="off"
+            <input id="filter_posizione" type="text" placeholder="<?= htmlspecialchars(__('Cerca...'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off"
                    class="form-input" />
             <ul id="filter_posizione_suggest" class="autocomplete-suggestions hidden"></ul>
             <input type="hidden" id="posizione_id" />
@@ -248,7 +248,7 @@ $libri = $data['libri'];
             <label for="anno_from" class="form-label books-filter-label">
               <i class="fas fa-calendar mr-1"></i><?= __("Anno da") ?>
             </label>
-            <input id="anno_from" type="number" placeholder="<?= __('es. 2020') ?>" min="1800" max="2030"
+            <input id="anno_from" type="number" placeholder="<?= htmlspecialchars(__('es. 2020'), ENT_QUOTES, 'UTF-8') ?>" min="1800" max="2030"
                    class="form-input" />
           </div>
 
@@ -257,7 +257,7 @@ $libri = $data['libri'];
             <label for="anno_to" class="form-label books-filter-label">
               <i class="fas fa-calendar mr-1"></i><?= __("Anno a") ?>
             </label>
-            <input id="anno_to" type="number" placeholder="<?= __('es. 2024') ?>" min="1800" max="2030"
+            <input id="anno_to" type="number" placeholder="<?= htmlspecialchars(__('es. 2024'), ENT_QUOTES, 'UTF-8') ?>" min="1800" max="2030"
                    class="form-input" />
           </div>
 
@@ -297,10 +297,10 @@ $libri = $data['libri'];
             <thead>
               <tr>
                 <th class="text-center">
-                  <input type="checkbox" id="select-all" aria-label="<?= __('Seleziona tutti') ?>" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
+                  <input type="checkbox" id="select-all" aria-label="<?= htmlspecialchars(__('Seleziona tutti'), ENT_QUOTES, 'UTF-8') ?>" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
                 </th>
                 <th><?= __("Stato") ?></th>
-                <th aria-label="<?= __("Tipo Media") ?>"><i class="fas fa-compact-disc text-gray-400" title="<?= __("Tipo Media") ?>" aria-hidden="true"></i></th>
+                <th aria-label="<?= htmlspecialchars(__("Tipo Media"), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-compact-disc text-gray-400" title="<?= htmlspecialchars(__("Tipo Media"), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i></th>
                 <th><?= __("Cover") ?></th>
                 <th><?= __("Informazioni") ?></th>
                 <th><?= __("Genere") ?></th>

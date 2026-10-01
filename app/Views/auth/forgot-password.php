@@ -107,7 +107,7 @@ $forgotPasswordRoute = route_path('forgot_password');
             required aria-required="true"
             aria-describedby="email-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
-            placeholder="<?= __('mario.rossi@email.it') ?>"
+            placeholder="<?= htmlspecialchars(__('mario.rossi@email.it'), ENT_QUOTES, 'UTF-8') ?>"
             value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">

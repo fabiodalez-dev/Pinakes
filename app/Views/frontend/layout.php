@@ -1753,19 +1753,19 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                     <!-- Compact search toggle -->
                     <button class="mobile-search-toggle md:hidden" id="mobileSearchToggle"
-                        aria-label="<?= __('Toggle search') ?>">
+                        aria-label="<?= htmlspecialchars(__('Toggle search'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-search"></i>
                     </button>
 
                     <!-- Mobile Menu Toggle -->
                     <button class="mobile-menu-toggle md:hidden" id="mobileMenuToggle"
-                        aria-label="<?= __('Toggle menu') ?>">
+                        aria-label="<?= htmlspecialchars(__('Toggle menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
                     <form class="search-form hidden md:block" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="<?= __('Search') ?>">
+                            placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
 
                     <div class="user-menu hidden md:flex">
@@ -1833,9 +1833,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container md:hidden" id="mobileSearchContainer">
                         <form class="search-form mobile-search-form" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
-                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori, ISBN...') ?>"
-                                aria-label="<?= __('Search') ?>" autocomplete="off">
-                            <button type="submit" class="btn-search-mobile" aria-label="<?= __('Cerca') ?>">
+                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>"
+                                aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
+                            <button type="submit" class="btn-search-mobile" aria-label="<?= htmlspecialchars(__('Cerca'), ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas fa-search"></i>
                                 <span class="hidden sm:inline"><?= __('Cerca') ?></span>
                             </button>
@@ -1850,7 +1850,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= __('Close menu') ?>">
+                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= htmlspecialchars(__('Close menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>

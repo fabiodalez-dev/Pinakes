@@ -169,9 +169,9 @@ use App\Support\HtmlHelper;
                   name="custom_js_essential"
                   rows="10"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="<?= __('// Script essenziali (es. chat, accessibility)
+                  placeholder="<?= htmlspecialchars(__('// Script essenziali (es. chat, accessibility)
 // Esempio:
-// console.log(\'Essential JS loaded\');') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_essential'] ?? ''); ?></textarea>
+// console.log(\'Essential JS loaded\');'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_essential'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           <?= __("Non includere tag") ?> &lt;script&gt;&lt;/script&gt;
@@ -210,14 +210,14 @@ use App\Support\HtmlHelper;
                   name="custom_js_analytics"
                   rows="10"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="<?= __('// Script analytics (es. Google Analytics)
+                  placeholder="<?= htmlspecialchars(__('// Script analytics (es. Google Analytics)
 // Esempio Google Analytics 4:
 // (function(i,s,o,g,r,a,m){i[\'GoogleAnalyticsObject\']=r;i[r]=i[r]||function(){
 // (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
 // m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
 // })(window,document,\'script\',\'https://www.google-analytics.com/analytics.js\',\'ga\');
 // ga(\'create\', \'UA-XXXXX-Y\', \'auto\');
-// ga(\'send\', \'pageview\');') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_analytics'] ?? ''); ?></textarea>
+// ga(\'send\', \'pageview\');'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_analytics'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           <?= __("Non includere tag") ?> &lt;script&gt;&lt;/script&gt;
@@ -256,7 +256,7 @@ use App\Support\HtmlHelper;
                   name="custom_js_marketing"
                   rows="10"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="<?= __('// Script marketing (es. Facebook Pixel)
+                  placeholder="<?= htmlspecialchars(__('// Script marketing (es. Facebook Pixel)
 // Esempio Facebook Pixel:
 // !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 // n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
@@ -264,7 +264,7 @@ use App\Support\HtmlHelper;
 // t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
 // document,\'script\',\'https://connect.facebook.net/en_US/fbevents.js\');
 // fbq(\'init\', \'YOUR_PIXEL_ID\');
-// fbq(\'track\', \'PageView\');') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_marketing'] ?? ''); ?></textarea>
+// fbq(\'track\', \'PageView\');'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_js_marketing'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           <?= __("Non includere tag") ?> &lt;script&gt;&lt;/script&gt;
@@ -295,9 +295,9 @@ use App\Support\HtmlHelper;
                   name="custom_header_css"
                   rows="12"
                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono"
-                  placeholder="<?= __('/* Inserisci il tuo codice CSS qui */
+                  placeholder="<?= htmlspecialchars(__('/* Inserisci il tuo codice CSS qui */
 /* Esempio: */
-/* body { font-size: 16px; } */') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_header_css'] ?? ''); ?></textarea>
+/* body { font-size: 16px; } */'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($advancedSettings['custom_header_css'] ?? ''); ?></textarea>
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
           <?= __("Il codice verrà inserito in un tag") ?> &lt;style&gt; <?= __("nell'header. Non includere i tag") ?> &lt;style&gt;&lt;/style&gt;
@@ -927,7 +927,7 @@ use App\Support\HtmlHelper;
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                            title="<?= __("Elimina") ?>">
+                            title="<?= htmlspecialchars(__("Elimina"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-trash"></i>
                     </button>
                   </form>
@@ -1063,7 +1063,7 @@ use App\Support\HtmlHelper;
                  name="name"
                  required aria-required="true"
                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('es. Integrazione Sito Web') ?>">
+                 placeholder="<?= htmlspecialchars(__('es. Integrazione Sito Web'), ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div>
           <label for="api_key_description" class="block text-sm font-medium text-gray-700 mb-1"><?= __("Descrizione") ?></label>
@@ -1071,7 +1071,7 @@ use App\Support\HtmlHelper;
                     name="description"
                     rows="3"
                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                    placeholder="<?= __('Descrivi l\'utilizzo di questa API key...') ?>"></textarea>
+                    placeholder="<?= htmlspecialchars(__('Descrivi l\'utilizzo di questa API key...'), ENT_QUOTES, 'UTF-8') ?>"></textarea>
         </div>
         <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
           <div class="flex items-start gap-2">

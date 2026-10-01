@@ -148,7 +148,7 @@ $forgotPasswordRoute = route_path('forgot_password');
             required aria-required="true"
             aria-describedby="email-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
-            placeholder="<?= __('mario.rossi@email.it') ?>"
+            placeholder="<?= htmlspecialchars(__('mario.rossi@email.it'), ENT_QUOTES, 'UTF-8') ?>"
             value="<?php echo htmlspecialchars($_GET['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
@@ -166,7 +166,7 @@ $forgotPasswordRoute = route_path('forgot_password');
             autocomplete="current-password"
             aria-describedby="password-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
-            placeholder="<?= __('••••••••') ?>"
+            placeholder="<?= htmlspecialchars(__('••••••••'), ENT_QUOTES, 'UTF-8') ?>"
           />
           <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>

@@ -38,7 +38,7 @@ $autori = $data['autori'];
             <label class="form-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_nome" type="text" placeholder="<?= __('Nome, pseudonimo, biografia...') ?>"
+            <input id="search_nome" type="text" placeholder="<?= htmlspecialchars(__('Nome, pseudonimo, biografia...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -47,7 +47,7 @@ $autori = $data['autori'];
             <label class="form-label">
               <i class="fas fa-flag mr-1"></i><?= __("Nazionalità") ?>
             </label>
-            <input id="search_nazionalita" type="text" placeholder="<?= __('Es. Italiana...') ?>"
+            <input id="search_nazionalita" type="text" placeholder="<?= htmlspecialchars(__('Es. Italiana...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -73,7 +73,7 @@ $autori = $data['autori'];
           </button>
 
           <!-- Clear All -->
-          <button id="clear-filters" class="btn-secondary justify-center" title="<?= __('Cancella tutti i filtri') ?>">
+          <button id="clear-filters" class="btn-secondary justify-center" title="<?= htmlspecialchars(__('Cancella tutti i filtri'), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-times mr-2"></i><span><?= __("Azzera") ?></span>
           </button>
         </div>
@@ -90,7 +90,7 @@ $autori = $data['autori'];
             <label class="form-label">
               <i class="fas fa-id-card mr-1"></i><?= __("Pseudonimo") ?>
             </label>
-            <input id="search_pseudonimo" type="text" placeholder="<?= __('Cerca pseudonimo...') ?>"
+            <input id="search_pseudonimo" type="text" placeholder="<?= htmlspecialchars(__('Cerca pseudonimo...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -117,7 +117,7 @@ $autori = $data['autori'];
             <label class="form-label">
               <i class="fas fa-globe mr-1"></i><?= __("Sito web") ?>
             </label>
-            <input id="search_sito" type="text" placeholder="<?= __('URL...') ?>"
+            <input id="search_sito" type="text" placeholder="<?= htmlspecialchars(__('URL...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
         </div>

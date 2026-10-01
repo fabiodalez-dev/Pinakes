@@ -298,7 +298,7 @@ $reservationsRoute = route_path('reservations');
   <div class="wishlist-filter-card">
     <div class="wishlist-filter-field">
       <label for="wishlist_search" class="mb-2"><?= __("Ricerca rapida") ?></label>
-      <input id="wishlist_search" type="search" class="form-input" placeholder="<?= __('Cerca per titolo o stato (es. disponibile)') ?>">
+      <input id="wishlist_search" type="search" class="form-input" placeholder="<?= htmlspecialchars(__('Cerca per titolo o stato (es. disponibile)'), ENT_QUOTES, 'UTF-8') ?>">
     </div>
     <button id="clear-search" type="button" class="uppercase"><?= __("Pulisci filtro") ?></button>
   </div>
@@ -346,7 +346,7 @@ $reservationsRoute = route_path('reservations');
         <div class="w-full xl:w-1/3 px-3 md:w-1/2">
           <article class="wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
             <div class="wishlist-card-cover">
-              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= __("Copertina") ?>" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </div>
             <div class="wishlist-card-body">
               <span class="wishlist-status <?= $available ? 'available' : 'pending'; ?>">
@@ -367,7 +367,7 @@ $reservationsRoute = route_path('reservations');
               <?php $wishlistBookUrl = book_url($it); ?>
               <div class="wishlist-card-footer">
                 <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="ui-button btn-outline"><i class="fas fa-book-open mr-2"></i><?= __("Dettagli") ?></a>
-                <button type="button" class="ui-button btn-secondary remove-fav-btn" title="<?= __("Rimuovi dalla wishlist") ?>">
+                <button type="button" class="ui-button btn-secondary remove-fav-btn" title="<?= htmlspecialchars(__("Rimuovi dalla wishlist"), ENT_QUOTES, 'UTF-8') ?>">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
