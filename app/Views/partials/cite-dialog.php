@@ -63,6 +63,7 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
     </li>
     <?php endforeach; ?>
   </ul>
+  <p id="cite-status" role="status" aria-live="polite"></p>
 </dialog>
 
 <style>
@@ -76,6 +77,9 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
   #cite-style { display: block; margin: .25rem 0 1rem; padding: .4rem .6rem; border: 1px solid #d1d5db; border-radius: .5rem; background: #fff; }
   #cite-list { list-style: none; margin: 0; padding: 0; }
   #cite-list [data-cite-html] { overflow-wrap: anywhere; }
+  #cite-status { margin: 0; font-size: .875rem; }
+  #cite-status:empty { display: none; }
+  #cite-status.is-error { color: #b91c1c; }
 </style>
 <script>
 (function () {
@@ -97,7 +101,7 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
     var box = dialog.getBoundingClientRect();
     if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) { dialog.close(); }
   });
-  dialog.addEventListener('close', function () { opener.focus(); });
+  dialog.addEventListener('close', function () { opener.focus(); if (status) { status.textContent = ''; } });
 
   document.getElementById('cite-style').addEventListener('change', function () {
     var chosen = this.value;
@@ -106,11 +110,27 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
     });
   });
 
-  function feedback(button, text) {
-    var label = button.querySelector('[data-cite-label]');
-    var original = label.textContent;
-    label.textContent = text;
-    setTimeout(function () { label.textContent = original; }, 2000);
+  // The result is announced in a live region. A success also shows on the
+  // button for two seconds; a failure asks the reader to copy by hand, so it
+  // stays until the next attempt instead of vanishing before it is read.
+  var status = document.getElementById('cite-status');
+  var resetTimer = null;
+  dialog.querySelectorAll('[data-cite-label]').forEach(function (label) {
+    label.setAttribute('data-cite-original', label.textContent);
+  });
+  function restoreLabels() {
+    dialog.querySelectorAll('[data-cite-label]').forEach(function (label) {
+      label.textContent = label.getAttribute('data-cite-original');
+    });
+  }
+  function feedback(button, ok) {
+    clearTimeout(resetTimer);
+    restoreLabels();
+    status.textContent = ok ? messages.copied : messages.failed;
+    status.classList.toggle('is-error', !ok);
+    if (!ok) { return; }
+    button.querySelector('[data-cite-label]').textContent = messages.copied;
+    resetTimer = setTimeout(function () { restoreLabels(); status.textContent = ''; }, 2000);
   }
   function fallback(text, button) {
     var area = document.createElement('textarea');
@@ -119,7 +139,7 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
     var ok = false;
     try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     dialog.removeChild(area);
-    feedback(button, ok ? messages.copied : messages.failed);
+    feedback(button, ok);
   }
   dialog.querySelectorAll('[data-cite-copy]').forEach(function (button) {
     button.addEventListener('click', function () {
@@ -131,13 +151,13 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
         clipboard.write([new ClipboardItem({
           'text/html': new Blob([html], { type: 'text/html' }),
           'text/plain': new Blob([text], { type: 'text/plain' })
-        })]).then(function () { feedback(button, messages.copied); })
+        })]).then(function () { feedback(button, true); })
           .catch(function () {
-            clipboard.writeText(text).then(function () { feedback(button, messages.copied); })
+            clipboard.writeText(text).then(function () { feedback(button, true); })
               .catch(function () { fallback(text, button); });
           });
       } else if (clipboard && clipboard.writeText) {
-        clipboard.writeText(text).then(function () { feedback(button, messages.copied); })
+        clipboard.writeText(text).then(function () { feedback(button, true); })
           .catch(function () { fallback(text, button); });
       } else {
         fallback(text, button);

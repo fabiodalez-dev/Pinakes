@@ -438,7 +438,14 @@ final class ContributionController extends AbstractAdminController
                 return $this->renderView($rs, 'article-import', ['preview' => null,'report' => $csv->commit($pending['rows'])]);
             }
             $file = $rq->getUploadedFiles()['csv'] ?? null;
-            if (!$file || $file->getError() !== UPLOAD_ERR_OK || $file->getSize() > ContributionCsv::MAX_BYTES) {
+            // Each failure says what went wrong: no file is not a file too large.
+            if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+                throw new \InvalidArgumentException(__('Nessun file caricato.'));
+            }
+            if (in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file->getSize() > ContributionCsv::MAX_BYTES) {
+                throw new \InvalidArgumentException(__('Il CSV supera 5 MB.'));
+            }
+            if ($file->getError() !== UPLOAD_ERR_OK) {
                 throw new \InvalidArgumentException(__('Carica un CSV fino a 5 MB.'));
             }
             $preview = $csv->preview((string)$file->getStream());

@@ -16,6 +16,15 @@
  */
 $credits = $row['credits'] ?? $row['author_credits'] ?? [];
 if (!is_array($credits)) { $credits = []; }
+// A form re-shown after a failed save carries the stored credits (author_credits)
+// under what the operator typed (autori). Without the picker the typed text is
+// the only author input, so when it no longer matches the stored credits it is
+// the text that is shown again, not the names it was meant to replace.
+if (!isset($row['credits']) && $credits !== [] && isset($row) && array_key_exists('autori', $row)) {
+    $typed = \App\Plugins\Emeroteca\Services\ContributionService::authorList(is_scalar($row['autori']) ? (string)$row['autori'] : null);
+    $stored = array_values(array_filter(array_map(static fn ($c): string => is_array($c) ? trim((string)($c['nome_credito'] ?? '')) : '', $credits), static fn (string $n): bool => $n !== ''));
+    if ($typed !== $stored) { $credits = []; }
+}
 if ($credits === []) {
     foreach (\App\Plugins\Emeroteca\Services\ContributionService::authorList($row['autori'] ?? null) as $name) {
         $credits[] = ['autore_id'=>null, 'nome_credito'=>$name];
@@ -46,7 +55,7 @@ foreach ($chips as $chip) {
 }
 ?>
 <div class="md:col-span-2" id="article-author-editor">
-<label for="article-authors-select" class="form-label"><?= __('Autori') ?></label>
+<label for="article-autori" id="article-authors-label" class="form-label"><?= __('Autori') ?></label>
 <div id="article-authors-picker" hidden>
 <select id="article-authors-select" multiple></select>
 <p class="text-xs text-gray-500 mt-1"><?= __('Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.') ?></p>
@@ -147,6 +156,9 @@ document.addEventListener('DOMContentLoaded', function () {
   fallback.querySelectorAll('input').forEach((input) => { input.disabled = true; });
   fallback.hidden = true;
   picker.hidden = false;
+  // The label names the text field until the picker replaces it.
+  const label = document.getElementById('article-authors-label');
+  if (label) { label.htmlFor = 'article-authors-select'; }
   sync();
 
   select.addEventListener('addItem', sync);

@@ -204,6 +204,13 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.locator('input[name=mode][value=complete]').check();await page.getByRole('button',{name:'Salva modalità'}).click();
     await expect(page).toHaveURL(/\/admin\/periodicals\/articles/);
     await page.goto(BASE+'/admin/periodicals/articles/import');
+    // The upload area takes no more than the server accepts, and says how much.
+    await expect(page.locator('#articles-csv-upload')).toHaveAttribute('data-max-bytes',String(5*1024*1024));
+    await expect(page.locator('#articles-csv-limit')).toContainText('5 MB');
+    // No file is reported as no file, a file over the limit as too large.
+    await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Nessun file caricato.')).toBeVisible();
+    await page.locator('[name=csv]').setInputFiles({name:'big.csv',mimeType:'text/csv',buffer:Buffer.alloc(5*1024*1024+10,'a')});
+    await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Il CSV supera 5 MB.')).toBeVisible();
     await page.locator('[name=csv]').setInputFiles({name:'articles.csv',mimeType:'text/csv',buffer:Buffer.from(`titolo,media_type,container_title,pages\n${marker} Imported,journal_article,Host,iv–x\n`)});
     await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Anteprima: destinazione Emeroteca')).toBeVisible();
     await page.getByRole('button',{name:'Importa le righe valide'}).click();await expect(page.getByText('Risultato importazione')).toBeVisible();

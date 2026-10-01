@@ -208,6 +208,25 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
     await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
     await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
+    // Removed, it can be typed back: the picker accepts every depth it shows.
+    await advanced.locator(':scope > summary').click();
+    await page.locator('#dewey_chip_remove').click();
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('');
+    await page.locator('#dewey_manual_input').fill('823.91409');
+    await page.locator('#dewey_add_btn').click();
+    await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
+    // Typing straight after Add searches at once (a stale blur timer used to
+    // cancel it), and a failed search closes the old suggestions.
+    await page.locator('#dewey_chip_remove').click();
+    await page.locator('#dewey_manual_input').fill('');
+    await page.locator('#dewey_manual_input').pressSequentially('mammif');
+    await expect(page.locator('#dewey_suggest li').first()).toBeVisible();
+    await page.route('**/api/dewey/autocomplete**', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Errore nella ricerca."}' }));
+    await page.locator('#dewey_manual_input').pressSequentially('ero');
+    await expect(page.locator('#dewey_suggest')).toBeHidden();
+    await expect(page.locator('#dewey_manual_input')).toHaveAttribute('aria-expanded', 'false');
+    await page.unroute('**/api/dewey/autocomplete**');
     // A stored notation the picker cannot show stays in the text box, not behind an empty picker.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
     await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
@@ -376,6 +395,45 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await expect(button).toHaveText(/Copiato|Copied|Kopiert|Copié|Kopieret/);
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard.trim(), 'the clipboard holds the citation as rendered').toBe(expected);
+  });
+
+  test('a second copy click does not leave the button stuck on "Copied"', async ({ page, context, browserName }) => {
+    test.skip(browserName !== 'chromium', 'clipboard permissions are only grantable in Chromium');
+    expect(articleId).toBeGreaterThan(0);
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
+    await page.locator('#cite-open').click();
+    const button = page.locator('#cite-list [data-cite-copy]').first();
+    const label = button.locator('[data-cite-label]');
+    const original = (await label.textContent() || '').trim();
+    await button.click();
+    await expect(label).not.toHaveText(original);
+    await button.click();
+    // The status is announced to assistive technology, not only drawn on the button.
+    await expect(page.locator('#cite-status[role="status"][aria-live="polite"]')).toHaveText(/Copiato|Copied|Kopiert|Copié|Kopieret/);
+    await expect(label, 'the label comes back after the second click too').toHaveText(original, { timeout: 4000 });
+  });
+
+  test('a failed copy says so in a live region and stays until the reader acts', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    // No Clipboard API and no execCommand: both copy routes fail.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+      document.execCommand = () => false;
+    });
+    await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
+    await page.locator('#cite-open').click();
+    const button = page.locator('#cite-list [data-cite-copy]').first();
+    const original = (await button.locator('[data-cite-label]').textContent() || '').trim();
+    await button.click();
+    const status = page.locator('#cite-status');
+    await expect(status).toBeVisible();
+    await expect(status).toHaveAttribute('aria-live', 'polite');
+    const message = (await status.textContent() || '').trim();
+    expect(message.length, 'the failure is explained').toBeGreaterThan(10);
+    await page.waitForTimeout(2600);
+    await expect(status, 'the failure message does not vanish after two seconds').toHaveText(message);
+    await expect(button.locator('[data-cite-label]'), 'the button keeps its own label').toHaveText(original);
   });
 
   test('the Cite dialog lists every style, filters to one and closes', async ({ page }) => {

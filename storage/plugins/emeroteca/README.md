@@ -59,7 +59,7 @@ Use **Import articles** in Emeroteca or the link from the book import page. Down
 The supported columns are:
 
 ```text
-record_type,reference_key,titolo,autori,tipo_contributo,contenitore_tipo,contenitore_titolo,issn,data_pubblicazione_testo,anno_pubblicazione,volume,numero,pagine,doi,supporto,keywords,abstract,collocazione,note_private,pubblico
+record_type,reference_key,titolo,sottotitolo,autori,tipo_contributo,contenitore_tipo,contenitore_titolo,issn,data_pubblicazione_testo,anno_pubblicazione,volume,numero,pagine,doi,supporto,keywords,abstract,lingua,paese,classificazione_schema,classificazione,nota_possesso,risorsa_url,risorsa_testo,risorsa_accesso,risorsa_pubblica,collocazione,note_private,pubblico,contenitore_curatori,contenitore_editore,contenitore_luogo,isbn
 ```
 
 A filled row, for reference:
@@ -69,11 +69,13 @@ record_type,titolo,autori,contenitore_titolo,anno_pubblicazione,volume,numero,pa
 journal_article,Intertextuality in Daniel Kehlmann's Novel Tyll,"Schweissinger, Marc J.",International Journal of Language and Literature,2019,7,1,138-148
 ```
 
-`journal_article` and `newspaper_article` also set the publication type, so `contenitore_tipo` can be left out. Columns you omit keep whatever the record already holds; an empty cell clears it.
+`journal_article`, `newspaper_article` and `book_chapter` also set the publication type, so `contenitore_tipo` can be left out.
+
+A `book_chapter` row is a chapter of an anthology (`contenitore_tipo` `antologia`): `contenitore_titolo` holds the title of the volume, and four columns describe that volume — `contenitore_curatori` (its editors, separated by a semicolon like `autori`), `contenitore_editore` (publisher), `contenitore_luogo` (place of publication) and `isbn` (the volume's ISBN-10 or ISBN-13). These four are kept only for chapters: on any other publication type they are cleared on save. Columns you omit keep whatever the record already holds; an empty cell clears it.
 
 `autori` (alias `authors`) is free text and is stored exactly as supplied. Several authors are separated by a semicolon; the comma belongs to the name, which is why the row above quotes `"Schweissinger, Marc J."` as one author.
 
-Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, or `newspaper_article`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last two also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
+Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, `newspaper_article`, or `book_chapter`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last three also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
 
 Exports exceeding 500 rows or 5 MB download as a ZIP of numbered CSV files. Extract and import each CSV separately; every part includes its header and fits the same import limits. Duplicate citations and DOI values are checked within the batch and again at commit, with imports serialized per database. Citation matching includes the publication year and textual date, so recurring columns in different issues remain distinct; a matching DOI still identifies a duplicate. Exported data cells escape spreadsheet formula prefixes and leading apostrophes with an additional apostrophe, which the article importer removes on reimport to preserve the original text.
 

@@ -516,8 +516,17 @@ class OpenUrlResolverPlugin
     private function extractIsbn(array $params): string
     {
         foreach (['rft.isbn', 'isbn', 'rft_id'] as $key) {
-            $val = preg_replace('/[^0-9X]/', '', strtoupper(self::param($params, $key))) ?? '';
-            if (strlen($val) === 13 || strlen($val) === 10) {
+            $raw = self::param($params, $key);
+            // rft_id is a URI that can carry any identifier: only an ISBN URI
+            // is one. Stripped of its letters, "info:doi/10.1000/1234" would
+            // otherwise read as the ISBN-10 1010001234.
+            if ($key === 'rft_id' && preg_match('~^(urn:isbn:|info:isbn/)~i', trim($raw)) !== 1) {
+                continue;
+            }
+            $val = preg_replace('/[^0-9X]/', '', strtoupper($raw)) ?? '';
+            // A string of the right length with a wrong check digit is not an
+            // ISBN: it must not filter a lookup or reach Google Books.
+            if ((strlen($val) === 13 || strlen($val) === 10) && \App\Support\IsbnFormatter::isValid($val)) {
                 return $val;
             }
         }
@@ -690,8 +699,11 @@ class OpenUrlResolverPlugin
             $where[] = "contenitore_tipo = 'antologia'";
             $requested = $this->extractIsbn($params);
             if ($requested !== '') {
-                $where[] = '(isbn IS NULL OR isbn = ?)';
-                $values[] = $requested;
+                // The volume is stored in whichever form it was catalogued,
+                // ISBN-10 or ISBN-13: either form of the request must find it.
+                $forms = array_values(array_unique(array_merge([$requested], array_values(\App\Support\IsbnFormatter::getAllVariants($requested)))));
+                $where[] = '(isbn IS NULL OR isbn IN (' . implode(', ', array_fill(0, count($forms), '?')) . '))';
+                array_push($values, ...$forms);
             }
             $fields = ['rft.btitle' => 'contenitore_titolo'];
         } else {

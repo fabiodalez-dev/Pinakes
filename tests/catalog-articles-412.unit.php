@@ -126,6 +126,19 @@ try {
     check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'978-0-306-40615-7'],'chapter')['id']===4, 'a chapter request naming the volume ISBN finds it');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'9788842935780'],'chapter')===null, 'and the ISBN of another volume does not');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 05 Article : subtitle'],'chapter')===null, 'a book-item request does not resolve to a journal article');
+    // The volume may be catalogued as ISBN-10 or ISBN-13: either form of the
+    // request finds it (0306406152 and 9780306406157 are the same book).
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'0-306-40615-2'],'chapter')['id']===4, 'an ISBN-10 request finds a chapter catalogued with the ISBN-13');
+    $db->query("UPDATE emeroteca_contributi SET isbn='0306406152' WHERE id=4");
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'9780306406157'],'chapter')['id']===4, 'and an ISBN-13 request finds one catalogued with the ISBN-10');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'8842935786'],'chapter')===null, 'another volume is refused in either form');
+    // Only a real ISBN narrows the lookup: a DOI in rft_id, or a number with a
+    // wrong check digit, is not read as one.
+    $isbnOf = new ReflectionMethod($resolver,'extractIsbn');
+    check($isbnOf->invoke($resolver,['rft_id'=>'info:doi/10.1000/1234'])==='', 'a DOI in rft_id is not an ISBN, though its digits number ten');
+    check($isbnOf->invoke($resolver,['rft_id'=>'urn:isbn:978-0-306-40615-7'])==='9780306406157', 'an ISBN URI in rft_id is');
+    check($isbnOf->invoke($resolver,['rft.isbn'=>'9780306406158'])==='', 'a wrong check digit is not an ISBN');
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft_id'=>'info:doi/10.1000/1234'],'chapter')['id']===4, 'so a DOI does not hide a chapter whose volume has an ISBN');
     $db->query("UPDATE plugins SET is_active=0");
     check($page(['search'=>'Probe'])===null, 'disabled plugin is absent from catalogue');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'],'journal')===null, 'disabled plugin is absent from resolver');

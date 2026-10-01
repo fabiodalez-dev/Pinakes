@@ -82,6 +82,32 @@ same(CitationStyles::mla($chapter)['text'],
     'Petersen, Hans Uwe. “Die Emigration.” Exil in Dänemark, edited by Anna Müller and Per Jensen, Museum Tusculanum, 1991, pp. 45–67.',
     'MLA: chapter, book then "edited by"');
 
+// A chapter whose host volume has no title (#412 review): the editors and the
+// pages are still cited in every style, and no punctuation is left dangling.
+$untitledHost = ['container' => ''] + $chapter;
+same(CitationStyles::chicago($untitledHost)['text'],
+    'Petersen, Hans Uwe. 1991. “Die Emigration.” Edited by Anna Müller and Per Jensen, 45–67. København: Museum Tusculanum.',
+    'Chicago: chapter without a host title keeps its editors and pages');
+same(CitationStyles::harvard($untitledHost)['text'],
+    "Petersen, H.U. (1991) 'Die Emigration', in Müller, A. and Jensen, P. (eds). København: Museum Tusculanum, pp. 45–67.",
+    'Harvard: no space before the full stop when the host title is missing');
+same(CitationStyles::mla($untitledHost)['text'],
+    'Petersen, Hans Uwe. “Die Emigration.” Edited by Anna Müller and Per Jensen, Museum Tusculanum, 1991, pp. 45–67.',
+    'MLA: "Edited by" is capitalised when it follows the title');
+same(CitationStyles::apa($untitledHost)['text'],
+    'Petersen, H. U. (1991). Die Emigration. In A. Müller & P. Jensen (Eds.) (pp. 45–67). Museum Tusculanum.',
+    'APA: chapter without a host title keeps its editors and pages');
+$bareChapter = ['container' => '', 'editors' => []] + $chapter;
+same(CitationStyles::apa($bareChapter)['text'], 'Petersen, H. U. (1991). Die Emigration. (pp. 45–67). Museum Tusculanum.',
+    'APA: the pages survive with neither a host title nor editors');
+same(CitationStyles::chicago($bareChapter)['text'], 'Petersen, Hans Uwe. 1991. “Die Emigration.” 45–67. København: Museum Tusculanum.',
+    'Chicago: the pages survive with neither a host title nor editors');
+foreach (array_merge(CitationStyles::all($untitledHost), CitationStyles::all($bareChapter)) as $c) {
+    check(!preg_match('/ [.,]/u', $c['text']), "{$c['key']}: no space before a full stop or comma");
+    check(str_contains($c['text'], '45–67'), "{$c['key']}: the page range is never dropped");
+    check(!str_contains($c['html'], '<i></i>'), "{$c['key']}: no empty italic segment");
+}
+
 // Names.
 $many = static fn (int $count): array => array_map(static fn (int $i): string => "Author{$i}, A.", range(1, $count));
 check(str_starts_with(CitationStyles::mla(['authors' => $many(3)] + $article)['text'], 'Author1, A., et al. '), 'MLA: three or more authors become "et al."');

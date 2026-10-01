@@ -59,9 +59,10 @@ $th='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wi
         <div class="card-body">
           <form method="post" enctype="multipart/form-data" class="space-y-4">
             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-            <div id="articles-csv-upload" data-emt-uppy="file" data-types=".csv,text/csv,application/csv" data-max-bytes="10485760" data-input="articles-csv" data-progress="articles-csv-progress" data-result="articles-csv-result" data-note="<?= $e(__('File CSV')) ?>" data-drop="<?= $e(__('Trascina qui il file o %{browse}')) ?>" data-browse="<?= $e(__('seleziona file')) ?>"></div>
+            <div id="articles-csv-upload" data-emt-uppy="file" data-types=".csv,text/csv,application/csv" data-max-bytes="<?= (int)\App\Plugins\Emeroteca\Services\ContributionCsv::MAX_BYTES ?>" data-input="articles-csv" data-progress="articles-csv-progress" data-result="articles-csv-result" data-note="<?= $e(__('File CSV')) ?>" data-drop="<?= $e(__('Trascina qui il file o %{browse}')) ?>" data-browse="<?= $e(__('seleziona file')) ?>"></div>
             <div id="articles-csv-progress"></div>
             <p id="articles-csv-result" class="flex items-center gap-2 text-sm text-gray-600" hidden></p>
+            <p class="text-xs text-gray-500" id="articles-csv-limit"><?= __('Carica un CSV fino a 5 MB.') ?></p>
             <input id="articles-csv" name="csv" type="file" accept=".csv,text/csv" hidden>
             <div class="flex justify-end"><button class="btn-primary"><i class="fas fa-eye mr-2"></i><?= __('Mostra anteprima') ?></button></div>
           </form>

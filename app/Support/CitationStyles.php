@@ -167,6 +167,8 @@ final class CitationStyles
                 self::add($s, self::terminate($r['publisher']));
             }
         } elseif ($r['type'] === 'chapter') {
+            $span = self::span($r);
+            $pages = $span !== '' ? '(' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span . ')' : '';
             if ($r['container'] !== '' || $r['editors'] !== []) {
                 self::add($s, 'In ');
                 if ($r['editors'] !== []) {
@@ -174,11 +176,13 @@ final class CitationStyles
                     self::add($s, $editors . (count($r['editors']) > 1 ? ' (Eds.)' : ' (Ed.)') . ($r['container'] !== '' ? ', ' : ''));
                 }
                 self::add($s, $r['container'], true);
-                $span = self::span($r);
-                if ($span !== '') {
-                    self::add($s, ' (' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span . ')');
+                if ($pages !== '') {
+                    self::add($s, ' ' . $pages);
                 }
                 self::add($s, '. ');
+            } elseif ($pages !== '') {
+                // No host data to hang them on, but the pages are still cited.
+                self::add($s, $pages . '. ');
             }
             if ($r['publisher'] !== '') {
                 self::add($s, self::terminate($r['publisher']));
@@ -266,7 +270,10 @@ final class CitationStyles
                 self::add($s, ', in ');
                 if ($r['editors'] !== []) {
                     self::add($s, self::join(array_map(static fn (string $n): string => self::initials($n, ''), $r['editors']), ', ', ' and ', ' and ', 20)
-                        . (count($r['editors']) > 1 ? ' (eds) ' : ' (ed.) '));
+                        . (count($r['editors']) > 1 ? ' (eds)' : ' (ed.)')
+                        // The space belongs to the title that follows; with
+                        // none, it would sit before the full stop.
+                        . ($r['container'] !== '' ? ' ' : ''));
                 }
                 self::add($s, $r['container'], true);
             }
@@ -350,14 +357,20 @@ final class CitationStyles
                 self::add($s, $imprint . '.');
             }
         } elseif ($r['type'] === 'chapter') {
+            // The host's title, editors and pages are each cited when known:
+            // a chapter whose book title is missing keeps its editors and pages.
+            $span = self::span($r);
             if ($r['container'] !== '') {
                 self::add($s, 'In ');
                 self::add($s, $r['container'], true);
                 if ($r['editors'] !== []) {
                     self::add($s, ', edited by ' . self::naturalList($r['editors']));
                 }
-                $span = self::span($r);
                 self::add($s, ($span !== '' ? ', ' . $span : '') . '. ');
+            } elseif ($r['editors'] !== []) {
+                self::add($s, 'Edited by ' . self::naturalList($r['editors']) . ($span !== '' ? ', ' . $span : '') . '. ');
+            } elseif ($span !== '') {
+                self::add($s, $span . '. ');
             }
             $imprint = self::imprint($r['place'], $r['publisher'], ': ');
             if ($imprint !== '') {
@@ -482,7 +495,8 @@ final class CitationStyles
             }
             if ($r['type'] === 'chapter') {
                 if ($r['editors'] !== []) {
-                    $elements[] = ['edited by ' . self::naturalList($r['editors']), false];
+                    // First element after the title's full stop: capitalised.
+                    $elements[] = [($elements === [] ? 'Edited by ' : 'edited by ') . self::naturalList($r['editors']), false];
                 }
                 if ($r['publisher'] !== '') {
                     $elements[] = [$r['publisher'], false];

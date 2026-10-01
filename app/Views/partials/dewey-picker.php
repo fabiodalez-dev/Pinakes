@@ -76,10 +76,12 @@ async function initializeDewey(initialValue) {
   let currentDeweyCode = '';
   let currentDeweyName = '';
 
-  // Valida formato codice Dewey (3 cifre principali + opzionale parte decimale)
-  // Allineato con DeweyValidator::PATTERN_ANY_CODE lato server
+  // Valida formato codice Dewey (3 cifre principali + opzionale parte decimale).
+  // Nessun limite ai decimali: un codice più profondo dell'elenco Dewey
+  // (823.91409) si può salvare e mostrare, quindi si deve poter anche riscrivere.
+  // Il percorso gerarchico si ferma all'ultimo livello noto (/api/dewey/path).
   const validateDeweyCode = (code) => {
-    return /^[0-9]{3}(\.[0-9]{1,4})?$/.test(code);
+    return /^[0-9]{3}(\.[0-9]+)?$/.test(code);
   };
 
   // Ottieni il codice parent (es. 599.1 → 599, 599.93 → 599.9)
@@ -269,7 +271,10 @@ async function initializeDewey(initialValue) {
       if (request !== suggestRequest) return;
       try {
         const response = await fetch(`${window.BASE_PATH}/api/dewey/autocomplete?q=${encodeURIComponent(query)}`, { credentials: 'same-origin' });
-        if (!response.ok || request !== suggestRequest) return;
+        if (request !== suggestRequest) return;
+        // An error answer must not leave the previous query's suggestions open,
+        // where Enter or a click would pick a code that no longer matches.
+        if (!response.ok) { closeSuggest(); return; }
         const items = await response.json();
         if (request !== suggestRequest) return;
         renderSuggest(Array.isArray(items) ? items : []);
@@ -298,7 +303,12 @@ async function initializeDewey(initialValue) {
       }
     }
   });
-  manualInput.addEventListener('blur', () => { setTimeout(closeSuggest, 150); });
+  // Close a moment after leaving the box (a click on a suggestion lands first),
+  // but not if the cataloguer is already back in it and typing: a stale timer
+  // would cancel the search they just started.
+  manualInput.addEventListener('blur', () => {
+    setTimeout(() => { if (document.activeElement !== manualInput) closeSuggest(); }, 150);
+  });
 
   // Build breadcrumb from all currently selected dropdowns
   const updateBreadcrumbFromDropdowns = () => {
