@@ -7907,5 +7907,6 @@
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titel og undertitel øverst på katalogsiden for hvert sprog. Et tomt felt bruger standardteksten.",
   "Salva intestazione del catalogo": "Gem katalogets overskrift",
   "Intestazione del catalogo aggiornata.": "Katalogets overskrift er opdateret.",
-  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Katalogets overskrift blev ikke gemt: formulardataene er ugyldige."
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Katalogets overskrift blev ikke gemt: formulardataene er ugyldige.",
+  "Risultati per '%s' - %s": "Resultater for '%s' – %s"
 }

@@ -7907,5 +7907,6 @@
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titel und Untertitel oben auf der Katalogseite, für jede Sprache. Ein leeres Feld verwendet den Standardtext.",
   "Salva intestazione del catalogo": "Katalogkopf speichern",
   "Intestazione del catalogo aggiornata.": "Katalogkopf aktualisiert.",
-  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Katalogkopf nicht gespeichert: Die Formulardaten sind ungültig."
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Katalogkopf nicht gespeichert: Die Formulardaten sind ungültig.",
+  "Risultati per '%s' - %s": "Ergebnisse für '%s' – %s"
 }

@@ -7907,5 +7907,6 @@
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Titre et sous-titre en haut de la page du catalogue, pour chaque langue. Un champ vide utilise le texte par défaut.",
   "Salva intestazione del catalogo": "Enregistrer l’en-tête du catalogue",
   "Intestazione del catalogo aggiornata.": "En-tête du catalogue mis à jour.",
-  "Intestazione del catalogo non salvata: dati del modulo non validi.": "En-tête du catalogue non enregistré : les données du formulaire ne sont pas valides."
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "En-tête du catalogue non enregistré : les données du formulaire ne sont pas valides.",
+  "Risultati per '%s' - %s": "Résultats pour '%s' - %s"
 }

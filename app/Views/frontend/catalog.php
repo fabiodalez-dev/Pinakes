@@ -24,7 +24,8 @@ if (!isset($filters)) {
 $searchQuery = $filters['search'] ?? '';
 if ($searchQuery) {
     $sanitizedSearchQuery = htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8');
-    $seoTitle = __("Risultati per '%s' - Catalogo Biblioteca", $sanitizedSearchQuery);
+    // The catalogue is called what its header says, in the results title too.
+    $seoTitle = __("Risultati per '%s' - %s", $sanitizedSearchQuery, $catalogHeader['title']);
     $seoDescription = __("Scopri tutti i libri che contengono '%s' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.", $sanitizedSearchQuery);
     // Internal search results must not enter the index (infinite query space,
     // thin/duplicate content); links are still followed toward the books.
@@ -1354,7 +1355,7 @@ ob_start();
                         <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
                     </li>
                     <li class="breadcrumb-item text-white active" aria-current="page">
-                        <?= __("Catalogo") ?>
+                        <?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?>
                     </li>
                 </ol>
             </nav>

@@ -122,11 +122,17 @@ final class CatalogHeader
         }
     }
 
-    /** Plain text on one line: the header is not a rich-text area. */
+    /**
+     * Plain text on one line: the header is not a rich-text area, so markup
+     * tags are dropped. Only real tags, though: strip_tags() treats any "<" as
+     * the start of one and would cut "Leggi <3 libri" down to "Leggi". A bare
+     * "<" is safe here, since every place that prints the header escapes it.
+     */
     private static function clean(mixed $value, int $max): string
     {
         $text = is_string($value) ? $value : '';
-        $text = trim((string) preg_replace('/\s+/u', ' ', strip_tags($text)));
+        $text = (string) preg_replace('~</?[A-Za-z][^<>]*>~', '', $text);
+        $text = trim((string) preg_replace('/\s+/u', ' ', $text));
 
         return mb_substr($text, 0, $max);
     }

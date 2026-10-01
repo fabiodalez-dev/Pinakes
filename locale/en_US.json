@@ -7907,5 +7907,6 @@
   "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.": "Title and subtitle at the top of the catalogue page, for each language. An empty field uses the default text.",
   "Salva intestazione del catalogo": "Save catalogue header",
   "Intestazione del catalogo aggiornata.": "Catalogue header updated.",
-  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Catalogue header not saved: the form data is not valid."
+  "Intestazione del catalogo non salvata: dati del modulo non validi.": "Catalogue header not saved: the form data is not valid.",
+  "Risultati per '%s' - %s": "Results for '%s' - %s"
 }

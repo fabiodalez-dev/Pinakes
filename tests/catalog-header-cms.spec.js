@@ -119,6 +119,24 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     });
   });
 
+  test('a "<" in the header is kept as text and the page names the catalogue the same way everywhere', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/language/it_IT`);
+    await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
+    await page.locator('input[name="catalog_title[it_IT]"]').fill('Leggi <3 libri & riviste');
+    await page.locator('#catalog-header-form button[type=submit]').click();
+    await page.waitForURL(/\/admin\/settings\?tab=cms/);
+    // strip_tags() used to save this as "Leggi".
+    expect(db("SELECT setting_value FROM system_settings WHERE category='catalog' AND setting_key='title.it_IT'")).toBe('Leggi <3 libri & riviste');
+
+    expect((await catalogHeader(page, 'it_IT')).title).toBe('Leggi <3 libri & riviste');
+    await expect(page.locator('.breadcrumb-item.active'), 'the breadcrumb uses the same name as the heading').toHaveText('Leggi <3 libri & riviste');
+    await expect(page).toHaveTitle('Leggi <3 libri & riviste');
+    // Search results are titled after the catalogue too.
+    await page.goto(`${BASE}${new URL(page.url()).pathname}?search=${encodeURIComponent('femminismo')}`);
+    await expect(page).toHaveTitle(/Leggi <3 libri & riviste/);
+  });
+
   test('emptying a field goes back to the default', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/language/it_IT`);
