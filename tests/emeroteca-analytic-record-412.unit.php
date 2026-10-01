@@ -452,10 +452,18 @@ try {
     $check(str_contains($chapterRis, "PB  - Museum Tusculanum\r\n") && str_contains($chapterRis, "CY  - København\r\n")
         && str_contains($chapterRis, "SN  - 9780306406157\r\n"),
         'and the publisher, place and ISBN of the book');
-    $check(ContributionService::normalize(['titolo' => 'x','isbn' => '978-0-306-40615-7'])['isbn'] === '9780306406157',
+    $check(ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia','isbn' => '978-0-306-40615-7'])['isbn'] === '9780306406157',
         'a hyphenated ISBN is stored clean');
-    $rejects(static fn () => ContributionService::normalize(['titolo' => 'x','isbn' => '978-0-306-40615-8']),
+    $rejects(static fn () => ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia','isbn' => '978-0-306-40615-8']),
         'an ISBN with a wrong check digit is refused');
+    // The host volume belongs to anthologies only: left over from a draft under
+    // another type, it is dropped rather than stored or used to refuse the save.
+    $journal = ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'rivista','isbn' => '978-0-306-40615-8',
+        'contenitore_curatori' => 'Müller, Anna','contenitore_editore' => 'Museum Tusculanum','contenitore_luogo' => 'København']);
+    $check($journal['isbn'] === null && $journal['contenitore_curatori'] === null && $journal['contenitore_editore'] === null && $journal['contenitore_luogo'] === null,
+        'a journal article drops the host-volume fields, even an invalid ISBN');
+    $check(ContributionService::normalize(['titolo' => 'x','isbn' => '9780306406157'])['isbn'] === null,
+        'and so does an article with no publication type');
     $check(ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia'])['contenitore_tipo'] === 'antologia',
         'anthology is an accepted publication type');
     $check(ContributionService::materialType(['contenitore_tipo' => 'antologia']) !== ContributionService::materialType(['contenitore_tipo' => 'rivista']),

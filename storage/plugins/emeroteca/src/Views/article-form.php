@@ -103,7 +103,13 @@ $cardTitle=static function(string $icon,string $title,string $subtitle='',bool $
             var type = document.getElementById('article-contenitore_tipo');
             var host = document.getElementById('article-host-volume');
             if (!type || !host) { return; }
-            function sync() { host.hidden = type.value !== 'antologia'; }
+            // Hidden and disabled together: what the browser posts is what the
+            // cataloguer can see (the server drops these fields too).
+            function sync() {
+              var off = type.value !== 'antologia';
+              host.hidden = off;
+              host.querySelectorAll('input, textarea, select').forEach(function (field) { field.disabled = off; });
+            }
             type.addEventListener('change', sync);
             sync();
           })();
@@ -197,7 +203,15 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
                 window.initializeDewey(code);
               }
             }
-            scheme.addEventListener('change', () => { keepText = false; sync(); });
+            // Choosing another scheme ends that, but coming back to Dewey with the
+            // stored notation untouched brings it back: a round trip through the
+            // select must not turn "823.914 BRO" into an empty picker and a NULL.
+            const initialKeep = keepText;
+            const initialText = text.value.trim();
+            scheme.addEventListener('change', () => {
+              keepText = initialKeep && scheme.value === 'DDC' && text.value.trim() === initialText;
+              sync();
+            });
             sync();
           });
           </script>

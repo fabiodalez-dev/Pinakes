@@ -220,6 +220,95 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DK5', classificazione='33.129' WHERE id=${articleId}`);
   });
 
+  test('saving never loses what the cataloguer cannot see', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    // CONCAT_WS drops NULLs, so each field gets a placeholder to keep its place.
+    const keep = db(`SELECT CONCAT_WS('|', COALESCE(HEX(autori),'-'), COALESCE(contenitore_tipo,'-'), COALESCE(classificazione_schema,'-'), COALESCE(HEX(classificazione),'-')) FROM emeroteca_contributi WHERE id=${articleId}`);
+    const keepCredits = db(`SELECT ordine_credito, COALESCE(autore_id,'NULL'), HEX(nome_credito), ruolo FROM emeroteca_contributi_autori WHERE contributo_id=${articleId} ORDER BY ordine_credito`)
+      .split('\n').filter(Boolean).map((line) => line.split('\t'));
+    await login(page);
+    const advanced = page.locator('details', { hasText: /Descrizione bibliografica avanzata|Advanced bibliographic/ }).first();
+    const save = async () => {
+      await page.locator('button[type=submit]:has-text("Salva")').first().click();
+      await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    };
+
+    // A stored Dewey notation the picker cannot show survives a round trip
+    // through the scheme select: DDC -> UDC -> DDC, then save.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await advanced.locator(':scope > summary').click();
+    await page.locator('#article-classificazione_schema').selectOption('UDC');
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#article-classificazione')).toBeVisible();
+    await expect(page.locator('#article-classificazione')).toHaveValue('823.914 BRO');
+    await save();
+    expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('DDC|823.914 BRO');
+
+    // Host-volume fields typed under "Anthology" and left behind after
+    // switching to a journal neither block the save nor get stored.
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.locator('#article-contenitore_tipo').selectOption('antologia');
+    await page.locator('#article-isbn').fill('978-0-306-40615-8');
+    await page.locator('#article-contenitore_editore').fill('Leftover Press');
+    await page.locator('#article-contenitore_tipo').selectOption('rivista');
+    await expect(page.locator('#article-isbn'), 'hidden fields are not posted').toBeDisabled();
+    await save();
+    expect(db(`SELECT CONCAT_WS('|', contenitore_tipo, COALESCE(isbn,'-'), COALESCE(contenitore_editore,'-')) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('rivista|-|-');
+
+    // A record typed before shared authors, with more names than the picker
+    // can link, stays on the text field and saves unchanged.
+    const many = Array.from({ length: 21 }, (_, i) => `Author ${i + 1}`).join('; ');
+    db(`DELETE FROM emeroteca_contributi_autori WHERE contributo_id=${articleId}`);
+    db(`UPDATE emeroteca_contributi SET autori='${many}' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#article-authors-text-only')).toBeVisible();
+    await expect(page.locator('#article-autori')).toBeEnabled();
+    await expect(page.locator('#article-authors-picker')).toBeHidden();
+    await save();
+    expect(db(`SELECT autori FROM emeroteca_contributi WHERE id=${articleId}`)).toBe(many);
+
+    // Restore the record the public-page tests read.
+    const sql = (value, hex = false) => (value === '-' ? 'NULL' : hex ? `CONVERT(UNHEX('${value}') USING utf8mb4)` : `'${value}'`);
+    const [autoriHex, tipo, schema, notationHex] = keep.split('|');
+    db(`UPDATE emeroteca_contributi SET autori=${sql(autoriHex, true)}, contenitore_tipo=${sql(tipo)}, classificazione_schema=${sql(schema)}, classificazione=${sql(notationHex, true)} WHERE id=${articleId}`);
+    db(`DELETE FROM emeroteca_contributi_autori WHERE contributo_id=${articleId}`);
+    for (const [order, authorId, nameHex, role] of keepCredits) {
+      db(`INSERT INTO emeroteca_contributi_autori (contributo_id, ordine_credito, autore_id, nome_credito, ruolo) VALUES (${articleId}, ${order}, ${authorId}, CONVERT(UNHEX('${nameHex}') USING utf8mb4), '${role}')`);
+    }
+  });
+
+  test('the author search says when it fails and links a name typed in citation form', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    const personId = Number(db(`INSERT INTO autori (nome) VALUES ('Vincent ${marker} van Gogh'); SELECT LAST_INSERT_ID();`));
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/periodicals/articles/create`);
+      const authorInput = page.locator('#article-author-editor .choices__input--cloned');
+
+      // An outage is reported, not shown as "no such author".
+      await page.route('**/api/search/autori**', (route) => route.fulfill({ status: 500, body: 'down' }));
+      await authorInput.click();
+      await authorInput.pressSequentially('Petersen');
+      await expect(page.locator('#article-author-search-error')).toBeVisible();
+      await page.unroute('**/api/search/autori**');
+
+      // "van Gogh, Vincent" typed in citation form: Enter links the existing
+      // person instead of creating a duplicate, and the typed form is the credit.
+      await authorInput.fill('');
+      await authorInput.pressSequentially(`${marker} van Gogh, Vincent`);
+      await expect(page.locator('#article-author-search-error')).toBeHidden();
+      await expect(page.locator('#article-author-editor .choices__list--dropdown .choices__item--choice').filter({ hasText: `Vincent ${marker} van Gogh` })).toBeVisible();
+      await page.waitForTimeout(300);
+      await authorInput.press('Enter');
+      await expect(page.locator('#article-credits input[name="credits[0][autore_id]"]')).toHaveValue(String(personId));
+      await expect(page.locator('#article-credits input[name="credits[0][nome_credito]"]')).toHaveValue(`${marker} van Gogh, Vincent`);
+      await expect(page.locator('#article-credits input[name="credits[0][create]"]')).toHaveValue('');
+    } finally {
+      db(`DELETE FROM autori WHERE id=${personId}`);
+    }
+  });
+
   test('the public page reads as an analytic record', async ({ page }) => {
     expect(articleId).toBeGreaterThan(0);
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);

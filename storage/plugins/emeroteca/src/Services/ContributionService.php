@@ -264,6 +264,16 @@ SQL;
             || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine','antologia'], true))) {
             throw new \InvalidArgumentException(__('Tipo non valido.'));
         }
+        // Editors, publisher, place and ISBN describe the volume an anthology
+        // chapter sits in. For any other container they mean nothing: the form
+        // hides them, and a value left over from an anthology draft must not
+        // be stored, shown publicly, or block the save with an invalid ISBN
+        // the cataloguer can no longer see.
+        if ($out['contenitore_tipo'] !== 'antologia') {
+            foreach (['contenitore_curatori', 'contenitore_editore', 'contenitore_luogo', 'isbn'] as $hostField) {
+                $out[$hostField] = null;
+            }
+        }
         if ($out['issn'] !== null) {
             if (!IssnHelper::isValidChecksum($out['issn'])) {
                 throw new \InvalidArgumentException(__('ISSN non valido.'));
