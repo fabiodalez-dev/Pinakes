@@ -31,16 +31,28 @@ final class PeriodicalArticlesHint
 
     private const PLUGIN = 'emeroteca';
 
+    /**
+     * The state already resolved in this request for the real plugins
+     * directory. The book pages resolve it with their own `$db`; the layout
+     * around them then reuses it instead of opening a second connection to
+     * run the same query again.
+     */
+    private static ?string $resolved = null;
+
     private function __construct()
     {
     }
 
     /**
      * The state for the admin layout, which renders on every page and has no
-     * `$db` of its own: it borrows ConfigStore's per-request connection.
+     * `$db` of its own. If the page inside it already resolved the state it is
+     * reused; otherwise it borrows ConfigStore's per-request connection.
      */
     public static function stateForLayout(): string
     {
+        if (self::$resolved !== null) {
+            return self::$resolved;
+        }
         try {
             return self::state(ConfigStore::sharedConnection());
         } catch (\Throwable $e) {
@@ -56,6 +68,15 @@ final class PeriodicalArticlesHint
      * happens to the plugin registry.
      */
     public static function state(?\mysqli $db, ?string $pluginsDir = null): string
+    {
+        $state = self::resolve($db, $pluginsDir);
+        if ($pluginsDir === null) {
+            self::$resolved = $state;
+        }
+        return $state;
+    }
+
+    private static function resolve(?\mysqli $db, ?string $pluginsDir): string
     {
         if (!$db instanceof \mysqli) {
             return self::ABSENT;

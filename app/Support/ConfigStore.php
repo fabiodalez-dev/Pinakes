@@ -251,8 +251,8 @@ final class ConfigStore
     }
 
     /**
-     * The per-request connection, for views rendered by controllers that do
-     * not hand their own `$db` to the layout. May throw on a failed connect.
+     * The per-request connection, for code that runs in a view without a
+     * `$db` of its own (the admin layout). May throw on a failed connect.
      */
     public static function sharedConnection(): ?\mysqli
     {
