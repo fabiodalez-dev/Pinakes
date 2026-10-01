@@ -98,17 +98,17 @@ try {
     $resolver = (new ReflectionClass(OpenUrlResolverPlugin::class))->newInstanceWithoutConstructor();
     (new ReflectionProperty($resolver,'db'))->setValue($resolver,$db);
     $find = new ReflectionMethod($resolver,'findArticle');
-    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle'])['id']===1, 'OpenURL round trip includes subtitle');
-    check((int)$find->invoke($resolver,['rft_atitle'=>'Probe 01 Article'])['id']===1, 'OpenURL bare title remains supported');
-    check($find->invoke($resolver,['rft.atitle'=>'Probe Hidden'])===null, 'OpenURL refuses private article');
-    check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article','rft.jtitle'=>'Different journal'])===null, 'OpenURL does not resolve wrong host');
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle'],'journal')['id']===1, 'OpenURL round trip includes subtitle');
+    check((int)$find->invoke($resolver,['rft_atitle'=>'Probe 01 Article'],'journal')['id']===1, 'OpenURL bare title remains supported');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe Hidden'],'journal')===null, 'OpenURL refuses private article');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article','rft.jtitle'=>'Different journal'],'journal')===null, 'OpenURL does not resolve wrong host');
     $db->query("INSERT INTO emeroteca_contributi(reference_key,titolo,sottotitolo,contenitore_titolo,pubblico) VALUES ('duplicate','Probe 01 Article','subtitle','Other host',1)");
-    check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle'])===null, 'ambiguous title cannot resolve arbitrary record');
-    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle','rft.jtitle'=>'Arbejderhistorie'])['id']===1, 'host disambiguates common title');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle'],'journal')===null, 'ambiguous title cannot resolve arbitrary record');
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 01 Article : subtitle','rft.jtitle'=>'Arbejderhistorie'],'journal')['id']===1, 'host disambiguates common title');
     $db->query("UPDATE emeroteca_contributi SET doi='10.1000/probe.2' WHERE id=2");
-    check((int)$find->invoke($resolver,['rft_id'=>'info:doi/10.1000/PROBE.2'])['id']===2, 'unique DOI resolves its article');
+    check((int)$find->invoke($resolver,['rft_id'=>'info:doi/10.1000/PROBE.2'],'journal')['id']===2, 'unique DOI resolves its article');
     $db->query("UPDATE emeroteca_contributi SET doi='10.1000/probe.2' WHERE id=3");
-    check($find->invoke($resolver,['rft_id'=>'info:doi/10.1000/probe.2'])===null, 'duplicate DOI is ambiguous, not an arbitrary record');
+    check($find->invoke($resolver,['rft_id'=>'info:doi/10.1000/probe.2'],'journal')===null, 'duplicate DOI is ambiguous, not an arbitrary record');
     // A chapter in an anthology (#412) is a book item: its COinS lets Zotero
     // import a book section, and an incoming book-item request finds it.
     $db->query("UPDATE emeroteca_contributi SET contenitore_tipo='antologia', contenitore_titolo='Exil in Dänemark', isbn='9780306406157', contenitore_editore='Museum Tusculanum', contenitore_luogo='København' WHERE id=4");
@@ -120,11 +120,15 @@ try {
     foreach (explode('&', $kev) as $pair) { [$k, $v] = array_pad(explode('=', $pair, 2), 2, ''); $kevParams[rawurldecode($k)] = rawurldecode($v); }
     check(($kevParams['rft_val_fmt'] ?? '')==='info:ofi/fmt:kev:mtx:book' && ($kevParams['rft.genre'] ?? '')==='bookitem', 'a chapter COinS is a book item');
     check(($kevParams['rft.btitle'] ?? '')==='Exil in Dänemark' && ($kevParams['rft.isbn'] ?? '')==='9780306406157' && !isset($kevParams['rft.jtitle']), 'with the volume as btitle and its ISBN, not a journal title');
-    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.btitle'=>'Exil in Dänemark'])['id']===4, 'a book-item request with the volume title finds the chapter');
-    check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.btitle'=>'Another volume'])===null, 'and a different volume does not');
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.btitle'=>'Exil in Dänemark'],'chapter')['id']===4, 'a book-item request with the volume title finds the chapter');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.btitle'=>'Another volume'],'chapter')===null, 'and a different volume does not');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle'],'journal')===null, 'a journal request does not resolve to a chapter');
+    check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'978-0-306-40615-7'],'chapter')['id']===4, 'a chapter request naming the volume ISBN finds it');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft.isbn'=>'9788842935780'],'chapter')===null, 'and the ISBN of another volume does not');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 05 Article : subtitle'],'chapter')===null, 'a book-item request does not resolve to a journal article');
     $db->query("UPDATE plugins SET is_active=0");
     check($page(['search'=>'Probe'])===null, 'disabled plugin is absent from catalogue');
-    check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'])===null, 'disabled plugin is absent from resolver');
+    check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'],'journal')===null, 'disabled plugin is absent from resolver');
     echo "SUCCESS $checks behavioural checks\n";
 } finally {
     foreach (array_reverse($db->tables) as $table) { $db->query("DROP TABLE IF EXISTS $table"); }

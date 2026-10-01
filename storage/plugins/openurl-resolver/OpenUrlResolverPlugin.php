@@ -225,7 +225,7 @@ class OpenUrlResolverPlugin
         // resolver is for.
         $rftValFmt = (string) ($params['rft_val_fmt'] ?? '');
         if ($rftValFmt === 'info:ofi/fmt:kev:mtx:journal') {
-            $article = $this->findArticle($params);
+            $article = $this->guarded(fn () => $this->findArticle($params, 'journal'), 'article lookup');
             if ($article !== null) {
                 // absoluteUrl(), for the same reason localBookUrl() uses it:
                 // $request->getUri()->getAuthority() is the client-supplied Host
@@ -245,7 +245,7 @@ class OpenUrlResolverPlugin
         // record is the more precise answer than the volume, so it is tried
         // first; when no chapter matches, the volume's ISBN is looked up below.
         if (strtolower(self::param($params, 'rft.genre')) === 'bookitem' && self::param($params, 'rft.atitle') !== '') {
-            $chapter = $this->findArticle($params);
+            $chapter = $this->guarded(fn () => $this->findArticle($params, 'chapter'), 'chapter lookup');
             if ($chapter !== null) {
                 return $response->withStatus(302)->withHeader(
                     'Location',
@@ -257,7 +257,7 @@ class OpenUrlResolverPlugin
         // 1. Try to match locally by ISBN
         $isbn = $this->extractIsbn($params);
         if ($isbn !== '') {
-            $book = $this->findBookByIsbn($isbn);
+            $book = $this->guarded(fn () => $this->findBookByIsbn($isbn), 'book lookup');
             if ($book !== null) {
                 $url = $this->localBookUrl($request, $book);
                 return $response->withStatus(302)->withHeader('Location', $url);
@@ -274,13 +274,19 @@ class OpenUrlResolverPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $book    = $this->fetchBook($id);
+        $book    = $this->guarded(fn () => $this->fetchBook($id), 'book COinS');
         if ($book === null) {
             $response->getBody()->write((string) json_encode(['error' => true, 'message' => __('Libro non trovato.')]));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
 
-        $authors = $this->fetchAuthors($id);
+        try {
+            $authors = $this->fetchAuthors($id);
+        } catch (\Throwable $e) {
+            // The record is still worth exporting without its authors.
+            SecureLogger::error('[OpenUrlResolver] book COinS authors failed', ['error' => $e->getMessage()]);
+            $authors = [];
+        }
         $kev     = $this->buildKev($book, $authors, $request);
         $html    = '<span class="Z3988" title="' . htmlspecialchars($kev, ENT_QUOTES, 'UTF-8') . '"></span>';
 
@@ -300,7 +306,7 @@ class OpenUrlResolverPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $article = $this->loadCitationFormatter() ? $this->fetchArticle($id) : null;
+        $article = $this->loadCitationFormatter() ? $this->guarded(fn () => $this->fetchArticle($id), 'article COinS') : null;
         if ($article === null) {
             $response->getBody()->write((string) json_encode(['error' => true, 'message' => __('Articolo non trovato.')]));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
@@ -635,7 +641,7 @@ class OpenUrlResolverPlugin
      * @param array<string, mixed> $params
      * @return array<string, mixed>|null
      */
-    private function findArticle(array $params): ?array
+    private function findArticle(array $params, string $kind): ?array
     {
         if (!$this->articlesTableExists()) {
             return null;
@@ -675,8 +681,24 @@ class OpenUrlResolverPlugin
         // colon: it may be part of the actual title rather than punctuation.
         $where = ["pubblico = 1", "(titolo = ? OR CONCAT(titolo, CASE WHEN COALESCE(sottotitolo, '') = '' THEN '' ELSE CONCAT(' : ', sottotitolo) END) = ?)"];
         $values = [$title, $title];
-        foreach (['rft.issn' => 'issn', 'rft.jtitle' => 'contenitore_titolo', 'rft.btitle' => 'contenitore_titolo',
-                  'rft.volume' => 'volume', 'rft.issue' => 'numero'] as $key => $column) {
+        // A journal request answers with a journal article, a book item with a
+        // chapter of an anthology: a shared title must not send a reader from
+        // one to the other. A chapter must also belong to the volume asked for
+        // when the request names it by ISBN (a chapter with no ISBN on record
+        // still matches).
+        if ($kind === 'chapter') {
+            $where[] = "contenitore_tipo = 'antologia'";
+            $requested = $this->extractIsbn($params);
+            if ($requested !== '') {
+                $where[] = '(isbn IS NULL OR isbn = ?)';
+                $values[] = $requested;
+            }
+            $fields = ['rft.btitle' => 'contenitore_titolo'];
+        } else {
+            $where[] = "(contenitore_tipo IS NULL OR contenitore_tipo <> 'antologia')";
+            $fields = ['rft.issn' => 'issn', 'rft.jtitle' => 'contenitore_titolo', 'rft.volume' => 'volume', 'rft.issue' => 'numero'];
+        }
+        foreach ($fields as $key => $column) {
             $value = self::param($params, $key);
             if ($value !== '') {
                 $where[] = "$column = ?";
@@ -695,6 +717,28 @@ class OpenUrlResolverPlugin
         // A common title is not an identifier. Let the external resolver handle
         // ambiguity rather than arbitrarily returning the first local record.
         return count($rows) === 1 ? $rows[0] : null;
+    }
+
+    /**
+     * Run one lookup and treat a database failure as "not found".
+     *
+     * mysqli runs in strict mode here, so prepare() throws instead of
+     * returning false and the `=== false` checks below never fire. Without
+     * this, a missing column or a lost connection would answer these public,
+     * cacheable endpoints with a 500 instead of the external resolver or the
+     * documented 404.
+     *
+     * @param callable(): (array<string, mixed>|null) $lookup
+     * @return array<string, mixed>|null
+     */
+    private function guarded(callable $lookup, string $what): ?array
+    {
+        try {
+            return $lookup();
+        } catch (\Throwable $e) {
+            SecureLogger::error('[OpenUrlResolver] ' . $what . ' failed', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**
