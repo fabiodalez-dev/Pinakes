@@ -36,6 +36,14 @@ foreach (array_values($credits) as $i => $credit) {
     }
 }
 $autoriFallback = implode('; ', array_column($chips, 'credit'));
+// The picker posts every chip as a credit, and ArticleAuthorService accepts at
+// most 20 of them, each up to 255 characters. A record typed as text before
+// shared authors (a long list of names, a corporate author) can exceed that;
+// it keeps the text field, so opening and saving it never fails.
+$pickerFits = count($chips) <= \App\Services\ArticleAuthorService::MAX_CREDITS;
+foreach ($chips as $chip) {
+    if (mb_strlen($chip['credit']) > \App\Services\ArticleAuthorService::MAX_CREDIT_LENGTH) { $pickerFits = false; }
+}
 ?>
 <div class="md:col-span-2" id="article-author-editor">
 <label for="article-authors-select" class="form-label"><?= __('Autori') ?></label>
@@ -43,11 +51,13 @@ $autoriFallback = implode('; ', array_column($chips, 'credit'));
 <select id="article-authors-select" multiple></select>
 <p class="text-xs text-gray-500 mt-1"><?= __('Cerca l’autore nell’anagrafica comune a libri e articoli; se non c’è, scrivi il nome e premi Invio per crearlo. Il primo autore è l’autore principale.') ?></p>
 <p class="text-xs text-gray-500 mt-1" id="article-author-limit" role="status" hidden><?= __('Puoi collegare al massimo 20 autori a un articolo.') ?></p>
+<p class="text-xs text-red-600 mt-1" id="article-author-search-error" role="alert" hidden><?= __('Ricerca non disponibile. Riprova.') ?></p>
 </div>
 <div id="article-credits"></div>
 <div id="article-authors-fallback">
 <input class="form-input" id="article-autori" name="autori" value="<?= htmlspecialchars($autoriFallback, ENT_QUOTES, 'UTF-8') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS['autori'] ?>">
 <p class="text-xs text-gray-500 mt-1"><?= __('Separa più autori con un punto e virgola. La virgola resta parte del nome, per esempio Schweissinger, Marc J.') ?></p>
+<?php if (!$pickerFits): ?><p class="text-xs text-gray-500 mt-1" id="article-authors-text-only"><?= __('Questo articolo ha più di 20 autori o un nome più lungo di 255 caratteri: gli autori si modificano qui come testo.') ?></p><?php endif; ?>
 </div>
 </div>
 <script>
@@ -57,7 +67,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const fallback = document.getElementById('article-authors-fallback');
   const store = document.getElementById('article-credits');
   const limitNote = document.getElementById('article-author-limit');
-  if (!select || typeof Choices === 'undefined') { return; }
+  const searchError = document.getElementById('article-author-search-error');
+  // Over the limits the record stays on the text field (see $pickerFits).
+  const pickerFits = <?= $pickerFits ? 'true' : 'false' ?>;
+  if (!select || typeof Choices === 'undefined' || !pickerFits) { return; }
   const MAX_AUTHORS = 20;
   const messages = <?= json_encode([
       'placeholder'=>__('Cerca autori esistenti o aggiungine di nuovi...'),
@@ -113,19 +126,27 @@ document.addEventListener('DOMContentLoaded', function () {
     limitNote.hidden = !full;
   }
 
-  // With the picker running, the credit list is what the form sends; the
-  // plain field stays in the page only for a browser without JavaScript.
+  // The saved credits become chips first. Only once they are all in place
+  // does the credit list take over from the plain field: if loading them
+  // failed half-way, the form must keep sending the text, never an empty list
+  // that would delete the record's authors.
+  try {
+    initial.forEach((chip) => {
+      meta.set(String(chip.value), { kind: chip.kind, credit: chip.credit });
+      choice.setChoices([{ value: String(chip.value), label: chip.kind === 'new' ? `${chip.label} (${messages.isNew})` : chip.label, selected: true }], 'value', 'label', false);
+    });
+    if ((choice.getValue() || []).length !== initial.length) { throw new Error('author chips not loaded'); }
+  } catch (error) {
+    console.error(error);
+    choice.destroy();
+    return;
+  }
   const present = document.createElement('input');
   present.type = 'hidden'; present.name = 'credits_present'; present.value = '1';
   picker.after(present);
   fallback.querySelectorAll('input').forEach((input) => { input.disabled = true; });
   fallback.hidden = true;
   picker.hidden = false;
-
-  initial.forEach((chip) => {
-    meta.set(String(chip.value), { kind: chip.kind, credit: chip.credit });
-    choice.setChoices([{ value: String(chip.value), label: chip.kind === 'new' ? `${chip.label} (${messages.isNew})` : chip.label, selected: true }], 'value', 'label', false);
-  });
   sync();
 
   select.addEventListener('addItem', sync);
@@ -136,12 +157,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Same comparison as the book form (#74): Enter on a highlighted suggestion
   // takes it only when it is the name that was typed.
+  // A name typed in citation form ("van Gogh, Vincent") matches its
+  // direct-order label ("Vincent van Gogh") too.
+  function directOrder(text) {
+    const at = text.indexOf(',');
+    return at < 0 ? text : (text.slice(at + 1).trim() + ' ' + text.slice(0, at).trim()).replace(/\s+/g, ' ');
+  }
   function matchesInput(label, typed) {
-    const a = String(label || '').trim().toLowerCase();
+    const a = String(label || '').trim().toLowerCase().replace(/\s+\([^()]*\d[^()]*\)$/, '');
     const b = String(typed || '').trim().toLowerCase();
-    if (a === b) return true;
+    const candidates = [b, directOrder(b)];
+    if (candidates.includes(a)) return true;
     const m = a.match(/^(.+?)\s+\((.+)\)$/);
-    return Boolean(m && (m[1].trim() === b || m[2].trim() === b));
+    return Boolean(m && candidates.some((c) => m[1].trim() === c || m[2].trim() === c));
   }
   function addNew(name) {
     const label = String(name || '').trim().replace(/;/g, ',');
@@ -183,19 +211,29 @@ document.addEventListener('DOMContentLoaded', function () {
     const query = (event.detail && event.detail.value) ? event.detail.value.trim() : '';
     clearTimeout(timer);
     if (query.length < 2) return;
+    // A name typed in citation form ("van Gogh, Vincent") is the credit the
+    // cataloguer wants; the server keeps it when it names the picked person
+    // and falls back to the registry's citation form otherwise.
+    const typedCredit = query.includes(',') ? query.replace(/;/g, ',') : '';
     timer = setTimeout(async () => {
       try {
         const response = await fetch(searchUrl + '?q=' + encodeURIComponent(query.replace(/,/g, ' ')));
-        if (!response.ok) return;
+        if (!response.ok) throw new Error('author search ' + response.status);
         const authors = await response.json();
+        searchError.hidden = true;
         const chosen = new Set((choice.getValue(true) || []).map(String));
         const options = (authors || []).filter((a) => !chosen.has(String(a.id))).slice(0, 30).map((a) => {
-          meta.set(String(a.id), { kind: 'linked', credit: a.label });
+          meta.set(String(a.id), { kind: 'linked', credit: typedCredit || a.label });
           const dates = [a.data_nascita, a.data_morte].filter(Boolean).join('–');
           return { value: String(a.id), label: dates ? `${a.label} (${dates})` : a.label, selected: false };
         });
         choice.setChoices(options, 'value', 'label', true, false);
-      } catch (_) { /* the typed name can still be added with Enter */ }
+      } catch (error) {
+        // Say so: an empty list during an outage would read as "no such
+        // author" and invite a duplicate. The typed name can still be added.
+        console.error(error);
+        searchError.hidden = false;
+      }
     }, 300);
   });
 

@@ -7949,5 +7949,7 @@
     "Anche annate, fascicoli e abbonamenti delle testate.": "Også årgange, numre og abonnementer for titlerne.",
     "Trascina qui il file o %{browse}": "Træk filen hertil eller %{browse}",
     "Formato del file": "Filformat",
-    "Cerca per codice o argomento, es. 599.9 o mammiferi": "Søg efter kode eller emne, f.eks. 599.9 eller pattedyr"
+    "Cerca per codice o argomento, es. 599.9 o mammiferi": "Søg efter kode eller emne, f.eks. 599.9 eller pattedyr",
+  "Il nome di un autore non può superare i 255 caratteri.": "En forfatters navn må højst være 255 tegn langt.",
+  "Questo articolo ha più di 20 autori o un nome più lungo di 255 caratteri: gli autori si modificano qui come testo.": "Denne artikel har mere end 20 forfattere eller et navn på over 255 tegn: forfatterne redigeres her som tekst."
 }
