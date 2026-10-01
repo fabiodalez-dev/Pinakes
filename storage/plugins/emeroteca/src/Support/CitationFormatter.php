@@ -340,7 +340,9 @@ final class CitationFormatter
             'DA' => $p['month'] > 0
                 ? sprintf('%s/%02d/%s/', $p['year'], $p['month'], $p['day'] > 0 ? sprintf('%02d', $p['day']) : '')
                 : self::clean($row['data_pubblicazione_testo'] ?? ''),
-            'SN' => $p['isAnthology'] && $p['isbn'] !== '' ? $p['isbn'] : $p['issn'],
+            // A chapter's host is a book: its identifier is the ISBN or
+            // nothing, never an ISSN left over from a journal record.
+            'SN' => $p['isAnthology'] ? $p['isbn'] : $p['issn'],
             'PB' => $p['publisher'],
             'CY' => $p['place'],
             'DO' => $p['doi'],

@@ -452,6 +452,10 @@ try {
     $check(str_contains($chapterRis, "PB  - Museum Tusculanum\r\n") && str_contains($chapterRis, "CY  - København\r\n")
         && str_contains($chapterRis, "SN  - 9780306406157\r\n"),
         'and the publisher, place and ISBN of the book');
+    $noIsbn = CitationFormatter::ris(['titolo' => 'Kapitel', 'contenitore_tipo' => 'antologia', 'contenitore_titolo' => 'Sammelband', 'issn' => '0317-8471']);
+    $check(!str_contains($noIsbn, "SN  - "), 'a chapter without an ISBN exports no SN, not the ISSN');
+    $check(str_contains(CitationFormatter::ris(['titolo' => 'Artikel', 'contenitore_tipo' => 'rivista', 'contenitore_titolo' => 'Zeitschrift', 'issn' => '0317-8471']), "SN  - 0317-8471\r\n"),
+        'a journal article still exports its ISSN');
     $check(ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia','isbn' => '978-0-306-40615-7'])['isbn'] === '9780306406157',
         'a hyphenated ISBN is stored clean');
     $rejects(static fn () => ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia','isbn' => '978-0-306-40615-8']),
