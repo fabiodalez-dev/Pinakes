@@ -44,14 +44,22 @@ final class PeriodicalArticlesHint
     }
 
     /**
-     * The state for the admin layout, which renders on every page and has no
-     * `$db` of its own. If the page inside it already resolved the state it is
-     * reused; otherwise it borrows ConfigStore's per-request connection.
+     * The state for the admin layout, which renders on every admin page.
+     *
+     * In order: the state the page inside it already resolved; the connection
+     * the rendering controller holds, which the layout passes when one is in
+     * scope; and only then ConfigStore's standalone connection. That last one
+     * is lazily opened and, with the settings served from the cache, is
+     * usually not open yet: reaching for it first would cost most admin pages
+     * a second MySQL connection just to draw the sidebar.
      */
-    public static function stateForLayout(): string
+    public static function stateForLayout(?\mysqli $db = null): string
     {
         if (self::$resolved !== null) {
             return self::$resolved;
+        }
+        if ($db instanceof \mysqli) {
+            return self::state($db);
         }
         try {
             return self::state(ConfigStore::sharedConnection());

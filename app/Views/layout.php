@@ -188,7 +188,18 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
             </a>
 
-            <?php if (\App\Support\PeriodicalArticlesHint::stateForLayout() === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+            <?php
+            // The layout is required inside the controller method, so the
+            // connection that controller holds is usually in scope: use it
+            // rather than let the sidebar open one of its own.
+            $layoutHintDb = null;
+            if (isset($container) && $container instanceof \Psr\Container\ContainerInterface && $container->has('db') && $container->get('db') instanceof \mysqli) {
+                $layoutHintDb = $container->get('db');
+            } elseif (isset($db) && $db instanceof \mysqli) {
+                $layoutHintDb = $db;
+            }
+            ?>
+            <?php if (\App\Support\PeriodicalArticlesHint::stateForLayout($layoutHintDb) === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
             <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-new-article"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
