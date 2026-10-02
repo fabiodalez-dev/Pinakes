@@ -6,11 +6,11 @@
  * open a name search; publication and keywords narrow the article search.
  * Free-text credits never create authority records automatically.
  *
- * @var array<string, mixed> $article
- * @var array{prev: ?array<string,mixed>, next: ?array<string,mixed>} $neighbours
- * @var list<array<string,mixed>> $relatedTestata
- * @var list<array<string,mixed>> $relatedAuthor
- * @var string $relatedAuthorName
+ * Input $article: array<string, mixed>
+ * Input $neighbours: array{prev: ?array<string,mixed>, next: ?array<string,mixed>}
+ * Input $relatedTestata: list<array<string,mixed>>
+ * Input $relatedAuthor: list<array<string,mixed>>
+ * Input $relatedAuthorName: string
  */
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');

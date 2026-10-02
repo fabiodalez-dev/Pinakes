@@ -2,11 +2,11 @@
 /**
  * The catalogue's "nothing here" block (.empty-state in catalog-pages.css).
  *
- * @var string $emptyTitle
- * @var string $emptyText optional
- * @var string $emptyIcon optional Font Awesome class, default 'fa-search'
- * @var string $emptyCtaHref optional; with $emptyCtaLabel renders the way back
- * @var string $emptyCtaLabel optional
+ * Input $emptyTitle: string
+ * Input $emptyText: string optional
+ * Input $emptyIcon: string optional Font Awesome class, default 'fa-search'
+ * Input $emptyCtaHref: string optional; with $emptyCtaLabel renders the way back
+ * Input $emptyCtaLabel: string optional
  */
 $esEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>

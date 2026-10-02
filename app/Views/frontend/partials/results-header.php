@@ -3,10 +3,10 @@
  * Above a listing: the active filters as removable chips (only when there are
  * any), then the result count with a "clear filters" shortcut.
  *
- * @var int $resultsCount
- * @var string $resultsLabel the noun after the number, already pluralised
- * @var list<array{label: string, value: string, removeHref: string}> $activeFilters
- * @var string $filterClearHref '' hides the shortcut
+ * Input $resultsCount: int
+ * Input $resultsLabel: string the noun after the number, already pluralised
+ * Input $activeFilters: list<array{label: string, value: string, removeHref: string}>
+ * Input $filterClearHref: string '' hides the shortcut
  */
 $rhdEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $activeFilters = $activeFilters ?? [];

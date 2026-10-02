@@ -4,10 +4,10 @@
  * of one issue): three quiet text links on one line, under the hero.
  * Rendered only when there is a previous or a next item.
  *
- * @var array{href: string, label: string}|null $pagerPrev
- * @var array{href: string, label: string}|null $pagerNext
- * @var array{href: string, label: string}|null $pagerUp the parent (year, issue)
- * @var string $pagerLabel accessible name of the navigation
+ * Input $pagerPrev: array{href: string, label: string}|null
+ * Input $pagerNext: array{href: string, label: string}|null
+ * Input $pagerUp: array{href: string, label: string}|null the parent (year, issue)
+ * Input $pagerLabel: string accessible name of the navigation
  */
 $rpEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $pagerPrev = $pagerPrev ?? null;

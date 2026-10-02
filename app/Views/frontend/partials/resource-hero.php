@@ -5,19 +5,19 @@
  * breadcrumb → kicker → title → subtitle → byline → extra.
  * The page must set $bookDetailStyles = true (public/assets/book-detail.css).
  *
- * @var string $resourceCover image URL ('' = no image: the band stays plain
+ * Input $resourceCover: string image URL ('' = no image: the band stays plain
  *      and the cover column is not rendered)
- * @var bool $resourceCoverBlur false to keep the band plain even with an image
+ * Input $resourceCoverBlur: bool false to keep the band plain even with an image
  *      (e.g. an inherited masthead logo, which would read as a pattern)
- * @var string $resourceCoverKind 'cover' (default, a 2:3 cover like a book's) or
+ * Input $resourceCoverKind: string 'cover' (default, a 2:3 cover like a book's) or
  *      'logo' (a masthead mark: smaller, contained, never cropped)
- * @var string $resourceCoverAlt
- * @var string $resourceKickerHtml trusted HTML, already escaped by the caller
- * @var string $resourceTitle
- * @var string $resourceSubtitle optional
- * @var string $resourceBylineHtml trusted HTML, already escaped by the caller
- * @var string $resourceExtraHtml trusted HTML under the byline (badges, actions)
- * @var list<array{label: string, href?: string|null}> $breadcrumbItems
+ * Input $resourceCoverAlt: string
+ * Input $resourceKickerHtml: string trusted HTML, already escaped by the caller
+ * Input $resourceTitle: string
+ * Input $resourceSubtitle: string optional
+ * Input $resourceBylineHtml: string trusted HTML, already escaped by the caller
+ * Input $resourceExtraHtml: string trusted HTML under the byline (badges, actions)
+ * Input $breadcrumbItems: list<array{label: string, href?: string|null}>
  */
 $rhEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $rhCover = (string) ($resourceCover ?? '');

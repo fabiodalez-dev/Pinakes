@@ -4,9 +4,9 @@
  * public/assets/catalog-pages.css): title, subtitle and breadcrumb.
  * The page must set $catalogPageStyles = true for the layout to load the sheet.
  *
- * @var string $heroTitle
- * @var string $heroSubtitle optional
- * @var list<array{label: string, href?: string|null}> $breadcrumbItems
+ * Input $heroTitle: string
+ * Input $heroSubtitle: string optional
+ * Input $breadcrumbItems: list<array{label: string, href?: string|null}>
  */
 $heroEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>

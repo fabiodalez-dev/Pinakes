@@ -4,9 +4,9 @@
  * styled by .pagination in public/assets/catalog-pages.css. Shows at most five
  * page numbers around the current one, plus previous/next arrows.
  *
- * @var int $paginationPage current page, 1-based
- * @var int $paginationPages total pages
- * @var callable(int): string $paginationUrl builds the URL of a page
+ * Input $paginationPage: int current page, 1-based
+ * Input $paginationPages: int total pages
+ * Input $paginationUrl: callable(int): string builds the URL of a page
  */
 $paginationPage = max(1, (int) ($paginationPage ?? 1));
 $paginationPages = max(1, (int) ($paginationPages ?? 1));

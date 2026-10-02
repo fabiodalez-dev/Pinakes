@@ -96,10 +96,11 @@ $corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
 $catalogPageStyles = true;
 $bookDetailStyles = true;
 $q = $q ?? '';
+$rawAnno = $rawAnno ?? '';
 $testataUrl = url('/emeroteca/' . $testataId);
 /** This page's URL with the article search / page / year changed; '' removes a key. */
 $pageUrl = static function (array $changes = []) use ($testataUrl, $q, $selectedYear, $rawAnno): string {
-    $state = ['anno' => ($rawAnno ?? '') !== '' ? (string) $selectedYear : '', 'q' => $q];
+    $state = ['anno' => $rawAnno !== '' ? (string) $selectedYear : '', 'q' => $q];
     $query = array_filter($changes + $state, static fn(mixed $v): bool => (string) $v !== '');
     return $testataUrl . ($query ? '?' . http_build_query($query) : '');
 };
@@ -160,7 +161,7 @@ include $corePartials . '/resource-hero.php';
             'action' => $testataUrl,
             'value' => $q,
             'label' => __('Cerca negli articoli di questa testata'),
-            'hidden' => ['anno' => ($rawAnno ?? '') !== '' ? (string) $selectedYear : ''],
+            'hidden' => ['anno' => $rawAnno !== '' ? (string) $selectedYear : ''],
         ];
         $filterSections = [[
             'title' => __('Annate'),

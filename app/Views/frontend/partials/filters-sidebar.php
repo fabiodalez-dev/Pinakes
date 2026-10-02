@@ -4,11 +4,11 @@
  * link and the search box is a GET form, so it works without JavaScript. On
  * small screens it collapses behind its toggle exactly as /catalogo does.
  *
- * @var array{action: string, name?: string, value?: string, placeholder?: string, label?: string, hidden?: array<string, string>}|null $filterSearch
- * @var list<array{title: string, icon: string, grid?: bool, options: list<array{label: string, count?: ?int, href: string, active?: bool}>}> $filterSections
+ * Input $filterSearch: array{action: string, name?: string, value?: string, placeholder?: string, label?: string, hidden?: array<string, string>}|null
+ * Input $filterSections: list<array{title: string, icon: string, grid?: bool, options: list<array{label: string, count?: ?int, href: string, active?: bool}>}>
  *      Sections with no options are skipped. `grid` lays short labels (an
  *      A–Z index) out as a compact grid of tiles instead of a list.
- * @var string $filterClearHref '' hides the "clear all" button
+ * Input $filterClearHref: string '' hides the "clear all" button
  */
 $fsEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $filterSearch = $filterSearch ?? null;

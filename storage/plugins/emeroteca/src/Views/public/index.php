@@ -8,23 +8,23 @@
  * latest articles — or, while searching, the articles answering the term.
  * Everything is a link or a GET form: no JavaScript is needed.
  *
- * @var list<array<string, mixed>> $rows
- * @var int $total
- * @var int $page
- * @var int $pages
- * @var string $q
- * @var string $tipo
- * @var int $editore
- * @var int $genere
- * @var string $lettera
- * @var string $editoreLabel
- * @var string $genereLabel
- * @var list<array{value: string, label: string, n: int}> $typeFacet
- * @var list<array{value: int, label: string, n: int}> $editoreFacet
- * @var list<array{value: int, label: string, n: int}> $genereFacet
- * @var array<string, int> $letterCounts
- * @var array<string, string> $tipoLabels
- * @var array{rows: array<int, array<string, mixed>>, total: int} $articleResults
+ * Input $rows: list<array<string, mixed>>
+ * Input $total: int
+ * Input $page: int
+ * Input $pages: int
+ * Input $q: string
+ * Input $tipo: string
+ * Input $editore: int
+ * Input $genere: int
+ * Input $lettera: string
+ * Input $editoreLabel: string
+ * Input $genereLabel: string
+ * Input $typeFacet: list<array{value: string, label: string, n: int}>
+ * Input $editoreFacet: list<array{value: int, label: string, n: int}>
+ * Input $genereFacet: list<array{value: int, label: string, n: int}>
+ * Input $letterCounts: array<string, int>
+ * Input $tipoLabels: array<string, string>
+ * Input $articleResults: array{rows: array<int, array<string, mixed>>, total: int}
  */
 declare(strict_types=1);
 

@@ -228,7 +228,7 @@ ob_start();
         </div>
 
         <?php
-        /** @var list<array{href: string, icon: string, label: string}> $errorLinks */
+        // $errorLinks: list<array{href: string, icon: string, label: string}>
         $errorLinks ??= [
             ['href' => $catalogRoute, 'icon' => 'fa-book', 'label' => __('Catalogo')],
             ['href' => $wishlistRoute, 'icon' => 'fa-heart', 'label' => __('Preferiti')],

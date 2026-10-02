@@ -6,9 +6,9 @@
  * and the accessible name are the same everywhere (the per-layout styling in
  * public/assets/frontend-layouts.css targets `.breadcrumb`).
  *
- * @var list<array{label: string, href?: string|null}> $breadcrumbItems
+ * Input $breadcrumbItems: list<array{label: string, href?: string|null}>
  *      In order from Home; the LAST item is the current page and is never a link.
- * @var string $breadcrumbVariant 'hero' — white, centred under a coloured
+ * Input $breadcrumbVariant: string 'hero' — white, centred under a coloured
  *      .catalog-header; 'book' — the .book-breadcrumb of a single-resource hero.
  */
 $breadcrumbItems = $breadcrumbItems ?? [];
