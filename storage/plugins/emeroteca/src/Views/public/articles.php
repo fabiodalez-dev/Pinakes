@@ -56,7 +56,7 @@ $breadcrumbItems=[['label'=>__('Home'),'href'=>url('/')],['label'=>__('Emeroteca
 include $corePartials.'/catalog-hero.php';
 ?>
 
-<main id="emeroteca-articoli" class="container emeroteca-public">
+<div id="emeroteca-articoli" class="container emeroteca-public">
     <div class="flex flex-wrap -mx-3">
         <?php
         $filterSearch=[
@@ -103,4 +103,4 @@ include $corePartials.'/catalog-hero.php';
             ?>
         </div>
     </div>
-</main>
+</div>

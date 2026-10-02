@@ -121,7 +121,7 @@ include $corePartials.'/resource-hero.php';
          span in the page, which is how Zotero, Mendeley and EndNote import
          this record without the reader downloading anything. Harmless when
          that plugin is inactive — nothing reads the attribute. */ ?>
-<main id="emeroteca-articolo" class="container emeroteca-public" data-articolo-id="<?= (int)($article['id'] ?? 0) ?>">
+<div id="emeroteca-articolo" class="container emeroteca-public" data-articolo-id="<?= (int)($article['id'] ?? 0) ?>">
 <?php
 $pagerLabel=__('Articoli dello stesso fascicolo');
 $pagerPrev=$neighbours['prev']!==null ? ['href'=>url('/emeroteca/articolo/'.(int)$neighbours['prev']['id']),'label'=>(string)$neighbours['prev']['titolo']] : null;
@@ -206,7 +206,7 @@ include $corePartials.'/resource-pager.php';
 </div>
 </aside>
 </div>
-</main>
+</div>
 
 <?php if($relatedTestata!==[] || $relatedAuthor!==[]): ?>
 <section class="resource-related">

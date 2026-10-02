@@ -86,7 +86,7 @@ $breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __(
 include $corePartials . '/catalog-hero.php';
 ?>
 
-<main id="emeroteca-index" class="container emeroteca-public">
+<div id="emeroteca-index" class="container emeroteca-public">
     <div class="flex flex-wrap -mx-3">
         <?php
         $letterOptions = [];
@@ -188,4 +188,4 @@ include $corePartials . '/catalog-hero.php';
             <?php endif; ?>
         </div>
     </div>
-</main>
+</div>

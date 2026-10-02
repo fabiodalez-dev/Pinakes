@@ -179,7 +179,7 @@ $breadcrumbItems = [
 include $corePartials . '/resource-hero.php';
 ?>
 
-<main id="emeroteca-fascicolo" class="container emeroteca-public">
+<div id="emeroteca-fascicolo" class="container emeroteca-public">
     <?php if ($isScartato): ?>
         <div class="resource-notice" role="status">
             <strong><?= __('Fascicolo scartato') ?></strong>
@@ -256,4 +256,4 @@ include $corePartials . '/resource-hero.php';
             </div>
         </aside>
     </div>
-</main>
+</div>

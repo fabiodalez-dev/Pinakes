@@ -154,7 +154,7 @@ $breadcrumbItems = [
 include $corePartials . '/resource-hero.php';
 ?>
 
-<main id="emeroteca-testata" class="container emeroteca-public">
+<div id="emeroteca-testata" class="container emeroteca-public">
     <div class="flex flex-wrap -mx-3">
         <?php
         $filterSearch = [
@@ -270,4 +270,4 @@ include $corePartials . '/resource-hero.php';
             </section>
         </div>
     </div>
-</main>
+</div>

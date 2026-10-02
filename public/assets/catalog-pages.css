@@ -1060,8 +1060,19 @@
         font-size: 1.75rem;
     }
 
+    /* Two columns on a phone: one full-width cover per row made a page of
+       twelve books nearly ten thousand pixels tall. */
     .books-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem 0.75rem;
+    }
+
+    .books-grid .book-content {
+        padding: 0.75rem 0.25rem 0;
+    }
+
+    .books-grid .book-title {
+        font-size: 1rem;
     }
 
     .book-actions {
@@ -1105,6 +1116,12 @@
 }
 
 .pagination .page-link {
+    /* 44px touch target, number centred. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
     color: #111827;
     border-color: #111827;
     font-weight: 600;
@@ -1396,4 +1413,13 @@ h2.filters-title {
     border: none;
     position: static;
     z-index: auto;
+}
+
+/* Status badges that catalog-grid.php also defines in its own <style>: a page
+   that renders catalogue cards without that file (author and publisher
+   archives) must not show a transparent, unreadable badge. */
+.status-unavailable,
+.availability-pending {
+    background: #6b7280;
+    color: #fff;
 }

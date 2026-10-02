@@ -14,6 +14,21 @@
 
 body[class*="layout-"] {
   background: color-mix(in srgb, var(--white) 97%, var(--primary-color) 3%);
+  /* A short page (privacy, a 404, an empty listing) used to end above the
+     viewport's bottom edge, leaving a tinted band under the footer. The page
+     is a column whose main area takes the remaining height. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+body[class*="layout-"] > main {
+  flex: 1 0 auto;
+}
+
+body[class*="layout-"] > footer {
+  flex-shrink: 0;
 }
 
 body[class*="layout-"] :where(a, button, input, select, textarea):focus-visible {
@@ -112,10 +127,11 @@ body[class*="layout-"] .book-kicker-separator {
 }
 
 body[class*="layout-"] .book-actions .btn-cta {
-  min-height: 40px;
+  /* 44px target and the system's 2px corner (DESIGN.md). */
+  min-height: 44px;
   padding: .55rem .8rem !important;
   border: 1px solid color-mix(in srgb, var(--primary-color) 42%, var(--border-color)) !important;
-  border-radius: 7px !important;
+  border-radius: 2px !important;
   justify-content: center;
 }
 
