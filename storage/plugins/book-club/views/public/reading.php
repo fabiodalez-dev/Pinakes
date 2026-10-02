@@ -36,31 +36,28 @@ $mySectionId = $myProgress !== null && $myProgress['section_id'] !== null ? (int
 $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'] ?? 0)));
 ?>
 <style>
-  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
   .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
-  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
-  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
-  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
-  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:2px;font-size:.75rem;font-weight:600}
   .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
   .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
   .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
   .bc-muted{color:var(--text-light);font-size:.85rem}
-  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
-  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
-  .bc-hero p{opacity:.9;margin:0}
-  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
-  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:2px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:2px;background:var(--primary-color)}
   .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
   .bc-list-item:first-child{border-top:none}
-  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
-  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:3px}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
   <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
@@ -156,7 +153,7 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
         <?php endif; ?>
         <div class="w-full px-3 sm:w-1/2 md:w-1/4">
           <div class="flex items-center gap-2">
-            <input class="h-4 w-4 rounded border-gray-300" type="checkbox" name="finished" value="1" id="bc-finished" <?= $myFinished ? 'checked' : '' ?>>
+            <input class="h-4 w-4 border-gray-300" type="checkbox" name="finished" value="1" id="bc-finished" <?= $myFinished ? 'checked' : '' ?>>
             <label class="text-sm text-gray-700" for="bc-finished"><?= $e(__('Ho finito il libro')) ?></label>
           </div>
         </div>
@@ -190,7 +187,7 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
                 . '–' . ($section['range_to'] !== null ? (int) $section['range_to'] : '…');
         }
       ?>
-      <div class="border rounded-md px-3 py-3 mb-3">
+      <div class="border px-3 py-3 mb-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
             <span class="font-semibold"><?= $e($section['title']) ?></span>
