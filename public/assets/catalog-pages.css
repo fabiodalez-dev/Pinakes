@@ -152,6 +152,11 @@
     box-shadow: none;
 }
 
+.search-box input:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
 .search-box svg {
     width: 1rem;
     height: 1rem;
@@ -586,6 +591,11 @@
     box-shadow: none;
 }
 
+.pages-input:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
 .pages-separator {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -664,6 +674,11 @@
     outline: none;
     border-color: var(--primary-color);
     box-shadow: none;
+}
+
+.sort-select:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 
 .clear-filters-top-btn {
@@ -841,7 +856,6 @@
 }
 
 .book-content {
-flex: 1;
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
@@ -891,7 +905,6 @@ flex: 1;
 }
 
 .book-actions {
-margin-top: auto;
     margin-top: auto;
     display: flex;
     gap: 0.5rem;
@@ -1052,7 +1065,6 @@ margin-top: auto;
     }
 
     .book-actions {
-margin-top: auto;
         flex-direction: column;
     }
 }
