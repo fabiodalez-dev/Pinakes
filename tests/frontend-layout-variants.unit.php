@@ -53,6 +53,7 @@ $swalThemeCss = file_get_contents($root . '/public/assets/css/swal-theme.css');
 $archiveView = file_get_contents($root . '/app/Views/frontend/archive.php');
 $archiveCss = file_get_contents($root . '/public/assets/archive-pages.css');
 $catalogCss = file_get_contents($root . '/public/assets/catalog-pages.css');
+$bookDetailCss = file_get_contents($root . '/public/assets/book-detail.css');
 $bootstrapClassReference = false;
 $bootstrapClassPattern = '/class\s*=\s*["\'][^"\'\n]*(?:\bd-(?:none|flex|block|inline(?:-flex)?)\b|\bcol-(?:\d+|(?:sm|md|lg|xl)-\d+)\b|\b(?:me|ms|pe|ps)-\d+\b|\bform-(?:control|select|check(?:-input|-label)?)\b|\bspinner-border\b|\bvisually-hidden\b)/';
 $viewDirectories = [$root . '/app/Views', $root . '/storage/plugins'];
@@ -157,6 +158,7 @@ $checks = [
     'catalog does not duplicate the active-theme query' => !str_contains($catalog, 'getActiveTheme()'),
     'catalog filter sidebar widens responsively on laptops' => str_contains($catalog, 'catalog-filters-column w-full lg:w-1/3') && str_contains($catalog, 'catalog-results-column w-full lg:w-2/3'),
     'catalog filter controls retain touch-safe spacing' => str_contains($catalogCss, 'min-height: 44px;') && str_contains($catalogCss, 'padding: 0.7rem 0.75rem;'),
+    'book detail surface is a shared stylesheet linked by the layout' => str_contains($bookDetail, '$bookDetailStyles = true') && str_contains($bookDetail, '--book-hero-cover:') && str_contains($layout, '$bookDetailVersion') && str_contains($bookDetailCss, 'var(--book-hero-cover, none)') && !str_contains($bookDetailCss, '<?'),
     'catalog surface is a shared stylesheet linked by the layout' => str_contains($catalog, '$catalogPageStyles = true') && !str_contains($catalog, '<style>') && str_contains($layout, '$catalogPagesVersion') && str_contains($catalogCss, '.books-grid') && !str_contains($catalogCss, ':root {'),
     'catalog filters collapse behind an accessible mobile control' => str_contains($catalog, 'id="catalog-filters-toggle"') && str_contains($catalog, 'aria-controls="catalog-filters-content"') && str_contains($catalog, 'mobileFilters.matches'),
     'catalog pagination emits a syntactically complete active class' => str_contains($catalog, "' + activeClass + '\"><a class=\"page-link\""),
@@ -192,7 +194,7 @@ $checks = [
     'compiled vendor stylesheet contains no bootstrap variables' => !str_contains($vendorCss, '--bs-') && !str_contains($vendorCss, 'Bootstrap v'),
     'views contain no bootstrap-only layout classes' => !$bootstrapClassReference,
     'container centering and page padding come from the tailwind source' => str_contains($tailwindSource, 'margin-left: auto;') && str_contains($tailwindSource, 'margin-right: auto;'),
-    'book hero uses a real two-column grid' => str_contains($bookDetail, 'grid-template-columns: minmax(0, 1fr) minmax(0, 2fr)') && str_contains($bookDetail, 'class="book-info-column"'),
+    'book hero uses a real two-column grid' => str_contains($bookDetailCss, 'grid-template-columns: minmax(0, 1fr) minmax(0, 2fr)') && str_contains($bookDetail, 'class="book-info-column"'),
     'book identity is ordered and shared by every layout' => str_contains($bookDetail, 'class="book-breadcrumb"') && str_contains($bookDetail, 'class="book-kicker"') && str_contains($css, 'body[class*="layout-"] .book-breadcrumb') && str_contains($css, "content: '›'"),
     'book subtitle has no oversized inline typography' => str_contains($bookDetail, 'class="book-subtitle-hero mb-3"') && !str_contains($bookDetail, 'id="book-subtitle" style='),
     'book status is a compact semantic text-and-dot component' => str_contains($bookDetail, 'book-status-inline') && str_contains($css, '.book-status-inline::before'),
