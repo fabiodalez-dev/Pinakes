@@ -7905,5 +7905,8 @@
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Enter the resource address or path first: without it there is nothing to show in the public catalogue.",
     "Questo identificativo GND è già assegnato a un altro autore.": "This GND identifier is already assigned to another author.",
     "Nuovo articolo": "New article",
-    "Da rivista o giornale": "From a journal or newspaper"
+    "Da rivista o giornale": "From a journal or newspaper",
+  "Articoli e contributi dei periodici della biblioteca": "Articles and contributions from the library's periodicals",
+  "articolo trovato": "article found",
+  "articoli trovati": "articles found"
 }

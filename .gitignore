@@ -652,6 +652,7 @@ docs/prototypes/
 # developer-machine artifacts, not project source, and must never reach a remote.
 /PRODUCT.md
 /DESIGN.md
+/DESIGN.*.md
 .impeccable/
 .code-review-graph/
 .playwright-mcp/

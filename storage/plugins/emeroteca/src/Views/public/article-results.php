@@ -29,6 +29,41 @@ $articleKeep=static fn(mixed $value):bool=>trim((string)$value)!=='';
 // the test is `!== ''`. `?:` would read the perfectly valid path "0" as absent
 // — the falsy-value mistake this file already carries a helper to avoid.
 ?>
+<?php
+/*
+ * Grid variant — the catalogue's cover grid (public/assets/catalog-pages.css),
+ * used by the article search page, which supplies its own heading, result count
+ * and pagination. The list below stays the default for the emeroteca home and
+ * the masthead pages. Same links, same image resolution, same metadata rules.
+ */
+if(($articleResultsVariant??'list')==='grid'): ?>
+<?php if(!$articleResults['rows']): ?>
+<div class="empty-state">
+    <i class="fas fa-search empty-state-icon" aria-hidden="true"></i>
+    <h2 class="empty-state-title"><?= __('Nessun risultato trovato') ?></h2>
+    <p class="empty-state-text"><?= __('Prova a modificare i filtri o la tua ricerca') ?></p>
+    <a class="btn-cta btn-cta-sm" href="<?= $ae(url('/emeroteca/articoli')) ?>"><i class="fas fa-redo mr-2" aria-hidden="true"></i><?= __('Mostra tutti gli articoli') ?></a>
+</div>
+<?php else: ?>
+<div class="books-grid emeroteca-articles-grid">
+<?php foreach($articleResults['rows'] as $a): $articleUrl=url('/emeroteca/articolo/'.(int)$a['id']); $articleCover=\App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a); ?>
+<article class="book-card" data-record-kind="article" data-article-id="<?= (int)$a['id'] ?>">
+    <div class="book-image-container">
+        <a href="<?= $ae($articleUrl) ?>" tabindex="-1" aria-hidden="true"><img class="book-image" src="<?= $ae(url($articleCover!==''?$articleCover:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=<?= $ae(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>"></a>
+    </div>
+    <div class="book-content">
+        <h3 class="book-title"><a href="<?= $ae($articleUrl) ?>"><?= $ae($a['titolo']) ?></a></h3>
+        <?php if(($a['sottotitolo']??'')!==''): ?><p class="book-subtitle"><?= $ae($a['sottotitolo']) ?></p><?php endif; ?>
+        <?php if(($a['autori']??'')!==''): $rowAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorLinks($a); ?><p class="book-author"><?php if($rowAuthors): foreach($rowAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a href="<?= $ae(($an['id'] !== null ? route_path('author').'/'.$an['id'] : $articleFilterUrl('autore',$an['name']))) ?>"><?= $ae($an['name']) ?></a><?php endforeach; else: ?><?= $ae($a['autori']) ?><?php endif; ?></p><?php endif; ?>
+        <?php $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); ?>
+        <p class="book-meta"><?php if(($a['contenitore_titolo']??'')!==''): ?><a href="<?= $ae($articleFilterUrl('pubblicazione',(string)$a['contenitore_titolo'])) ?>"><?= $ae($a['contenitore_titolo']) ?></a><?= $rest?' · ':'' ?><?php endif; ?><?= $ae(implode(' · ',$rest)) ?></p>
+        <div class="book-actions"><a class="btn-cta btn-cta-sm" href="<?= $ae($articleUrl) ?>"><i class="fas fa-eye" aria-hidden="true"></i> <?= __('Dettagli') ?></a></div>
+    </div>
+</article>
+<?php endforeach; ?>
+</div>
+<?php endif; ?>
+<?php return; endif; ?>
 <section class="py-8"><h2 class="text-2xl font-semibold mb-5"><?= __('Articoli') ?></h2>
 <?php if(!$articleResults['rows']): ?><p><?= __('Nessun articolo disponibile.') ?></p><?php endif; ?>
 <ul class="divide-y"><?php foreach($articleResults['rows'] as $a): ?><li class="py-4"><div style="display:flex;gap:1rem;align-items:flex-start;">

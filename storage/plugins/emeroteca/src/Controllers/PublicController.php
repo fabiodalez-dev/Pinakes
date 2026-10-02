@@ -540,6 +540,49 @@ class PublicController
         return $filters;
     }
 
+    /**
+     * Sidebar facets of the public article search: the mastheads and the
+     * container publications that hold published articles, each with its count.
+     *
+     * The counts describe the whole public corpus, not the current result set:
+     * a facet is a way into the collection, and its number says how much is
+     * behind it. Bounded, so a large kardex cannot turn the sidebar into the
+     * page.
+     *
+     * @return array{testate: list<array{id:int,titolo:string,n:int}>, pubblicazioni: list<array{nome:string,n:int}>}
+     */
+    private function articleFacets(): array
+    {
+        $facets = ['testate' => [], 'pubblicazioni' => []];
+        if (!$this->tableExists('emeroteca_contributi')) {
+            return $facets;
+        }
+        if ($this->tableExists('emeroteca_testate')) {
+            foreach ($this->fetchAll(
+                "SELECT t.id, t.titolo, COUNT(*) AS n
+                   FROM emeroteca_contributi c
+                   JOIN emeroteca_testate t ON t.id = c.testata_id
+                  WHERE c.pubblico = 1
+                  GROUP BY t.id, t.titolo
+                  ORDER BY t.titolo
+                  LIMIT 200"
+            ) as $row) {
+                $facets['testate'][] = ['id' => (int) $row['id'], 'titolo' => (string) $row['titolo'], 'n' => (int) $row['n']];
+            }
+        }
+        foreach ($this->fetchAll(
+            "SELECT contenitore_titolo AS nome, COUNT(*) AS n
+               FROM emeroteca_contributi
+              WHERE pubblico = 1 AND contenitore_titolo IS NOT NULL AND contenitore_titolo <> ''
+              GROUP BY contenitore_titolo
+              ORDER BY n DESC, contenitore_titolo
+              LIMIT 50"
+        ) as $row) {
+            $facets['pubblicazioni'][] = ['nome' => (string) $row['nome'], 'n' => (int) $row['n']];
+        }
+        return $facets;
+    }
+
     /** Build a ContributionService bound to this controller's DB connection, loading its class file. */
     private function contributions(): \App\Plugins\Emeroteca\Services\ContributionService
     {
@@ -579,6 +622,7 @@ class PublicController
             'term'=>$term,
             'testata'=>$testata,
             'filters'=>$filters,
+            'facets'=>$this->articleFacets(),
             'seoTitle'=>__('Articoli'),
             'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli'.($page>1?'?page='.$page:''),
             'seoRobots'=>$narrowed?'noindex,follow':'index,follow',

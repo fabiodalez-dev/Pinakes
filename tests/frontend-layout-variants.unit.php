@@ -52,6 +52,7 @@ $mainCss = file_get_contents($root . '/public/assets/main.css');
 $swalThemeCss = file_get_contents($root . '/public/assets/css/swal-theme.css');
 $archiveView = file_get_contents($root . '/app/Views/frontend/archive.php');
 $archiveCss = file_get_contents($root . '/public/assets/archive-pages.css');
+$catalogCss = file_get_contents($root . '/public/assets/catalog-pages.css');
 $bootstrapClassReference = false;
 $bootstrapClassPattern = '/class\s*=\s*["\'][^"\'\n]*(?:\bd-(?:none|flex|block|inline(?:-flex)?)\b|\bcol-(?:\d+|(?:sm|md|lg|xl)-\d+)\b|\b(?:me|ms|pe|ps)-\d+\b|\bform-(?:control|select|check(?:-input|-label)?)\b|\bspinner-border\b|\bvisually-hidden\b)/';
 $viewDirectories = [$root . '/app/Views', $root . '/storage/plugins'];
@@ -155,7 +156,8 @@ $checks = [
     'related books always render an author label' => str_contains($bookDetail, '$relatedAuthorDisplay') && str_contains($bookDetail, 'Autore sconosciuto'),
     'catalog does not duplicate the active-theme query' => !str_contains($catalog, 'getActiveTheme()'),
     'catalog filter sidebar widens responsively on laptops' => str_contains($catalog, 'catalog-filters-column w-full lg:w-1/3') && str_contains($catalog, 'catalog-results-column w-full lg:w-2/3'),
-    'catalog filter controls retain touch-safe spacing' => str_contains($catalog, 'min-height: 44px;') && str_contains($catalog, 'padding: 0.7rem 0.75rem;'),
+    'catalog filter controls retain touch-safe spacing' => str_contains($catalogCss, 'min-height: 44px;') && str_contains($catalogCss, 'padding: 0.7rem 0.75rem;'),
+    'catalog surface is a shared stylesheet linked by the layout' => str_contains($catalog, '$catalogPageStyles = true') && !str_contains($catalog, '<style>') && str_contains($layout, '$catalogPagesVersion') && str_contains($catalogCss, '.books-grid') && !str_contains($catalogCss, ':root {'),
     'catalog filters collapse behind an accessible mobile control' => str_contains($catalog, 'id="catalog-filters-toggle"') && str_contains($catalog, 'aria-controls="catalog-filters-content"') && str_contains($catalog, 'mobileFilters.matches'),
     'catalog pagination emits a syntactically complete active class' => str_contains($catalog, "' + activeClass + '\"><a class=\"page-link\""),
     'related-book fallback uses one ranked query' => str_contains($frontendController, 'Priorities 1-3 in one ranked query') && str_contains($frontendController, 'ORDER BY {$priorityOrder}'),

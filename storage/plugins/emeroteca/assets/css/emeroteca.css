@@ -1126,3 +1126,50 @@
         transition-duration: .01ms !important;
     }
 }
+
+/* Public article search (/emeroteca/articoli).
+ * The page wears the catalogue surface (public/assets/catalog-pages.css); these
+ * rules only cover what the catalogue never needed: its "clear" controls are
+ * <button>s driven by JS, here they are plain links, and its cards carry no
+ * subtitle or publication link. */
+#emeroteca-articoli :is(.clear-all-btn, .clear-filters-top-btn, .filter-tag-remove) {
+    text-decoration: none;
+}
+
+#emeroteca-articoli .clear-all-btn,
+#emeroteca-articoli .clear-all-btn:hover,
+#emeroteca-articoli .clear-filters-top-btn,
+#emeroteca-articoli .clear-filters-top-btn:hover,
+#emeroteca-articoli .filter-tag-remove {
+    color: #fff;
+}
+
+#emeroteca-articoli .search-box input[type="search"]::-webkit-search-cancel-button {
+    cursor: pointer;
+}
+
+#emeroteca-articoli .book-subtitle {
+    margin: -0.25rem 0 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--text-muted, #64748b);
+}
+
+#emeroteca-articoli .book-meta a {
+    color: inherit;
+    text-decoration: none;
+}
+
+#emeroteca-articoli .book-meta a:hover,
+#emeroteca-articoli .book-meta a:focus-visible {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+/* The catalogue's sidebar heading is an <h5>; here it is an <h2> (correct
+ * outline under the page's <h1>), which the layout would set in the display
+ * serif. Keep the catalogue's UI face. */
+#emeroteca-articoli .filters-title {
+    font-family: inherit;
+    margin: 0;
+}

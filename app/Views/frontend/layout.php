@@ -52,6 +52,8 @@ $swalThemeMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/css/swal-them
 $swalThemeVersion = $swalThemeMtime !== false ? (string)$swalThemeMtime : $appVersion;
 $archivePagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/archive-pages.css');
 $archivePagesVersion = $archivePagesMtime !== false ? (string)$archivePagesMtime : $appVersion;
+$catalogPagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/catalog-pages.css');
+$catalogPagesVersion = $catalogPagesMtime !== false ? (string)$catalogPagesMtime : $appVersion;
 
 // Load theme colors
 if (isset($container)) {
@@ -1547,6 +1549,11 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         <?= $additional_css ?? '' ?>
     </style>
+    <?php if (!empty($catalogPageStyles)): ?>
+        <?php // After the layout's own <style> (the catalogue rules override it, as
+        // the former inline block did) and before the theme's custom CSS. ?>
+        <link href="<?= htmlspecialchars(assetUrl('/catalog-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($catalogPagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <?php endif; ?>
 
     <?php
     // Active theme's "CSS Personalizzato" (settings.advanced.custom_css, saved

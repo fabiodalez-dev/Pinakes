@@ -7905,5 +7905,8 @@
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Angiv først ressourcens adresse eller sti: uden den er der intet at vise i det offentlige katalog.",
     "Questo identificativo GND è già assegnato a un altro autore.": "Denne GND-identifikator er allerede tildelt en anden forfatter.",
     "Nuovo articolo": "Ny artikel",
-    "Da rivista o giornale": "Fra tidsskrift eller avis"
+    "Da rivista o giornale": "Fra tidsskrift eller avis",
+  "Articoli e contributi dei periodici della biblioteca": "Artikler og bidrag fra bibliotekets tidsskrifter",
+  "articolo trovato": "artikel fundet",
+  "articoli trovati": "artikler fundet"
 }
