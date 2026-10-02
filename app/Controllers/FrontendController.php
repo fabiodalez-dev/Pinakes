@@ -229,6 +229,10 @@ class FrontendController
             ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'home');
     }
 
+    /**
+     * The public catalogue: filtered, paginated results under the header the
+     * admin set for the visitor's language, or the translated default.
+     */
     public function catalog(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();

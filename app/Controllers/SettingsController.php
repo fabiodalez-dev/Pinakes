@@ -20,6 +20,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class SettingsController
 {
+    /**
+     * Render the settings page with every tab's current values, including the
+     * catalogue header of each active language and its shipped default.
+     */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         $repository = new SettingsRepository($db);
@@ -1564,6 +1568,11 @@ class SettingsController
         return $this->redirect($response, '/admin/settings?tab=cms');
     }
 
+    /**
+     * Save the catalogue title and subtitle of each active language from the
+     * CMS tab. A malformed post is rejected before any write; on success the
+     * catalogue pages are purged from the LiteSpeed cache.
+     */
     public function updateCatalogHeader(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
@@ -1671,6 +1680,7 @@ class SettingsController
         return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
     }
 
+    /** A 302 back to an admin path inside the application. */
     private function redirect(Response $response, string $location): Response
     {
         // BasePathMiddleware already prefixes a Location that starts with "/";

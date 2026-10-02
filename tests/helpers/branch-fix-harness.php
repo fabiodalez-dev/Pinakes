@@ -704,6 +704,12 @@ function scenarioProfileLocaleOmittedKeepsValue(mysqli $db): array
     }
 }
 
+/**
+ * A remembered sign-in restores the user's saved language, not the one the
+ * request started in. Runs against a private remember-me registry.
+ *
+ * @return array<string, mixed>
+ */
 function scenarioRememberMeLoadsLocale(mysqli $db): array
 {
     $_SESSION = [];

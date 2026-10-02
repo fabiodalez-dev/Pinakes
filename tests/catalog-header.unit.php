@@ -10,6 +10,7 @@ use App\Support\CatalogHeader;
 use App\Support\I18n;
 
 $n = 0;
+/** Count a passing check, or stop the run on the first failing one. */
 function check(bool $ok, string $label): void
 {
     global $n;
