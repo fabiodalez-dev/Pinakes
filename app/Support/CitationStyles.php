@@ -601,7 +601,6 @@ final class CitationStyles
         return $text === '' ? '' : (string) preg_replace('/\s+/u', ' ', $text);
     }
 
-    /** A title ends in exactly one full stop, whatever punctuation it arrived with. */
     /**
      * What follows a title that may already end the sentence: "Who Moved My
      * Cheese?" takes no full stop after it, and neither does a title ending in
@@ -621,6 +620,7 @@ final class CitationStyles
         return preg_match('/[.!?]$/u', $title) === 1 ? ' ' : '. ';
     }
 
+    /** A title ends in exactly one full stop, whatever punctuation it arrived with. */
     private static function terminate(string $text): string
     {
         if ($text === '') {
