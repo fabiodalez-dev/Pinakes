@@ -1,12 +1,22 @@
+/*
+ * Author, publisher and genre archives.
+ * The header is a profile card on the neutral tint of the single-resource
+ * pages (--light-bg), not the coloured catalogue hero: it carries a portrait
+ * and a count, which a centred hero cannot hold. Works use the catalogue's
+ * own cards (.books-grid / .book-card, public/assets/catalog-pages.css),
+ * pagination and empty state, so this sheet only styles the header, the
+ * biography box and the section heading.
+ */
+
 .archive-page {
   background: var(--white);
   color: var(--text-color);
 }
 
 .archive-hero {
-  background: color-mix(in srgb, var(--primary-color) 5%, var(--light-bg));
+  background: var(--light-bg);
   color: var(--text-color);
-  padding: clamp(2.25rem, 5vw, 4.75rem) 0 clamp(2.75rem, 6vw, 5.5rem);
+  padding: clamp(2rem, 4vw, 3.5rem) 0 clamp(2.25rem, 4vw, 3.5rem);
 }
 
 .archive-hero-inner,
@@ -14,26 +24,8 @@
   width: min(100%, 80rem);
 }
 
-.archive-breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .55rem;
-  margin-bottom: clamp(2rem, 5vw, 4rem);
-  color: var(--text-muted);
-  font-size: .8125rem;
-  font-weight: 600;
-}
-
-.archive-breadcrumb a,
-.archive-breadcrumb span {
-  color: inherit;
-  text-decoration: none;
-}
-
-.archive-breadcrumb a:hover,
-.archive-breadcrumb a:focus-visible {
-  color: var(--primary-color);
+.archive-hero .book-breadcrumb {
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
 }
 
 .archive-identity {
@@ -44,14 +36,15 @@
   max-width: 68rem;
 }
 
+/* A portrait, not a badge: the 3px image radius, never a circle. */
 .archive-avatar {
   display: grid;
   width: 5.5rem;
-  height: 5.5rem;
+  aspect-ratio: 2 / 3;
   place-items: center;
   overflow: hidden;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--primary-color) 12%, var(--white));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--white));
   color: var(--primary-color);
   font-size: 1.55rem;
 }
@@ -62,25 +55,24 @@
   object-fit: cover;
 }
 
-.archive-kicker,
-.archive-section-kicker {
-  margin: 0 0 .55rem;
+.archive-kicker {
+  margin: 0 0 .5rem;
   color: var(--primary-color);
   font-size: .75rem;
-  font-weight: 750;
-  letter-spacing: .13em;
+  font-weight: 700;
+  letter-spacing: .1em;
   text-transform: uppercase;
 }
 
 .archive-title {
-  max-width: 20ch;
+  max-width: 24ch;
   margin: 0;
   color: var(--text-color);
   font-family: var(--serif, Fraunces, Georgia, serif);
-  font-size: clamp(2.15rem, 5vw, 4.6rem);
-  font-weight: 500;
-  line-height: .98;
-  letter-spacing: -.045em;
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  font-weight: 420;
+  line-height: 1.05;
+  letter-spacing: -.03em;
   text-wrap: balance;
 }
 
@@ -89,7 +81,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: .55rem;
-  margin: 1.25rem 0 0;
+  margin: 1rem 0 0;
   color: var(--text-color);
   font-size: .9rem;
   font-weight: 600;
@@ -100,44 +92,55 @@
 }
 
 .archive-content {
-  padding-top: clamp(2.75rem, 6vw, 5.5rem);
-  padding-bottom: clamp(4rem, 8vw, 7rem);
+  padding-top: clamp(2rem, 4vw, 3.5rem);
+  padding-bottom: clamp(3rem, 6vw, 5rem);
 }
 
 .archive-details {
   display: grid;
   gap: 1.25rem;
   max-width: 72ch;
-  margin-bottom: clamp(3rem, 6vw, 5.5rem);
+  margin-bottom: clamp(2rem, 4vw, 3.5rem);
   padding: 1.5rem;
-  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 2px);
   background: var(--light-bg);
 }
 
 .archive-biography {
   color: var(--text-color);
   font-size: 1rem;
-  line-height: 1.75;
+  line-height: 1.7;
 }
 
 .archive-links,
 .publisher-details {
   display: flex;
   flex-wrap: wrap;
-  gap: .75rem 1.25rem;
+  gap: .25rem 1.25rem;
 }
 
 .archive-links a,
 .publisher-details a,
 .publisher-details p {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
   gap: .55rem;
   margin: 0;
   color: var(--text-color);
-  font-size: .9rem;
-  font-weight: 650;
+  font-size: .9375rem;
+  font-weight: 600;
   text-decoration: none;
+}
+
+.archive-links a:hover,
+.archive-links a:focus-visible,
+.publisher-details a:hover,
+.publisher-details a:focus-visible {
+  color: var(--primary-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .archive-links i,
@@ -150,15 +153,15 @@
   align-items: end;
   justify-content: space-between;
   gap: 1.5rem;
-  margin-bottom: clamp(1.75rem, 4vw, 3rem);
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
 }
 
 .archive-section-header h2 {
   margin: 0;
   color: var(--text-color);
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  line-height: 1.05;
-  letter-spacing: -.035em;
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  line-height: 1.1;
+  letter-spacing: -.02em;
 }
 
 .archive-catalog-link {
@@ -177,169 +180,29 @@
   color: var(--primary-color);
 }
 
-.archive-books-grid {
-  display: grid;
+/* Same card as /catalogo; only the column count is fixed so a short list
+   does not stretch its cards. */
+.archive-page .archive-books-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(2.25rem, 5vw, 4.5rem) clamp(1.25rem, 2.5vw, 2.25rem);
+  gap: 1.5rem;
 }
 
-.archive-book-card {
-  min-width: 0;
-}
-
-.archive-book-cover {
-  position: relative;
-  display: block;
-  aspect-ratio: 2 / 3;
-  overflow: hidden;
-  border-radius: 6px;
-  background: var(--light-bg);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, .11);
-  transition: transform 200ms cubic-bezier(.22, 1, .36, 1), box-shadow 200ms cubic-bezier(.22, 1, .36, 1);
-}
-
-.archive-book-cover:hover,
-.archive-book-cover:focus-visible {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 42px rgba(15, 23, 42, .16);
-}
-
-.archive-book-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.archive-book-status {
-  position: absolute;
-  top: .75rem;
-  right: .75rem;
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  gap: .35rem;
-  padding: .35rem .65rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--white) 92%, transparent);
-  color: var(--text-color);
-  font-size: .72rem;
-  font-weight: 750;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, .08);
-}
-
-.archive-book-status.is-available i { color: var(--success-color); }
-.archive-book-status.is-reserved i { color: var(--warning-color); }
-.archive-book-status.is-borrowed i,
-.archive-book-status.is-unavailable i { color: var(--danger-color); }
-
-.archive-book-copy {
-  padding: 1rem .15rem 0;
-}
-
-.archive-book-copy h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 720;
-  line-height: 1.35;
-}
-
-.archive-book-copy h3 a,
-.archive-book-author a {
-  color: var(--text-color);
+/* The author link and the meta links inside a catalogue card. */
+.archive-books-grid .book-author a,
+.archive-books-grid .book-meta a {
+  color: inherit;
   text-decoration: none;
 }
 
-.archive-book-copy h3 a:hover,
-.archive-book-copy h3 a:focus-visible,
-.archive-book-author a:hover,
-.archive-book-author a:focus-visible {
+.archive-books-grid .book-author a:hover,
+.archive-books-grid .book-author a:focus-visible,
+.archive-books-grid .book-meta a:hover,
+.archive-books-grid .book-meta a:focus-visible {
   color: var(--primary-color);
+  text-decoration: underline;
 }
 
-.archive-book-author {
-  margin: .55rem 0 0;
-  color: var(--text-color);
-  font-size: .9rem;
-  line-height: 1.45;
-}
-
-.archive-book-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .4rem .8rem;
-  margin-top: .7rem;
-}
-
-.archive-book-meta a {
-  color: var(--text-muted);
-  font-size: .8rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.archive-book-meta a:hover,
-.archive-book-meta a:focus-visible {
-  color: var(--primary-color);
-}
-
-.archive-pagination {
-  display: flex;
-  justify-content: center;
-  gap: .4rem;
-  margin-top: 4rem;
-}
-
-.archive-pagination a {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--light-bg);
-  color: var(--text-color);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.archive-pagination a[aria-current="page"] {
-  background: var(--button-color);
-  color: var(--button-text-color);
-}
-
-.archive-empty {
-  max-width: 38rem;
-  padding: clamp(2.5rem, 7vw, 5rem) 0;
-}
-
-.archive-empty > i {
-  margin-bottom: 1.25rem;
-  color: var(--primary-color);
-  font-size: 1.75rem;
-}
-
-.archive-empty h3 {
-  margin: 0 0 .5rem;
-  color: var(--text-color);
-  font-size: 1.5rem;
-}
-
-.archive-empty p {
-  margin: 0 0 1.5rem;
-  color: var(--text-muted);
-}
-
-.archive-empty a {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  padding: .7rem 1.1rem;
-  border-radius: 8px;
-  background: var(--button-color);
-  color: var(--button-text-color);
-  font-weight: 700;
-  text-decoration: none;
-}
-
+/* ── Layout variants ─────────────────────────────────────────────────── */
 body.layout-workspace .archive-title,
 body.layout-command .archive-title,
 body.layout-soft .archive-title,
@@ -360,7 +223,11 @@ body.layout-command .archive-hero {
   color: var(--white);
 }
 
-body.layout-command .archive-hero :where(.archive-title, .archive-count, .archive-breadcrumb, .archive-breadcrumb a) {
+body.layout-command .archive-hero .archive-title,
+body.layout-command .archive-hero .archive-count,
+body.layout-command .archive-hero .book-breadcrumb .breadcrumb-item,
+body.layout-command .archive-hero .book-breadcrumb a,
+body.layout-command .archive-hero .book-breadcrumb .active {
   color: var(--white);
 }
 
@@ -379,35 +246,26 @@ body.layout-soft .archive-hero {
   border-radius: 24px;
 }
 
-body.layout-soft .archive-details {
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--primary-color) 5%, var(--light-bg));
+body.layout-soft .archive-avatar {
+  background: var(--white);
 }
 
 @media (max-width: 62rem) {
-  .archive-books-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .archive-page .archive-books-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 44rem) {
-  .archive-hero { padding-block: 2rem 3.25rem; }
-  .archive-breadcrumb { margin-bottom: 2rem; }
+  .archive-hero { padding-block: 1.75rem 2.25rem; }
   .archive-identity { grid-template-columns: 4rem minmax(0, 1fr); }
-  .archive-avatar { width: 4rem; height: 4rem; }
-  .archive-title { font-size: 2.35rem; }
-  .archive-section-header { align-items: start; flex-direction: column; }
-  .archive-books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .archive-avatar { width: 4rem; }
+  .archive-title { font-size: 2rem; }
+  .archive-section-header { align-items: start; flex-direction: column; gap: 0; }
+  .archive-page .archive-books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
   body.layout-soft .archive-hero { margin: 0 .65rem; }
 }
 
-@media (max-width: 28rem) {
-  .archive-identity { grid-template-columns: 1fr; }
-  .archive-avatar { width: 3.5rem; height: 3.5rem; }
-  .archive-books-grid { gap: 2.5rem 1rem; }
-  .archive-book-status { top: .5rem; right: .5rem; padding-inline: .5rem; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .archive-book-cover { transition: none; }
-  .archive-book-cover:hover,
-  .archive-book-cover:focus-visible { transform: none; }
+  .archive-books-grid .book-image-container,
+  .archive-books-grid .book-image { transition: none; }
+  .archive-books-grid .book-card:hover .book-image { transform: none; }
 }
