@@ -69,10 +69,7 @@ class SettingsController
         // language, with the shipped wording of each language as placeholder.
         $catalogHeaderLocales = \App\Support\I18n::getAvailableLocales();
         $catalogHeaderTexts = \App\Support\CatalogHeader::stored($repository);
-        $catalogHeaderDefaults = [];
-        foreach (array_keys($catalogHeaderLocales) as $catalogLocale) {
-            $catalogHeaderDefaults[$catalogLocale] = \App\Support\CatalogHeader::defaultsIn((string) $catalogLocale);
-        }
+        $catalogHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)));
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
@@ -1676,8 +1673,9 @@ class SettingsController
 
     private function redirect(Response $response, string $location): Response
     {
-        // url() adds the base path of an installation in a subfolder (and
-        // leaves a path that already carries it alone).
+        // BasePathMiddleware already prefixes a Location that starts with "/";
+        // url() states the base path here too, and both skip a path that
+        // already carries it, so the two never add it twice.
         return $response->withHeader('Location', url($location))->withStatus(302);
     }
 }

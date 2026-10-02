@@ -105,21 +105,31 @@ final class CatalogHeader
     }
 
     /**
-     * The shipped wording in $locale, shown as the placeholder of each field
-     * so the admin sees what an empty field falls back to.
+     * The shipped wording in each of $locales, shown as the placeholder of each
+     * field so the admin sees what an empty field falls back to.
      *
-     * @return array{title: string, subtitle: string}
+     * Switching the locale empties the translation cache, so this switches
+     * once per language and restores the admin's language once at the end,
+     * instead of a switch and a restore around every language.
+     *
+     * @param list<string> $locales
+     * @return array<string, array{title: string, subtitle: string}>
      */
-    public static function defaultsIn(string $locale): array
+    public static function defaultsFor(array $locales): array
     {
         $current = I18n::getLocale();
-        I18n::setLocale($locale);
+        $defaults = [];
         // finally: the settings page renders in the admin's language after this.
         try {
-            return ['title' => __(self::DEFAULT_TITLE), 'subtitle' => __(self::DEFAULT_SUBTITLE)];
+            foreach ($locales as $locale) {
+                I18n::setLocale($locale);
+                $defaults[$locale] = ['title' => __(self::DEFAULT_TITLE), 'subtitle' => __(self::DEFAULT_SUBTITLE)];
+            }
         } finally {
             I18n::setLocale($current);
         }
+
+        return $defaults;
     }
 
     /**
