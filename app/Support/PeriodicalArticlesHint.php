@@ -84,6 +84,12 @@ final class PeriodicalArticlesHint
         return $state;
     }
 
+    /**
+     * Read the plugin's state from its row in `plugins`: ACTIVE or INACTIVE
+     * when the row exists and its directory is on disk, ABSENT otherwise. A
+     * missing connection or any database error also reads as ABSENT, so the
+     * sidebar hides the link rather than breaking the page.
+     */
     private static function resolve(?\mysqli $db, ?string $pluginsDir): string
     {
         if (!$db instanceof \mysqli) {
