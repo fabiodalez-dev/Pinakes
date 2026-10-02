@@ -393,6 +393,33 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(ld).toMatch(/"inLanguage":\s*"it"/);
   });
 
+  test('the mobile API gives a legacy masthead language in the form the picker stores', async ({ request }) => {
+    test.setTimeout(60000);
+    test.skip(dbQuery("SELECT is_active FROM plugins WHERE name = 'mobile-api'") !== '1', 'mobile-api plugin is not active');
+    const previous = dbQuery("SELECT setting_value FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'");
+    dbQuery("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('mobile_api','enabled','1') ON DUPLICATE KEY UPDATE setting_value='1'");
+    // A masthead never re-saved since the picker arrived still holds "it";
+    // the app must not see "it" for one masthead and "ita" for the next.
+    dbQuery(`UPDATE emeroteca_testate SET lingua='it' WHERE id=${Number(testataId)}`);
+    try {
+      const login = await request.post(`${BASE}/api/v1/auth/login`, {
+        data: { email: process.env.E2E_ADMIN_EMAIL, password: process.env.E2E_ADMIN_PASS, device_name: 'EmerotecaLang', device_id: `emeroteca-lang-${RUN}`, platform: 'test' },
+      });
+      expect(login.status(), 'admin API login').toBe(200);
+      const token = (await login.json()).data.token;
+      const detail = await request.get(`${BASE}/api/v1/periodicals/${testataId}`, { headers: { Authorization: `Bearer ${token}` } });
+      expect(detail.status()).toBe(200);
+      expect((await detail.json()).data.language).toBe('ita');
+    } finally {
+      dbQuery(`UPDATE emeroteca_testate SET lingua='ita' WHERE id=${Number(testataId)}`);
+      if (previous === '') {
+        dbQuery("DELETE FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'");
+      } else {
+        dbQuery(`UPDATE system_settings SET setting_value='${sqlEscape(previous)}' WHERE category='mobile_api' AND setting_key='enabled'`);
+      }
+    }
+  });
+
   test('logo upload uses Uppy and persists a served image', async ({ page }) => {
     test.setTimeout(90000);
     await loginAsAdmin(page);
