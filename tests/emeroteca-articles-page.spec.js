@@ -16,7 +16,8 @@ const BASE = process.env.E2E_BASE_URL || process.env.APP_URL || 'http://localhos
 const RUN = `ArtPage${Date.now().toString(36)}`;
 const TESTATA = `${RUN} Testata`;
 const PUBLICATION = `${RUN} Pubblicazione`;
-const PUBLIC_IN_TESTATA = 51;   // one more than a page (ContributionService::search() pages by 50)
+const PER_PAGE = 20;            // PublicController::PER_PAGE: the public lists page by 20
+const PUBLIC_IN_TESTATA = 2 * PER_PAGE + 11; // 51: two full pages and a short third one
 const IN_PUBLICATION = 3;
 const PRIVATE_TITLE = `${RUN} Non pubblico`;
 
@@ -106,18 +107,23 @@ test.describe.serial('Emeroteca public article search page', () => {
     await expect(page.locator('.filter-tag')).toHaveCount(0);
   });
 
-  test('a search fills the grid and splits 51 results over two pages', async ({ page }) => {
+  test('a search fills the grid and splits 51 results over three pages', async ({ page }) => {
     await page.goto(articlesUrl({ q: RUN }));
     expect(await total(page)).toBe(PUBLIC_IN_TESTATA);
-    await expect(page.locator('.emeroteca-articles-grid .book-card[data-record-kind="article"]')).toHaveCount(50);
+    await expect(page.locator('.emeroteca-articles-grid .book-card[data-record-kind="article"]')).toHaveCount(PER_PAGE);
     await expect(page.locator('.book-card', { hasText: PRIVATE_TITLE })).toHaveCount(0);
     await expect(page.locator('.pagination .page-item.active .page-link')).toHaveText('1');
 
     await page.locator('.pagination .page-link', { hasText: /^2$/ }).click();
     await expect(page).toHaveURL(/[?&]page=2(&|$)/);
     expect(new URL(page.url()).searchParams.get('q')).toBe(RUN);
-    await expect(page.locator('.emeroteca-articles-grid .book-card')).toHaveCount(PUBLIC_IN_TESTATA - 50);
+    await expect(page.locator('.emeroteca-articles-grid .book-card')).toHaveCount(PER_PAGE);
     await expect(page.locator('.pagination .page-link[aria-current="page"]')).toHaveText('2');
+
+    await page.locator('.pagination .page-link', { hasText: /^3$/ }).click();
+    await expect(page).toHaveURL(/[?&]page=3(&|$)/);
+    await expect(page.locator('.emeroteca-articles-grid .book-card')).toHaveCount(PUBLIC_IN_TESTATA - 2 * PER_PAGE);
+    await expect(page.locator('.pagination .page-link[aria-current="page"]')).toHaveText('3');
   });
 
   test('a facet narrows the list and starts again from page 1', async ({ page }) => {

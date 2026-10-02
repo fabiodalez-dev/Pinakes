@@ -129,8 +129,10 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
 
     // The cookie banner ships a <main> of its own, so the article's is named.
-    await expect(page.locator('main[data-articolo-id] h1')).toContainText(marker);
-    await expect(page.locator('main[data-articolo-id]')).toContainText('a subtitle that carries half the meaning');
+    // The title and subtitle live in the book-style hero, just above the main.
+    await expect(page.locator('main[data-articolo-id]')).toHaveAttribute('id', 'emeroteca-articolo');
+    await expect(page.locator('h1.resource-title')).toContainText(marker);
+    await expect(page.locator('.book-hero.resource-hero')).toContainText('a subtitle that carries half the meaning');
     // The scheme travels with the notation: 33.129 alone means nothing to a
     // reader who does not already know which list it came from.
     await expect(page.locator('main[data-articolo-id]')).toContainText('DK5: 33.129');
@@ -139,7 +141,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     // The stored code is `dan`; the page must show a language NAME, and it
     // must not show the raw code. That is the whole reason the column holds a
     // code in a per-user multilingual application.
-    const languageCell = page.locator('dd', { hasText: /^(danese|Danish|Dänisch|danois|dansk)$/i });
+    const languageCell = page.locator('#emeroteca-articolo .meta-value', { hasText: /^(danese|Danish|Dänisch|danois|dansk)$/i });
     await expect(languageCell.first(), 'the ISO code is rendered as a name').toBeVisible();
 
     await expect(page.locator('main[data-articolo-id]')).toContainText(/Cita questo articolo|Cite this article/);
@@ -152,15 +154,15 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
 
     // No PDF on this record, so the external address is the primary action.
-    await expect(page.locator('.btn-primary')).toHaveCount(1);
-    await expect(page.locator('.btn-primary')).toHaveAttribute('href', 'https://arkiv.example/1988-31.pdf');
-    await expect(page.locator('.btn-primary')).toHaveAttribute('rel', /noopener/);
+    await expect(page.locator('a.btn-primary')).toHaveCount(1);
+    await expect(page.locator('a.btn-primary')).toHaveAttribute('href', 'https://arkiv.example/1988-31.pdf');
+    await expect(page.locator('a.btn-primary')).toHaveAttribute('rel', /noopener/);
     await expect(page.locator('main[data-articolo-id]')).toContainText('For internal use only');
 
     // A local path is a reference the library can read and a browser cannot.
     db(`UPDATE emeroteca_contributi SET risorsa_url='\\\\\\\\archivio\\\\scans\\\\1988-31.pdf' WHERE id=${articleId}`);
     await page.reload();
-    await expect(page.locator('.btn-primary'), 'an unfollowable path is not promoted to a button').toHaveCount(0);
+    await expect(page.locator('a.btn-primary'), 'an unfollowable path is not promoted to a button').toHaveCount(0);
     await expect(page.locator('main[data-articolo-id] code')).toContainText('archivio');
     const anchors = await page.locator('main[data-articolo-id] a[href*="archivio"]').count();
     expect(anchors, 'and is never wrapped in an anchor').toBe(0);
