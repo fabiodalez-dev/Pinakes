@@ -9,6 +9,8 @@
  *      and the cover column is not rendered)
  * @var bool $resourceCoverBlur false to keep the band plain even with an image
  *      (e.g. an inherited masthead logo, which would read as a pattern)
+ * @var string $resourceCoverKind 'cover' (default, a 2:3 cover like a book's) or
+ *      'logo' (a masthead mark: smaller, contained, never cropped)
  * @var string $resourceCoverAlt
  * @var string $resourceKickerHtml trusted HTML, already escaped by the caller
  * @var string $resourceTitle
@@ -27,7 +29,7 @@ $rhBand = $rhCover !== '' && ($resourceCoverBlur ?? true)
     <div class="container">
         <div class="book-hero-content">
             <?php if ($rhCover !== ''): ?>
-            <div class="book-cover-column text-center">
+            <div class="book-cover-column text-center<?= ($resourceCoverKind ?? 'cover') === 'logo' ? ' resource-cover--logo' : '' ?>">
                 <img src="<?= $rhEscape($rhCover) ?>" alt="<?= $rhEscape($resourceCoverAlt ?? '') ?>" class="book-cover-large img-fluid" fetchpriority="high" decoding="async">
             </div>
             <?php endif; ?>

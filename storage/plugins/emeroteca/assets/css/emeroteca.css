@@ -506,317 +506,15 @@
     padding-block: 2rem 3rem;
 }
 
-.emeroteca-public .emeroteca-hero {
-    max-width: 52rem;
-    margin-bottom: 2rem;
-}
-
-.emeroteca-public .emeroteca-hero h1 {
-    margin: 0 0 .6rem;
-    color: var(--emt-ink);
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -0.025em;
-}
-
-.emeroteca-public .emeroteca-hero p {
-    max-width: 68ch;
-    color: var(--emt-muted);
-}
-
-.emeroteca-public .emeroteca-search {
-    margin-bottom: 1rem;
-    padding: 1rem;
-    background: var(--emt-soft);
-    border-radius: 2px;
-}
-
-.emeroteca-public .emeroteca-search-grid {
-    display: grid;
-    grid-template-columns: minmax(16rem, 2fr) minmax(12rem, 1fr) auto;
-    align-items: end;
-    gap: 1rem;
-}
-
-.emeroteca-public .emeroteca-search-actions {
-    display: flex;
-    gap: .5rem;
-}
-
-.emeroteca-public .emeroteca-clear {
-    display: inline-flex;
-    min-width: 44px;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-}
-
+/* The public pages wear the core's catalogue and resource surfaces
+ * (public/assets/catalog-pages.css, public/assets/book-detail.css); only what
+ * those do not cover lives here. */
 .emeroteca-public .emeroteca-pre-wrap {
     white-space: pre-wrap;
 }
 
-.emeroteca-public .emeroteca-vista-tab,
-.emeroteca-public .emeroteca-year {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-    padding: .55rem .9rem;
-    border: 1px solid var(--emt-line);
-    border-radius: 2px;
-    background: transparent;
-    color: var(--emt-text);
-    font-size: .875rem;
-    text-decoration: none;
-}
-
-.emeroteca-public .emeroteca-year {
-    min-width: 4.25rem;
-    flex-direction: column;
-    line-height: 1.2;
-}
-
-.emeroteca-public :where(.emeroteca-vista-tab, .emeroteca-year):hover {
-    border-color: var(--emt-accent);
-    color: var(--emt-accent);
-}
-
-.emeroteca-public :where(.emeroteca-vista-tab, .emeroteca-year).active {
-    border-color: var(--emt-accent);
-    background: var(--emt-accent);
-    color: var(--emt-paper);
-}
-
-.emeroteca-public .emeroteca-year small {
-    color: var(--emt-muted);
-    font-size: .72rem;
-}
-
-.emeroteca-public .emeroteca-year.active small {
-    color: inherit;
-    opacity: .82;
-}
-
-.emeroteca-public .emeroteca-group-title {
-    margin: 2rem 0 1rem;
-    padding-bottom: .5rem;
-    border-bottom: 1px solid var(--emt-line);
-    color: var(--emt-muted);
-    font-size: .75rem;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-}
-
-.emeroteca-public .emeroteca-record-list {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    column-gap: 2rem;
-    row-gap: 0;
-}
-
-.emeroteca-public .emeroteca-record {
-    display: grid;
-    grid-template-columns: 4.5rem minmax(0, 1fr);
-    gap: 1rem;
-    padding-block: 1rem;
-    border-bottom: 1px solid var(--emt-line);
-}
-
-.emeroteca-public .emeroteca-logo-box {
-    display: flex;
-    width: 4.5rem;
-    height: 5.5rem;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    border-radius: 3px;
-    background: var(--emt-soft);
-}
-
-.emeroteca-public .emeroteca-logo-box img,
-.emeroteca-public .emeroteca-logo-large img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.emeroteca-public .emeroteca-logo-box i,
-.emeroteca-public .emeroteca-logo-large i,
-.emeroteca-public .emeroteca-cover-box i,
-.emeroteca-public .emeroteca-cover-large i {
-    color: color-mix(in oklab, var(--emt-muted) 72%, transparent);
-}
-
-.emeroteca-public .emeroteca-identity {
-    display: grid;
-    grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
-    gap: 2rem;
-    padding-block: 1.5rem 2rem;
-    border-top: 1px solid var(--emt-line);
-    border-bottom: 1px solid var(--emt-line);
-}
-
-.emeroteca-public .emeroteca-logo-large {
-    display: flex;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    border-radius: 3px;
-    background: var(--emt-soft);
-}
-
-.emeroteca-public .emeroteca-issn {
-    padding: .2rem .45rem;
-    border-radius: 2px;
-    background: var(--emt-soft);
-    color: var(--emt-text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .8rem;
-}
-
-.emeroteca-public .emeroteca-meta-line {
-    margin-bottom: .35rem;
-    color: var(--emt-text);
-    font-size: .95rem;
-}
-
-.emeroteca-public .emeroteca-timeline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .5rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.emeroteca-public .emeroteca-issues-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 1rem;
-}
-
-.emeroteca-public .emeroteca-cover-box,
-.emeroteca-public .emeroteca-cover-large {
-    position: relative;
-    display: flex;
-    width: 100%;
-    aspect-ratio: 3 / 4;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: .35rem;
-    overflow: hidden;
-    border-radius: 3px;
-    background: var(--emt-soft);
-}
-
-.emeroteca-public .emeroteca-cover-large {
-    max-width: 20rem;
-}
-
-.emeroteca-public .emeroteca-cover-box img,
-.emeroteca-public .emeroteca-cover-large img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.emeroteca-public .emeroteca-cover-missing {
-    color: var(--emt-muted);
-    font-size: .78rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-}
-
-.emeroteca-public .emeroteca-cover-badge {
-    position: absolute;
-    top: .4rem;
-    left: .4rem;
-}
-
-.emeroteca-public .emeroteca-issue-caption {
-    margin-top: .45rem;
-    color: var(--emt-text);
-    font-size: .85rem;
-}
-
-.emeroteca-public .emeroteca-issue-layout {
-    display: grid;
-    grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
-    gap: 2.5rem;
-}
-
-.emeroteca-public .emeroteca-data-sheet {
-    margin-block: 1.5rem;
-    padding-block: 1rem;
-    border-top: 1px solid var(--emt-line);
-    border-bottom: 1px solid var(--emt-line);
-}
-
-.emeroteca-public .emeroteca-dl {
-    display: grid;
-    grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr);
-    gap: .65rem 1rem;
-}
-
-.emeroteca-public .emeroteca-dl dt {
-    color: var(--emt-muted);
-    font-size: .75rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-}
-
-.emeroteca-public .emeroteca-dl dd {
-    margin: 0;
-    color: var(--emt-ink);
-}
-
-.emeroteca-public .emeroteca-toc {
-    margin-top: 2rem;
-    border-top: 1px solid var(--emt-line);
-}
-
-.emeroteca-public .emeroteca-toc li {
-    display: flex;
-    min-height: 52px;
-    align-items: center;
-    gap: .75rem;
-    padding-block: .75rem;
-    border-bottom: 1px solid var(--emt-line);
-}
-
-.emeroteca-public .emeroteca-toc-main {
-    min-width: 0;
-    flex: 1 1 auto;
-}
-
-.emeroteca-public .emeroteca-toc-pages {
-    color: var(--emt-muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .8rem;
-    white-space: nowrap;
-}
-
 .emeroteca-public :where(.card, .status-badge, .ui-button, .btn-primary, .btn-outline) {
     border-radius: 2px;
-}
-
-.emeroteca-public .card {
-    border: 0;
-    box-shadow: none;
-}
-
-.emeroteca-public .emeroteca-notice {
-    padding: 1rem;
-    border: 1px solid var(--emt-line);
-    border-radius: 2px;
-    background: var(--emt-soft);
 }
 
 .emeroteca-admin .emt-media-editor__grid {
@@ -955,13 +653,7 @@
         align-self: auto;
     }
 
-    .emeroteca-public .emeroteca-record-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
 
-    .emeroteca-public .emeroteca-issues-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
 }
 
 @media (max-width: 640px) {
@@ -974,10 +666,6 @@
         flex-direction: column;
     }
 
-    .emeroteca-public .emeroteca-issue-layout,
-    .emeroteca-public .emeroteca-identity {
-        display: block;
-    }
 
     .emeroteca-admin .emt-page-header__main {
         display: block;
@@ -1087,35 +775,12 @@
         width: 100%;
     }
 
-    .emeroteca-public .emeroteca-record-list {
-        grid-template-columns: 1fr;
-    }
 
-    .emeroteca-public .emeroteca-search-grid {
-        grid-template-columns: 1fr;
-    }
 
-    .emeroteca-public .emeroteca-search-actions > .btn-primary {
-        flex: 1;
-    }
 
-    .emeroteca-public .emeroteca-issues-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
 
-    .emeroteca-public .emeroteca-logo-large,
-    .emeroteca-public .emeroteca-cover-large {
-        margin-bottom: 1.5rem;
-    }
 
-    .emeroteca-public .emeroteca-dl {
-        grid-template-columns: 1fr;
-        gap: .2rem;
-    }
 
-    .emeroteca-public .emeroteca-dl dd + dt {
-        margin-top: .6rem;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1125,51 +790,4 @@
         scroll-behavior: auto !important;
         transition-duration: .01ms !important;
     }
-}
-
-/* Public article search (/emeroteca/articoli).
- * The page wears the catalogue surface (public/assets/catalog-pages.css); these
- * rules only cover what the catalogue never needed: its "clear" controls are
- * <button>s driven by JS, here they are plain links, and its cards carry no
- * subtitle or publication link. */
-#emeroteca-articoli :is(.clear-all-btn, .clear-filters-top-btn, .filter-tag-remove) {
-    text-decoration: none;
-}
-
-#emeroteca-articoli .clear-all-btn,
-#emeroteca-articoli .clear-all-btn:hover,
-#emeroteca-articoli .clear-filters-top-btn,
-#emeroteca-articoli .clear-filters-top-btn:hover,
-#emeroteca-articoli .filter-tag-remove {
-    color: #fff;
-}
-
-#emeroteca-articoli .search-box input[type="search"]::-webkit-search-cancel-button {
-    cursor: pointer;
-}
-
-#emeroteca-articoli .book-subtitle {
-    margin: -0.25rem 0 0.5rem;
-    font-size: 0.875rem;
-    line-height: 1.4;
-    color: var(--text-muted, #64748b);
-}
-
-#emeroteca-articoli .book-meta a {
-    color: inherit;
-    text-decoration: none;
-}
-
-#emeroteca-articoli .book-meta a:hover,
-#emeroteca-articoli .book-meta a:focus-visible {
-    color: var(--primary-color);
-    text-decoration: underline;
-}
-
-/* The catalogue's sidebar heading is an <h5>; here it is an <h2> (correct
- * outline under the page's <h1>), which the layout would set in the display
- * serif. Keep the catalogue's UI face. */
-#emeroteca-articoli .filters-title {
-    font-family: inherit;
-    margin: 0;
 }

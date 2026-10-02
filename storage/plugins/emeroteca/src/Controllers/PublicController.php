@@ -50,10 +50,21 @@ class PublicController
 
     // ── Actions ───────────────────────────────────────────────────────
 
+    /** Page size of every public emeroteca listing (mastheads and articles). */
+    public const PER_PAGE = 20;
+
     /**
-     * GET /emeroteca — index of testate with three switchable views
-     * (?vista=az|editore|argomento) and a simple search box (?q= over
-     * titolo / sottotitolo / ISSN).
+     * GET /emeroteca — the mastheads, as the catalogue lists books: a facet
+     * sidebar (search, type, publisher, subject, initial letter), a paginated
+     * grid of cards, and underneath the latest articles (or, while searching,
+     * the articles answering the same term).
+     *
+     * Facet counts follow the catalogue's rule: each facet is counted with
+     * every OTHER active filter applied, so a number always says how many
+     * mastheads clicking it would leave on screen.
+     *
+     * Legacy ?vista=editore|argomento links (the old grouped views) still
+     * resolve: they now land on the same list, and stay noindex like before.
      *
      * @param array<string, string> $args
      */
@@ -63,121 +74,199 @@ class PublicController
         array $args = []
     ): ResponseInterface {
         $params = $request->getQueryParams();
-        $rawQ = $params['q'] ?? '';
-        $q = is_string($rawQ) ? mb_substr(trim($rawQ), 0, 200) : '';
-        $rawVista = $params['vista'] ?? 'az';
-        $vista = is_string($rawVista) && in_array($rawVista, ['az', 'editore', 'argomento'], true)
-            ? $rawVista
-            : 'az';
-        $rawTipo = $params['tipo'] ?? '';
-        $tipo = is_string($rawTipo) && array_key_exists($rawTipo, \EmerotecaPlugin::TIPI_TESTATA)
-            ? $rawTipo
-            : '';
-
-        // Populate the public filter from real holdings only. Unknown legacy
-        // values are deliberately omitted, while valid types remain ordered
-        // according to the plugin vocabulary rather than database collation.
-        $typeCounts = [];
-        foreach ($this->fetchAll(
-            'SELECT tipo, COUNT(*) AS totale FROM emeroteca_testate GROUP BY tipo',
-            '',
-            []
-        ) as $typeRow) {
-            $typeKey = (string) ($typeRow['tipo'] ?? '');
-            $count = (int) ($typeRow['totale'] ?? 0);
-            if ($count > 0 && array_key_exists($typeKey, \EmerotecaPlugin::TIPI_TESTATA)) {
-                $typeCounts[$typeKey] = $count;
-            }
-        }
-        $availableTypes = array_intersect_key(\EmerotecaPlugin::TIPI_TESTATA, $typeCounts);
-        if ($tipo !== '' && !array_key_exists($tipo, $availableTypes)) {
+        $str = static fn(string $key): string => is_string($params[$key] ?? null) ? mb_substr(trim($params[$key]), 0, 200) : '';
+        $q = $str('q');
+        $vista = $str('vista');
+        $tipo = $str('tipo');
+        if (!array_key_exists($tipo, \EmerotecaPlugin::TIPI_TESTATA)) {
             $tipo = '';
         }
-
         $hasEditori = $this->tableExists('editori');
         $hasGeneri  = $this->tableExists('generi');
+        $editore = $hasEditori ? max(0, (int) $str('editore')) : 0;
+        $genere = $hasGeneri ? max(0, (int) $str('genere')) : 0;
+        $lettera = mb_strtoupper($str('lettera'));
+        if ($lettera !== '#' && preg_match('/^[A-Z]$/', $lettera) !== 1) {
+            $lettera = '';
+        }
+        $requestedPage = max(1, (int) $str('page'));
+
+        $withArticles = $this->tableExists('emeroteca_articoli')
+            && $this->tableExists('emeroteca_fascicoli')
+            && $this->tableExists('emeroteca_annate');
+
+        /**
+         * WHERE + binds for the active filters, leaving out $skip — the facet
+         * being counted. The free term is never skipped: a facet counts within
+         * the search, exactly as on /catalogo.
+         *
+         * @return array{0: string, 1: string, 2: list<int|string>}
+         */
+        $filterSql = function (string $skip = '') use ($q, $tipo, $editore, $genere, $lettera, $withArticles): array {
+            $where = [];
+            $types = '';
+            $binds = [];
+            if ($q !== '') {
+                // One owner for "does this masthead answer that term": the
+                // catalogue hint counts with the same fragment, so the number
+                // it prints next to this link is the number this link opens.
+                $where[] = \EmerotecaPlugin::testataSearchWhere($withArticles);
+                $pattern = '%' . $this->escapeLike($q) . '%';
+                $termBinds = $withArticles
+                    ? [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern]
+                    : [$pattern, $pattern, $pattern];
+                $types .= str_repeat('s', count($termBinds));
+                array_push($binds, ...$termBinds);
+            }
+            if ($tipo !== '' && $skip !== 'tipo') {
+                $where[] = 't.tipo = ?';
+                $types .= 's';
+                $binds[] = $tipo;
+            }
+            if ($editore > 0 && $skip !== 'editore') {
+                $where[] = 't.editore_id = ?';
+                $types .= 'i';
+                $binds[] = $editore;
+            }
+            if ($genere > 0 && $skip !== 'genere') {
+                $where[] = 't.genere_id = ?';
+                $types .= 'i';
+                $binds[] = $genere;
+            }
+            if ($lettera !== '' && $skip !== 'lettera') {
+                $where[] = $lettera === '#' ? "t.titolo NOT REGEXP '^[A-Za-z]'" : 'UPPER(LEFT(t.titolo, 1)) = ?';
+                if ($lettera !== '#') {
+                    $types .= 's';
+                    $binds[] = $lettera;
+                }
+            }
+            return [$where === [] ? '' : ' WHERE ' . implode(' AND ', $where), $types, $binds];
+        };
+
+        // Type facet: real holdings only, in the plugin's vocabulary order.
+        [$w, $t, $b] = $filterSql('tipo');
+        $typeCounts = [];
+        foreach ($this->fetchAll("SELECT t.tipo, COUNT(*) AS n FROM emeroteca_testate t{$w} GROUP BY t.tipo", $t, $b) as $row) {
+            $typeCounts[(string) $row['tipo']] = (int) $row['n'];
+        }
+        $typeFacet = [];
+        foreach (\EmerotecaPlugin::TIPI_TESTATA as $key => $label) {
+            if (($typeCounts[$key] ?? 0) > 0) {
+                $typeFacet[] = ['value' => $key, 'label' => __($label), 'n' => $typeCounts[$key]];
+            }
+        }
+
+        $editoreFacet = [];
+        if ($hasEditori) {
+            [$w, $t, $b] = $filterSql('editore');
+            foreach ($this->fetchAll(
+                "SELECT ed.id, ed.nome, COUNT(*) AS n FROM emeroteca_testate t JOIN editori ed ON ed.id = t.editore_id{$w}
+                  GROUP BY ed.id, ed.nome ORDER BY n DESC, ed.nome LIMIT 30",
+                $t,
+                $b
+            ) as $row) {
+                $editoreFacet[] = ['value' => (int) $row['id'], 'label' => (string) $row['nome'], 'n' => (int) $row['n']];
+            }
+        }
+
+        $genereFacet = [];
+        if ($hasGeneri) {
+            [$w, $t, $b] = $filterSql('genere');
+            foreach ($this->fetchAll(
+                "SELECT g.id, g.nome, COUNT(*) AS n FROM emeroteca_testate t JOIN generi g ON g.id = t.genere_id{$w}
+                  GROUP BY g.id, g.nome ORDER BY n DESC, g.nome LIMIT 30",
+                $t,
+                $b
+            ) as $row) {
+                $genereFacet[] = ['value' => (int) $row['id'], 'label' => (string) $row['nome'], 'n' => (int) $row['n']];
+            }
+        }
+
+        [$w, $t, $b] = $filterSql('lettera');
+        $letterCounts = [];
+        foreach ($this->fetchAll(
+            "SELECT CASE WHEN t.titolo REGEXP '^[A-Za-z]' THEN UPPER(LEFT(t.titolo, 1)) ELSE '#' END AS l, COUNT(*) AS n
+               FROM emeroteca_testate t{$w} GROUP BY l ORDER BY l",
+            $t,
+            $b
+        ) as $row) {
+            $letterCounts[(string) $row['l']] = (int) $row['n'];
+        }
+
+        // The listing itself.
+        [$w, $t, $b] = $filterSql();
+        $total = (int) ($this->fetchOne("SELECT COUNT(*) AS n FROM emeroteca_testate t{$w}", $t, $b)['n'] ?? 0);
+        $pages = max(1, (int) ceil($total / self::PER_PAGE));
+        $page = min($pages, $requestedPage);
+        $offset = ($page - 1) * self::PER_PAGE;
 
         $editoreSel = $hasEditori ? 'ed.nome' : 'NULL';
         $genereSel  = $hasGeneri  ? 'g.nome'  : 'NULL';
         $editoreJoin = $hasEditori ? 'LEFT JOIN editori ed ON ed.id = t.editore_id' : '';
         $genereJoin  = $hasGeneri  ? 'LEFT JOIN generi g ON g.id = t.genere_id'     : '';
+        $rows = $this->fetchAll(
+            "SELECT t.id, t.titolo, t.sottotitolo, t.issn, t.tipo, t.periodicita,
+                    t.anno_inizio, t.anno_fine, t.logo_url, t.stato_raccolta,
+                    {$editoreSel} AS editore_nome,
+                    {$genereSel} AS genere_nome,
+                    ann.anno_min, ann.anno_max, ann.num_annate
+               FROM emeroteca_testate t
+               {$editoreJoin}
+               {$genereJoin}
+               LEFT JOIN (
+                     SELECT testata_id, MIN(anno) AS anno_min, MAX(anno) AS anno_max,
+                            COUNT(*) AS num_annate
+                       FROM emeroteca_annate
+                      GROUP BY testata_id
+               ) ann ON ann.testata_id = t.id
+               {$w}
+              ORDER BY t.titolo ASC
+              LIMIT " . self::PER_PAGE . " OFFSET {$offset}",
+            $t,
+            $b
+        );
 
-        $sql = "SELECT t.id, t.titolo, t.sottotitolo, t.issn, t.tipo, t.periodicita,
-                       t.anno_inizio, t.anno_fine, t.logo_url, t.stato_raccolta,
-                       {$editoreSel} AS editore_nome,
-                       {$genereSel} AS genere_nome,
-                       ann.anno_min, ann.anno_max, ann.num_annate
-                  FROM emeroteca_testate t
-                  {$editoreJoin}
-                  {$genereJoin}
-                  LEFT JOIN (
-                        SELECT testata_id, MIN(anno) AS anno_min, MAX(anno) AS anno_max,
-                               COUNT(*) AS num_annate
-                          FROM emeroteca_annate
-                         GROUP BY testata_id
-                  ) ann ON ann.testata_id = t.id";
-
-        $where = [];
-        $bindTypes = '';
-        $bindValues = [];
-        if ($q !== '') {
-            // One owner for "does this masthead answer that term": the
-            // catalogue hint counts with the same fragment, so the number it
-            // prints next to this link is the number this link opens.
-            //
-            // The hint picks the reduced form when the article tables are
-            // absent, so this side has to make the same choice from the same
-            // evidence. Hard-coding `true` kept the invariant only on a healthy
-            // install: on a degraded one the hint counted with three binds
-            // while prepare() here failed on the missing table, and the link
-            // opened a page with no mastheads at all under a count promising
-            // some.
-            $withArticles = $this->tableExists('emeroteca_articoli')
-                && $this->tableExists('emeroteca_fascicoli')
-                && $this->tableExists('emeroteca_annate');
-            $where[] = \EmerotecaPlugin::testataSearchWhere($withArticles);
-            $pattern = '%' . $this->escapeLike($q) . '%';
-            $bindValues = $withArticles
-                ? [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern]
-                : [$pattern, $pattern, $pattern];
-            $bindTypes .= str_repeat('s', count($bindValues));
+        // Labels for the active-filter chips.
+        $editoreLabel = '';
+        if ($editore > 0) {
+            $editoreLabel = (string) ($this->fetchOne('SELECT nome FROM editori WHERE id = ?', 'i', [$editore])['nome'] ?? ('#' . $editore));
         }
-        if ($tipo !== '') {
-            $where[] = 't.tipo = ?';
-            $bindTypes .= 's';
-            $bindValues[] = $tipo;
-        }
-        if ($where !== []) {
-            $sql .= ' WHERE ' . implode(' AND ', $where);
+        $genereLabel = '';
+        if ($genere > 0) {
+            $genereLabel = (string) ($this->fetchOne('SELECT nome FROM generi WHERE id = ?', 'i', [$genere])['nome'] ?? ('#' . $genere));
         }
 
-        // Sorting drives the grouping headers rendered by the view.
-        $sql .= match ($vista) {
-            'editore'   => " ORDER BY (editore_nome IS NULL), editore_nome ASC, t.titolo ASC",
-            'argomento' => " ORDER BY (genere_nome IS NULL), genere_nome ASC, t.titolo ASC",
-            default     => " ORDER BY t.titolo ASC",
-        };
-        $sql .= ' LIMIT ' . \EmerotecaPlugin::TESTATA_SEARCH_LIMIT;
-
-        $rows = $this->fetchAll($sql, $bindTypes, $bindValues);
+        $narrowed = $q !== '' || $tipo !== '' || $editore > 0 || $genere > 0 || $lettera !== '';
+        $canonical = $this->baseUrl() . '/emeroteca' . ($page > 1 ? '?page=' . $page : '');
 
         return $this->renderPublic($response, 'index.php', [
-            'articleResults' => $this->articleResults($q, 0),
+            // While searching, the articles answering the same term; otherwise
+            // the latest ones — the way into the collection's contents.
+            'articleResults' => $this->articleResults($q, 0, 1, [], 8),
             'rows'  => $rows,
+            'total' => $total,
+            'page'  => $page,
+            'pages' => $pages,
             'q'     => $q,
-            'vista' => $vista,
             'tipo'  => $tipo,
-            'availableTypes' => $availableTypes,
-            'typeCounts' => $typeCounts,
+            'editore' => $editore,
+            'genere'  => $genere,
+            'lettera' => $lettera,
+            'editoreLabel' => $editoreLabel,
+            'genereLabel'  => $genereLabel,
+            'typeFacet'    => $typeFacet,
+            'editoreFacet' => $editoreFacet,
+            'genereFacet'  => $genereFacet,
+            'letterCounts' => $letterCounts,
             'tipoLabels' => \EmerotecaPlugin::TIPI_TESTATA,
             'seoTitle' => __('Emeroteca'),
             'seoDescription' => __('Consulta le testate di riviste, giornali e periodici conservate in emeroteca.'),
-            'seoCanonical' => $this->baseUrl() . '/emeroteca',
-            // Same rule as the article search and as the core catalogue
-            // (app/Views/frontend/catalog.php): a narrowed or re-sorted view
-            // of one corpus declares the bare /emeroteca as its canonical, so
-            // it must not also ask to be indexed. Links are still followed.
-            'seoRobots' => ($q !== '' || $tipo !== '' || $vista !== 'az') ? 'noindex,follow' : 'index,follow',
+            'seoCanonical' => $canonical,
+            // Same rule as the article search and the core catalogue: a
+            // narrowed view of one corpus must not ask to be indexed (links are
+            // still followed); a further page of the bare list is not a
+            // duplicate of page 1 and canonicalises to itself.
+            'seoRobots' => ($narrowed || ($vista !== '' && $vista !== 'az')) ? 'noindex,follow' : 'index,follow',
         ]);
     }
 
@@ -266,8 +355,19 @@ class PublicController
             ? mb_substr($description, 0, 160)
             : $title . ' — ' . __('Emeroteca');
 
+        // The masthead's own articles, searchable and paginated like the
+        // article search — this page is where a reader browsing a periodical
+        // expects to find what was published in it.
+        $rawQ = $params['q'] ?? '';
+        $q = is_string($rawQ) ? mb_substr(trim($rawQ), 0, 200) : '';
+        $articles = $this->articleResults($q, $id, max(1, (int) ($params['page'] ?? 1)));
+        $articlePage = max(1, (int) $articles['page']);
+        $canonical = $this->baseUrl() . '/emeroteca/' . $id . ($articlePage > 1 ? '?page=' . $articlePage : '');
+
         return $this->renderPublic($response, 'testata.php', [
-            'articleResults' => $this->articleResults('', $id),
+            'articleResults' => $articles,
+            'q'            => $q,
+            'rawAnno'      => is_string($rawAnno) ? $rawAnno : '',
             'testata'      => $testata,
             'precedente'   => $precedente,
             'successiva'   => $successiva,
@@ -279,7 +379,10 @@ class PublicController
             'statoFascicoloLabels' => \EmerotecaPlugin::STATI_FASCICOLO,
             'seoTitle' => $title . ' — ' . __('Emeroteca'),
             'seoDescription' => $seoDescription,
-            'seoCanonical' => $this->baseUrl() . '/emeroteca/' . $id,
+            'seoCanonical' => $canonical,
+            // A search inside the masthead's articles is a narrowed view of the
+            // same page; a further page of its articles is not a duplicate.
+            'seoRobots' => $q !== '' ? 'noindex,follow' : 'index,follow',
         ]);
     }
 
@@ -365,12 +468,21 @@ class PublicController
             }
         }
 
+        // The catalogued articles placed in this issue (emeroteca_contributi.
+        // fascicolo_id), in reading order. These are full records with their
+        // own page; the spoglio above is the issue's bare table of contents.
+        // Both are shown: neither is guaranteed to cover the other.
+        $contributi = $this->tableExists('emeroteca_contributi')
+            ? $this->contributions()->issueContents($id)
+            : [];
+
         $issueLabel = sprintf(__('n. %s (%s)'), (string) $fascicolo['numero'], (string) $fascicolo['anno']);
         $title = (string) $fascicolo['testata_titolo'] . ' — ' . $issueLabel;
 
         return $this->renderPublic($response, 'fascicolo.php', [
             'fascicolo'    => $fascicolo,
             'articoli'     => $articoli,
+            'contributi'   => $contributi,
             'collocazione' => $collocazione,
             'prev'         => $prev,
             'next'         => $next,
@@ -509,12 +621,12 @@ class PublicController
      * @param array<string, string> $filters see ContributionService::FILTER_FIELDS
      * @return array{rows: array<int, array<string, mixed>>, total: int, page: int, pages: int}
      */
-    private function articleResults(string $term, int $testata, int $page = 1, array $filters = []): array
+    private function articleResults(string $term, int $testata, int $page = 1, array $filters = [], int $perPage = self::PER_PAGE, int $fascicolo = 0): array
     {
         if (!$this->tableExists('emeroteca_contributi')) {
             return ['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1];
         }
-        return $this->contributions()->search($term, $testata, true, $page, $filters);
+        return $this->contributions()->search($term, $testata, true, $page, $filters, $fascicolo, $perPage);
     }
 
     /**
@@ -613,14 +725,29 @@ class PublicController
         $term=is_string($q['q']??null)?$q['q']:'';
         $filters=$this->articleFilters($q);
         $testata=(int)($q['testata']??0);
-        $results=$this->articleResults($term,$testata,max(1,(int)($q['page']??1)),$filters);
+        // "Search in this issue" from an issue page lands here, narrowed to it.
+        $fascicolo=max(0,(int)($q['fascicolo']??0));
+        $fascicoloLabel='';
+        if ($fascicolo>0) {
+            $issue=$this->fetchOne(
+                'SELECT f.numero, a.anno, t.titolo FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id JOIN emeroteca_testate t ON t.id=a.testata_id WHERE f.id=?',
+                'i',
+                [$fascicolo]
+            );
+            $fascicoloLabel=$issue!==null
+                ? (string)$issue['titolo'].', '.sprintf(__('n. %s (%s)'),(string)$issue['numero'],(string)$issue['anno'])
+                : '#'.$fascicolo;
+        }
+        $results=$this->articleResults($term,$testata,max(1,(int)($q['page']??1)),$filters,self::PER_PAGE,$fascicolo);
         // The page the listing actually settled on: a request past the last
         // page is clamped, and the canonical must name the page it served.
         $page=max(1,(int)$results['page']);
-        $narrowed=$filters!==[]||$term!==''||$testata>0;
+        $narrowed=$filters!==[]||$term!==''||$testata>0||$fascicolo>0;
         return $this->renderPublic($response,'articles.php',$results+[
             'term'=>$term,
             'testata'=>$testata,
+            'fascicolo'=>$fascicolo,
+            'fascicoloLabel'=>$fascicoloLabel,
             'filters'=>$filters,
             'facets'=>$this->articleFacets(),
             'seoTitle'=>__('Articoli'),
@@ -637,7 +764,25 @@ class PublicController
     {
         $row=$this->tableExists('emeroteca_contributi') ? $this->contributions()->get((int)($args['id']??0),true) : null;
         if (!$row) { return $this->renderNotFound($response)->withHeader('Cache-Control','private, no-store'); }
-        return $this->renderPublic($response,'article.php',['article'=>$row,'seoTitle'=>$row['titolo'],'seoCanonical'=>$this->baseUrl().'/emeroteca/articolo/'.(int)$row['id']])->withHeader('Cache-Control','private, no-store');
+        $service=$this->contributions();
+        $id=(int)$row['id'];
+        // Where the article sits, read both ways: its neighbours in the issue
+        // (so the issue can be read article by article) and what else the
+        // masthead and its linked author published.
+        $neighbours=$service->neighboursInIssue($row);
+        $firstAuthor=0;
+        foreach (\App\Plugins\Emeroteca\Services\ContributionService::authorLinks($row) as $credit) {
+            if ($credit['id']!==null) { $firstAuthor=(int)$credit['id']; $firstAuthorName=$credit['name']; break; }
+        }
+        return $this->renderPublic($response,'article.php',[
+            'article'=>$row,
+            'neighbours'=>$neighbours,
+            'relatedTestata'=>$service->relatedInTestata((int)($row['testata_id']??0),$id,4),
+            'relatedAuthor'=>$firstAuthor>0 ? $service->relatedByAuthor($firstAuthor,$id,4) : [],
+            'relatedAuthorName'=>$firstAuthorName??'',
+            'seoTitle'=>$row['titolo'],
+            'seoCanonical'=>$this->baseUrl().'/emeroteca/articolo/'.$id,
+        ])->withHeader('Cache-Control','private, no-store');
     }
 
     /**
@@ -699,10 +844,29 @@ class PublicController
     /** 404 page rendered inside the public layout. */
     private function renderNotFound(ResponseInterface $response): ResponseInterface
     {
-        return $this->renderPublic($response, 'not-found.php', [
-            'seoTitle' => __('Contenuto non trovato') . ' — ' . __('Emeroteca'),
-            'seoDescription' => __('Contenuto non trovato'),
-            'seoCanonical' => $this->baseUrl() . '/emeroteca',
-        ], 404);
+        // The site's own 404 (app/Views/errors/404.php, which wraps itself in
+        // the frontend layout), told what was missing here and offering the
+        // emeroteca's ways back — one "not found" for the whole public site.
+        $errorPage = __DIR__ . '/../../../../../app/Views/errors/404.php';
+        if (!is_file($errorPage)) {
+            $response->getBody()->write(__('Contenuto non trovato'));
+            return $response->withStatus(404)->withHeader('Content-Type', 'text/plain; charset=UTF-8');
+        }
+        $errorTitle = __('Contenuto non trovato');
+        $errorDescription = __('La testata, il fascicolo o l\'articolo che cerchi non è disponibile in emeroteca.');
+        $errorLinks = [
+            ['href' => url('/emeroteca'), 'icon' => 'fa-newspaper', 'label' => __('Emeroteca')],
+            ['href' => url('/emeroteca/articoli'), 'icon' => 'fa-file-lines', 'label' => __('Articoli')],
+            ['href' => route_path('catalog'), 'icon' => 'fa-book', 'label' => __('Catalogo')],
+        ];
+        $seoRobots = 'noindex,follow';
+        // Same layout inputs renderPublic() supplies.
+        $emerotecaAvailable = true;
+        $db = $this->db;
+        ob_start();
+        include $errorPage;
+        $html = (string) ob_get_clean();
+        $response->getBody()->write($html);
+        return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 }

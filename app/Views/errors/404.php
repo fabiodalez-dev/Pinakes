@@ -6,7 +6,11 @@
  * Uses frontend layout with header and footer for consistency
  */
 
-$pageTitle = '404 - ' . __('Pagina Non Trovata');
+// Callers (e.g. a plugin's own "not found") may name what was missing and
+// offer their own ways back; otherwise the generic page.
+$errorTitle ??= __('Pagina Non Trovata');
+$errorDescription ??= __('La pagina che stai cercando non esiste o è stata spostata.');
+$pageTitle = '404 - ' . $errorTitle;
 $metaDescription = __('La pagina che stai cercando non esiste.');
 $requestedPath ??= $_SERVER['REQUEST_URI'] ?? '';
 $catalogRoute = route_path('catalog');
@@ -63,7 +67,7 @@ ob_start();
 .error-404-path {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border-radius: 2px;
     padding: 1rem;
     margin-bottom: 2rem;
     font-size: 0.875rem;
@@ -72,7 +76,7 @@ ob_start();
 .error-404-path code {
     background: #fff;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: 2px;
     font-family: 'Courier New', Consolas, monospace;
     color: #ef4444;
 }
@@ -93,7 +97,7 @@ ob_start();
     font-size: 1rem;
     font-weight: 600;
     text-decoration: none;
-    border-radius: 999px;
+    border-radius: 2px;
     transition: all 0.2s ease;
 }
 
@@ -135,7 +139,7 @@ ob_start();
     padding: 1.25rem;
     background: white;
     border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    border-radius: 2px;
     text-decoration: none;
     color: #111827;
     transition: all 0.2s ease;
@@ -199,10 +203,10 @@ ob_start();
             <i class="fas fa-search"></i>
         </div>
 
-        <h1 class="error-404-title"><?= __('Pagina Non Trovata') ?></h1>
+        <h1 class="error-404-title"><?= htmlspecialchars($errorTitle, ENT_QUOTES, 'UTF-8') ?></h1>
 
         <p class="error-404-description">
-            <?= __('La pagina che stai cercando non esiste o è stata spostata.') ?>
+            <?= htmlspecialchars($errorDescription, ENT_QUOTES, 'UTF-8') ?>
         </p>
 
         <?php if (!empty($requestedPath) && $requestedPath !== '/'): ?>
@@ -223,19 +227,21 @@ ob_start();
             </a>
         </div>
 
+        <?php
+        /** @var list<array{href: string, icon: string, label: string}> $errorLinks */
+        $errorLinks ??= [
+            ['href' => $catalogRoute, 'icon' => 'fa-book', 'label' => __('Catalogo')],
+            ['href' => $wishlistRoute, 'icon' => 'fa-heart', 'label' => __('Preferiti')],
+            ['href' => $reservationsRoute, 'icon' => 'fa-bookmark', 'label' => __('Prenotazioni')],
+        ];
+        ?>
         <div class="error-404-links">
-            <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
-                <i class="fas fa-book"></i>
-                <span><?= __('Catalogo') ?></span>
+            <?php foreach ($errorLinks as $errorLink): ?>
+            <a href="<?= htmlspecialchars($errorLink['href'], ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
+                <i class="fas <?= htmlspecialchars($errorLink['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>
+                <span><?= htmlspecialchars($errorLink['label'], ENT_QUOTES, 'UTF-8') ?></span>
             </a>
-            <a href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
-                <i class="fas fa-heart"></i>
-                <span><?= __('Preferiti') ?></span>
-            </a>
-            <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="error-404-link">
-                <i class="fas fa-bookmark"></i>
-                <span><?= __('Prenotazioni') ?></span>
-            </a>
+            <?php endforeach; ?>
         </div>
     </div>
 </div>

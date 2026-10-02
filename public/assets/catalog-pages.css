@@ -1256,3 +1256,144 @@
         transform: translateY(0);
     }
 }
+
+/* ── Article cards (partials/article-card.php) ───────────────────────────
+ * Same card as a book; these cover the parts a book card does not have. */
+.book-card .book-subtitle {
+    margin: -0.25rem 0 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--text-muted, #64748b);
+}
+
+.book-card .book-meta a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.book-card .book-meta a:hover,
+.book-card .book-meta a:focus-visible {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+/* "Articolo" in a mixed grid: a neutral ink label, not a status colour —
+   it says what the record is, not whether it can be borrowed. */
+.status-article {
+    background: #1f2937;
+    color: #fff;
+}
+
+/* ── Periodical cards (emeroteca) ────────────────────────────────────────
+ * A masthead logo is a mark, not a cover: square box, contained. */
+.book-card--square .book-image-container {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.book-card--square .book-image-container .book-image {
+    padding: 12%;
+}
+
+.book-card .book-image-icon {
+    font-size: 3rem;
+    color: var(--text-muted, #64748b);
+    opacity: 0.6;
+}
+
+/* ── Listing sections inside a page (e.g. a periodical's issues, then its
+   articles): a plain heading with a rule, the catalogue's quiet hierarchy. */
+.listing-section + .listing-section {
+    margin-top: 3rem;
+}
+
+.listing-section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-family: var(--serif);
+    font-size: 1.5rem;
+    font-weight: 460;
+    letter-spacing: -0.02em;
+    color: var(--text-color);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.listing-section-title a {
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.listing-section-title a:hover,
+.listing-section-title a:focus-visible {
+    text-decoration: underline;
+}
+
+/* ── Server-rendered listings ─────────────────────────────────────────────
+ * /catalogo drives its "clear" controls from JS as <button>s; listings that
+ * work without JS (the emeroteca) render the same controls as links. */
+a.clear-all-btn,
+a.clear-filters-top-btn,
+a.filter-tag-remove {
+    text-decoration: none;
+}
+
+a.clear-all-btn,
+a.clear-all-btn:hover,
+a.clear-filters-top-btn,
+a.clear-filters-top-btn:hover,
+a.filter-tag-remove {
+    color: #fff;
+}
+
+/* /catalogo's sidebar heading is an <h5>; a page whose outline needs an <h2>
+   keeps the catalogue's UI face instead of the layout's display serif. */
+h2.filters-title {
+    /* !important: the layout sets every h1–h4 in the display serif with
+       !important; this one is a UI label, not a heading voice. */
+    font-family: inherit !important;
+    margin: 0;
+}
+
+/* An A–Z index in the sidebar: tiles, not 27 rows. Still 44px targets. */
+.filter-options--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: 0.25rem;
+    max-height: none;
+    border-bottom: none;
+    padding: 0;
+}
+
+.filter-options--grid .filter-option {
+    justify-content: center;
+    padding: 0.5rem 0;
+    font-weight: 600;
+}
+
+.filter-options--grid .filter-option:hover {
+    transform: none;
+}
+
+/* book-detail.css owns a page-level `.book-meta` band (negative margin, rule,
+   padding). A card's metadata line shares the name, so on pages that load
+   both sheets (an issue or article page listing related articles) the card
+   keeps its own, plain line. */
+.book-card .book-meta {
+    background: none;
+    padding: 0;
+    margin-top: 0;
+    border: none;
+    position: static;
+    z-index: auto;
+}

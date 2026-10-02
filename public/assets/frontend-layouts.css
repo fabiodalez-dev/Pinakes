@@ -765,7 +765,7 @@ body.layout-workspace #book-sidebar {
   padding-left: clamp(1.5rem, 3vw, 2.75rem);
 }
 
-body.layout-workspace #book-info-card {
+body.layout-workspace :is(#book-info-card, .resource-info-card) {
   overflow: hidden;
   border: 0;
   border-radius: 16px;
@@ -773,33 +773,33 @@ body.layout-workspace #book-info-card {
   box-shadow: none;
 }
 
-body.layout-workspace #book-info-card .card-header {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .card-header {
   margin: 0;
   padding: 1.5rem 1.6rem .75rem;
   border-bottom: 0;
 }
 
-body.layout-workspace #book-info-card .card-header h6 {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .card-header :is(h6, .resource-info-title) {
   color: var(--text-color);
   font-size: .78rem;
   font-weight: 750;
   letter-spacing: .08em;
 }
 
-body.layout-workspace #book-info-card .card-header h6 i {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .card-header :is(h6, .resource-info-title) i {
   color: var(--primary-color);
 }
 
-body.layout-workspace #book-info-card .card-body {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .card-body {
   padding: .35rem 1.6rem 1.4rem;
 }
 
-body.layout-workspace #book-info-card .meta-item {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .meta-item {
   padding: .75rem 0;
   border-bottom: 0;
 }
 
-body.layout-workspace #book-info-card .meta-label {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .meta-label {
   margin-bottom: .25rem;
   color: color-mix(in srgb, var(--text-color) 55%, var(--light-bg));
   font-size: .65rem;
@@ -807,7 +807,7 @@ body.layout-workspace #book-info-card .meta-label {
   letter-spacing: .08em;
 }
 
-body.layout-workspace #book-info-card .meta-value {
+body.layout-workspace :is(#book-info-card, .resource-info-card) .meta-value {
   color: var(--text-color);
   font-size: .925rem;
   font-weight: 500;
