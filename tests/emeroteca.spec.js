@@ -328,8 +328,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     // Fascicolo page responds 200 with the right issue number.
     const resp = await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
     expect(resp.status()).toBe(200);
-    await expect(page.locator('h1')).toContainText('n. 1');
-    await expect(page.locator('h1')).toContainText(TITLE);
+    // The visible heading: a site with the cookie banner enabled carries a
+    // second, hidden <h1> in its preferences dialog.
+    await expect(page.locator('h1:visible')).toContainText('n. 1');
+    await expect(page.locator('h1:visible')).toContainText(TITLE);
 
     // Unknown fascicolo → 404 rendered inside the public layout.
     const missing = await page.goto(`${BASE}/emeroteca/fascicolo/99999999`);
@@ -748,7 +750,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const next = page.locator(`a[href$="/emeroteca/fascicolo/${fascicoloIds[1]}"]`).first();
     await expect(next).toBeVisible({ timeout: 10000 });
     await next.click();
-    await expect(page.locator('h1')).toContainText('n. 2', { timeout: 10000 });
+    await expect(page.locator('h1:visible')).toContainText('n. 2', { timeout: 10000 });
   });
 
   test('schema.org: Periodical on the testata, PublicationIssue on the issue', async ({ page }) => {
