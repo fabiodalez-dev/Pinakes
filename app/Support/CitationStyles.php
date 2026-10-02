@@ -148,14 +148,14 @@ final class CitationStyles
             if ($r['title'] !== '') {
                 self::add($s, $italicTitle ? $r['title'] : self::terminate($r['title']), $italicTitle);
                 if ($italicTitle) {
-                    self::add($s, self::apaEdition($r['edition']) . '.');
+                    self::add($s, self::afterTitle($r['title'], self::apaEdition($r['edition'])));
                 }
                 self::add($s, ' ');
             }
         } elseif ($r['title'] !== '') {
             self::add($s, $italicTitle ? $r['title'] : self::terminate($r['title']), $italicTitle);
             if ($italicTitle) {
-                self::add($s, self::apaEdition($r['edition']) . '.');
+                self::add($s, self::afterTitle($r['title'], self::apaEdition($r['edition'])));
             }
             self::add($s, ' (' . $date . '). ');
         } else {
@@ -248,12 +248,16 @@ final class CitationStyles
                 self::add($s, $r['title'], true);
                 self::add($s, ' (' . $year . ')');
             }
+            // The title only ends the sentence when it is the last thing
+            // printed: an author-less book has the year after it.
+            $last = $authors !== '' ? $r['title'] : '';
             $edition = self::ordinalEdition($r['edition']);
             if ($edition !== '') {
-                self::add($s, '. ' . $edition . ' edn');
+                self::add($s, self::separatorAfter($last) . $edition . ' edn');
+                $last = '';
             }
             $imprint = self::imprint($r['place'], $r['publisher'], ': ');
-            self::add($s, $imprint !== '' ? '. ' . $imprint . '.' : '.');
+            self::add($s, $imprint !== '' ? self::separatorAfter($last) . $imprint . '.' : self::afterTitle($last, ''));
             return self::render($s);
         }
 
@@ -598,6 +602,25 @@ final class CitationStyles
     }
 
     /** A title ends in exactly one full stop, whatever punctuation it arrived with. */
+    /**
+     * What follows a title that may already end the sentence: "Who Moved My
+     * Cheese?" takes no full stop after it, and neither does a title ending in
+     * one. Anything in $suffix (an edition statement) still closes with one.
+     */
+    private static function afterTitle(string $title, string $suffix): string
+    {
+        if ($suffix === '' && preg_match('/[.!?]$/u', $title) === 1) {
+            return '';
+        }
+        return $suffix . '.';
+    }
+
+    /** The separator before the next element: ". " unless the title already ended the sentence. */
+    private static function separatorAfter(string $title): string
+    {
+        return preg_match('/[.!?]$/u', $title) === 1 ? ' ' : '. ';
+    }
+
     private static function terminate(string $text): string
     {
         if ($text === '') {

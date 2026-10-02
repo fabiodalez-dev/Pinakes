@@ -17,6 +17,7 @@
  * @var array<string, string>           $statoFascicoloLabels
  */
 declare(strict_types=1);
+require_once dirname(__DIR__, 2) . '/Support/CodeLists.php';
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
@@ -82,7 +83,7 @@ $schema = [
     'issn'          => (string) ($testata['issn'] ?? ''),
     'url'           => $canonicalSelf,
     'description'   => (string) ($testata['descrizione'] ?? ''),
-    'inLanguage'    => (string) ($testata['lingua'] ?? ''),
+    'inLanguage'    => \App\Plugins\Emeroteca\Support\CodeLists::languageTag((string) ($testata['lingua'] ?? '')),
     'temporalCoverage' => $temporalCoverage,
 ];
 if (!empty($testata['editore_nome'])) {

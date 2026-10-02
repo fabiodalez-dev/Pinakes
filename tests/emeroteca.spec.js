@@ -373,6 +373,26 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(row).toContain('1125-3460');
   });
 
+  test('a masthead language catalogued as "it" is shown and saved as the picker stores it', async ({ page }) => {
+    test.setTimeout(60000);
+    // Mastheads catalogued before the language picker hold two-letter codes;
+    // the picker stores ISO 639-2/T. Opened and saved, the old code is
+    // converted rather than shown as an unknown "(it)" next to "ita".
+    dbQuery(`UPDATE emeroteca_testate SET lingua='it' WHERE id=${Number(testataId)}`);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+    await expect(page.locator('#lingua')).toHaveValue('ita', { timeout: 10000 });
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    expect(dbQuery(`SELECT lingua FROM emeroteca_testate WHERE id=${Number(testataId)}`)).toBe('ita');
+    // schema.org reads BCP 47: the public page says "it", not "ita".
+    await page.goto(`${BASE}/emeroteca/${testataId}`);
+    const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).join(' ');
+    expect(ld).toMatch(/"inLanguage":\s*"it"/);
+  });
+
   test('logo upload uses Uppy and persists a served image', async ({ page }) => {
     test.setTimeout(90000);
     await loginAsAdmin(page);

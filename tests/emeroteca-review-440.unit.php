@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/storage/plugins/emeroteca/EmerotecaPlugin.php';
 require_once dirname(__DIR__) . '/storage/plugins/emeroteca/src/Services/ContributionService.php';
 require_once dirname(__DIR__) . '/storage/plugins/emeroteca/src/Services/ContributionCsv.php';
+require_once dirname(__DIR__) . '/storage/plugins/emeroteca/src/Support/CodeLists.php';
 
 $n = 0;
 function check(bool $ok, string $label): void
@@ -56,5 +57,13 @@ check(($columns[1] ?? '') === implode(',', \App\Plugins\Emeroteca\Services\Contr
 foreach (\App\Plugins\Emeroteca\Services\ContributionCsv::RECORD_TYPES as $type) {
     check(preg_match('/`record_type`[^\n]*`' . preg_quote($type, '/') . '`/', $readme) === 1, "the README documents record_type {$type}");
 }
+
+// Language codes: one stored form, one published form.
+use App\Plugins\Emeroteca\Support\CodeLists;
+check(CodeLists::terminologyCode('it') === 'ita' && CodeLists::terminologyCode('IT') === 'ita', 'a two-letter code is stored as the picker stores it');
+check(CodeLists::terminologyCode('ger') === 'deu' && CodeLists::terminologyCode('deu') === 'deu', 'a bibliographic code becomes the terminology one');
+check(CodeLists::terminologyCode('non') === 'non', 'a language with no two-letter code is kept');
+check(CodeLists::languageTag('ita') === 'it' && CodeLists::languageTag('it') === 'it' && CodeLists::languageTag('deu') === 'de', 'inLanguage is BCP 47: the two-letter code where one exists');
+check(CodeLists::languageTag('non') === 'non' && CodeLists::languageTag('') === '', 'and the three-letter one where none does');
 
 echo "SUCCESS {$n} checks\n";

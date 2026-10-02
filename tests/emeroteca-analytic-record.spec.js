@@ -345,6 +345,9 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     // code in a per-user multilingual application.
     const languageCell = page.locator('dd', { hasText: /^(danese|Danish|Dänisch|danois|dansk)$/i });
     await expect(languageCell.first(), 'the ISO code is rendered as a name').toBeVisible();
+    // Structured data speaks BCP 47: "da", not the stored "dan".
+    const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).join(' ');
+    expect(ld).toMatch(/"inLanguage":\s*"da"/);
 
     await expect(page.locator('main[data-articolo-id]')).toContainText(/Cita questo articolo|Cite this article/);
     await expect(page.locator('main[data-articolo-id]')).toContainText('Petersen, H. U. (1988).');

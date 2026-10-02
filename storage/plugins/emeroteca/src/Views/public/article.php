@@ -9,6 +9,7 @@
  * @var array<string, mixed> $article
  */
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
+require_once dirname(__DIR__, 2) . '/Support/CodeLists.php';
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
 $articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url('/emeroteca/articoli')).'?'.http_build_query([$key=>$value]);
 // Plugin classes have no autoloader scope and a view must not depend on the
@@ -124,7 +125,8 @@ if (($article['contenitore_tipo']??'')==='antologia' && !empty($article['conteni
     if (!empty($article['numero'])) { $periodical=['@type'=>'PublicationIssue','issueNumber'=>(string)$article['numero'],'isPartOf'=>$periodical]; }
     $structured['isPartOf']=$periodical;
 }
-if (!empty($article['lingua'])) { $structured['inLanguage']=$article['lingua']; }
+// schema.org reads BCP 47: "it", not the "ita" the record stores.
+if (!empty($article['lingua'])) { $structured['inLanguage']=\App\Plugins\Emeroteca\Support\CodeLists::languageTag((string)$article['lingua']); }
 // A bare year is valid ISO 8601. The free-text date is NOT parsed into one:
 // "giugno 2019" and "Nr. 31 (1988)" are prose, and guessing a day from them
 // would publish a precision the record never had.

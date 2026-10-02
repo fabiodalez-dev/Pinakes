@@ -543,7 +543,7 @@ try {
     $svc->save(UWE + $online + ['reference_key' => 'analytic-csv-1','pubblico' => 1]);
     $csv = new ContributionCsv($svc);
     $exported = $csv->export();
-    $header = str_getcsv(explode("\n", $exported)[0]);
+    $header = str_getcsv(explode("\n", $exported)[0], ',', '"', '\\');
     foreach (ANALYTIC_COLUMNS as $column) {
         $check(in_array($column, $header, true), "  the export header carries {$column}");
     }
@@ -635,7 +635,7 @@ try {
         : null;
     $check(is_array($ld) && ($ld['alternativeHeadline'] ?? null) === UWE['sottotitolo'],
         'structured data declares the subtitle');
-    $check(is_array($ld) && ($ld['inLanguage'] ?? null) === 'dan', 'and the language code');
+    $check(is_array($ld) && ($ld['inLanguage'] ?? null) === 'da', 'and the language code, as the BCP 47 tag schema.org expects (da, not the stored dan)');
     $check(is_array($ld) && ($ld['datePublished'] ?? null) === '1988', 'and a bare year, which is valid ISO 8601');
     $check(is_array($ld) && ($ld['pageStart'] ?? null) === '18' && ($ld['pageEnd'] ?? null) === '38',
         'and the page ends, taken from the same decomposition the citation uses');

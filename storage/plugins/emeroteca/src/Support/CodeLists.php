@@ -53,6 +53,37 @@ final class CodeLists
     }
 
     /**
+     * The form the language picker stores: the three-letter ISO 639-2/T code.
+     * A two-letter code ("it", what mastheads were catalogued with before the
+     * picker) and a bibliographic one ("ger") become "ita" and "deu", so one
+     * column does not hold the same language under two codes. Anything else
+     * is returned lower-cased as it is.
+     */
+    public static function terminologyCode(string $code): string
+    {
+        $code = strtolower(trim($code));
+        $bibliographic = ArticleMarcXml::LANGUAGE_639_1[$code] ?? $code;
+        $terminology = array_search($bibliographic, ArticleMarcXml::LANGUAGE_639_2T, true);
+        return is_string($terminology) ? $terminology : $bibliographic;
+    }
+
+    /**
+     * The language as a BCP 47 tag, which is what schema.org's inLanguage
+     * reads: the two-letter code where ISO 639-1 has one ("ita" → "it"), the
+     * three-letter code otherwise (Old Norse stays "non").
+     */
+    public static function languageTag(string $code): string
+    {
+        $code = strtolower(trim($code));
+        if ($code === '') {
+            return '';
+        }
+        $bibliographic = ArticleMarcXml::LANGUAGE_639_2T[$code] ?? $code;
+        $twoLetter = array_search($bibliographic, ArticleMarcXml::LANGUAGE_639_1, true);
+        return is_string($twoLetter) ? $twoLetter : $code;
+    }
+
+    /**
      * Country code => name in $locale, sorted by name.
      *
      * @return array<string,string>

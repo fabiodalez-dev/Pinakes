@@ -15,6 +15,7 @@
  * @var array<int, string> $testate      id => titolo (excluding self)
  */
 declare(strict_types=1);
+require_once dirname(__DIR__) . '/Support/CodeLists.php';
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $val = static fn(string $k): string => $e((string) ($values[$k] ?? ''));
@@ -209,7 +210,7 @@ $prestabileLabels = [
                 </p>
               <?php endif; ?>
             </div>
-            <?php $pickerId='lingua'; $pickerName='lingua'; $pickerLabel=__('Lingua'); $pickerKind='language'; $pickerCurrent=(string)($values['lingua']??''); $pickerHint=__('Scrivi il nome o il codice, per esempio «danese» o «dan».'); $pickerCodeHint=__('codice, es. it, en, fr'); $pickerMax=10; $pickerError=''; $pickerEmpty=true; include __DIR__.'/code-picker.php'; ?>
+            <?php $pickerId='lingua'; $pickerName='lingua'; $pickerLabel=__('Lingua'); $pickerKind='language'; $pickerCurrent=\App\Plugins\Emeroteca\Support\CodeLists::terminologyCode((string)($values['lingua']??'')); $pickerHint=__('Scrivi il nome o il codice, per esempio «danese» o «dan».'); $pickerCodeHint=__('Codice ISO 639, per esempio dan, ita, eng.'); $pickerMax=10; $pickerError=''; $pickerEmpty=true; include __DIR__.'/code-picker.php'; ?>
           </div>
 
           <div class="form-grid-2">

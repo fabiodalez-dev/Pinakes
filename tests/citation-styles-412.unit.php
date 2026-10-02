@@ -108,6 +108,19 @@ foreach (array_merge(CitationStyles::all($untitledHost), CitationStyles::all($ba
     check(!str_contains($c['html'], '<i></i>'), "{$c['key']}: no empty italic segment");
 }
 
+// A book title that ends the sentence itself takes no full stop after it
+// (Pullfrog review on #440): "Who Moved My Cheese?." is wrong in every style.
+$question = ['type' => 'book', 'authors' => ['Johnson, Spencer'], 'year' => '1998', 'title' => 'Who Moved My Cheese?',
+    'publisher' => 'Putnam', 'place' => 'New York'];
+same(CitationStyles::apa($question)['text'], 'Johnson, S. (1998). Who Moved My Cheese? Putnam.', 'APA: no full stop after a title ending in "?"');
+same(CitationStyles::harvard($question)['text'], 'Johnson, S. (1998) Who Moved My Cheese? New York: Putnam.', 'Harvard: no full stop after a title ending in "?"');
+same(CitationStyles::harvard(['edition' => '2'] + $question)['text'], 'Johnson, S. (1998) Who Moved My Cheese? 2nd edn. New York: Putnam.', 'Harvard: nor before an edition');
+same(CitationStyles::apa(['edition' => '2'] + $question)['text'], 'Johnson, S. (1998). Who Moved My Cheese? (2nd ed.). Putnam.', 'APA: an edition statement still closes with a full stop');
+same(CitationStyles::apa(['title' => 'Basta!', 'publisher' => ''] + $question)['text'], 'Johnson, S. (1998). Basta!', 'APA: a title ending in "!" ends the citation by itself');
+foreach (CitationStyles::all($question) as $c) {
+    check(!preg_match('/[?!.]\.(?!\.)/u', str_replace('...', '', $c['text'])), "{$c['key']}: no full stop doubled after the title");
+}
+
 // Names.
 $many = static fn (int $count): array => array_map(static fn (int $i): string => "Author{$i}, A.", range(1, $count));
 check(str_starts_with(CitationStyles::mla(['authors' => $many(3)] + $article)['text'], 'Author1, A., et al. '), 'MLA: three or more authors become "et al."');
