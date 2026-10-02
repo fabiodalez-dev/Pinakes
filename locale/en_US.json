@@ -7941,5 +7941,10 @@
   "testate": "periodicals",
   "Orario": "Time",
   "Crea un account": "Create an account",
-  "Compila i campi per registrarti": "Fill in the fields to sign up"
+  "Compila i campi per registrarti": "Fill in the fields to sign up",
+  "unità archivistica": "archival unit",
+  "unità archivistiche": "archival units",
+  "Fa parte di": "Part of",
+  "Torna a %s": "Back to %s",
+  "Torna all'archivio": "Back to the archive"
 }

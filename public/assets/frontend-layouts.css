@@ -1314,21 +1314,16 @@ body.layout-soft .footer {
 
 /* Events and CMS pages ---------------------------------------------------- */
 
-body.layout-editorial :where(.page-hero__title, .event-title, .cms-title, .related-heading h2),
-body.layout-editorial :where(.event-card__title, .related-title, .cms-content h2, .cms-content h3) {
+body.layout-editorial :where(.page-hero__title, .event-title),
+body.layout-editorial :where(.event-card__title) {
   font-family: var(--serif, Fraunces, Georgia, serif);
   font-weight: 460;
   letter-spacing: -.03em;
 }
 
 body.layout-editorial .page-hero__content,
-body.layout-editorial .event-hero .container,
-body.layout-editorial .cms-header {
+body.layout-editorial .event-hero .container {
   text-align: left;
-  margin-left: 0;
-}
-
-body.layout-editorial .cms-divider {
   margin-left: 0;
 }
 
@@ -1341,8 +1336,7 @@ body.layout-workspace :where(.page-hero, .event-hero) {
   background: var(--white);
 }
 
-body.layout-workspace :where(.page-hero__title, .event-title, .cms-title, .event-card__title, .related-title),
-body.layout-workspace .cms-content :where(h2, h3) {
+body.layout-workspace :where(.page-hero__title, .event-title, .event-card__title) {
   font-family: inherit;
   font-weight: 720;
 }
@@ -1358,7 +1352,7 @@ body.layout-workspace :where(.event-card, .related-card) {
   background: var(--white);
 }
 
-body.layout-workspace :where(.event-card__thumb, .related-thumb, .event-cover, .cms-image) {
+body.layout-workspace :where(.event-card__thumb, .event-cover) {
   border-radius: 8px;
   box-shadow: none;
 }
@@ -1377,19 +1371,6 @@ body.layout-workspace .event-card--detail {
   overflow: hidden;
 }
 
-body.layout-workspace .cms-page {
-  padding-block: 4.5rem 4rem;
-}
-
-body.layout-workspace .cms-header {
-  margin-bottom: 2.5rem;
-}
-
-body.layout-workspace .cms-content {
-  max-width: 72ch;
-  margin-inline: auto;
-}
-
 body.layout-command :where(.page-hero, .event-hero) {
   background: var(--secondary-color);
   color: var(--white);
@@ -1400,16 +1381,14 @@ body.layout-command :where(.page-hero__eyebrow, .page-hero__title, .page-hero__s
   color: var(--white) !important;
 }
 
-body.layout-command :where(.page-hero__title, .event-title, .cms-title, .event-card__title, .related-title),
-body.layout-command .cms-content :where(h2, h3) {
+body.layout-command :where(.page-hero__title, .event-title, .event-card__title) {
   font-family: inherit;
   font-weight: 730;
 }
 
 body.layout-command .events-wrapper,
 body.layout-command .event-section,
-body.layout-command .related-events,
-body.layout-command .cms-page {
+body.layout-command .related-events {
   background: color-mix(in srgb, var(--light-bg) 96%, var(--secondary-color) 4%);
 }
 
@@ -1421,7 +1400,7 @@ body.layout-command :where(.event-card, .related-card, .event-card--detail) {
   box-shadow: 0 12px 34px rgba(15, 23, 42, .07);
 }
 
-body.layout-command :where(.event-card__thumb, .related-thumb, .event-cover, .cms-image) {
+body.layout-command :where(.event-card__thumb, .event-cover) {
   border-radius: 10px;
   box-shadow: none;
 }
@@ -1433,18 +1412,6 @@ body.layout-command .event-card__button {
   color: var(--white);
 }
 
-body.layout-command .cms-header {
-  text-align: left;
-}
-
-body.layout-command .cms-divider {
-  margin-left: 0;
-}
-
-body.layout-command .cms-content {
-  max-width: 72ch;
-}
-
 body.layout-soft :where(.page-hero, .event-hero) {
   margin-inline: 18px;
   border-radius: 26px;
@@ -1453,16 +1420,14 @@ body.layout-soft :where(.page-hero, .event-hero) {
   overflow: hidden;
 }
 
-body.layout-soft :where(.page-hero__title, .event-title, .cms-title, .event-card__title, .related-title),
-body.layout-soft .cms-content :where(h2, h3) {
+body.layout-soft :where(.page-hero__title, .event-title, .event-card__title) {
   font-family: inherit;
   font-weight: 720;
 }
 
 body.layout-soft .events-wrapper,
 body.layout-soft .event-section,
-body.layout-soft .related-events,
-body.layout-soft .cms-page {
+body.layout-soft .related-events {
   background: transparent;
 }
 
@@ -1474,30 +1439,13 @@ body.layout-soft :where(.event-card, .related-card, .event-card--detail) {
   box-shadow: 0 12px 38px rgba(15, 23, 42, .07);
 }
 
-body.layout-soft :where(.event-card__thumb, .related-thumb, .event-cover, .cms-image) {
+body.layout-soft :where(.event-card__thumb, .event-cover) {
   border-radius: 16px;
   box-shadow: none;
 }
 
 body.layout-soft .event-card__button {
   border-radius: 12px;
-}
-
-body.layout-soft .cms-header {
-  margin-bottom: 3rem;
-}
-
-body.layout-soft .cms-image {
-  box-shadow: 0 18px 46px rgba(15, 23, 42, .12);
-}
-
-body.layout-soft .cms-content {
-  max-width: 72ch;
-  margin-inline: auto;
-  padding: clamp(1.25rem, 4vw, 3rem);
-  border-radius: 20px;
-  background: var(--white);
-  box-shadow: 0 12px 36px rgba(15, 23, 42, .05);
 }
 
 /* Authenticated user area ------------------------------------------------- */
@@ -1618,16 +1566,12 @@ body.layout-soft :where(.form-input, .form-select, .wishlist-filter-card input, 
 
 /* Native secondary pages ------------------------------------------------- */
 
-body[class*="layout-"] :where(.contact-page, .cookie-page, .privacy-page) {
-  padding-block: clamp(3rem, 7vw, 6rem);
-}
-
 body[class*="layout-"] :where(.contact-title, .cookie-header h1, .privacy-header h1, .archive-title) {
   text-wrap: balance;
   letter-spacing: -.035em;
 }
 
-body[class*="layout-"] :where(.contact-info-section, .contact-form-section, .cookie-content, .privacy-content, .archive-info-card) {
+body[class*="layout-"] :where(.archive-info-card) {
   transition: transform 220ms var(--layout-ease), box-shadow 220ms var(--layout-ease), border-color 220ms ease;
 }
 
@@ -1636,7 +1580,7 @@ body.layout-editorial :where(.contact-title, .cookie-header h1, .privacy-header 
   font-weight: 460;
 }
 
-body.layout-editorial :where(.contact-info-section, .contact-form-section, .cookie-content, .privacy-content, .archive-info-card) {
+body.layout-editorial :where(.archive-info-card) {
   border: 0;
   border-top: 1px solid var(--border-color);
   border-radius: 0;
@@ -1644,21 +1588,21 @@ body.layout-editorial :where(.contact-info-section, .contact-form-section, .cook
   background: transparent;
 }
 
-body.layout-workspace :where(.contact-info-section, .contact-form-section, .cookie-content, .privacy-content, .archive-info-card) {
+body.layout-workspace :where(.archive-info-card) {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: none;
   background: var(--white);
 }
 
-body.layout-command :where(.contact-info-section, .contact-form-section, .cookie-content, .privacy-content, .archive-info-card) {
+body.layout-command :where(.archive-info-card) {
   border: 0;
   border-radius: 14px;
   background: var(--white);
   box-shadow: 0 12px 34px rgba(15, 23, 42, .07);
 }
 
-body.layout-soft :where(.contact-info-section, .contact-form-section, .cookie-content, .privacy-content, .archive-info-card) {
+body.layout-soft :where(.archive-info-card) {
   border: 0;
   border-radius: 20px;
   background: var(--white);
