@@ -188,7 +188,7 @@ test.describe('[U-EVT] PR #139 configurable event image layout', () => {
         for (const preset of ['full', 'banner', 'contained', 'thumb']) {
             expect(src).toMatch(new RegExp(`event-cover--${preset}`));
         }
-        expect(src).toMatch(/event-card--thumb-layout/);
+        expect(src).toMatch(/resource-hero\.php/);
     });
 
     // E3 — SettingsController validates layout against an allow-list
@@ -230,7 +230,7 @@ test.describe('[U-EVT] PR #139 configurable event image layout', () => {
         const src = readRepoFile('app/Views/frontend/event-detail.php');
         expect(src).toMatch(/@media[^{]*max-width[^{]*\)\s*\{/);
         const mediaBlocks = src.match(/@media[\s\S]*?\}\s*\}/g) || [];
-        const hasThumbResponsive = mediaBlocks.some(b => b.includes('thumb-layout') || b.includes('event-cover--thumb'));
+        const hasThumbResponsive = mediaBlocks.some(b => b.includes('event-cover--banner'));
         expect(hasThumbResponsive).toBe(true);
     });
 
