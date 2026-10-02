@@ -92,7 +92,6 @@ if (!empty($authorNames)) {
     $coverAltParts[] = __('di %s', implode(', ', $authorNames));
 }
 $catalogRoute = route_path('catalog');
-$legacyCatalogRoute = route_path('catalog_legacy');
 $loginRoute = route_path('login');
 // H5: le route /api/libro|/api/book|... sono registrate per-locale ATTIVO in
 // web.php; un path hardcoded italiano andrebbe in 404 su installazioni senza
@@ -488,7 +487,7 @@ ob_start();
                                 <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a>
                             </li>
                             <li class="breadcrumb-item">
-                                <a href="<?= htmlspecialchars($legacyCatalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a>
+                                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a>
                             </li>
                             <li class="breadcrumb-item active" aria-current="page">
                                 <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
@@ -996,7 +995,7 @@ ob_start();
                     <h2 class="section-title">
                         <i class="fas fa-star"></i>
                         <?= __("Recensioni") ?>
-                        <span class="status-badge bg-gray-900 rounded-full"><?= count($reviews) ?></span>
+                        <span class="status-badge bg-gray-900"><?= count($reviews) ?></span>
                     </h2>
 
                     <!-- Review Statistics -->
@@ -1180,23 +1179,21 @@ ob_start();
 
 <!-- Series Section (other volumes in the same collana) -->
 <?php if (!empty($seriesBooks)): ?>
-<section class="py-3" style="margin-top: 1.5rem;">
+<section class="py-3 book-series-section">
     <div class="container">
-        <h3 class="text-center mb-3" style="font-weight: 600; font-size: 1.05rem;">
-            <i class="fas fa-layer-group" style="color: var(--primary-color);"></i>
+        <h3 class="book-series-title">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>
             <?= __("Nella stessa collana") ?>: <em><?= htmlspecialchars($collana, ENT_QUOTES, 'UTF-8') ?></em>
         </h3>
         <div class="flex flex-wrap justify-center gap-2">
             <?php foreach ($seriesBooks as $sb):
                 $sbPath = book_path($sb);
             ?>
-            <a href="<?= htmlspecialchars(url($sbPath), ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
-                <div class="flex items-center gap-2 px-2 py-1 rounded-full" style="background: color-mix(in srgb, var(--primary-color) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent); transition: all .2s;">
-                    <?php if (!empty($sb['numero_serie'])): ?>
-                    <span class="status-badge" style="background: var(--primary-color); color: #fff; font-size: 0.7rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <?php endif; ?>
-                    <span style="color: var(--primary-color); font-weight: 500; font-size: 0.85rem;"><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
-                </div>
+            <a href="<?= htmlspecialchars(url($sbPath), ENT_QUOTES, 'UTF-8') ?>" class="book-series-chip">
+                <?php if (!empty($sb['numero_serie'])): ?>
+                <span class="book-series-number"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endif; ?>
+                <span><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
             </a>
             <?php endforeach; ?>
         </div>
@@ -1286,10 +1283,10 @@ ob_start();
                         <p class="related-book-author">
                             <?= htmlspecialchars($relatedAuthorDisplay, ENT_QUOTES, 'UTF-8') ?>
                         </p>
-                        <div class="related-book-actions">
+                        <div class="related-book-actions book-actions">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
-                               class="btn-related-view">
-                                <i class="fas fa-eye mr-2"></i><?= __("Vedi Dettagli") ?>
+                               class="btn-cta btn-cta-sm">
+                                <i class="fas fa-eye" aria-hidden="true"></i><?= __("Dettagli") ?>
                             </a>
                         </div>
                     </div>
