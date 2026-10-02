@@ -1576,8 +1576,11 @@ background-color: transparent;
 .resource-notice {
     margin: 2rem 0 0;
     padding: 1rem 1.25rem;
-    background: var(--light-bg);
-    border-left: 3px solid var(--warning-color, #f59e0b);
+    /* A tint of the warning colour, no side stripe: DESIGN.md forbids
+       coloured edges thicker than a hairline. */
+    background: color-mix(in srgb, var(--warning-color, #f59e0b) 12%, var(--white, #fff));
+    border: 1px solid color-mix(in srgb, var(--warning-color, #f59e0b) 35%, transparent);
+    border-radius: 2px;
     color: var(--text-color);
 }
 
