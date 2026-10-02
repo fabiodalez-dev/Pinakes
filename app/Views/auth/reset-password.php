@@ -1,8 +1,11 @@
 <?php
+use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
+$appLogoPath = Branding::fullLogo();
+$appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
 $resetPasswordRoute = route_path('reset_password');
 ?>
 <!DOCTYPE html>
@@ -18,45 +21,34 @@ $resetPasswordRoute = route_path('reset_password');
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
-
-        :root{ --serif:'Fraunces',Georgia,'Times New Roman',serif; --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
-        body{ font-family:var(--sans); letter-spacing:-.008em; }
-        h1,h2,h3,.auth-title,.card-title,.login-title{ font-family:var(--serif); font-weight:440; letter-spacing:-.025em; }
-        /* de-round: every control/card 2px, no pills */
-        input,select,textarea,button,.ui-button,.card,.form-input,.form-input,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
-        /* flatten: no shadows, no glass */
-        .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
-    
-        /* Beat Tailwind utilities (class specificity): crisp corners everywhere. */
-        [class*="rounded-"]{ border-radius:2px !important; }
-        .w-20.h-20.rounded-2xl{ border-radius:3px !important; }   /* logo tile */
-        /* Card: keep it airy, just a hairline — no heavy grey frame. */
-        .bg-white.border{ border-color:var(--border-color, #e5e7eb) !important; }
-</style>
+    <?php require __DIR__ . '/partials/auth-theme.php'; ?>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900">
+<body class="auth-body">
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md w-full mx-auto">
+<div class="auth-page">
+  <div class="auth-wrap">
     <!-- Logo and Branding -->
-    <div class="text-center mb-10">
-      <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-        <i class="fas fa-key text-white text-3xl"></i>
-      </div>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= __('Resetta Password') ?></h1>
-      <p class="text-gray-600 dark:text-gray-400"><?= __('Inserisci la tua nuova password') ?></p>
-    </div>
+    <header class="auth-brand">
+      <?php if (!empty($appLogo)): ?>
+        <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>"
+             alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>"
+             class="auth-brand-logo">
+      <?php else: ?>
+        <div class="auth-brand-tile" aria-hidden="true"><i class="fas fa-book-open"></i></div>
+      <?php endif; ?>
+      <p class="auth-brand-name"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
+    </header>
 
     <!-- Reset Password Form -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
+    <main class="auth-card">
+      <h1 class="auth-title"><?= __('Resetta Password') ?></h1>
+      <p class="auth-subtitle"><?= __('Inserisci la tua nuova password') ?></p>
       <?php if (isset($_GET['error'])): ?>
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6" role="alert">
-          <div class="flex items-center">
-            <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 mr-3"></i>
-            <div class="text-red-700 dark:text-red-300 text-sm">
+        <div class="auth-alert auth-alert--error" role="alert">
+          <div class="auth-alert-body">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <div>
               <?php if ($_GET['error'] === 'invalid_token'): ?>
                 <?= __('Link di reset non valido o scaduto') ?>
               <?php elseif ($_GET['error'] === 'token_expired'): ?>
@@ -84,20 +76,18 @@ $resetPasswordRoute = route_path('reset_password');
       <?php endif; ?>
 
       <?php if (isset($_GET['success'])): ?>
-        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-6" role="alert">
-          <div class="flex">
-            <div class="shrink-0">
-              <i class="fas fa-check-circle text-green-500 dark:text-green-400"></i>
-            </div>
-            <div class="ml-3">
-              <p class="text-sm font-medium text-green-800 dark:text-green-200">
+        <div class="auth-alert auth-alert--success" role="alert">
+          <div class="auth-alert-body">
+            <i class="fas fa-check-circle" aria-hidden="true"></i>
+            <div>
+              <p><strong>
                 <?= __('Password resettata con successo!') ?>
-              </p>
-              <p class="mt-2 text-sm text-green-700 dark:text-green-300">
+              </strong></p>
+              <p>
                 <?= __('Ora puoi accedere con la tua nuova password.') ?>
               </p>
-              <div class="mt-4">
-                <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+              <div>
+                <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
                   <?= __('Accedi') ?>
                 </a>
               </div>
@@ -107,12 +97,12 @@ $resetPasswordRoute = route_path('reset_password');
       <?php endif; ?>
 
       <?php if (!isset($_GET['success'])): ?>
-        <form method="post" action="<?= htmlspecialchars($resetPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
+        <form method="post" action="<?= htmlspecialchars($resetPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="auth-form">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
           <input type="hidden" name="token" value="<?php echo htmlspecialchars($token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
 
           <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="password" class="auth-label">
               <?= __('Nuova Password') ?>
             </label>
             <input
@@ -121,18 +111,18 @@ $resetPasswordRoute = route_path('reset_password');
               name="password"
               required aria-required="true"
               aria-describedby="password-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
+              class="auth-input"
               placeholder="<?= __('••••••••') ?>"
               minlength="8"
             />
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <p class="auth-help">
               <?= __('Minimo 8 caratteri, con lettere maiuscole, minuscole e numeri') ?>
             </p>
-            <span id="password-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="password-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <div>
-            <label for="password_confirm" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label for="password_confirm" class="auth-label">
               <?= __('Conferma Password') ?>
             </label>
             <input
@@ -141,46 +131,46 @@ $resetPasswordRoute = route_path('reset_password');
               name="password_confirm"
               required aria-required="true"
               aria-describedby="password_confirm-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
+              class="auth-input"
               placeholder="<?= __('••••••••') ?>"
               minlength="8"
             />
-            <span id="password_confirm-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="password_confirm-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <!-- Password strength indicator -->
           <div id="password-strength" class="hidden">
-            <div class="flex items-center space-x-2 mb-2">
-              <div class="h-1 flex-1 bg-gray-200 dark:bg-gray-600 rounded-full">
-                <div id="strength-bar" class="h-1 bg-red-500 rounded-full" style="width: 0%"></div>
+            <div class="auth-strength">
+              <div class="auth-strength-track">
+                <div id="strength-bar" class="h-1 bg-red-500" style="width: 0%"></div>
               </div>
-              <span id="strength-text" class="text-xs font-medium text-gray-600 dark:text-gray-400">-</span>
+              <span id="strength-text" class="auth-help">-</span>
             </div>
           </div>
 
           <div>
             <button
               type="submit"
-              class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+              class="auth-btn"
             >
               <?= __('Resetta Password') ?>
             </button>
           </div>
         </form>
       <?php endif; ?>
-    </div>
+    </main>
 
     <!-- Footer Links -->
-    <div class="mt-8 text-center">
-      <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+    <div class="auth-footer">
+      <div class="auth-footer-links">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Contatti') ?>
         </a>
       </div>
-      <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+      <p class="auth-copy">
         &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
@@ -228,7 +218,7 @@ $resetPasswordRoute = route_path('reset_password');
 
       strengthDiv.classList.remove('hidden');
       strengthBar.style.width = (strength * 16.67) + '%';
-      strengthBar.className = 'h-1 rounded-full ' + color;
+      strengthBar.className = 'h-1 ' + color;
       strengthText.textContent = strengthLabel;
     });
   }

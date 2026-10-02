@@ -22,56 +22,37 @@ $registerRoute = route_path('register');
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
-
-        :root{ --serif:'Fraunces',Georgia,'Times New Roman',serif; --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
-        body{ font-family:var(--sans); letter-spacing:-.008em; }
-        h1,h2,h3,.auth-title,.card-title,.login-title{ font-family:var(--serif); font-weight:440; letter-spacing:-.025em; }
-        /* de-round: every control/card 2px, no pills */
-        input,select,textarea,button,.ui-button,.card,.form-input,.form-input,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
-        /* flatten: no shadows, no glass */
-        .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
-    
-        /* Beat Tailwind utilities (class specificity): crisp corners everywhere. */
-        [class*="rounded-"]{ border-radius:2px !important; }
-        .w-20.h-20.rounded-2xl{ border-radius:3px !important; }   /* logo tile */
-        /* Card: keep it airy, just a hairline — no heavy grey frame. */
-        .bg-white.border{ border-color:var(--border-color, #e5e7eb) !important; }
-</style>
+    <?php require __DIR__ . '/partials/auth-theme.php'; ?>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>
-<body class="bg-gray-50">
+<body class="auth-body">
 
-<div class="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md lg:max-w-2xl w-full mx-auto">
+<div class="auth-page">
+  <div class="auth-wrap auth-wrap--wide">
     <!-- Logo and Branding -->
-    <div class="text-center mb-10">
+    <header class="auth-brand">
       <?php if ($appLogo): ?>
-        <div class="mx-auto mb-6 flex items-center justify-center">
-          <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>"
-               alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>"
-               class="h-20 w-auto object-contain">
-        </div>
+        <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>"
+             alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>"
+             class="auth-brand-logo">
       <?php else: ?>
-        <div class="w-20 h-20 bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-          <i class="fas fa-book-open text-white text-3xl"></i>
-        </div>
+        <div class="auth-brand-tile" aria-hidden="true"><i class="fas fa-book-open"></i></div>
       <?php endif; ?>
-      <h1 class="text-3xl font-bold text-gray-900 mb-2"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
-      <p class="text-gray-600"><?= __('Crea un nuovo account') ?></p>
-    </div>
+      <p class="auth-brand-name"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
+    </header>
 
     <!-- Registration Form -->
-    <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-      <form method="post" action="<?= htmlspecialchars($registerRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
+    <main class="auth-card">
+      <h1 class="auth-title"><?= __('Crea un account') ?></h1>
+      <p class="auth-subtitle"><?= __('Compila i campi per registrarti') ?></p>
+      <form method="post" action="<?= htmlspecialchars($registerRoute, ENT_QUOTES, 'UTF-8') ?>" class="auth-form">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
         
         <?php if (isset($_GET['error'])): ?>
-          <div class="bg-red-50 border border-red-200 rounded-xl p-4" role="alert">
-            <div class="flex items-center">
-              <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
-              <div class="text-red-700 text-sm">
+          <div class="auth-alert auth-alert--error" role="alert">
+            <div class="auth-alert-body">
+              <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+              <div>
                 <?php if ($_GET['error'] === 'session_expired'): ?>
                   <?= __('La tua sessione è scaduta. Per motivi di sicurezza, ricarica la pagina e riprova') ?>
                 <?php elseif ($_GET['error'] === '1'): ?>
@@ -107,10 +88,10 @@ $registerRoute = route_path('register');
         <?php endif; ?>
 
         <?php if (isset($_GET['success'])): ?>
-          <div class="bg-green-50 border border-green-200 rounded-xl p-4" role="alert">
-            <div class="flex items-center">
-              <i class="fas fa-check-circle text-green-500 mr-3"></i>
-              <div class="text-green-700 text-sm">
+          <div class="auth-alert auth-alert--success" role="alert">
+            <div class="auth-alert-body">
+              <i class="fas fa-check-circle" aria-hidden="true"></i>
+              <div>
                 <?php if ($_GET['success'] === 'registered'): ?>
                   <?= __('Account creato con successo! Verifica la tua email.') ?>
                 <?php elseif ($_GET['success'] === 'pending_approval'): ?>
@@ -121,9 +102,9 @@ $registerRoute = route_path('register');
           </div>
         <?php endif; ?>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="auth-grid">
           <div>
-            <label for="nome" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="nome" class="auth-label">
               <?= __('Nome') ?> *
             </label>
             <input
@@ -132,15 +113,15 @@ $registerRoute = route_path('register');
               name="nome"
               required aria-required="true"
               aria-describedby="nome-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="auth-input"
               placeholder="<?= __('Mario') ?>"
               value="<?php echo htmlspecialchars($_GET['nome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
-            <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="nome-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <div>
-            <label for="cognome" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="cognome" class="auth-label">
               <?= __('Cognome') ?><?= !empty($registrationRequired['cognome']) ? ' *' : '' ?>
             </label>
             <input
@@ -149,16 +130,16 @@ $registerRoute = route_path('register');
               name="cognome"
               <?= !empty($registrationRequired['cognome']) ? 'required aria-required="true"' : '' ?>
               aria-describedby="cognome-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="auth-input"
               placeholder="<?= __('Rossi') ?>"
               value="<?php echo htmlspecialchars($_GET['cognome'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
-            <span id="cognome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="cognome-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
           </div>
         </div>
 
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="email" class="auth-label">
             <?= __('Email *') ?>
           </label>
           <input
@@ -167,15 +148,15 @@ $registerRoute = route_path('register');
             name="email"
             required aria-required="true"
             aria-describedby="email-error"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="auth-input"
             placeholder="<?= __('mario.rossi@email.it') ?>"
             value="<?php echo htmlspecialchars($_GET['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <span id="email-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="email-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div>
-          <label for="telefono" class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="telefono" class="auth-label">
             <?= __('Telefono') ?><?= !empty($registrationRequired['telefono']) ? ' *' : '' ?>
           </label>
           <input
@@ -184,15 +165,15 @@ $registerRoute = route_path('register');
             name="telefono"
             <?= !empty($registrationRequired['telefono']) ? 'required aria-required="true"' : '' ?>
             aria-describedby="telefono-error"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="auth-input"
             placeholder="<?= __('+39 123 456 7890') ?>"
             value="<?php echo htmlspecialchars($_GET['telefono'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <span id="telefono-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="telefono-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div>
-          <label for="indirizzo" class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="indirizzo" class="auth-label">
             <?= __('Indirizzo completo') ?><?= !empty($registrationRequired['indirizzo']) ? ' *' : '' ?>
           </label>
           <textarea
@@ -201,34 +182,34 @@ $registerRoute = route_path('register');
             <?= !empty($registrationRequired['indirizzo']) ? 'required aria-required="true"' : '' ?>
             aria-describedby="indirizzo-error"
             rows="3"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="auth-input"
             placeholder="<?= __('Via, numero civico, città, CAP') ?>"
           ><?php echo htmlspecialchars($_GET['indirizzo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
-          <span id="indirizzo-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="indirizzo-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="auth-grid">
           <div>
-            <label for="data_nascita" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="data_nascita" class="auth-label">
               <?= __('Data di nascita') ?>
             </label>
             <input
               type="date"
               id="data_nascita"
               name="data_nascita"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="auth-input"
               value="<?php echo htmlspecialchars($_GET['data_nascita'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
             />
           </div>
 
           <div>
-            <label for="sesso" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="sesso" class="auth-label">
               <?= __('Sesso') ?>
             </label>
             <select
               id="sesso"
               name="sesso"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="auth-input"
             >
               <option value=""><?= __("-- Seleziona --") ?></option>
               <option value="M"><?= __('Maschio') ?></option>
@@ -239,7 +220,7 @@ $registerRoute = route_path('register');
         </div>
 
         <div>
-          <label for="cod_fiscale" class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="cod_fiscale" class="auth-label">
             <?= __('Codice Fiscale') ?>
           </label>
           <input
@@ -247,37 +228,37 @@ $registerRoute = route_path('register');
             id="cod_fiscale"
             name="cod_fiscale"
             maxlength="16"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="auth-input"
             placeholder="<?= __('es. RSSMRA80A01H501U') ?>"
             style="text-transform: uppercase;"
             value="<?php echo htmlspecialchars($_GET['cod_fiscale'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <p class="mt-1 text-xs text-gray-500"><?= __("Opzionale") ?></p>
+          <p class="auth-help"><?= __("Opzionale") ?></p>
         </div>
 
         <?php foreach (($customFields ?? []) as $cf): ?>
           <?php $cfId = (int) $cf['id']; $cfName = 'custom_field[' . $cfId . ']'; ?>
           <div>
             <?php if ($cf['tipo'] === 'checkbox'): ?>
-              <label class="flex items-start gap-3 cursor-pointer">
+              <label class="auth-check">
                 <input type="checkbox" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" value="1"
                   <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
-                  class="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                <span class="text-sm font-medium text-gray-700"><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?></span>
+                  >
+                <span><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?></span>
               </label>
             <?php else: ?>
-              <label for="custom_field_<?= $cfId ?>" class="block text-sm font-medium text-gray-700 mb-2">
+              <label for="custom_field_<?= $cfId ?>" class="auth-label">
                 <?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?>
               </label>
               <?php if ($cf['tipo'] === 'textarea'): ?>
                 <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" rows="3"
                   <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
-                  class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"></textarea>
+                  class="auth-input"></textarea>
               <?php else: ?>
                 <?php $cfType = in_array($cf['tipo'], ['email', 'url', 'number'], true) ? $cf['tipo'] : 'text'; ?>
                 <input type="<?= $cfType ?>" id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>"
                   <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
-                  class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200" />
+                  class="auth-input" />
               <?php endif; ?>
             <?php endif; ?>
           </div>
@@ -293,13 +274,13 @@ $registerRoute = route_path('register');
           if (count($availableLocales) > 1):
         ?>
         <div>
-          <label for="locale" class="block text-sm font-medium text-gray-700 mb-2">
+          <label for="locale" class="auth-label">
             <?= __('Lingua preferita') ?>
           </label>
           <select
             id="locale"
             name="locale"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            class="auth-input"
           >
             <?php foreach ($availableLocales as $code => $name): ?>
               <option value="<?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8') ?>"
@@ -308,13 +289,13 @@ $registerRoute = route_path('register');
               </option>
             <?php endforeach; ?>
           </select>
-          <p class="mt-1 text-xs text-gray-500"><?= __('Usata per l\'interfaccia e per le email che riceverai dalla biblioteca.') ?></p>
+          <p class="auth-help"><?= __('Usata per l\'interfaccia e per le email che riceverai dalla biblioteca.') ?></p>
         </div>
         <?php endif; ?>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="auth-grid">
           <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="password" class="auth-label">
               Password
             </label>
             <input
@@ -324,14 +305,14 @@ $registerRoute = route_path('register');
               required aria-required="true"
               autocomplete="new-password"
               aria-describedby="password-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="auth-input"
               placeholder="<?= __('••••••••') ?>"
             />
-            <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="password-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
           </div>
 
           <div>
-            <label for="password_confirm" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="password_confirm" class="auth-label">
               Conferma Password
             </label>
             <input
@@ -341,63 +322,60 @@ $registerRoute = route_path('register');
               required aria-required="true"
               autocomplete="new-password"
               aria-describedby="password_confirm-error"
-              class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              class="auth-input"
               placeholder="<?= __('••••••••') ?>"
             />
-            <span id="password_confirm-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
+            <span id="password_confirm-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
           </div>
         </div>
 
-        <div class="flex items-start">
-          <div class="flex items-center h-5">
+        <div>
+          <div class="auth-check">
             <input
               id="privacy_acceptance"
               name="privacy_acceptance"
               type="checkbox"
-              class="w-4 h-4 text-gray-600 bg-gray-100 border-gray-300 rounded focus:ring-gray-500"
               required aria-required="true"
               aria-describedby="privacy_acceptance-error"
             />
-          </div>
-          <div class="ml-2">
-            <label for="privacy_acceptance" class="text-sm font-medium text-gray-700">
-              <?= __('Accetto la') ?> <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-600 hover:underline"><?= __('Privacy Policy') ?></a>.
+            <label for="privacy_acceptance">
+              <?= __('Accetto la') ?> <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link"><?= __('Privacy Policy') ?></a>.
             </label>
-            <span id="privacy_acceptance-error" class="text-sm text-red-600 mt-1 hidden block" role="alert" aria-live="polite"></span>
           </div>
+            <span id="privacy_acceptance-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div>
           <button
             type="submit"
-            class="w-full bg-gray-800 hover:bg-gray-900 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+            class="auth-btn"
           >
             <?= __('Registrati') ?>
           </button>
         </div>
       </form>
 
-      <div class="mt-6 text-center">
-        <p class="text-gray-600 text-sm">
+      <div>
+        <p class="auth-switch">
           <?= __('Hai già un account?') ?> 
-          <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="font-medium text-gray-600 hover:text-gray-800 transition-colors">
+          <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
             <?= __('Accedi') ?>
           </a>
         </p>
       </div>
-    </div>
+    </main>
 
     <!-- Footer Links -->
-    <div class="mt-8 text-center">
-      <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+    <div class="auth-footer">
+      <div class="auth-footer-links">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Contatti') ?>
         </a>
       </div>
-      <p class="mt-4 text-xs text-gray-500">
+      <p class="auth-copy">
         &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>

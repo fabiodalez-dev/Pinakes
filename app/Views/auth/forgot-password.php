@@ -1,8 +1,11 @@
 <?php
+use App\Support\Branding;
 use App\Support\ConfigStore;
 use App\Support\I18n;
 
 $appName = (string)ConfigStore::get('app.name', 'Biblioteca');
+$appLogoPath = Branding::fullLogo();
+$appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
 $forgotPasswordRoute = route_path('forgot_password');
 ?>
 <!DOCTYPE html>
@@ -18,45 +21,34 @@ $forgotPasswordRoute = route_path('forgot_password');
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
-
-        :root{ --serif:'Fraunces',Georgia,'Times New Roman',serif; --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
-        body{ font-family:var(--sans); letter-spacing:-.008em; }
-        h1,h2,h3,.auth-title,.card-title,.login-title{ font-family:var(--serif); font-weight:440; letter-spacing:-.025em; }
-        /* de-round: every control/card 2px, no pills */
-        input,select,textarea,button,.ui-button,.card,.form-input,.form-input,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
-        /* flatten: no shadows, no glass */
-        .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
-    
-        /* Beat Tailwind utilities (class specificity): crisp corners everywhere. */
-        [class*="rounded-"]{ border-radius:2px !important; }
-        .w-20.h-20.rounded-2xl{ border-radius:3px !important; }   /* logo tile */
-        /* Card: keep it airy, just a hairline — no heavy grey frame. */
-        .bg-white.border{ border-color:var(--border-color, #e5e7eb) !important; }
-</style>
+    <?php require __DIR__ . '/partials/auth-theme.php'; ?>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900">
+<body class="auth-body">
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md w-full mx-auto">
+<div class="auth-page">
+  <div class="auth-wrap">
     <!-- Logo and Branding -->
-    <div class="text-center mb-10">
-      <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-        <i class="fas fa-lock text-white text-3xl"></i>
-      </div>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= __('Recupera Password') ?></h1>
-      <p class="text-gray-600 dark:text-gray-400"><?= __('Inserisci la tua email per ricevere un link di reset') ?></p>
-    </div>
+    <header class="auth-brand">
+      <?php if (!empty($appLogo)): ?>
+        <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>"
+             alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>"
+             class="auth-brand-logo">
+      <?php else: ?>
+        <div class="auth-brand-tile" aria-hidden="true"><i class="fas fa-book-open"></i></div>
+      <?php endif; ?>
+      <p class="auth-brand-name"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
+    </header>
 
     <!-- Forgot Password Form -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
+    <main class="auth-card">
+      <h1 class="auth-title"><?= __('Recupera Password') ?></h1>
+      <p class="auth-subtitle"><?= __('Inserisci la tua email per ricevere un link di reset') ?></p>
       <?php if (isset($_GET['error'])): ?>
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6" role="alert">
-          <div class="flex items-center">
-            <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 mr-3"></i>
-            <div class="text-red-700 dark:text-red-300 text-sm">
+        <div class="auth-alert auth-alert--error" role="alert">
+          <div class="auth-alert-body">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <div>
               <?php if ($_GET['error'] === 'email_not_found'): ?>
                 <?= __('Email non trovata nel nostro sistema') ?>
               <?php elseif ($_GET['error'] === 'csrf'): ?>
@@ -76,16 +68,14 @@ $forgotPasswordRoute = route_path('forgot_password');
       <?php endif; ?>
 
       <?php if (isset($_GET['sent'])): ?>
-        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-6" role="alert">
-          <div class="flex">
-            <div class="shrink-0">
-              <i class="fas fa-check-circle text-green-500 dark:text-green-400"></i>
-            </div>
-            <div class="ml-3">
-              <p class="text-sm font-medium text-green-800 dark:text-green-200">
+        <div class="auth-alert auth-alert--success" role="alert">
+          <div class="auth-alert-body">
+            <i class="fas fa-check-circle" aria-hidden="true"></i>
+            <div>
+              <p><strong>
                 <?= __('Email di recupero inviata con successo!') ?>
-              </p>
-              <p class="mt-2 text-sm text-green-700 dark:text-green-300">
+              </strong></p>
+              <p>
                 <?= __('Controlla la tua casella di posta e clicca sul link per resettare la password. Il link sarà valido per 2 ore.') ?>
               </p>
             </div>
@@ -93,11 +83,11 @@ $forgotPasswordRoute = route_path('forgot_password');
         </div>
       <?php endif; ?>
 
-      <form method="post" action="<?= htmlspecialchars($forgotPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="space-y-6">
+      <form method="post" action="<?= htmlspecialchars($forgotPasswordRoute, ENT_QUOTES, 'UTF-8') ?>" class="auth-form">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token ?? '', ENT_QUOTES, 'UTF-8'); ?>" />
 
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label for="email" class="auth-label">
             <?= __('Email associata al tuo account') ?>
           </label>
           <input
@@ -106,47 +96,47 @@ $forgotPasswordRoute = route_path('forgot_password');
             name="email"
             required aria-required="true"
             aria-describedby="email-error"
-            class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
+            class="auth-input"
             placeholder="<?= __('mario.rossi@email.it') ?>"
             value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
-          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <p class="auth-help">
             <?= __('Riceverai un link di reset via email. Il link sarà valido per 2 ore.') ?>
           </p>
-          <span id="email-error" class="text-sm text-red-600 dark:text-red-400 mt-1 hidden" role="alert" aria-live="polite"></span>
+          <span id="email-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>
         </div>
 
         <div>
           <button
             type="submit"
-            class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+            class="auth-btn"
           >
             <?= __('Invia link di reset') ?>
           </button>
         </div>
       </form>
 
-      <div class="mt-6 text-center">
-        <p class="text-gray-600 dark:text-gray-400 text-sm">
+      <div>
+        <p class="auth-switch">
           <?= __('Ricordi la password?') ?>
-          <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+          <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
             <?= __('Accedi') ?>
           </a>
         </p>
       </div>
-    </div>
+    </main>
 
     <!-- Footer Links -->
-    <div class="mt-8 text-center">
-      <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+    <div class="auth-footer">
+      <div class="auth-footer-links">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Contatti') ?>
         </a>
       </div>
-      <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+      <p class="auth-copy">
         &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>
