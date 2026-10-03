@@ -131,7 +131,8 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
 
     expect((await catalogHeader(page, 'it_IT')).title).toBe('Leggi <3 libri & riviste');
     await expect(page.locator('.breadcrumb-item.active'), 'the breadcrumb uses the same name as the heading').toHaveText('Leggi <3 libri & riviste');
-    await expect(page).toHaveTitle('Leggi <3 libri & riviste');
+    // The shared layout appends the configured library name to page titles.
+    await expect(page).toHaveTitle(/^Leggi <3 libri & riviste – .+$/);
     // Search results are titled after the catalogue too.
     await page.goto(`${BASE}${new URL(page.url()).pathname}?search=${encodeURIComponent('femminismo')}`);
     await expect(page).toHaveTitle(/Leggi <3 libri & riviste/);
