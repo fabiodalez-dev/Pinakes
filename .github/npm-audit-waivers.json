@@ -1,0 +1,8 @@
+[
+  {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "expires": "2026-11-03",
+    "reason": "Stack exhaustion on deeply nested brace patterns. Every published braces is affected (range <=3.0.3, latest 3.0.3) and only reaches the build through tailwindcss 3 (chokidar, fast-glob, micromatch); npm audit --omit=dev is clean in both trees, so nothing vulnerable ships. npm's only fix is the tailwindcss 4 major. Remove this entry as soon as a fixed braces (or a micromatch/chokidar that drops it) is published."
+  }
+]
