@@ -8,6 +8,7 @@ use App\Support\Updater;
 use App\Support\BackupManager;
 use App\Support\Csrf;
 use App\Support\SecureLogger;
+use App\Support\UpdaterPreflightException;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -23,7 +24,38 @@ class UpdateController
         // Admin-only access check removed - relying on Middleware
 
 
-        $updater = new Updater($db);
+        // The constructor refuses to build when a genuinely fatal precondition
+        // fails (storage/tmp or storage/backups unwritable, no ZipArchive, no
+        // HTTP transport). Letting that escape turns this page — the one place
+        // that would name the problem — into a blank 500, which is the opposite
+        // of what an operator in trouble needs. Degrade to a page that says what
+        // to fix instead.
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            ob_start();
+            ?>
+            <div class="max-w-3xl mx-auto mt-10 bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 rounded-lg shadow p-6">
+                <h1 class="text-xl font-semibold text-red-700 dark:text-red-400 mb-3">
+                    <?php echo htmlspecialchars(__('Aggiornamenti non disponibili'), ENT_QUOTES, 'UTF-8'); ?>
+                </h1>
+                <p class="text-gray-700 dark:text-gray-300 mb-4">
+                    <?php echo htmlspecialchars(__('Il sistema di aggiornamento non può essere avviato perché una condizione preliminare non è soddisfatta. Correggi quanto indicato qui sotto e ricarica la pagina.'), ENT_QUOTES, 'UTF-8'); ?>
+                </p>
+                <pre class="bg-gray-100 dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 rounded p-4 whitespace-pre-wrap"><?php
+                    echo htmlspecialchars($this->updaterUnavailable($e, 'index'), ENT_QUOTES, 'UTF-8');
+                ?></pre>
+            </div>
+            <?php
+            $content = ob_get_clean();
+
+            ob_start();
+            require __DIR__ . '/../Views/layout.php';
+            $html = ob_get_clean();
+
+            $response->getBody()->write($html);
+            return $response->withStatus(503);
+        }
 
         // Check for updates
         $updateInfo = $updater->checkForUpdates();
@@ -61,7 +93,14 @@ class UpdateController
         // Admin-only access check removed
 
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'checkUpdates'),
+            ], 503);
+        }
         $updateInfo = $updater->checkForUpdates();
 
         return $this->jsonResponse($response, $updateInfo);
@@ -92,7 +131,14 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Versione non specificata')], 400);
         }
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'performUpdate'),
+            ], 503);
+        }
 
         // Check requirements first
         $requirements = $updater->checkRequirements();
@@ -165,7 +211,14 @@ class UpdateController
         // Admin-only access check removed
 
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'getHistory'),
+            ], 503);
+        }
         $history = $updater->getUpdateHistory();
 
         return $this->jsonResponse($response, ['history' => $history]);
@@ -182,7 +235,14 @@ class UpdateController
             return $this->jsonResponse($response, ['available' => false]);
         }
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'checkAvailable'),
+            ], 503);
+        }
         $updateInfo = $updater->checkForUpdates();
 
         return $this->jsonResponse($response, [
@@ -426,7 +486,7 @@ class UpdateController
         if (file_exists($maintenanceFile)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- constant internal path (storage/.maintenance), not user input
             if (@unlink($maintenanceFile)) {
-                error_log("[Updater] Maintenance mode cleared manually by admin user " . ($_SESSION['user']['id'] ?? 'unknown'));
+                SecureLogger::info('[Updater] Maintenance mode cleared manually by admin user ' . ($_SESSION['user']['id'] ?? 'unknown'));
                 return $this->jsonResponse($response, [
                     'success' => true,
                     'message' => __('Modalità manutenzione disattivata')
@@ -575,7 +635,7 @@ class UpdateController
             ], 500);
 
         } catch (\Throwable $e) {
-            error_log('[UpdateController] Upload failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            SecureLogger::error('[UpdateController] Upload failed (' . get_class($e) . '): ' . $e->getMessage());
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Errore durante il caricamento del pacchetto')
@@ -623,7 +683,14 @@ class UpdateController
             ], 400);
         }
 
-        $updater = new Updater($db);
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'installManualUpdate'),
+            ], 503);
+        }
 
         // Check requirements first
         $requirements = $updater->checkRequirements();
@@ -721,6 +788,27 @@ class UpdateController
             __('Un ripristino o aggiornamento è già in corso. Riprova tra poco.') => 409,
             default => 500,
         };
+    }
+
+    /**
+     * What to say when the updater cannot be built, after logging why.
+     *
+     * The full exception always goes to the application log. Only an
+     * administrator, and only for a missing host precondition
+     * (UpdaterPreflightException, whose message is written for the operator),
+     * sees the cause; anyone else, or any unexpected exception, gets a generic
+     * message, since a raw exception can carry server paths and internals and
+     * some of these endpoints also answer staff.
+     */
+    private function updaterUnavailable(\Throwable $e, string $action): string
+    {
+        SecureLogger::error('[UpdateController] ' . $action . ': updater unavailable (' . get_class($e) . '): ' . $e->getMessage());
+
+        if ($e instanceof UpdaterPreflightException && ($_SESSION['user']['tipo_utente'] ?? '') === 'admin') {
+            return $e->getMessage();
+        }
+
+        return __("Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.");
     }
 
     /**

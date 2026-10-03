@@ -11,9 +11,14 @@
 #     no advisory data is not the same as no advisories, and dependency
 #     scanning is still covered by the dependency-diff policy and Trivy.
 #
+# Advisories listed in .github/npm-audit-waivers.json are tolerated while
+# their waiver is in date and they stay out of the production dependencies
+# (scripts/npm-audit-filter.js decides).
+#
 # Usage: ci-npm-audit.sh [dir]   (default: current directory)
 set -uo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dir="${1:-.}"
 cd "$dir" || { echo "ci-npm-audit: no such directory: $dir" >&2; exit 2; }
 
@@ -29,6 +34,24 @@ for attempt in 1 2 3; do
     # infrastructure, not a finding — an open-ended error blacklist can
     # never be complete, so the classification is inverted.
     if printf '%s' "$out" | grep -qiE '# npm audit report|severity: *(high|critical)|[0-9]+ +(high|critical) +severity'; then
+        # Advisories reported: let the waiver list in
+        # .github/npm-audit-waivers.json decide. A waiver covers only a
+        # build-time dependency and only until its expiry date; anything
+        # else, or any doubt reading the reports, still fails.
+        full_json=$(mktemp) prod_json=$(mktemp)
+        npm audit --json >"$full_json" 2>/dev/null
+        npm audit --omit=dev --json >"$prod_json" 2>/dev/null
+        node "$script_dir/npm-audit-filter.js" "$full_json" "$prod_json" "$script_dir/../.github/npm-audit-waivers.json"
+        filter_ec=$?
+        rm -f "$full_json" "$prod_json"
+        if [ "$filter_ec" -eq 0 ]; then
+            exit 0
+        fi
+        if [ "$filter_ec" -eq 2 ]; then
+            # Still a failure, but a transport one: say so rather than point at a vulnerability.
+            echo "⚠ npm audit: advisories reported in ${dir}, but the JSON audit needed to apply waivers was unreadable"
+            exit 1
+        fi
         echo "⚠ npm audit: high/critical vulnerabilities found in ${dir}"
         exit 1
     fi

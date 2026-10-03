@@ -101,16 +101,81 @@ class BackupManager
         $this->backupPath = $this->rootPath . '/storage/backups';
     }
 
+    /**
+     * Why a write to this path failed, in words an operator can act on.
+     *
+     * A deliberate local mirror of Updater::describeWriteFailure(): this class
+     * is used by the admin Backup UI as well as by the updater and must not
+     * depend on it. The message strings are the SAME msgids, so the five locale
+     * files already carry them.
+     *
+     * Cheapest and most specific first, and error_get_last() is captured before
+     * any I/O of our own — it is process-global and the diagnosis would
+     * otherwise overwrite the very error it explains. The probe writes a real
+     * 1 MB file: a sparse hole consumes no quota, and the quota is what an
+     * exhausted cPanel account runs out of while the filesystem still reports
+     * gigabytes free.
+     */
+    private function describeWriteFailure(string $targetPath): string
+    {
+        $last = error_get_last();
+        $dir = dirname($targetPath);
+
+        if (is_file($targetPath) && !is_writable($targetPath)) {
+            return __('il file di destinazione esiste e non è scrivibile');
+        }
+        if (!is_dir($dir)) {
+            return __('la directory di destinazione non esiste');
+        }
+        if (!is_writable($dir)) {
+            return __('la directory di destinazione non è scrivibile');
+        }
+        if ($this->outOfSpace($dir)) {
+            return __('spazio su disco o quota dell\'account esauriti');
+        }
+
+        $message = $last === null ? '' : trim($last['message']);
+        return $message !== '' ? $message : __('causa sconosciuta');
+    }
+
+    /** True when a real, bounded 1 MB write into $dir cannot be completed. */
+    private function outOfSpace(string $dir): bool
+    {
+        $bytes = 1024 * 1024;
+        $free = @disk_free_space($dir);
+        if (is_float($free) && $free < $bytes) {
+            return true;
+        }
+        $probe = $dir . '/.backup_probe_' . bin2hex(random_bytes(4));
+        $handle = @fopen($probe, 'wb');
+        if ($handle === false) {
+            // Could not create the probe at all: that is a permission problem,
+            // not a space one, and the caller's stat checks already covered it.
+            return false;
+        }
+        $ok = true;
+        try {
+            $written = @fwrite($handle, str_repeat('0', $bytes));
+            if ($written === false || $written < $bytes) {
+                $ok = false;
+            }
+            if ($ok && !@fflush($handle)) {
+                $ok = false;
+            }
+        } catch (\Throwable) {
+            $ok = false;
+        } finally {
+            @fclose($handle);
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- own probe file, name generated here
+            @unlink($probe);
+        }
+        return !$ok;
+    }
+
     // ---------------------------------------------------------------------
     // Create
     // ---------------------------------------------------------------------
 
-    /**
-     * Create a backup ZIP.
-     *
-     * @param string $scope 'full' (DB + files) or 'db' (database only)
-     * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
-     */
     /**
      * Build a backup filename carrying its origin.
      *
@@ -150,7 +215,10 @@ class BackupManager
                 throw new \RuntimeException(__('Estensione ZipArchive non disponibile'));
             }
             if (!is_dir($this->backupPath) && !@mkdir($this->backupPath, 0755, true) && !is_dir($this->backupPath)) {
-                throw new \RuntimeException(__('Impossibile creare directory di backup'));
+                throw new \RuntimeException(
+                    __('Impossibile creare directory di backup')
+                    . ' — ' . $this->describeWriteFailure($this->backupPath)
+                );
             }
 
             // Serialize the whole write-then-rotate sequence. Two concurrent
@@ -173,7 +241,13 @@ class BackupManager
             // 2. Open the ZIP.
             $zip = new ZipArchive();
             if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-                throw new \RuntimeException(__('Impossibile creare il file di backup'));
+                // This is the FIRST writer of the whole update flow: on an
+                // account whose quota is exhausted it is the most likely place
+                // to fail, and "Backup fallito" alone says nothing about why.
+                throw new \RuntimeException(
+                    __('Impossibile creare il file di backup')
+                    . ' — ' . $this->describeWriteFailure($zipPath)
+                );
             }
 
             $zip->addFile($sqlTmp, 'database.sql');
@@ -203,7 +277,12 @@ class BackupManager
             $zip->addFromString('manifest.json', (string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
             if (!$zip->close()) {
-                throw new \RuntimeException(__('Errore nella scrittura del backup'));
+                // ZipArchive flushes on close: a quota that ran out while the
+                // entries were being written surfaces HERE, not at open().
+                throw new \RuntimeException(
+                    __('Errore nella scrittura del backup')
+                    . ' — ' . $this->describeWriteFailure($zipPath)
+                );
             }
 
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp dump path, not user input
@@ -376,14 +455,6 @@ class BackupManager
         }
     }
 
-    /**
-     * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, created_at: int}>
-     */
-    /**
-     * Origin encoded in a filename, for archives whose manifest predates it.
-     * Unknown or absent suffix means the automatic shape, which is what every
-     * archive written before this existed actually was.
-     */
     /** True only for a directory whose sole entry is a database.sql file. */
     private static function isLegacyBackupDirectory(string $dir): bool
     {
@@ -577,6 +648,20 @@ class BackupManager
     }
 
     /**
+     * True from the instant the import may have executed its first DROP TABLE
+     * until it has finished.
+     *
+     * MySQL cannot roll back DDL, so between those two points the database is
+     * neither the one the site was serving nor the one the archive describes.
+     * Two things must follow from that and neither did: the outcome has to say
+     * so, and the site must stay closed. An interrupted restore reported as an
+     * ordinary failure invites the operator to retry into the wreckage, and the
+     * maintenance flag was being lifted on the way out — including by the
+     * fatal-error shutdown handler, which is exactly the case this describes.
+     */
+    private bool $databaseReplacementStarted = false;
+
+    /**
      * Entry point for both restore paths (stored backup + uploaded ZIP).
      *
      * Mirrors Updater::performUpdate's protection: the import drops and
@@ -592,20 +677,6 @@ class BackupManager
      *
      * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
-    /**
-     * True from the instant the import may have executed its first DROP TABLE
-     * until it has finished.
-     *
-     * MySQL cannot roll back DDL, so between those two points the database is
-     * neither the one the site was serving nor the one the archive describes.
-     * Two things must follow from that and neither did: the outcome has to say
-     * so, and the site must stay closed. An interrupted restore reported as an
-     * ordinary failure invites the operator to retry into the wreckage, and the
-     * maintenance flag was being lifted on the way out — including by the
-     * fatal-error shutdown handler, which is exactly the case this describes.
-     */
-    private bool $databaseReplacementStarted = false;
-
     private function restoreZip(string $zipPath): array
     {
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
@@ -1006,15 +1077,6 @@ class BackupManager
     // ---------------------------------------------------------------------
 
     /**
-     * Dump every table to $filepath (DROP/CREATE/INSERT). Returns the table count.
-     *
-     * Binary columns are NOT supported by this dump path: every value is emitted
-     * as a single-quoted, real_escape_string()-escaped text literal (no _binary
-     * or hex literal), so any BLOB/BINARY bytes would be corrupted on a
-     * backup/restore round-trip. The schema is text/numeric/datetime only —
-     * adding a binary column requires changing this serialization first.
-     */
-    /**
      * The columns of $table a restore may write, in declaration order.
      *
      * Generated columns are excluded: MySQL and MariaDB both reject an INSERT
@@ -1112,6 +1174,15 @@ class BackupManager
         return $columns;
     }
 
+    /**
+     * Dump every table to $filepath (DROP/CREATE/INSERT). Returns the table count.
+     *
+     * Binary columns are NOT supported by this dump path: every value is emitted
+     * as a single-quoted, real_escape_string()-escaped text literal (no _binary
+     * or hex literal), so any BLOB/BINARY bytes would be corrupted on a
+     * backup/restore round-trip. The schema is text/numeric/datetime only —
+     * adding a binary column requires changing this serialization first.
+     */
     private function dumpDatabaseTo(string $filepath): int
     {
         $handle = fopen($filepath, 'w');
