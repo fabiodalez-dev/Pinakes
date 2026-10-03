@@ -364,16 +364,16 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
         // The century links cannot express 1945–1960; the typed range can, and keeps the search.
         await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}`);
         const panel = page.locator('.filters-panel');
-        await panel.locator('input[name="date_from"]').fill('1945');
-        await panel.locator('input[name="date_to"]').fill('1960');
-        await panel.locator('input[name="date_to"]').press('Enter');
+        await panel.locator('input.pages-input[name="date_from"]').fill('1945');
+        await panel.locator('input.pages-input[name="date_to"]').fill('1960');
+        await panel.locator('input.pages-input[name="date_to"]').press('Enter');
         await expect(page).toHaveURL(/date_from=1945/);
         const params = new URL(page.url()).searchParams;
         expect(params.get('date_to')).toBe('1960');
         expect(params.get('q')).toBe(TAG);
         await expect(page.locator(`.archive-ref:text("${SERIES_REF}")`)).toBeVisible();
         await expect(page.locator(`.archive-ref:text("${FILE_REF}")`)).not.toBeVisible();
-        await expect(panel.locator('input[name="date_from"]')).toHaveValue('1945');
+        await expect(panel.locator('input.pages-input[name="date_from"]')).toHaveValue('1945');
     });
 
     test('25c · Pubblico: ogni pagina dell\'indice dichiara se stessa come canonical', async () => {
