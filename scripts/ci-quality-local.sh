@@ -75,7 +75,7 @@ if ! command -v npm >/dev/null; then
   bad "npm is required"
 elif [ ! -f package-lock.json ]; then
   bad "package-lock.json is required; root dependency audit was not run"
-elif npm audit --audit-level=high >"$CIQ_TMP_DIR/npm-root.log" 2>&1; then
+elif bash scripts/ci-npm-audit.sh . >"$CIQ_TMP_DIR/npm-root.log" 2>&1; then
   ok "no high/critical advisories in root dependencies"
 else
   bad "root npm audit failed or reported high/critical advisories"
@@ -87,7 +87,7 @@ if ! command -v npm >/dev/null; then
   bad "npm is required"
 elif [ ! -f frontend/package-lock.json ]; then
   bad "frontend/package-lock.json is required; frontend dependency audit was not run"
-elif npm --prefix frontend audit --audit-level=high >"$CIQ_TMP_DIR/npm-frontend.log" 2>&1; then
+elif bash scripts/ci-npm-audit.sh frontend >"$CIQ_TMP_DIR/npm-frontend.log" 2>&1; then
   ok "no high/critical advisories in frontend dependencies"
 else
   bad "frontend npm audit failed or reported high/critical advisories"
