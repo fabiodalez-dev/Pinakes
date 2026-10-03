@@ -7,7 +7,8 @@
 
 $book = $book ?? [];
 $attachmentKinds = array_column(\App\Support\DigitalAttachments::fromBook($book), 'kind');
-$hasEbook = in_array('ebook', $attachmentKinds, true) || in_array('supplement', $attachmentKinds, true);
+// A review or related article is not the digital edition: only an ebook earns the badge.
+$hasEbook = in_array('ebook', $attachmentKinds, true);
 $hasAudiobook = in_array('audio', $attachmentKinds, true);
 
 if (!$hasEbook && !$hasAudiobook) {

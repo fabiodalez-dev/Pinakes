@@ -5,6 +5,12 @@ namespace App\Support;
 /** Ordered digital editions, related documents and audio tracks on one record. */
 final class DigitalAttachments
 {
+    /** The single-file columns older clients, imports and the API still read and write. */
+    private const LEGACY_FIELDS = ['file_url' => 'ebook', 'audio_url' => 'audio'];
+
+    /** Size of libri.file_url / libri.audio_url: a longer edition or track could not be mirrored there. */
+    private const LEGACY_COLUMN_LENGTH = 255;
+
     /** @return list<array{url:string,label:string,kind:string}> */
     public static function normalize(mixed $rows): array
     {
@@ -30,6 +36,9 @@ final class DigitalAttachments
                 || !in_array($kind, ['ebook', 'supplement', 'audio'], true)) {
                 throw new \InvalidArgumentException(__('URL o tipo di allegato digitale non valido.'));
             }
+            if ($kind !== 'supplement' && strlen($url) > self::LEGACY_COLUMN_LENGTH) {
+                throw new \InvalidArgumentException(__('L’URL di un’edizione digitale o di un audiobook non può superare 255 caratteri.'));
+            }
             $label = trim($row['label'] ?? '');
             if (mb_strlen($label) > 255) {
                 throw new \InvalidArgumentException(__('Il titolo dell’allegato non può superare 255 caratteri.'));
@@ -46,26 +55,104 @@ final class DigitalAttachments
         return $out;
     }
 
-    /** Existing single-file records remain readable without a data rewrite.
-     * @return list<array{url:string,label:string,kind:string}>
+    /**
+     * The attachments of a record, read from the stored list and kept in step with the
+     * single-file columns.
+     *
+     * Records saved before the list existed are read from file_url / audio_url. A column
+     * changed outside the editor (CSV import, API, plugin disabled) wins over the stored
+     * list for that one slot, so the record never shows a file it no longer has.
+     *
+     * With $forEditing, a legacy value that cannot be read is returned as an `invalid`
+     * row instead of being dropped: the editor shows it, and the next save either fixes
+     * it or refuses, rather than silently blanking the column.
+     *
+     * @return list<array{url:string,label:string,kind:string,invalid?:true}>
      */
-    public static function fromBook(array $book): array
+    public static function fromBook(array $book, bool $forEditing = false): array
     {
+        $rows = null;
         if (isset($book['digital_attachments'])) {
             try {
-                $rows = json_decode((string) $book['digital_attachments'], true, 512, JSON_THROW_ON_ERROR);
-                return self::normalize($rows);
+                $rows = self::normalize(json_decode((string) $book['digital_attachments'], true, 512, JSON_THROW_ON_ERROR));
             } catch (\JsonException | \InvalidArgumentException $e) {
-                // A damaged legacy value must not hide the original single-file links.
+                // A damaged list must not hide the original single-file links.
+                $rows = null;
             }
         }
-        $rows = [];
-        foreach (['file_url' => 'ebook', 'audio_url' => 'audio'] as $field => $kind) {
-            if (!empty($book[$field]) && is_string($book[$field])) {
-                try { $rows = array_merge($rows, self::normalize([['url' => $book[$field], 'kind' => $kind]])); }
-                catch (\InvalidArgumentException $e) { /* Unsafe legacy URLs are not rendered. */ }
+        if ($rows === null) {
+            $rows = [];
+            foreach (self::LEGACY_FIELDS as $field => $kind) {
+                $value = is_string($book[$field] ?? null) ? trim($book[$field]) : '';
+                if ($value !== '') {
+                    $rows = self::withLegacyValue($rows, $kind, $value, $forEditing, count($rows));
+                }
+            }
+            return $rows;
+        }
+        foreach (self::LEGACY_FIELDS as $field => $kind) {
+            if (!array_key_exists($field, $book)) {
+                continue;
+            }
+            $value = is_string($book[$field]) ? trim($book[$field]) : '';
+            $primary = null;
+            foreach ($rows as $i => $row) {
+                if ($row['kind'] === $kind) { $primary = $i; break; }
+            }
+            $current = $primary === null ? '' : $rows[$primary]['url'];
+            if ($value === $current || ($value !== '' && self::repairLegacyUrl($value) === $current)) {
+                continue;
+            }
+            $at = $primary ?? count($rows);
+            if ($primary !== null) {
+                array_splice($rows, $primary, 1);
+            }
+            if ($value !== '') {
+                $rows = self::withLegacyValue($rows, $kind, $value, $forEditing, $at);
             }
         }
+        return $rows;
+    }
+
+    /**
+     * Older versions stored these columns as free text, so a valid file can still be
+     * written in a form the list rejects: no leading slash on an upload path, or a raw
+     * space or accented letter. Percent-encode those bytes; the URL points at the same file.
+     */
+    private static function repairLegacyUrl(string $url): string
+    {
+        $url = trim($url);
+        if (str_starts_with($url, 'uploads/')) {
+            $url = '/' . $url;
+        }
+        return (string) preg_replace_callback('/[^\x21-\x7e]/', static fn (array $m): string => rawurlencode($m[0]), $url);
+    }
+
+    /**
+     * @param list<array{url:string,label:string,kind:string,invalid?:true}> $rows
+     * @return list<array{url:string,label:string,kind:string,invalid?:true}>
+     */
+    private static function withLegacyValue(array $rows, string $kind, string $value, bool $forEditing, int $at): array
+    {
+        try {
+            $row = self::normalize([['url' => self::repairLegacyUrl($value), 'kind' => $kind]]);
+        } catch (\InvalidArgumentException $e) {
+            if (!$forEditing) {
+                return $rows; // Unsafe legacy URLs are never rendered to readers.
+            }
+            $row = [['url' => $value, 'label' => '', 'kind' => $kind, 'invalid' => true]];
+        }
+        if ($row === []) {
+            return $rows;
+        }
+        foreach ($rows as $i => $existing) {
+            if ($existing['kind'] === $kind && $existing['url'] === $row[0]['url']) {
+                array_splice($rows, $i, 1);
+                $at = min($at, count($rows));
+                break;
+            }
+        }
+        array_splice($rows, min($at, count($rows)), 0, $row);
         return $rows;
     }
 
@@ -81,7 +168,7 @@ final class DigitalAttachments
             $field = $row['kind'] === 'audio' ? 'audio_url' : 'file_url';
             // Supplementary documents are related material, not the digital edition itself.
             if ($row['kind'] === 'supplement') { continue; }
-            if ($fields[$field] === '' && strlen($row['url']) <= 255) { $fields[$field] = $row['url']; }
+            if ($fields[$field] === '') { $fields[$field] = $row['url']; }
         }
         return $fields;
     }

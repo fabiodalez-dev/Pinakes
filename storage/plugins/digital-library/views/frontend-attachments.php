@@ -15,7 +15,7 @@ $attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Rece
     <?php if ($attachment['kind'] === 'audio'): ?>
     <audio controls preload="none" aria-label="<?= $label ?>"><source src="<?= $href ?>"><?= __('Il tuo browser non supporta la riproduzione audio.') ?></audio>
     <?php elseif ($extension === 'pdf'): ?>
-    <details><summary><?= __('Leggi PDF') ?>: <?= $label ?></summary><iframe src="<?= $href ?>" title="<?= $label ?>" loading="lazy" sandbox="allow-same-origin allow-downloads"></iframe></details>
+    <details><summary><?= __('Leggi PDF') ?>: <?= $label ?></summary><iframe src="<?= $href ?>" title="<?= $label ?>" loading="lazy"></iframe></details>
     <?php endif; ?>
 </li>
 <?php endforeach; ?>

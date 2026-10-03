@@ -2,7 +2,7 @@
 /** Multiple files are edited as ordinary fields so saving also works without JavaScript. */
 use App\Support\HtmlHelper;
 $book = $book ?? [];
-$attachments = \App\Support\DigitalAttachments::fromBook($book);
+$attachments = \App\Support\DigitalAttachments::fromBook($book, true);
 $attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Recensione o documento correlato'), 'audio' => __('Audiobook')];
 ?>
 <section class="digital-attachments-editor" aria-labelledby="digital-attachments-title">
@@ -20,6 +20,9 @@ $attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Rece
             </select></label>
             <label><?= __('URL del file') ?><input class="form-input" name="digital_attachments[<?= $index ?>][url]" maxlength="2048" value="<?= HtmlHelper::e($attachment['url']) ?>"></label>
             <button type="button" class="ui-button btn-outline" data-remove-attachment><?= __('Rimuovi') ?></button>
+            <?php if (!empty($attachment['invalid'])): ?>
+            <p class="digital-attachment-invalid" role="alert"><?= __('Questo link salvato non è valido: correggilo o rimuovilo prima di salvare.') ?></p>
+            <?php endif; ?>
         </div>
         <?php endforeach; ?>
     </div>

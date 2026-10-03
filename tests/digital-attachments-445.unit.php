@@ -44,4 +44,40 @@ check(str_contains($html,'Review &lt;&amp;&gt;') && !str_contains($html,'Review 
 ob_start();$plugin->renderAudioPlayer($saved);$plugin->renderPdfViewer($saved);$extra=(string)ob_get_clean();
 check($extra==='','multiple attachments do not produce duplicate legacy viewers');
 check(in_array(['table'=>'libri','column'=>'digital_attachments'],$plugin->expectedColumns(),true),'the upgrade self-heals the new collection column');
+
+// Legacy columns were free text: a value the list would reject must neither vanish from the
+// editor nor be blanked by the next save of an unrelated field.
+$repaired=['uploads/digital/old.pdf'=>'/uploads/digital/old.pdf','/uploads/digital/a b.pdf'=>'/uploads/digital/a%20b.pdf','https://example.org/città.pdf'=>'https://example.org/citt%C3%A0.pdf'];
+foreach ($repaired as $stored=>$expected) {
+ $book=['file_url'=>$stored,'audio_url'=>null];
+ $shown=Attachments::fromBook($book,true);
+ check(count($shown)===1 && $shown[0]['url']===$expected && empty($shown[0]['invalid']),'a legacy link the list would reject is repaired, not hidden: '.$stored);
+ $resaved=Attachments::applySubmission($book,['digital_attachments_present'=>'1','digital_attachments'=>$shown]);
+ check($resaved['file_url']===$expected,'saving the form unchanged keeps the repaired legacy link: '.$stored);
+}
+check(Attachments::fromBook(['file_url'=>'javascript:alert(1)'],true)===[['url'=>'javascript:alert(1)','label'=>'','kind'=>'ebook','invalid'=>true]],'the editor still shows an unreadable legacy link, marked invalid');
+try { Attachments::applySubmission(['file_url'=>'javascript:alert(1)'],['digital_attachments_present'=>'1','digital_attachments'=>[['url'=>'javascript:alert(1)','label'=>'','kind'=>'ebook']]]); check(false,'an unreadable legacy link is not saved silently'); }
+catch (InvalidArgumentException $e) { check(true,'an unreadable legacy link refuses the save instead of being blanked'); }
+$book=['file_url'=>'javascript:alert(1)'];
+ob_start();include __DIR__.'/../storage/plugins/digital-library/views/admin-form-fields.php';$form=(string)ob_get_clean();
+check(substr_count($form,'digital-attachment-invalid')===1 && str_contains($form,'value="javascript:alert(1)"'),'the editor explains which saved link must be fixed');
+// The single-file columns are VARCHAR(255): an edition or track longer than that could not be mirrored.
+try { Attachments::normalize([['url'=>'https://example.org/'.str_repeat('a',240).'.pdf','kind'=>'ebook']]); check(false,'over-long edition URL rejected'); }
+catch (InvalidArgumentException $e) { check(true,'an edition URL longer than the legacy column is rejected'); }
+try { Attachments::normalize([['url'=>'https://example.org/'.str_repeat('a',240).'.mp3','kind'=>'audio']]); check(false,'over-long audio URL rejected'); }
+catch (InvalidArgumentException $e) { check(true,'an audio URL longer than the legacy column is rejected'); }
+check(count(Attachments::normalize([['url'=>'https://example.org/'.str_repeat('a',600),'kind'=>'supplement']]))===1,'a related document may keep a long URL, since it is never mirrored');
+// A column changed outside the editor (import, API, plugin disabled) wins for its slot.
+$external=['file_url'=>'/uploads/digital/replaced.pdf']+$saved;
+$read=Attachments::fromBook($external);
+check($read[0]['url']==='/uploads/digital/replaced.pdf' && $read[1]['url']===$rows[1]['url'] && count($read)===5,'an edition replaced outside the editor is shown instead of the stale one, other rows kept');
+check(Attachments::fromBook(['audio_url'=>'']+$saved)[3]['url']===$rows[4]['url'] && count(Attachments::fromBook(['audio_url'=>'']+$saved))===4,'an audio track cleared outside the editor is not resurrected');
+check(Attachments::fromBook(['file_url'=>'/uploads/digital/old.pdf','digital_attachments'=>null])===[['url'=>'/uploads/digital/old.pdf','label'=>'old.pdf','kind'=>'ebook']],'a record without the list still reads its column');
+// Badges and inline reading.
+$supplementOnly=Attachments::applySubmission(['file_url'=>'','audio_url'=>''],['digital_attachments_present'=>'1','digital_attachments'=>[$rows[2]]]);
+ob_start();$book=$supplementOnly;include __DIR__.'/../storage/plugins/digital-library/views/badge-icons.php';$badge=(string)ob_get_clean();
+check(!str_contains($badge,'ebook-icon'),'a review alone does not advertise an eBook');
+ob_start();$book=$saved;include __DIR__.'/../storage/plugins/digital-library/views/badge-icons.php';$badge=(string)ob_get_clean();
+check(str_contains($badge,'ebook-icon') && str_contains($badge,'audio-icon'),'an edition and a track still show both badges');
+check(!str_contains($html,'sandbox'),'inline PDFs are not sandboxed, which would stop the browser PDF viewer');
 echo "SUCCESS $checks checks\n";

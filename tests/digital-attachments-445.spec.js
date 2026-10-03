@@ -165,4 +165,27 @@ test.describe.serial('Multiple digital contents (#445)', () => {
     expect(legacyStatus).toBe(200);
     expect(db(`SELECT JSON_LENGTH(digital_attachments) FROM libri WHERE id=${newId}`)).toBe('2');
   });
+  test('a legacy link written as free text survives saving an unrelated field', async ({ page }) => {
+    // Older versions stored file_url/audio_url unvalidated: a relative upload path and a
+    // raw space must reach the editor and be kept, not blanked by the next save.
+    db(`INSERT INTO libri (titolo,file_url,audio_url) VALUES ('${marker}-legacy','uploads/digital/legacy 445.pdf','javascript:alert(1)')`);
+    const legacyId = Number(db(`SELECT id FROM libri WHERE titolo='${marker}-legacy'`));
+    created.push(legacyId);
+    await login(page);
+    await page.goto(`${BASE}/admin/books/edit/${legacyId}`);
+    const rows = page.locator('[data-attachment-row]');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first().locator('input[name$="[url]"]')).toHaveValue('/uploads/digital/legacy%20445.pdf');
+    // The unreadable one is shown with an explanation, and blocks the save instead of vanishing.
+    await expect(rows.nth(1).locator('.digital-attachment-invalid')).toBeVisible();
+    const blocked = await page.locator('#bookForm').evaluate(async form => (await fetch(form.action, { method: 'POST', body: new FormData(form) })).status);
+    expect(blocked).toBe(400);
+    expect(db(`SELECT audio_url FROM libri WHERE id=${legacyId}`)).toBe('javascript:alert(1)');
+    await rows.nth(1).locator('[data-remove-attachment]').click();
+    await page.locator('#titolo').fill(`${marker}-legacy edited`);
+    await submit(page);
+    await expect.poll(() => db(`SELECT titolo FROM libri WHERE id=${legacyId}`)).toBe(`${marker}-legacy edited`);
+    expect(db(`SELECT file_url FROM libri WHERE id=${legacyId}`)).toBe('/uploads/digital/legacy%20445.pdf');
+    expect(db(`SELECT COALESCE(audio_url,'') FROM libri WHERE id=${legacyId}`)).toBe('');
+  });
 });
