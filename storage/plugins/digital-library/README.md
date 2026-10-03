@@ -1,6 +1,6 @@
 # Digital Library Plugin
 
-**Versione:** 1.0.0
+**Versione:** 1.4.0
 **Autore:** Pinakes Team
 **Licenza:** GPL-3.0
 
@@ -12,6 +12,8 @@ Il plugin **Digital Library** estende Pinakes con funzionalità avanzate per la 
 - 🎧 **Caricare e riprodurre audiobook** (MP3, M4A, OGG)
 - 🎵 **Player audio integrato** con Green Audio Player
 - 📥 **Download diretto** di contenuti digitali
+- **Più allegati per libro**: edizioni PDF/ePub, recensioni, articoli sul libro e più file audio, ciascuno con un titolo
+- **Compatibilità**: gli allegati esistenti restano disponibili; rimuovere un collegamento non elimina il file dal disco
 - 🏷️ **Icone nei badge** per indicare disponibilità contenuti
 
 ## ✨ Caratteristiche Principali

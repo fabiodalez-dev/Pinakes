@@ -488,6 +488,9 @@ class BookRepository
         if ($this->hasColumn('audio_url')) {
             $addField('audio_url', 's', $data['audio_url'] ?? null);
         }
+        if (array_key_exists('digital_attachments', $data) && $this->hasColumn('digital_attachments')) {
+            $addField('digital_attachments', 's', $data['digital_attachments']);
+        }
         if ($this->hasColumn('collocazione')) {
             $addField('collocazione', 's', $collocazione);
         }
@@ -848,6 +851,9 @@ class BookRepository
         }
         if ($this->hasColumn('audio_url')) {
             $addSet('audio_url', 's', $data['audio_url'] ?? null);
+        }
+        if (array_key_exists('digital_attachments', $data) && $this->hasColumn('digital_attachments')) {
+            $addSet('digital_attachments', 's', $data['digital_attachments']);
         }
         if ($this->hasColumn('collocazione')) {
             $addSet('collocazione', 's', $collocazione);

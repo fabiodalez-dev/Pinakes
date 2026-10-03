@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Bibliographic citations in four styles, for books, periodical articles and
+ * Bibliographic citations in five styles, for books, periodical articles and
  * chapters in edited books (#412).
  *
  * A catalogue record holds every part of a citation; this class assembles
@@ -35,6 +35,7 @@ final class CitationStyles
         'chicago' => 'Chicago (17ª edizione, autore-data)',
         'mla' => 'MLA (9ª edizione)',
         'harvard' => 'Harvard',
+        'oxford' => 'Oxford (Umeå)',
     ];
 
     private const MONTHS = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July',
@@ -554,6 +555,70 @@ final class CitationStyles
             return $names[0] . ', and ' . self::natural($names[1]);
         }
         return $names[0] . ', et al.';
+    }
+
+    /**
+     * Oxford, Umeå University Library bibliography variant (not a footnote).
+     * https://www.umu.se/bibliotek/soka-skriva-studera/skriva-referenser/oxford-skriva-referenslista/
+     * @param array<string,mixed> $record
+     * @return array{text:string,html:string}
+     */
+    public static function oxford(array $record): array
+    {
+        $r = self::record($record);
+        $s = [];
+        $year = $r['year'] !== '' ? $r['year'] : 'n.d.';
+        $names = static fn (array $list): string => self::join(
+            array_map(static fn (string $name): string => self::initials($name, ''), $list),
+            ', ', ' & ', ' & ', 10000
+        );
+        $lead = $names($r['authors']);
+        if ($lead === '' && $r['type'] === 'book' && $r['editors'] !== []) {
+            $lead = $names($r['editors']) . (count($r['editors']) > 1 ? ' (eds.)' : ' (ed.)');
+        }
+        if ($lead !== '') { self::add($s, self::terminate($lead) . ' '); }
+        if ($r['title'] !== '') {
+            self::add($s, $r['title'], $r['type'] === 'book');
+            self::add($s, self::afterTitle($r['title'], '') . ' ');
+        }
+        $span = self::span($r);
+        if ($r['type'] === 'book' || $r['type'] === 'chapter') {
+            if ($r['type'] === 'chapter' && ($r['editors'] !== [] || $r['container'] !== '')) {
+                self::add($s, 'In ');
+                if ($r['editors'] !== []) {
+                    self::add($s, self::terminate($names($r['editors']) . (count($r['editors']) > 1 ? ' (eds.)' : ' (ed.)')) . ' ');
+                }
+                if ($r['container'] !== '') {
+                    self::add($s, $r['container'], true);
+                    self::add($s, self::afterTitle($r['container'], '') . ' ');
+                }
+            }
+            $edition = self::ordinalEdition($r['edition']);
+            if ($edition !== '') { self::add($s, $edition . ' ed. '); }
+            self::add($s, '(' . ($r['publisher'] !== '' ? $r['publisher'] . ', ' : '') . $year . ')');
+            if ($r['type'] === 'chapter' && $span !== '') {
+                self::add($s, ', ' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span);
+            }
+            self::add($s, '.');
+        } else {
+            if ($r['container'] !== '') {
+                self::add($s, $r['container'], true);
+                self::add($s, self::afterTitle($r['container'], '') . ' ');
+            }
+            if ($r['isNewspaper'] || $r['isMagazine']) {
+                $date = ($r['day'] > 0 && $r['month'] > 0 ? $r['day'] . '/' : '')
+                    . ($r['month'] > 0 ? $r['month'] . ' ' : '') . $year;
+                self::add($s, '(' . $date . ')');
+                if ($span !== '') { self::add($s, ', ' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span); }
+            } else {
+                $enumeration = $r['volume'] . ($r['issue'] !== '' ? ($r['volume'] !== '' ? ': ' : '') . $r['issue'] : '');
+                self::add($s, ($enumeration !== '' ? $enumeration . ' ' : '') . '(' . $year . ')');
+                if ($span !== '') { self::add($s, ': ' . (str_contains($span, '–') ? 'pp. ' : 'p. ') . $span); }
+            }
+            self::add($s, '.');
+        }
+        if ($r['doi'] !== '') { self::add($s, ' https://doi.org/' . $r['doi']); }
+        return self::render($s);
     }
 
     // ── shared pieces ────────────────────────────────────────────────────────

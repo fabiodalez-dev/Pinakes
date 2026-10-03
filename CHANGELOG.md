@@ -2,6 +2,15 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [Unreleased]
+
+### Added
+- **Multiple digital attachments on one book** ([#445](https://github.com/fabiodalez-dev/Pinakes/issues/445)): PDF/ePub editions, reviews and articles about the book, and multiple audio recordings, each with a title, download and appropriate viewer. Uploads append files; existing single-file records remain available. Digital Library is now 1.4.0.
+- **Oxford (Umeå) in the shared Cite dialog** for books, articles and anthology chapters, alongside APA, Harvard, MLA and Chicago ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)).
+
+### Verified for the release candidate
+- All of Uwe's cataloguing requests in #412 are mapped to implementation and regression coverage in `docs/reviews/issue-412-verifica.md`. This candidate includes the prerequisite release branches #439, #440 and #441.
+
 ## [0.7.88]
 
 ### Added

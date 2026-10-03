@@ -142,6 +142,7 @@ final class ActivityLog
         'classificazione_dewey' => 'Classificazione Dewey',
         'file_url' => 'File digitale',
         'audio_url' => 'Audiolibro',
+        'digital_attachments' => 'Allegati digitali',
         'note_varie' => 'Note',
         'note' => 'Note',
         'copie_totali' => 'Copie totali',
@@ -465,7 +466,7 @@ final class ActivityLog
             'peso', 'dimensioni', 'prezzo', 'data_acquisizione', 'tipo_acquisizione',
             'collana', 'numero_serie', 'classificazione_dewey', 'collocazione',
             'scaffale_id', 'mensola_id', 'posizione_progressiva', 'numero_inventario',
-            'file_url', 'audio_url', 'note_varie', 'copie_totali',
+            'file_url', 'audio_url', 'digital_attachments', 'note_varie', 'copie_totali',
             'copie_disponibili', 'stato',
         ];
         $snapshot = [];
