@@ -8013,6 +8013,7 @@
   "Elenco degli allegati digitali non valido.": "Invalid digital attachment list.",
   "Allegato digitale non valido.": "Invalid digital attachment.",
   "URL o tipo di allegato digitale non valido.": "Invalid digital attachment URL or type.",
+  "Allegati digitali": "Digital attachments",
   "L’URL di un’edizione digitale o di un audiobook non può superare 255 caratteri.": "The URL of a digital edition or audiobook cannot be longer than 255 characters.",
   "Questo link salvato non è valido: correggilo o rimuovilo prima di salvare.": "This saved link is not valid: fix or remove it before saving.",
   "Il titolo dell’allegato non può superare 255 caratteri.": "The attachment title cannot exceed 255 characters.",
