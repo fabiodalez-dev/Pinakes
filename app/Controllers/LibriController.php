@@ -867,6 +867,7 @@ class LibriController
             'lingua' => '',
             'anno_pubblicazione' => null,
             'edizione' => '',
+            'luogo_pubblicazione' => '',
             'data_pubblicazione' => '',
             'numero_pagine' => null,
         ];
@@ -1554,6 +1555,7 @@ class LibriController
             'lingua' => '',
             'anno_pubblicazione' => null,
             'edizione' => '',
+            'luogo_pubblicazione' => '',
             'data_pubblicazione' => '',
             'numero_pagine' => null,
         ];

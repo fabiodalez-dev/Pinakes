@@ -2,6 +2,13 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [Unreleased]
+
+### Added
+- **A book records where it was published** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). The book form has a *Place of publication* field, shown on the public and admin record. Chicago and Harvard citations now read "Lund: Nordic Academic Press", the MARCXML export carries it in 264 `$a` (SRU and OAI-PMH), and an empty place leaves no dangling colon. Core migration 0.7.89 adds the nullable `libri.luogo_pubblicazione` column; existing books get no invented value.
+- **A book's citation can be downloaded as RIS** for EndNote, Zotero and Mendeley, from the Cite dialog, built from the same data as the citation styles.
+- **Articles in the live search and on the catalogue** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). The header search suggests published articles while the reader types; on /catalogo an article card links its authors and its publication. The article form links a record to a catalogued masthead by searching it and copies the masthead's title and ISSN into empty fields. Article MARCXML gains the MARC country code in 008/15-17, the public PDF in 856 and the authors in direct order in 245 `$c`; RIS names the journal in JF as well.
+
 ## [0.7.88]
 
 ### Added

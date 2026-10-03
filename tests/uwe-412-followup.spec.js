@@ -8,7 +8,9 @@
  *  - the article form links the record to a catalogued masthead by searching
  *    it, and copies the masthead's title and ISSN into empty fields;
  *  - the MARCXML export carries the MARC country code in 008/15-17 and the
- *    public PDF in 856.
+ *    public PDF in 856;
+ *  - a book records its place of publication (core 0.7.89), which reaches the
+ *    Chicago and Harvard citations and the book's RIS download.
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
@@ -54,6 +56,7 @@ async function setEmerotecaActive(page, wanted) {
 }
 
 let wasActive = false;
+let bookId = 0;
 let articleId = 0;
 let mastheadId = 0;
 
@@ -70,11 +73,14 @@ test.describe.serial('Uwe #412 follow-up', () => {
     db(`INSERT INTO emeroteca_contributi (reference_key, titolo, autori, contenitore_titolo, paese, pubblico, pdf_path, pdf_pubblico)
         VALUES ('${RUN}-a', '${TITLE}', 'Schweissinger, Marc J.', 'International Journal of Language and Literature', 'DK', 1, 'emeroteca/${RUN}.pdf', 1)`);
     articleId = Number(db(`SELECT id FROM emeroteca_contributi WHERE reference_key='${RUN}-a'`));
+    db(`INSERT INTO libri (titolo, anno_pubblicazione) VALUES ('${RUN} Reaching a state of hope', 2013)`);
+    bookId = Number(db(`SELECT id FROM libri WHERE titolo='${RUN} Reaching a state of hope'`));
   });
 
   test.afterAll(async ({ browser }) => {
     db(`DELETE FROM emeroteca_contributi WHERE reference_key LIKE '${RUN}-%'`);
     db(`DELETE FROM emeroteca_testate WHERE titolo='${MASTHEAD}'`);
+    if (bookId) { db(`DELETE FROM copie WHERE libro_id=${bookId}`); db(`DELETE FROM libri WHERE id=${bookId}`); }
     if (!wasActive) {
       const page = await browser.newPage();
       try { await login(page); await setEmerotecaActive(page, false); } finally { await page.close(); }
@@ -126,5 +132,34 @@ test.describe.serial('Uwe #412 follow-up', () => {
     const fixed = (xml.match(/<controlfield tag="008">([^<]*)<\/controlfield>/) || [])[1] || '';
     expect(fixed.substring(15, 18), '008/15-17 is the MARC code for Denmark').toBe('dk ');
     expect(xml).toMatch(new RegExp(`<datafield tag="856" ind1="4" ind2="0"><subfield code="u">[^<]*/emeroteca/articolo/${articleId}/pdf</subfield>`));
+  });
+  test('a book keeps its place of publication and cites it', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await page.locator('#luogo_pubblicazione').fill('Lund');
+    await page.locator('#bookForm button[type=submit]').click();
+    const confirmation = page.locator('.swal2-confirm');
+    if (await confirmation.isVisible({ timeout: 3000 }).catch(() => false)) await confirmation.click();
+    await expect.poll(() => db(`SELECT COALESCE(luogo_pubblicazione,'') FROM libri WHERE id=${bookId}`)).toBe('Lund');
+
+    await page.goto(`${BASE}/libro/${bookId}`);
+    await expect(page.locator('.meta-item', { hasText: 'Lund' }).first()).toBeVisible();
+    const dialog = page.locator('#book-cite-card');
+    await expect(dialog).toContainText(/Lund/);
+
+    const ris = dialog.locator('a', { hasText: 'RIS' });
+    const href = await ris.getAttribute('href');
+    expect(href).toMatch(new RegExp(`/books/${bookId}/citation\\.ris$`));
+    const response = await page.request.get(new URL(href || '', BASE).toString());
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toContain('research-info-systems');
+    const body = await response.text();
+    expect(body).toMatch(/^TY {2}- BOOK\r\n/);
+    expect(body).toContain('CY  - Lund\r\n');
+    expect(body).toContain('PY  - 2013\r\n');
+
+    db(`UPDATE libri SET deleted_at=NOW() WHERE id=${bookId}`);
+    expect((await page.request.get(new URL(href || '', BASE).toString())).status(), 'a deleted book has no citation file').toBe(404);
+    db(`UPDATE libri SET deleted_at=NULL WHERE id=${bookId}`);
   });
 });

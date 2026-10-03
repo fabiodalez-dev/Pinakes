@@ -406,6 +406,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['edizione']); ?></dd>
             </div>
             <?php endif; ?>
+            <?php if (!empty($libro['luogo_pubblicazione'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Luogo di pubblicazione") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['luogo_pubblicazione']); ?></dd>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($libro['anno_pubblicazione'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
