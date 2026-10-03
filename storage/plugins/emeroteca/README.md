@@ -40,7 +40,19 @@ Author links on article pages and lists open the shared catalogue author filter.
 
 The OpenURL resolver accepts both the main title and the complete `title : subtitle` exported by COinS. Host title, ISSN, volume and issue disambiguate title matches; an ambiguous match falls back to the external resolver. Disabled Emeroteca content is excluded from both the shared catalogue and the resolver.
 
-Each article can carry its own image, uploaded on the article form (JPG, PNG or WebP, up to 5 MB) and stored under `public/uploads/emeroteca` like the issue and masthead images. Articles without one show the same placeholder the catalogue uses for a book without a cover. Replacing or removing the image deletes the previous file once no other record refers to it, and never before the new row has been saved.
+Each article can carry its own image, uploaded on the article form (JPG, PNG or WebP, up to 5 MB) and stored under `public/uploads/emeroteca` like the issue and masthead images. An article without one shows the cover of the issue it was placed in, then the masthead's logo, and only when there is neither the placeholder the catalogue uses for a book without a cover. Replacing or removing the image deletes the previous file once no other record refers to it, and never before the new row has been saved.
+
+## Public pages
+
+The public section is built from the same pieces as the catalogue and the book page (`app/Views/frontend/partials`, `public/assets/catalog-pages.css`, `public/assets/book-detail.css`), so it follows the active layout like the rest of the site.
+
+- `/emeroteca` — the mastheads, with filters for type, publisher, subject and initial letter, 20 per page, then the latest articles (or, while searching, the articles matching the search).
+- `/emeroteca/{id}` — a masthead: its years in the sidebar, the selected year's issues, and its articles, searchable and 20 per page.
+- `/emeroteca/fascicolo/{id}` — an issue: the published articles placed in it, in page order, then its printed table of contents; previous and next issue of the same year.
+- `/emeroteca/articolo/{id}` — an article: breadcrumb Home › Emeroteca › masthead › issue, where it was published, previous and next article of the same issue, details, citations, and related articles of the same masthead and the same linked author.
+- `/emeroteca/articoli` — the article search, with `?testata=`, `?fascicolo=`, `?autore=`, `?pubblicazione=` and `?keyword=`.
+
+Filtered or searched listings are served `noindex,follow`; later pages of a listing canonicalise to themselves.
 
 ## Create the publication later
 

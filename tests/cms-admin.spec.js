@@ -231,16 +231,16 @@ test.describe.serial('CMS admin', () => {
     const reader = await anonymous.newPage();
     await reader.setViewportSize({ width: 1280, height: 900 });
     await reader.goto(BASE + '/chi-siamo');
-    const heading = await reader.locator('h1.cms-title').boundingBox();
-    const content = await reader.locator('.cms-content').first().boundingBox();
-    const centred = await reader.locator('.cms-header').first().evaluate(el => getComputedStyle(el).textAlign === 'center');
-    if (centred) {
-      const headingCentre = heading.x + heading.width / 2;
-      const contentCentre = content.x + content.width / 2;
-      expect(Math.abs(headingCentre - contentCentre)).toBeLessThan(2);
-    } else {
-      expect(Math.abs(heading.x - content.x)).toBeLessThan(2);
-    }
+    const heading = reader.locator('h1.catalog-title');
+    const content = reader.locator('.static-content').first();
+    await expect(heading).toBeVisible();
+    await expect(heading).toContainText(marker);
+    await expect(content).toBeVisible();
+    const heroBox = await reader.locator('.catalog-header').boundingBox();
+    const contentBox = await content.boundingBox();
+    expect(contentBox.y).toBeGreaterThanOrEqual(heroBox.y + heroBox.height);
+    expect(contentBox.x).toBeGreaterThanOrEqual(0);
+    expect(contentBox.x + contentBox.width).toBeLessThanOrEqual(1280);
     await anonymous.close();
 
     // Put the title back.

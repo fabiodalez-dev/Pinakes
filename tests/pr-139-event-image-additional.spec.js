@@ -129,8 +129,8 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
         for (const preset of ['full', 'banner', 'contained', 'thumb']) {
             expect(src).toMatch(new RegExp(`event-cover--${preset}`));
         }
-        // Plus the wrapper class for the side-by-side thumb layout.
-        expect(src).toMatch(/event-card--thumb-layout/);
+        // contained/thumb render the image as the resource-hero cover.
+        expect(src).toMatch(/resource-hero\.php/);
     });
 
     // S7 — Frontend CSS includes responsive collapse for thumb layout (mobile)
@@ -142,7 +142,7 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
         // The mobile breakpoint should specifically restyle the thumb layout
         // (either the grid-template-columns or the event-card--thumb-layout class).
         const mediaBlocks = src.match(/@media[\s\S]*?\}\s*\}/g) || [];
-        const hasThumbResponsive = mediaBlocks.some(b => b.includes('thumb-layout') || b.includes('event-cover--thumb'));
+        const hasThumbResponsive = mediaBlocks.some(b => b.includes('event-cover--banner'));
         expect(hasThumbResponsive).toBe(true);
     });
 

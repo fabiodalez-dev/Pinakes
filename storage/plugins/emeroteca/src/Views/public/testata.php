@@ -49,14 +49,6 @@ if ($annoInizio !== null) {
 // produced dead entries — while the two states that were added,
 // 'reclamato' and 'scartato', fell through to the unlabelled grey
 // fallback.
-$statoBadgeClass = [
-    'posseduto' => 'bg-emerald-100 text-emerald-800',
-    'mancante'  => 'bg-slate-100 text-slate-700',
-    'atteso'    => 'bg-gray-100 text-gray-800',
-    'smarrito'  => 'bg-slate-100 text-slate-700',
-    'reclamato' => 'bg-amber-50 text-amber-900',
-    'scartato'  => 'bg-slate-100 text-slate-700',
-];
 
 // 'scartato' = withdrawn on purpose: the library no longer holds the
 // issue, so it is not advertised to the public — it is dropped from the
@@ -99,168 +91,184 @@ $schema = array_filter($schema, static fn($v) => $v !== null && $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
+<?php
+$corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
+$catalogPageStyles = true;
+$bookDetailStyles = true;
+$q = $q ?? '';
+$rawAnno = $rawAnno ?? '';
+$testataUrl = url('/emeroteca/' . $testataId);
+/** This page's URL with the article search / page / year changed; '' removes a key. */
+$pageUrl = static function (array $changes = []) use ($testataUrl, $q, $selectedYear, $rawAnno): string {
+    $state = ['anno' => $rawAnno !== '' ? (string) $selectedYear : '', 'q' => $q];
+    $query = array_filter($changes + $state, static fn(mixed $v): bool => (string) $v !== '');
+    return $testataUrl . ($query ? '?' . http_build_query($query) : '');
+};
 
-<main id="emeroteca-testata" class="container emeroteca-public">
-    <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">
-        <a href="<?= $e(url('/')) ?>"><?= __('Home') ?></a>
-        <span aria-hidden="true">/</span>
-        <a href="<?= $e(url('/emeroteca')) ?>"><?= __('Emeroteca') ?></a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page"><?= $e((string) $testata['titolo']) ?></span>
-    </nav>
+// ── Hero: the masthead as a "scheda", like a book's ────────────────────────
+$kicker = '<span class="book-media-type"><i class="fas fa-newspaper mr-1" aria-hidden="true"></i>'
+    . $e(__($tipoLabels[(string) $testata['tipo']] ?? (string) $testata['tipo'])) . '</span>';
+if (!empty($testata['editore_nome'])) {
+    $kicker .= '<span class="book-kicker-separator" aria-hidden="true">·</span><span class="book-hero-publishers"><a href="'
+        . $e(url('/emeroteca') . '?' . http_build_query(['editore' => (int) ($testata['editore_id'] ?? 0)])) . '">'
+        . $e((string) $testata['editore_nome']) . '</a></span>';
+}
+$heroFacts = array_values(array_filter([
+    !empty($testata['issn']) ? 'ISSN ' . $testata['issn'] : '',
+    !empty($testata['periodicita']) ? (string) ($periodicitaLabels[(string) $testata['periodicita']] ?? $testata['periodicita']) : '',
+    $anniLabel,
+], static fn(string $v): bool => $v !== ''));
+$extra = '';
+if ($heroFacts !== []) {
+    $extra .= '<p class="resource-placement">' . $e(implode(' · ', $heroFacts)) . '</p>';
+}
+if (!empty($testata['genere_nome'])) {
+    $extra .= '<div class="genre-tags"><i class="fas fa-tags" aria-hidden="true"></i><a class="genre-tag" href="'
+        . $e(url('/emeroteca') . '?' . http_build_query(['genere' => (int) ($testata['genere_id'] ?? 0)])) . '">'
+        . $e((string) $testata['genere_nome']) . '</a></div>';
+}
+$chain = [];
+if ($precedente !== null) {
+    $chain[] = $e(__('Già:')) . ' <a href="' . $e(url('/emeroteca/' . (int) $precedente['id'])) . '">' . $e((string) $precedente['titolo']) . '</a>';
+}
+if ($successiva !== null) {
+    $chain[] = $e(__('Poi:')) . ' <a href="' . $e(url('/emeroteca/' . (int) $successiva['id'])) . '">' . $e((string) $successiva['titolo']) . '</a>';
+}
+if ($chain !== []) {
+    $extra .= '<p class="resource-placement">' . implode(' · ', $chain) . '</p>';
+}
+$resourceCover = $logo;
+$resourceCoverBlur = false;
+$resourceCoverKind = 'logo';
+$resourceCoverAlt = (string) $testata['titolo'];
+$resourceKickerHtml = $kicker;
+$resourceTitle = (string) $testata['titolo'];
+$resourceSubtitle = (string) ($testata['sottotitolo'] ?? '');
+$resourceBylineHtml = '';
+$resourceExtraHtml = $extra;
+$breadcrumbItems = [
+    ['label' => __('Home'), 'href' => url('/')],
+    ['label' => __('Emeroteca'), 'href' => url('/emeroteca')],
+    ['label' => (string) $testata['titolo']],
+];
+include $corePartials . '/resource-hero.php';
+?>
 
-    <!-- Intestazione testata -->
-    <section class="emeroteca-identity mb-4">
-                <div>
-                    <div class="emeroteca-logo-large">
-                        <?php if ($logo !== ''): ?>
-                            <img src="<?= $e($logo) ?>" alt="<?= $e((string) $testata['titolo']) ?>">
-                        <?php else: ?>
-                            <i class="fas fa-newspaper" aria-hidden="true"></i>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex flex-wrap items-center gap-2 mb-2">
-                        <span class="status-badge bg-sky-100 text-sky-800">
-                            <?= $e($tipoLabels[(string) $testata['tipo']] ?? (string) $testata['tipo']) ?>
-                        </span>
-                        <?php if (!empty($testata['issn'])): ?>
-                            <span class="emeroteca-issn">ISSN <?= $e((string) $testata['issn']) ?></span>
-                        <?php endif; ?>
-                    </div>
-                    <h1 class="text-2xl font-semibold mb-1"><?= $e((string) $testata['titolo']) ?></h1>
-                    <?php if (!empty($testata['sottotitolo'])): ?>
-                        <p class="text-gray-500 italic mb-2"><?= $e((string) $testata['sottotitolo']) ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($testata['editore_nome'])): ?>
-                        <p class="emeroteca-meta-line">
-                            <i class="fas fa-building mr-2" aria-hidden="true"></i><?= __('Editore:') ?>
-                            <?= $e((string) $testata['editore_nome']) ?>
-                        </p>
-                    <?php endif; ?>
-                    <?php if (!empty($testata['periodicita'])): ?>
-                        <p class="emeroteca-meta-line">
-                            <i class="far fa-clock mr-2" aria-hidden="true"></i><?= __('Periodicità:') ?>
-                            <?= $e($periodicitaLabels[(string) $testata['periodicita']] ?? (string) $testata['periodicita']) ?>
-                        </p>
-                    <?php endif; ?>
-                    <?php if ($anniLabel !== ''): ?>
-                        <p class="emeroteca-meta-line">
-                            <i class="far fa-calendar-alt mr-2" aria-hidden="true"></i><?= __('Pubblicata:') ?>
-                            <?= $e($anniLabel) ?>
-                        </p>
-                    <?php endif; ?>
-                    <?php if (!empty($testata['genere_nome'])): ?>
-                        <p class="emeroteca-meta-line">
-                            <i class="fas fa-tag mr-2" aria-hidden="true"></i><?= __('Argomento:') ?>
-                            <?= $e((string) $testata['genere_nome']) ?>
-                        </p>
-                    <?php endif; ?>
-                    <?php if ($precedente !== null): ?>
-                        <p class="emeroteca-meta-line">
-                            <i class="fas fa-history mr-2" aria-hidden="true"></i><?= __('Già:') ?>
-                            <a href="<?= $e(url('/emeroteca/' . (int) $precedente['id'])) ?>" class="underline underline-offset-2">
-                                <?= $e((string) $precedente['titolo']) ?>
-                            </a>
-                        </p>
-                    <?php endif; ?>
-                    <?php if ($successiva !== null): ?>
-                        <p class="emeroteca-meta-line">
-                            <i class="fas fa-arrow-right mr-2" aria-hidden="true"></i><?= __('Poi:') ?>
-                            <a href="<?= $e(url('/emeroteca/' . (int) $successiva['id'])) ?>" class="underline underline-offset-2">
-                                <?= $e((string) $successiva['titolo']) ?>
-                            </a>
-                        </p>
-                    <?php endif; ?>
-                    <?php if (!empty($testata['descrizione'])): ?>
-                        <p class="mt-2 text-gray-500 emeroteca-pre-wrap"><?= $e((string) $testata['descrizione']) ?></p>
-                    <?php endif; ?>
-                </div>
-    </section>
+<div id="emeroteca-testata" class="container emeroteca-public">
+    <div class="flex flex-wrap -mx-3">
+        <?php
+        $filterSearch = [
+            'action' => $testataUrl,
+            'value' => $q,
+            'label' => __('Cerca negli articoli di questa testata'),
+            'hidden' => ['anno' => $rawAnno !== '' ? (string) $selectedYear : ''],
+        ];
+        $filterSections = [[
+            'title' => __('Annate'),
+            'icon' => 'fa-calendar-alt',
+            'options' => array_map(static fn(array $y): array => [
+                'label' => (string) (int) $y['anno'],
+                'count' => (int) $y['num_fascicoli'],
+                'href' => $pageUrl(['anno' => (string) (int) $y['anno']]) . '#emeroteca-fascicoli',
+                'active' => $selectedYear !== null && (int) $y['anno'] === $selectedYear,
+            ], array_reverse($years)),
+        ]];
+        $filterClearHref = $q !== '' ? $pageUrl(['q' => '']) : '';
+        include $corePartials . '/filters-sidebar.php';
+        ?>
 
-    <?php if (empty($years)): ?>
-        <div class="emeroteca-notice" role="alert">
-            <strong><?= __('Nessuna annata registrata.') ?></strong>
-            <?= __('Questa testata non ha ancora annate o fascicoli catalogati.') ?>
-        </div>
-    <?php else: ?>
-        <!-- Timeline anni -->
-        <section class="mb-4">
-            <h2 class="text-base font-semibold mb-2"><?= __('Annate') ?></h2>
-            <ul class="emeroteca-timeline">
-                <?php foreach ($years as $y):
-                    $anno = (int) $y['anno'];
-                    $isActive = $selectedYear !== null && $anno === $selectedYear;
-                ?>
-                    <li>
-                        <a class="emeroteca-year<?= $isActive ? ' active' : '' ?>"
-                           href="<?= $e(url('/emeroteca/' . $testataId . '?anno=' . $anno)) ?>"<?= $isActive ? ' aria-current="page"' : '' ?>>
-                            <span><?= $e((string) $anno) ?></span>
-                            <small><?= sprintf(__('%d fasc.'), (int) $y['num_fascicoli']) ?></small>
-                        </a>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        </section>
+        <div class="catalog-results-column w-full lg:w-2/3 px-3 xl:w-3/4">
+            <?php if (!empty($testata['descrizione'])): ?>
+                <section class="listing-section">
+                    <h2 class="listing-section-title"><span><?= __('Descrizione') ?></span></h2>
+                    <p class="emeroteca-pre-wrap"><?= $e((string) $testata['descrizione']) ?></p>
+                </section>
+            <?php endif; ?>
 
-        <!-- Griglia fascicoli dell'anno selezionato -->
-        <section>
-            <h2 class="text-base font-semibold mb-2">
-                <?= sprintf(__('Fascicoli %d'), (int) $selectedYear) ?>
-            </h2>
-            <?php if (empty($fascicoli)): ?>
-                <div class="emeroteca-notice" role="alert">
-                    <?= __('Nessun fascicolo registrato per questa annata.') ?>
-                </div>
-            <?php else: ?>
-                <div class="emeroteca-issues-grid">
-                    <?php foreach ($fascicoli as $f):
-                        $stato = (string) $f['stato'];
-                        $posseduto = $stato === 'posseduto';
-                        $cover = $asset((string) ($f['copertina_url'] ?? ''));
-                        $issueUrl = $e(url('/emeroteca/fascicolo/' . (int) $f['id']));
-                        $numeroLabel = sprintf(__('n. %s'), (string) $f['numero']);
-                        if (!empty($f['data_copertina'])) {
-                            $numeroLabel .= ' · ' . (string) $f['data_copertina'];
-                        }
-                        $badge = $statoBadgeClass[$stato] ?? 'bg-gray-100 text-gray-800';
+            <section class="listing-section" id="emeroteca-fascicoli" aria-labelledby="emeroteca-fascicoli-title">
+                <h2 class="listing-section-title" id="emeroteca-fascicoli-title">
+                    <span><?= $selectedYear !== null ? $e(sprintf(__('Fascicoli %d'), (int) $selectedYear)) : __('Fascicoli') ?></span>
+                </h2>
+                <?php if (empty($years)): ?>
+                    <?php
+                    $emptyIcon = 'fa-calendar-alt';
+                    $emptyTitle = __('Nessuna annata registrata.');
+                    $emptyText = __('Questa testata non ha ancora annate o fascicoli catalogati.');
+                    $emptyCtaHref = '';
+                    $emptyCtaLabel = '';
+                    include $corePartials . '/empty-state.php';
                     ?>
-                        <div>
-                            <?php if ($posseduto): ?><a href="<?= $issueUrl ?>" aria-label="<?= $e($numeroLabel) ?>"><?php endif; ?>
-                                <div class="emeroteca-cover-box">
-                                    <?php if ($cover !== ''): ?>
-                                        <img src="<?= $e($cover) ?>" alt="<?= $e($numeroLabel) ?>"
-                                             loading="lazy" decoding="async">
-                                    <?php elseif ($stato === 'mancante'): ?>
-                                        <i class="far fa-circle-xmark" aria-hidden="true"></i>
-                                        <span class="emeroteca-cover-missing"><?= __('Mancante') ?></span>
-                                    <?php else: ?>
-                                        <i class="far fa-newspaper" aria-hidden="true"></i>
-                                    <?php endif; ?>
+                <?php elseif (empty($fascicoli)): ?>
+                    <?php
+                    $emptyIcon = 'fa-calendar-alt';
+                    $emptyTitle = __('Nessun fascicolo registrato per questa annata.');
+                    $emptyText = '';
+                    $emptyCtaHref = '';
+                    $emptyCtaLabel = '';
+                    include $corePartials . '/empty-state.php';
+                    ?>
+                <?php else: ?>
+                    <div class="books-grid emeroteca-issues-grid">
+                        <?php foreach ($fascicoli as $f):
+                            $stato = (string) $f['stato'];
+                            $posseduto = $stato === 'posseduto';
+                            $cover = $asset((string) ($f['copertina_url'] ?? ''));
+                            $issueUrl = url('/emeroteca/fascicolo/' . (int) $f['id']);
+                            $numeroLabel = sprintf(__('n. %s'), (string) $f['numero']);
+                            $issueMeta = array_values(array_filter([
+                                (string) ($f['data_copertina'] ?? ''),
+                                !empty($f['volume']) ? sprintf(__('vol. %s'), (string) $f['volume']) : '',
+                            ], static fn(string $v): bool => $v !== ''));
+                        ?>
+                            <article class="book-card">
+                                <div class="book-image-container">
+                                    <?php if ($posseduto): ?><a href="<?= $e($issueUrl) ?>" tabindex="-1" aria-hidden="true" class="flex w-full h-full items-center justify-center"><?php else: ?><div class="flex w-full h-full items-center justify-center"><?php endif; ?>
+                                        <?php if ($cover !== ''): ?>
+                                            <img class="book-image" src="<?= $e($cover) ?>" alt="" loading="lazy" decoding="async">
+                                        <?php else: ?>
+                                            <i class="far <?= $stato === 'mancante' ? 'fa-circle-xmark' : 'fa-newspaper' ?> book-image-icon" aria-hidden="true"></i>
+                                        <?php endif; ?>
+                                    <?php if ($posseduto): ?></a><?php else: ?></div><?php endif; ?>
                                     <?php if (!$posseduto): ?>
-                                        <span class="emeroteca-cover-badge status-badge <?= $e($badge) ?>">
-                                            <?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?>
-                                        </span>
+                                        <span class="book-status-badge status-article"><?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?></span>
                                     <?php endif; ?>
                                 </div>
-                            <?php if ($posseduto): ?></a><?php endif; ?>
-                            <p class="emeroteca-issue-caption">
-                                <?php if ($posseduto): ?>
-                                    <a href="<?= $issueUrl ?>"><?= $e($numeroLabel) ?></a>
-                                <?php else: ?>
-                                    <?= $e($numeroLabel) ?>
-                                <?php endif; ?>
-                                <?php if (!empty($f['volume'])): ?>
-                                    <span class="text-gray-500"> · <?= $e(sprintf(__('vol. %s'), (string) $f['volume'])) ?></span>
-                                <?php endif; ?>
-                            </p>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </section>
-    <?php endif; ?>
-    <?php if (isset($articleResults)): require __DIR__."/article-results.php"; endif; ?>
-</main>
+                                <div class="book-content">
+                                    <h3 class="book-title"><?php if ($posseduto): ?><a href="<?= $e($issueUrl) ?>"><?= $e($numeroLabel) ?></a><?php else: ?><?= $e($numeroLabel) ?><?php endif; ?></h3>
+                                    <?php if (!empty($f['titolo_fascicolo'])): ?><p class="book-subtitle"><?= $e((string) $f['titolo_fascicolo']) ?></p><?php endif; ?>
+                                    <?php if ($issueMeta !== []): ?><p class="book-meta"><?= $e(implode(' · ', $issueMeta)) ?></p><?php endif; ?>
+                                    <?php if ($posseduto): ?><div class="book-actions"><a class="btn-cta btn-cta-sm" href="<?= $e($issueUrl) ?>"><i class="fas fa-eye" aria-hidden="true"></i> <?= __('Sfoglia') ?></a></div><?php endif; ?>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </section>
+
+            <section class="listing-section" id="emeroteca-articoli-testata" aria-labelledby="emeroteca-articoli-testata-title">
+                <h2 class="listing-section-title" id="emeroteca-articoli-testata-title">
+                    <span><?= __('Articoli') ?></span>
+                    <?php if ((int) ($articleResults['total'] ?? 0) > 0): ?>
+                        <a href="<?= $e(url('/emeroteca/articoli') . '?' . http_build_query(['testata' => $testataId])) ?>"><?= __('Cerca con tutti i filtri') ?> →</a>
+                    <?php endif; ?>
+                </h2>
+                <?php
+                $activeFilters = $q !== '' ? [['label' => __('Ricerca'), 'value' => $q, 'removeHref' => $pageUrl(['q' => ''])]] : [];
+                $resultsCount = (int) ($articleResults['total'] ?? 0);
+                $resultsLabel = __n('articolo trovato', 'articoli trovati', $resultsCount);
+                $filterClearHref = '';
+                include $corePartials . '/results-header.php';
+                $articleEmpty = $q !== ''
+                    ? ['title' => __('Nessun risultato trovato'), 'text' => __('Prova a modificare i filtri o la tua ricerca'), 'ctaHref' => $pageUrl(['q' => '']), 'ctaLabel' => __('Mostra tutti gli articoli')]
+                    : ['title' => __('Nessun articolo catalogato per questa testata.')];
+                require __DIR__ . '/article-results.php';
+                $paginationPage = (int) ($articleResults['page'] ?? 1);
+                $paginationPages = (int) ($articleResults['pages'] ?? 1);
+                $paginationUrl = static fn(int $p): string => $pageUrl(['page' => $p > 1 ? (string) $p : '']) . '#emeroteca-articoli-testata';
+                include $corePartials . '/pagination.php';
+                ?>
+            </section>
+        </div>
+    </div>
+</div>

@@ -172,7 +172,7 @@ test.describe.serial('Public Frontend', () => {
     await expect(heading).toBeVisible({ timeout: 5000 });
 
     // Verify at least one book card or book reference exists
-    const bookElements = page.locator('.archive-book-card');
+    const bookElements = page.locator('.books-grid .book-card');
     const count = await bookElements.count();
     expect(count).toBeGreaterThan(0);
   });

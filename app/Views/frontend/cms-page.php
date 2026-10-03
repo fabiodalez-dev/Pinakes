@@ -3,172 +3,104 @@
 /** @var string|null $content */
 /** @var string|null $image */
 
+// Intestazione condivisa (catalog-hero.php): ne serve il foglio di stile.
+$catalogPageStyles = true;
+
 $additional_css = "
-<style>
-    main {
-        padding-top: 90px;
-    }
+.static-page {
+    padding: 3rem 0 4rem;
+    background: var(--white);
+}
 
-    .cms-page {
-        padding: 6rem 0;
-        background: var(--white);
-    }
+.static-content {
+    max-width: 72ch;
+    margin: 0;
+    line-height: 1.8;
+    color: var(--text-color);
+    font-size: 1.0625rem;
+}
 
-    .cms-header {
-        text-align: center;
-        margin-bottom: 4rem;
-    }
+.static-content p {
+    margin-bottom: 1.25rem;
+}
 
-    .cms-title {
-        font-family: var(--serif);
-        font-size: clamp(2rem, 4vw, 2.75rem);
-        font-weight: 420;
-        color: var(--text-color);
-        margin-bottom: 1rem;
-        letter-spacing: -0.03em;
-    }
+.static-content h2,
+.static-content h3,
+.static-content h4 {
+    font-family: var(--serif);
+    color: var(--text-color);
+    letter-spacing: -0.02em;
+    font-weight: 460;
+    margin: 2.5rem 0 1rem;
+}
 
-    .cms-divider {
-        width: 48px;
-        height: 1px;
-        background: var(--primary-color);
-        margin: 0 auto;
-        border-radius: 0;
-    }
+.static-content h2 { font-size: 1.75rem; }
+.static-content h3 { font-size: 1.375rem; }
 
+.static-content ul,
+.static-content ol {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+}
 
+.static-content li {
+    margin-bottom: 0.5rem;
+}
 
-    .cms-image {
-        width: 100%;
-        max-height: 500px;
-        object-fit: cover;
-        border-radius: 3px;
-        margin-bottom: 3rem;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
-        transition: box-shadow 0.3s ease, transform 0.3s ease;
-    }
+.static-content a {
+    color: var(--text-color);
+    border-bottom: 1px solid var(--border-color);
+    text-decoration: none;
+}
 
-    .cms-image:hover {
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
-        transform: translateY(-2px);
-    }
+.static-content a:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
 
-    .cms-content {
-        font-size: 1.0625rem;
-        line-height: 1.8;
-        color: var(--text-color);
-    }
+.static-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 3px;
+}
 
-    .cms-content p {
-        margin-bottom: 1.5rem;
-    }
+.static-content blockquote {
+    border-left: 1px solid var(--primary-color);
+    padding-left: 1.5rem;
+    margin: 2rem 0;
+    color: var(--text-light);
+}
 
-    .cms-content h2 {
-        font-family: var(--serif);
-        font-size: 1.75rem;
-        font-weight: 460;
-        color: var(--text-color);
-        letter-spacing: -0.02em;
-        margin-top: 3rem;
-        margin-bottom: 1.25rem;
-    }
-
-    .cms-content h3 {
-        font-family: var(--serif);
-        font-size: 1.375rem;
-        font-weight: 460;
-        color: var(--text-color);
-        letter-spacing: -0.01em;
-        margin-top: 2.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .cms-content ul, .cms-content ol {
-        margin-bottom: 1.5rem;
-        padding-left: 1.5rem;
-    }
-
-    .cms-content li {
-        margin-bottom: 0.5rem;
-    }
-
-    .cms-content a {
-        color: var(--text-color);
-        text-decoration: none;
-        border-bottom: 1px solid var(--border-color);
-        font-weight: 500;
-        transition: color 0.2s ease, border-color 0.2s ease;
-    }
-
-    .cms-content a:hover {
-        color: var(--primary-color);
-        border-color: var(--primary-color);
-    }
-
-    .cms-content img {
-        max-width: 100%;
-        height: auto;
-        border-radius: 3px;
-        margin: 2rem 0;
-    }
-
-    .cms-content blockquote {
-        border-left: 2px solid var(--primary-color);
-        padding-left: 1.5rem;
-        margin: 2rem 0;
-        font-style: italic;
-        color: var(--text-light);
-    }
-
-    @media (max-width: 768px) {
-        .cms-page {
-            padding: 4rem 0;
-        }
-
-        .cms-header {
-            margin-bottom: 3rem;
-        }
-
-        .cms-image {
-            margin-bottom: 3rem;
-        }
-
-        .cms-content {
-            font-size: 1rem;
-        }
-    }
-</style>
+.static-image {
+    display: block;
+    width: 100%;
+    max-width: 72ch;
+    max-height: 500px;
+    object-fit: cover;
+    border-radius: 3px;
+    margin: 0 0 2.5rem;
+}
 ";
 
 ob_start();
 ?>
 
-<section class="cms-page">
+<?php
+$heroTitle = (string) $title;
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => $heroTitle]];
+include __DIR__ . '/partials/catalog-hero.php';
+?>
+
+<section class="static-page">
     <div class="container">
-        <?php
-        // The heading lives in the same column as the text it introduces.
-        // It used to sit directly in the container, one twelfth of the page
-        // wider on each side, which nobody notices while the theme centres it —
-        // but the editorial and command layouts align it left, and there it
-        // started about a hundred pixels to the left of its own first line.
-        ?>
-        <div class="flex flex-wrap -mx-3 justify-center">
-            <div class="w-full lg:w-5/6 px-3">
-                <div class="cms-header">
-                    <h1 class="cms-title"><?= htmlspecialchars($title) ?></h1>
-                    <div class="cms-divider"></div>
-                </div>
+        <?php if (!empty($image)): ?>
+            <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
+                 alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
+                 class="static-image">
+        <?php endif; ?>
 
-                <?php if (!empty($image)): ?>
-                    <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
-                         alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
-                         class="cms-image">
-                <?php endif; ?>
-
-                <div class="cms-content">
-                    <?= \App\Support\HtmlHelper::sanitizeHtml($content ?? '') ?>
-                </div>
-            </div>
+        <div class="static-content">
+            <?= \App\Support\HtmlHelper::sanitizeHtml($content ?? '') ?>
         </div>
     </div>
 </section>
@@ -176,4 +108,3 @@ ob_start();
 <?php
 $content = ob_get_clean();
 include 'layout.php';
-?>

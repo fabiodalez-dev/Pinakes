@@ -1,45 +1,91 @@
 <?php
 /**
- * Shared list of public articles: the emeroteca home, a masthead page and the
- * article search all render this block.
+ * Shared grid of public articles: the article search, the emeroteca home, a
+ * masthead page, an issue's contents and an article's "related" sections all
+ * render this block, so an article card is the same everywhere — and the same
+ * as in the mixed /catalogo grid, because the markup itself is the core's
+ * app/Views/frontend/partials/article-card.php.
  *
- * Each row carries its image — its own, else the masthead's, else the
- * catalogue's placeholder, resolved by ContributionService::coverUrl() so this
- * block and the article page cannot disagree — and
- * the links that make the list navigable. Confirmed authors open the shared author archive; unlinked names open a
- * catalogue filter; publication and keywords narrow the article search. Citation names
- * remain free text and are never automatically merged into authority records.
+ * Each card carries its image — its own, else its issue's cover, else the
+ * masthead's logo, else the catalogue's placeholder, resolved by
+ * ContributionService::coverUrl() so this block and the article page cannot
+ * disagree — and the links that make the list navigable: confirmed authors
+ * open the shared author archive, unlinked names open a catalogue filter, the
+ * masthead and the issue open their own pages. Citation names remain free
+ * text and are never automatically merged into authority records.
+ *
+ * The block decides no width and no heading: callers put it inside their own
+ * container and section.
  *
  * @var array{rows: array<int, array<string, mixed>>} $articleResults
+ * @var array{title?: string, text?: string, ctaHref?: string, ctaLabel?: string}|null $articleEmpty
+ *      what to say when there are no rows; null renders nothing at all
  */
-$articleResults=$articleResults??['rows'=>[]]; $ae=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
-$articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
-/** Article search narrowed by one field: ['autore'|'pubblicazione'|'keyword' => value]. */
-$articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url('/emeroteca/articoli')).'?'.http_build_query([$key=>$value]);
+$articleResults = $articleResults ?? ['rows' => []];
+$articleEmpty = array_key_exists('articleEmpty', get_defined_vars()) ? $articleEmpty : [];
 // Plugin classes have no autoloader scope and a view must not depend on the
 // controller having loaded them: require the service before reading it.
-require_once __DIR__.'/../../Services/ContributionService.php';
+require_once __DIR__ . '/../../Services/ContributionService.php';
+$articleCorePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
 /**
  * Emptiness for a rendered metadata part: the stored value, not PHP's notion
  * of truth. A periodical's pilot issue really is numbered "0", and a bare
  * array_filter() would drop it from the line.
  */
-$articleKeep=static fn(mixed $value):bool=>trim((string)$value)!=='';
-// Same rule for the image: coverUrl() returns '' and only '' for "no image", so
-// the test is `!== ''`. `?:` would read the perfectly valid path "0" as absent
-// — the falsy-value mistake this file already carries a helper to avoid.
+$articleKeep = static fn(mixed $value): bool => trim((string) $value) !== '';
+/** Name filter: linked authors open their archive; free-text names a catalogue search. */
+$articleAuthorHref = static fn(array $an): string => $an['id'] !== null
+    ? route_path('author') . '/' . $an['id']
+    : route_path('catalog') . '?' . http_build_query(['autore' => $an['name']]);
 ?>
-<section class="py-8"><h2 class="text-2xl font-semibold mb-5"><?= __('Articoli') ?></h2>
-<?php if(!$articleResults['rows']): ?><p><?= __('Nessun articolo disponibile.') ?></p><?php endif; ?>
-<ul class="divide-y"><?php foreach($articleResults['rows'] as $a): ?><li class="py-4"><div style="display:flex;gap:1rem;align-items:flex-start;">
-<a href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>" tabindex="-1" aria-hidden="true" style="flex:0 0 auto;"><?php $articleCover=\App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a); ?><img src="<?= $ae(url($articleCover!==''?$articleCover:'/uploads/copertine/placeholder.jpg')) ?>" alt="" loading="lazy" decoding="async" style="width:72px;height:96px;object-fit:cover;border-radius:.25rem;" onerror="this.onerror=null;this.src=<?= $ae(json_encode($articlePlaceholder, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>"></a>
-<div style="flex:1 1 auto;min-width:0;">
-<a class="font-semibold underline" href="<?= $ae(url('/emeroteca/articolo/'.(int)$a['id'])) ?>"><?= $ae($a['titolo']) ?></a>
-<?php /* On these records the subtitle routinely carries half the meaning of
-         the title; hiding it in the list makes two different articles look
-         like the same one. */ ?>
-<?php if(($a['sottotitolo']??'')!==''): ?><span class="text-sm text-gray-600"> : <?= $ae($a['sottotitolo']) ?></span><?php endif; ?>
-<?php if(($a['autori']??'')!==''): $rowAuthors=\App\Plugins\Emeroteca\Services\ContributionService::authorLinks($a); ?><p><?php if($rowAuthors): foreach($rowAuthors as $i=>$an): ?><?= $i?'; ':'' ?><a class="underline" href="<?= $ae(($an['id'] !== null ? route_path('author').'/'.$an['id'] : $articleFilterUrl('autore',$an['name']))) ?>"><?= $ae($an['name']) ?></a><?php endforeach; else: ?><?= $ae($a['autori']) ?><?php endif; ?></p><?php endif; ?>
-<p class="text-sm"><?php if(($a['contenitore_titolo']??'')!==''): ?><a class="underline" href="<?= $ae($articleFilterUrl('pubblicazione',(string)$a['contenitore_titolo'])) ?>"><?= $ae($a['contenitore_titolo']) ?></a><?php $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); if($rest): ?> · <?php endif; ?><?php else: $rest=array_filter([$a['data_pubblicazione_testo']??'',$a['volume']??'',$a['numero']??'',$a['pagine']??''],$articleKeep); endif; ?><?= $ae(implode(' · ',$rest)) ?></p>
-</div></div></li><?php endforeach; ?></ul>
-<a class="inline-block underline mt-5" href="<?= $ae(url('/emeroteca/articoli').'?'.http_build_query(['q'=>$q??'','testata'=>$testata['id']??0])) ?>"><?= __('Cerca tutti gli articoli') ?></a></section>
+<?php if (!$articleResults['rows']): ?>
+    <?php if ($articleEmpty !== null):
+        $emptyTitle = $articleEmpty['title'] ?? __('Nessun articolo disponibile.');
+        $emptyText = $articleEmpty['text'] ?? '';
+        $emptyCtaHref = $articleEmpty['ctaHref'] ?? '';
+        $emptyCtaLabel = $articleEmpty['ctaLabel'] ?? '';
+        $emptyIcon = 'fa-newspaper';
+        include $articleCorePartials . '/empty-state.php';
+    endif; ?>
+<?php else: ?>
+<div class="books-grid emeroteca-articles-grid">
+<?php foreach ($articleResults['rows'] as $a):
+    $articleLinks = \App\Plugins\Emeroteca\Services\ContributionService::authorLinks($a);
+    $articleMeta = [];
+    // Where it was published: the masthead page when the article belongs to
+    // one, else the free-text container title as a search narrowing.
+    if (!empty($a['testata_id']) && ($a['testata_titolo'] ?? '') !== '') {
+        $articleMeta[] = ['label' => (string) $a['testata_titolo'], 'href' => url('/emeroteca/' . (int) $a['testata_id'])];
+    } elseif (($a['contenitore_titolo'] ?? '') !== '') {
+        $articleMeta[] = ['label' => (string) $a['contenitore_titolo'], 'href' => url('/emeroteca/articoli') . '?' . http_build_query(['pubblicazione' => (string) $a['contenitore_titolo']])];
+    }
+    // Which issue: the issue page when it is placed in one, else whatever
+    // the citation itself says (date, volume, number).
+    if (!empty($a['fascicolo_id']) && $articleKeep($a['fascicolo_numero'] ?? '')) {
+        $articleMeta[] = [
+            'label' => sprintf(__('n. %s'), (string) $a['fascicolo_numero']) . ($articleKeep($a['fascicolo_anno'] ?? '') ? ' (' . (int) $a['fascicolo_anno'] . ')' : ''),
+            'href' => url('/emeroteca/fascicolo/' . (int) $a['fascicolo_id']),
+        ];
+    } else {
+        foreach (array_filter([$a['data_pubblicazione_testo'] ?? '', $a['volume'] ?? '', $a['numero'] ?? ''], $articleKeep) as $part) {
+            $articleMeta[] = ['label' => (string) $part];
+        }
+    }
+    if ($articleKeep($a['pagine'] ?? '')) {
+        $articleMeta[] = ['label' => (string) $a['pagine']];
+    }
+    $articleCover = \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a);
+    $articleCard = [
+        'id' => (int) $a['id'],
+        'url' => url('/emeroteca/articolo/' . (int) $a['id']),
+        'title' => (string) $a['titolo'],
+        'cover' => $articleCover !== '' ? url($articleCover) : '',
+        'subtitle' => (string) ($a['sottotitolo'] ?? ''),
+        'authors' => array_map(static fn(array $an): array => ['name' => $an['name'], 'href' => $articleAuthorHref($an)], $articleLinks),
+        'authorsText' => (string) ($a['autori'] ?? ''),
+        'meta' => $articleMeta,
+    ];
+    include $articleCorePartials . '/article-card.php';
+endforeach; ?>
+</div>
+<?php endif; ?>
