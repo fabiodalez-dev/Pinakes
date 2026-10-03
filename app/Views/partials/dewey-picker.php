@@ -131,6 +131,8 @@ async function initializeDewey(initialValue) {
 
     currentDeweyCode = code;
     currentDeweyName = '';
+    // Submit the selection immediately; the request only enriches its label.
+    hidden.value = code;
     const requestCode = code;
 
     // Fetch full hierarchy (codes + names) from API

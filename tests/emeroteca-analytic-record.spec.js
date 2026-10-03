@@ -178,6 +178,14 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await expect(page.locator('#classificazione_dewey')).toHaveValue('100');
     await expect(page.locator('#dewey_levels_container select'), 'only the main classes are left').toHaveCount(1);
     await expect(page.locator('#dewey_levels_container select').first()).toHaveValue('100');
+    // Returning to an already-initialised picker submits the latest text,
+    // and leaving it retains the code most recently selected in the picker.
+    await page.locator('#article-classificazione_schema').selectOption('DK5');
+    await expect(page.locator('#article-classificazione')).toHaveValue('100');
+    await page.locator('#article-classificazione').fill('200');
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('200');
+    await expect(page.locator('#dewey_chip_code')).toContainText('200');
     // And any code can still be typed and added, listed or not.
     await page.locator('#dewey_manual_input').fill('305.8');
     await page.locator('#dewey_add_btn').click();

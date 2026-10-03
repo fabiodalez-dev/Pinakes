@@ -186,6 +186,7 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
             // in the text box on load, visible and editable, rather than hiding
             // behind an empty picker. Choosing a scheme again ends that.
             let keepText = scheme.value === 'DDC' && text.value.trim() !== '' && !looksDewey(text.value.trim());
+            const legacyNotation = keepText ? text.value.trim() : null;
             function sync() {
               const isDewey = scheme.value === 'DDC' && !keepText;
               other.hidden = scheme.value !== <?= json_encode($otherScheme, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -206,10 +207,17 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
             // Choosing another scheme ends that, but coming back to Dewey with the
             // stored notation untouched brings it back: a round trip through the
             // select must not turn "823.914 BRO" into an empty picker and a NULL.
-            const initialKeep = keepText;
-            const initialText = text.value.trim();
             scheme.addEventListener('change', () => {
-              keepText = initialKeep && scheme.value === 'DDC' && text.value.trim() === initialText;
+              // Keep one notation across the two inputs. Reuse the picker
+              // instance on return rather than registering listeners again.
+              if (text.disabled) text.value = dewey.value;
+              const typed = text.value.trim();
+              keepText = scheme.value === 'DDC' && typed === legacyNotation;
+              if (scheme.value === 'DDC' && !keepText && deweyStarted && typeof window.setDeweyCode === 'function') {
+                const code = looksDewey(typed) ? typed : '';
+                dewey.value = code;
+                window.setDeweyCode(code);
+              }
               sync();
             });
             sync();
