@@ -2690,7 +2690,7 @@ class EmerotecaPlugin
      * an unpublished article must not become visible through a catalogue
      * search that cannot open it.
      *
-     * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
+     * @return array{items: array<int, array{label: string, url: string, meta: string, authors: string, source: string}>, total: int}
      */
     private function emerotecaArticleHits(string $term): array
     {

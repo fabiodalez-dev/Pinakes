@@ -48,7 +48,7 @@ try {
         'autori' => 'id INT PRIMARY KEY, nome VARCHAR(255), pseudonimo VARCHAR(255)',
         'editori' => 'id INT PRIMARY KEY, nome VARCHAR(255)',
         'generi' => 'id INT PRIMARY KEY, nome VARCHAR(255)',
-        'emeroteca_testate' => 'id INT PRIMARY KEY, logo_url VARCHAR(500)',
+        'emeroteca_testate' => 'id INT PRIMARY KEY, titolo VARCHAR(255) NULL, logo_url VARCHAR(500)',
         'emeroteca_contributi' => implode(', ', array_map(static fn($key, $definition) => "$key $definition", array_keys(ContributionService::COLUMN_DEFINITIONS), ContributionService::COLUMN_DEFINITIONS)),
     ];
     foreach ($schemas as $table => $columns) {
