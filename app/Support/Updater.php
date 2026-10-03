@@ -219,7 +219,7 @@ class Updater
 
         if (!empty($issues)) {
             $this->debugLog('ERROR', 'Pre-flight check fallito', ['issues' => $issues]);
-            throw new \RuntimeException(
+            throw new UpdaterPreflightException(
                 __('Controllo pre-aggiornamento fallito') . ': ' . implode(', ', $issues)
             );
         }

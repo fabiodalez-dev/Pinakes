@@ -8,6 +8,7 @@ use App\Support\Updater;
 use App\Support\BackupManager;
 use App\Support\Csrf;
 use App\Support\SecureLogger;
+use App\Support\UpdaterPreflightException;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -42,7 +43,7 @@ class UpdateController
                     <?php echo htmlspecialchars(__('Il sistema di aggiornamento non può essere avviato perché una condizione preliminare non è soddisfatta. Correggi quanto indicato qui sotto e ricarica la pagina.'), ENT_QUOTES, 'UTF-8'); ?>
                 </p>
                 <pre class="bg-gray-100 dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 rounded p-4 whitespace-pre-wrap"><?php
-                    echo htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+                    echo htmlspecialchars($this->updaterUnavailable($e, 'index'), ENT_QUOTES, 'UTF-8');
                 ?></pre>
             </div>
             <?php
@@ -97,7 +98,7 @@ class UpdateController
         } catch (\Throwable $e) {
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $this->updaterUnavailable($e, 'checkUpdates'),
             ], 503);
         }
         $updateInfo = $updater->checkForUpdates();
@@ -135,7 +136,7 @@ class UpdateController
         } catch (\Throwable $e) {
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $this->updaterUnavailable($e, 'performUpdate'),
             ], 503);
         }
 
@@ -215,7 +216,7 @@ class UpdateController
         } catch (\Throwable $e) {
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $this->updaterUnavailable($e, 'getHistory'),
             ], 503);
         }
         $history = $updater->getUpdateHistory();
@@ -239,7 +240,7 @@ class UpdateController
         } catch (\Throwable $e) {
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $this->updaterUnavailable($e, 'checkAvailable'),
             ], 503);
         }
         $updateInfo = $updater->checkForUpdates();
@@ -485,7 +486,7 @@ class UpdateController
         if (file_exists($maintenanceFile)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- constant internal path (storage/.maintenance), not user input
             if (@unlink($maintenanceFile)) {
-                error_log("[Updater] Maintenance mode cleared manually by admin user " . ($_SESSION['user']['id'] ?? 'unknown'));
+                SecureLogger::info('[Updater] Maintenance mode cleared manually by admin user ' . ($_SESSION['user']['id'] ?? 'unknown'));
                 return $this->jsonResponse($response, [
                     'success' => true,
                     'message' => __('Modalità manutenzione disattivata')
@@ -634,7 +635,7 @@ class UpdateController
             ], 500);
 
         } catch (\Throwable $e) {
-            error_log('[UpdateController] Upload failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            SecureLogger::error('[UpdateController] Upload failed (' . get_class($e) . '): ' . $e->getMessage());
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Errore durante il caricamento del pacchetto')
@@ -687,7 +688,7 @@ class UpdateController
         } catch (\Throwable $e) {
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $this->updaterUnavailable($e, 'installManualUpdate'),
             ], 503);
         }
 
@@ -792,6 +793,27 @@ class UpdateController
     /**
      * Helper: Send JSON response
      */
+    /**
+     * What to say when the updater cannot be built, after logging why.
+     *
+     * The full exception always goes to the application log. Only an
+     * administrator, and only for a missing host precondition
+     * (UpdaterPreflightException, whose message is written for the operator),
+     * sees the cause; anyone else, or any unexpected exception, gets a generic
+     * message, since a raw exception can carry server paths and internals and
+     * some of these endpoints also answer staff.
+     */
+    private function updaterUnavailable(\Throwable $e, string $action): string
+    {
+        SecureLogger::error('[UpdateController] ' . $action . ': updater unavailable (' . get_class($e) . '): ' . $e->getMessage());
+
+        if ($e instanceof UpdaterPreflightException && ($_SESSION['user']['tipo_utente'] ?? '') === 'admin') {
+            return $e->getMessage();
+        }
+
+        return __("Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.");
+    }
+
     private function jsonResponse(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
