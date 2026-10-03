@@ -50,7 +50,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
             </div>
 
             <div class="carousel-container">
-                <button class="carousel-nav-btn" data-carousel="<?php echo $carouselId; ?>" data-direction="prev" aria-label="<?php echo __("Precedente"); ?>">
+                <button class="carousel-nav-btn" data-carousel="<?php echo $carouselId; ?>" data-direction="prev" aria-label="<?= htmlspecialchars(__("Precedente"), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-chevron-left"></i>
                 </button>
 
@@ -90,7 +90,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                 </div>
             </div>
 
-            <button class="carousel-nav-btn" data-carousel="<?php echo $carouselId; ?>" data-direction="next" aria-label="<?php echo __("Successivo"); ?>">
+            <button class="carousel-nav-btn" data-carousel="<?php echo $carouselId; ?>" data-direction="next" aria-label="<?= htmlspecialchars(__("Successivo"), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-chevron-right"></i>
             </button>
             </div>

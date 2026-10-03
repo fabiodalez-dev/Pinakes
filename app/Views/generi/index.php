@@ -50,7 +50,7 @@ $totalSottogeneri = max(0, $totalGeneri - $totalPrincipali);
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
         <div>
           <label for="nome_genere" class="form-label"><?= __("Nome") ?></label>
-          <input id="nome_genere" name="nome" class="form-input" placeholder="<?= __('es. Noir mediterraneo') ?>" required aria-required="true">
+          <input id="nome_genere" name="nome" class="form-input" placeholder="<?= htmlspecialchars(__('es. Noir mediterraneo'), ENT_QUOTES, 'UTF-8') ?>" required aria-required="true">
         </div>
         <div>
           <label for="parent_id_genere" class="form-label"><?= __("Genere padre (opzionale)") ?></label>

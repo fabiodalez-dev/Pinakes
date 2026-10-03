@@ -188,6 +188,30 @@ $htmlLang = substr($currentLocale, 0, 2);
               </div>
             </a>
 
+            <?php
+            // The layout is required inside the controller method, so the
+            // connection that controller holds is usually in scope: use it
+            // rather than let the sidebar open one of its own.
+            $layoutHintDb = null;
+            if (isset($container) && $container instanceof \Psr\Container\ContainerInterface && $container->has('db') && $container->get('db') instanceof \mysqli) {
+                $layoutHintDb = $container->get('db');
+            } elseif (isset($db) && $db instanceof \mysqli) {
+                $layoutHintDb = $db;
+            }
+            ?>
+            <?php if (\App\Support\PeriodicalArticlesHint::stateForLayout($layoutHintDb) === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+            <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-new-article"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                <i class="fas fa-newspaper text-sm text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Nuovo articolo") ?></div>
+                <div class="text-xs text-gray-600"><?= __("Da rivista o giornale") ?></div>
+              </div>
+            </a>
+            <?php endif; ?>
+
             <?php if (!$isCatalogueMode): ?>
               <a href="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>"
                 class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
@@ -508,7 +532,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           </div>
           <a href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>"
             class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-            title="<?= __('Impostazioni') ?>">
+            title="<?= htmlspecialchars(__('Impostazioni'), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
           </a>
         </div>
@@ -557,7 +581,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                       class="hidden sm:inline text-xs text-gray-600 transition-colors"><?= __("Cerca libri, autori, editori, utenti...") ?></span>
                   </div>
                 </div>
-                <input type="text" id="global-search" aria-label="<?= __('Cerca libri, autori, editori, utenti...') ?>"
+                <input type="text" id="global-search" aria-label="<?= htmlspecialchars(__('Cerca libri, autori, editori, utenti...'), ENT_QUOTES, 'UTF-8') ?>"
                   class="w-full pl-12 pr-4 py-3 lg:py-3.5 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl shadow-sm hover:shadow-md focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all duration-200 placeholder:text-gray-400"
                   autocomplete="off">
 
@@ -584,7 +608,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               <!-- Mobile Search Button -->
               <button id="mobile-search-button"
                 class="lg:hidden p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                title="<?= __("Cerca") ?>">
+                title="<?= htmlspecialchars(__("Cerca"), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-search text-lg text-gray-600"></i>
               </button>
 
@@ -638,16 +662,16 @@ $htmlLang = substr($currentLocale, 0, 2);
 
               <!-- Keyboard Shortcuts -->
               <button id="shortcuts-help"
-                aria-label="<?= __('Scorciatoie da tastiera') ?>"
+                aria-label="<?= htmlspecialchars(__('Scorciatoie da tastiera'), ENT_QUOTES, 'UTF-8') ?>"
                 class="hidden md:flex p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                title="<?= __('Scorciatoie da tastiera') ?> (?)">
+                title="<?= htmlspecialchars(__('Scorciatoie da tastiera'), ENT_QUOTES, 'UTF-8') ?> (?)">
                 <i class="fas fa-keyboard text-lg text-gray-600"></i>
               </button>
 
               <!-- Settings Button -->
               <a href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>"
                 class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                title="<?= __('Impostazioni') ?>">
+                title="<?= htmlspecialchars(__('Impostazioni'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-cog text-lg text-gray-600 transform hover:rotate-12 transition-transform"></i>
               </a>
 
@@ -738,9 +762,9 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <i class="fas fa-search text-gray-400"></i>
               </div>
-              <input type="text" id="mobile-global-search" aria-label="<?= __('Cerca libri, autori, editori, utenti...') ?>"
+              <input type="text" id="mobile-global-search" aria-label="<?= htmlspecialchars(__('Cerca libri, autori, editori, utenti...'), ENT_QUOTES, 'UTF-8') ?>"
                 class="w-full pl-14 pr-12 py-3 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all"
-                placeholder="<?= __('Cerca libri, autori, editori, utenti...') ?>" autocomplete="off">
+                placeholder="<?= htmlspecialchars(__('Cerca libri, autori, editori, utenti...'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
               <button id="mobile-search-close" class="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <i class="fas fa-times text-gray-400 hover:text-gray-600"></i>
               </button>
@@ -1786,7 +1810,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <i class="fas fa-keyboard text-gray-900"></i>
         <?= __("Scorciatoie da tastiera") ?>
       </h3>
-      <button id="close-shortcuts" aria-label="<?= __('Chiudi') ?>" class="text-gray-400 hover:text-gray-600 transition-colors">
+      <button id="close-shortcuts" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-400 hover:text-gray-600 transition-colors">
         <i class="fas fa-times"></i>
       </button>
     </div>

@@ -479,7 +479,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
       <h1><?= __('Prestiti e prenotazioni') ?></h1>
       <p class="account-page-heading__subtitle"><?= __('Controlla scadenze, richieste e storico dei libri associati al tuo account.') ?></p>
     </div>
-    <nav class="account-page-heading__actions" aria-label="<?= __('Collegamenti area personale') ?>">
+    <nav class="account-page-heading__actions" aria-label="<?= htmlspecialchars(__('Collegamenti area personale'), ENT_QUOTES, 'UTF-8') ?>">
       <a class="account-page-link" href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Esplora catalogo') ?></a>
     </nav>
   </header>
@@ -854,7 +854,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
       <h3 class="review-modal__title">
         <?= __('Lascia una recensione') ?>
       </h3>
-      <button type="button" class="review-modal__close" aria-label="<?= __('Chiudi') ?>" data-review-modal-close>&times;</button>
+      <button type="button" class="review-modal__close" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>" data-review-modal-close>&times;</button>
     </div>
     <div id="reviewBookTitle" class="review-modal__subtitle"></div>
     <form id="reviewForm">
@@ -875,12 +875,12 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
       <div class="review-modal__field">
         <label class="review-modal__label" for="review-titolo"><?= __('Titolo (opzionale)') ?></label>
-        <input type="text" id="review-titolo" name="titolo" maxlength="255" class="review-modal__input" placeholder="<?= __('Es. Un libro straordinario!') ?>">
+        <input type="text" id="review-titolo" name="titolo" maxlength="255" class="review-modal__input" placeholder="<?= htmlspecialchars(__('Es. Un libro straordinario!'), ENT_QUOTES, 'UTF-8') ?>">
       </div>
 
       <div class="review-modal__field">
         <label class="review-modal__label" for="review-descrizione"><?= __('Recensione (opzionale)') ?></label>
-        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" class="review-modal__textarea" placeholder="<?= __('Condividi la tua opinione su questo libro...') ?>"></textarea>
+        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" class="review-modal__textarea" placeholder="<?= htmlspecialchars(__('Condividi la tua opinione su questo libro...'), ENT_QUOTES, 'UTF-8') ?>"></textarea>
       </div>
 
       <div class="review-modal__actions">

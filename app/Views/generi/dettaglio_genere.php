@@ -47,7 +47,7 @@ $genereName = $genere['nome'] ?? 'Genere';
             </p>
           </div>
           <div class="flex items-center gap-2 sm:flex-none">
-            <button id="btn-edit-genre" class="btn-secondary text-sm" title="<?= __('Modifica') ?>">
+            <button id="btn-edit-genre" class="btn-secondary text-sm" title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>">
               <i class="fas fa-edit mr-1"></i><?= __("Modifica") ?>
             </button>
           </div>
@@ -123,7 +123,7 @@ $genereName = $genere['nome'] ?? 'Genere';
           <input type="hidden" name="parent_id" value="<?= $genereId ?>">
           <div>
             <label for="nome_sottogenere" class="form-label"><?= __("Nome sottogenere") ?></label>
-            <input id="nome_sottogenere" name="nome" class="form-input" placeholder="<?= __('es. Urban fantasy') ?>" required aria-required="true">
+            <input id="nome_sottogenere" name="nome" class="form-input" placeholder="<?= htmlspecialchars(__('es. Urban fantasy'), ENT_QUOTES, 'UTF-8') ?>" required aria-required="true">
           </div>
           <div class="flex justify-end">
             <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i><?= __("Salva") ?></button>

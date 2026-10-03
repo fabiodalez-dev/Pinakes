@@ -15,6 +15,8 @@ $publisherRoute = route_path('publisher');
 $genreRoute = route_path('genre');
 $homeRoute = absoluteUrl('/');
 $archivePageStyles = true;
+$catalogPageStyles = true;
+$corePartials = __DIR__ . '/partials';
 
 $archiveDisplayName = $archive_type === 'autore'
     ? AuthorName::display($archive_info)
@@ -151,13 +153,15 @@ ob_start();
 <div class="archive-page archive-page-<?= htmlspecialchars($archive_type, ENT_QUOTES, 'UTF-8') ?>">
     <section class="archive-hero" aria-labelledby="archive-title">
         <div class="container archive-hero-inner">
-            <nav class="archive-breadcrumb" aria-label="<?= htmlspecialchars(__('Breadcrumb'), ENT_QUOTES, 'UTF-8') ?>">
-                <a href="<?= htmlspecialchars($homeRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Home') ?></a>
-                <span aria-hidden="true">›</span>
-                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Catalogo') ?></a>
-                <span aria-hidden="true">›</span>
-                <span aria-current="page"><?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?></span>
-            </nav>
+            <?php
+            $breadcrumbItems = [
+                ['label' => __('Home'), 'href' => $homeRoute],
+                ['label' => __('Catalogo'), 'href' => $catalogRoute],
+                ['label' => $archiveDisplayName],
+            ];
+            $breadcrumbVariant = 'book';
+            include $corePartials . '/breadcrumb.php';
+            ?>
 
             <div class="archive-identity">
                 <div class="archive-avatar" aria-hidden="true">
@@ -224,7 +228,6 @@ ob_start();
         <section class="archive-books" aria-labelledby="archive-books-title">
             <header class="archive-section-header">
                 <div>
-                    <p class="archive-section-kicker"><?= htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8') ?></p>
                     <h2 id="archive-books-title"><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2>
                 </div>
                 <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="archive-catalog-link">
@@ -233,93 +236,87 @@ ob_start();
             </header>
 
             <?php if ($books !== []): ?>
-                <div class="archive-books-grid">
+                <div class="books-grid archive-books-grid">
                     <?php foreach ($books as $book): ?>
                         <?php
+                        if (($book['_record_kind'] ?? '') === 'article') {
+                            include $corePartials . '/catalog-article-card.php';
+                            continue;
+                        }
                         $bookUrl = $createBookUrl($book);
                         $coverUrl = absoluteUrl(($book['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg');
                         $available = (int) ($book['copie_disponibili'] ?? 0) > 0;
                         $state = (string) ($book['stato'] ?? '');
-                        if (($book['_record_kind'] ?? '') === 'article') {
-                            $statusClass = '';
-                            $statusIcon = 'fa-newspaper';
-                            $statusLabel = __('Articolo');
-                        } elseif ($available) {
-                            $statusClass = 'is-available';
-                            $statusIcon = 'fa-check';
+                        if ($available) {
+                            $statusClass = 'status-available';
                             $statusLabel = __('Disponibile');
                         } elseif ($state === 'prenotato') {
-                            $statusClass = 'is-reserved';
-                            $statusIcon = 'fa-bookmark';
+                            $statusClass = 'status-reserved';
                             $statusLabel = __('Prenotato');
                         } elseif ($state === 'prestato') {
-                            $statusClass = 'is-borrowed';
-                            $statusIcon = 'fa-clock';
+                            $statusClass = 'status-borrowed';
                             $statusLabel = __('In prestito');
                         } else {
-                            $statusClass = 'is-unavailable';
-                            $statusIcon = 'fa-minus';
+                            $statusClass = 'status-unavailable';
                             $statusLabel = __('Non disponibile');
                         }
                         $authorName = trim(html_entity_decode((string) ($book['autore'] ?? ''), ENT_QUOTES, 'UTF-8'));
                         $authorCanonicalName = trim(html_entity_decode((string) ($book['autore_principale_nome'] ?? ''), ENT_QUOTES, 'UTF-8'));
                         ?>
-                        <article class="archive-book-card">
-                            <a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>" class="archive-book-cover">
-                                <img src="<?= htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8') ?>"
-                                     alt="<?= htmlspecialchars((string) ($book['titolo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                     loading="lazy"
-                                     onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
-                                <span class="archive-book-status <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>">
-                                    <i class="fas <?= htmlspecialchars($statusIcon, ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
-                                    <?php if (($book['_record_kind'] ?? '') !== 'article') { do_action('book.badge.digital_icons', $book); } ?>
-                                </span>
-                            </a>
-                            <div class="archive-book-copy">
-                                <h3><a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) ($book['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a></h3>
+                        <article class="book-card">
+                            <div class="book-image-container">
+                                <a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>" tabindex="-1" aria-hidden="true">
+                                    <img class="book-image" src="<?= htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8') ?>"
+                                         alt="" loading="lazy" decoding="async"
+                                         onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
+                                </a>
+                                <span class="book-status-badge <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><span><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></span><?php do_action('book.badge.digital_icons', $book); ?></span>
+                            </div>
+                            <div class="book-content">
+                                <h3 class="book-title"><a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) ($book['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a></h3>
                                 <?php if ($authorName !== ''): ?>
-                                    <p class="archive-book-author">
+                                    <p class="book-author">
                                         <?php if ($authorCanonicalName !== ''): ?>
                                             <a href="<?= htmlspecialchars($authorRoute . '/' . urlencode($authorCanonicalName), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($authorName, ENT_QUOTES, 'UTF-8') ?></a>
                                         <?php else: ?>
-                                            <span><?= htmlspecialchars($authorName, ENT_QUOTES, 'UTF-8') ?></span>
+                                            <?= htmlspecialchars($authorName, ENT_QUOTES, 'UTF-8') ?>
                                         <?php endif; ?>
                                     </p>
                                 <?php endif; ?>
-                                <div class="archive-book-meta">
-                                    <?php if (!empty($book['contenitore_titolo'])): ?><span><?= htmlspecialchars((string)$book['contenitore_titolo'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
-                                    <?php if (!empty($book['genere']) && $archive_type !== 'genere'): ?>
-                                        <a href="<?= htmlspecialchars($genreRoute . '/' . urlencode(html_entity_decode((string) $book['genere'], ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) $book['genere'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a>
-                                    <?php endif; ?>
-                                    <?php if (!empty($book['editore']) && $archive_type !== 'editore'): ?>
-                                        <a href="<?= htmlspecialchars($publisherRoute . '/' . urlencode(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a>
-                                    <?php endif; ?>
+                                <?php
+                                $metaGenre = $archive_type !== 'genere' ? html_entity_decode((string) ($book['genere'] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+                                $metaPublisher = $archive_type !== 'editore' ? html_entity_decode((string) ($book['editore'] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+                                ?>
+                                <?php if ($metaGenre !== '' || $metaPublisher !== ''): ?>
+                                    <p class="book-meta">
+                                        <?php if ($metaGenre !== ''): ?><a href="<?= htmlspecialchars($genreRoute . '/' . urlencode($metaGenre), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($metaGenre, ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?>
+                                        <?= $metaGenre !== '' && $metaPublisher !== '' ? ' · ' : '' ?>
+                                        <?php if ($metaPublisher !== ''): ?><a href="<?= htmlspecialchars($publisherRoute . '/' . urlencode($metaPublisher), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($metaPublisher, ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?>
+                                    </p>
+                                <?php endif; ?>
+                                <div class="book-actions">
+                                    <a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn-cta btn-cta-sm"><i class="fas fa-eye" aria-hidden="true"></i> <?= __('Dettagli') ?></a>
                                 </div>
                             </div>
                         </article>
                     <?php endforeach; ?>
                 </div>
 
-                <?php if ((int) $totalPages > 1): ?>
-                    <nav class="archive-pagination" aria-label="<?= htmlspecialchars(__('Navigazione pagine'), ENT_QUOTES, 'UTF-8') ?>">
-                        <?php if ($page > 1): ?>
-                            <a href="?page=<?= $page - 1 ?>" aria-label="<?= htmlspecialchars(__('Pagina precedente'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
-                        <?php endif; ?>
-                        <?php for ($i = max(1, $page - 2); $i <= min((int) $totalPages, $page + 2); $i++): ?>
-                            <a href="?page=<?= $i ?>" <?= $i === $page ? 'aria-current="page"' : '' ?>><?= $i ?></a>
-                        <?php endfor; ?>
-                        <?php if ($page < (int) $totalPages): ?>
-                            <a href="?page=<?= $page + 1 ?>" aria-label="<?= htmlspecialchars(__('Pagina successiva'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
-                        <?php endif; ?>
-                    </nav>
-                <?php endif; ?>
+                <?php
+                $paginationPage = (int) $page;
+                $paginationPages = (int) $totalPages;
+                $paginationUrl = static fn(int $p): string => '?page=' . $p;
+                include $corePartials . '/pagination.php';
+                ?>
             <?php else: ?>
-                <div class="archive-empty">
-                    <i class="fas fa-book-open" aria-hidden="true"></i>
-                    <h3><?= __('Nessun libro trovato') ?></h3>
-                    <p><?= $archive_type === 'autore' ? __('Non sono stati trovati libri di questo autore.') : ($archive_type === 'editore' ? __('Non sono stati trovati libri di questo editore.') : __('Non sono stati trovati libri di questo genere.')) ?></p>
-                    <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __('Esplora Catalogo') ?></a>
-                </div>
+                <?php
+                $emptyTitle = __('Nessun libro trovato');
+                $emptyText = $archive_type === 'autore' ? __('Non sono stati trovati libri di questo autore.') : ($archive_type === 'editore' ? __('Non sono stati trovati libri di questo editore.') : __('Non sono stati trovati libri di questo genere.'));
+                $emptyIcon = 'fa-book-open';
+                $emptyCtaHref = $catalogRoute;
+                $emptyCtaLabel = __('Esplora Catalogo');
+                include $corePartials . '/empty-state.php';
+                ?>
             <?php endif; ?>
         </section>
     </div>

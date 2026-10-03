@@ -57,7 +57,7 @@
                   <span class="text-sm font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded-full"><?= (int) ($o['num_edizioni'] ?? 0) ?></span>
                 </td>
                 <td class="px-4 py-3 text-right">
-                  <a href="<?= htmlspecialchars(url('/admin/opere/' . (int) $o['id'] . '/edit'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-400 hover:text-gray-700" title="<?= __("Modifica") ?>"><i class="fas fa-edit"></i></a>
+                  <a href="<?= htmlspecialchars(url('/admin/opere/' . (int) $o['id'] . '/edit'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-400 hover:text-gray-700" title="<?= htmlspecialchars(__("Modifica"), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-edit"></i></a>
                 </td>
               </tr>
             <?php endforeach; ?>

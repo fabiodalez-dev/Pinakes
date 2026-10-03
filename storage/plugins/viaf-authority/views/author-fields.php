@@ -42,7 +42,7 @@ use App\Support\HtmlHelper;
                 <label for="viaf_id_field" class="form-label"><?= __("VIAF ID") ?></label>
                 <input id="viaf_id_field" name="viaf_id" class="form-input"
                        value="<?php echo HtmlHelper::e($viafId); ?>"
-                       placeholder="<?= __('es. 102333412') ?>" />
+                       placeholder="<?= htmlspecialchars(__('es. 102333412'), ENT_QUOTES, 'UTF-8') ?>" />
                 <p class="text-xs text-gray-500 mt-1">
                     <?php if ($viafId !== '' && $viafUri !== ''): ?>
                         <a href="<?= htmlspecialchars($viafUri, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700" id="viaf-current-link">
@@ -59,7 +59,7 @@ use App\Support\HtmlHelper;
                 <label for="isni_id_field" class="form-label"><?= __("ISNI") ?></label>
                 <input id="isni_id_field" name="isni_id" class="form-input"
                        value="<?php echo HtmlHelper::e($isniId); ?>"
-                       placeholder="<?= __('es. 0000 0001 2143 6543') ?>" />
+                       placeholder="<?= htmlspecialchars(__('es. 0000 0001 2143 6543'), ENT_QUOTES, 'UTF-8') ?>" />
                 <p class="text-xs text-gray-500 mt-1"><?= __("16 cifre (l'ultima può essere una X).") ?></p>
             </div>
         </div>

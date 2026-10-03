@@ -51,7 +51,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
         return $dateTime->format($homeEventsFallbackDateFormat);
     };
     ?>
-    <section class="home-events" aria-label="<?= __("Eventi") ?>">
+    <section class="home-events" aria-label="<?= htmlspecialchars(__("Eventi"), ENT_QUOTES, 'UTF-8') ?>">
         <div class="container">
             <div class="home-events__header">
                 <div>

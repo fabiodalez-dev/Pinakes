@@ -1090,7 +1090,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                   <div class="flex items-center justify-end gap-2">
                     <a href="<?= htmlspecialchars(url('/admin/books/' . (int) $libro['id'] . '/copy-labels-pdf?copy_id=' . (int) $copia['id']), ENT_QUOTES, 'UTF-8') ?>"
                        target="_blank" rel="noopener" class="text-gray-700 hover:text-gray-900 transition-colors"
-                       title="<?= __('Stampa etichetta') ?>" aria-label="<?= __('Stampa etichetta') ?>">
+                       title="<?= htmlspecialchars(__('Stampa etichetta'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Stampa etichetta'), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-print"></i>
                     </a>
                     <?php
@@ -1105,7 +1105,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                     <button type="button"
                             onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['stato'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars((string) json_encode($copia['note'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
                             class="text-blue-600 hover:text-blue-900 transition-colors"
-                            title="<?= __("Modifica stato") ?>">
+                            title="<?= htmlspecialchars(__("Modifica stato"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-edit"></i>
                     </button>
                     <?php endif; ?>
@@ -1113,7 +1113,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                     <button type="button"
                             onclick="confirmDeleteCopy(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['numero_inventario'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
                             class="text-red-600 hover:text-red-900 transition-colors"
-                            title="<?= __("Elimina copia") ?>">
+                            title="<?= htmlspecialchars(__("Elimina copia"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-trash"></i>
                     </button>
                     <?php endif; ?>
@@ -1193,7 +1193,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
                 <td class="px-4 py-2 text-sm text-gray-600"><?= App\Support\HtmlHelper::e($vol['autore'] ?? '') ?></td>
                 <td class="px-4 py-2 text-sm text-gray-500"><?= App\Support\HtmlHelper::e(($vol['isbn13'] ?? '') ?: ($vol['isbn10'] ?? '')) ?></td>
                 <td class="px-4 py-2 text-sm text-right">
-                  <button type="button" onclick="removeVolume(<?= (int)$libro['id'] ?>, <?= (int)$vol['id'] ?>)" class="text-red-500 hover:text-red-700 text-xs" title="<?= __('Rimuovi') ?>">
+                  <button type="button" onclick="removeVolume(<?= (int)$libro['id'] ?>, <?= (int)$vol['id'] ?>)" class="text-red-500 hover:text-red-700 text-xs" title="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-times"></i>
                   </button>
                 </td>
@@ -1796,7 +1796,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
           </div>
           <div>
             <label for="modal-note" class="form-label"><?= __("Note") ?> (<?= __("opzionali") ?>)</label>
-            <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
+            <textarea id="modal-note" name="note" rows="3" class="form-input" placeholder="<?= htmlspecialchars(__('Aggiungi eventuali note...'), ENT_QUOTES, 'UTF-8') ?>"></textarea>
           </div>
           <div class="flex items-center justify-end gap-3 pt-2">
             <button type="button" id="close-return-modal-secondary" class="btn-secondary"><?= __("Annulla") ?></button>
@@ -1890,7 +1890,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 
 
         <div>
           <label for="edit-copy-note" class="form-label"><?= __("Note") ?> (<?= __("opzionale") ?>)</label>
-          <textarea id="edit-copy-note" name="note" rows="3" class="form-input" placeholder="<?= __('Aggiungi eventuali note...') ?>"></textarea>
+          <textarea id="edit-copy-note" name="note" rows="3" class="form-input" placeholder="<?= htmlspecialchars(__('Aggiungi eventuali note...'), ENT_QUOTES, 'UTF-8') ?>"></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">

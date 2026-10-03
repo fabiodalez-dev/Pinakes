@@ -5,72 +5,87 @@ use App\Support\HtmlHelper;
 
 $title = 'Cookie Policy';
 
+// Intestazione condivisa (catalog-hero.php): ne serve il foglio di stile.
+$catalogPageStyles = true;
+
 $additional_css = "
-<style>
-main {
-    padding-top: 90px;
+.static-page {
+    padding: 3rem 0 4rem;
+    background: var(--white);
 }
 
-.cookie-page {
-    padding: 6rem 0 4rem 0;
-}
-
-.cookie-header {
-    text-align: center;
-    margin-bottom: 3rem;
-}
-
-.cookie-header h1 {
-    font-family: var(--serif);
-    font-size: clamp(2rem, 4vw, 2.75rem);
-    font-weight: 420;
-    color: var(--text-color);
-    letter-spacing: -0.03em;
-    margin-bottom: 1rem;
-}
-
-.cookie-divider {
-    width: 48px;
-    height: 1px;
-    background: var(--primary-color);
-    margin: 0 auto 1.5rem;
-    border-radius: 0;
-}
-
-.cookie-content {
-    max-width: 900px;
-    margin: 0 auto;
+.static-content {
+    max-width: 72ch;
+    margin: 0;
     line-height: 1.8;
     color: var(--text-color);
-    font-size: 1rem;
+    font-size: 1.0625rem;
 }
 
-.cookie-content h2,
-.cookie-content h3,
-.cookie-content h4 {
+.static-content p {
+    margin-bottom: 1.25rem;
+}
+
+.static-content h2,
+.static-content h3,
+.static-content h4 {
     font-family: var(--serif);
     color: var(--text-color);
     letter-spacing: -0.02em;
-    margin-top: 2rem;
     font-weight: 460;
+    margin: 2.5rem 0 1rem;
 }
 
-.cookie-content p {
+.static-content h2 { font-size: 1.75rem; }
+.static-content h3 { font-size: 1.375rem; }
+
+.static-content ul,
+.static-content ol {
     margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
 }
-</style>
+
+.static-content li {
+    margin-bottom: 0.5rem;
+}
+
+.static-content a {
+    color: var(--text-color);
+    border-bottom: 1px solid var(--border-color);
+    text-decoration: none;
+}
+
+.static-content a:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.static-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 3px;
+}
+
+.static-content blockquote {
+    border-left: 1px solid var(--primary-color);
+    padding-left: 1.5rem;
+    margin: 2rem 0;
+    color: var(--text-light);
+}
 ";
 
 ob_start();
 ?>
 
-<section class="cookie-page">
+<?php
+$heroTitle = $title;
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => $heroTitle]];
+include __DIR__ . '/partials/catalog-hero.php';
+?>
+
+<section class="static-page">
     <div class="container">
-        <div class="cookie-header">
-            <h1><?= HtmlHelper::e($title); ?></h1>
-            <div class="cookie-divider"></div>
-        </div>
-        <div class="cookie-content">
+        <div class="static-content">
             <?= HtmlHelper::sanitizeHtml($pageContent ?? ''); ?>
         </div>
     </div>

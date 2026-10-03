@@ -156,7 +156,7 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                     <button type="button"
                                             onclick="autoDetectButtonTextColor()"
                                             class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
-                                            title="<?= __("Auto") ?>">
+                                            title="<?= htmlspecialchars(__("Auto"), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-magic"></i>
                                     </button>
                                 </div>

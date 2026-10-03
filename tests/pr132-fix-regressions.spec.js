@@ -186,8 +186,10 @@ test.describe('F019 — OpenURL redirects to locale-aware book URL, not /libro/{
     let bookId = '';
     // Note: PHP converts dots in query-param names to underscores ($rft.isbn → $rft_isbn),
     // so OpenUrlResolverPlugin::extractIsbn() must be tested via 'isbn=' or 'rft_id=urn:isbn:'.
-    // Any 13-digit string passes extractIsbn() (length check only, no checksum).
-    const TEST_ISBN13 = '9780000000001';
+    // extractIsbn() accepts only a real ISBN (valid check digit), so the
+    // fixture must be one: 9780000000001 would be ignored and the request
+    // would fall through to the external catalogue.
+    const TEST_ISBN13 = '9780000000002';
 
     test.beforeAll(async () => {
         dbExec(`

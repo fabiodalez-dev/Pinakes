@@ -3135,87 +3135,121 @@ class ArchivesPlugin
         $rawLevel  = $params['level'] ?? '';
         $q         = is_string($rawQ) ? trim($rawQ) : '';
         $level     = is_string($rawLevel) && isset(self::LEVELS[$rawLevel]) ? $rawLevel : '';
-        $dateFrom  = (string) ($params['date_from'] ?? '');
-        $dateTo    = (string) ($params['date_to'] ?? '');
+        $rawFrom   = $params['date_from'] ?? '';
+        $rawTo     = $params['date_to'] ?? '';
+        $dateFrom  = is_string($rawFrom) ? trim($rawFrom) : '';
+        $dateTo    = is_string($rawTo) ? trim($rawTo) : '';
+        $rawPage   = $params['page'] ?? '1';
+        $page      = is_string($rawPage) && ctype_digit($rawPage) ? max(1, (int) $rawPage) : 1;
+        $perPage   = 24;
 
-        $rows = [];
         $isSearch = $q !== '' || $level !== '' || $dateFrom !== '' || $dateTo !== '';
 
-        if ($isSearch) {
-            $whereParts = ['deleted_at IS NULL'];
-            $bindTypes  = '';
-            $bindValues = [];
-
+        // One WHERE builder for the listing and its two facets: each facet
+        // leaves out its own condition, so its counts say what a click on
+        // it would return.
+        $buildWhere = function (bool $withLevel, bool $withDates, bool $rootOnly) use ($q, $level, $dateFrom, $dateTo): array {
+            $parts = ['deleted_at IS NULL'];
+            $types = '';
+            $values = [];
+            if ($rootOnly) {
+                // Browsing: the root units (fonds and stand-alone collections).
+                $parts[] = 'parent_id IS NULL';
+            }
             if ($q !== '') {
                 $pattern = $this->archiveSearchPattern($q);
-                $whereParts[] = '(reference_code LIKE ? OR constructed_title LIKE ? OR formal_title LIKE ? OR scope_content LIKE ?)';
-                $bindTypes  .= 'ssss';
-                $bindValues = array_merge($bindValues, [$pattern, $pattern, $pattern, $pattern]);
+                $parts[] = '(reference_code LIKE ? OR constructed_title LIKE ? OR formal_title LIKE ? OR scope_content LIKE ?)';
+                $types  .= 'ssss';
+                array_push($values, $pattern, $pattern, $pattern, $pattern);
             }
-            if ($level !== '') {
-                $whereParts[] = 'level = ?';
-                $bindTypes  .= 's';
-                $bindValues[] = $level;
+            if ($withLevel && $level !== '') {
+                $parts[] = 'level = ?';
+                $types  .= 's';
+                $values[] = $level;
             }
-            if ($dateFrom !== '' && ctype_digit($dateFrom)) {
-                $whereParts[] = '(date_end IS NULL OR date_end >= ?)';
-                $bindTypes  .= 'i';
-                $bindValues[] = (int) $dateFrom;
+            if ($withDates && $dateFrom !== '' && ctype_digit($dateFrom)) {
+                $parts[] = '(date_end IS NULL OR date_end >= ?)';
+                $types  .= 'i';
+                $values[] = (int) $dateFrom;
             }
-            if ($dateTo !== '' && ctype_digit($dateTo)) {
-                $whereParts[] = '(date_start IS NULL OR date_start <= ?)';
-                $bindTypes  .= 'i';
-                $bindValues[] = (int) $dateTo;
+            if ($withDates && $dateTo !== '' && ctype_digit($dateTo)) {
+                $parts[] = '(date_start IS NULL OR date_start <= ?)';
+                $types  .= 'i';
+                $values[] = (int) $dateTo;
             }
-
-            $sql  = "SELECT id, reference_code, level, formal_title, constructed_title,
-                            date_start, date_end, extent, scope_content, specific_material
-                       FROM archival_units
-                      WHERE " . implode(' AND ', $whereParts) . "
-                      ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
-                      LIMIT 200";
+            return [implode(' AND ', $parts), $types, $values];
+        };
+        $fetchAll = function (string $sql, string $types, array $values): array {
+            $out = [];
             $stmt = $this->db->prepare($sql);
-            if ($stmt !== false) {
-                if ($bindTypes !== '') {
-                    $stmt->bind_param($bindTypes, ...$bindValues);
-                }
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result instanceof \mysqli_result) {
-                    while ($r = $result->fetch_assoc()) { $rows[] = $r; }
-                    $result->free();
-                }
-                $stmt->close();
+            if ($stmt === false) {
+                return $out;
             }
-        } else {
-            $stmt = $this->db->prepare(
-                "SELECT id, reference_code, level, formal_title, constructed_title,
-                        date_start, date_end, extent, scope_content, specific_material
-                   FROM archival_units
-                  WHERE deleted_at IS NULL AND parent_id IS NULL
-                  ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
-                  LIMIT 500"
-            );
-            if ($stmt !== false) {
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result instanceof \mysqli_result) {
-                    while ($r = $result->fetch_assoc()) { $rows[] = $r; }
-                    $result->free();
-                }
-                $stmt->close();
+            if ($types !== '') {
+                $stmt->bind_param($types, ...$values);
+            }
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) { $out[] = $r; }
+                $result->free();
+            }
+            $stmt->close();
+            return $out;
+        };
+
+        [$where, $types, $values] = $buildWhere(true, true, !$isSearch);
+        $countRows = $fetchAll("SELECT COUNT(*) AS n FROM archival_units WHERE {$where}", $types, $values);
+        $total = (int) ($countRows[0]['n'] ?? 0);
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page  = min($page, $pages);
+        $rows = $fetchAll(
+            "SELECT id, reference_code, level, formal_title, constructed_title,
+                    date_start, date_end, extent, scope_content, specific_material, cover_image_path
+               FROM archival_units
+              WHERE {$where}
+              ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
+              LIMIT ? OFFSET ?",
+            $types . 'ii',
+            array_merge($values, [$perPage, ($page - 1) * $perPage])
+        );
+
+        // Level facet: what each level would return with the other filters
+        // kept. Picking a level searches the whole hierarchy, so the count
+        // never stops at the root units.
+        [$lw, $lt, $lv] = $buildWhere(false, true, false);
+        $levelFacet = [];
+        foreach ($fetchAll("SELECT level, COUNT(*) AS n FROM archival_units WHERE {$lw} GROUP BY level", $lt, $lv) as $r) {
+            $levelFacet[(string) $r['level']] = (int) $r['n'];
+        }
+
+        // Period facet: centuries the matching units overlap (an undated
+        // unit belongs to none). Counted in PHP from the date pairs, over
+        // the whole hierarchy: picking a period searches every level.
+        [$pw, $pt, $pv] = $buildWhere(true, false, false);
+        $centuryFacet = [];
+        foreach ($fetchAll("SELECT date_start, date_end FROM archival_units WHERE {$pw} AND date_start IS NOT NULL LIMIT 5000", $pt, $pv) as $r) {
+            $start = (int) $r['date_start'];
+            $end = $r['date_end'] !== null ? max($start, (int) $r['date_end']) : $start;
+            for ($c = intdiv($start, 100); $c <= intdiv($end, 100) && $c - intdiv($start, 100) < 30; $c++) {
+                $centuryFacet[$c * 100] = ($centuryFacet[$c * 100] ?? 0) + 1;
             }
         }
+        ksort($centuryFacet);
 
         $viewPath = __DIR__ . '/views/public/index.php';
         return $this->renderPublic($response, $viewPath, [
-            'rows'      => $rows,
-            'total'     => count($rows),
-            'q'         => $q,
-            'level'     => $level,
-            'date_from' => $dateFrom,
-            'date_to'   => $dateTo,
-            'isSearch'  => $isSearch,
+            'rows'         => $rows,
+            'total'        => $total,
+            'page'         => $page,
+            'pages'        => $pages,
+            'q'            => $q,
+            'level'        => $level,
+            'date_from'    => $dateFrom,
+            'date_to'      => $dateTo,
+            'isSearch'     => $isSearch,
+            'levelFacet'   => $levelFacet,
+            'centuryFacet' => $centuryFacet,
         ]);
     }
 

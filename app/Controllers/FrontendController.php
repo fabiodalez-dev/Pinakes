@@ -229,6 +229,10 @@ class FrontendController
             ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'home');
     }
 
+    /**
+     * The public catalogue: filtered, paginated results under the header the
+     * admin set for the visitor's language, or the translated default.
+     */
     public function catalog(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
@@ -368,6 +372,16 @@ class FrontendController
         // $page. Without this the no-JS nav always marks page 1 active and never
         // links past page 5, so pages 6+ are not crawlable.
         $current_page = $page;
+        // Title and subtitle of the header, editable per language in Settings → CMS.
+        $catalogHeader = [
+            'title' => __(\App\Support\CatalogHeader::DEFAULT_TITLE),
+            'subtitle' => __(\App\Support\CatalogHeader::DEFAULT_SUBTITLE),
+        ];
+        try {
+            $catalogHeader = \App\Support\CatalogHeader::forLocale(new \App\Models\SettingsRepository($db), \App\Support\I18n::getLocale());
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Catalog header texts unavailable', ['error' => $e->getMessage()]);
+        }
         ob_start();
         // Rendi disponibili tutte le variabili necessarie nel template
         include __DIR__ . '/../Views/frontend/catalog.php';

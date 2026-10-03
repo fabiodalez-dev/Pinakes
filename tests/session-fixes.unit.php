@@ -152,12 +152,14 @@ $check(strpos($adminOut, 'plugin-source-search--admin') !== false
 echo "Static guards — CSS, rate limit, resilient fallback\n";
 // ---------------------------------------------------------------------------
 
-$bookDetail = (string) file_get_contents($ROOT . '/app/Views/frontend/book-detail.php');
+// The page's CSS lives in public/assets/book-detail.css (extracted from the view).
+$bookDetail = (string) file_get_contents($ROOT . '/app/Views/frontend/book-detail.php')
+    . (string) file_get_contents($ROOT . '/public/assets/book-detail.css');
 
 // 16. Genre separator is centered with the pills.
 $check(strpos($bookDetail, '.genre-separator') !== false
     && strpos($bookDetail, 'align-items: center') !== false,
-    'book-detail.php: .genre-separator rule + align-items:center present');
+    'book-detail: .genre-separator rule + align-items:center present');
 
 $webRoutes = (string) file_get_contents($ROOT . '/app/Routes/web.php');
 
