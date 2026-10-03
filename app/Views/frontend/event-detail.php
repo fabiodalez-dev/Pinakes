@@ -134,7 +134,8 @@ $breadcrumbItems = [
 include $corePartials . '/resource-hero.php';
 ?>
 
-<main class="container">
+<?php // The layout owns the page's one <main> landmark. ?>
+<div class="container">
     <div class="flex flex-wrap -mx-3">
         <div class="w-full lg:w-2/3 px-3">
             <div class="book-description-section">
@@ -163,7 +164,7 @@ include $corePartials . '/resource-hero.php';
             </div>
         </aside>
     </div>
-</main>
+</div>
 
 <?php /** @var array $relatedEvents Related upcoming events (from controller) */ ?>
 

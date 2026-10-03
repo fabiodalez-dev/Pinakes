@@ -3137,8 +3137,15 @@ class ArchivesPlugin
         $level     = is_string($rawLevel) && isset(self::LEVELS[$rawLevel]) ? $rawLevel : '';
         $rawFrom   = $params['date_from'] ?? '';
         $rawTo     = $params['date_to'] ?? '';
-        $dateFrom  = is_string($rawFrom) ? trim($rawFrom) : '';
-        $dateTo    = is_string($rawTo) ? trim($rawTo) : '';
+        // Years are signed (SMALLINT): -500 is a valid bound. Anything else is
+        // dropped here, so no chip ever shows a filter the query does not apply.
+        $year = static function (mixed $raw): string {
+            $value = is_string($raw) ? trim($raw) : '';
+            return preg_match('/^-?\d{1,5}$/', $value) === 1 && (int) $value >= -32768 && (int) $value <= 32767
+                ? (string) (int) $value : '';
+        };
+        $dateFrom  = $year($rawFrom);
+        $dateTo    = $year($rawTo);
         $rawPage   = $params['page'] ?? '1';
         $page      = is_string($rawPage) && ctype_digit($rawPage) ? max(1, (int) $rawPage) : 1;
         $perPage   = 24;
@@ -3167,13 +3174,16 @@ class ArchivesPlugin
                 $types  .= 's';
                 $values[] = $level;
             }
-            if ($withDates && $dateFrom !== '' && ctype_digit($dateFrom)) {
-                $parts[] = '(date_end IS NULL OR date_end >= ?)';
+            // Same span as the period facet below: an undated unit belongs to no
+            // period, and an open end counts as the start year. So the count next
+            // to "1900–1999" is what a click on it returns.
+            if ($withDates && $dateFrom !== '') {
+                $parts[] = '(date_start IS NOT NULL AND GREATEST(date_start, COALESCE(date_end, date_start)) >= ?)';
                 $types  .= 'i';
                 $values[] = (int) $dateFrom;
             }
-            if ($withDates && $dateTo !== '' && ctype_digit($dateTo)) {
-                $parts[] = '(date_start IS NULL OR date_start <= ?)';
+            if ($withDates && $dateTo !== '') {
+                $parts[] = '(date_start IS NOT NULL AND date_start <= ?)';
                 $types  .= 'i';
                 $values[] = (int) $dateTo;
             }
@@ -3231,7 +3241,9 @@ class ArchivesPlugin
         foreach ($fetchAll("SELECT date_start, date_end FROM archival_units WHERE {$pw} AND date_start IS NOT NULL LIMIT 5000", $pt, $pv) as $r) {
             $start = (int) $r['date_start'];
             $end = $r['date_end'] !== null ? max($start, (int) $r['date_end']) : $start;
-            for ($c = intdiv($start, 100); $c <= intdiv($end, 100) && $c - intdiv($start, 100) < 30; $c++) {
+            // floor, not intdiv: year -50 belongs to -100..-1, not to 0..99.
+            $first = (int) floor($start / 100);
+            for ($c = $first; $c <= (int) floor($end / 100) && $c - $first < 30; $c++) {
                 $centuryFacet[$c * 100] = ($centuryFacet[$c * 100] ?? 0) + 1;
             }
         }
@@ -3402,6 +3414,12 @@ class ArchivesPlugin
             $indexPage = (int) ($data['page'] ?? 1);
             $seoCanonical = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . $archivesRoute
                 . ($indexPage > 1 ? '?page=' . $indexPage : '');
+            // A filtered view lists other units than the page its canonical names:
+            // keep it out of the index but let crawlers follow its links, as the
+            // Emeroteca index does.
+            if (!empty($data['isSearch'])) {
+                $seoRobots = 'noindex,follow';
+            }
         }
         // $archiveSchema is populated by show.php (Schema.org JSON-LD).
         $archiveSchema = $archiveSchema ?? null;

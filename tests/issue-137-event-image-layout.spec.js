@@ -256,6 +256,8 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
 
         const heroCover = page.locator('.resource-hero .book-cover-large');
         const figure = page.locator('figure.event-cover');
+        // The layout owns the page's only main landmark.
+        await expect(page.locator('main'), 'one <main> per page').toHaveCount(1);
 
         if (expected === 'contained' || expected === 'thumb') {
             await expect(heroCover).toHaveCount(1);

@@ -202,6 +202,9 @@ include $corePartials . '/resource-hero.php';
                 <a class="ui-button btn-primary" href="<?= $e(url('/emeroteca/fascicolo/' . $fascicoloId . '/pdf')) ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Consulta PDF') ?></a>
             </div>
             <?php endif; ?>
+            <?php // A printed table of contents with no catalogued article yet: the
+            // Sommario below says what the issue holds, so no bare heading here. ?>
+            <?php if ($contributi !== [] || $articoli === []): ?>
             <section class="listing-section" id="emeroteca-sommario" aria-labelledby="emeroteca-sommario-title">
                 <h2 class="listing-section-title" id="emeroteca-sommario-title">
                     <span><?= __('Articoli in questo fascicolo') ?></span>
@@ -215,6 +218,7 @@ include $corePartials . '/resource-hero.php';
                 require __DIR__ . '/article-results.php';
                 ?>
             </section>
+            <?php endif; ?>
 
             <?php if (!empty($articoli)): ?>
             <section class="listing-section" aria-labelledby="emeroteca-indice-title">

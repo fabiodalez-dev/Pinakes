@@ -1532,15 +1532,17 @@ background-color: transparent;
     color: var(--primary-color);
 }
 
-.meta-value a {
+/* Scoped to the resource pages: the book page's own card (genre path, review
+   HTML) keeps its link style. */
+.resource-info-card .meta-value a {
     color: inherit;
     text-decoration: underline;
     text-decoration-color: var(--border-color);
     text-underline-offset: 3px;
 }
 
-.meta-value a:hover,
-.meta-value a:focus-visible {
+.resource-info-card .meta-value a:hover,
+.resource-info-card .meta-value a:focus-visible {
     color: var(--primary-color);
     text-decoration-color: currentColor;
 }
