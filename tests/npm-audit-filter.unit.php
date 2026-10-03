@@ -54,7 +54,7 @@ function report(array $advisories): array
         $vulnerabilities["parent-of-{$package}"] = ['name' => "parent-of-{$package}", 'severity' => $severity, 'isDirect' => true, 'via' => [$package]];
     }
 
-    return ['auditReportVersion' => 2, 'vulnerabilities' => $vulnerabilities];
+    return ['auditReportVersion' => 2, 'vulnerabilities' => $vulnerabilities ?: new stdClass()];
 }
 
 /**
@@ -89,6 +89,16 @@ $clean = report([]);
 
 try {
     check(run(report([$braces]), $clean, [$waiver]) === 0, 'a waived build-time advisory does not block');
+    $registryError = ['error' => ['code' => 'ENOTFOUND', 'summary' => 'registry lookup failed']];
+    check(run(report([$braces]), $registryError, [$waiver]) === 2, 'a failed production audit cannot prove a waiver is dev-only');
+    check(run($registryError, $clean, [$waiver]) === 2, 'a failed full audit is not a clean report');
+    check(run([], $clean, [$waiver]) === 2, 'an empty JSON value is not a report');
+    check(run(report([$braces]), ['auditReportVersion' => 2, 'vulnerabilities' => []], [$waiver]) === 2, 'an array cannot replace the vulnerability map');
+    $broken = report([$braces]);
+    $broken['vulnerabilities']['braces']['via'] = [null];
+    check(run($broken, $clean, [$waiver]) === 2, 'a malformed advisory is rejected');
+    $broken['vulnerabilities']['braces']['via'] = ['missing-package'];
+    check(run($broken, $clean, [$waiver]) === 2, 'a missing transitive advisory is rejected');
     check(run(report([$braces]), $clean, []) === 1, 'the same advisory without a waiver blocks');
     check(run(report([$braces]), $clean, [$waiver], '2026-11-04') === 1, 'an expired waiver no longer covers it');
     check(run(report([$braces]), $clean, [$waiver], '2026-11-03') === 0, 'a waiver still holds on its expiry day');

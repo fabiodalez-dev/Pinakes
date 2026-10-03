@@ -33,6 +33,33 @@ function readJson(file) {
   }
 }
 
+/** A failed registry request is not an empty, successful audit. */
+function readAudit(file) {
+  const report = readJson(file);
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const severities = new Set(['info', 'low', 'moderate', 'high', 'critical']);
+  let valid = object(report) && !report.error && report.auditReportVersion === 2 && object(report.vulnerabilities);
+  if (valid) {
+    for (const vuln of Object.values(report.vulnerabilities)) {
+      if (!object(vuln) || !severities.has(vuln.severity) || !Array.isArray(vuln.via) || vuln.via.length === 0) {
+        valid = false;
+        break;
+      }
+      for (const via of vuln.via) {
+        if (typeof via === 'string' ? !Object.hasOwn(report.vulnerabilities, via) : !object(via) || !severities.has(via.severity)) {
+          valid = false;
+          break;
+        }
+      }
+    }
+  }
+  if (!valid) {
+    console.error(`npm-audit-filter: ${file} is not a complete npm audit v2 report`);
+    process.exit(2);
+  }
+  return report;
+}
+
 /** The high/critical advisories in a report, keyed by GHSA id. Transitive entries only point at them. */
 function advisories(report) {
   const found = new Map();
@@ -76,8 +103,8 @@ function main() {
     readJson(waiverFile || path.join(__dirname, '..', '.github', 'npm-audit-waivers.json')),
     today,
   );
-  const full = advisories(readJson(fullFile));
-  const prod = advisories(readJson(prodFile));
+  const full = advisories(readAudit(fullFile));
+  const prod = advisories(readAudit(prodFile));
 
   const blocking = [];
   for (const advisory of full.values()) {
