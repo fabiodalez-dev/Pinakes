@@ -296,13 +296,13 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
 
     // ─── PUBLIC TESTS ────────────────────────────────────────────────────────
 
-    test('16 · Pubblico: search form è visibile su /archivio', async () => {
+    test('16 · Pubblico: ricerca e filtri sono nella sidebar di /archivio', async () => {
         await page.goto(`${BASE}/archivio`);
-        const form = page.locator('.archive-search-form');
-        await expect(form.locator('input[name="q"]')).toBeVisible();
-        await expect(form.locator('select[name="level"]')).toBeVisible();
-        await expect(form.locator('input[name="date_from"]')).toBeVisible();
-        await expect(form.locator('input[name="date_to"]')).toBeVisible();
+        const panel = page.locator('.filters-panel');
+        await expect(panel.locator('input[name="q"]')).toBeVisible();
+        // Livello e periodo sono link-facetta (funzionano senza JavaScript)
+        await expect(panel.locator('a.filter-option[href*="level="]').first()).toBeVisible();
+        await expect(panel.locator('a.filter-option[href*="date_from="][href*="date_to="]').first()).toBeVisible();
     });
 
     test('17 · Pubblico: ricerca per reference code trova il fondo', async () => {
@@ -313,7 +313,7 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
 
     test('18 · Pubblico: ricerca per titolo trova il fondo', async () => {
         await page.goto(`${BASE}/archivio?q=E2E+Fondo+Alpha`);
-        await expect(page.locator('h2:has-text("E2E Fondo Alpha"), .card-title:has-text("E2E Fondo Alpha")')).toBeVisible();
+        await expect(page.locator('.book-title:has-text("E2E Fondo Alpha")')).toBeVisible();
     });
 
     test('19 · Pubblico: filtro livello "series" mostra solo serie', async () => {
@@ -345,15 +345,11 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
         await expect(page.locator(`.archive-ref:text("${SERIES_REF}")`)).toBeVisible();
     });
 
-    test('24 · Pubblico: pulsante × resetta al catalogo radice', async () => {
+    test('24 · Pubblico: "Pulisci filtri" resetta al catalogo radice', async () => {
         await page.goto(`${BASE}/archivio?q=E2E`);
-        await page.locator(
-            '.archive-search-form a[href$="/archivio"], ' +
-            '.archive-search-form a[href$="/archive"], ' +
-            '.archive-search-form a[href$="/archives"]'
-        ).click({ timeout: 5_000 });
+        await page.locator('.results-header a.clear-filters-top-btn').click({ timeout: 5_000 });
         await expect(page).toHaveURL(/\/(?:archivio|archive|archives)$/, { timeout: 5_000 });
-        await expect(page.locator('.archive-search-form input[name="q"]')).toHaveValue('');
+        await expect(page.locator('.filters-panel input[name="q"]')).toHaveValue('');
     });
 
     test('25 · Pubblico: ricerca trova anche unità non-root (serie, fascicolo)', async () => {

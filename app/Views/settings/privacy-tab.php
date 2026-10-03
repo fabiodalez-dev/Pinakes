@@ -42,7 +42,7 @@
                  name="page_title"
                  value="<?= htmlspecialchars((string) ($privacySettings['page_title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('Privacy Policy') ?>" />
+                 placeholder="<?= htmlspecialchars(__('Privacy Policy'), ENT_QUOTES, 'UTF-8') ?>" />
         </div>
 
         <div>
@@ -191,7 +191,7 @@
                    name="cookie_statement_link"
                    value="<?= htmlspecialchars((string) ($privacySettings['cookie_statement_link'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="<?= __('https://esempio.com/cookie-policy') ?>" />
+                   placeholder="<?= htmlspecialchars(__('https://esempio.com/cookie-policy'), ENT_QUOTES, 'UTF-8') ?>" />
             <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con la cookie policy") ?></p>
           </div>
 
@@ -202,7 +202,7 @@
                    name="cookie_technologies_link"
                    value="<?= htmlspecialchars((string) ($privacySettings['cookie_technologies_link'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="<?= __('https://esempio.com/tecnologie-cookie') ?>" />
+                   placeholder="<?= htmlspecialchars(__('https://esempio.com/tecnologie-cookie'), ENT_QUOTES, 'UTF-8') ?>" />
             <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con le tecnologie dei cookie") ?></p>
           </div>
         </div>

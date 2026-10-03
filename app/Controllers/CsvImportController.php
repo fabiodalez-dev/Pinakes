@@ -1105,7 +1105,9 @@ class CsvImportController
         if ($recordType === '') {
             $recordType = strtolower(trim((string) ($row['tipo_media'] ?? '')));
         }
-        if (in_array($recordType, ['article', 'articolo', 'journal_article', 'newspaper_article'], true)) {
+        // book_chapter too: a chapter of an anthology is catalogued as an
+        // analytic record in the Emeroteca, never as a monograph (#412).
+        if (in_array($recordType, ['article', 'articolo', 'journal_article', 'newspaper_article', 'book_chapter'], true)) {
             throw new \InvalidArgumentException(__('Importa gli articoli dalla sezione Emeroteca (valore rilevato: "%s"). Se il plugin è inattivo, attivalo da Plugins.', $recordType));
         }
 

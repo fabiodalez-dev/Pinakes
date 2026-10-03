@@ -47,7 +47,7 @@ $check = static function(bool $ok,string $label) use (&$checks): void {
 };
 try {
     $db->query("CREATE TABLE emeroteca_contributi ($definitions) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    $db->query("CREATE TABLE emeroteca_testate (id INT PRIMARY KEY, logo_url VARCHAR(500)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $db->query("CREATE TABLE emeroteca_testate (id INT PRIMARY KEY, titolo VARCHAR(255) NULL, logo_url VARCHAR(500)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $db->query(\App\Plugins\Emeroteca\Services\ContributionService::authorsDdl());
     $db->begin_transaction();
     // The catalogue/plugin state is restored by rollback, even on failure.

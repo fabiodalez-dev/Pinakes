@@ -15,57 +15,53 @@ $privacyLabels = [
     'private' => __('Privato'),
     'invite' => __('Su invito'),
 ];
+$corePartials = dirname(__DIR__, 5) . '/app/Views/frontend/partials';
+$catalogPageStyles = true;
+$heroTitle = __('Club di lettura');
+$heroSubtitle = __('Leggi insieme: proposte, votazioni e incontri.');
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __('Club di lettura')]];
+include $corePartials . '/catalog-hero.php';
 ?>
 <style>
-  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
   .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
-  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
-  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
-  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
-  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:2px;font-size:.75rem;font-weight:600}
   .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
   .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
   .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
   .bc-muted{color:var(--text-light);font-size:.85rem}
-  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
-  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
-  .bc-hero p{opacity:.9;margin:0}
-  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
-  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:2px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:2px;background:var(--primary-color)}
   .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
   .bc-list-item:first-child{border-top:none}
-  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
-  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:3px}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <style>
   /* Page-local helpers (directory page only). */
-  .bc-club-card{display:block;position:relative;overflow:hidden;height:100%;color:inherit;text-decoration:none;transition:transform .2s ease,box-shadow .2s ease}
-  .bc-club-card:hover{transform:translateY(-4px);box-shadow:var(--card-shadow-hover);color:inherit}
+  .bc-club-card{display:block;position:relative;overflow:hidden;height:100%;color:inherit;text-decoration:none;transition:border-color .2s ease}
+  .bc-club-card:hover,.bc-club-card:focus-visible{border-color:var(--primary-color);color:inherit}
   .bc-club-card h2{font-size:1.1rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
-  .bc-club-accent{position:absolute;top:0;left:0;right:0;height:6px}
-  .bc-empty{text-align:center;padding:4rem 1rem;color:var(--text-light)}
-  .bc-empty i{display:block;font-size:2.5rem;margin-bottom:1rem}
+  .bc-club-accent{position:absolute;top:0;left:0;right:0;height:3px}
+  .bc-toolbar{display:flex;justify-content:flex-end;margin-bottom:1.5rem}
 </style>
 <div class="container py-4">
-  <div class="bc-hero">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1><?= $e(__('Club di lettura')) ?></h1>
-        <p><?= $e(__('Leggi insieme: proposte, votazioni e incontri.')) ?></p>
-      </div>
-      <?php if ($loggedIn): ?>
-        <a href="<?= $e(url('/my/book-clubs')) ?>" class="bc-btn">
-          <i class="fas fa-book-reader"></i><?= $e(__('I miei club')) ?>
-        </a>
-      <?php endif; ?>
+  <?php if ($loggedIn): ?>
+    <div class="bc-toolbar">
+      <a href="<?= $e(url('/my/book-clubs')) ?>" class="bc-btn">
+        <i class="fas fa-book-reader" aria-hidden="true"></i><?= $e(__('I miei club')) ?>
+      </a>
     </div>
-  </div>
+  <?php endif; ?>
 
   <?php if (!empty($flash)): ?>
     <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : ($flash['type'] === 'warning' ? 'warning' : 'danger') ?>">
@@ -74,10 +70,11 @@ $privacyLabels = [
   <?php endif; ?>
 
   <?php if (empty($clubs)): ?>
-    <div class="bc-empty">
-      <i class="fas fa-book-open"></i>
-      <p class="mb-0"><?= $e(__('Nessun club di lettura attivo al momento.')) ?></p>
-    </div>
+    <?php
+    $emptyIcon = 'fa-book-open';
+    $emptyTitle = __('Nessun club di lettura attivo al momento.');
+    include $corePartials . '/empty-state.php';
+    ?>
   <?php endif; ?>
 
   <div class="flex flex-wrap -mx-3 gap-y-4">

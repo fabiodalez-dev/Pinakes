@@ -74,11 +74,11 @@ $selectedLocale = isset($selectedLocale) && is_string($selectedLocale)
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label for="nome" class="block text-sm font-medium text-gray-700"><?= __("Nome") ?> *</label>
-            <input type="text" id="nome" name="nome" required aria-required="true" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Nome") ?>">
+            <input type="text" id="nome" name="nome" required aria-required="true" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Nome"), ENT_QUOTES, 'UTF-8') ?>">
           </div>
           <div>
             <label for="cognome" class="block text-sm font-medium text-gray-700"><?= __("Cognome") ?><?= \App\Support\RegistrationFields::isRequired('cognome') ? ' *' : '' ?></label>
-            <input type="text" id="cognome" name="cognome" <?= \App\Support\RegistrationFields::isRequired('cognome') ? 'required aria-required="true"' : '' ?> class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Cognome") ?>">
+            <input type="text" id="cognome" name="cognome" <?= \App\Support\RegistrationFields::isRequired('cognome') ? 'required aria-required="true"' : '' ?> class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Cognome"), ENT_QUOTES, 'UTF-8') ?>">
           </div>
         </div>
         <div class="grid gap-4 md:grid-cols-2" data-admin-hide>
@@ -98,11 +98,11 @@ $selectedLocale = isset($selectedLocale) && is_string($selectedLocale)
         </div>
         <div data-admin-hide>
           <label for="indirizzo" class="block text-sm font-medium text-gray-700"><?= __("Indirizzo completo") ?></label>
-          <textarea id="indirizzo" name="indirizzo" rows="3" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Via, numero civico, città, CAP") ?>"></textarea>
+          <textarea id="indirizzo" name="indirizzo" rows="3" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Via, numero civico, città, CAP"), ENT_QUOTES, 'UTF-8') ?>"></textarea>
         </div>
         <div data-admin-hide>
           <label for="cod_fiscale" class="block text-sm font-medium text-gray-700"><?= __("Codice Fiscale") ?></label>
-          <input type="text" id="cod_fiscale" name="cod_fiscale" maxlength="16" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("es. RSSMRA80A01H501U") ?>" style="text-transform: uppercase;">
+          <input type="text" id="cod_fiscale" name="cod_fiscale" maxlength="16" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("es. RSSMRA80A01H501U"), ENT_QUOTES, 'UTF-8') ?>" style="text-transform: uppercase;">
           <p class="text-xs text-gray-500 mt-1"><?= __("Codice fiscale italiano (opzionale)") ?></p>
         </div>
       </section>
@@ -112,18 +112,18 @@ $selectedLocale = isset($selectedLocale) && is_string($selectedLocale)
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700"><?= __("Email") ?> *</label>
-            <input type="email" id="email" name="email" autocomplete="username" required aria-required="true" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("utente@example.com") ?>">
+            <input type="email" id="email" name="email" autocomplete="username" required aria-required="true" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("utente@example.com"), ENT_QUOTES, 'UTF-8') ?>">
             <p class="text-xs text-gray-500 mt-1"><?= __("Usata per login e comunicazioni.") ?></p>
           </div>
           <div>
             <label for="telefono" class="block text-sm font-medium text-gray-700"><?= __("Telefono") ?></label>
-            <input type="text" id="telefono" name="telefono" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __('+39 123 456 7890') ?>">
+            <input type="text" id="telefono" name="telefono" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__('+39 123 456 7890'), ENT_QUOTES, 'UTF-8') ?>">
             <p class="text-xs text-gray-500 mt-1"><?= __("Obbligatorio per utenti non amministratori.") ?></p>
           </div>
         </div>
         <div>
           <label for="password" class="block text-sm font-medium text-gray-700"><?= __("Password iniziale") ?></label>
-          <input type="password" autocomplete="new-password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Lascia vuoto per inviare un link di impostazione") ?>">
+          <input type="password" autocomplete="new-password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Lascia vuoto per inviare un link di impostazione"), ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div>
           <label for="locale" class="block text-sm font-medium text-gray-700"><?= __("Lingua dell'interfaccia") ?></label>
@@ -143,7 +143,7 @@ $selectedLocale = isset($selectedLocale) && is_string($selectedLocale)
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label for="codice_tessera" class="block text-sm font-medium text-gray-700"><?= __("Codice tessera") ?></label>
-            <input type="text" id="codice_tessera" name="codice_tessera" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Lascia vuoto per generare automaticamente") ?>">
+            <input type="text" id="codice_tessera" name="codice_tessera" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Lascia vuoto per generare automaticamente"), ENT_QUOTES, 'UTF-8') ?>">
           </div>
           <div>
             <label for="data_scadenza_tessera" class="block text-sm font-medium text-gray-700"><?= __("Scadenza tessera") ?></label>
@@ -154,7 +154,7 @@ $selectedLocale = isset($selectedLocale) && is_string($selectedLocale)
 
       <section class="bg-white border border-gray-200 rounded-lg p-6">
         <label for="note_utente" class="block text-sm font-medium text-gray-700"><?= __("Note interne") ?></label>
-        <textarea id="note_utente" name="note_utente" rows="3" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("Informazioni utili per il personale") ?>"></textarea>
+        <textarea id="note_utente" name="note_utente" rows="3" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Informazioni utili per il personale"), ENT_QUOTES, 'UTF-8') ?>"></textarea>
       </section>
 
       <div class="flex items-center justify-end gap-3">

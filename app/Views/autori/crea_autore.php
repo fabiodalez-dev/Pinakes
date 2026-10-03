@@ -49,11 +49,11 @@
               <label for="nome" class="form-label">
                 <?= __("Nome completo") ?> <span class="text-red-500">*</span>
               </label>
-              <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('Nome e cognome dell\'autore') ?>" />
+              <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= htmlspecialchars(__('Nome e cognome dell\'autore'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
             <div>
               <label for="pseudonimo" class="form-label"><?= __("Pseudonimo") ?></label>
-              <input id="pseudonimo" name="pseudonimo" class="form-input" placeholder="<?= __('Nome d\'arte o pseudonimo') ?>" />
+              <input id="pseudonimo" name="pseudonimo" class="form-input" placeholder="<?= htmlspecialchars(__('Nome d\'arte o pseudonimo'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
           </div>
 
@@ -71,12 +71,12 @@
 
           <div>
             <label for="nazionalita" class="form-label"><?= __("Nazionalità") ?></label>
-            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= __("Es. Italiana, Americana, Francese...") ?>" />
+            <input id="nazionalita" name="nazionalita" class="form-input" placeholder="<?= htmlspecialchars(__("Es. Italiana, Americana, Francese..."), ENT_QUOTES, 'UTF-8') ?>" />
           </div>
 
           <div>
             <label for="sito_web" class="form-label"><?= __("Sito Web") ?></label>
-            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= __("https://www.esempio.com") ?>" />
+            <input type="url" id="sito_web" name="sito_web" class="form-input" placeholder="<?= htmlspecialchars(__("https://www.esempio.com"), ENT_QUOTES, 'UTF-8') ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Sito web ufficiale dell'autore (se disponibile)") ?></p>
           </div>
         </div>
@@ -93,7 +93,7 @@
         <div class="card-body form-section">
           <div>
             <label for="biografia" class="form-label"><?= __("Biografia dell'autore") ?></label>
-            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= __("Inserisci una breve biografia dell'autore...") ?>"></textarea>
+            <textarea id="biografia" name="biografia" rows="6" class="form-input" placeholder="<?= htmlspecialchars(__("Inserisci una breve biografia dell'autore..."), ENT_QUOTES, 'UTF-8') ?>"></textarea>
             <p class="text-xs text-gray-500 mt-1"><?= __("Una descrizione completa aiuta gli utenti a conoscere meglio l'autore") ?></p>
           </div>
         </div>
@@ -117,7 +117,7 @@
             <div id="author-photo-preview" class="mb-2"></div>
             <input type="file" id="author-fallback-file-input" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
             <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
-            <input type="url" id="foto_url" name="foto_url" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
+            <input type="url" id="foto_url" name="foto_url" class="form-input mt-2" placeholder="<?= htmlspecialchars(__('https://www.esempio.com/foto.jpg'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
 
           <div class="mt-6">

@@ -130,7 +130,7 @@ $pageTitle = __('Editor Classificazione Dewey');
 
     <!-- Search -->
     <div class="mb-4">
-        <input type="text" id="search-input" placeholder="<?= __('Cerca codice o nome...') ?>"
+        <input type="text" id="search-input" placeholder="<?= htmlspecialchars(__('Cerca codice o nome...'), ENT_QUOTES, 'UTF-8') ?>"
                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
     </div>
 
@@ -321,13 +321,13 @@ $pageTitle = __('Editor Classificazione Dewey');
             <span class="dewey-code">${escapeHtml(node.code)}</span>
             <span class="dewey-name">${escapeHtml(node.name)}</span>
             <div class="dewey-actions">
-                <button class="dewey-btn dewey-btn-edit" data-action="edit" title="<?= __('Modifica') ?>">
+                <button class="dewey-btn dewey-btn-edit" data-action="edit" title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-pen"></i>
                 </button>
-                <button class="dewey-btn dewey-btn-add" data-action="add" title="<?= __('Aggiungi decimale') ?>">
+                <button class="dewey-btn dewey-btn-add" data-action="add" title="<?= htmlspecialchars(__('Aggiungi decimale'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-plus"></i>
                 </button>
-                ${canDelete ? `<button class="dewey-btn dewey-btn-delete" data-action="delete" title="<?= __('Elimina') ?>">
+                ${canDelete ? `<button class="dewey-btn dewey-btn-delete" data-action="delete" title="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-trash"></i>
                 </button>` : ''}
             </div>
@@ -413,7 +413,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Nome') ?></label>
-                    <input type="text" id="add-name" placeholder="<?= __('Nome della classificazione') ?>"
+                    <input type="text" id="add-name" placeholder="<?= htmlspecialchars(__('Nome della classificazione'), ENT_QUOTES, 'UTF-8') ?>"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end gap-3">

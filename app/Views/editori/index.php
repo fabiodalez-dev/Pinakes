@@ -38,7 +38,7 @@ $editori = $data['editori'];
             <label class="form-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_nome" type="text" placeholder="<?= __('Nome editore...') ?>"
+            <input id="search_nome" type="text" placeholder="<?= htmlspecialchars(__('Nome editore...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -64,7 +64,7 @@ $editori = $data['editori'];
           </button>
 
           <!-- Clear All -->
-          <button id="clear-filters" class="btn-secondary justify-center" title="<?= __('Cancella tutti i filtri') ?>">
+          <button id="clear-filters" class="btn-secondary justify-center" title="<?= htmlspecialchars(__('Cancella tutti i filtri'), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-times mr-2"></i><span><?= __("Azzera") ?></span>
           </button>
         </div>
@@ -81,7 +81,7 @@ $editori = $data['editori'];
             <label class="form-label">
               <i class="fas fa-globe mr-1"></i><?= __("Sito web") ?>
             </label>
-            <input id="search_sito" type="text" placeholder="<?= __('URL...') ?>"
+            <input id="search_sito" type="text" placeholder="<?= htmlspecialchars(__('URL...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -90,7 +90,7 @@ $editori = $data['editori'];
             <label class="form-label">
               <i class="fas fa-road mr-1"></i><?= __("Indirizzo") ?>
             </label>
-            <input id="search_via" type="text" placeholder="<?= __('Via, numero...') ?>"
+            <input id="search_via" type="text" placeholder="<?= htmlspecialchars(__('Via, numero...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -99,7 +99,7 @@ $editori = $data['editori'];
             <label class="form-label">
               <i class="fas fa-hashtag mr-1"></i><?= __("CAP") ?>
             </label>
-            <input id="search_cap" type="text" placeholder="<?= __('Codice postale...') ?>"
+            <input id="search_cap" type="text" placeholder="<?= htmlspecialchars(__('Codice postale...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
         </div>

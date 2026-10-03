@@ -3,12 +3,14 @@ use App\Support\HtmlHelper;
 
 $title = __("Biblioteca Digitale - La tua biblioteca online");
 $catalogRoute = route_path('catalog');
-$legacyCatalogRoute = route_path('catalog_legacy');
 $apiCatalogRoute = route_path('api_catalog');
 $apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 $registerRoute = route_path('register');
 $homeEvents = $homeEvents ?? [];
 $homeEventsEnabled = $homeEventsEnabled ?? false;
+// The latest-books grid (home-books-grid.php) renders the catalogue card
+// markup with no CSS of its own: link the catalogue stylesheet for it.
+$catalogPageStyles = true;
 
 // Preload the hero background: it's the LCP element of the home page and,
 // being a CSS background, the browser only discovers it after CSS parsing.
@@ -150,7 +152,7 @@ $additional_css = "
         margin-bottom: 1rem;
         font-size: 3rem;
         font-weight: 800;
-        color: var(--primary-color);
+        color: var(--text-color);
         letter-spacing: -0.03em;
         line-height: 1.2;
     }
@@ -228,7 +230,7 @@ $additional_css = "
 
     .cta-section {
         background: var(--light-bg);
-        color: var(--primary-color);
+        color: var(--text-color);
         padding: 6rem 0;
         text-align: center;
         position: relative;
@@ -256,7 +258,7 @@ $additional_css = "
         font-weight: 800;
         margin-bottom: 1.5rem;
         letter-spacing: -0.03em;
-        color: var(--primary-color);
+        color: var(--text-color);
     }
 
     .cta-subtitle {
@@ -317,7 +319,7 @@ form.hero-search-form {
         border: none;
         background: transparent;
         font-size: 1.125rem;
-        color: var(--primary-color);
+        color: var(--text-color);
         font-weight: 500;
         outline: none;
         padding: 0.5rem 0;
@@ -340,14 +342,14 @@ form.hero-search-form {
     .hero-search-input:-webkit-autofill:focus,
     .hero-search-input:-webkit-autofill:active {
         -webkit-box-shadow: 0 0 0 30px white inset !important;
-        -webkit-text-fill-color: var(--primary-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
         background-color: transparent !important;
         transition: background-color 5000s ease-in-out 0s;
     }
 
     .hero-search-button {
-        background: var(--primary-color);
-        color: white;
+        background: var(--button-color);
+        color: var(--button-text-color);
         border: none;
         padding: 0.75rem 1.5rem;
         border-radius: 2px;
@@ -360,7 +362,8 @@ form.hero-search-form {
     }
 
     .hero-search-button:hover {
-        background: var(--secondary-color);
+        background: var(--button-hover);
+        color: var(--button-text-color);
         transform: translateY(-1px);
         box-shadow: none;
     }
@@ -578,7 +581,7 @@ form.hero-search-form {
     .genre-carousel-title {
         font-size: 2rem;
         font-weight: 800;
-        color: var(--primary-color);
+        color: var(--text-color);
         margin: 0;
         letter-spacing: -0.02em;
         text-align: left;
@@ -696,7 +699,7 @@ form.hero-search-form {
     .carousel-book-title {
         font-size: 1rem;
         font-weight: 700;
-        color: var(--primary-color);
+        color: var(--text-color);
         margin-bottom: 0.5rem;
         line-height: 1.3;
         display: -webkit-box;
@@ -817,13 +820,19 @@ form.hero-search-form {
         font-size: 1rem;
     }
 
+    /* Spinner / error rows inside the shared .books-grid span the full row. */
+    #latest-books-grid > :not(.book-card) {
+        grid-column: 1 / -1;
+    }
+
     .home-events__all-link {
         align-self: flex-start;
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
+        min-height: 44px;
         padding: 0.65rem 1.5rem;
-        border-radius: 999px;
+        border-radius: 2px;
         border: 1px solid var(--secondary-color);
         color: var(--secondary-color);
         font-weight: 600;
@@ -861,7 +870,7 @@ form.hero-search-form {
     .home-events-grid .event-card {
         background: var(--white);
         border: 1px solid var(--border-color);
-        border-radius: 16px;
+        border-radius: 2px;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -869,8 +878,8 @@ form.hero-search-form {
     }
 
     .home-events-grid .event-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+        transform: translateY(-2px);
+        box-shadow: none;
     }
 
     .home-events-grid .event-card__thumb {
@@ -929,8 +938,9 @@ form.hero-search-form {
         justify-content: center;
         width: 100%;
         gap: 0.4rem;
+        min-height: 44px;
         padding: 0.65rem 1rem;
-        border-radius: 999px;
+        border-radius: 2px;
         border: 1px solid var(--secondary-color);
         color: var(--secondary-color);
         font-weight: 600;

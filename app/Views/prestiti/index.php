@@ -197,7 +197,7 @@ $applicationToday = \App\Support\DateHelper::today();
           </label>
           <div class="flex gap-2">
             <input type="text" name="numero_inventario" id="return_copy_code" autocomplete="off"
-                   placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
+                   placeholder="<?= htmlspecialchars(__('Inserisci o scansiona il codice inventario di una copia specifica'), ENT_QUOTES, 'UTF-8') ?>"
                    class="block w-full rounded-lg border border-gray-300 px-4 py-2 focus:ring-blue-500 focus:border-blue-500">
             <button type="button" data-copy-scan data-copy-scan-target="return_copy_code"
                     class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
@@ -285,11 +285,11 @@ $applicationToday = \App\Support\DateHelper::today();
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div>
                 <label class="form-label"><?= __("Cerca Utente") ?></label>
-                <input name="utente" placeholder="<?= __('Nome, cognome, email...') ?>" class="form-input" />
+                <input name="utente" placeholder="<?= htmlspecialchars(__('Nome, cognome, email...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
               </div>
               <div>
                 <label class="form-label"><?= __("Cerca Libro") ?></label>
-                <input name="libro" placeholder="<?= __('Titolo...') ?>" class="form-input" />
+                <input name="libro" placeholder="<?= htmlspecialchars(__('Titolo...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
               </div>
               <div>
                 <label class="form-label"><?= __("Data prestito (Da)") ?></label>
@@ -337,7 +337,7 @@ $applicationToday = \App\Support\DateHelper::today();
                 <thead class="bg-slate-50 text-slate-600">
                     <tr>
                         <th scope="col" class="px-4 py-3 text-center font-medium w-10">
-                            <input type="checkbox" id="loans-select-all" class="w-4 h-4 rounded border-gray-300 cursor-pointer" title="<?= __('Seleziona tutti i prestiti estendibili') ?>">
+                            <input type="checkbox" id="loans-select-all" class="w-4 h-4 rounded border-gray-300 cursor-pointer" title="<?= htmlspecialchars(__('Seleziona tutti i prestiti estendibili'), ENT_QUOTES, 'UTF-8') ?>">
                         </th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Libro') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Utente') ?></th>
@@ -396,23 +396,23 @@ $applicationToday = \App\Support\DateHelper::today();
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <a href="<?= htmlspecialchars(url('/admin/loans/' . (int)$prestito['id'] . '/pdf'), ENT_QUOTES, 'UTF-8') ?>"
                                        class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors"
-                                       title="<?= __('Scarica PDF') ?>">
+                                       title="<?= htmlspecialchars(__('Scarica PDF'), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-file-pdf mr-2"></i>
                                         <?= __('PDF') ?>
                                     </a>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     <div class="flex items-center justify-end space-x-2">
-                                        <a href="<?= htmlspecialchars(url('/admin/loans/details/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
+                                        <a href="<?= htmlspecialchars(url('/admin/loans/details/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= htmlspecialchars(__("Dettagli"), ENT_QUOTES, 'UTF-8') ?>">
                                             <i class="fas fa-eye w-4 h-4"></i>
                                         </a>
                                         <?php if ($prestito['attivo']): ?>
-                                            <a href="<?= htmlspecialchars(url('/admin/loans/returned/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= __("Registra Restituzione") ?>">
+                                            <a href="<?= htmlspecialchars(url('/admin/loans/returned/' . (int)$prestito['id']), ENT_QUOTES, 'UTF-8') ?>" class="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="<?= htmlspecialchars(__("Registra Restituzione"), ENT_QUOTES, 'UTF-8') ?>">
                                                 <i class="fas fa-undo-alt w-4 h-4"></i>
                                             </a>
                                         <?php endif; ?>
                                         <?php if ($ssrRecallable): ?>
-                                            <button type="button" class="loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="<?= (int)$prestito['id'] ?>" title="<?= __("Invia Sollecito") ?>">
+                                            <button type="button" class="loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="<?= (int)$prestito['id'] ?>" title="<?= htmlspecialchars(__("Invia Sollecito"), ENT_QUOTES, 'UTF-8') ?>">
                                                 <i class="fas fa-bullhorn w-4 h-4"></i>
                                             </button>
                                         <?php endif; ?>
@@ -590,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     const safeId = parseInt(row.id, 10);
                     let actions = `<div class="flex items-center justify-end space-x-2">
-                        <a href="${window.BASE_PATH}/admin/loans/details/${safeId}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= __("Dettagli") ?>">
+                        <a href="${window.BASE_PATH}/admin/loans/details/${safeId}" class="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= htmlspecialchars(__("Dettagli"), ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     // Show "Conferma Ritiro" button for da_ritirare OR prenotato with today's date

@@ -52,11 +52,30 @@ async function ensureEmerotecaActive(page) {
   expect(active(), 'emeroteca could not be activated').toBe(true);
 }
 
+// Open a Choices.js single select, search, and pick the first match. The
+// option label is "Name (code)", so the same search finds by name or by code.
+async function pickCode(page, field, query, expected) {
+  const box = page.locator(`#article-${field}`).locator('xpath=ancestor::div[contains(concat(" ",normalize-space(@class)," ")," choices ")][1]');
+  await box.click();
+  const search = box.locator('input.choices__input--cloned');
+  await search.fill(query);
+  await page.waitForTimeout(300);
+  const suggestion = box.locator('.choices__list--dropdown .choices__item--choice').first();
+  await expect(suggestion).toHaveText(expected);
+  await suggestion.click();
+  await expect(box.locator('.choices__list--single .choices__item')).toHaveText(expected);
+}
+
 test.describe.serial('Emeroteca analytic record (#412)', () => {
   let articleId = 0;
 
   test.afterAll(() => {
-    if (articleId > 0) db(`DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
+    if (articleId > 0) {
+      // The author was added through the picker and became a registry entry.
+      const authorIds = db(`SELECT autore_id FROM emeroteca_contributi_autori WHERE contributo_id=${articleId} AND autore_id IS NOT NULL`).split('\n').filter(Boolean);
+      db(`DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
+      for (const id of authorIds) db(`DELETE FROM autori WHERE id=${Number(id)} AND NOT EXISTS (SELECT 1 FROM libri_autori WHERE autore_id=${Number(id)}) AND NOT EXISTS (SELECT 1 FROM emeroteca_contributi_autori WHERE autore_id=${Number(id)})`);
+    }
   });
 
   test('the analytic apparatus is reachable from the real form', async ({ page }) => {
@@ -85,16 +104,25 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
 
     await page.locator('#article-titolo').fill(`${marker} On the trail`);
     await page.locator('#article-sottotitolo').fill('a subtitle that carries half the meaning');
-    await page.locator('#article-autori').fill('Petersen, Hans Uwe');
+    // Picked as on the book form: type the name, Enter adds it (#412).
+    const authorInput = page.locator('#article-author-editor .choices__input--cloned');
+    await authorInput.click();
+    await authorInput.pressSequentially('Petersen, Hans Uwe');
+    await authorInput.press('Enter');
+    await expect(page.locator('#article-credits input[name$="[nome_credito]"]').last()).toHaveValue('Petersen, Hans Uwe');
     await page.locator('#article-contenitore_titolo').fill('Arbejderhistorie');
     await page.locator('#article-anno_pubblicazione').fill('1988');
     await page.locator('#article-numero').fill('31');
     await page.locator('#article-pagine').fill('18-38');
 
-    await advanced.locator('summary').click();
-    await page.locator('#article-lingua').fill('dan');
-    await page.locator('#article-paese').fill('DK');
-    await page.locator('#article-classificazione_schema').fill('DK5');
+    await advanced.locator(':scope > summary').click();
+    // Language and country are picked from searchable lists of names, and
+    // the code is what gets stored (#412): nobody has to know "dan" by heart.
+    await pickCode(page, 'lingua', 'danese', /^Danese \(dan\)$/);
+    await pickCode(page, 'paese', 'DK', /^Danimarca \(DK\)$/);
+    await page.locator('#article-classificazione_schema').selectOption('DK5');
+    await expect(page.locator('#article-scheme-other'), 'the free scheme name appears only for "Other"').toBeHidden();
+    await expect(page.locator('#article-class-dewey'), 'the Dewey picker appears only for DDC').toBeHidden();
     await page.locator('#article-classificazione').fill('33.129');
     await page.locator('#article-nota_possesso').fill('Copy / offprint only');
 
@@ -124,27 +152,223 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     expect(stored, 'every analytic field reached the database').toBe('dan|DK|DK5|33.129|Copy / offprint only|1');
   });
 
+  test('Dewey notation comes from the book form picker; other schemes are named', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    await login(page);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    const advanced = page.locator('details', { hasText: /Descrizione bibliografica avanzata|Advanced bibliographic/ }).first();
+    await advanced.locator(':scope > summary').click();
+    // A stored code comes back selected, shown by name.
+    await expect(page.locator('#article-lingua').locator('xpath=ancestor::div[contains(concat(" ",normalize-space(@class)," ")," choices ")][1]').locator('.choices__list--single .choices__item')).toHaveText(/^Danese \(dan\)$/);
+
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#article-class-dewey')).toBeVisible();
+    await expect(page.locator('#article-classificazione'), 'the text box steps aside').toBeHidden();
+    // 33.129 is a DK5 notation, not a Dewey code: it is not carried over.
+    await expect(page.locator('#dewey_chip_container')).toBeHidden();
+    // Passing through DDC without picking anything must not erase it.
+    await page.locator('#article-classificazione_schema').selectOption('DK5');
+    await expect(page.locator('#article-classificazione')).toHaveValue('33.129');
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#article-class-dewey')).toBeVisible();
+    // The Dewey box searches by subject as well as by code (#412).
+    await page.locator('#dewey_manual_input').pressSequentially('mammif');
+    await expect(page.locator('#dewey_suggest li').filter({ hasText: /^599 — / })).toBeVisible();
+    await page.locator('#dewey_suggest li').filter({ hasText: /^599 — / }).click();
+    await expect(page.locator('#dewey_chip_code')).toContainText('599');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('599');
+    // Picking a shallower class drops the menus of the old path (500 > 590 > 599).
+    await page.locator('#dewey_manual_input').pressSequentially('100');
+    await page.locator('#dewey_suggest li').filter({ hasText: /^100 — / }).click();
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('100');
+    await expect(page.locator('#dewey_levels_container select'), 'only the main classes are left').toHaveCount(1);
+    await expect(page.locator('#dewey_levels_container select').first()).toHaveValue('100');
+    // Returning to an already-initialised picker submits the latest text,
+    // and leaving it retains the code most recently selected in the picker.
+    await page.locator('#article-classificazione_schema').selectOption('DK5');
+    await expect(page.locator('#article-classificazione')).toHaveValue('100');
+    await page.locator('#article-classificazione').fill('200');
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('200');
+    await expect(page.locator('#dewey_chip_code')).toContainText('200');
+    // And any code can still be typed and added, listed or not.
+    await page.locator('#dewey_manual_input').fill('305.8');
+    await page.locator('#dewey_add_btn').click();
+    await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
+    await page.locator('button[type=submit]:has-text("Salva")').first().click();
+    await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('DDC|305.8');
+
+    // Reopened, the Dewey picker shows the stored code.
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
+
+    // A scheme outside the list is named, and stored under that name.
+    await advanced.locator(':scope > summary').click();
+    await page.locator('#article-classificazione_schema').selectOption('__altro');
+    await expect(page.locator('#article-scheme-other')).toBeVisible();
+    await page.locator('#article-classificazione_schema_altro').fill('SAB');
+    await page.locator('#article-classificazione').fill('Kbb');
+    await page.locator('button[type=submit]:has-text("Salva")').first().click();
+    await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('SAB|Kbb');
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#article-classificazione_schema')).toHaveValue('__altro');
+    await expect(page.locator('#article-classificazione_schema_altro')).toHaveValue('SAB');
+
+    // A Dewey code deeper than the list comes back in the picker as it is.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.91409' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
+    // Removed, it can be typed back: the picker accepts every depth it shows.
+    await advanced.locator(':scope > summary').click();
+    await page.locator('#dewey_chip_remove').click();
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('');
+    await page.locator('#dewey_manual_input').fill('823.91409');
+    await page.locator('#dewey_add_btn').click();
+    await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
+    await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
+    // Typing straight after Add searches at once (a stale blur timer used to
+    // cancel it), and a failed search closes the old suggestions.
+    await page.locator('#dewey_chip_remove').click();
+    await page.locator('#dewey_manual_input').fill('');
+    await page.locator('#dewey_manual_input').pressSequentially('mammif');
+    await expect(page.locator('#dewey_suggest li').first()).toBeVisible();
+    await page.route('**/api/dewey/autocomplete**', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"Errore nella ricerca."}' }));
+    await page.locator('#dewey_manual_input').pressSequentially('ero');
+    await expect(page.locator('#dewey_suggest')).toBeHidden();
+    await expect(page.locator('#dewey_manual_input')).toHaveAttribute('aria-expanded', 'false');
+    await page.unroute('**/api/dewey/autocomplete**');
+    // A stored notation the picker cannot show stays in the text box, not behind an empty picker.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await advanced.locator(':scope > summary').click();
+    await expect(page.locator('#article-classificazione')).toBeVisible();
+    await expect(page.locator('#article-classificazione')).toHaveValue('823.914 BRO');
+    await expect(page.locator('#article-class-dewey')).toBeHidden();
+
+    // Back to the values the public-page tests below read.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DK5', classificazione='33.129' WHERE id=${articleId}`);
+  });
+
+  test('saving never loses what the cataloguer cannot see', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    // CONCAT_WS drops NULLs, so each field gets a placeholder to keep its place.
+    const keep = db(`SELECT CONCAT_WS('|', COALESCE(HEX(autori),'-'), COALESCE(contenitore_tipo,'-'), COALESCE(classificazione_schema,'-'), COALESCE(HEX(classificazione),'-')) FROM emeroteca_contributi WHERE id=${articleId}`);
+    const keepCredits = db(`SELECT ordine_credito, COALESCE(autore_id,'NULL'), HEX(nome_credito), ruolo FROM emeroteca_contributi_autori WHERE contributo_id=${articleId} ORDER BY ordine_credito`)
+      .split('\n').filter(Boolean).map((line) => line.split('\t'));
+    await login(page);
+    const advanced = page.locator('details', { hasText: /Descrizione bibliografica avanzata|Advanced bibliographic/ }).first();
+    const save = async () => {
+      await page.locator('button[type=submit]:has-text("Salva")').first().click();
+      await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
+    };
+
+    // A stored Dewey notation the picker cannot show survives a round trip
+    // through the scheme select: DDC -> UDC -> DDC, then save.
+    db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await advanced.locator(':scope > summary').click();
+    await page.locator('#article-classificazione_schema').selectOption('UDC');
+    await page.locator('#article-classificazione_schema').selectOption('DDC');
+    await expect(page.locator('#article-classificazione')).toBeVisible();
+    await expect(page.locator('#article-classificazione')).toHaveValue('823.914 BRO');
+    await save();
+    expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('DDC|823.914 BRO');
+
+    // Host-volume fields typed under "Anthology" and left behind after
+    // switching to a journal neither block the save nor get stored.
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.locator('#article-contenitore_tipo').selectOption('antologia');
+    await page.locator('#article-isbn').fill('978-0-306-40615-8');
+    await page.locator('#article-contenitore_editore').fill('Leftover Press');
+    await page.locator('#article-contenitore_tipo').selectOption('rivista');
+    await expect(page.locator('#article-isbn'), 'hidden fields are not posted').toBeDisabled();
+    await save();
+    expect(db(`SELECT CONCAT_WS('|', contenitore_tipo, COALESCE(isbn,'-'), COALESCE(contenitore_editore,'-')) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('rivista|-|-');
+
+    // A record typed before shared authors, with more names than the picker
+    // can link, stays on the text field and saves unchanged.
+    const many = Array.from({ length: 21 }, (_, i) => `Author ${i + 1}`).join('; ');
+    db(`DELETE FROM emeroteca_contributi_autori WHERE contributo_id=${articleId}`);
+    db(`UPDATE emeroteca_contributi SET autori='${many}' WHERE id=${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#article-authors-text-only')).toBeVisible();
+    await expect(page.locator('#article-autori')).toBeEnabled();
+    await expect(page.locator('#article-authors-picker')).toBeHidden();
+    await save();
+    expect(db(`SELECT autori FROM emeroteca_contributi WHERE id=${articleId}`)).toBe(many);
+
+    // Restore the record the public-page tests read.
+    const sql = (value, hex = false) => (value === '-' ? 'NULL' : hex ? `CONVERT(UNHEX('${value}') USING utf8mb4)` : `'${value}'`);
+    const [autoriHex, tipo, schema, notationHex] = keep.split('|');
+    db(`UPDATE emeroteca_contributi SET autori=${sql(autoriHex, true)}, contenitore_tipo=${sql(tipo)}, classificazione_schema=${sql(schema)}, classificazione=${sql(notationHex, true)} WHERE id=${articleId}`);
+    db(`DELETE FROM emeroteca_contributi_autori WHERE contributo_id=${articleId}`);
+    for (const [order, authorId, nameHex, role] of keepCredits) {
+      db(`INSERT INTO emeroteca_contributi_autori (contributo_id, ordine_credito, autore_id, nome_credito, ruolo) VALUES (${articleId}, ${order}, ${authorId}, CONVERT(UNHEX('${nameHex}') USING utf8mb4), '${role}')`);
+    }
+  });
+
+  test('the author search says when it fails and links a name typed in citation form', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    const personId = Number(db(`INSERT INTO autori (nome) VALUES ('Vincent ${marker} van Gogh'); SELECT LAST_INSERT_ID();`));
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/periodicals/articles/create`);
+      const authorInput = page.locator('#article-author-editor .choices__input--cloned');
+
+      // An outage is reported, not shown as "no such author".
+      await page.route('**/api/search/autori**', (route) => route.fulfill({ status: 500, body: 'down' }));
+      await authorInput.click();
+      await authorInput.pressSequentially('Petersen');
+      await expect(page.locator('#article-author-search-error')).toBeVisible();
+      await page.unroute('**/api/search/autori**');
+
+      // "van Gogh, Vincent" typed in citation form: Enter links the existing
+      // person instead of creating a duplicate, and the typed form is the credit.
+      await authorInput.fill('');
+      await authorInput.pressSequentially(`${marker} van Gogh, Vincent`);
+      await expect(page.locator('#article-author-search-error')).toBeHidden();
+      await expect(page.locator('#article-author-editor .choices__list--dropdown .choices__item--choice').filter({ hasText: `Vincent ${marker} van Gogh` })).toBeVisible();
+      await page.waitForTimeout(300);
+      await authorInput.press('Enter');
+      await expect(page.locator('#article-credits input[name="credits[0][autore_id]"]')).toHaveValue(String(personId));
+      await expect(page.locator('#article-credits input[name="credits[0][nome_credito]"]')).toHaveValue(`${marker} van Gogh, Vincent`);
+      await expect(page.locator('#article-credits input[name="credits[0][create]"]')).toHaveValue('');
+    } finally {
+      db(`DELETE FROM autori WHERE id=${personId}`);
+    }
+  });
+
   test('the public page reads as an analytic record', async ({ page }) => {
     expect(articleId).toBeGreaterThan(0);
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
 
-    // The cookie banner ships a <main> of its own, so the article's is named.
-    await expect(page.locator('main[data-articolo-id] h1')).toContainText(marker);
-    await expect(page.locator('main[data-articolo-id]')).toContainText('a subtitle that carries half the meaning');
+    // The article's container is named (the layout owns the page's <main>).
+    // The title and subtitle live in the book-style hero, just above the main.
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toHaveAttribute('id', 'emeroteca-articolo');
+    await expect(page.locator('h1.resource-title')).toContainText(marker);
+    await expect(page.locator('.book-hero.resource-hero')).toContainText('a subtitle that carries half the meaning');
     // The scheme travels with the notation: 33.129 alone means nothing to a
     // reader who does not already know which list it came from.
-    await expect(page.locator('main[data-articolo-id]')).toContainText('DK5: 33.129');
-    await expect(page.locator('main[data-articolo-id]')).toContainText('Copy / offprint only');
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toContainText('DK5: 33.129');
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toContainText('Copy / offprint only');
 
     // The stored code is `dan`; the page must show a language NAME, and it
     // must not show the raw code. That is the whole reason the column holds a
     // code in a per-user multilingual application.
-    const languageCell = page.locator('dd', { hasText: /^(danese|Danish|Dänisch|danois|dansk)$/i });
+    const languageCell = page.locator('#emeroteca-articolo .meta-value', { hasText: /^(danese|Danish|Dänisch|danois|dansk)$/i });
     await expect(languageCell.first(), 'the ISO code is rendered as a name').toBeVisible();
+    // Structured data speaks BCP 47: "da", not the stored "dan".
+    const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).join(' ');
+    expect(ld).toMatch(/"inLanguage":\s*"da"/);
 
-    await expect(page.locator('main[data-articolo-id]')).toContainText(/Cita questo articolo|Cite this article/);
-    await expect(page.locator('main[data-articolo-id]')).toContainText('Petersen, H. U. (1988).');
-    await expect(page.locator('[data-citation-copy]')).toHaveCount(2);
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toContainText(/Cita questo articolo|Cite this article/);
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toContainText('Petersen, H. U. (1988).');
+    // One "Cite" button; the dialog holds every style (#412).
+    await expect(page.locator('#cite-open')).toBeVisible();
+    await expect(page.locator('#cite-list [data-cite-copy]')).toHaveCount(4);
   });
 
   test('exactly one primary action, and it is never a link a browser cannot follow', async ({ page }) => {
@@ -152,17 +376,17 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
 
     // No PDF on this record, so the external address is the primary action.
-    await expect(page.locator('.btn-primary')).toHaveCount(1);
-    await expect(page.locator('.btn-primary')).toHaveAttribute('href', 'https://arkiv.example/1988-31.pdf');
-    await expect(page.locator('.btn-primary')).toHaveAttribute('rel', /noopener/);
-    await expect(page.locator('main[data-articolo-id]')).toContainText('For internal use only');
+    await expect(page.locator('a.btn-primary')).toHaveCount(1);
+    await expect(page.locator('a.btn-primary')).toHaveAttribute('href', 'https://arkiv.example/1988-31.pdf');
+    await expect(page.locator('a.btn-primary')).toHaveAttribute('rel', /noopener/);
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toContainText('For internal use only');
 
     // A local path is a reference the library can read and a browser cannot.
     db(`UPDATE emeroteca_contributi SET risorsa_url='\\\\\\\\archivio\\\\scans\\\\1988-31.pdf' WHERE id=${articleId}`);
     await page.reload();
-    await expect(page.locator('.btn-primary'), 'an unfollowable path is not promoted to a button').toHaveCount(0);
-    await expect(page.locator('main[data-articolo-id] code')).toContainText('archivio');
-    const anchors = await page.locator('main[data-articolo-id] a[href*="archivio"]').count();
+    await expect(page.locator('a.btn-primary'), 'an unfollowable path is not promoted to a button').toHaveCount(0);
+    await expect(page.locator('#emeroteca-articolo[data-articolo-id] code')).toContainText('archivio');
+    const anchors = await page.locator('#emeroteca-articolo[data-articolo-id] a[href*="archivio"]').count();
     expect(anchors, 'and is never wrapped in an anchor').toBe(0);
 
     // Unpublishing the resource removes it from the page entirely, not merely
@@ -180,13 +404,82 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
 
-    const button = page.locator('[data-citation-copy]').first();
-    const expected = (await page.locator('[data-citation-text]').first().textContent() || '').trim();
+    await page.locator('#cite-open').click();
+    await expect(page.locator('#cite-dialog')).toBeVisible();
+    const button = page.locator('#cite-list [data-cite-copy]').first();
+    const expected = (await button.getAttribute('data-cite-text') || '').trim();
     await button.click();
 
     await expect(button).toHaveText(/Copiato|Copied|Kopiert|Copié|Kopieret/);
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard.trim(), 'the clipboard holds the citation as rendered').toBe(expected);
+  });
+
+  test('a second copy click does not leave the button stuck on "Copied"', async ({ page, context, browserName }) => {
+    test.skip(browserName !== 'chromium', 'clipboard permissions are only grantable in Chromium');
+    expect(articleId).toBeGreaterThan(0);
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
+    await page.locator('#cite-open').click();
+    const button = page.locator('#cite-list [data-cite-copy]').first();
+    const label = button.locator('[data-cite-label]');
+    const original = (await label.textContent() || '').trim();
+    await button.click();
+    await expect(label).not.toHaveText(original);
+    await button.click();
+    // The status is announced to assistive technology, not only drawn on the button.
+    await expect(page.locator('#cite-status[role="status"][aria-live="polite"]')).toHaveText(/Copiato|Copied|Kopiert|Copié|Kopieret/);
+    await expect(label, 'the label comes back after the second click too').toHaveText(original, { timeout: 4000 });
+  });
+
+  test('a failed copy says so in a live region and stays until the reader acts', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    // No Clipboard API and no execCommand: both copy routes fail.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+      document.execCommand = () => false;
+    });
+    await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
+    await page.locator('#cite-open').click();
+    const button = page.locator('#cite-list [data-cite-copy]').first();
+    const original = (await button.locator('[data-cite-label]').textContent() || '').trim();
+    await button.click();
+    const status = page.locator('#cite-status');
+    await expect(status).toBeVisible();
+    await expect(status).toHaveAttribute('aria-live', 'polite');
+    const message = (await status.textContent() || '').trim();
+    expect(message.length, 'the failure is explained').toBeGreaterThan(10);
+    await page.waitForTimeout(2600);
+    await expect(status, 'the failure message does not vanish after two seconds').toHaveText(message);
+    await expect(button.locator('[data-cite-label]'), 'the button keeps its own label').toHaveText(original);
+  });
+
+  test('the Cite dialog lists every style, filters to one and closes', async ({ page }) => {
+    expect(articleId).toBeGreaterThan(0);
+    await page.goto(`${BASE}/emeroteca/articolo/${articleId}`);
+    await page.locator('#cite-open').click();
+    const dialog = page.locator('#cite-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('[data-cite-style]')).toHaveCount(4);
+    // Titles the style italicises are italic in the HTML a word processor receives.
+    await expect(dialog.locator('[data-cite-style="apa"] [data-cite-html] i').first()).toHaveText('Arbejderhistorie');
+    await dialog.locator('#cite-style').selectOption('mla');
+    await expect(dialog.locator('[data-cite-style]:visible')).toHaveCount(1);
+    await expect(dialog.locator('[data-cite-style="mla"]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('#cite-open'), 'focus returns to the button that opened it').toBeFocused();
+  });
+
+  test('a book page offers the same Cite dialog', async ({ page }) => {
+    const bookPath = db(`SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1`);
+    test.skip(!bookPath, 'no book in the catalogue');
+    await page.goto(`${BASE}/catalogo`);
+    await page.locator('a[href*="/libro"], .book-card a').first().click();
+    await page.locator('#cite-open').click();
+    await expect(page.locator('#cite-dialog [data-cite-style]')).toHaveCount(4);
+    const apa = await page.locator('#cite-dialog [data-cite-style="apa"] [data-cite-copy]').getAttribute('data-cite-text');
+    expect(apa, 'a book citation is never empty').toBeTruthy();
   });
 
   test('RIS downloads as a file a reference manager accepts', async ({ page }) => {

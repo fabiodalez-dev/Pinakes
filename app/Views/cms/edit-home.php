@@ -142,13 +142,13 @@ function getSectionDisplayName($key) {
             <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo principale (H1)") ?></label>
             <input type="text" id="hero_title" name="hero[title]" value="<?php echo HtmlHelper::e($hero['title'] ?? 'La Tua Biblioteca Digitale'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
+                   placeholder="<?= htmlspecialchars(__('Es. La Tua Biblioteca Digitale'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
           <div>
             <label for="hero_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo HtmlHelper::e($hero['subtitle'] ?? 'Esplora, prenota e gestisci la tua collezione di libri'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                   placeholder="<?= __('Descrizione breve') ?>">
+                   placeholder="<?= htmlspecialchars(__('Descrizione breve'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
         </div>
 
@@ -255,7 +255,7 @@ function getSectionDisplayName($key) {
                     <input type="text" id="feature<?php echo $num; ?>_icon" name="feature_<?php echo $num; ?>[content]"
                            value="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?>"
                            class="block flex-1 rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
-                           placeholder="<?= __('fas fa-users') ?>">
+                           placeholder="<?= htmlspecialchars(__('fas fa-users'), ENT_QUOTES, 'UTF-8') ?>">
                     <button type="button" onclick="openIconPicker('feature<?php echo $num; ?>_icon')"
                             class="inline-flex items-center gap-1 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">
                       <i class="fas fa-icons"></i>
@@ -311,7 +311,7 @@ function getSectionDisplayName($key) {
           <input type="text" id="text_content_title" name="text_content[title]"
                  value="<?php echo HtmlHelper::e($textContent['title'] ?? ''); ?>"
                  class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('Lascia vuoto per nascondere il titolo') ?>">
+                 placeholder="<?= htmlspecialchars(__('Lascia vuoto per nascondere il titolo'), ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div>
           <label for="text_content_body" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Contenuto") ?></label>
@@ -488,7 +488,7 @@ function getSectionDisplayName($key) {
                 <input type="text" id="hero_seo_title" name="hero[seo_title]" maxlength="255"
                        value="<?php echo HtmlHelper::e($hero['seo_title'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. Biblioteca Digitale - Migliaia di libri da esplorare') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. Biblioteca Digitale - Migliaia di libri da esplorare'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Apparirà nei risultati di ricerca Google. Se vuoto, usa il titolo hero o il nome dell'app.") ?>
                 </p>
@@ -501,7 +501,7 @@ function getSectionDisplayName($key) {
                 </label>
                 <textarea id="hero_seo_description" name="hero[seo_description]" rows="3" maxlength="500"
                           class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                          placeholder="<?= __('Es. Scopri il nostro catalogo digitale con migliaia di libri disponibili per il prestito. Registrati gratuitamente e inizia a leggere oggi stesso.') ?>"><?php echo HtmlHelper::e($hero['seo_description'] ?? ''); ?></textarea>
+                          placeholder="<?= htmlspecialchars(__('Es. Scopri il nostro catalogo digitale con migliaia di libri disponibili per il prestito. Registrati gratuitamente e inizia a leggere oggi stesso.'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($hero['seo_description'] ?? ''); ?></textarea>
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Apparirà sotto il titolo nei risultati di ricerca. Se vuoto, usa il sottotitolo hero o una descrizione generica.") ?>
                 </p>
@@ -515,7 +515,7 @@ function getSectionDisplayName($key) {
                 <input type="text" id="hero_seo_keywords" name="hero[seo_keywords]" maxlength="500"
                        value="<?php echo HtmlHelper::e($hero['seo_keywords'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. biblioteca digitale, prestito libri, catalogo online, libri gratis') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. biblioteca digitale, prestito libri, catalogo online, libri gratis'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Parole chiave per i motori di ricerca (impatto SEO limitato). Separate da virgola.") ?>
                 </p>
@@ -542,7 +542,7 @@ function getSectionDisplayName($key) {
                 <input type="text" id="hero_og_title" name="hero[og_title]" maxlength="255"
                        value="<?php echo HtmlHelper::e($hero['og_title'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. La Tua Biblioteca Digitale'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Titolo mostrato quando condividi su Facebook/LinkedIn. Se vuoto, usa il titolo SEO o hero.") ?>
                 </p>
@@ -555,7 +555,7 @@ function getSectionDisplayName($key) {
                 </label>
                 <textarea id="hero_og_description" name="hero[og_description]" rows="3" maxlength="500"
                           class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                          placeholder="<?= __('Es. Esplora migliaia di libri, prenota online e gestisci i tuoi prestiti.') ?>"><?php echo HtmlHelper::e($hero['og_description'] ?? ''); ?></textarea>
+                          placeholder="<?= htmlspecialchars(__('Es. Esplora migliaia di libri, prenota online e gestisci i tuoi prestiti.'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($hero['og_description'] ?? ''); ?></textarea>
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Descrizione per anteprima social. Se vuoto, usa la descrizione SEO.") ?>
                 </p>
@@ -569,7 +569,7 @@ function getSectionDisplayName($key) {
                 <input type="text" id="hero_og_image" name="hero[og_image]" maxlength="500"
                        value="<?php echo HtmlHelper::e($hero['og_image'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. https://tuosito.com/uploads/og-image.jpg') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. https://tuosito.com/uploads/og-image.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Immagine mostrata quando condividi su social. Dimensioni consigliate: 1200x630px (rapporto 1.91:1). Se vuoto, usa l'immagine hero di sfondo.") ?>
                 </p>
@@ -583,7 +583,7 @@ function getSectionDisplayName($key) {
                 <input type="url" id="hero_og_url" name="hero[og_url]" maxlength="500"
                        value="<?php echo HtmlHelper::e($hero['og_url'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. https://tuosito.com') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. https://tuosito.com'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("URL principale del sito. Se vuoto, usa l'URL corrente.") ?>
                 </p>
@@ -649,7 +649,7 @@ function getSectionDisplayName($key) {
                 <input type="text" id="hero_twitter_title" name="hero[twitter_title]" maxlength="255"
                        value="<?php echo HtmlHelper::e($hero['twitter_title'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. La Tua Biblioteca Digitale') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. La Tua Biblioteca Digitale'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Titolo per Twitter/X. Se vuoto, usa il titolo Open Graph.") ?>
                 </p>
@@ -662,7 +662,7 @@ function getSectionDisplayName($key) {
                 </label>
                 <textarea id="hero_twitter_description" name="hero[twitter_description]" rows="3" maxlength="500"
                           class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                          placeholder="<?= __('Es. Esplora migliaia di libri, prenota online e gestisci i tuoi prestiti.') ?>"><?php echo HtmlHelper::e($hero['twitter_description'] ?? ''); ?></textarea>
+                          placeholder="<?= htmlspecialchars(__('Es. Esplora migliaia di libri, prenota online e gestisci i tuoi prestiti.'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($hero['twitter_description'] ?? ''); ?></textarea>
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Descrizione per Twitter/X. Se vuoto, usa la descrizione Open Graph.") ?>
                 </p>
@@ -676,7 +676,7 @@ function getSectionDisplayName($key) {
                 <input type="text" id="hero_twitter_image" name="hero[twitter_image]" maxlength="500"
                        value="<?php echo HtmlHelper::e($hero['twitter_image'] ?? ''); ?>"
                        class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                       placeholder="<?= __('Es. https://tuosito.com/uploads/twitter-image.jpg') ?>">
+                       placeholder="<?= htmlspecialchars(__('Es. https://tuosito.com/uploads/twitter-image.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="mt-1 text-xs text-gray-500">
                   <?= __("Immagine per Twitter/X. Dimensioni consigliate: 1200x675px o 1200x1200px. Se vuoto, usa l'immagine Open Graph.") ?>
                 </p>
@@ -822,7 +822,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <!-- Search -->
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="relative">
-                <input type="text" id="iconSearch" placeholder="<?= __('Cerca icona... (es. user, home, book)') ?>"
+                <input type="text" id="iconSearch" placeholder="<?= htmlspecialchars(__('Cerca icona... (es. user, home, book)'), ENT_QUOTES, 'UTF-8') ?>"
                        class="w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 pl-10 pr-4 py-2 text-sm"
                        oninput="filterIcons(this.value)">
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
