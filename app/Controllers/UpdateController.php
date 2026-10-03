@@ -791,9 +791,6 @@ class UpdateController
     }
 
     /**
-     * Helper: Send JSON response
-     */
-    /**
      * What to say when the updater cannot be built, after logging why.
      *
      * The full exception always goes to the application log. Only an
@@ -814,6 +811,9 @@ class UpdateController
         return __("Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.");
     }
 
+    /**
+     * Helper: Send JSON response
+     */
     private function jsonResponse(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));

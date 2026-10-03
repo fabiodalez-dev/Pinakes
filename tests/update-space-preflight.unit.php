@@ -137,6 +137,20 @@ $check($call($updater, 'probeWrite', [$estimate]) === '',
     'the full estimate can be proven on this checkout (' . number_format($estimate) . ' bytes)');
 $check(count(glob($root . '/storage/tmp/.space_probe_*') ?: []) === 0, 'no probe file survives a full-size probe');
 
+// The panel shows only the rollback copy, the part cheap enough to compute on
+// every render; the gate adds the incoming tree, the package and the backup.
+// So the row is a floor and must say so, or it reads green for an update the
+// gate refuses.
+$spaceRow = null;
+foreach ($updater->checkRequirements()['requirements'] as $row) {
+    if (($row['name'] ?? '') === __('Spazio libero')) {
+        $spaceRow = $row;
+    }
+}
+$floor = trim(str_replace('%s', '', __('almeno %s')));
+$check(is_array($spaceRow) && str_starts_with((string) $spaceRow['required'], $floor),
+    'the panel presents the space figure as a minimum (' . (string) ($spaceRow['required'] ?? 'missing') . ')');
+
 // Tri-state: "the probe could not be created" must not be reported as "no
 // space". Built with a FILE where storage/tmp belongs, so mkdir cannot succeed
 // even for uid 0 — a chmod-based precondition inverts under root.

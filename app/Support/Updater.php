@@ -507,10 +507,6 @@ class Updater
     }
 
     /**
-     * Extract final HTTP status code from response headers (handles redirects).
-     * @param array<int, string> $headers
-     */
-    /**
      * GET a URL through the HTTP stream wrapper, returning [body, responseHeaders].
      *
      * Reads response headers from stream_get_meta_data()['wrapper_data'] instead
@@ -540,6 +536,10 @@ class Updater
         return [$body, is_array($wrapperData) ? $wrapperData : []];
     }
 
+    /**
+     * Extract final HTTP status code from response headers (handles redirects).
+     * @param array<int, string> $headers
+     */
     private function extractFinalHttpStatus(array $headers): int
     {
         for ($i = count($headers) - 1; $i >= 0; $i--) {
@@ -2452,19 +2452,7 @@ class Updater
             $unwritable = $this->verifyWritableTargets($sourcePath, $this->rootPath);
             if ($unwritable !== []) {
                 $this->debugLog('ERROR', 'Preflight: percorsi non scrivibili', ['paths' => $unwritable]);
-                // This branch is reached only AFTER verifyWritableTargets already
-                // found unwritable app files; isRunningInContainer() just refines
-                // the MESSAGE. A community image that mounts the code from a
-                // writable volume passes the writability check and never lands
-                // here — so the wording must state the real condition (files not
-                // writable) rather than presume "you're on the Docker image".
-                if ($this->isRunningInContainer()) {
-                    throw new Exception(__('I file dell\'applicazione non sono scrivibili dall\'utente del web server e Pinakes gira dentro un container. Sull\'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell\'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un\'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.'));
-                }
-                throw new Exception(sprintf(
-                    __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova, oppure esegui l\'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>'),
-                    implode(', ', array_slice($unwritable, 0, 15)) . (count($unwritable) > 15 ? ', …' : '')
-                ));
+                throw new Exception($this->unwritablePathsMessage($unwritable));
             }
 
             // PRE-FLIGHT (issue #422): free space. The next step copies the whole
@@ -2592,9 +2580,6 @@ class Updater
         }
     }
 
-    /**
-     * Backup application files for atomic rollback
-     */
     /**
      * Space needed by an update, in bytes: the rollback copy of the directories
      * backupAppFiles() duplicates, plus a margin for the new files landing
@@ -2767,6 +2752,30 @@ class Updater
     }
 
     /**
+     * Why an update cannot write where it must: the paths, and on a container
+     * the wording that tells the official read-only image from a community
+     * image whose code volume is mounted read-only. Shared by the space gate,
+     * which runs first, and the #205 writability preflight in installUpdate(),
+     * so whichever trips the operator reads the same guidance.
+     *
+     * @param list<string> $paths paths relative to the installation where they lie inside it
+     */
+    private function unwritablePathsMessage(array $paths): string
+    {
+        // isRunningInContainer() only refines the MESSAGE. A community image
+        // that mounts the code from a writable volume never lands here, so the
+        // wording states the real condition (files not writable) rather than
+        // presume "you're on the Docker image".
+        if ($this->isRunningInContainer()) {
+            return __('I file dell\'applicazione non sono scrivibili dall\'utente del web server e Pinakes gira dentro un container. Sull\'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell\'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un\'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.');
+        }
+        return sprintf(
+            __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova, oppure esegui l\'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>'),
+            implode(', ', array_slice($paths, 0, 15)) . (count($paths) > 15 ? ', …' : '')
+        );
+    }
+
+    /**
      * Aggregate simultaneous writes on each filesystem before probing. Missing
      * directories use their nearest existing ancestor, where mkdir will allocate.
      * @param array<string, int> $requirements
@@ -2774,6 +2783,7 @@ class Updater
     private function checkSpaceRequirements(array $requirements): ?string
     {
         $volumes = [];
+        $unwritable = [];
         foreach ($requirements as $path => $bytes) {
             $dir = $path;
             while (!is_dir($dir) && !file_exists($dir) && dirname($dir) !== $dir) {
@@ -2781,15 +2791,24 @@ class Updater
             }
             $stat = @stat($dir);
             if (!is_dir($dir) || !is_writable($dir) || $stat === false) {
-                return sprintf(
-                    __('Impossibile usare la directory di lavoro dell\'aggiornamento (%s): non esiste o non è scrivibile dall\'utente del web server. Correggi i permessi e riprova.'), $path
-                );
+                // Keep going: a read-only code tree has many such directories,
+                // and the operator needs the whole list, worded as the #205
+                // writability preflight words it, not the first path met.
+                $root = rtrim(str_replace('\\', '/', $this->rootPath), '/') . '/';
+                $normalized = str_replace('\\', '/', $path);
+                $unwritable[str_starts_with($normalized, $root) ? substr($normalized, strlen($root)) : $normalized] = true;
+                continue;
             }
             $key = (string) $stat['dev'];
             if (!isset($volumes[$key])) {
                 $volumes[$key] = ['path' => $dir, 'bytes' => 0];
             }
             $volumes[$key]['bytes'] += max(0, $bytes);
+        }
+        if ($unwritable !== []) {
+            $paths = array_keys($unwritable);
+            sort($paths);
+            return $this->unwritablePathsMessage($paths);
         }
         // A previous panel/diagnostic probe cannot establish current capacity.
         $this->probeVerdicts = [];
@@ -2827,15 +2846,15 @@ class Updater
      * require a readable filesystem bound; a small sample never proves a larger
      * requirement. Cached diagnostics are scoped to both path and byte count.
      */
-    private function probeWrite(int $bytes, bool $fresh = false, ?string $directory = null): string
+    private function probeWrite(int $bytes, ?string $directory = null): string
     {
         if ($bytes <= 0) {
             return '';
         }
+        // checkSpaceRequirements() clears the cache before it probes, so only
+        // the panel and the diagnostics reuse a verdict here.
         $key = ($directory ?? $this->rootPath . '/storage/tmp') . ':' . $bytes;
-        if ($fresh) {
-            $this->probeVerdicts = [];
-        } elseif (isset($this->probeVerdicts[$key])) {
+        if (isset($this->probeVerdicts[$key])) {
             return $this->probeVerdicts[$key];
         }
 
@@ -2919,12 +2938,6 @@ class Updater
     }
 
     /**
-     * Why a write to this path failed, in words an operator can act on.
-     * Cheapest and most specific first: a broad, side-effecting probe placed
-     * first becomes the default answer for everything below it, and on a nearly
-     * full volume it would report "no space" for a missing directory.
-     */
-    /**
      * Refuse an in-app update on the official Docker image.
      *
      * On that image the upgrade path is to move the container to the new image,
@@ -2981,6 +2994,12 @@ class Updater
         ]);
     }
 
+    /**
+     * Why a write to this path failed, in words an operator can act on.
+     * Cheapest and most specific first: a broad, side-effecting probe placed
+     * first becomes the default answer for everything below it, and on a nearly
+     * full volume it would report "no space" for a missing directory.
+     */
     private function describeWriteFailure(string $targetPath): string
     {
         // error_get_last() is process-global: capture it BEFORE this function
@@ -3001,7 +3020,7 @@ class Updater
         // Only a probe that actually ran out of room may claim a space problem;
         // 'unavailable' means the probe could not be created, which says
         // nothing about the failure being described.
-        if ($this->probeWrite(1024 * 1024, false, $dir) === 'nospace') {
+        if ($this->probeWrite(1024 * 1024, $dir) === 'nospace') {
             return __('spazio su disco o quota dell\'account esauriti');
         }
 
@@ -3009,6 +3028,9 @@ class Updater
         return $message !== '' ? $message : __('causa sconosciuta');
     }
 
+    /**
+     * Backup application files for atomic rollback
+     */
     private function backupAppFiles(): string
     {
         $timestamp = date('Y-m-d_His');
@@ -4045,15 +4067,6 @@ class Updater
     }
 
     /**
-     * Re-apply installer/database/triggers.sql using the DELIMITER-aware
-     * splitter. Called after a successful migration run so that loan-integrity
-     * triggers are kept current on upgrades (they cannot live inside migration
-     * files because those run under the starting version's non-DELIMITER-aware
-     * runner). Idempotent (triggers.sql is DROP + CREATE) and non-fatal — a
-     * missing TRIGGER privilege only logs a warning; the same overlap rules are
-     * enforced at the application layer.
-     */
-    /**
      * Re-derive availability caches after migrations that rewrite prestiti rows
      * (e.g. the 0.7.20 loan-state cleanup flips attivo/stato directly, which a
      * bare UPDATE cannot reflect into copie.stato / libri.copie_disponibili).
@@ -4072,6 +4085,15 @@ class Updater
         }
     }
 
+    /**
+     * Re-apply installer/database/triggers.sql using the DELIMITER-aware
+     * splitter. Called after a successful migration run so that loan-integrity
+     * triggers are kept current on upgrades (they cannot live inside migration
+     * files because those run under the starting version's non-DELIMITER-aware
+     * runner). Idempotent (triggers.sql is DROP + CREATE) and non-fatal — a
+     * missing TRIGGER privilege only logs a warning; the same overlap rules are
+     * enforced at the application layer.
+     */
     private function reapplyTriggers(): void
     {
         $triggersFile = $this->rootPath . '/installer/database/triggers.sql';
@@ -4621,9 +4643,12 @@ class Updater
             if (!$writable) $allMet = false;
         }
 
-        // Report the SAME figure installUpdate() will enforce. A panel that
-        // advertises a smaller number than the gate is worse than no panel: it
-        // shows all-green on an install the update is about to refuse.
+        // A FLOOR, and labelled as one. This is the rollback copy (x1.3), the
+        // one part of the requirement cheap enough to compute on every render.
+        // The gate in installUpdate() also adds the incoming tree, the package
+        // and the pre-update backup, all measured once the release is known, so
+        // it can refuse an update this row shows as green. Saying "at least"
+        // keeps the row honest instead of presenting the floor as the answer.
         $freeSpace = @disk_free_space($this->rootPath);
         if ($freeSpace === false) {
             $freeSpace = 0;
@@ -4632,7 +4657,7 @@ class Updater
         $spaceMet = $freeSpace >= $minSpace;
         $requirements[] = [
             'name' => __('Spazio libero'),
-            'required' => $this->formatBytes((float) $minSpace),
+            'required' => sprintf(__('almeno %s'), $this->formatBytes((float) $minSpace)),
             'current' => $freeSpace > 0 ? $this->formatBytes($freeSpace) : __('Non disponibile'),
             'met' => $spaceMet
         ];

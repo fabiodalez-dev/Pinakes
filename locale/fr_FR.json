@@ -7670,7 +7670,6 @@
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Année %1$d conservée séparément comme volume « %2$s » pour préserver les données descriptives.",
   "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Les années dont les données descriptives sont contradictoires restent séparées sous un volume distinct.",
   "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Espace disque insuffisant pour la mise à jour : environ %1$s sont nécessaires, %2$s disponibles. Libérez de l'espace (les sauvegardes automatiques dans storage/backups sont les premières candidates) et réessayez.",
-  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Impossible d'écrire un fichier de test de %1$s : l'espace disponible ou le quota du compte est épuisé. La mise à jour nécessite environ %2$s. Libérez de l'espace (les sauvegardes automatiques dans storage/backups sont les premières candidates) et réessayez.",
   "spazio su disco o quota dell'account esauriti": "espace disque ou quota du compte épuisé",
   "il file di destinazione esiste e non è scrivibile": "le fichier de destination existe et n'est pas accessible en écriture",
   "la directory di destinazione non esiste": "le répertoire de destination n'existe pas",
@@ -7926,5 +7925,6 @@
     "Puoi collegare al massimo 20 autori a un articolo.": "Vous pouvez lier au maximum 20 auteurs à un article.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Indiquez d’abord l’adresse ou le chemin de la ressource : sans elle, il n’y a rien à afficher dans le catalogue public.",
     "Questo identificativo GND è già assegnato a un altro autore.": "Cet identifiant GND est déjà attribué à un autre auteur.",
-  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Le système de mise à jour est indisponible. Le détail figure dans le journal de l'application."
+  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Le système de mise à jour est indisponible. Le détail figure dans le journal de l'application.",
+  "almeno %s": "au moins %s"
 }

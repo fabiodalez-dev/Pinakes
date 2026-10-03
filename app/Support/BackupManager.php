@@ -177,12 +177,6 @@ class BackupManager
     // ---------------------------------------------------------------------
 
     /**
-     * Create a backup ZIP.
-     *
-     * @param string $scope 'full' (DB + files) or 'db' (database only)
-     * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
-     */
-    /**
      * Build a backup filename carrying its origin.
      *
      * The automatic shape is left EXACTLY as it was, so every archive already on
@@ -461,14 +455,6 @@ class BackupManager
         }
     }
 
-    /**
-     * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, created_at: int}>
-     */
-    /**
-     * Origin encoded in a filename, for archives whose manifest predates it.
-     * Unknown or absent suffix means the automatic shape, which is what every
-     * archive written before this existed actually was.
-     */
     /** True only for a directory whose sole entry is a database.sql file. */
     private static function isLegacyBackupDirectory(string $dir): bool
     {
@@ -662,6 +648,20 @@ class BackupManager
     }
 
     /**
+     * True from the instant the import may have executed its first DROP TABLE
+     * until it has finished.
+     *
+     * MySQL cannot roll back DDL, so between those two points the database is
+     * neither the one the site was serving nor the one the archive describes.
+     * Two things must follow from that and neither did: the outcome has to say
+     * so, and the site must stay closed. An interrupted restore reported as an
+     * ordinary failure invites the operator to retry into the wreckage, and the
+     * maintenance flag was being lifted on the way out — including by the
+     * fatal-error shutdown handler, which is exactly the case this describes.
+     */
+    private bool $databaseReplacementStarted = false;
+
+    /**
      * Entry point for both restore paths (stored backup + uploaded ZIP).
      *
      * Mirrors Updater::performUpdate's protection: the import drops and
@@ -677,20 +677,6 @@ class BackupManager
      *
      * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
-    /**
-     * True from the instant the import may have executed its first DROP TABLE
-     * until it has finished.
-     *
-     * MySQL cannot roll back DDL, so between those two points the database is
-     * neither the one the site was serving nor the one the archive describes.
-     * Two things must follow from that and neither did: the outcome has to say
-     * so, and the site must stay closed. An interrupted restore reported as an
-     * ordinary failure invites the operator to retry into the wreckage, and the
-     * maintenance flag was being lifted on the way out — including by the
-     * fatal-error shutdown handler, which is exactly the case this describes.
-     */
-    private bool $databaseReplacementStarted = false;
-
     private function restoreZip(string $zipPath): array
     {
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
@@ -1091,15 +1077,6 @@ class BackupManager
     // ---------------------------------------------------------------------
 
     /**
-     * Dump every table to $filepath (DROP/CREATE/INSERT). Returns the table count.
-     *
-     * Binary columns are NOT supported by this dump path: every value is emitted
-     * as a single-quoted, real_escape_string()-escaped text literal (no _binary
-     * or hex literal), so any BLOB/BINARY bytes would be corrupted on a
-     * backup/restore round-trip. The schema is text/numeric/datetime only —
-     * adding a binary column requires changing this serialization first.
-     */
-    /**
      * The columns of $table a restore may write, in declaration order.
      *
      * Generated columns are excluded: MySQL and MariaDB both reject an INSERT
@@ -1197,6 +1174,15 @@ class BackupManager
         return $columns;
     }
 
+    /**
+     * Dump every table to $filepath (DROP/CREATE/INSERT). Returns the table count.
+     *
+     * Binary columns are NOT supported by this dump path: every value is emitted
+     * as a single-quoted, real_escape_string()-escaped text literal (no _binary
+     * or hex literal), so any BLOB/BINARY bytes would be corrupted on a
+     * backup/restore round-trip. The schema is text/numeric/datetime only —
+     * adding a binary column requires changing this serialization first.
+     */
     private function dumpDatabaseTo(string $filepath): int
     {
         $handle = fopen($filepath, 'w');

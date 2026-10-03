@@ -65,10 +65,19 @@ session_start();
 // idempotent migrations); auth/CSRF are meaningless with shell access
 // and are satisfied synthetically below.
 // ============================================================
+// Set by --assume-space-checked (CLI) or the matching checkbox (web): the
+// operator has measured the free space by hand on a host where PHP cannot.
+$upgradeAssumeSpace = false;
 if (PHP_SAPI === 'cli') {
-    $zipArg = $argv[1] ?? '';
+    $cliArgs = array_slice($argv, 1);
+    $flagAt = array_search('--assume-space-checked', $cliArgs, true);
+    if ($flagAt !== false) {
+        $upgradeAssumeSpace = true;
+        array_splice($cliArgs, (int) $flagAt, 1);
+    }
+    $zipArg = $cliArgs[0] ?? '';
     if ($zipArg === '--count-sql-statements') {
-        $sqlFile = $argv[2] ?? '';
+        $sqlFile = $cliArgs[1] ?? '';
         if ($sqlFile === '' || !is_file($sqlFile)) {
             fwrite(STDERR, "ERROR: SQL file not found: {$sqlFile}\n");
             exit(1);
@@ -82,8 +91,10 @@ if (PHP_SAPI === 'cli') {
         exit(0);
     }
     if ($zipArg === '' || in_array($zipArg, ['-h', '--help'], true)) {
-        fwrite(STDOUT, "Usage: php scripts/manual-upgrade.php /path/to/pinakes-vX.Y.Z.zip\n"
-            . "       php scripts/manual-upgrade.php --count-sql-statements /path/to/migration.sql\n");
+        fwrite(STDOUT, "Usage: php scripts/manual-upgrade.php [--assume-space-checked] /path/to/pinakes-vX.Y.Z.zip\n"
+            . "       php scripts/manual-upgrade.php --count-sql-statements /path/to/migration.sql\n"
+            . "  --assume-space-checked  continue when PHP cannot measure the free space on this host\n"
+            . "                          (you have checked it yourself); a full disk still stops the upgrade\n");
         exit($zipArg === '' ? 1 : 0);
     }
     $zipReal = realpath($zipArg);
@@ -301,6 +312,14 @@ function verifyUpgradeSpace(string $rootPath, array $requirements): void
         $dir = $volume['path'];
         $required = $volume['bytes'];
         $verdict = probeWriteBytes($rootPath, $required, $dir);
+        if ($verdict === 'unknown' && !empty($GLOBALS['upgradeAssumeSpace'])) {
+            // Only "cannot be measured" is waived. A write that runs out of
+            // room, or a directory that cannot be written, still stops here.
+            if (isset($GLOBALS['log']) && is_array($GLOBALS['log'])) {
+                $GLOBALS['log'][] = '[ATTENZIONE] Spazio in ' . $dir . ' non misurabile da PHP: si prosegue perché è stato dichiarato verificato a mano (richiesti ' . formatBytes($required) . ').';
+            }
+            continue;
+        }
         if ($verdict !== '') {
             $reason = match ($verdict) {
                 'nospace' => "spazio su disco o quota dell'account insufficienti",
@@ -646,6 +665,9 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
     }
     // Regenerate token after use
     $_SESSION['upgrade_csrf'] = bin2hex(random_bytes(32));
+    if (PHP_SAPI !== 'cli') {
+        $upgradeAssumeSpace = ($_POST['assume_space_checked'] ?? '') === '1';
+    }
     $log[] = '=== Pinakes Manual Upgrade — ' . date('Y-m-d H:i:s') . ' ===';
 
     try {
@@ -1131,6 +1153,8 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
 // UI
 // ============================================================
 
+render:
+// After the label: the early exits jump here and must still know the installed version.
 $currentVersion = '?';
 $versionFile = $rootPath . '/version.json';
 if (is_file($versionFile)) {
@@ -1138,7 +1162,6 @@ if (is_file($versionFile)) {
     $currentVersion = $vj['version'] ?? '?';
 }
 
-render:
 // CLI: plain-text report on stdout/stderr, exit code for scripting — no HTML.
 if (PHP_SAPI === 'cli') {
     foreach ($log as $logLine) {
@@ -1225,6 +1248,11 @@ if (PHP_SAPI === 'cli') {
                 <input type="hidden" name="csrf_token" value="<?= h($_SESSION['upgrade_csrf'] ?? '') ?>">
                 <label for="zipfile">Pacchetto di aggiornamento (.zip)</label>
                 <input type="file" name="zipfile" id="zipfile" accept=".zip" required>
+
+                <label style="display: flex; gap: 0.5rem; align-items: flex-start; font-weight: normal; margin-bottom: 1rem;">
+                    <input type="checkbox" name="assume_space_checked" value="1" style="width: auto; margin-top: 0.2rem;">
+                    <span>Ho verificato a mano lo spazio libero. Selezionalo solo se l'upgrade si ferma con «spazio disponibile non verificabile»: su questo host PHP non riesce a misurarlo. Uno spazio esaurito ferma comunque l'upgrade.</span>
+                </label>
 
                 <ul class="checklist" style="margin-bottom: 1.5rem;">
                     <li>Backup automatico del database prima dell'upgrade</li>

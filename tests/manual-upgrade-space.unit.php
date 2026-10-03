@@ -55,6 +55,39 @@ try {
     }
     $check($refused, '300 MiB cannot hold a 250 MiB dump plus a 200 MiB reserve');
     $check((glob($root . '/storage/tmp/.upgrade_probe_*') ?: []) === [], 'no probe files remain');
+
+    // A host where PHP cannot measure free space: without an override the
+    // recovery tool would be the second route closed, after the in-app one.
+    // The override waives "cannot be measured" only, and says so in the log.
+    $cliFree = false;
+    $GLOBALS['upgradeAssumeSpace'] = false;
+    $GLOBALS['log'] = [];
+    $refused = false;
+    try {
+        CliSpaceFixture\verifyUpgradeSpace($root, [$root . '/storage/tmp' => 200 * 1024 * 1024]);
+    } catch (RuntimeException $e) {
+        $refused = str_contains($e->getMessage(), 'non verificabile');
+    }
+    $check($refused, 'unmeasurable space stops the upgrade unless the operator confirms it');
+    $GLOBALS['upgradeAssumeSpace'] = true;
+    $passedThrough = true;
+    try {
+        CliSpaceFixture\verifyUpgradeSpace($root, [$root . '/storage/tmp' => 200 * 1024 * 1024]);
+    } catch (RuntimeException $e) {
+        $passedThrough = false;
+    }
+    $check($passedThrough, 'with --assume-space-checked an unmeasurable volume no longer blocks');
+    $check(count(array_filter($GLOBALS['log'], static fn($line) => str_contains((string) $line, 'verificato a mano'))) === 1,
+        'the waived check is written to the upgrade log');
+    $cliFree = 1024.0 * 1024;
+    $refused = false;
+    try {
+        CliSpaceFixture\verifyUpgradeSpace($root, [$root . '/storage/tmp' => 200 * 1024 * 1024]);
+    } catch (RuntimeException $e) {
+        $refused = str_contains($e->getMessage(), 'insufficienti');
+    }
+    $check($refused, 'the override never waives a volume that is actually full');
+    $GLOBALS['upgradeAssumeSpace'] = false;
 } finally {
     unlink($fixture);
     rmdir($root . '/storage/tmp');
@@ -62,5 +95,10 @@ try {
     rmdir($root . '/storage');
     rmdir($root);
 }
+// Early exits (a rejected CSRF token, ...) `goto render`: anything the page prints
+// must be computed after that label, or it is undefined on exactly those requests.
+$renderAt = strpos($source, "\nrender:\n");
+$versionAt = strpos($source, '$currentVersion = \'?\';');
+$check($renderAt !== false && $versionAt !== false && $versionAt > $renderAt, 'the installed version is computed after the render label, so early exits still show it');
 echo "Passed: $passed Failed: $failed\n";
 exit($failed ? 1 : 0);

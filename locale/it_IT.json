@@ -7670,7 +7670,6 @@
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.",
   "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Le annate con dati descrittivi discordanti restano separate con un volume distinto.",
   "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.",
-  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.",
   "spazio su disco o quota dell'account esauriti": "spazio su disco o quota dell'account esauriti",
   "il file di destinazione esiste e non è scrivibile": "il file di destinazione esiste e non è scrivibile",
   "la directory di destinazione non esiste": "la directory di destinazione non esiste",
@@ -7926,5 +7925,6 @@
     "Puoi collegare al massimo 20 autori a un articolo.": "Puoi collegare al massimo 20 autori a un articolo.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.",
     "Questo identificativo GND è già assegnato a un altro autore.": "Questo identificativo GND è già assegnato a un altro autore.",
-  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione."
+  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.",
+  "almeno %s": "almeno %s"
 }

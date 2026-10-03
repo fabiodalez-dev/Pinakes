@@ -31,6 +31,7 @@ namespace App\Support {
 namespace {
     function __(string $s, ...$args): string { return $args ? sprintf($s, ...$args) : $s; }
     require dirname(__DIR__) . '/app/Support/Updater.php';
+    require_once dirname(__DIR__) . '/app/Support/ContainerRuntime.php';
     $root = sys_get_temp_dir() . '/space_destinations_' . bin2hex(random_bytes(6));
     foreach (['storage/tmp', 'storage/backups', 'public/assets', 'app', 'package/public/assets'] as $dir) {
         mkdir($root . '/' . $dir, 0775, true);
@@ -91,9 +92,9 @@ namespace {
 
         $reset();
         $spaceDefaultFree = false;
-        $check($call('probeWrite', [32 * 1024 * 1024, true]) === 'unknown', 'an unreadable capacity cannot prove a large request');
+        $check($call('probeWrite', [32 * 1024 * 1024]) === 'unknown', 'an unreadable capacity cannot prove a large request');
         $check($spaceWritten === 0 && $spaceOpened === [], 'unknown large capacity does not start an unbounded allocation');
-        $check($call('probeWrite', [4096, true]) === '', 'a small request is still proved completely when the measurement is unavailable');
+        $check($call('probeWrite', [4096]) === '', 'a small request is still proved completely when the measurement is unavailable');
         $check($spaceWritten === 4096, 'the small probe writes every requested byte');
         $check($call('checkSpaceRequirements', [[$root => 32 * 1024 * 1024]]) !== null,
             'unknown capacity is a preflight error, not success');
@@ -116,6 +117,34 @@ namespace {
         $check($call('extractionSpaceError', [$zip, $root . '/storage/tmp']) !== null,
             'a repeated extraction check observes capacity consumed since the first check');
         $zip->close();
+
+        // An unusable code tree: the space gate runs before the #205
+        // writability preflight, so it must give the same answer, every path
+        // listed, rather than one "working directory" with an absolute path.
+        // A FILE where a directory belongs makes the destination unusable even
+        // for uid 0, where a chmod-based precondition would invert.
+        $reset();
+        file_put_contents($root . '/blocked-app', 'not a directory');
+        file_put_contents($root . '/blocked-assets', 'not a directory');
+        try {
+            $message = (string) $call('checkSpaceRequirements', [[
+                $root . '/blocked-app/Support' => 8192,
+                $root . '/blocked-assets/js' => 8192,
+                $root . '/storage/tmp' => 8192,
+            ]]);
+        } finally {
+            unlink($root . '/blocked-app');
+            unlink($root . '/blocked-assets');
+        }
+        if (App\Support\ContainerRuntime::detected()) {
+            $check(str_contains($message, 'container'), 'in a container the unusable tree gets the container guidance');
+        } else {
+            $check(str_contains($message, 'blocked-app/Support, blocked-assets/js') && str_contains($message, 'manual-upgrade.php'),
+                'every unusable destination is listed, relative to the installation, with the #205 wording');
+        }
+        $check(!str_contains($message, 'directory di lavoro') && !str_contains($message, $root),
+            'the gate no longer stops at the first path with an absolute working-directory message');
+        $check($spaceOpened === [], 'nothing is probed when a destination cannot be written');
     } finally {
         $cleanup($root);
     }

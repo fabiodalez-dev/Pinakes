@@ -7670,7 +7670,6 @@
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Årgang %1$d bevaret separat som bind »%2$s« for at bevare de beskrivende oplysninger.",
   "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Årgange med modstridende beskrivende oplysninger bevares separat med en særskilt bindbetegnelse.",
   "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Ikke nok diskplads til opdateringen: der kræves ca. %1$s, %2$s er tilgængelige. Frigør plads (de automatiske sikkerhedskopier i storage/backups er de første kandidater), og prøv igen.",
-  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Kunne ikke skrive en testfil på %1$s: den tilgængelige plads eller kontoens kvote er opbrugt. Opdateringen kræver ca. %2$s. Frigør plads (de automatiske sikkerhedskopier i storage/backups er de første kandidater), og prøv igen.",
   "spazio su disco o quota dell'account esauriti": "diskplads eller kontokvote opbrugt",
   "il file di destinazione esiste e non è scrivibile": "destinationsfilen findes og kan ikke skrives",
   "la directory di destinazione non esiste": "destinationsmappen findes ikke",
@@ -7926,5 +7925,6 @@
     "Puoi collegare al massimo 20 autori a un articolo.": "Du kan højst knytte 20 forfattere til en artikel.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Angiv først ressourcens adresse eller sti: uden den er der intet at vise i det offentlige katalog.",
     "Questo identificativo GND è già assegnato a un altro autore.": "Denne GND-identifikator er allerede tildelt en anden forfatter.",
-  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Opdateringssystemet er ikke tilgængeligt. Detaljerne står i applikationsloggen."
+  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Opdateringssystemet er ikke tilgængeligt. Detaljerne står i applikationsloggen.",
+  "almeno %s": "mindst %s"
 }

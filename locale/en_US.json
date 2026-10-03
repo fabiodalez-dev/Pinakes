@@ -7670,7 +7670,6 @@
   "Annata %1$d conservata separatamente come volume «%2$s» per mantenere i dati descrittivi.": "Year %1$d retained separately as volume “%2$s” to preserve its descriptive data.",
   "Le annate con dati descrittivi discordanti restano separate con un volume distinto.": "Years with conflicting descriptive data remain separate under a distinct volume.",
   "Spazio su disco insufficiente per aggiornare: servono circa %1$s, disponibili %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Not enough disk space to update: about %1$s is needed, %2$s available. Free some space (the automatic backups in storage/backups are the first candidates) and try again.",
-  "Impossibile scrivere %1$s di prova: lo spazio disponibile o la quota dell'account sono esauriti. L'aggiornamento richiede circa %2$s. Libera spazio (i backup automatici in storage/backups sono i primi candidati) e riprova.": "Could not write a %1$s test file: the available space or the account quota is exhausted. The update needs about %2$s. Free some space (the automatic backups in storage/backups are the first candidates) and try again.",
   "spazio su disco o quota dell'account esauriti": "disk space or account quota exhausted",
   "il file di destinazione esiste e non è scrivibile": "the destination file exists and is not writable",
   "la directory di destinazione non esiste": "the destination directory does not exist",
@@ -7926,5 +7925,6 @@
     "Puoi collegare al massimo 20 autori a un articolo.": "You can link at most 20 authors to an article.",
     "Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.": "Enter the resource address or path first: without it there is nothing to show in the public catalogue.",
     "Questo identificativo GND è già assegnato a un altro autore.": "This GND identifier is already assigned to another author.",
-  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "The update system is unavailable. The details are in the application log."
+  "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "The update system is unavailable. The details are in the application log.",
+  "almeno %s": "at least %s"
 }
