@@ -182,6 +182,16 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     await context.close();
   });
 
+  test('the club hero lays out its members line and actions as rows, not stacked blocks', async () => {
+    await page.goto(`${BASE}/book-club/${slug}`);
+    for (const selector of ['.bc-hero-extra', '.bc-hero-meta', '.bc-hero-actions']) {
+      const box = page.locator(selector).first();
+      await expect(box).toBeVisible();
+      expect(await box.evaluate(el => getComputedStyle(el).display), `${selector} is styled`).toBe('flex');
+    }
+    expect(await page.locator('.bc-hero-meta').first().evaluate(el => getComputedStyle(el).flexDirection)).toBe('row');
+  });
+
   test('④+③ create a meeting, then edit it, and the Next-meeting card links to the edit form', async () => {
     await page.goto(`${BASE}/book-club/${slug}`);
     await page.waitForLoadState('domcontentloaded');

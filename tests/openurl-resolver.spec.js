@@ -45,6 +45,39 @@ function dbQuery(sql) {
     }).trim();
 }
 
+async function loginAsAdmin(page) {
+    await page.goto(`${BASE}/admin/plugins`);
+    if (await page.locator('input[name=email]').isVisible()) {
+        await page.locator('input[name=email]').fill(process.env.E2E_ADMIN_EMAIL || '');
+        await page.locator('input[name=password]').fill(process.env.E2E_ADMIN_PASS || '');
+        await page.locator('button[type=submit]').click();
+        await page.waitForURL(u => !u.pathname.includes('accedi') && !u.pathname.includes('login'));
+    }
+}
+
+// The article tests need the Emeroteca switched on, not just its table: a
+// spec that activated and then deactivated it leaves the table behind with
+// the plugin off, and the resolver then rightly sends every article request
+// off-site. So this suite sets the state it needs, through the real UI so
+// onActivate() builds the schema, and puts it back afterwards. "Attiva
+// plugin", not "Attiva": "Disattiva" contains it.
+async function setEmerotecaActive(page, wanted) {
+    const id = Number(dbQuery("SELECT id FROM plugins WHERE name='emeroteca'") || '0');
+    if (id === 0) return false;
+    const active = () => dbQuery(`SELECT is_active FROM plugins WHERE id=${id}`) === '1';
+    const label = wanted ? 'Attiva plugin' : 'Disattiva';
+    for (let attempt = 0; attempt < 3 && active() !== wanted; attempt++) {
+        await page.goto(`${BASE}/admin/plugins`);
+        const button = page.locator(`[data-plugin-id="${id}"]`).first().locator(`button:has-text("${label}")`);
+        if (!await button.isVisible({ timeout: 3000 }).catch(() => false)) continue;
+        await button.click();
+        const confirm = page.locator('.swal2-confirm:visible');
+        if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
+        await expect.poll(() => active() === wanted, { timeout: 30_000 }).toBe(true).catch(() => {});
+    }
+    return active() === wanted;
+}
+
 test.skip(
     !DB_USER || !DB_NAME,
     'Missing E2E env (DB_*)'
@@ -54,16 +87,30 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
     /** @type {number} */
     let testBookId = 0;
 
-    test.beforeAll(async () => {
+    /** Whether this suite switched the Emeroteca on, and so must switch it off. */
+    let activatedEmeroteca = false;
+
+    test.beforeAll(async ({ browser }) => {
         // Use a book known to exist in the DB (fallback to query).
         const result = dbQuery(
             "SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1"
         );
         testBookId = parseInt(result) || 0;
 
+        const emerotecaWasActive = dbQuery("SELECT COALESCE(MAX(is_active),0) FROM plugins WHERE name='emeroteca'") === '1';
+        if (!emerotecaWasActive && process.env.E2E_ADMIN_EMAIL) {
+            const page = await browser.newPage();
+            try {
+                await loginAsAdmin(page);
+                activatedEmeroteca = await setEmerotecaActive(page, true);
+            } finally {
+                await page.close();
+            }
+        }
+
         const hasArticles = dbQuery(
             "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi'"
-        ) === '1';
+        ) === '1' && dbQuery("SELECT COALESCE(MAX(is_active),0) FROM plugins WHERE name='emeroteca'") === '1';
         if (hasArticles) {
             dbQuery(
                 `INSERT INTO emeroteca_contributi (reference_key, titolo, autori, contenitore_titolo, numero, pagine, anno_pubblicazione, lingua, doi, pubblico)
@@ -73,8 +120,17 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
         }
     });
 
-    test.afterAll(async () => {
+    test.afterAll(async ({ browser }) => {
         if (articleId > 0) dbQuery(`DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
+        if (activatedEmeroteca) {
+            const page = await browser.newPage();
+            try {
+                await loginAsAdmin(page);
+                expect(await setEmerotecaActive(page, false), 'the Emeroteca this suite activated is deactivated again').toBe(true);
+            } finally {
+                await page.close();
+            }
+        }
     });
 
     /**

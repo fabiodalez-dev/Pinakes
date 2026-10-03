@@ -216,7 +216,10 @@ try {
         'and does not centre itself independently of the page');
 
     // …which only works if every caller puts it INSIDE the container. It used
-    // to be required after </main>, where it had no choice but to invent one.
+    // to be required after the container closed, where it had no choice but
+    // to invent one. The container is a <div>: the public layout already owns
+    // the page's single <main> landmark, and a view opening a second one
+    // nested it inside the first.
     foreach (['index.php', 'testata.php', 'articles.php'] as $caller) {
         $src = (string) file_get_contents($views . $caller);
         $pos = strpos($src, 'article-results.php');
@@ -225,11 +228,10 @@ try {
             continue;
         }
         $before = substr($src, 0, $pos);
-        $opens = substr_count($before, '<main');
-        $closes = substr_count($before, '</main>');
-        $check($opens > $closes,
-            "{$caller} includes it inside the page container, not after </main> "
-                . "({$opens} open, {$closes} closed before the include)");
+        $check(str_contains($before, 'class="container emeroteca-public"'),
+            "{$caller} includes it inside the page container");
+        $check(!str_contains($src, '<main'),
+            "{$caller} opens no <main> of its own (the layout's is the only landmark)");
     }
 
     // And the three shells agree on which container that is.

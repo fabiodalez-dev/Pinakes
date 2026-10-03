@@ -561,6 +561,20 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
     $db->query("INSERT INTO plugins (id,name,is_active) VALUES (1,'emeroteca',1)");
     check412($hint::state($db,sys_get_temp_dir().'/pinakes-no-plugins-'.bin2hex(random_bytes(4)))===$hint::ABSENT,'a row without its plugin directory is treated as absent');
     check412($hint::state(null)===$hint::ABSENT,'no database connection: the book form still renders');
+    // The admin layout around a book page reuses the state the page already
+    // resolved: no second connection and no second query for the same answer.
+    $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
+    check412($hint::state($db)===$hint::INACTIVE,'the book page resolves the state with its own connection');
+    check412($hint::stateForLayout()===$hint::INACTIVE,'the layout reuses that state instead of asking again');
+    // On a page that resolved nothing, the layout asks through the connection
+    // its controller holds, in both directions, never opening one of its own.
+    $resolvedState = new ReflectionProperty($hint,'resolved');
+    $resolvedState->setValue(null,null);
+    check412($hint::stateForLayout($db)===$hint::INACTIVE,'the layout reads an inactive plugin through the controller connection');
+    $resolvedState->setValue(null,null);
+    $db->query("UPDATE plugins SET is_active=1 WHERE name='emeroteca'");
+    check412($hint::stateForLayout($db)===$hint::ACTIVE,'and an active one');
+    $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
     // Uninstalling removes the plugin, never the catalogued articles.
     $before=(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n'];
     (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->onUninstall();

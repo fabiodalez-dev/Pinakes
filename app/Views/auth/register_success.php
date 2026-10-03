@@ -21,77 +21,54 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
-
-        :root{ --serif:'Fraunces',Georgia,'Times New Roman',serif; --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
-        body{ font-family:var(--sans); letter-spacing:-.008em; }
-        h1,h2,h3,.auth-title,.card-title,.login-title{ font-family:var(--serif); font-weight:440; letter-spacing:-.025em; }
-        /* de-round: every control/card 2px, no pills */
-        input,select,textarea,button,.ui-button,.card,.form-input,.form-input,.input-group,.input-group-text,.alert,.auth-card,.login-card{ border-radius:2px !important; }
-        /* flatten: no shadows, no glass */
-        .card,.auth-card,.login-card,.alert,[class*="card"]{ box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
-    
-        /* Beat Tailwind utilities (class specificity): crisp corners everywhere. */
-        [class*="rounded-"]{ border-radius:2px !important; }
-        .w-20.h-20.rounded-2xl{ border-radius:3px !important; }   /* logo tile */
-        /* Card: keep it airy, just a hairline — no heavy grey frame. */
-        .bg-white.border{ border-color:var(--border-color, #e5e7eb) !important; }
-</style>
+    <?php require __DIR__ . '/partials/auth-theme.php'; ?>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900">
+<body class="auth-body">
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md w-full mx-auto">
-    <div class="text-center mb-10">
+<div class="auth-page">
+  <div class="auth-wrap">
+    <header class="auth-brand">
       <?php if ($appLogo): ?>
-        <div class="mx-auto mb-6 flex items-center justify-center">
-          <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>"
-               alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>"
-               class="h-20 w-auto object-contain">
-        </div>
+        <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>"
+             alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>"
+             class="auth-brand-logo">
       <?php else: ?>
-        <div class="w-20 h-20 bg-gray-800 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-          <i class="fas fa-book-open text-white text-3xl"></i>
-        </div>
+        <div class="auth-brand-tile" aria-hidden="true"><i class="fas fa-book-open"></i></div>
       <?php endif; ?>
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
-      <p class="text-gray-600 dark:text-gray-400"><?= __('Registrazione completata') ?></p>
-    </div>
+      <p class="auth-brand-name"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
+    </header>
 
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700">
-      <div class="text-center">
-        <div class="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <i class="fas fa-envelope-open-text text-green-600 dark:text-green-400 text-2xl"></i>
-        </div>
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4"><?= __('Conferma la tua email') ?></h2>
-        <p class="text-gray-600 dark:text-gray-400 mb-6">
+    <main class="auth-card">
+      <h1 class="auth-title"><?= __('Conferma la tua email') ?></h1>
+      <div>
+        <div class="auth-success-icon" aria-hidden="true"><i class="fas fa-envelope-open-text"></i></div>
+        <p class="auth-subtitle">
           <?= __('Ti abbiamo inviato un\'email con il link per confermare l\'indirizzo.') ?>
           <?= __('Dopo la conferma, un amministratore approverà la tua iscrizione.') ?>
         </p>
-        <div class="space-y-4">
+        <div>
           <a
             href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>"
-            class="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center"
+            class="auth-btn"
           >
-            <i class="fas fa-sign-in-alt mr-2"></i>
+            <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
             <?= __('Vai al login') ?>
           </a>
         </div>
       </div>
-    </div>
+    </main>
 
-    <div class="mt-8 text-center">
-      <div class="flex justify-center space-x-6 text-sm">
-        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+    <div class="auth-footer">
+      <div class="auth-footer-links">
+        <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Privacy Policy') ?>
         </a>
-        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+        <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="auth-link">
           <?= __('Contatti') ?>
         </a>
       </div>
-      <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+      <p class="auth-copy">
         &copy; <?= date('Y') ?> <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>. <?= __('Tutti i diritti riservati.') ?>
       </p>
     </div>

@@ -538,6 +538,34 @@ $app->addRoutingMiddleware();
 $displayErrorDetails = $container->get('settings')['displayErrorDetails'] ?? false;
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 
+// A path that matches no route is not an error worth a stack trace: it is
+// what any visitor gets from a mistyped or stale link, and the site's own 404
+// (inside the public layout) is the right answer in every mode. Slim's
+// detailed page in development mode exposes server paths and the full stack,
+// and on an install left in debug it reached the public with no header or
+// footer. Real exceptions below still get Slim's detailed page in debug.
+if ($displayErrorDetails) {
+    $errorMiddleware->setErrorHandler(
+        \Slim\Exception\HttpNotFoundException::class,
+        function (\Psr\Http\Message\ServerRequestInterface $request) use ($app): \Psr\Http\Message\ResponseInterface {
+            $response = $app->getResponseFactory()->createResponse(404);
+            try {
+                ob_start();
+                $requestedPath = $request->getUri()->getPath();
+                require __DIR__ . '/../app/Views/errors/404.php';
+                $response->getBody()->write((string) ob_get_clean());
+            } catch (\Throwable $e) {
+                if (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
+                error_log('[NotFoundHandler] Error rendering 404 page: ' . $e->getMessage());
+                $response->getBody()->write('<h1>404 Not Found</h1><p>The requested page could not be found.</p>');
+            }
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+        }
+    );
+}
+
 // Custom error handler for production mode only (handles both 404 and 500 errors)
 // In development mode (displayErrorDetails=true), use Slim's default detailed error pages
 if (!$displayErrorDetails) {

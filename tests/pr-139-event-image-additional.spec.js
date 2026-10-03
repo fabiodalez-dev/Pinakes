@@ -123,14 +123,18 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
         }
     });
 
-    // S6 — event-detail.php renders distinct CSS class per preset
-    test('S6: event-detail.php emits event-cover--<preset> class', async () => {
-        const src = readRepoFile('app/Views/frontend/event-detail.php');
-        for (const preset of ['full', 'banner', 'contained', 'thumb']) {
-            expect(src).toMatch(new RegExp(`event-cover--${preset}`));
-        }
-        // Plus the wrapper class for the side-by-side thumb layout.
-        expect(src).toMatch(/event-card--thumb-layout/);
+    // S6 — event-detail.php accepts every preset and names the body figure after it.
+    // Comments are stripped first: the preset names also appear in the prose
+    // there, and a check satisfied by a comment proves nothing. What each preset
+    // renders is asserted against the real page in issue-137-event-image-layout.spec.js.
+    test('S6: event-detail.php allow-lists every preset and renders event-cover--<preset>', async () => {
+        const src = readRepoFile('app/Views/frontend/event-detail.php')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+        expect(src).toMatch(/\$coverAllowed\s*=\s*\['full',\s*'banner',\s*'contained',\s*'thumb'\]/);
+        expect(src).toMatch(/class="event-cover event-cover--<\?= htmlspecialchars\(\$coverLayout/);
+        expect(src).toMatch(/in_array\(\$coverLayout,\s*\['contained',\s*'thumb'\],\s*true\)/);
+        expect(src).toMatch(/resource-hero\.php/);
     });
 
     // S7 — Frontend CSS includes responsive collapse for thumb layout (mobile)
@@ -142,7 +146,7 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
         // The mobile breakpoint should specifically restyle the thumb layout
         // (either the grid-template-columns or the event-card--thumb-layout class).
         const mediaBlocks = src.match(/@media[\s\S]*?\}\s*\}/g) || [];
-        const hasThumbResponsive = mediaBlocks.some(b => b.includes('thumb-layout') || b.includes('event-cover--thumb'));
+        const hasThumbResponsive = mediaBlocks.some(b => b.includes('event-cover--banner'));
         expect(hasThumbResponsive).toBe(true);
     });
 
