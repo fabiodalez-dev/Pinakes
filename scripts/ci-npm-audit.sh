@@ -47,6 +47,11 @@ for attempt in 1 2 3; do
         if [ "$filter_ec" -eq 0 ]; then
             exit 0
         fi
+        if [ "$filter_ec" -eq 2 ]; then
+            # Still a failure, but a transport one: say so rather than point at a vulnerability.
+            echo "⚠ npm audit: advisories reported in ${dir}, but the JSON audit needed to apply waivers was unreadable"
+            exit 1
+        fi
         echo "⚠ npm audit: high/critical vulnerabilities found in ${dir}"
         exit 1
     fi
