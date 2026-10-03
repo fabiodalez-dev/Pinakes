@@ -37,7 +37,26 @@ $fixed = $xp->evaluate('string(//m:controlfield[@tag="008"])');
 // 008
 verify(substr($fixed,0,6)==='260901', '008/00-05 is the date entered on file from created_at');
 verify(substr($fixed,6,9)==='s1988    ', '008/06-14 carries the single known year');
-verify(substr($fixed,15,3)==='|||', '008/15-17 never holds an ISO country code');
+verify(substr($fixed,15,3)==='dk ', '008/15-17 carries the MARC country code, blank-filled');
+// The two code lists differ: an ISO code is mapped, never copied.
+$countryOf = static fn(string $iso): string => substr($parse(ArticleMarcXml::format(['titolo'=>'C','paese'=>$iso]))->evaluate('string(//m:controlfield[@tag="008"])'),15,3);
+verify($countryOf('DE')==='gw ' && $countryOf('GB')==='xxk' && $countryOf('SE')==='sw ', '008/15-17 uses MARC codes (DE gw, GB xxk, SE sw), not ISO ones');
+verify($countryOf('ZZ')==='|||' && $countryOf('')==='|||', 'an unknown or missing country stays unspecified');
+// 245 $c reads as on the item; the inverted form belongs to 100/700.
+verify($value('245','c')==='Hans Uwe Petersen, Åse Sørensen', '245 $c gives the authors in direct order');
+// The uploaded PDF is the electronic article when both it and the article are public (856 ind2 0).
+$pdfOf = static fn(array $extra): DOMXPath => $parse(ArticleMarcXml::format($extra + $row, 'https://example.org/emeroteca/articolo/12'));
+$pdf856 = '//m:datafield[@tag="856"][@ind2="0"]/m:subfield[@code="u"]';
+verify($pdfOf(['pdf_pubblico'=>1])->evaluate("string($pdf856)")==='https://example.org/emeroteca/articolo/12/pdf', 'a public PDF is exported in 856 $u with its public address');
+verify($pdfOf(['pdf_pubblico'=>1])->evaluate('string(//m:datafield[@tag="856"][@ind2="0"]/m:subfield[@code="y"])')==='Full text (PDF)', 'with link text in 856 $y');
+verify($pdfOf(['pdf_pubblico'=>0])->evaluate("count($pdf856)")===0.0, 'a private PDF is never exported');
+verify($parse(ArticleMarcXml::format(['pdf_pubblico'=>1]+$row))->evaluate("count($pdf856)")===0.0, 'nor is one of an unpublished article (no public record address)');
+// Linked to a catalogued masthead, with no free-text journal title: 773 comes from the masthead.
+$linked = $parse(ArticleMarcXml::format(['titolo'=>'L','contenitore_titolo'=>'','issn'=>'','testata_titolo'=>'Arbejderhistorie','testata_issn'=>'0107-8461']));
+verify($linked->evaluate("string(//m:datafield[@tag='773']/m:subfield[@code='t'])")==='Arbejderhistorie' && $linked->evaluate("string(//m:datafield[@tag='773']/m:subfield[@code='x'])")==='0107-8461', 'a linked masthead fills 773 $t and $x when the free-text fields are empty');
+// RIS: JF as well as T2, as in danish union records.
+$ris = \App\Plugins\Emeroteca\Support\CitationFormatter::ris($row);
+verify(str_contains($ris, "TY  - JOUR\r\n") && str_contains($ris, "T2  - Arbejderhistorie\r\n") && str_contains($ris, "JF  - Arbejderhistorie\r\n"), 'RIS names the journal in both T2 and JF');
 $today = ArticleMarcXml::format(['titolo'=>'No dates']);
 $todayXp = $parse($today);
 $todayFixed = $todayXp->evaluate('string(//m:controlfield[@tag="008"])');

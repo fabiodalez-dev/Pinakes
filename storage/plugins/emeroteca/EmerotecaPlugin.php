@@ -235,6 +235,9 @@ class EmerotecaPlugin
             // filters; registering them is what makes them do anything.
             $this->registerHookInDb('sitemap.entries',             'extendSitemapEntries', 10);
             $this->registerHookInDb('search.external_suggestions', 'suggestEmerotecaSearch', 10);
+            // Header search suggestions (1.11.0, #412): published articles appear
+            // next to books while the reader types, not only after Enter.
+            $this->registerHookInDb('search.unified.sources',      'addArticleSources',      10);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -2744,9 +2747,49 @@ class EmerotecaPlugin
                     (string) ($row['data_pubblicazione_testo'] ?? ''),
                     (string) ($row['pagine'] ?? ''),
                 ], static fn (string $part): bool => trim($part) !== '')),
+                'authors' => (string) ($row['autori'] ?? ''),
+                'source' => implode(' · ', array_filter([
+                    (string) ($row['contenitore_titolo'] ?? ''),
+                    (string) ($row['data_pubblicazione_testo'] ?? ''),
+                ], static fn (string $part): bool => trim($part) !== '')),
             ];
         }
         return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * Listener for the `search.unified.sources` FILTER: the header search's
+     * live suggestions (and the admin quick search) list published articles
+     * beside books, authors and archive units (#412). Same matching rule as
+     * the catalogue suggestion, so what the dropdown shows is what /emeroteca/
+     * articoli?q= lists.
+     *
+     * @param mixed $results the results collected so far
+     * @return mixed append-only; a non-array input is passed through untouched
+     */
+    public function addArticleSources($results, string $q = ''): mixed
+    {
+        if (!is_array($results)) {
+            return $results;
+        }
+        try {
+            $needle = trim($q);
+            if (mb_strlen($needle) < 2) {
+                return $results;
+            }
+            foreach ($this->emerotecaArticleHits(mb_substr($needle, 0, 200))['items'] as $item) {
+                $results[] = [
+                    'type'       => 'article',
+                    'label'      => $item['label'],
+                    'author'     => $item['authors'],
+                    'identifier' => $item['source'],
+                    'url'        => $item['url'],
+                ];
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] search.unified.sources listener error: ' . $e->getMessage());
+        }
+        return $results;
     }
 
     /**
