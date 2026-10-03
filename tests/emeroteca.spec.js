@@ -736,7 +736,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.goto(`${BASE}/emeroteca/${testataId}?anno=${ANNO + 2}`);
     await expect(page.locator('h1.resource-title', { hasText: TITLE })).toBeVisible({ timeout: 10000 });
     const bodyText = await page.locator('body').innerText();
-    expect(bodyText).toContain('Mancante');
+    expect(bodyText.toLocaleLowerCase('it')).toContain('mancante');
   });
 
   test('public issue page shows the table of contents', async ({ page }) => {
