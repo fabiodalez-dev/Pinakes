@@ -402,6 +402,7 @@ traduzione_stringhe.md
 !.github/workflows/
 !.github/codeql/
 !.github/zizmor.yml
+!.github/npm-audit-waivers.json
 vendor/**/.github/
 **/.gitkeep
 
