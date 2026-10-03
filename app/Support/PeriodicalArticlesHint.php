@@ -31,8 +31,41 @@ final class PeriodicalArticlesHint
 
     private const PLUGIN = 'emeroteca';
 
+    /**
+     * The state already resolved in this request for the real plugins
+     * directory. The book pages resolve it with their own `$db`; the layout
+     * around them then reuses it instead of opening a second connection to
+     * run the same query again.
+     */
+    private static ?string $resolved = null;
+
     private function __construct()
     {
+    }
+
+    /**
+     * The state for the admin layout, which renders on every admin page.
+     *
+     * In order: the state the page inside it already resolved; the connection
+     * the rendering controller holds, which the layout passes when one is in
+     * scope; and only then ConfigStore's standalone connection. That last one
+     * is lazily opened and, with the settings served from the cache, is
+     * usually not open yet: reaching for it first would cost most admin pages
+     * a second MySQL connection just to draw the sidebar.
+     */
+    public static function stateForLayout(?\mysqli $db = null): string
+    {
+        if (self::$resolved !== null) {
+            return self::$resolved;
+        }
+        if ($db instanceof \mysqli) {
+            return self::state($db);
+        }
+        try {
+            return self::state(ConfigStore::sharedConnection());
+        } catch (\Throwable $e) {
+            return self::ABSENT;
+        }
     }
 
     /**
@@ -43,6 +76,21 @@ final class PeriodicalArticlesHint
      * happens to the plugin registry.
      */
     public static function state(?\mysqli $db, ?string $pluginsDir = null): string
+    {
+        $state = self::resolve($db, $pluginsDir);
+        if ($pluginsDir === null) {
+            self::$resolved = $state;
+        }
+        return $state;
+    }
+
+    /**
+     * Read the plugin's state from its row in `plugins`: ACTIVE or INACTIVE
+     * when the row exists and its directory is on disk, ABSENT otherwise. A
+     * missing connection or any database error also reads as ABSENT, so the
+     * sidebar hides the link rather than breaking the page.
+     */
+    private static function resolve(?\mysqli $db, ?string $pluginsDir): string
     {
         if (!$db instanceof \mysqli) {
             return self::ABSENT;

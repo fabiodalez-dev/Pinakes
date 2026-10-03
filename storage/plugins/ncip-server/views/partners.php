@@ -62,7 +62,7 @@
               <?= __("Nome Partner") ?> <span class="text-red-500">*</span>
             </label>
             <input type="text" name="name" required maxlength="255"
-                   placeholder="<?= __("Es. Biblioteca Nazionale di Roma") ?>"
+                   placeholder="<?= htmlspecialchars(__("Es. Biblioteca Nazionale di Roma"), ENT_QUOTES, 'UTF-8') ?>"
                    class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
           <div>

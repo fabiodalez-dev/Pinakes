@@ -66,7 +66,19 @@ final class ContributionService
         'risorsa_testo' => "VARCHAR(255) NULL",
         'risorsa_accesso' => "VARCHAR(255) NULL",
         'risorsa_pubblica' => "TINYINT(1) NOT NULL DEFAULT 0",
+        // 1.9.0 — a chapter in an anthology (#412): the host is a book, and a
+        // chapter citation names its editors, publisher and place. Appended
+        // after risorsa_pubblica for the same reason as the 1.7 block.
+        'contenitore_curatori' => "VARCHAR(500) NULL",
+        'contenitore_editore' => "VARCHAR(255) NULL",
+        'contenitore_luogo' => "VARCHAR(255) NULL",
+        'isbn' => "VARCHAR(17) NULL",
     ];
+    /**
+     * The article form's "Other scheme" choice: the scheme's name is then
+     * typed into classificazione_schema_altro and stored in its place.
+     */
+    public const OTHER_SCHEME = '__altro';
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
         'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000,
@@ -74,14 +86,17 @@ final class ContributionService
         // the physical column order from this map's key order.
         'sottotitolo' => 500,'lingua' => 10,'paese' => 2,'classificazione_schema' => 20,
         'classificazione' => 100,'nota_possesso' => 255,'risorsa_url' => 500,
-        'risorsa_testo' => 255,'risorsa_accesso' => 255];
+        'risorsa_testo' => 255,'risorsa_accesso' => 255,
+        // 1.9.0 — the host volume of an anthology chapter.
+        'contenitore_curatori' => 500,'contenitore_editore' => 255,'contenitore_luogo' => 255,'isbn' => 17];
     /** A reference_key the table accepts: shared by save() and the CSV preview. */
     public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';
 
     public const CSV_FIELDS = ['reference_key','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
         'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract',
         'lingua','paese','classificazione_schema','classificazione','nota_possesso',
-        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico'];
+        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico',
+        'contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
 
     /**
      * The header the template and the export carry.
@@ -177,13 +192,15 @@ SQL;
      */
     public function get(int $id, bool $publicOnly = false): ?array
     {
-        // The masthead logo travels with the row so coverUrl() has one supplier
-        // rather than one per caller. LEFT JOIN: testata_id is nullable — a
-        // standalone article need not belong to a masthead at all — and an
-        // inner join would make those articles vanish from their own page.
+        // The placement (masthead, issue, year) travels with the row: the page
+        // builds its breadcrumb and "In {testata}, n. X" line from it, and
+        // coverUrl() reads the issue cover and the masthead logo from it.
+        // LEFT JOINs: testata_id and fascicolo_id are both nullable — a
+        // standalone article need not belong to anything — and an inner join
+        // would make those articles vanish from their own page.
         $rows = $this->rows(
-            'SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c'
-            . ' LEFT JOIN emeroteca_testate t ON t.id = c.testata_id'
+            'SELECT c.*, ' . self::PLACEMENT_COLUMNS . ' FROM emeroteca_contributi c'
+            . self::PLACEMENT_JOINS
             . ' WHERE c.id = ?' . ($publicOnly ? ' AND c.pubblico = 1' : ''),
             [$id]
         );
@@ -225,6 +242,9 @@ SQL;
      */
     public static function normalize(array $input): array
     {
+        if (($input['classificazione_schema'] ?? null) === self::OTHER_SCHEME) {
+            $input['classificazione_schema'] = $input['classificazione_schema_altro'] ?? '';
+        }
         $out = [];
         foreach (self::TEXT_FIELDS as $key => $max) {
             if (isset($input[$key]) && !is_scalar($input[$key])) {
@@ -243,14 +263,31 @@ SQL;
         $out['supporto'] ??= 'cartaceo';
         if (!in_array($out['tipo_contributo'], ['articolo','editoriale','recensione','intervista','dossier','rubrica'], true)
             || !in_array($out['supporto'], ['cartaceo','digitale','entrambi'], true)
-            || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine'], true))) {
+            || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine','antologia'], true))) {
             throw new \InvalidArgumentException(__('Tipo non valido.'));
+        }
+        // Editors, publisher, place and ISBN describe the volume an anthology
+        // chapter sits in. For any other container they mean nothing: the form
+        // hides them, and a value left over from an anthology draft must not
+        // be stored, shown publicly, or block the save with an invalid ISBN
+        // the cataloguer can no longer see.
+        if ($out['contenitore_tipo'] !== 'antologia') {
+            foreach (['contenitore_curatori', 'contenitore_editore', 'contenitore_luogo', 'isbn'] as $hostField) {
+                $out[$hostField] = null;
+            }
         }
         if ($out['issn'] !== null) {
             if (!IssnHelper::isValidChecksum($out['issn'])) {
                 throw new \InvalidArgumentException(__('ISSN non valido.'));
             }
             $out['issn'] = IssnHelper::normalize($out['issn']);
+        }
+        if ($out['isbn'] !== null) {
+            $isbn = \App\Support\IsbnFormatter::clean($out['isbn']);
+            if (!\App\Support\IsbnFormatter::isValid($isbn)) {
+                throw new \InvalidArgumentException(__('ISBN non valido.'));
+            }
+            $out['isbn'] = $isbn;
         }
         if ($out['doi'] !== null) {
             $out['doi'] = strtolower(preg_replace('~^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)~i', '', $out['doi']) ?? '');
@@ -415,6 +452,21 @@ SQL;
     public const FILTER_FIELDS = ['autori' => 'autore', 'contenitore_titolo' => 'pubblicazione', 'keywords' => 'keyword'];
 
     /**
+     * Where an article sits, joined onto `c` by every public read path: the
+     * masthead (title, logo) and, when it was placed in one, the issue (number,
+     * cover, status) and that issue's year. Aliased so they never collide with
+     * the article's own free-text `numero` / `volume` citation fields.
+     */
+    public const PLACEMENT_COLUMNS = 't.titolo testata_titolo, t.logo_url testata_logo_url,'
+        . ' f.numero fascicolo_numero, f.titolo_fascicolo fascicolo_titolo, f.copertina_url fascicolo_copertina_url,'
+        . ' f.stato fascicolo_stato, f.annata_id fascicolo_annata_id, fa.anno fascicolo_anno, fa.volume fascicolo_volume';
+
+    /** The joins PLACEMENT_COLUMNS reads from; all LEFT, all on nullable keys. */
+    public const PLACEMENT_JOINS = ' LEFT JOIN emeroteca_testate t ON t.id = c.testata_id'
+        . ' LEFT JOIN emeroteca_fascicoli f ON f.id = c.fascicolo_id'
+        . ' LEFT JOIN emeroteca_annate fa ON fa.id = f.annata_id';
+
+    /**
      * The names credited by a free-text `autori` citation, in the order they
      * were written — one per narrowing link, because a filter value holding a
      * whole credit line can only ever match the article it came from.
@@ -451,10 +503,14 @@ SQL;
     /**
      * @param array<string, string> $filters subset of FILTER_FIELDS values ⇒ the
      *        text to match; an empty or unknown key is ignored
+     * @param int $fascicolo only the articles placed in this issue (0 = any)
+     * @param int $perPage page size; 50 is the historical default the mobile
+     *        API depends on, the public pages ask for fewer
      * @return array{rows:array,total:int,page:int,pages:int}
      */
-    public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1, array $filters = []): array
+    public function search(string $term = '', int $testata = 0, bool $public = false, int $page = 1, array $filters = [], int $fascicolo = 0, int $perPage = 50): array
     {
+        $perPage = max(1, min(200, $perPage));
         $where = ['1=1'];
         $linkedAuthors = (new \App\Services\ArticleAuthorService($this->db))->available();
         $authorMatch = "EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))";
@@ -465,6 +521,10 @@ SQL;
         if ($testata > 0) {
             $where[] = 'c.testata_id=?';
             $params[] = $testata;
+        }
+        if ($fascicolo > 0) {
+            $where[] = 'c.fascicolo_id=?';
+            $params[] = $fascicolo;
         }
         foreach (self::FILTER_FIELDS as $column => $key) {
             $value = trim((string) ($filters[$key] ?? ''));
@@ -488,12 +548,109 @@ SQL;
         }
         $sql = implode(' AND ', $where);
         $total = (int)$this->rows("SELECT COUNT(*) n FROM emeroteca_contributi c WHERE $sql", $params)[0]['n'];
-        $pages = max(1, (int)ceil($total / 50));
+        $pages = max(1, (int)ceil($total / $perPage));
         $page = min($pages, max(1, $page));
-        $offset = ($page - 1) * 50;
-        $rows = $this->rows("SELECT c.*,t.titolo testata_titolo,t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE $sql ORDER BY c.id DESC LIMIT 50 OFFSET $offset", $params);
+        $offset = ($page - 1) * $perPage;
+        $rows = $this->rows("SELECT c.*, " . self::PLACEMENT_COLUMNS . " FROM emeroteca_contributi c" . self::PLACEMENT_JOINS . " WHERE $sql ORDER BY c.id DESC LIMIT $perPage OFFSET $offset", $params);
         $rows = $this->hydrateAuthors($rows);
         return compact('rows', 'total', 'page', 'pages');
+    }
+
+    /**
+     * The published articles placed in one issue, in reading order: by the
+     * first page number their `pagine` field names, then by id. Unnumbered
+     * pieces go last. The sort runs in PHP because the page field is free text
+     * ("pp. 45-67", "12") and the supported floor (MySQL 5.7) has no
+     * REGEXP_SUBSTR; an issue holds tens of articles, never thousands.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function issueContents(int $fascicolo): array
+    {
+        if ($fascicolo <= 0) {
+            return [];
+        }
+        $rows = $this->rows(
+            'SELECT c.*, ' . self::PLACEMENT_COLUMNS . ' FROM emeroteca_contributi c' . self::PLACEMENT_JOINS
+            . ' WHERE c.pubblico = 1 AND c.fascicolo_id = ? ORDER BY c.id LIMIT 500',
+            [$fascicolo]
+        );
+        usort($rows, static function (array $a, array $b): int {
+            $pa = self::firstPage($a);
+            $pb = self::firstPage($b);
+            if ($pa !== $pb) {
+                return $pa <=> $pb;
+            }
+            return (int) $a['id'] <=> (int) $b['id'];
+        });
+        return $this->hydrateAuthors($rows);
+    }
+
+    /** First page number named by a free-text `pagine` field; PHP_INT_MAX when none. */
+    public static function firstPage(array $row): int
+    {
+        return preg_match('/\d+/', (string) ($row['pagine'] ?? ''), $m) === 1 ? (int) $m[0] : PHP_INT_MAX;
+    }
+
+    /**
+     * The article before and after this one in its issue's reading order, so
+     * the article page can be read like the issue it came from.
+     *
+     * @param array<string,mixed> $article a row carrying `id` and `fascicolo_id`
+     * @return array{prev: ?array<string,mixed>, next: ?array<string,mixed>}
+     */
+    public function neighboursInIssue(array $article): array
+    {
+        $out = ['prev' => null, 'next' => null];
+        $contents = $this->issueContents((int) ($article['fascicolo_id'] ?? 0));
+        foreach ($contents as $i => $row) {
+            if ((int) $row['id'] === (int) ($article['id'] ?? 0)) {
+                $out['prev'] = $contents[$i - 1] ?? null;
+                $out['next'] = $contents[$i + 1] ?? null;
+                break;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Other published articles of the same masthead, newest first.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function relatedInTestata(int $testata, int $excludeId, int $limit = 4): array
+    {
+        if ($testata <= 0) {
+            return [];
+        }
+        $limit = max(1, min(24, $limit));
+        $rows = $this->rows(
+            'SELECT c.*, ' . self::PLACEMENT_COLUMNS . ' FROM emeroteca_contributi c' . self::PLACEMENT_JOINS
+            . " WHERE c.pubblico = 1 AND c.testata_id = ? AND c.id <> ? ORDER BY c.id DESC LIMIT $limit",
+            [$testata, $excludeId]
+        );
+        return $this->hydrateAuthors($rows);
+    }
+
+    /**
+     * Other published articles credited to the same linked author (an
+     * authority record, never a free-text name: homonyms are real).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function relatedByAuthor(int $autore, int $excludeId, int $limit = 4): array
+    {
+        if ($autore <= 0 || !(new \App\Services\ArticleAuthorService($this->db))->available()) {
+            return [];
+        }
+        $limit = max(1, min(24, $limit));
+        $rows = $this->rows(
+            'SELECT c.*, ' . self::PLACEMENT_COLUMNS . ' FROM emeroteca_contributi c' . self::PLACEMENT_JOINS
+            . ' WHERE c.pubblico = 1 AND c.id <> ? AND EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca WHERE ca.contributo_id = c.id AND ca.autore_id = ?)'
+            . " ORDER BY c.id DESC LIMIT $limit",
+            [$excludeId, $autore]
+        );
+        return $this->hydrateAuthors($rows);
     }
 
     /** Existing issue indexes share the article list, but retain their issue-owned lifecycle. */
@@ -674,6 +831,9 @@ SQL;
         if ($container === 'giornale') {
             return __('Articolo di giornale');
         }
+        if ($container === 'antologia') {
+            return __('Capitolo di un volume');
+        }
         if ($container !== '') {
             return __('Articolo di rivista');
         }
@@ -682,26 +842,27 @@ SQL;
     }
 
     /**
-     * The image to show for an article: its own, else the masthead's.
+     * The image to show for an article: its own, else its issue's cover, else
+     * the masthead's logo.
      *
      * An article carries a cover only since 1.6, and most never will — it is
      * an optional field on a record that is usually just a citation. Falling
      * straight through to the catalogue placeholder made a list of results a
-     * column of identical grey rectangles. The masthead's logo is the image
-     * the article genuinely belongs to, and in a list it does useful work:
-     * it says at a glance which publication each result came from.
+     * column of identical grey rectangles. The issue the article was printed in
+     * is the most specific image that is genuinely its own; the masthead's
+     * logo is the next one, and it still says at a glance which publication a
+     * result came from.
      *
-     * Deliberately NOT the issue's cover, even when the article is attached to
-     * one. A per-issue photograph varies row by row and stops carrying that
-     * signal; the masthead is the constant the reader is orienting by.
+     * (Until 1.9 the issue cover was skipped on purpose, to keep a list visually
+     * keyed to the masthead. The library chose the more specific image: an
+     * article placed in an issue is shown with that issue.)
      *
-     * The single owner of this rule. Both public views and the mobile
-     * projection ask it rather than each writing "own cover or else", because
-     * that is the shape that already produced two disagreeing definitions of
-     * "empty" in this plugin. Pure: the caller's row must already carry
-     * `testata_logo_url`, which every read path that renders an article joins
-     * in. A row without it degrades to the article's own cover, never to a
-     * query issued per rendered row.
+     * The single owner of this rule. Public views, the core catalogue and the
+     * mobile projection all ask it — or reproduce it in SQL with the same
+     * order — rather than each writing "own cover or else". Pure: the caller's
+     * row must already carry `fascicolo_copertina_url` and `testata_logo_url`,
+     * which every read path that renders an article joins in. A row without
+     * them degrades to the next image down, never to a per-row query.
      *
      * @param array<string,mixed> $row
      * @return string '' when there is no image at all — the caller decides
@@ -710,9 +871,13 @@ SQL;
      */
     public static function coverUrl(array $row): string
     {
-        $own = trim((string) ($row['copertina_url'] ?? ''));
-
-        return $own !== '' ? $own : trim((string) ($row['testata_logo_url'] ?? ''));
+        foreach (['copertina_url', 'fascicolo_copertina_url', 'testata_logo_url'] as $key) {
+            $value = trim((string) ($row[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+        return '';
     }
 
     /**
@@ -726,7 +891,7 @@ SQL;
      */
     public static function publicData(array $r): array
     {
-        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','testata_id','fascicolo_id','updated_at']));
+        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','contenitore_curatori','contenitore_editore','contenitore_luogo','isbn','testata_id','fascicolo_id','updated_at']));
         foreach (['id','anno_pubblicazione','testata_id','fascicolo_id'] as $key) {
             if (isset($out[$key])) { $out[$key] = (int) $out[$key]; }
         }

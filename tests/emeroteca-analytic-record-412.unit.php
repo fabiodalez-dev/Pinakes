@@ -29,6 +29,7 @@ require dirname(__DIR__).'/storage/plugins/emeroteca/EmerotecaPlugin.php';
 require dirname(__DIR__).'/storage/plugins/emeroteca/src/Services/ContributionService.php';
 require dirname(__DIR__).'/storage/plugins/emeroteca/src/Services/ContributionCsv.php';
 require dirname(__DIR__).'/storage/plugins/emeroteca/src/Support/CitationFormatter.php';
+require dirname(__DIR__).'/storage/plugins/emeroteca/src/Support/CodeLists.php';
 
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
@@ -127,6 +128,9 @@ $rejects = static function (callable $fn, string $label) use ($check): void {
 /** The ten columns the analytic record adds, in the order they must appear. */
 const ANALYTIC_COLUMNS = ['sottotitolo','lingua','paese','classificazione_schema','classificazione','nota_possesso','risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica'];
 
+/** The four columns 1.9.0 adds for a chapter's host volume, after the ten above. */
+const HOST_COLUMNS = ['contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
+
 /** Uwe's own article, as the Royal Danish Library records it. */
 const UWE = [
     'titolo' => 'På sporet af et internationalt samarbejde blandt kedel- og maskinpassere i den anti-fascistiske kamp',
@@ -176,11 +180,11 @@ try {
     $check($db->query(ContributionService::ddl()) !== false,
         'and the DDL is still executable a second time');
 
-    foreach (ANALYTIC_COLUMNS as $column) {
+    foreach ([...ANALYTIC_COLUMNS, ...HOST_COLUMNS] as $column) {
         $db->query("ALTER TABLE emeroteca_contributi DROP COLUMN {$column}");
     }
     $legacy = $columns();
-    $check($legacy === array_values(array_diff($legacy, ANALYTIC_COLUMNS)) && end($legacy) === 'updated_at',
+    $check($legacy === array_values(array_diff($legacy, [...ANALYTIC_COLUMNS, ...HOST_COLUMNS])) && end($legacy) === 'updated_at',
         'the table is back to the 1.6.0 shape, ending at updated_at');
     $db->query("INSERT INTO emeroteca_contributi (reference_key, titolo, autori) VALUES ('legacy-1', 'Un articolo del 1.6', 'Rossi, Mario')");
 
@@ -189,8 +193,8 @@ try {
     $check($upgrade['failed'] === [], 'the real upgrade reports no failed table');
 
     $after = $columns();
-    $check(array_slice($after, -count(ANALYTIC_COLUMNS)) === ANALYTIC_COLUMNS,
-        'the ten analytic columns are appended, in order, after updated_at');
+    $check(array_slice($after, -count(ANALYTIC_COLUMNS) - count(HOST_COLUMNS)) === [...ANALYTIC_COLUMNS, ...HOST_COLUMNS],
+        'the ten analytic columns and the four host-volume columns are appended, in order, after updated_at');
 
     $types = [];
     foreach ($inventory() as $row) {
@@ -207,6 +211,10 @@ try {
         'risorsa_testo' => ['varchar(255)','YES',null],
         'risorsa_accesso' => ['varchar(255)','YES',null],
         'risorsa_pubblica' => ['tinyint(1)','NO','0'],
+        'contenitore_curatori' => ['varchar(500)','YES',null],
+        'contenitore_editore' => ['varchar(255)','YES',null],
+        'contenitore_luogo' => ['varchar(255)','YES',null],
+        'isbn' => ['varchar(17)','YES',null],
     ];
     // "No default" has two spellings. MySQL reports COLUMN_DEFAULT as SQL NULL
     // for a nullable column that declares no default; MariaDB reports the
@@ -253,8 +261,26 @@ try {
     // Without the sentinel a half-applied upgrade stays half-applied for ever.
     $expectedColumns = (new ReflectionMethod(EmerotecaPlugin::class, 'expectedColumns'))->invoke($plugin);
     $sentinels = array_column(array_filter($expectedColumns, static fn ($e) => $e['table'] === 'emeroteca_contributi'), 'column');
-    $check(array_diff(ANALYTIC_COLUMNS, $sentinels) === [],
+    $check(array_diff([...ANALYTIC_COLUMNS, ...HOST_COLUMNS], $sentinels) === [],
         'each new column is a boot-time self-heal sentinel');
+
+    // 1.8.0 -> 1.9.0: an installation that already has the analytic record
+    // gains only the host-volume columns, after risorsa_pubblica, and keeps
+    // what it had catalogued.
+    foreach (HOST_COLUMNS as $column) {
+        $db->query("ALTER TABLE emeroteca_contributi DROP COLUMN {$column}");
+    }
+    $shape18 = $columns();
+    $check(end($shape18) === 'risorsa_pubblica', 'the table is back to the 1.8.0 shape, ending at risorsa_pubblica');
+    $db->query("UPDATE emeroteca_contributi SET lingua='dan' WHERE reference_key='legacy-1'");
+    $upgrade19 = (new EmerotecaPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
+    $check($upgrade19['failed'] === [], 'the 1.9.0 upgrade reports no failed table');
+    $check(array_slice($columns(), -count(HOST_COLUMNS) - 1) === ['risorsa_pubblica', ...HOST_COLUMNS],
+        'the host-volume columns are appended after risorsa_pubblica, in order');
+    $row18 = $svc->rows("SELECT * FROM emeroteca_contributi WHERE reference_key='legacy-1'")[0];
+    $check($row18['lingua'] === 'dan' && $row18['contenitore_curatori'] === null && $row18['isbn'] === null,
+        'the row catalogued under 1.8.0 keeps its data, and the new fields are NULL');
+    $check($inventory() === $snapshot, 'and the upgraded table is identical to a fresh one');
 
     // -----------------------------------------------------------------------
     echo "\nB. What the record refuses to store\n";
@@ -279,6 +305,27 @@ try {
         'a DK5 notation is stored as typed — no scheme is privileged');
     $check(ContributionService::normalize(['titolo' => 'x','classificazione_schema' => 'DDC','classificazione' => '853.92'])['classificazione_schema'] === 'DDC',
         'and so is a Dewey one: the scheme is data, not a branch in the code');
+    // The form's "Other scheme": the typed name is stored, never the sentinel.
+    $other = ContributionService::normalize(['titolo' => 'x','classificazione_schema' => ContributionService::OTHER_SCHEME,'classificazione_schema_altro' => ' SAB ','classificazione' => 'Kbb']);
+    $check($other['classificazione_schema'] === 'SAB' && $other['classificazione'] === 'Kbb',
+        '"Other scheme" stores the name the cataloguer typed');
+    $check(ContributionService::normalize(['titolo' => 'x','classificazione_schema' => ContributionService::OTHER_SCHEME])['classificazione_schema'] === null,
+        '"Other scheme" with no name stores no scheme rather than the sentinel');
+    // The pickers' lists: names from ICU, codes the validator accepts.
+    $languages = \App\Plugins\Emeroteca\Support\CodeLists::languages('it_IT');
+    $countries = \App\Plugins\Emeroteca\Support\CodeLists::countries('it_IT');
+    $check(($languages['dan'] ?? '') === 'Danese' && ($languages['deu'] ?? '') === 'Tedesco' && isset($languages['non']),
+        'languages: terminology codes, named in the user\'s language, historic languages included');
+    $check(($countries['DK'] ?? '') === 'Danimarca' && !isset($countries['EU']) && !isset($countries['ZZ']) && count($countries) >= 249,
+        'countries: from ICU, without groupings or unknown codes');
+    $valid = true;
+    foreach (array_keys($languages) as $code) {
+        $valid = $valid && ContributionService::normalize(['titolo' => 'x','lingua' => (string) $code])['lingua'] === (string) $code;
+    }
+    foreach (array_keys($countries) as $code) {
+        $valid = $valid && ContributionService::normalize(['titolo' => 'x','paese' => (string) $code])['paese'] === (string) $code;
+    }
+    $check($valid, 'every code a picker offers is one the validator accepts unchanged');
 
     // -----------------------------------------------------------------------
     echo "\nC. The 856 triple decides once, for every reader\n";
@@ -356,8 +403,75 @@ try {
         'and a page number in that field is not mistaken for one');
     $check(str_starts_with(CitationFormatter::apa(['titolo' => 'x','autori' => 'Institute of Science and Technology','anno_pubblicazione' => 2001]), 'Institute of Science and Technology '),
         'a corporate author is never initialised: guessing its surname would be wrong');
-    $check(str_contains(CitationFormatter::apa(['titolo' => 'x','autori' => 'Rossi, Mario; Bianchi, Anna','anno_pubblicazione' => 2001]), 'Rossi, M. & Bianchi, A.'),
-        'two authors are joined, and the comma inside a name is not a separator');
+    $check(str_contains(CitationFormatter::apa(['titolo' => 'x','autori' => 'Rossi, Mario; Bianchi, Anna','anno_pubblicazione' => 2001]), 'Rossi, M., & Bianchi, A.'),
+        'two authors are joined with ", &" as APA 7 prints them, and the comma inside a name is not a separator');
+
+    // A newspaper is identified by its day (#412, Uwe's Süddeutsche Zeitung
+    // example): APA 7 and Harvard both print it, a journal keeps the year.
+    $sz = ['titolo' => 'Warum es erhellend sein kann, AfD und NSDAP zu vergleichen','autori' => 'Hacke, Axel',
+        'contenitore_tipo' => 'giornale','contenitore_titolo' => 'Süddeutsche Zeitung','pagine' => '3',
+        'data_pubblicazione_testo' => '28-09-2026','anno_pubblicazione' => 2026];
+    $check(str_starts_with(CitationFormatter::apa($sz), 'Hacke, A. (2026, September 28). '),
+        'APA: a newspaper article is dated to the day, from day-month-year');
+    $check(str_contains(CitationFormatter::harvard($sz), "Süddeutsche Zeitung, 28 September, p. 3."),
+        'Harvard: day and month follow the newspaper title');
+    $check(str_contains(CitationFormatter::ris($sz), "DA  - 2026/09/28/\r\n"), 'RIS: the date travels in the normalised form');
+    foreach (['2026-09-28', '28.09.2026', '28/09/2026', '28 September 2026', '28. September 2026', '28 settembre 2026', 'September 28, 2026', '28 septembre 2026'] as $written) {
+        $check(str_contains(CitationFormatter::apa(['data_pubblicazione_testo' => $written] + $sz), '(2026, September 28)'),
+            "the day is read from «{$written}»");
+    }
+    $check(str_contains(CitationFormatter::apa(['data_pubblicazione_testo' => '03-04-2026'] + $sz), '(2026, April 3)'),
+        'a numeric date is read day first, never month first');
+    $check(str_contains(CitationFormatter::apa(['contenitore_tipo' => 'magazine','data_pubblicazione_testo' => 'giugno 2026'] + $sz), '(2026, June)'),
+        'a magazine with month and year is dated to the month');
+    $check(str_contains(CitationFormatter::apa(['contenitore_tipo' => 'rivista'] + $sz), '(2026).'),
+        'a journal article keeps the year alone, as APA prescribes');
+    $check(str_contains(CitationFormatter::apa(['data_pubblicazione_testo' => '31-02-2026'] + $sz), '(2026).'),
+        'an impossible date is not printed');
+    $check(str_contains(CitationFormatter::apa(['anno_pubblicazione' => 2025] + $sz), '(2025).'),
+        'a free date that disagrees with the year column is not grafted onto it');
+    $check(str_contains(CitationFormatter::ris(['data_pubblicazione_testo' => 'Nr. 31 (1988)'] + $sz), "DA  - Nr. 31 (1988)\r\n"),
+        'a free date that is not a date travels as written');
+
+    // A chapter in an anthology (#412): the host is a book with editors,
+    // a publisher and a place, and each style has its own form for it.
+    $chapter = ['titolo' => 'Die Emigration','autori' => 'Petersen, Hans Uwe','contenitore_tipo' => 'antologia',
+        'contenitore_titolo' => 'Exil in Dänemark','contenitore_curatori' => 'Müller, Anna; Jensen, Per',
+        'contenitore_editore' => 'Museum Tusculanum','contenitore_luogo' => 'København','isbn' => '9780306406157',
+        'anno_pubblicazione' => 1991,'pagine' => '45-67'];
+    $check(CitationFormatter::apa($chapter) === 'Petersen, H. U. (1991). Die Emigration. In A. Müller & P. Jensen (Eds.), Exil in Dänemark (pp. 45–67). Museum Tusculanum.',
+        'APA: a chapter is cited "In editors (Eds.), book (pp.). Publisher."');
+    $check(CitationFormatter::harvard($chapter) === "Petersen, H.U. (1991) 'Die Emigration', in Müller, A. and Jensen, P. (eds) Exil in Dänemark. København: Museum Tusculanum, pp. 45–67.",
+        'Harvard: a chapter is cited "in Editor (eds) Book. Place: Publisher, pp."');
+    $check(str_contains(CitationFormatter::apa(['contenitore_curatori' => 'Müller, Anna'] + $chapter), 'In A. Müller (Ed.), '),
+        'one editor is (Ed.), not (Eds.)');
+    $chapterRis = CitationFormatter::ris($chapter);
+    $check(str_starts_with($chapterRis, "TY  - CHAP\r\n") && str_contains($chapterRis, "T2  - Exil in Dänemark\r\n")
+        && str_contains($chapterRis, "A2  - Müller, Anna\r\n") && str_contains($chapterRis, "A2  - Jensen, Per\r\n"),
+        'RIS: a chapter is CHAP, with the book as T2 and its editors as A2');
+    $check(str_contains($chapterRis, "PB  - Museum Tusculanum\r\n") && str_contains($chapterRis, "CY  - København\r\n")
+        && str_contains($chapterRis, "SN  - 9780306406157\r\n"),
+        'and the publisher, place and ISBN of the book');
+    $noIsbn = CitationFormatter::ris(['titolo' => 'Kapitel', 'contenitore_tipo' => 'antologia', 'contenitore_titolo' => 'Sammelband', 'issn' => '0317-8471']);
+    $check(!str_contains($noIsbn, "SN  - "), 'a chapter without an ISBN exports no SN, not the ISSN');
+    $check(str_contains(CitationFormatter::ris(['titolo' => 'Artikel', 'contenitore_tipo' => 'rivista', 'contenitore_titolo' => 'Zeitschrift', 'issn' => '0317-8471']), "SN  - 0317-8471\r\n"),
+        'a journal article still exports its ISSN');
+    $check(ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia','isbn' => '978-0-306-40615-7'])['isbn'] === '9780306406157',
+        'a hyphenated ISBN is stored clean');
+    $rejects(static fn () => ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia','isbn' => '978-0-306-40615-8']),
+        'an ISBN with a wrong check digit is refused');
+    // The host volume belongs to anthologies only: left over from a draft under
+    // another type, it is dropped rather than stored or used to refuse the save.
+    $journal = ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'rivista','isbn' => '978-0-306-40615-8',
+        'contenitore_curatori' => 'Müller, Anna','contenitore_editore' => 'Museum Tusculanum','contenitore_luogo' => 'København']);
+    $check($journal['isbn'] === null && $journal['contenitore_curatori'] === null && $journal['contenitore_editore'] === null && $journal['contenitore_luogo'] === null,
+        'a journal article drops the host-volume fields, even an invalid ISBN');
+    $check(ContributionService::normalize(['titolo' => 'x','isbn' => '9780306406157'])['isbn'] === null,
+        'and so does an article with no publication type');
+    $check(ContributionService::normalize(['titolo' => 'x','contenitore_tipo' => 'antologia'])['contenitore_tipo'] === 'antologia',
+        'anthology is an accepted publication type');
+    $check(ContributionService::materialType(['contenitore_tipo' => 'antologia']) !== ContributionService::materialType(['contenitore_tipo' => 'rivista']),
+        'and the public page names it as a chapter, not a journal article');
 
     $parts = CitationFormatter::parts(['pagine' => '138–148']);
     $check($parts['pageStart'] === '138' && $parts['pageEnd'] === '148', 'an en-dashed span splits');
@@ -429,13 +543,23 @@ try {
     $svc->save(UWE + $online + ['reference_key' => 'analytic-csv-1','pubblico' => 1]);
     $csv = new ContributionCsv($svc);
     $exported = $csv->export();
-    $header = str_getcsv(explode("\n", $exported)[0]);
+    $header = str_getcsv(explode("\n", $exported)[0], ',', '"', '\\');
     foreach (ANALYTIC_COLUMNS as $column) {
         $check(in_array($column, $header, true), "  the export header carries {$column}");
     }
     $roundTrip = $csv->preview($exported);
     $check(array_filter(array_column($roundTrip, 'error')) === [],
         'the catalogue can re-import its own export without an error');
+    foreach (HOST_COLUMNS as $column) {
+        $check(in_array($column, $header, true), "  the export header carries {$column}");
+    }
+    $chapterCsv = "record_type,reference_key,titolo,contenitore_titolo,contenitore_curatori,isbn\n"
+        . "book_chapter,analytic-chapter-1,Die Emigration,Exil in Dänemark,\"Müller, Anna\",9780306406157\n";
+    $chapterPreview = $csv->preview($chapterCsv);
+    $check(array_filter(array_column($chapterPreview, 'error')) === [], 'a book_chapter row imports');
+    $check(($chapterPreview[0]['data']['contenitore_tipo'] ?? null) === 'antologia'
+        && ($chapterPreview[0]['data']['contenitore_curatori'] ?? null) === 'Müller, Anna',
+        'as an anthology chapter with its editors');
     $reimported = null;
     foreach ($roundTrip as $line) {
         if (($line['data']['reference_key'] ?? '') === 'analytic-csv-1') {
@@ -511,7 +635,7 @@ try {
         : null;
     $check(is_array($ld) && ($ld['alternativeHeadline'] ?? null) === UWE['sottotitolo'],
         'structured data declares the subtitle');
-    $check(is_array($ld) && ($ld['inLanguage'] ?? null) === 'dan', 'and the language code');
+    $check(is_array($ld) && ($ld['inLanguage'] ?? null) === 'da', 'and the language code, as the BCP 47 tag schema.org expects (da, not the stored dan)');
     $check(is_array($ld) && ($ld['datePublished'] ?? null) === '1988', 'and a bare year, which is valid ISO 8601');
     $check(is_array($ld) && ($ld['pageStart'] ?? null) === '18' && ($ld['pageEnd'] ?? null) === '38',
         'and the page ends, taken from the same decomposition the citation uses');

@@ -434,7 +434,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <div class="item-inner">
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="<?= __('Copertina') ?>"
+                   alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
                    onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -506,7 +506,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <div class="item-inner">
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="<?= __('Copertina') ?>"
+                   alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
                    onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -579,7 +579,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <div class="item-inner">
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="<?= __('Copertina') ?>"
+                   alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
                    onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -656,7 +656,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <div class="item-inner">
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                   alt="<?= __('Copertina') ?>"
+                   alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
                    onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
@@ -699,7 +699,7 @@ $profileReservationCoverUrl = static function (array $item): string {
   <div style="background: white; border-radius: 16px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; padding: 2rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
       <h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;"><?= __('Lascia una recensione') ?></h3>
-      <button onclick="closeReviewModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280;" aria-label="<?= __('Chiudi') ?>">&times;</button>
+      <button onclick="closeReviewModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280;" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">&times;</button>
     </div>
     <div id="reviewBookTitle" style="font-size: 1.125rem; color: #6b7280; margin-bottom: 1.5rem;"></div>
     <form id="reviewForm">
@@ -720,12 +720,12 @@ $profileReservationCoverUrl = static function (array $item): string {
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Titolo (opzionale)') ?></label>
-        <input type="text" id="review-titolo" name="titolo" maxlength="255" placeholder="<?= __('Es. Un libro fantastico!') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
+        <input type="text" id="review-titolo" name="titolo" maxlength="255" placeholder="<?= htmlspecialchars(__('Es. Un libro fantastico!'), ENT_QUOTES, 'UTF-8') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px;">
       </div>
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Recensione (opzionale)') ?></label>
-        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" placeholder="<?= __('Cosa ne pensi di questo libro?') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical;"></textarea>
+        <textarea id="review-descrizione" name="descrizione" rows="5" maxlength="2000" placeholder="<?= htmlspecialchars(__('Cosa ne pensi di questo libro?'), ENT_QUOTES, 'UTF-8') ?>" style="width: 100%; padding: 0.625rem; border: 1px solid #d1d5db; border-radius: 8px; resize: vertical;"></textarea>
       </div>
 
       <div style="display: flex; gap: 1rem;">

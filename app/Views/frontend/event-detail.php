@@ -88,464 +88,114 @@ $formatTime = static function (?string $time) use ($timeFormatter, $createDateTi
 $eventDateFormatted = $formatDate($event['event_date'] ?? null);
 $eventTimeFormatted = $formatTime($event['event_time'] ?? null);
 
+
+$catalogPageStyles = true;
+$bookDetailStyles = true;
+$corePartials = __DIR__ . '/partials';
+
+// $eventImageLayout is set by the controller and re-validated there against
+// the allow-list; re-narrow here as defense in depth. Compact layouts
+// (contained, thumb) show the image as the hero cover; wide layouts (full,
+// banner) keep the hero plain and show the image across the body, in a
+// <figure class="event-cover event-cover--full|--banner">. The setting's other
+// values are event-cover--contained and event-cover--thumb (hero cover).
+$coverAllowed    = ['full', 'banner', 'contained', 'thumb'];
+$requestedLayout = (string)($eventImageLayout ?? 'contained');
+$coverLayout     = in_array($requestedLayout, $coverAllowed, true) ? $requestedLayout : 'contained';
+$hasCoverImage   = !empty($event['featured_image']);
+$coverInHero     = $hasCoverImage && in_array($coverLayout, ['contained', 'thumb'], true);
+$eventPlace      = trim((string) ConfigStore::get('app.address', ''));
+
+// Only what the shared sheets do not cover: a wide image in the body.
 $additional_css = "
 <style>
-    main {
-        padding-top: 120px;
-    }
-
-    @media (max-width: 576px) {
-        main {
-            padding-top: 110px;
-        }
-    }
-
-    .event-hero {
-        background: var(--white);
-        border-bottom: 1px solid var(--border-color);
-        padding: 4.5rem 0 3.5rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .event-breadcrumb {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-size: 0.95rem;
-        color: var(--text-light);
-        margin-bottom: 1rem;
-        flex-wrap: wrap;
-    }
-
-    .event-breadcrumb a {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .event-label {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0;
-        border-radius: 0;
-        border: none;
-        background: none;
-        font-size: 0.8rem;
-        font-weight: 600;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin-bottom: 1rem;
-        color: var(--primary-color);
-    }
-
-    .event-title {
-        font-family: var(--serif);
-        font-size: clamp(2rem, 4vw, 3.5rem);
-        font-weight: 460;
-        color: var(--text-color);
-        letter-spacing: -0.03em;
-        margin-bottom: 1.25rem;
-    }
-
-    .event-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.25rem;
-        font-weight: 600;
-        color: #374151;
-    }
-
-    .event-meta__item {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 1rem;
-    }
-
-    .event-section {
-        background: var(--white);
-        padding: 3rem 0 4rem;
-    }
-
-    .event-card {
-        border: none;
-        border-radius: 0;
-        padding: clamp(1.75rem, 4vw, 3rem);
-        background: var(--white);
-    }
-
-    .event-cover {
-        border-radius: 3px;
-        overflow: hidden;
-        margin-bottom: 2rem;
-        border: none;
-        background: none;
-        box-shadow: 0 1px 3px color-mix(in srgb, var(--text-color) 20%, transparent);
-    }
-
-    .event-cover img {
-        width: 100%;
-        display: block;
-    }
-
-    /* Layout variants (issue #137): admin-configurable SIZE for the
-       event hero image. The four variants give the librarian
-       progressively smaller / less invasive renderings, so a
-       sproportioned upload (e.g. a 1791×927 book cover) doesn't
-       dominate the event page.
-
-       Effective sizes on desktop:
-         full       → 100% × auto         (legacy: enormous)
-         banner     → 100% × 220px max    (low-profile decorative strip)
-         contained  → 420px × auto, left-aligned (default: small poster)
-         thumb      → 240px wide, side-by-side with body text          */
-
-    /* full: passthrough — for users who actually want a giant image. */
-    .event-cover--full img {
-        height: auto;
-    }
-
-    /* banner: full-width but capped at a low decorative strip so it
-       cannot eat the viewport vertically. */
-    .event-cover--banner {
-        max-height: 220px;
-    }
-    .event-cover--banner img {
-        width: 100%;
-        height: 220px;
-        object-fit: cover;
-        object-position: center;
-    }
-
-    /* contained (DEFAULT): left-aligned poster, never wider than 420px.
-       Solves the original complaint where a wide image rendered at
-       full container width. Aspect ratio of the source file is
-       preserved — no crop, no forced shape, just a sensible cap.
-       Left-aligned so the image reads as part of the body flow rather
-       than as a centred hero. */
-    .event-cover--contained {
-        max-width: 420px;
-        margin-left: 0;
-        margin-right: auto;
-        /* No border/background here: contained is a small left-aligned poster; the 420px-wide image floating next to body text reads better without the grey card frame the other variants use to fill the wider hero slot. Keep this asymmetry intentional. */
-        background: transparent;
-        border: none;
-    }
-    .event-cover--contained img {
-        width: 100%;
-        height: auto;
-        max-height: 320px;
-        object-fit: contain;
-    }
-
-    /* thumb: side-by-side layout — the small modifier already in the
-       previous iteration. Driven by .event-card--thumb-layout on the
-       parent so the figure lives in its own grid cell, geometrically
-       constrained inside the card. Collapses to a stack < 768px. */
-    .event-cover--thumb {
-        margin-bottom: 0;
-        max-width: 240px;
-    }
-    .event-cover--thumb img {
-        width: 100%;
-        height: auto;
-        aspect-ratio: 3 / 4;
-        object-fit: cover;
-    }
-    @media (min-width: 768px) {
-        .event-card--thumb-layout {
-            display: grid;
-            grid-template-columns: 240px 1fr;
-            gap: clamp(1.5rem, 3vw, 2.5rem);
-            align-items: start;
-        }
-        .event-card--thumb-layout > .event-cover--thumb {
-            grid-column: 1;
-            grid-row: 1 / span 2;
-            position: sticky;
-            top: 7rem;
-            margin: 0;
-            max-height: calc(100vh - 9rem);
-            overflow: hidden;
-        }
-        .event-card--thumb-layout > .event-body,
-        .event-card--thumb-layout > .event-back {
-            grid-column: 2;
-        }
-    }
-    @media (max-width: 767px) {
-        .event-cover--thumb {
-            margin: 0 0 1.5rem 0;
-        }
-    }
-
-    .event-body {
-        font-size: 1.05rem;
-        line-height: 1.8;
-        color: var(--text-color);
-    }
-
-    .event-back {
-        margin-top: 2.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .event-back a {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: var(--primary-color, #d70161);
-        font-weight: 600;
-        text-decoration: none;
-    }
-
-    .related-events {
-        background: var(--light-bg);
-        padding: 3rem 0 4rem;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .related-heading {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-
-    .related-heading h2 {
-        font-family: var(--serif);
-        font-size: 2.25rem;
-        font-weight: 460;
-        letter-spacing: -0.02em;
-        color: var(--text-color);
-        margin-bottom: 0.5rem;
-    }
-
-    .related-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 1.5rem;
-    }
-
-    @media (max-width: 1024px) {
-        .related-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 640px) {
-        .related-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .related-card {
-        background: transparent;
-        border: none;
-        border-radius: 0;
-        overflow: visible;
-    }
-
-    .related-thumb {
-        height: 170px;
-        background: var(--accent-color);
-        border-radius: 3px;
-        overflow: hidden;
-        display: block;
-        box-shadow: 0 1px 3px color-mix(in srgb, var(--text-color) 20%, transparent);
-        transition: box-shadow 0.2s ease, transform 0.2s ease;
-    }
-
-    .related-card:hover .related-thumb {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 16px color-mix(in srgb, var(--text-color) 24%, transparent);
-    }
-
-    .related-thumb img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .related-body {
-        padding: 1.25rem;
-    }
-
-    .related-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--primary-color);
-        margin-bottom: 0.5rem;
-    }
-
-    .related-title {
-        font-family: var(--serif);
-        font-size: 1.2rem;
-        font-weight: 460;
-        letter-spacing: -0.01em;
-        margin-bottom: 0.75rem;
-        color: var(--text-color);
-    }
-
-    .related-title a {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .related-title a:hover {
-        color: var(--primary-color, #d70161);
-    }
-
-    .related-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-weight: 600;
-        color: var(--primary-color, #d70161);
-        text-decoration: none;
-    }
-
-    @media (max-width: 768px) {
-        .event-meta {
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .event-card {
-            padding: 1.5rem;
-        }
-    }
+    .event-cover { margin: 0 0 2rem; border-radius: 3px; overflow: hidden; }
+    .event-cover img { display: block; width: 100%; height: auto; }
+    .event-cover--banner img { height: 220px; object-fit: cover; }
+    .books-grid--events { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+    .book-card--event .book-image-container { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+    .book-card--event .book-image { object-fit: cover; }
+    .book-card--event .book-image-icon { font-size: 3rem; color: var(--text-muted); opacity: 0.6; }
+    @media (max-width: 767px) { .event-cover--banner img { height: 160px; } }
 </style>
 ";
 
 ob_start();
+
+$resourceCover = $coverInHero ? url($event['featured_image']) : '';
+$resourceCoverAlt = (string) $event['title'];
+$resourceKickerHtml = '<span class="book-media-type"><i class="fas fa-calendar-alt mr-1" aria-hidden="true"></i>' . HtmlHelper::e(__("Evento della biblioteca")) . '</span>';
+$resourceTitle = (string) $event['title'];
+$breadcrumbItems = [
+    ['label' => __('Home'), 'href' => url('/')],
+    ['label' => __('Eventi'), 'href' => route_path('events')],
+    ['label' => (string) $event['title']],
+];
+include $corePartials . '/resource-hero.php';
 ?>
 
-<section class="event-hero">
-    <div class="container">
-        <div class="event-breadcrumb" aria-label="<?= __("Percorso di navigazione") ?>">
-            <a href="<?= HtmlHelper::e(url('/')) ?>"><?= __("Home") ?></a>
-            <span>/</span>
-            <a href="<?= HtmlHelper::e(route_path('events')) ?>"><?= __("Eventi") ?></a>
-            <span>/</span>
-            <span><?= HtmlHelper::e($event['title']) ?></span>
-        </div>
-
-        <div class="event-label">
-            <i class="fas fa-bookmark"></i>
-            <?= __("Evento della biblioteca") ?>
-        </div>
-
-        <h1 class="event-title"><?= HtmlHelper::e($event['title']) ?></h1>
-
-        <div class="event-meta">
-            <?php if ($eventDateFormatted): ?>
-                <div class="event-meta__item">
-                    <i class="fas fa-calendar-alt"></i>
-                    <time datetime="<?= HtmlHelper::e($event['event_date']) ?>">
-                        <?= HtmlHelper::e($eventDateFormatted) ?>
-                    </time>
-                </div>
-            <?php endif; ?>
-            <?php if ($eventTimeFormatted): ?>
-                <div class="event-meta__item">
-                    <i class="fas fa-clock"></i>
-                    <time datetime="<?= HtmlHelper::e($event['event_time']) ?>">
-                        <?= HtmlHelper::e($eventTimeFormatted) ?>
-                    </time>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</section>
-
-<?php
-    // $eventImageLayout is set by the controller and re-validated there
-    // against the allow-list; we re-narrow here as defense in depth so
-    // a future controller refactor cannot leak an unknown value into
-    // the DOM. Computed before the markup so the parent .event-card
-    // can opt into the side-by-side grid via .event-card--thumb-layout.
-    $coverAllowed     = ['full', 'banner', 'contained', 'thumb'];
-    // Defense-in-depth: the controller normally injects $eventImageLayout,
-    // but null-safe-coalesce the read so a future controller refactor that
-    // skips the variable doesn't trigger an "undefined variable" notice.
-    $requestedLayout  = (string)($eventImageLayout ?? 'contained');
-    $coverLayout      = in_array($requestedLayout, $coverAllowed, true) ? $requestedLayout : 'contained';
-    $hasCoverImage  = !empty($event['featured_image']);
-    $cardClasses    = ['event-card'];
-    if ($hasCoverImage && $coverLayout === 'thumb') {
-        $cardClasses[] = 'event-card--thumb-layout';
-    }
-?>
-<section class="event-section">
-    <div class="container">
-        <article class="<?= htmlspecialchars(implode(' ', $cardClasses), ENT_QUOTES, 'UTF-8') ?>">
-            <?php if ($hasCoverImage): ?>
-                <figure class="event-cover event-cover--<?= htmlspecialchars($coverLayout, ENT_QUOTES, 'UTF-8') ?>" data-event-cover-layout="<?= htmlspecialchars($coverLayout, ENT_QUOTES, 'UTF-8') ?>">
-                    <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>">
-                </figure>
-            <?php endif; ?>
-
-            <div class="event-body">
-                <?= $contentHtml ?>
+<main class="container">
+    <div class="flex flex-wrap -mx-3">
+        <div class="w-full lg:w-2/3 px-3">
+            <div class="book-description-section">
+                <?php if ($hasCoverImage && !$coverInHero): ?>
+                    <figure class="event-cover event-cover--<?= htmlspecialchars($coverLayout, ENT_QUOTES, 'UTF-8') ?>" data-event-cover-layout="<?= htmlspecialchars($coverLayout, ENT_QUOTES, 'UTF-8') ?>">
+                        <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>">
+                    </figure>
+                <?php endif; ?>
+                <div class="description-content"><?= $contentHtml ?></div>
             </div>
+        </div>
 
-            <div class="event-back">
-                <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>">
-                    <i class="fas fa-arrow-left"></i>
-                    <?= __("Torna alla panoramica eventi") ?>
-                </a>
+        <aside class="w-full lg:w-1/3 px-3" aria-label="<?= HtmlHelper::e(__("Informazioni")) ?>">
+            <div class="card mb-4 resource-info-card">
+                <div class="card-header"><h2 class="mb-0 resource-info-title"><i class="fas fa-calendar-alt mr-2" aria-hidden="true"></i><?= __("Informazioni") ?></h2></div>
+                <div class="card-body">
+                    <?php if ($eventDateFormatted): ?>
+                        <div class="meta-item"><div class="meta-label"><?= __("Data") ?></div><div class="meta-value"><time datetime="<?= HtmlHelper::e($event['event_date']) ?>"><?= HtmlHelper::e($eventDateFormatted) ?></time></div></div>
+                    <?php endif; ?>
+                    <?php if ($eventTimeFormatted): ?>
+                        <div class="meta-item"><div class="meta-label"><?= __("Orario") ?></div><div class="meta-value"><time datetime="<?= HtmlHelper::e($event['event_time']) ?>"><?= HtmlHelper::e($eventTimeFormatted) ?></time></div></div>
+                    <?php endif; ?>
+                    <div class="meta-item"><div class="meta-label"><?= __("Luogo") ?></div><div class="meta-value"><?= HtmlHelper::e((string) $appName) ?><?= $eventPlace !== '' ? '<br>' . HtmlHelper::e($eventPlace) : '' ?></div></div>
+                    <a class="ui-button btn-outline resource-back" href="<?= HtmlHelper::e(route_path('events')) ?>"><i class="fas fa-arrow-left" aria-hidden="true"></i> <?= __("Torna alla panoramica eventi") ?></a>
+                </div>
             </div>
-        </article>
+        </aside>
     </div>
-</section>
+</main>
 
 <?php /** @var array $relatedEvents Related upcoming events (from controller) */ ?>
 
 <?php if (!empty($relatedEvents)): ?>
-    <section class="related-events">
+    <section class="resource-related">
         <div class="container">
-            <div class="related-heading">
-                <h2><?= __("Altri eventi in programma") ?></h2>
-                <p class="text-gray-500"><?= __("Segna in agenda anche questi appuntamenti imminenti.") ?></p>
-            </div>
-            <div class="related-grid">
-                <?php foreach ($relatedEvents as $relatedEvent): ?>
-                    <?php
-                    $relatedDateFormatted = $formatDate($relatedEvent['event_date'] ?? null);
-                    $relatedTimeFormatted = $formatTime($relatedEvent['event_time'] ?? null);
-                    ?>
-                    <article class="related-card">
-                        <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>" class="related-thumb">
-                            <?php if (!empty($relatedEvent['featured_image'])): ?>
-                                <img src="<?= HtmlHelper::e(url($relatedEvent['featured_image'])) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
-                            <?php endif; ?>
-                        </a>
-                        <div class="related-body">
-                            <div class="related-meta">
-                                <?php if ($relatedDateFormatted): ?>
-                                    <span><i class="fas fa-calendar-alt"></i> <?= HtmlHelper::e($relatedDateFormatted) ?></span>
-                                <?php endif; ?>
-                                <?php if ($relatedTimeFormatted): ?>
-                                    <span><i class="fas fa-clock"></i> <?= HtmlHelper::e($relatedTimeFormatted) ?></span>
-                                <?php endif; ?>
-                            </div>
-                            <h3 class="related-title">
-                                <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>">
-                                    <?= HtmlHelper::e($relatedEvent['title']) ?>
+            <div class="listing-section">
+                <h2 class="listing-section-title"><span><?= __("Altri eventi in programma") ?></span></h2>
+                <div class="books-grid books-grid--events">
+                    <?php foreach ($relatedEvents as $relatedEvent): ?>
+                        <?php
+                        $relatedMeta = trim($formatDate($relatedEvent['event_date'] ?? null) . ($formatTime($relatedEvent['event_time'] ?? null) !== '' ? ' · ' . $formatTime($relatedEvent['event_time'] ?? null) : ''));
+                        $relatedUrl = HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug']));
+                        ?>
+                        <article class="book-card book-card--event">
+                            <div class="book-image-container">
+                                <a href="<?= $relatedUrl ?>" tabindex="-1" aria-hidden="true" class="flex w-full h-full items-center justify-center">
+                                    <?php if (!empty($relatedEvent['featured_image'])): ?>
+                                        <img class="book-image" src="<?= HtmlHelper::e(url($relatedEvent['featured_image'])) ?>" alt="" loading="lazy" decoding="async">
+                                    <?php else: ?>
+                                        <i class="fas fa-calendar-alt book-image-icon" aria-hidden="true"></i>
+                                    <?php endif; ?>
                                 </a>
-                            </h3>
-                            <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>" class="related-link">
-                                <?= __("Dettagli evento") ?>
-                                <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    </article>
-                <?php endforeach; ?>
+                            </div>
+                            <div class="book-content">
+                                <h3 class="book-title"><a href="<?= $relatedUrl ?>"><?= HtmlHelper::e($relatedEvent['title']) ?></a></h3>
+                                <?php if ($relatedMeta !== ''): ?><p class="book-meta"><?= HtmlHelper::e($relatedMeta) ?></p><?php endif; ?>
+                                <div class="book-actions"><a class="btn-cta btn-cta-sm" href="<?= $relatedUrl ?>"><i class="fas fa-eye" aria-hidden="true"></i> <?= __("Dettagli") ?></a></div>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
             </div>
         </div>
     </section>

@@ -9,7 +9,7 @@ final class ArticleMarcXml
     /**
      * ISO 639-1 → MARC Code List for Languages (the ISO 639-2/B-equivalent codes).
      */
-    private const LANGUAGE_639_1 = [
+    public const LANGUAGE_639_1 = [
         'aa'=>'aar','ab'=>'abk','af'=>'afr','ak'=>'aka','am'=>'amh','an'=>'arg','ar'=>'ara','as'=>'asm','av'=>'ava',
         'ay'=>'aym','az'=>'aze','ba'=>'bak','be'=>'bel','bg'=>'bul','bi'=>'bis','bm'=>'bam','bn'=>'ben','bo'=>'tib',
         'br'=>'bre','bs'=>'bos','ca'=>'cat','ce'=>'che','ch'=>'cha','co'=>'cos','cr'=>'cre','cs'=>'cze','cu'=>'chu',
@@ -34,7 +34,7 @@ final class ArticleMarcXml
     ];
 
     /** ISO 639-2/T codes whose MARC (bibliographic) code differs. */
-    private const LANGUAGE_639_2T = [
+    public const LANGUAGE_639_2T = [
         'bod'=>'tib','ces'=>'cze','cym'=>'wel','deu'=>'ger','ell'=>'gre','eus'=>'baq','fas'=>'per','fra'=>'fre',
         'hye'=>'arm','isl'=>'ice','kat'=>'geo','mkd'=>'mac','mri'=>'mao','msa'=>'may','mya'=>'bur','nld'=>'dut',
         'ron'=>'rum','slk'=>'slo','sqi'=>'alb','zho'=>'chi',
@@ -123,7 +123,15 @@ final class ArticleMarcXml
         ], static fn($v) => $v !== '');
         // $w only with a control number that an exported host record carries;
         // never $w alone, which would describe no host at all.
-        $field('773', ['t'=>$parts['container'], 'x'=>$parts['issn'], 'g'=>implode(', ', $enumeration), 'w'=>$hostControlNumber], '0', ' ', [['t', 'x', 'g']]);
+        // A chapter's host is a book (#412): its imprint goes to 773 $d and its
+        // ISBN to $z, where a periodical carries its ISSN in $x.
+        $imprint = '';
+        if ($parts['isAnthology']) {
+            $imprint = trim(($parts['place'] !== '' && $parts['publisher'] !== '' ? $parts['place'].' : '.$parts['publisher'] : $parts['place'].$parts['publisher'])
+                .($parts['year'] !== '' ? ', '.$parts['year'] : ''), ', ');
+        }
+        $field('773', ['t'=>$parts['container'], 'd'=>$imprint, 'x'=>$parts['isAnthology'] ? '' : $parts['issn'],
+            'z'=>$parts['isAnthology'] ? $parts['isbn'] : '', 'g'=>implode(', ', $enumeration), 'w'=>$hostControlNumber], '0', ' ', [['t', 'x', 'z', 'g']]);
         $language = self::marcLanguage($parts['language']);
         $field('041', ['a'=>$language], '0');
         // ISO 3166 alpha-2 belongs in 044 $c; 008/15-17 needs MARC country

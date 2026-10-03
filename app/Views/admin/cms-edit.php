@@ -55,7 +55,7 @@
           class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
           value="<?= htmlspecialchars($pageData['title'], ENT_QUOTES, 'UTF-8') ?>"
           required
-          placeholder="<?= __("Inserisci il titolo") ?>">
+          placeholder="<?= htmlspecialchars(__("Inserisci il titolo"), ENT_QUOTES, 'UTF-8') ?>">
       </div>
     </div>
 
@@ -73,7 +73,7 @@
           <img
             id="preview-img"
             src="<?= htmlspecialchars($pageData['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-            alt="<?= __("Anteprima") ?>"
+            alt="<?= htmlspecialchars(__("Anteprima"), ENT_QUOTES, 'UTF-8') ?>"
             class="max-w-full h-auto rounded-xl border border-gray-200"
             style="max-height: 300px;">
           <button
@@ -129,7 +129,7 @@
           name="meta_description"
           class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
           rows="3"
-          placeholder="<?= __("Breve descrizione per i motori di ricerca (max 160 caratteri)") ?>"><?= htmlspecialchars($pageData['meta_description'] ?? '') ?></textarea>
+          placeholder="<?= htmlspecialchars(__("Breve descrizione per i motori di ricerca (max 160 caratteri)"), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($pageData['meta_description'] ?? '') ?></textarea>
         <p class="text-sm text-gray-500">
           <i class="fas fa-lightbulb mr-1"></i>
           <?= __("Questa descrizione apparirà nei risultati di ricerca di Google") ?>

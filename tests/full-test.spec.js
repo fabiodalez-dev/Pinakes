@@ -1556,8 +1556,13 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     // in the DB the two test rows may fall onto page 2+, so filter by the
     // shared RUN_ID (present in both PubA_/PubB_ names) to bring both rows onto
     // the first page before selecting their checkboxes.
+    // Wait for the filtered page itself, not for a fixed delay: the search is
+    // a debounced ajax.reload(), and on a loaded CI runner 700 ms was not
+    // always enough — the checkboxes were clicked on the unfiltered table that
+    // the reload then replaced, and the merge dialog never opened.
+    const filtered = page.waitForResponse((r) => r.url().includes('/api/editori') && r.url().includes(encodeURIComponent(RUN_ID)) && r.ok());
     await page.fill('#search_nome', RUN_ID);
-    await page.waitForTimeout(700); // debounced ajax.reload()
+    await filtered;
 
     await page.waitForSelector(`.row-select[data-id="${sourceId}"]`, { timeout: 10000 });
     await page.waitForSelector(`.row-select[data-id="${targetId}"]`, { timeout: 5000 });

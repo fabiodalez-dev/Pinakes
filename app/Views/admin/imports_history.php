@@ -177,7 +177,7 @@ $title = __("Storico Import");
                       <span class="font-medium"><?= $startedAt->format('d/m/Y') ?></span>
                       <span class="text-xs text-gray-500"><?= $startedAt->format('H:i:s') ?></span>
                       <?php if ($completedAt): ?>
-                        <span class="text-xs text-gray-400" title="<?= __("Durata") ?>">
+                        <span class="text-xs text-gray-400" title="<?= htmlspecialchars(__("Durata"), ENT_QUOTES, 'UTF-8') ?>">
                           <i class="fas fa-clock mr-1"></i><?= $duration ?>
                         </span>
                       <?php endif; ?>

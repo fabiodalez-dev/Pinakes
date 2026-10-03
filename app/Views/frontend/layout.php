@@ -52,6 +52,10 @@ $swalThemeMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/css/swal-them
 $swalThemeVersion = $swalThemeMtime !== false ? (string)$swalThemeMtime : $appVersion;
 $archivePagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/archive-pages.css');
 $archivePagesVersion = $archivePagesMtime !== false ? (string)$archivePagesMtime : $appVersion;
+$catalogPagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/catalog-pages.css');
+$catalogPagesVersion = $catalogPagesMtime !== false ? (string)$catalogPagesMtime : $appVersion;
+$bookDetailMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/book-detail.css');
+$bookDetailVersion = $bookDetailMtime !== false ? (string)$bookDetailMtime : $appVersion;
 
 // Load theme colors
 if (isset($container)) {
@@ -178,7 +182,22 @@ $htmlLang = substr($currentLocale, 0, 2);
     <!-- Colour the mobile browser chrome (Android address bar / task switcher)
          with the active theme's primary colour, resolved server-side. -->
     <meta name="theme-color" content="<?= htmlspecialchars($themePalette['primary'] ?? '#d70161', ENT_QUOTES, 'UTF-8') ?>">
-    <title><?= HtmlHelper::e($seoTitle ?? $title ?? $appName) ?></title>
+    <?php
+    // One shape for every public <title>: "Page – Site". Pages used to name
+    // themselves three ways ("Catalogo", "Eventi - Pinakes", "X — Emeroteca"),
+    // so a browser tab or a search result could not tell which site it was
+    // without the name, or carried it with a different dash. A title that
+    // already ends with the site name keeps it once, with the same dash.
+    $documentTitle = trim((string) ($seoTitle ?? $title ?? ''));
+    $documentSite = (string) $appName;
+    if ($documentSite !== '' && $documentTitle !== '' && $documentTitle !== $documentSite) {
+        $documentTitle = (string) preg_replace('/\s*[-–—|]\s*' . preg_quote($documentSite, '/') . '$/u', '', $documentTitle);
+        $documentTitle .= ' – ' . $documentSite;
+    } elseif ($documentTitle === '') {
+        $documentTitle = $documentSite;
+    }
+    ?>
+    <title><?= HtmlHelper::e($documentTitle) ?></title>
 
     <!-- SEO Meta Tags -->
     <meta name="description"
@@ -526,6 +545,12 @@ $htmlLang = substr($currentLocale, 0, 2);
             transform: translateY(-1px);
         }
 
+        /* Keyboard focus keeps a ring (DESIGN.md: visible focus, 3px). */
+        .search-input:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+            outline-offset: 2px;
+        }
+
         /* Mobile search toggle */
         .mobile-search-toggle {
             background: transparent;
@@ -645,7 +670,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .btn-header {
-            min-height: 38px;
+            min-height: 44px;
             padding: 0.5rem 0.8rem;
             border-radius: 50px;
             font-weight: 600;
@@ -1139,16 +1164,24 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .footer ul li {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0;
+        }
+
+        /* Footer links are 44px targets (DESIGN.md); the list keeps its
+           rhythm through the link height instead of item margins. */
+        .footer ul li a {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
         }
 
         .footer .social-links a {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            border-radius: 2px;
             background: var(--border-color);
             color: var(--text-color);
             transition: background 0.2s ease, color 0.2s ease;
@@ -1547,6 +1580,14 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         <?= $additional_css ?? '' ?>
     </style>
+    <?php if (!empty($catalogPageStyles)): ?>
+        <?php // After the layout's own <style> (the catalogue rules override it, as
+        // the former inline block did) and before the theme's custom CSS. ?>
+        <link href="<?= htmlspecialchars(assetUrl('/catalog-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($catalogPagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <?php endif; ?>
+    <?php if (!empty($bookDetailStyles)): ?>
+        <link href="<?= htmlspecialchars(assetUrl('/book-detail.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($bookDetailVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <?php endif; ?>
 
     <?php
     // Active theme's "CSS Personalizzato" (settings.advanced.custom_css, saved
@@ -1722,7 +1763,10 @@ $htmlLang = substr($currentLocale, 0, 2);
       $publicNavItems[] = ['href' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive('/emeroteca')];
   }
   if ($eventsEnabled) {
-      $publicNavItems[] = ['href' => '/events', 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt', 'active' => $navPathActive('/events')];
+      // The localized path (/eventi in Italian); /events stays registered as
+      // an English fallback, so both spellings mark the item active.
+      $eventsRoute = route_path('events');
+      $publicNavItems[] = ['href' => $eventsRoute, 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt', 'active' => $navPathActive((string) $eventsRoute) || $navPathActive('/events')];
   }
 ?>
 <body class="<?= $isHome ? 'home ' : '' ?>layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
@@ -1753,19 +1797,19 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                     <!-- Compact search toggle -->
                     <button class="mobile-search-toggle md:hidden" id="mobileSearchToggle"
-                        aria-label="<?= __('Toggle search') ?>">
+                        aria-label="<?= htmlspecialchars(__('Toggle search'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-search"></i>
                     </button>
 
                     <!-- Mobile Menu Toggle -->
                     <button class="mobile-menu-toggle md:hidden" id="mobileMenuToggle"
-                        aria-label="<?= __('Toggle menu') ?>">
+                        aria-label="<?= htmlspecialchars(__('Toggle menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
                     <form class="search-form hidden md:block" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="<?= __('Search') ?>">
+                            placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
 
                     <div class="user-menu hidden md:flex">
@@ -1833,9 +1877,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container md:hidden" id="mobileSearchContainer">
                         <form class="search-form mobile-search-form" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
-                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori, ISBN...') ?>"
-                                aria-label="<?= __('Search') ?>" autocomplete="off">
-                            <button type="submit" class="btn-search-mobile" aria-label="<?= __('Cerca') ?>">
+                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>"
+                                aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
+                            <button type="submit" class="btn-search-mobile" aria-label="<?= htmlspecialchars(__('Cerca'), ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas fa-search"></i>
                                 <span class="hidden sm:inline"><?= __('Cerca') ?></span>
                             </button>
@@ -1850,7 +1894,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= __('Close menu') ?>">
+                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= htmlspecialchars(__('Close menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -1950,6 +1994,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php endif; ?>
                     </ul>
                 </div>
+                <?php if ($socialFacebook !== '' || $socialTwitter !== '' || $socialInstagram !== '' || $socialLinkedin !== '' || $socialBluesky !== '' || $socialTelegram !== ''): ?>
                 <div class="w-full lg:w-1/4 px-3">
                     <h5><?= __("Seguici") ?></h5>
                     <div class="flex gap-3 social-links">
@@ -1979,6 +2024,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php endif; ?>
                     </div>
                 </div>
+                <?php endif; ?>
             </div>
             <hr class="my-4">
             <div class="flex justify-center items-center gap-2">

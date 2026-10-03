@@ -1,18 +1,29 @@
 <?php
 /**
- * Public index — list of root-level archival_units (or search results).
+ * Archivio — public index, on the catalogue surface.
  *
- * @var list<array<string, mixed>> $rows
- * @var int                        $total
- * @var string|null                $q
- * @var string|null                $level
- * @var string|null                $date_from
- * @var string|null                $date_to
- * @var bool|null                  $isSearch
+ * Same anatomy as /catalogo and /emeroteca (public/assets/catalog-pages.css):
+ * coloured hero with breadcrumb, facet sidebar (search, level, period),
+ * active-filter chips, result count, the catalogue card grid and its
+ * pagination. Browsing lists the root units; any filter searches the whole
+ * hierarchy. Everything is a link or a GET form: no JavaScript is needed.
+ *
+ * Input $rows: list<array<string, mixed>>
+ * Input $total: int
+ * Input $page: int
+ * Input $pages: int
+ * Input $q: string
+ * Input $level: string
+ * Input $date_from: string
+ * Input $date_to: string
+ * Input $isSearch: bool
+ * Input $levelFacet: array<string, int> level => units
+ * Input $centuryFacet: array<int, int> first year of the century => units
  */
 declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+$corePartials = dirname(__DIR__, 5) . '/app/Views/frontend/partials';
 
 $levelLabel = [
     'fonds'  => __('Fondo'),
@@ -20,167 +31,140 @@ $levelLabel = [
     'file'   => __('Fascicolo'),
     'item'   => __('Unità'),
 ];
-$levelBadgeClass = [
-    'fonds'  => 'bg-[var(--primary-color)] text-white',
-    'series' => 'bg-sky-100 text-sky-800',
-    'file'   => 'bg-emerald-100 text-emerald-800',
-    'item'   => 'bg-slate-100 text-slate-700',
+$levelIcon = [
+    'fonds'  => 'fa-archive',
+    'series' => 'fa-folder-open',
+    'file'   => 'fa-folder',
+    'item'   => 'fa-file-alt',
 ];
+$rows      = $rows ?? [];
+$total     = (int) ($total ?? count($rows));
+$page      = (int) ($page ?? 1);
+$pages     = (int) ($pages ?? 1);
+$q         = (string) ($q ?? '');
+$level     = (string) ($level ?? '');
+$dateFrom  = (string) ($date_from ?? '');
+$dateTo    = (string) ($date_to ?? '');
+$isSearch  = (bool) ($isSearch ?? false);
 $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
-$q        = $q        ?? '';
-$level    = $level    ?? '';
-$dateFrom = $date_from ?? '';
-$dateTo   = $date_to   ?? '';
-$isSearch = $isSearch  ?? false;
-$archiveUrl = htmlspecialchars(url($archiveBase), ENT_QUOTES, 'UTF-8');
+$archiveHome = url($archiveBase);
+
+/** Current narrowing with $changes applied; '' removes a key. Page always resets. */
+$state = ['q' => $q, 'level' => $level, 'date_from' => $dateFrom, 'date_to' => $dateTo];
+$stateUrl = static function (array $changes = []) use ($state, $archiveHome): string {
+    $query = array_filter($changes + $state, static fn(mixed $v): bool => (string) $v !== '');
+    return $archiveHome . ($query ? '?' . http_build_query($query) : '');
+};
+$dateLabel = static function (array $r): string {
+    if (empty($r['date_start'])) {
+        return '';
+    }
+    $label = (string) $r['date_start'];
+    if (!empty($r['date_end']) && $r['date_end'] !== $r['date_start']) {
+        $label .= '–' . (string) $r['date_end'];
+    }
+    return $label;
+};
+
+$catalogPageStyles = true;
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/archives/assets/css/archives-public.css')) ?>">
 
-<main class="container py-4">
-    <section class="archive-hero-index">
-        <h1><?= __("Archivio") ?></h1>
-        <p>
-            <?= __("Consulta i fondi archivistici e le collezioni documentarie. Ogni unità è descritta secondo lo standard ISAD(G) — navigazione gerarchica per fondo, serie, fascicolo, unità.") ?>
-        </p>
-    </section>
+<?php
+$heroTitle = __('Archivio');
+$heroSubtitle = __('Consulta i fondi archivistici e le collezioni documentarie.');
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __('Archivio')]];
+include $corePartials . '/catalog-hero.php';
+?>
 
-    <!-- Barra di ricerca -->
-    <form method="GET" action="<?= $archiveUrl ?>" class="archive-search-form mb-4">
-        <div class="flex flex-wrap -mx-3 gap-y-2 items-end">
-            <div class="w-full px-3 md:w-5/12">
-                <label for="arc-q" class="form-label text-sm font-semibold text-gray-500 mb-1">
-                    <?= __("Ricerca") ?>
-                </label>
-                <div class="flex items-stretch">
-                    <span class="inline-flex items-center px-3 border border-gray-300 bg-gray-100 text-gray-600 archive-search-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
-                        </svg>
-                    </span>
-                    <input id="arc-q" type="search" name="q" value="<?= $e($q) ?>"
-                           class="form-input"
-                           placeholder="<?= $e(__("Titolo, reference code, descrizione…")) ?>">
-                </div>
-            </div>
-            <div class="w-1/2 px-3 md:w-1/6">
-                <label for="arc-level" class="form-label text-sm font-semibold text-gray-500 mb-1">
-                    <?= __("Livello") ?>
-                </label>
-                <select id="arc-level" name="level" class="form-input">
-                    <option value=""><?= __("Tutti") ?></option>
-                    <option value="fonds"  <?= $level === 'fonds'  ? 'selected' : '' ?>><?= __("Fondo")     ?></option>
-                    <option value="series" <?= $level === 'series' ? 'selected' : '' ?>><?= __("Serie")     ?></option>
-                    <option value="file"   <?= $level === 'file'   ? 'selected' : '' ?>><?= __("Fascicolo") ?></option>
-                    <option value="item"   <?= $level === 'item'   ? 'selected' : '' ?>><?= __("Unità")     ?></option>
-                </select>
-            </div>
-            <div class="w-1/2 px-3 md:w-1/6">
-                <label for="arc-from" class="form-label text-sm font-semibold text-gray-500 mb-1">
-                    <?= __("Anno dal") ?>
-                </label>
-                <input id="arc-from" type="number" name="date_from" value="<?= $e($dateFrom) ?>"
-                       min="-9999" max="9999"
-                       class="form-input"
-                       placeholder="<?= $e(__("es. 1900")) ?>">
-            </div>
-            <div class="w-1/2 px-3 md:w-1/6">
-                <label for="arc-to" class="form-label text-sm font-semibold text-gray-500 mb-1">
-                    <?= __("Anno al") ?>
-                </label>
-                <input id="arc-to" type="number" name="date_to" value="<?= $e($dateTo) ?>"
-                       min="-9999" max="9999"
-                       class="form-input"
-                       placeholder="<?= $e(__("es. 1950")) ?>">
-            </div>
-            <div class="flex w-1/2 gap-2 px-3 md:w-1/12">
-                <button type="submit" class="ui-button btn-primary w-full">
-                    <?= __("Cerca") ?>
-                </button>
-                <?php if ($isSearch): ?>
-                    <a href="<?= $archiveUrl ?>" class="ui-button btn-outline" aria-label="<?= $e(__("Azzera filtri")) ?>" title="<?= $e(__("Azzera filtri")) ?>" style="min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-times" aria-hidden="true"></i>
-                    </a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </form>
+<div id="archive-index" class="container archive-public">
+    <div class="flex flex-wrap -mx-3">
+        <?php
+        $levelOptions = [];
+        foreach ($levelLabel as $lvl => $label) {
+            if (empty($levelFacet[$lvl])) {
+                continue;
+            }
+            $levelOptions[] = ['label' => $label, 'count' => (int) $levelFacet[$lvl], 'href' => $stateUrl(['level' => $level === $lvl ? '' : $lvl]), 'active' => $level === $lvl];
+        }
+        $periodOptions = [];
+        foreach ($centuryFacet ?? [] as $from => $n) {
+            $to = (int) $from + 99;
+            $active = $dateFrom === (string) $from && $dateTo === (string) $to;
+            $periodOptions[] = ['label' => $from . '–' . $to, 'count' => (int) $n, 'href' => $stateUrl($active ? ['date_from' => '', 'date_to' => ''] : ['date_from' => (string) $from, 'date_to' => (string) $to]), 'active' => $active];
+        }
+        $filterSearch = [
+            'action' => $archiveHome,
+            'value' => $q,
+            'label' => __('Titolo, reference code, descrizione…'),
+            'hidden' => ['level' => $level, 'date_from' => $dateFrom, 'date_to' => $dateTo],
+        ];
+        $filterSections = [
+            ['title' => __('Livello'), 'icon' => 'fa-sitemap', 'options' => $levelOptions],
+            ['title' => __('Periodo'), 'icon' => 'fa-calendar-alt', 'options' => $periodOptions],
+        ];
+        $filterClearHref = $isSearch ? $archiveHome : '';
+        include $corePartials . '/filters-sidebar.php';
+        ?>
 
-    <?php if ($isSearch && !empty($rows)): ?>
-        <p class="text-gray-500 text-sm mb-3">
-            <?= __n("%d risultato", "%d risultati", $total) ?>
-            <?php if ($q !== ''): ?>
-                <?= __("per") ?> <strong><?= $e($q) ?></strong>
-            <?php endif; ?>
-            <?php if ($level !== ''): ?>
-                · <?= $e($levelLabel[$level] ?? $level) ?>
-            <?php endif; ?>
-            <?php if ($dateFrom !== '' && $dateTo !== ''): ?>
-                · <?= $e($dateFrom) ?>–<?= $e($dateTo) ?>
-            <?php elseif ($dateFrom !== ''): ?>
-                · <?= __("dal") ?> <?= $e($dateFrom) ?>
-            <?php elseif ($dateTo !== ''): ?>
-                · <?= __("fino al") ?> <?= $e($dateTo) ?>
-            <?php endif; ?>
-        </p>
-    <?php endif; ?>
-
-    <?php if (empty($rows)): ?>
-        <?php if ($isSearch): ?>
-            <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" role="alert">
-                <?= __("Nessun risultato") ?>
-                <?php if ($q !== ''): ?> <?= __("per") ?> <strong><?= $e($q) ?></strong><?php endif; ?>.
-                <a href="<?= $archiveUrl ?>" class="font-semibold underline underline-offset-2"><?= __("Mostra tutto") ?></a>
-            </div>
-        <?php else: ?>
-            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
-                <strong><?= __("Nessun fondo pubblicato.") ?></strong>
-                <?= __("L'archivio non contiene ancora unità di primo livello.") ?>
-            </div>
-        <?php endif; ?>
-    <?php else: ?>
-        <div class="flex flex-wrap -mx-3 gap-y-3">
-            <?php foreach ($rows as $row):
-                $lvl  = (string) $row['level'];
-                $badge = $levelBadgeClass[$lvl] ?? 'bg-slate-100 text-slate-700';
-                $detailUrl = $e(url($archiveBase . '/' . slugify_text((string) $row['constructed_title']) . '-' . (int) $row['id']));
-                $dateRange = '';
-                if (!empty($row['date_start'])) {
-                    $dateRange = (string) $row['date_start'];
-                    if (!empty($row['date_end']) && $row['date_end'] !== $row['date_start']) {
-                        $dateRange .= '–' . (string) $row['date_end'];
-                    }
-                }
+        <div class="catalog-results-column w-full lg:w-2/3 px-3 xl:w-3/4">
+            <?php
+            $activeFilters = [];
+            if ($q !== '') { $activeFilters[] = ['label' => __('Ricerca'), 'value' => $q, 'removeHref' => $stateUrl(['q' => ''])]; }
+            if ($level !== '') { $activeFilters[] = ['label' => __('Livello'), 'value' => $levelLabel[$level] ?? $level, 'removeHref' => $stateUrl(['level' => ''])]; }
+            if ($dateFrom !== '') { $activeFilters[] = ['label' => __('Anno dal'), 'value' => $dateFrom, 'removeHref' => $stateUrl(['date_from' => ''])]; }
+            if ($dateTo !== '') { $activeFilters[] = ['label' => __('Anno al'), 'value' => $dateTo, 'removeHref' => $stateUrl(['date_to' => ''])]; }
+            $resultsCount = $total;
+            $resultsLabel = __n('unità archivistica', 'unità archivistiche', $total);
+            include $corePartials . '/results-header.php';
             ?>
-                <div class="w-full px-3 md:w-1/2 lg:w-1/3">
-                    <article class="card archive-card rounded-md">
-                        <div class="card-body">
-                            <div class="flex items-center gap-2 mb-2">
-                                <span class="status-badge <?= $e($badge) ?>"><?= $e($levelLabel[$lvl] ?? $lvl) ?></span>
-                                <span class="archive-ref"><?= $e((string) $row['reference_code']) ?></span>
+
+            <?php if ($rows === []): ?>
+                <?php
+                $emptyIcon = 'fa-archive';
+                $emptyTitle = $isSearch ? __('Nessun risultato trovato') : __('Nessun fondo pubblicato.');
+                $emptyText = $isSearch ? __('Prova a modificare i filtri o la tua ricerca') : __("L'archivio non contiene ancora unità di primo livello.");
+                $emptyCtaHref = $isSearch ? $archiveHome : '';
+                $emptyCtaLabel = $isSearch ? __('Mostra tutto') : '';
+                include $corePartials . '/empty-state.php';
+                ?>
+            <?php else: ?>
+                <div class="books-grid archive-units-grid">
+                    <?php foreach ($rows as $row):
+                        $lvl = (string) $row['level'];
+                        $title = (string) $row['constructed_title'];
+                        $detailUrl = url($archiveBase . '/' . slugify_text($title) . '-' . (int) $row['id']);
+                        $cover = !empty($row['cover_image_path']) ? url((string) $row['cover_image_path']) : '';
+                        $date = $dateLabel($row);
+                    ?>
+                        <article class="book-card archive-unit-card">
+                            <div class="book-image-container">
+                                <a href="<?= $e($detailUrl) ?>" tabindex="-1" aria-hidden="true" class="archive-unit-card-media">
+                                    <?php if ($cover !== ''): ?>
+                                        <img class="book-image" src="<?= $e($cover) ?>" alt="" loading="lazy" decoding="async">
+                                    <?php else: ?>
+                                        <i class="fas <?= $e($levelIcon[$lvl] ?? 'fa-archive') ?> book-image-icon" aria-hidden="true"></i>
+                                    <?php endif; ?>
+                                </a>
+                                <span class="book-status-badge status-article"><?= $e($levelLabel[$lvl] ?? $lvl) ?></span>
                             </div>
-                            <h2 class="card-title mb-1 text-base font-semibold">
-                                <a href="<?= $detailUrl ?>"><?= $e((string) $row['constructed_title']) ?></a>
-                            </h2>
-                            <?php if ($dateRange !== ''): ?>
-                                <p class="text-gray-500 text-sm mb-2"><?= $e($dateRange) ?></p>
-                            <?php endif; ?>
-                            <?php if (!empty($row['scope_content'])): ?>
-                                <p class="text-gray-600 text-sm text-gray-500 mb-2">
-                                    <?= $e(mb_substr((string) $row['scope_content'], 0, 180)) ?><?= mb_strlen((string) $row['scope_content']) > 180 ? '…' : '' ?>
-                                </p>
-                            <?php endif; ?>
-                            <?php if (!empty($row['extent'])): ?>
-                                <p class="mb-0 text-sm italic text-gray-500"><?= $e((string) $row['extent']) ?></p>
-                            <?php endif; ?>
-                        </div>
-                    </article>
+                            <div class="book-content">
+                                <h3 class="book-title"><a href="<?= $e($detailUrl) ?>"><?= $e($title) ?></a></h3>
+                                <?php if ($date !== ''): ?><p class="book-author"><?= $e($date) ?></p><?php endif; ?>
+                                <p class="book-meta"><span class="archive-ref"><?= $e((string) $row['reference_code']) ?></span><?php if (!empty($row['extent'])): ?> · <?= $e((string) $row['extent']) ?><?php endif; ?></p>
+                                <div class="book-actions"><a class="btn-cta btn-cta-sm" href="<?= $e($detailUrl) ?>"><i class="fas fa-eye" aria-hidden="true"></i> <?= __('Dettagli') ?></a></div>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
                 </div>
-            <?php endforeach; ?>
+            <?php endif; ?>
+
+            <?php
+            $paginationPage = $page;
+            $paginationPages = $pages;
+            $paginationUrl = static fn(int $p): string => $stateUrl(['page' => $p > 1 ? (string) $p : '']);
+            include $corePartials . '/pagination.php';
+            ?>
         </div>
-        <?php if (!$isSearch): ?>
-            <p class="text-gray-500 text-sm mt-3">
-                <?= sprintf(__("%d unità archivistiche di primo livello."), $total) ?>
-            </p>
-        <?php endif; ?>
-    <?php endif; ?>
-</main>
+    </div>
+</div>

@@ -85,7 +85,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
             name="title"
             value="<?= HtmlHelper::e($event['title'] ?? '') ?>"
             class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4"
-            placeholder="<?= __('Es. Presentazione libro "Il Nome della Rosa"') ?>"
+            placeholder="<?= htmlspecialchars(__('Es. Presentazione libro "Il Nome della Rosa"'), ENT_QUOTES, 'UTF-8') ?>"
             required
           >
           <p class="mt-1 text-xs text-gray-500"><?= __("Il titolo verrà utilizzato anche per generare l'URL della pagina") ?></p>
@@ -111,7 +111,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
           <div id="uppy-event-upload" class="mb-4"></div>
           <div id="uppy-event-progress" class="mb-4"></div>
           <div id="event-image-preview" class="hidden rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
-            <img src="" alt="<?= __("Anteprima immagine caricata") ?>" class="w-full h-60 object-cover" id="event-image-preview-img">
+            <img src="" alt="<?= htmlspecialchars(__("Anteprima immagine caricata"), ENT_QUOTES, 'UTF-8') ?>" class="w-full h-60 object-cover" id="event-image-preview-img">
             <div class="px-4 py-2 text-xs text-gray-500" id="event-image-preview-text">
               <?= __("Anteprima immagine caricata") ?>
             </div>
@@ -134,7 +134,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               name="event_date"
               value="<?= HtmlHelper::e($event['event_date'] ?? '') ?>"
               class="flatpickr-date block w-full rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 h-[46px]"
-              placeholder="<?= __('Seleziona data') ?>"
+              placeholder="<?= htmlspecialchars(__('Seleziona data'), ENT_QUOTES, 'UTF-8') ?>"
               required
             >
           </div>
@@ -148,7 +148,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               name="event_time"
               value="<?= HtmlHelper::e($event['event_time'] ?? '') ?>"
               class="flatpickr-time block w-full rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 h-[46px]"
-              placeholder="<?= __('Seleziona ora') ?>"
+              placeholder="<?= htmlspecialchars(__('Seleziona ora'), ENT_QUOTES, 'UTF-8') ?>"
             >
           </div>
         </div>
@@ -210,7 +210,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               name="seo_title"
               value="<?= HtmlHelper::e($event['seo_title'] ?? '') ?>"
               class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4"
-              placeholder="<?= __('Se vuoto, verrà usato il titolo dell\'evento') ?>"
+              placeholder="<?= htmlspecialchars(__('Se vuoto, verrà usato il titolo dell\'evento'), ENT_QUOTES, 'UTF-8') ?>"
               maxlength="60"
             >
             <p class="mt-1 text-xs text-gray-500"><?= __("Consigliato: 50-60 caratteri") ?></p>
@@ -225,7 +225,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               name="seo_description"
               rows="3"
               class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm"
-              placeholder="<?= __('Breve descrizione per i motori di ricerca') ?>"
+              placeholder="<?= htmlspecialchars(__('Breve descrizione per i motori di ricerca'), ENT_QUOTES, 'UTF-8') ?>"
               maxlength="160"
             ><?= HtmlHelper::e($event['seo_description'] ?? '') ?></textarea>
             <p class="mt-1 text-xs text-gray-500"><?= __("Consigliato: 150-160 caratteri") ?></p>
@@ -241,7 +241,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               name="seo_keywords"
               value="<?= HtmlHelper::e($event['seo_keywords'] ?? '') ?>"
               class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4"
-              placeholder="<?= __('eventi, biblioteca, cultura') ?>"
+              placeholder="<?= htmlspecialchars(__('eventi, biblioteca, cultura'), ENT_QUOTES, 'UTF-8') ?>"
             >
             <p class="mt-1 text-xs text-gray-500"><?= __("Separale con virgole") ?></p>
           </div>
@@ -302,7 +302,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
               name="og_url"
               value="<?= HtmlHelper::e($event['og_url'] ?? '') ?>"
               class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4"
-              placeholder="<?= __('URL completo della pagina (auto-generato se vuoto)') ?>"
+              placeholder="<?= htmlspecialchars(__('URL completo della pagina (auto-generato se vuoto)'), ENT_QUOTES, 'UTF-8') ?>"
             >
           </div>
         </div>

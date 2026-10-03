@@ -34,8 +34,8 @@ $heroBgUrl = $heroBgImage !== '' ? url($heroBgImage) : assetUrl('books.jpg');
                         <input type="search"
                                name="q"
                                class="hero-search-input search-input"
-                               placeholder="<?= __("Cerca libri...") ?>"
-                               aria-label="<?= __("Cerca nella biblioteca") ?>">
+                               placeholder="<?= htmlspecialchars(__("Cerca libri..."), ENT_QUOTES, 'UTF-8') ?>"
+                               aria-label="<?= htmlspecialchars(__("Cerca nella biblioteca"), ENT_QUOTES, 'UTF-8') ?>">
                         <button type="submit" class="hero-search-button">
                             <?= __("Cerca") ?>
                         </button>

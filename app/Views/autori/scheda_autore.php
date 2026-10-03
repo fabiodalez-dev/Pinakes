@@ -294,7 +294,7 @@ $btnDanger  = 'btn-danger inline-flex items-center gap-2';
                     </a>
                     <a href="<?= htmlspecialchars(url('/admin/books/edit/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>"
                        class="btn-secondary flex-1 inline-flex items-center justify-center gap-2 text-sm"
-                       title="<?= __("Modifica") ?>">
+                       title="<?= htmlspecialchars(__("Modifica"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-edit"></i>
                       <?= __("Modifica") ?>
                     </a>
