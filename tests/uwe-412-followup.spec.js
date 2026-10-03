@@ -141,6 +141,8 @@ test.describe.serial('Uwe #412 follow-up', () => {
     const confirmation = page.locator('.swal2-confirm');
     if (await confirmation.isVisible({ timeout: 3000 }).catch(() => false)) await confirmation.click();
     await expect.poll(() => db(`SELECT COALESCE(luogo_pubblicazione,'') FROM libri WHERE id=${bookId}`)).toBe('Lund');
+    // The save ends with a redirect to the admin record: leaving before it lands aborts the next goto.
+    await page.waitForURL(new RegExp(`/admin/books/${bookId}$`));
 
     await page.goto(`${BASE}/libro/${bookId}`);
     await expect(page.locator('.meta-item', { hasText: 'Lund' }).first()).toBeVisible();
