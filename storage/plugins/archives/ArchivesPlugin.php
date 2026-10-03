@@ -3398,7 +3398,10 @@ class ArchivesPlugin
                 . slugify_text((string) $data['row']['constructed_title'])
                 . '-' . (int) $data['row']['id'];
         } else {
-            $seoCanonical = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . $archivesRoute;
+            // A further index page is its own document, not a duplicate of page 1.
+            $indexPage = (int) ($data['page'] ?? 1);
+            $seoCanonical = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . $archivesRoute
+                . ($indexPage > 1 ? '?page=' . $indexPage : '');
         }
         // $archiveSchema is populated by show.php (Schema.org JSON-LD).
         $archiveSchema = $archiveSchema ?? null;

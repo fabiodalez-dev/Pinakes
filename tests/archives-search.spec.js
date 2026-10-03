@@ -360,6 +360,35 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
         await expect(page.locator(`.archive-ref:text("${FILE_REF}")`)).toBeVisible();
     });
 
+    test('25b · Pubblico: un intervallo di anni libero si scrive nella sidebar', async () => {
+        // The century links cannot express 1945–1960; the typed range can, and keeps the search.
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}`);
+        const panel = page.locator('.filters-panel');
+        await panel.locator('input[name="date_from"]').fill('1945');
+        await panel.locator('input[name="date_to"]').fill('1960');
+        await panel.locator('input[name="date_to"]').press('Enter');
+        await expect(page).toHaveURL(/date_from=1945/);
+        const params = new URL(page.url()).searchParams;
+        expect(params.get('date_to')).toBe('1960');
+        expect(params.get('q')).toBe(TAG);
+        await expect(page.locator(`.archive-ref:text("${SERIES_REF}")`)).toBeVisible();
+        await expect(page.locator(`.archive-ref:text("${FILE_REF}")`)).not.toBeVisible();
+        await expect(panel.locator('input[name="date_from"]')).toHaveValue('1945');
+    });
+
+    test('25c · Pubblico: ogni pagina dell\'indice dichiara se stessa come canonical', async () => {
+        // 24 per page: 24 more root units put this search on two pages.
+        const rows = [];
+        for (let i = 1; i <= 24; i++) rows.push(`('${TAG}_P${i}', 'TEST', 'fonds', 'E2E Fondo P${i}', 'E2E Fondo P${i}')`);
+        dbExec(`INSERT INTO archival_units (reference_code, institution_code, level, formal_title, constructed_title) VALUES ${rows.join(',')}`);
+        const canonical = () => page.locator('link[rel="canonical"]').getAttribute('href');
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}&page=2`);
+        await expect(page.locator('.pagination .page-link[aria-current="page"]')).toHaveText('2');
+        expect(await canonical()).toMatch(/\/archivio\?page=2$/);
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}`);
+        expect(await canonical()).toMatch(/\/archivio$/);
+    });
+
     test('26 · Catalogo: ricerca per titolo mostra sezione archivio', async () => {
         // Search for "Fondo" — matches TAG_F1 "E2E Fondo Alpha"
         await page.goto(`${BASE}/catalogo?search=${encodeURIComponent('E2E Fondo')}`);

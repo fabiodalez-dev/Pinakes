@@ -170,4 +170,20 @@ test.describe.serial('Emeroteca public article search page', () => {
     await expect(page.locator('.empty-state')).toBeVisible();
     await expect(page.locator('.pagination')).toHaveCount(0);
   });
+  test('an article keeps its own cover in the structured data, not a related card\'s', async ({ page }) => {
+    // The related-article cards render after the hero; their cover must not leak
+    // into the page's JSON-LD image, which is written at the end of the page.
+    db(`UPDATE emeroteca_contributi SET copertina_url='/uploads/emeroteca/${RUN}-related.jpg' WHERE reference_key LIKE '${RUN}-%'`);
+    db(`UPDATE emeroteca_contributi SET copertina_url='/uploads/emeroteca/${RUN}-own.jpg' WHERE reference_key='${RUN}-01'`);
+    const id = db(`SELECT id FROM emeroteca_contributi WHERE reference_key='${RUN}-01'`);
+    await page.goto(`${BASE}/emeroteca/articolo/${id}`);
+    await expect(page.locator('.resource-related .book-card').first()).toBeVisible();
+    const images = (await page.locator('script[type="application/ld+json"]').allTextContents())
+      .map(text => JSON.parse(text))
+      .flatMap(data => (Array.isArray(data) ? data : [data]))
+      .filter(data => typeof data.image === 'string')
+      .map(data => data.image);
+    expect(images.length, 'the article publishes an image in its structured data').toBeGreaterThan(0);
+    for (const image of images) expect(image).toMatch(new RegExp(`/uploads/emeroteca/${RUN}-own\\.jpg$`));
+  });
 });

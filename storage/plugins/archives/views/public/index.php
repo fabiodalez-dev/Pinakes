@@ -103,6 +103,15 @@ include $corePartials . '/catalog-hero.php';
             ['title' => __('Livello'), 'icon' => 'fa-sitemap', 'options' => $levelOptions],
             ['title' => __('Periodo'), 'icon' => 'fa-calendar-alt', 'options' => $periodOptions],
         ];
+        // The century links cover the common case; any other span is typed here.
+        $filterRange = [
+            'action' => $archiveHome,
+            'title' => __('Intervallo di anni'),
+            'icon' => 'fa-calendar-day',
+            'from' => ['name' => 'date_from', 'value' => $dateFrom, 'label' => __('Anno dal')],
+            'to' => ['name' => 'date_to', 'value' => $dateTo, 'label' => __('Anno al')],
+            'hidden' => ['q' => $q, 'level' => $level],
+        ];
         $filterClearHref = $isSearch ? $archiveHome : '';
         include $corePartials . '/filters-sidebar.php';
         ?>

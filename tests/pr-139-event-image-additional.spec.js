@@ -123,13 +123,17 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
         }
     });
 
-    // S6 — event-detail.php renders distinct CSS class per preset
-    test('S6: event-detail.php emits event-cover--<preset> class', async () => {
-        const src = readRepoFile('app/Views/frontend/event-detail.php');
-        for (const preset of ['full', 'banner', 'contained', 'thumb']) {
-            expect(src).toMatch(new RegExp(`event-cover--${preset}`));
-        }
-        // contained/thumb render the image as the resource-hero cover.
+    // S6 — event-detail.php accepts every preset and names the body figure after it.
+    // Comments are stripped first: the preset names also appear in the prose
+    // there, and a check satisfied by a comment proves nothing. What each preset
+    // renders is asserted against the real page in issue-137-event-image-layout.spec.js.
+    test('S6: event-detail.php allow-lists every preset and renders event-cover--<preset>', async () => {
+        const src = readRepoFile('app/Views/frontend/event-detail.php')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+        expect(src).toMatch(/\$coverAllowed\s*=\s*\['full',\s*'banner',\s*'contained',\s*'thumb'\]/);
+        expect(src).toMatch(/class="event-cover event-cover--<\?= htmlspecialchars\(\$coverLayout/);
+        expect(src).toMatch(/in_array\(\$coverLayout,\s*\['contained',\s*'thumb'\],\s*true\)/);
         expect(src).toMatch(/resource-hero\.php/);
     });
 
