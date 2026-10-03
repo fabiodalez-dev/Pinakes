@@ -7999,5 +7999,21 @@
   "unità archivistiche": "unità archivistiche",
   "Fa parte di": "Fa parte di",
   "Torna a %s": "Torna a %s",
-  "Torna all'archivio": "Torna all'archivio"
+  "Torna all'archivio": "Torna all'archivio",
+  "Edizione digitale": "Edizione digitale",
+  "Recensione o documento correlato": "Recensione o documento correlato",
+  "Titolo allegato": "Titolo allegato",
+  "Tipo di allegato": "Tipo di allegato",
+  "URL del file": "URL del file",
+  "Aggiungi allegato": "Aggiungi allegato",
+  "Carica PDF o ePub": "Carica PDF o ePub",
+  "Carica file audio": "Carica file audio",
+  "Aggiungi più edizioni, recensioni, articoli correlati o file audio alla stessa scheda. Gli allegati saranno disponibili nella scheda pubblica.": "Aggiungi più edizioni, recensioni, articoli correlati o file audio alla stessa scheda. Gli allegati saranno disponibili nella scheda pubblica.",
+  "Per rimuovere un allegato, elimina la riga o svuota il suo URL. Il file originale rimane disponibile agli altri record che lo usano.": "Per rimuovere un allegato, elimina la riga o svuota il suo URL. Il file originale rimane disponibile agli altri record che lo usano.",
+  "Elenco degli allegati digitali non valido.": "Elenco degli allegati digitali non valido.",
+  "Allegato digitale non valido.": "Allegato digitale non valido.",
+  "URL o tipo di allegato digitale non valido.": "URL o tipo di allegato digitale non valido.",
+  "Il titolo dell’allegato non può superare 255 caratteri.": "Il titolo dell’allegato non può superare 255 caratteri.",
+  "Allegato digitale": "Allegato digitale",
+  "Oxford (Umeå)": "Oxford (Umeå)"
 }

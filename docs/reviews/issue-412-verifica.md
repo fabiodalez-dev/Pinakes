@@ -74,3 +74,30 @@ La verifica riguarda questi flussi e le suite indicate; non equivale all'esecuzi
 - Android: **166 test passati**, `assembleDebug` e `lintDebug` completati; Lint riporta zero errori. Controllo visivo delle schermate su emulatore con dati sintetici della issue, anche in italiano con caratteri al 130%. I componenti temporanei di anteprima sono stati rimossi prima della build definitiva.
 
 Non sono stati pubblicati release, APK su store, commit o commenti GitHub durante questa correzione.
+
+
+## Verifica del candidato — 3 ottobre 2026
+
+Confrontati testo e commenti di Uwe nella #412 con il candidato `fix/multiple-digital-content`, basato sulla #441 e comprendente #439, #440 e #446. Nessun tag o release è stato pubblicato.
+
+| Richiesta | Implementazione e copertura |
+| --- | --- |
+| Articolo autonomo senza testata/annata/fascicolo obbligatori | Modulo Emeroteca; `emeroteca-412.unit.php` e `emeroteca-analytic-record.spec.js` |
+| Autori, titolo, data libera, volume/numero/pagine, parole chiave e abstract | Modulo contributi; `emeroteca-analytic-record-412.unit.php` |
+| Ricerca comune libri/articoli e archivio autore condiviso | Catalogo misto e identità autore; `catalog-articles-412.unit.php`, `article-author-identity-412.unit.php` |
+| Navigazione per pubblicazione/parole chiave e copertine | Filtri pubblici e copertina con fallback; `emeroteca-public-navigation.unit.php`, `emeroteca-article-cover-inheritance.unit.php` |
+| MARC21 analitico, autori/GND, titolo, pagine, ospite, lingua/paese, classificazione, possesso e URI | MARCXML Leader/07=a, 100/700, 245, 300, 773, 008/041/044, classificazione, 852 e 856; `emeroteca-marcxml-412.unit.php`, `emeroteca-review-440.unit.php`. Il GND è incluso quando presente; i codici ISO paese vanno in 044, distinti dai codici MARC |
+| PDF locale, collocazione fisica e dettagli facoltativi | Upload e campi analitici; test browser e MARCXML. La collocazione è riservata all'export amministrativo |
+| Nuovo articolo accanto a Nuovo libro | Azione rapida quando Emeroteca è attiva; test browser analitico |
+| Giorno/mese/anno nelle citazioni dei giornali | Data esatta nei cinque stili; `citation-styles-412.unit.php`, `oxford-citations-412.unit.php` |
+| Antologie con curatori, editore, luogo e ISBN | Tipo Antologia, ospite e MARC 773 con imprint/ISBN; suite analitica, MARCXML e citazioni |
+| Formato: stampa, digitale, stampa e digitale, tradotti | Campo e cinque traduzioni; test browser e controllo locale |
+| Selettore autore uguale ai libri | Autocomplete condiviso; suite identità autore e browser |
+| Formato distinto dalla nota di possesso | Campi separati e testi di aiuto; test browser |
+| Pubblicazione distinta dalla testata associata, con spiegazione e associazione visibile | Associazione facoltativa e testi di aiuto; test browser |
+| Dialogo Cita LIBRIS per libri e articoli | APA, Harvard, MLA, Chicago e Oxford (Umeå), copia testo/HTML e selezione stile; suite citazioni e browser |
+| Più PDF/ePub, recensioni/articoli e più audio (#445) | Allegati titolati, upload incrementali, download e player multipli; `digital-attachments-445.unit.php` e `digital-attachments-445.spec.js` |
+
+Oxford era escluso dalla precedente implementazione a quattro stili. Ora copre anche questo elemento dell'esempio LIBRIS di Uwe, seguendo la [guida bibliografica ufficiale di Umeå](https://www.umu.se/bibliotek/soka-skriva-studera/skriva-referenser/oxford-skriva-referenslista/). I collegamenti singoli esistenti restano compatibili; rimuovere un allegato non elimina il file condivisibile dal disco.
+
+Verifiche del candidato: 19 suite PHP superate, build frontend, PHPStan e allineamento delle traduzioni. Le suite browser coprono sette scenari #445, dodici analitici #412 e sei per l'intestazione CMS del catalogo.

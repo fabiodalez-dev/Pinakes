@@ -7999,5 +7999,21 @@
   "unità archivistiche": "unités archivistiques",
   "Fa parte di": "Fait partie de",
   "Torna a %s": "Retour à %s",
-  "Torna all'archivio": "Retour aux archives"
+  "Torna all'archivio": "Retour aux archives",
+  "Edizione digitale": "Édition numérique",
+  "Recensione o documento correlato": "Critique ou document associé",
+  "Titolo allegato": "Titre de la pièce jointe",
+  "Tipo di allegato": "Type de pièce jointe",
+  "URL del file": "URL du fichier",
+  "Aggiungi allegato": "Ajouter une pièce jointe",
+  "Carica PDF o ePub": "Téléverser un PDF ou un ePub",
+  "Carica file audio": "Téléverser des fichiers audio",
+  "Aggiungi più edizioni, recensioni, articoli correlati o file audio alla stessa scheda. Gli allegati saranno disponibili nella scheda pubblica.": "Ajoutez plusieurs éditions, critiques, articles associés ou fichiers audio à la même notice. Les pièces jointes seront disponibles dans la notice publique.",
+  "Per rimuovere un allegato, elimina la riga o svuota il suo URL. Il file originale rimane disponibile agli altri record che lo usano.": "Pour retirer une pièce jointe, supprimez sa ligne ou videz son URL. Le fichier original reste disponible pour les autres notices qui l’utilisent.",
+  "Elenco degli allegati digitali non valido.": "Liste de pièces jointes numériques non valide.",
+  "Allegato digitale non valido.": "Pièce jointe numérique non valide.",
+  "URL o tipo di allegato digitale non valido.": "URL ou type de pièce jointe numérique non valide.",
+  "Il titolo dell’allegato non può superare 255 caratteri.": "Le titre de la pièce jointe ne peut pas dépasser 255 caractères.",
+  "Allegato digitale": "Pièce jointe numérique",
+  "Oxford (Umeå)": "Oxford (Umeå)"
 }

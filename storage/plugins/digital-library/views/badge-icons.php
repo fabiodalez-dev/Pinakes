@@ -5,8 +5,10 @@
  * Renders small icons in status badges to indicate digital content availability.
  */
 
-$hasEbook = !empty($book['file_url'] ?? '');
-$hasAudiobook = !empty($book['audio_url'] ?? '');
+$book = $book ?? [];
+$attachmentKinds = array_column(\App\Support\DigitalAttachments::fromBook($book), 'kind');
+$hasEbook = in_array('ebook', $attachmentKinds, true) || in_array('supplement', $attachmentKinds, true);
+$hasAudiobook = in_array('audio', $attachmentKinds, true);
 
 if (!$hasEbook && !$hasAudiobook) {
     return;
