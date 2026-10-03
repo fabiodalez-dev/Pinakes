@@ -453,10 +453,19 @@ class DigitalLibraryPlugin
         // Capture plugin instance for use in closures
         $plugin = $this;
 
-        // Register upload endpoint
+        // Register upload endpoint.
+        //
+        // AdminAuthMiddleware, like every other /admin route: the handler's own
+        // check reads $_SESSION['user']['tipo_utente'], which is the role as it
+        // was at sign-in. Without the middleware an administrator suspended or
+        // demoted mid-session kept uploading from the session they already had
+        // — this was the one administrative endpoint in the application mounted
+        // without the re-validation, and the CSRF check beside it does not
+        // answer an authorisation question. The handler's check stays: it is
+        // the defence that survives someone mounting this route differently.
         $app->post('/admin/plugins/digital-library/upload', function ($request, $response) use ($plugin) {
             return $plugin->handleUploadRequest($request, $response, []);
-        });
+        })->add(new \App\Middleware\AdminAuthMiddleware());
 
         // Serve plugin-specific assets without exposing storage/ directly
         $app->get('/plugins/digital-library/assets/{type}/{filename}', function ($request, $response, array $args) use ($plugin) {

@@ -11,12 +11,14 @@ use Slim\Psr7\Stream;
 /**
  * Emeroteca plugin — periodicals management for Pinakes.
  *
- * Introduces five tables:
+ * Introduces six tables:
  *   - emeroteca_testate     : periodical titles (rivista/giornale/magazine/…)
  *   - emeroteca_annate      : yearly volumes of a title (bound or loose)
  *   - emeroteca_fascicoli   : single issues with holding status + kardex
  *   - emeroteca_articoli    : article-level indexing (spoglio) with FULLTEXT
  *   - emeroteca_abbonamenti : subscriptions (fornitore, costo, scadenza)
+ *   - emeroteca_contributi  : standalone articles, citation kept on the row
+ *                             so one can be catalogued without owning the issue
  *
  * Lifecycle mirrors the Archives plugin (storage/plugins/archives):
  * ensureSchema() is idempotent (CREATE TABLE IF NOT EXISTS) and runs from
@@ -150,6 +152,25 @@ class EmerotecaPlugin
      * Expose the injected HookManager (DI-wiring accessor, mirrors
      * ArchivesPlugin::getHookManager — keeps static analysis happy).
      */
+    public function hasSettingsPage(): bool { return true; }
+
+    /** Path to the settings view rendered by the admin plugin settings page. */
+    public function getSettingsViewPath(): string { return __DIR__ . "/src/Views/settings.php"; }
+
+    /** Build a ContributionService bound to this plugin's DB connection, loading its class file. */
+    public function contributionService(): \App\Plugins\Emeroteca\Services\ContributionService
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
+    }
+
+    /** The emeroteca_contributi CREATE TABLE DDL, delegated to ContributionService::ddl(). */
+    public static function ddlContributi(): string
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return \App\Plugins\Emeroteca\Services\ContributionService::ddl();
+    }
+
     public function getHookManager(): HookManager
     {
         return $this->hookManager;
@@ -338,6 +359,7 @@ class EmerotecaPlugin
             ['table' => 'emeroteca_fascicoli', 'column' => 'stato'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id'],
             ['table' => 'emeroteca_articoli',  'column' => 'keywords'],
+            ['table' => 'emeroteca_contributi', 'column' => 'revision'],
         ];
         // 1.4.0 additive columns: every one declared so the boot-time
         // self-heal re-runs ensureSchema when any is missing.
@@ -374,6 +396,9 @@ class EmerotecaPlugin
     public function expectedForeignKeys(): array
     {
         $out = [
+            ['table' => 'emeroteca_contributi_autori', 'column' => 'contributo_id', 'ref_table' => 'emeroteca_contributi'],
+            ['table' => 'emeroteca_contributi', 'column' => 'testata_id', 'ref_table' => 'emeroteca_testate'],
+            ['table' => 'emeroteca_contributi', 'column' => 'fascicolo_id', 'ref_table' => 'emeroteca_fascicoli'],
             ['table' => 'emeroteca_testate',     'column' => 'testata_precedente_id', 'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_annate',      'column' => 'testata_id',            'ref_table' => 'emeroteca_testate'],
             ['table' => 'emeroteca_fascicoli',   'column' => 'annata_id',             'ref_table' => 'emeroteca_annate'],
@@ -396,6 +421,12 @@ class EmerotecaPlugin
         return $out;
     }
 
+    public static function ddlContributiAutori(): string
+    {
+        require_once __DIR__ . "/src/Services/ContributionService.php";
+        return \App\Plugins\Emeroteca\Services\ContributionService::authorsDdl();
+    }
+
     /** @return array<string,string> table => CREATE DDL, in dependency order. */
     private static function schemaSteps(): array
     {
@@ -405,11 +436,13 @@ class EmerotecaPlugin
             'emeroteca_fascicoli'   => self::ddlFascicoli(),
             'emeroteca_articoli'    => self::ddlArticoli(),
             'emeroteca_abbonamenti' => self::ddlAbbonamenti(),
+            'emeroteca_contributi' => self::ddlContributi(),
+            'emeroteca_contributi_autori' => self::ddlContributiAutori(),
         ];
     }
 
     /**
-     * Execute the DDL for the four emeroteca tables, then add the FKs
+     * Execute the DDL for the six emeroteca tables, then add the FKs
      * towards the optional core tables (editori, generi) when those
      * exist. Failures are logged and reported via the returned 'failed'
      * list without throwing — onActivate()/onInstall() inspect it and
@@ -428,6 +461,12 @@ class EmerotecaPlugin
      */
     public function ensureSchema(): array
     {
+        // A collection is its mastheads, not its tables: auto-registration runs
+        // onInstall() even while this optional plugin is inactive, which builds
+        // every table empty, so "the table exists" said nothing about whether an
+        // operator ever catalogued anything. Probed without the cache the table
+        // check uses, because the answer changes as soon as a masthead is added.
+        $newCollection = !$this->emerotecaTableExists('emeroteca_testate') || !$this->emerotecaHasMastheads();
         $steps = self::schemaSteps();
         $created = [];
         $failed = [];
@@ -501,6 +540,8 @@ class EmerotecaPlugin
             $runStep($table, 'additive column', fn(): bool => $this->ensureAdditiveColumns($table, $definitions));
         }
 
+        $runStep('emeroteca_contributi', 'contribution foreign keys', fn(): bool => $this->ensureContributionForeignKeys());
+
         // 1.4.0: possession/condition split. MUST run after the additive
         // step above (it writes into the new `condizione` column).
         $runStep('emeroteca_fascicoli', 'stato/condizione split', fn(): bool => $this->ensureStatoCondizioneSplit());
@@ -543,7 +584,39 @@ class EmerotecaPlugin
         // (additive step) and consistent tables.
         $runStep('emeroteca_fascicoli', 'inherited barcode', fn(): bool => $this->ensureFascicoloBarcodeNotInherited());
 
+        // A collection that already exists keeps the workflow it has been run
+        // with, so an upgrade never changes what the operator sees. A NEW
+        // collection is deliberately left unstamped: guessing an initial
+        // workflow here decides it silently and, because both this and the
+        // migration use INSERT IGNORE, whichever runs first wins over the
+        // operator's own first choice. Unstamped is what makes the choice
+        // theirs — mode() reads 'complete' meanwhile, so nothing is hidden,
+        // and both admin pages ask them to pick.
+        if ($failed === [] && !$newCollection) {
+            try {
+                $this->contributionService()->rows("INSERT IGNORE INTO plugin_settings (plugin_id,setting_key,setting_value) SELECT id,'mode','complete' FROM plugins WHERE name='emeroteca'");
+            } catch (\Throwable $e) { $failed[] = 'plugin_settings'; }
+        }
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /**
+     * Add the two emeroteca_contributi FK constraints (testata_id, fascicolo_id) idempotently,
+     * probing information_schema.KEY_COLUMN_USAGE first so a constraint already present is
+     * never re-added. Both are ON DELETE SET NULL: deleting a masthead or an issue detaches
+     * the article instead of deleting it.
+     *
+     * @return bool false if either ALTER TABLE fails
+     */
+    private function ensureContributionForeignKeys(): bool
+    {
+        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {
+            $rows=$this->contributionService()->rows("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME=? AND REFERENCED_TABLE_NAME=?",[$column,$table]);
+            if ($rows===[]) {
+                if (!$this->db->query("ALTER TABLE emeroteca_contributi ADD CONSTRAINT $name FOREIGN KEY ($column) REFERENCES $table(id) ON DELETE SET NULL")) { return false; }
+            }
+        }
+        return true;
     }
 
     /**
@@ -557,7 +630,9 @@ class EmerotecaPlugin
      */
     private static function additiveColumnDefs(): array
     {
+        require_once __DIR__ . '/src/Services/ContributionService.php';
         return [
+            'emeroteca_contributi' => \App\Plugins\Emeroteca\Services\ContributionService::COLUMN_DEFINITIONS,
             'emeroteca_testate' => [
                 // 1.4.0 — serials identifiers + gestione amministrativa
                 'e_issn'                  => 'VARCHAR(9) NULL AFTER issn',
@@ -1196,6 +1271,7 @@ class EmerotecaPlugin
     private static function coreForeignKeyDefs(): array
     {
         return [
+            ['table' => 'emeroteca_contributi_autori', 'column' => 'autore_id', 'ref_table' => 'autori', 'ref_col' => 'id', 'name' => 'fk_contributo_autori_identity'],
             ['table' => 'emeroteca_testate', 'column' => 'editore_id', 'ref_table' => 'editori', 'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_editore'],
             ['table' => 'emeroteca_testate', 'column' => 'genere_id',  'ref_table' => 'generi',  'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_genere'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id', 'ref_table' => 'mensole', 'ref_col' => 'id', 'name' => 'fk_emeroteca_fascicolo_mensola'],
@@ -1598,6 +1674,26 @@ class EmerotecaPlugin
         $subs   = 'App\\Plugins\\Emeroteca\\Controllers\\SubscriptionAdminController';
         $export = 'App\\Plugins\\Emeroteca\\Controllers\\ExportAdminController';
         $public = 'App\\Plugins\\Emeroteca\\Controllers\\PublicController';
+
+        $articles = 'App\\Plugins\\Emeroteca\\Controllers\\ContributionController';
+        foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf', '/{id:[0-9]+}/citation.ris' => 'ris', '/{id:[0-9]+}/marc.xml' => 'marcXml'] as $path => $method) {
+            $app->get('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
+                return $plugin->dispatch($articles, $method, $rq, $rs, $args);
+            })->add($adminMiddleware);
+        }
+        foreach (['/save' => 'save', '/associate' => 'associate', '/import' => 'importSubmit', '/{id:[0-9]+}/delete' => 'delete', '/mode' => 'mode'] as $path => $method) {
+            $app->post('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {
+                return $plugin->dispatch($articles, $method, $rq, $rs, $args);
+            })->add($csrfMiddleware)->add($adminMiddleware);
+        }
+        $app->get('/emeroteca/articoli', fn($rq,$rs,$args) => $plugin->dispatch($public, 'articles', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}', fn($rq,$rs,$args) => $plugin->dispatch($public, 'article', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/pdf', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicPdf', $rq,$rs,$args));
+        // The citation as a file a reference manager can swallow. Public route
+        // and admin route are separate because they answer differently for an
+        // unpublished article: 404 out here, the record in there.
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/marc.xml', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicMarcXml', $rq,$rs,$args));
+        $app->get('/emeroteca/articolo/{id:[0-9]+}/citazione.ris', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicRis', $rq,$rs,$args));
 
         // ── Admin — testate (periodical titles) ──────────────────────
 
@@ -2286,6 +2382,7 @@ class EmerotecaPlugin
     /** Sitemap ceilings, well under the core's own MAX_TOTAL_URLS (50k). */
     private const SITEMAP_MAX_TESTATE   = 5000;
     private const SITEMAP_MAX_FASCICOLI = 20000;
+    private const SITEMAP_MAX_CONTRIBUTI = 10000;
 
     /** @var array<string,bool> per-instance table-existence cache */
     private array $tableProbeCache = [];
@@ -2365,6 +2462,11 @@ class EmerotecaPlugin
                 ], static fn($value): bool => $value !== null);
             }
 
+            if ($this->emerotecaTableExists('emeroteca_contributi')) {
+                foreach ($this->fetchRows('SELECT id, updated_at FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT ' . self::SITEMAP_MAX_CONTRIBUTI) as $article) {
+                    $entries[] = ['loc'=>$base . '/emeroteca/articolo/' . (int)$article['id'], 'lastmod'=>$article['updated_at'], 'changefreq'=>'monthly', 'priority'=>'0.4'];
+                }
+            }
             if ($this->emerotecaTableExists('emeroteca_fascicoli')) {
                 $fascicoli = $this->fetchRows(
                     "SELECT id, updated_at FROM emeroteca_fascicoli
@@ -2393,19 +2495,21 @@ class EmerotecaPlugin
     /**
      * Listener for the `search.external_suggestions` FILTER (contract in
      * App\Controllers\FrontendController::collectExternalSearchSuggestions):
-     * point a catalogue search at the emeroteca when the term matches
-     * something there.
+     * answer a catalogue search with what the emeroteca holds on that term.
      *
-     * The catalogue only reads `libri.search_index`, so searching for a
-     * periodical title or an indexed article gives "nessun risultato"
-     * even though the library holds it — a dead end the visitor has no
-     * way out of. This appends ONE link to /emeroteca?q=<term>.
+     * The catalogue only reads `libri.search_index`, so a periodical title or
+     * a published article gives "nessun risultato" even though the library
+     * holds it — a dead end the visitor has no way out of. Since 1.6.0 this
+     * returns the matches themselves (up to 5 per section, with the real
+     * total) instead of a bare link to search again somewhere else: someone
+     * who typed an article title must read that title back.
      *
-     * The suggestion is emitted ONLY on a real match, as the contract
-     * demands ("MUST NOT return a suggestion when it has no match"): two
-     * existence probes with LIMIT 1, short-circuiting on the first hit,
-     * using LIKE for masthead titles and the public search FULLTEXT index
-     * for article titles, restricted to non-withdrawn issues.
+     * Two sections at most, each emitted ONLY on a real match, as the
+     * contract demands ("MUST NOT return a suggestion when it has no match"):
+     * the published standalone articles, then the mastheads — or, when no
+     * masthead matches but an indexed article inside an owned issue does, the
+     * generic emeroteca link, because that article is reachable only through
+     * its issue and has no page of its own to link to.
      *
      * @param mixed $suggestions the suggestions collected so far
      * @return mixed append-only; a non-array input is passed through
@@ -2426,23 +2530,32 @@ class EmerotecaPlugin
             }
             $needle = mb_substr($needle, 0, 200);
 
-            if (!$this->emerotecaMatches($needle)) {
-                return $suggestions;
+            $articles = $this->emerotecaArticleHits($needle);
+            if ($articles['total'] > 0) {
+                $suggestions[] = [
+                    'label' => $this->translate('Articoli nell’emeroteca (%d)', $articles['total']),
+                    'url'   => $this->emerotecaPath('/emeroteca/articoli') . '?q=' . rawurlencode($needle),
+                    'items' => $articles['items'],
+                    'total' => $articles['total'],
+                ];
             }
 
-            $path = function_exists('url') ? (string) url('/emeroteca') : '/emeroteca';
-            if ($path === '' || $path[0] !== '/' || str_starts_with($path, '//')) {
-                // The core rejects anything that is not a single-slash
-                // same-origin path; do not hand it a URL it will drop.
-                $path = '/emeroteca';
+            $mastheads = $this->emerotecaTestataHits($needle);
+            if ($mastheads['total'] > 0) {
+                $suggestions[] = [
+                    'label' => $this->translate('Testate nell’emeroteca (%d)', $mastheads['total']),
+                    'url'   => $this->emerotecaPath('/emeroteca') . '?q=' . rawurlencode($needle),
+                    'items' => $mastheads['items'],
+                    'total' => $mastheads['total'],
+                ];
+            } elseif ($this->emerotecaIndexedArticleMatches($needle)) {
+                $suggestions[] = [
+                    'label' => function_exists('__')
+                        ? (string) __('Emeroteca (testate e spoglio degli articoli)')
+                        : 'Emeroteca (testate e spoglio degli articoli)',
+                    'url'   => $this->emerotecaPath('/emeroteca') . '?q=' . rawurlencode($needle),
+                ];
             }
-
-            $suggestions[] = [
-                'label' => function_exists('__')
-                    ? (string) __('Emeroteca (testate e spoglio degli articoli)')
-                    : 'Emeroteca (testate e spoglio degli articoli)',
-                'url'   => $path . '?q=' . rawurlencode($needle),
-            ];
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca] search.external_suggestions listener error: ' . $e->getMessage());
         }
@@ -2450,57 +2563,321 @@ class EmerotecaPlugin
     }
 
     /**
-     * True when at least one testata or one indexed article matches the
-     * term. Two separate LIMIT 1 probes rather than a UNION so each is
-     * guarded by its own table probe: on a degraded install one table
-     * can exist without the other.
+     * A same-origin path for the public emeroteca, base path included.
+     *
+     * The core rejects anything that is not a single-slash relative path, so
+     * a misconfigured url() helper must not be handed to it: fall back to the
+     * literal route rather than emit a suggestion the core will drop.
      */
-    private function emerotecaMatches(string $term): bool
+    private function emerotecaPath(string $route): string
     {
-        $pattern = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
-
-        $probes = [];
-        if ($this->emerotecaTableExists('emeroteca_testate')) {
-            $probes[] = ["SELECT 1 FROM emeroteca_testate
-                          WHERE titolo LIKE ? ESCAPE '\\\\'
-                             OR sottotitolo LIKE ? ESCAPE '\\\\'
-                             OR issn LIKE ? ESCAPE '\\\\'
-                          LIMIT 1", 'sss', [$pattern, $pattern, $pattern]];
+        $path = function_exists('url') ? (string) url($route) : $route;
+        if ($path === '' || $path[0] !== '/' || str_starts_with($path, '//')) {
+            return $route;
         }
-        if ($this->emerotecaTableExists('emeroteca_articoli')) {
-            // This hint uses the same token search as the public article search.
-            // The FULLTEXT index avoids a full article scan on every catalogue miss.
-            $probes[] = ["SELECT 1 FROM emeroteca_articoli ar
-                          JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
-                          WHERE f.stato <> 'scartato'
-                            AND MATCH(ar.titolo, ar.autori, ar.keywords)
-                                AGAINST (? IN NATURAL LANGUAGE MODE)
-                          LIMIT 1", 's', [$term]];
-        }
+        return $path;
+    }
 
-        foreach ($probes as [$sql, $types, $params]) {
-            $stmt = $this->db->prepare($sql);
-            if ($stmt === false) {
-                SecureLogger::error('[Emeroteca] search suggestion probe prepare failed: ' . $this->db->error);
-                continue;
-            }
-            $stmt->bind_param($types, ...$params);
-            if (!$stmt->execute()) {
-                SecureLogger::error('[Emeroteca] search suggestion probe failed: ' . $stmt->error);
-                $stmt->close();
-                continue;
-            }
-            $res = $stmt->get_result();
-            $hit = $res instanceof \mysqli_result && $res->fetch_row() !== null;
-            if ($res instanceof \mysqli_result) {
-                $res->free();
-            }
+    /** __() when the core helpers are loaded, sprintf() alone when they are not. */
+    private function translate(string $message, int|string ...$args): string
+    {
+        return function_exists('__') ? (string) __($message, ...$args) : sprintf($message, ...$args);
+    }
+
+    /** LIKE pattern for $term with the wildcards escaped (ESCAPE '\\'). */
+    private function likePattern(string $term): string
+    {
+        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    /** How many mastheads /emeroteca?q= ever lists; the hint caps its total the same way. */
+    public const TESTATA_SEARCH_LIMIT = 500;
+
+    /**
+     * The WHERE fragment that decides whether a masthead answers a free term,
+     * owned here and used by BOTH the public listing
+     * (PublicController::index) and the catalogue hint
+     * (emerotecaTestataHits) — a count printed next to a link must be the
+     * count of what that link opens, and two hand-maintained spellings of the
+     * same question drift apart the moment one of them is edited.
+     *
+     * The table must be aliased `t`. The parentheses are load-bearing: the
+     * fragment is an OR chain interpolated into statements that AND it with
+     * other conditions.
+     *
+     * Bind order, all strings:
+     *   narrow ('sss'):    pattern, pattern, pattern
+     *   $withArticles:     … then term (MATCH), pattern, pattern, pattern
+     *                      → 'sssssss'
+     *
+     * $withArticles adds the indexed articles inside owned issues. It is
+     * optional because emeroteca_articoli / _fascicoli / _annate can be
+     * missing on a degraded install, where the narrow form must still answer.
+     * The MATCH arm is joined by three LIKEs on purpose: InnoDB FULLTEXT
+     * ignores tokens shorter than innodb_ft_min_token_size and stopwords, and
+     * matches whole tokens only — so MATCH alone would hide mastheads the
+     * listing does show.
+     *
+     * That correctness is not free, and the price has been measured rather
+     * than guessed. On a seeded corpus of 400 mastheads and 10.000 indexed
+     * articles (MySQL 9.6, warm buffer pool, best of seven):
+     *
+     *   term          MATCH+LIKE      MATCH only        LIKE only
+     *   miss          43.35 ms (0)     0.24 ms (0)      22.97 ms (0)
+     *   hit           18.06 ms (400)   7.50 ms (400)    36.21 ms (400)
+     *   'ric'          3.68 ms (400)   0.17 ms (0!)     30.94 ms (400)
+     *
+     * The third row is the whole argument: 'ric' is a substring of 'ricerca',
+     * which MATCH does not find and the LIKE does. Dropping the LIKE would
+     * make a catalogue search two orders of magnitude cheaper and quietly
+     * wrong, so it stays.
+     *
+     * Two rewrites were tried and rejected because the planner defeats both:
+     * `t.id IN (SELECT …)` is rewritten to a dependent EXISTS, and a derived
+     * table LEFT JOINed is still evaluated per row while the arm sits in an
+     * OR (measured 49 ms against the EXISTS form's 46 ms). Pre-resolving the
+     * article arm in PHP and passing the ids in costs 38 ms, because the
+     * unavoidable scan of the spoglio is what dominates — not the shape of
+     * the join.
+     *
+     * If this ever needs to be faster, the lever is the SEMANTICS (give up
+     * substring matching on the spoglio, or index for it), not the SQL: that
+     * is a product decision about what a search is expected to find, and it
+     * should be made deliberately rather than inside a performance fix.
+     */
+    public static function testataSearchWhere(bool $withArticles): string
+    {
+        $where = "t.titolo LIKE ? ESCAPE '\\\\'
+                  OR t.sottotitolo LIKE ? ESCAPE '\\\\'
+                  OR t.issn LIKE ? ESCAPE '\\\\'";
+        if ($withArticles) {
+            $where .= "
+                  OR EXISTS (
+                        SELECT 1
+                          FROM emeroteca_articoli ar
+                          JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
+                          JOIN emeroteca_annate ea ON ea.id = ef.annata_id
+                         WHERE ea.testata_id = t.id AND ef.stato <> 'scartato'
+                           AND (
+                                MATCH(ar.titolo, ar.autori, ar.keywords)
+                                    AGAINST (? IN NATURAL LANGUAGE MODE)
+                                OR ar.titolo LIKE ? ESCAPE '\\\\'
+                                OR ar.autori LIKE ? ESCAPE '\\\\'
+                                OR ar.keywords LIKE ? ESCAPE '\\\\'
+                           )
+                  )";
+        }
+        return '(' . $where . ')';
+    }
+
+    /**
+     * Published standalone articles matching the term: the first 5 by recency,
+     * plus how many there are in all.
+     *
+     * Only `pubblico = 1` rows, exactly as the public article page requires —
+     * an unpublished article must not become visible through a catalogue
+     * search that cannot open it.
+     *
+     * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
+     */
+    private function emerotecaArticleHits(string $term): array
+    {
+        $empty = ['items' => [], 'total' => 0];
+        if (!$this->emerotecaTableExists('emeroteca_contributi')) {
+            return $empty;
+        }
+        $pattern = $this->likePattern($term);
+        // These columns must stay the same set ContributionService::search()
+        // uses, in the same order: this counter labels a link, and the number
+        // beside a link has to be the number of results that link opens. When
+        // sottotitolo became searchable on the article page (#412) and not
+        // here, a term living only in a subtitle produced no suggestion at all
+        // while the linked page listed the article.
+        $authors = new \App\Services\ArticleAuthorService($this->db);
+        $extraAuthors = $authors->available()
+            ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '\\\\' OR a.pseudonimo LIKE ? ESCAPE '\\\\'))" : '';
+        $where = "c.pubblico = 1
+                  AND (c.titolo LIKE ? ESCAPE '\\\\'
+                       OR c.sottotitolo LIKE ? ESCAPE '\\\\'
+                       OR c.autori LIKE ? ESCAPE '\\\\'
+                       OR c.contenitore_titolo LIKE ? ESCAPE '\\\\'
+                       OR c.keywords LIKE ? ESCAPE '\\\\'
+                       OR c.issn = ?$extraAuthors)";
+        $params = [$pattern, $pattern, $pattern, $pattern, $pattern, $term];
+        if ($extraAuthors !== '') { array_push($params,$pattern,$pattern); }
+
+        // Fetch first, count only when the page comes back saturated: a term
+        // with five or fewer matches already knows its own total, and this
+        // runs on every catalogue search. An aggregate over a leading-wildcard
+        // LIKE chain walks every published row to learn a number the fetch was
+        // about to hand over for free.
+        $rows = $this->emerotecaRows(
+            "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, pagine
+             FROM emeroteca_contributi c WHERE $where ORDER BY id DESC LIMIT 6",
+            str_repeat('s', count($params)),
+            $params
+        );
+        if ($rows === []) {
+            return $empty;
+        }
+        $total = count($rows) > 5
+            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_contributi c WHERE $where", str_repeat('s', count($params)), $params)
+            : count($rows);
+        $rows = $authors->hydrate(array_slice($rows, 0, 5));
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = [
+                'label' => (string) $row['titolo'],
+                'url'   => $this->emerotecaPath('/emeroteca/articolo/' . (int) $row['id']),
+                'meta'  => implode(' · ', array_filter([
+                    (string) ($row['autori'] ?? ''),
+                    (string) ($row['contenitore_titolo'] ?? ''),
+                    (string) ($row['data_pubblicazione_testo'] ?? ''),
+                    (string) ($row['pagine'] ?? ''),
+                ], static fn (string $part): bool => trim($part) !== '')),
+            ];
+        }
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * Mastheads matching the term: the first 5 by title, plus the total.
+     *
+     * The predicate is testataSearchWhere(), the same fragment
+     * PublicController::index() runs — including the indexed articles inside
+     * owned issues — so the number in "Testate nell’emeroteca (%d)" is the
+     * number the page behind that link prints. The total is capped at
+     * TESTATA_SEARCH_LIMIT for the same reason: the listing stops there too.
+     *
+     * The article arm is dropped on a degraded install missing any of
+     * emeroteca_articoli / _fascicoli / _annate: narrow but answering beats a
+     * prepare() that fails and silently zeroes every masthead hint.
+     *
+     * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
+     */
+    private function emerotecaTestataHits(string $term): array
+    {
+        $empty = ['items' => [], 'total' => 0];
+        if (!$this->emerotecaTableExists('emeroteca_testate')) {
+            return $empty;
+        }
+        $pattern = $this->likePattern($term);
+        $withArticles = $this->emerotecaTableExists('emeroteca_articoli')
+            && $this->emerotecaTableExists('emeroteca_fascicoli')
+            && $this->emerotecaTableExists('emeroteca_annate');
+        $where = self::testataSearchWhere($withArticles);
+        $params = $withArticles
+            ? [$pattern, $pattern, $pattern, $term, $pattern, $pattern, $pattern]
+            : [$pattern, $pattern, $pattern];
+        $types = str_repeat('s', count($params));
+
+        // Fetch first, count only when saturated — see emerotecaArticleHits().
+        $rows = $this->emerotecaRows(
+            "SELECT t.id, t.titolo, t.sottotitolo, t.issn FROM emeroteca_testate t WHERE $where ORDER BY t.titolo LIMIT 6",
+            $types,
+            $params
+        );
+        if ($rows === []) {
+            return $empty;
+        }
+        $total = count($rows) > 5
+            ? min(
+                $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_testate t WHERE $where", $types, $params),
+                self::TESTATA_SEARCH_LIMIT
+            )
+            : count($rows);
+        $rows = array_slice($rows, 0, 5);
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = [
+                'label' => (string) $row['titolo'],
+                'url'   => $this->emerotecaPath('/emeroteca/' . (int) $row['id']),
+                'meta'  => implode(' · ', array_filter([
+                    (string) ($row['sottotitolo'] ?? ''),
+                    ($row['issn'] ?? '') !== '' ? 'ISSN ' . (string) $row['issn'] : '',
+                ], static fn (string $part): bool => trim($part) !== '')),
+            ];
+        }
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * True when an article indexed inside an owned issue matches the term.
+     *
+     * Kept as a bare existence probe with LIMIT 1: these articles live inside
+     * an issue and have no public page of their own, so there is nothing to
+     * link an item to — only the section. Nobody reads a number here, so the
+     * query stops at the first qualifying row instead of counting every
+     * FULLTEXT hit and joining each one to its issue.
+     *
+     * MATCH is joined by three LIKE arms, matching the destination's own
+     * EXISTS (PublicController::index): FULLTEXT ignores tokens below
+     * innodb_ft_min_token_size and stopwords, so MATCH alone withholds the
+     * hint for terms /emeroteca?q= would happily answer.
+     *
+     * Withdrawn issues are excluded as everywhere else.
+     */
+    private function emerotecaIndexedArticleMatches(string $term): bool
+    {
+        if (!$this->emerotecaTableExists('emeroteca_articoli')
+            || !$this->emerotecaTableExists('emeroteca_fascicoli')) {
+            return false;
+        }
+        $pattern = $this->likePattern($term);
+        return $this->emerotecaRows(
+            "SELECT 1 FROM emeroteca_articoli ar
+             JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
+             WHERE f.stato <> 'scartato'
+               AND (MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)
+                    OR ar.titolo LIKE ? ESCAPE '\\\\'
+                    OR ar.autori LIKE ? ESCAPE '\\\\'
+                    OR ar.keywords LIKE ? ESCAPE '\\\\')
+             LIMIT 1",
+            'ssss',
+            [$term, $pattern, $pattern, $pattern]
+        ) !== [];
+    }
+
+    /**
+     * COUNT(*) for the probes above, or 0 when the query cannot run.
+     *
+     * These execute on every catalogue search, so a failure is logged and
+     * swallowed: a broken hint must never cost the visitor the results page.
+     *
+     * @param array<int, string> $params
+     */
+    private function emerotecaCount(string $sql, string $types, array $params): int
+    {
+        $rows = $this->emerotecaRows($sql, $types, $params);
+        return (int) ($rows[0]['c'] ?? 0);
+    }
+
+    /**
+     * Prepared SELECT for the suggestion probes, returning [] on any failure.
+     *
+     * @param array<int, string> $params
+     * @return array<int, array<string, mixed>>
+     */
+    private function emerotecaRows(string $sql, string $types, array $params): array
+    {
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            SecureLogger::error('[Emeroteca] search suggestion probe prepare failed: ' . $this->db->error);
+            return [];
+        }
+        $stmt->bind_param($types, ...$params);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Emeroteca] search suggestion probe failed: ' . $stmt->error);
             $stmt->close();
-            if ($hit) {
-                return true;
-            }
+            return [];
         }
-        return false;
+        $res = $stmt->get_result();
+        $rows = $res instanceof \mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+        if ($res instanceof \mysqli_result) {
+            $res->free();
+        }
+        $stmt->close();
+        return $rows;
     }
 
     /**
@@ -2509,6 +2886,18 @@ class EmerotecaPlugin
      * public pages where an exception would cost the whole sitemap or
      * the catalogue hint.
      */
+    /** True once at least one masthead exists. Never cached: see ensureSchema(). */
+    private function emerotecaHasMastheads(): bool
+    {
+        try {
+            $res = $this->db->query('SELECT 1 FROM emeroteca_testate LIMIT 1');
+            return $res instanceof \mysqli_result && $res->num_rows > 0;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] masthead probe failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     private function emerotecaTableExists(string $table): bool
     {
         if (array_key_exists($table, $this->tableProbeCache)) {

@@ -87,6 +87,50 @@ class CmsController
         return $response;
     }
 
+    /**
+     * Index of everything the CMS manages (issue: /admin/cms answered 404).
+     *
+     * The three CMS entry points lived only as separate buttons inside the
+     * settings page, so /admin/cms — the address anyone shortens the others to —
+     * was a dead end, and a page that settings does not link (the privacy
+     * policy, any page a locale added) could be reached only by typing its slug.
+     * The list is read from the database rather than from a fixed menu, so a
+     * page that exists is a page an administrator can find.
+     */
+    public function index(Request $request, Response $response, \mysqli $db, array $args = []): Response
+    {
+        $db->set_charset('utf8mb4');
+        $currentLocale = \App\Support\I18n::getLocale();
+
+        $pages = [];
+        $stmt = $db->prepare(
+            'SELECT slug, title, is_active, updated_at FROM cms_pages WHERE locale = ? ORDER BY title'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('s', $currentLocale);
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                if ($result instanceof \mysqli_result) {
+                    $pages = $result->fetch_all(MYSQLI_ASSOC);
+                }
+            }
+            $stmt->close();
+        }
+
+        $title = __('Contenuti del sito');
+
+        ob_start();
+        include __DIR__ . '/../Views/cms/index.php';
+        $content = ob_get_clean();
+
+        ob_start();
+        include __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
+    }
+
     public function editHome(Request $request, Response $response, \mysqli $db, array $args): Response
     {
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
@@ -554,8 +598,55 @@ class CmsController
             }
         }
 
+        // Plugin-owned sections persist their own fields from here and may add
+        // errors. Filter contract: return the (possibly extended) $errors array,
+        // and write only when the incoming array is empty — the same "one bad
+        // field discards the whole submission" rule every core block above obeys.
+        // HookManager::applyFilters() swallows a handler's throwable and keeps
+        // the unfiltered value, so a handler that lets one escape would report a
+        // successful save having written nothing: handlers catch their own.
+        // The guards below keep a misbehaving handler (wrong type, non-string
+        // entries) from breaking the page instead of just its own section.
+        // Snapshotted BEFORE the filter runs, because the two kinds of error
+        // that come out of it describe two different outcomes on disk, and the
+        // message has to tell them apart. Core validation happens above, before
+        // the first write; an error there really does mean nothing was saved.
+        // A handler's error does not: by the time the filter is reached every
+        // core section has already been written, so claiming otherwise sends
+        // the operator back to re-enter edits that are in fact persisted, and —
+        // worse — to disbelieve a visibility switch that did take effect.
+        $errorsBeforeHandlers = $errors;
+
+        $filtered = \App\Support\Hooks::apply('cms.home.save', $errors, [$data]);
+        if (is_array($filtered)) {
+            $errors = array_values(array_filter($filtered, 'is_string'));
+        }
+
         if (!empty($errors)) {
-            $_SESSION['error_message'] = implode('<br>', array_map(fn($e) => htmlspecialchars($e, ENT_QUOTES, 'UTF-8'), $errors));
+            // Only a plugin handler failed: the core sections ARE on disk (see
+            // the snapshot note above), so the cached home page is now stale
+            // and must be invalidated exactly as on a clean save. Without this
+            // the operator is told the main sections were saved while visitors
+            // keep being served the previous version until the cache expires.
+            if ($errorsBeforeHandlers === []) {
+                \App\Support\ContentCache::homeContentChanged();
+            }
+
+            // Every core section above is written only `if (... && empty($errors))`,
+            // so one invalid field discards the whole submission — including
+            // edits to sections that have nothing to do with it. The message
+            // used to name the offending field and stop there, which reads as
+            // "that one field was ignored" while the visibility someone had just
+            // switched off quietly came back. Say what actually happened.
+            //
+            // Plain text, escaped by the view: the previous version pre-escaped
+            // each error and joined them with <br>, and the view escapes what it
+            // is given, so a submission with two problems rendered them as
+            // "first<br>second" with the tag visible in the middle.
+            $_SESSION['error_message'] = ($errorsBeforeHandlers === []
+                ? __('Le sezioni principali sono state salvate, ma una sezione aggiuntiva ha segnalato un problema:')
+                : __('Nessuna modifica è stata salvata: correggi quanto segue e salva di nuovo.'))
+                . ' ' . implode(' · ', $errors);
         } else {
             \App\Support\ContentCache::homeContentChanged();
 

@@ -10,7 +10,7 @@
 
 use App\Support\HtmlHelper;
 
-$title = __("Catalogo Libri - Biblioteca");
+$title = __("Catalogo");
 if (!isset($filters)) {
     $filters = [];
 }
@@ -25,9 +25,10 @@ if ($searchQuery) {
     // thin/duplicate content); links are still followed toward the books.
     $seoRobots = 'noindex,follow';
 } else {
-    $seoTitle = __("Catalogo Completo Libri - Biblioteca Digitale");
+    $seoTitle = __("Catalogo");
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
+if (!empty($filters['autore'])) { $seoRobots = 'noindex,follow'; }
 $catalogRoute = route_path('catalog');
 $apiCatalogRoute = route_path('api_catalog');
 $catalogBaseUrl = rtrim(HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('catalog');
@@ -243,8 +244,7 @@ $additional_css = "
         flex-direction: column;
         gap: 0.25rem;
         /* Long facet lists (authors, genres, publishers) scroll inside the
-           section instead of stretching the whole sidebar. A light-grey border
-           signals the area is scrollable. */
+           section instead of stretching the whole sidebar. */
         max-height: 24rem;
         overflow-y: auto;
         overflow-x: hidden;
@@ -254,7 +254,32 @@ $additional_css = "
            Small right inset so the scrollbar never overlaps the counts. */
         border: none;
         border-radius: 0;
-        padding: 0 0.375rem 0 0;
+        /* …but it does need an end. Without one the authors list stops
+           mid-alphabet with ninety-two names still inside it and reads as a
+           finished list, so the facet below looks like the empty one. The rule
+           closes the box without putting a frame back around it. */
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 0.375rem 0.25rem 0;
+    }
+    /* And this is what says scroll: the last line fades out, but only while
+       something is actually below it. The class is set from JS because CSS
+       cannot ask whether a box overflows, and it is cleared again once the
+       list is scrolled to the bottom — a cue that never goes away stops being
+       read as a cue. A mask is used rather than a gradient over the content
+       because the panel is transparent: the four layouts and the colour theme
+       paint different things behind it, and a fade hard-coded to white would
+       be a white smear on three of them.
+       The last pixel row is deliberately opaque again. A mask is clipped to
+       the border box, so a fade that reaches zero at 100 per cent takes the
+       closing rule with it — and it does so exactly when the list is long,
+       which is when the rule is carrying the most weight. Measured: the row
+       holding the border goes from 29 to 0 ink the moment the cue turns on. */
+    .filter-options.facet-has-more {
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent calc(100% - 1px), #000 calc(100% - 1px));
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent calc(100% - 1px), #000 calc(100% - 1px));
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .filter-options.facet-has-more { transition: none; }
     }
     .filter-options::-webkit-scrollbar { width: 6px; }
     .filter-options::-webkit-scrollbar-track { background: transparent; }
@@ -263,12 +288,16 @@ $additional_css = "
         border-radius: 999px;
     }
     .filter-options::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #94a3b8); }
-    /* A collapsed facet (single pill) must never show a scrollbar or box. */
+    /* A collapsed facet (single pill) must never show a scrollbar, a box or a
+       closing rule: there is nothing to scroll and nothing to delimit. */
     .filter-options.facet-is-collapsed {
         max-height: none;
         overflow: visible;
         border: none;
+        border-bottom: none;
         padding: 0;
+        -webkit-mask-image: none;
+        mask-image: none;
     }
 
     .filter-option {
@@ -1312,7 +1341,7 @@ ob_start();
 <section class="catalog-header">
     <div class="container">
         <div class="catalog-header-content text-center">
-            <h1 class="catalog-title"><?= __("Catalogo Libri") ?></h1>
+            <h1 class="catalog-title"><?= __("Catalogo") ?></h1>
             <p class="catalog-subtitle"><?= __("Scopri migliaia di titoli nella nostra collezione digitale") ?></p>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
@@ -1472,7 +1501,7 @@ ob_start();
                                     <i class="fas fa-th-large"></i>
                                 </div>
                                 <div class="availability-text">
-                                    <div class="availability-title"><?= __("Tutti i libri") ?></div>
+                                    <div class="availability-title"><?= __("Tutti") ?></div>
                                     <div class="availability-desc"><?= __("Tutto il catalogo") ?></div>
                                 </div>
                                 <div class="availability-count" id="total-books-count">
@@ -1622,7 +1651,7 @@ ob_start();
                 <div class="results-header">
                     <div class="results-info">
                         <strong id="total-count"><?= number_format($total_books) ?></strong>
-                        <span id="results-text"><?= $total_books == 1 ? __('libro trovato') : __('libri trovati') ?></span>
+                        <span id="results-text"><?= ($total_articles ?? 0) > 0 ? __('Risultati') : ($total_books == 1 ? __('libro trovato') : __('libri trovati')) ?></span>
                     </div>
                     <div style="display: flex; gap: 0.75rem; align-items: center;">
                         <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= __("Rimuovi tutti i filtri") ?>">
@@ -1660,7 +1689,7 @@ ob_start();
                     <!-- Empty State -->
                     <div id="empty-state" style="display: none;" class="empty-state">
                         <i class="fas fa-search empty-state-icon"></i>
-                        <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
+                        <h4 class="empty-state-title"><?= __("Nessun risultato trovato") ?></h4>
                         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
                         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
                             <i class="fas fa-redo mr-2"></i>
@@ -1781,6 +1810,7 @@ $i18nTranslations = [
     // Plurals
     'libro_trovato' => __('libro trovato'),
     'libri_trovati' => __('libri trovati'),
+    'risultati' => __('Risultati'),
 
     // Errors
     'errore_caricamento' => __('Errore nel caricamento. Riprova.')
@@ -1834,6 +1864,10 @@ document.addEventListener('DOMContentLoaded', () => {
             filtersContent.hidden = false;
             filtersToggle.setAttribute('aria-expanded', 'true');
         }
+        // A hidden box has no height, so every measurement taken while the
+        // panel was closed said "nothing below the fold". Revealing it is the
+        // first moment the question can honestly be asked.
+        markScrollableFacets();
     };
 
     if (filtersToggle && filtersContent) {
@@ -1844,6 +1878,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const expanded = filtersToggle.getAttribute('aria-expanded') === 'true';
             filtersToggle.setAttribute('aria-expanded', String(!expanded));
             filtersContent.hidden = expanded;
+            markScrollableFacets();
         });
         if (typeof mobileFilters.addEventListener === 'function') {
             mobileFilters.addEventListener('change', syncMobileFilters);
@@ -1880,6 +1915,14 @@ document.addEventListener('DOMContentLoaded', () => {
         applyFacetCollapse(genresInit, 'genere_id', genereSelectedLabel(), genresInit.innerHTML);
     }
     renderFacets();
+
+    // A narrower window changes how much of a list fits, so the cue has to be
+    // recomputed. Debounced: resize fires continuously while dragging.
+    let facetCueResizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(facetCueResizeTimer);
+        facetCueResizeTimer = setTimeout(markScrollableFacets, 150);
+    }, { passive: true });
 
     const initialPagination = {$initialPaginationJson};
     updatePagination(initialPagination);
@@ -1979,6 +2022,7 @@ function updateActiveFiltersDisplay() {
         genere_id: i18n.genere_id,
         editore: i18n.editore,
         autore_id: i18n.autore,
+        autore: i18n.autore,
         disponibilita: i18n.disponibilita,
         anno_min: i18n.anno_min,
         anno_max: i18n.anno_max,
@@ -2020,7 +2064,7 @@ function updateActiveFiltersDisplay() {
         } else if (filterKey === 'genere_id') {
             displayValue = currentGenreName || value;
         } else if (filterKey === 'autore_id') {
-            displayValue = autoreSelectedLabel() || value;
+            displayValue = autoreSelectedLabel() || i18n.autore;
         } else if (filterKey === 'tipo_media') {
             displayValue = mediaSelectedLabel() || value;
         } else if (filterKey === 'editore') {
@@ -2094,7 +2138,7 @@ function loadBooks() {
             const resultsText = document.getElementById('results-text');
             if (totalCount && resultsText && data.pagination) {
                 totalCount.textContent = data.pagination.total_books.toLocaleString();
-                resultsText.textContent = data.pagination.total_books === 1 ? i18n.libro_trovato : i18n.libri_trovati;
+                resultsText.textContent = data.pagination.total_articles > 0 ? i18n.risultati : (data.pagination.total_books === 1 ? i18n.libro_trovato : i18n.libri_trovati);
             }
 
             // Update filter options if provided
@@ -2325,6 +2369,7 @@ function facetLabel(key) {
     const labels = {
         editore: i18n.editore,
         autore_id: i18n.autore,
+        autore: i18n.autore,
         genere_id: i18n.genere_id,
         tipo_media: i18n.tipo_media,
     };
@@ -2341,7 +2386,7 @@ function autoreSelectedLabel() {
         return '';
     }
     const found = (autoriData || []).find((au) => parseInt(au.id, 10) === id);
-    return found ? String(found.nome) : String(currentFilters.autore_id);
+    return found ? String(found.nome) : i18n.autore;
 }
 
 function mediaSelectedLabel() {
@@ -2387,6 +2432,10 @@ function renderFacetOptions(container, key) {
     container.classList.remove('facet-fade-in');
     void container.offsetWidth; // restart animation
     container.classList.add('facet-fade-in');
+    // The cue belongs to this function, not only to the renderFacets() sweep.
+    // Reopening a collapsed facet from its Cambia link comes through here and
+    // nowhere else, and it can restore a list long enough to need the cue.
+    markScrollableFacets();
 }
 
 function renderCollapsedPill(container, key, selectedLabel) {
@@ -2524,6 +2573,37 @@ function renderFacets() {
         applyFacetCollapse(mediaTypes, 'tipo_media', mediaSelectedLabel(), buildMediaTypeOptions);
     }
     applySuppression();
+    markScrollableFacets();
+}
+
+// Which facet lists have something below the fold, right now.
+//
+// CSS cannot ask whether a box overflows, so the cue that tells a reader to
+// scroll has to be set from here. It runs on load and after every facet
+// re-render, because an AJAX refresh replaces the options and a list that was
+// long can become short (or the reverse) without the page reloading.
+function markScrollableFacets() {
+    document.querySelectorAll('.filter-options').forEach((list) => {
+        if (list.classList.contains('facet-is-collapsed')) {
+            list.classList.remove('facet-has-more');
+            return;
+        }
+        updateFacetOverflowCue(list);
+        if (!list.dataset.scrollCueBound) {
+            // Once per element, not once per render: renderFacets() runs on
+            // every keystroke of the search box.
+            list.dataset.scrollCueBound = '1';
+            list.addEventListener('scroll', () => updateFacetOverflowCue(list), { passive: true });
+        }
+    });
+}
+
+function updateFacetOverflowCue(list) {
+    // The 2px tolerance is for sub-pixel heights: a list scrolled fully to the
+    // bottom can report a remainder of a fraction of a pixel, which would keep
+    // the cue on for ever and teach the reader to ignore it.
+    const more = list.scrollHeight - list.clientHeight - list.scrollTop > 2;
+    list.classList.toggle('facet-has-more', more);
 }
 
 // Hide a whole facet section when the backend marks it as noise

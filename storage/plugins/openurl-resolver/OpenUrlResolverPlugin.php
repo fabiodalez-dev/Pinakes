@@ -13,17 +13,25 @@ use Psr\Http\Message\ServerRequestInterface;
  * OpenURL Z39.88-2004 Resolver + COinS plugin for Pinakes v0.7.2.
  *
  * Endpoints:
- *   GET  /openurl                → Resolver: accepts KEV params, redirects to
- *                                  best available resource (local → WorldCat → Google Books)
- *   GET  /api/coins/book/{id}   → Returns COinS title string and HTML span for a book
+ *   GET  /openurl                   → Resolver: accepts KEV params, redirects to
+ *                                     best available resource (local → WorldCat → Google Books).
+ *                                     mtx:journal requests are first resolved against local
+ *                                     Emeroteca articles by DOI, then by article title, before
+ *                                     falling back to the external targets.
+ *   GET  /api/coins/book/{id}      → Returns COinS title string and HTML span for a book
+ *   GET  /api/coins/article/{id}   → Returns the mtx:journal COinS for a published article
  *
  * Hook: assets.head → injects a small script that embeds a <span class="Z3988">
- *       on book detail pages (detected via data-libro-id attribute).
+ *       on book and article detail pages (detected via the data-libro-id or
+ *       data-articolo-id attribute).
  *
  * KEV context object format (ANSI/NISO Z39.88-2004):
  *   ctx_ver=Z39.88-2004
  *   rft_val_fmt=info:ofi/fmt:kev:mtx:book
- *   rft.btitle, rft.au, rft.isbn, rft.date, rft.pub, rft.language, rft.genre
+ *     rft.btitle, rft.au, rft.isbn, rft.date, rft.pub, rft.language, rft.genre
+ *   rft_val_fmt=info:ofi/fmt:kev:mtx:journal (articles)
+ *     rft.atitle, rft.jtitle, rft.au, rft.issn, rft.date, rft.volume, rft.issue,
+ *     rft.spage, rft.epage, rft_id=info:doi/…
  *
  * Spec: https://www.niso.org/standards-committees/openurl
  */
@@ -38,6 +46,25 @@ class OpenUrlResolverPlugin
     private const WORLDCAT_SEARCH  = 'https://www.worldcat.org/search?q=';
     private const GOOGLE_BOOKS_ISBN = 'https://books.google.com/books?vid=ISBN';
     private const GOOGLE_BOOKS_QUERY = 'https://books.google.com/books?q=';
+
+    /**
+     * The Emeroteca's citation decomposition, when that plugin is present.
+     * Plugin classes have no autoloader scope, so the file is required by
+     * hand — and only if it is actually there, because Emeroteca is optional.
+     */
+    private function loadCitationFormatter(): bool
+    {
+        if (class_exists(\App\Plugins\Emeroteca\Support\CitationFormatter::class, false)) {
+            return true;
+        }
+        $path = __DIR__ . '/../emeroteca/src/Support/CitationFormatter.php';
+        if (!is_file($path)) {
+            return false;
+        }
+        require_once $path;
+
+        return class_exists(\App\Plugins\Emeroteca\Support\CitationFormatter::class, false);
+    }
 
     public function __construct(\mysqli $db, HookManager $hookManager)
     {
@@ -124,6 +151,18 @@ class OpenUrlResolverPlugin
             return $plugin->resolverAction($request, $response);
         });
 
+        // Journal articles. The Emeroteca plugin catalogues single articles out
+        // of periodicals the library does not hold, and those records are the
+        // ones a researcher most wants in Zotero — a book they can find by
+        // ISBN, an article they cannot.
+        $app->get('/api/coins/article/{id:[0-9]+}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->articleCoinsAction($request, $response, (int) $args['id']);
+        });
+
         $app->get('/api/coins/book/{id:[0-9]+}', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
@@ -142,10 +181,12 @@ class OpenUrlResolverPlugin
 (function(){
   document.addEventListener("DOMContentLoaded",function(){
     var el=document.querySelector("[data-libro-id]");
+    var kind="book";
+    if(!el){el=document.querySelector("[data-articolo-id]");kind="article";}
     if(!el)return;
-    var id=parseInt(el.getAttribute("data-libro-id"),10);
+    var id=parseInt(el.getAttribute(kind==="book"?"data-libro-id":"data-articolo-id"),10);
     if(!id)return;
-    fetch(' . json_encode($basePath . '/api/coins/book/', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES) . '+id)
+    fetch(' . json_encode($basePath . '/api/coins/', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES) . '+kind+"/"+id)
       .then(function(r){return r.ok?r.json():null;})
       .then(function(d){
         if(!d||!d.coins_title)return;
@@ -174,15 +215,30 @@ class OpenUrlResolverPlugin
             SecureLogger::warning('[OpenUrlResolver] Non-conformant url_ver received: ' . $urlVer);
         }
 
-        // Reject journal requests — this resolver handles books only
+        // A journal request used to be refused with 400. That was honest while
+        // the catalogue held no articles; since the Emeroteca plugin gained
+        // standalone analytic records it is not, because the very request a
+        // researcher sends — "do you have this article?" — is the one this
+        // endpoint answered with "not supported". A local article is now
+        // matched by DOI first and by title second; anything unmatched still
+        // falls through to the external resolver, which is what a link
+        // resolver is for.
         $rftValFmt = (string) ($params['rft_val_fmt'] ?? '');
         if ($rftValFmt === 'info:ofi/fmt:kev:mtx:journal') {
-            $body = (string) json_encode([
-                'error'   => true,
-                'message' => __('Questo resolver supporta solo risorse di tipo libro (book). I metadati per articoli di riviste non sono supportati.'),
-            ]);
-            $response->getBody()->write($body);
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            $article = $this->findArticle($params);
+            if ($article !== null) {
+                // absoluteUrl(), for the same reason localBookUrl() uses it:
+                // $request->getUri()->getAuthority() is the client-supplied Host
+                // header, so building the origin from it sends the visitor
+                // wherever that header says and skips APP_TRUSTED_HOSTS.
+                return $response->withStatus(302)->withHeader(
+                    'Location',
+                    absoluteUrl('/emeroteca/articolo/' . (int) $article['id'])
+                );
+            }
+
+            return $response->withStatus(302)
+                ->withHeader('Location', $this->buildExternalUrl($params, ''));
         }
 
         // 1. Try to match locally by ISBN
@@ -224,6 +280,126 @@ class OpenUrlResolverPlugin
         return $response
             ->withHeader('Content-Type', 'application/json; charset=utf-8')
             ->withHeader('Cache-Control', 'public, max-age=3600');
+    }
+
+    public function articleCoinsAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $article = $this->loadCitationFormatter() ? $this->fetchArticle($id) : null;
+        if ($article === null) {
+            $response->getBody()->write((string) json_encode(['error' => true, 'message' => __('Articolo non trovato.')]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+
+        $kev  = $this->buildArticleKev($article, $request);
+        $html = '<span class="Z3988" title="' . htmlspecialchars($kev, ENT_QUOTES, 'UTF-8') . '"></span>';
+
+        $payload = json_encode([
+            'coins_title' => $kev,
+            'coins_html'  => $html,
+            'article_id'  => $id,
+        ]);
+        $response->getBody()->write((string) $payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Cache-Control', 'public, max-age=3600');
+    }
+
+    /**
+     * An OpenURL context object for a JOURNAL ARTICLE (Z39.88 mtx:journal).
+     *
+     * This is the format Zotero, Mendeley and EndNote read straight out of the
+     * page, which is what makes an article catalogued here importable without
+     * the reader downloading anything. The subfields are the same ones the
+     * danMARC2 773 block carries — host title, enumeration, chronology,
+     * pagination, ISSN — because 773 and mtx:journal describe the same thing.
+     *
+     * @param array<string, mixed> $article
+     */
+    private function buildArticleKev(array $article, ServerRequestInterface $request): string
+    {
+        $parts = [
+            'url_ver'     => 'Z39.88-2004',
+            'ctx_ver'     => 'Z39.88-2004',
+            'ctx_enc'     => 'info:ofi/enc:UTF-8',
+            'rft_val_fmt' => 'info:ofi/fmt:kev:mtx:journal',
+            // genre=article is the component part; the newspaper distinction
+            // is carried by the host title, not by a different genre.
+            'rft.genre'   => 'article',
+        ];
+
+        $title = trim((string) ($article['titolo'] ?? ''));
+        $subtitle = trim((string) ($article['sottotitolo'] ?? ''));
+        if ($subtitle !== '') {
+            $title = $title . ' : ' . $subtitle;
+        }
+        if ($title !== '') {
+            $parts['rft.atitle'] = $title;
+        }
+
+        foreach ([
+            'rft.jtitle' => 'contenitore_titolo',
+            'rft.issn'   => 'issn',
+            'rft.volume' => 'volume',
+            'rft.issue'  => 'numero',
+        ] as $key => $column) {
+            $value = trim((string) ($article[$column] ?? ''));
+            if ($value !== '') {
+                $parts[$key] = $value;
+            }
+        }
+
+        // The page ends come from the same decomposition the citation and the
+        // structured data use, so a reader importing into Zotero and a reader
+        // copying the APA line cannot be given different pages.
+        $pages = \App\Plugins\Emeroteca\Support\CitationFormatter::parts($article);
+        if ($pages['pageStart'] !== '') {
+            $parts['rft.spage'] = $pages['pageStart'];
+        }
+        if ($pages['pageEnd'] !== '') {
+            $parts['rft.epage'] = $pages['pageEnd'];
+        }
+        if ($pages['year'] !== '') {
+            $parts['rft.date'] = $pages['year'];
+        }
+
+        $lang = $this->mapLanguage((string) ($article['lingua'] ?? ''));
+        if ($lang !== '') {
+            $parts['rft.language'] = $lang;
+        }
+
+        $auParts = [];
+        $first = true;
+        foreach ($pages['authors'] as $name) {
+            if ($first) {
+                $first = false;
+                if (str_contains($name, ',')) {
+                    [$last, $given] = explode(',', $name, 2);
+                    $auParts[] = 'rft.aulast='  . rawurlencode(trim($last));
+                    $auParts[] = 'rft.aufirst=' . rawurlencode(trim($given));
+                    continue;
+                }
+            }
+            $auParts[] = 'rft.au=' . rawurlencode($name);
+        }
+
+        $doi = trim((string) ($article['doi'] ?? ''));
+        if ($doi !== '') {
+            $parts['rft_id'] = 'info:doi/' . $doi;
+        }
+
+        $uri    = $request->getUri();
+        $origin = $uri->getScheme() . '://' . $uri->getHost();
+        $parts['rfr_id'] = 'info:sid/' . preg_replace('#^https?://#', '', $origin) . ':pinakes';
+
+        $query = http_build_query($parts, '', '&', PHP_QUERY_RFC3986);
+        if ($auParts !== []) {
+            $query .= '&' . implode('&', $auParts);
+        }
+
+        return $query;
     }
 
     // ─── KEV builder ──────────────────────────────────────────────────────────
@@ -315,8 +491,7 @@ class OpenUrlResolverPlugin
     private function extractIsbn(array $params): string
     {
         foreach (['rft.isbn', 'isbn', 'rft_id'] as $key) {
-            $val = (string) ($params[$key] ?? '');
-            $val = preg_replace('/[^0-9X]/', '', strtoupper($val)) ?? '';
+            $val = preg_replace('/[^0-9X]/', '', strtoupper(self::param($params, $key))) ?? '';
             if (strlen($val) === 13 || strlen($val) === 10) {
                 return $val;
             }
@@ -334,10 +509,21 @@ class OpenUrlResolverPlugin
             return self::GOOGLE_BOOKS_ISBN . rawurlencode($isbn);
         }
 
-        // Build search query from title + author
+        // Build the search query from whatever title and author the request
+        // carries. Every key goes through param(), which asks for both
+        // spellings: read directly, `rft.btitle` and friends are never present
+        // because PHP has already turned the dot into an underscore, so a
+        // spec-conformant OpenURL used to fall through to an EMPTY WorldCat
+        // search and only the undotted aliases beside them ever matched.
+        //
+        // `rft.atitle` and `rft.jtitle` are the journal keys: an unmatched
+        // journal request reaches here, and without them the one thing the
+        // researcher actually typed — the article title — was dropped.
         $parts = [];
         foreach ([
+            'rft.atitle',
             'rft.btitle',
+            'rft.jtitle',
             'title',
             'rft.au',
             'au',
@@ -346,8 +532,8 @@ class OpenUrlResolverPlugin
             'au_last',
             'au_first',
         ] as $k) {
-            $v = trim((string) ($params[$k] ?? ''));
-            if ($v !== '') {
+            $v = self::param($params, $k);
+            if ($v !== '' && !in_array($v, $parts, true)) {
                 $parts[] = $v;
             }
         }
@@ -381,6 +567,145 @@ class OpenUrlResolverPlugin
     // ─── DB helpers ───────────────────────────────────────────────────────────
 
     /**
+     * Read an OpenURL key under BOTH spellings.
+     *
+     * PHP turns a dot into an underscore when it parses a query string, so
+     * `rft.atitle=…` arrives as `rft_atitle` and the dotted key a reader of
+     * the specification would reach for is never present. Every incoming
+     * parameter therefore has to be asked for twice. This was already true of
+     * `rft.isbn` on the book path, where the lookup only ever worked through
+     * the undotted `isbn` fallback beside it — the dotted attempt in front of
+     * it had never matched anything.
+     *
+     * @param array<string, mixed> $params
+     */
+    private static function param(array $params, string $key): string
+    {
+        $value = $params[$key] ?? $params[str_replace('.', '_', $key)] ?? '';
+
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+    /**
+     * The Emeroteca's standalone articles, when that plugin is installed.
+     *
+     * The table belongs to another plugin and may not exist at all, so every
+     * path through here tolerates its absence: a resolver that fatals because
+     * an optional plugin is switched off is worse than one that finds nothing.
+     */
+    private function articlesTableExists(): bool
+    {
+        $res = $this->db->query(
+            "SELECT 1 FROM information_schema.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'emeroteca_contributi'
+                AND EXISTS (SELECT 1 FROM plugins WHERE name = 'emeroteca' AND is_active = 1) LIMIT 1"
+        );
+
+        return $res instanceof \mysqli_result && $res->num_rows > 0;
+    }
+
+    /**
+     * Find a published article from an incoming OpenURL.
+     *
+     * DOI first, because it identifies the article and nothing else. Title
+     * second, and only on an exact match: a LIKE here would resolve a request
+     * for one paper to a different paper with a similar name, and a link
+     * resolver that sends a reader to the wrong article is worse than one that
+     * sends them to the publisher.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>|null
+     */
+    private function findArticle(array $params): ?array
+    {
+        if (!$this->articlesTableExists()) {
+            return null;
+        }
+
+        $doi = self::param($params, 'rft_id');
+        if ($doi === '') {
+            $doi = self::param($params, 'rft.doi');
+        }
+        $doi = (string) preg_replace('~^(?:info:doi/|https?://(?:dx\.)?doi\.org/|doi:\s*)~i', '', $doi);
+        if ($doi !== '') {
+            $stmt = $this->db->prepare(
+                'SELECT id FROM emeroteca_contributi WHERE pubblico = 1 AND doi = ? LIMIT 2'
+            );
+            if ($stmt !== false) {
+                $lower = strtolower($doi);
+                $stmt->bind_param('s', $lower);
+                $stmt->execute();
+                $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                // The schema does not make the DOI unique. Two published
+                // articles sharing it are as ambiguous as a common title.
+                if (count($rows) > 1) {
+                    return null;
+                }
+                if (count($rows) === 1) {
+                    return $rows[0];
+                }
+            }
+        }
+
+        $title = self::param($params, 'rft.atitle');
+        if ($title === '') {
+            return null;
+        }
+        // Accept the same complete title that our COinS exports. Never strip a
+        // colon: it may be part of the actual title rather than punctuation.
+        $where = ["pubblico = 1", "(titolo = ? OR CONCAT(titolo, CASE WHEN COALESCE(sottotitolo, '') = '' THEN '' ELSE CONCAT(' : ', sottotitolo) END) = ?)"];
+        $values = [$title, $title];
+        foreach (['rft.issn' => 'issn', 'rft.jtitle' => 'contenitore_titolo',
+                  'rft.volume' => 'volume', 'rft.issue' => 'numero'] as $key => $column) {
+            $value = self::param($params, $key);
+            if ($value !== '') {
+                $where[] = "$column = ?";
+                $values[] = $value;
+            }
+        }
+        $stmt = $this->db->prepare('SELECT id FROM emeroteca_contributi WHERE ' . implode(' AND ', $where) . ' LIMIT 2');
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param(str_repeat('s', count($values)), ...$values);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        // A common title is not an identifier. Let the external resolver handle
+        // ambiguity rather than arbitrarily returning the first local record.
+        return count($rows) === 1 ? $rows[0] : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchArticle(int $id): ?array
+    {
+        if ($id <= 0 || !$this->articlesTableExists()) {
+            return null;
+        }
+        $stmt = $this->db->prepare(
+            'SELECT id, titolo, sottotitolo, autori, contenitore_titolo, contenitore_tipo, issn,
+                    volume, numero, pagine, anno_pubblicazione, data_pubblicazione_testo, doi, lingua
+               FROM emeroteca_contributi
+              WHERE id = ? AND pubblico = 1 LIMIT 1'
+        );
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * A requested (desiderata) title is not a holding: never resolve an OpenURL to it.
+     *
      * @return array<string, mixed>|null
      */
     private function findBookByIsbn(string $isbn): ?array
@@ -397,6 +722,7 @@ class OpenUrlResolverPlugin
                       LIMIT 1) AS autore_principale
                FROM libri l
               WHERE l.{$col} = ? AND l.deleted_at IS NULL
+                AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
               LIMIT 1"
         );
         if ($stmt === false) { return null; }
@@ -418,7 +744,8 @@ class OpenUrlResolverPlugin
                     l.anno_pubblicazione, l.lingua, e.nome AS editore
                FROM libri l
                LEFT JOIN editori e ON e.id = l.editore_id
-              WHERE l.id = ? AND l.deleted_at IS NULL'
+              WHERE l.id = ? AND l.deleted_at IS NULL
+                AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
         );
         if ($stmt === false) { return null; }
         $stmt->bind_param('i', $id);
@@ -457,7 +784,19 @@ class OpenUrlResolverPlugin
 
     private function mapLanguage(string $italianName): string
     {
-        return match (strtolower(trim($italianName))) {
+        $value = strtolower(trim($italianName));
+        // An analytic record stores an ISO code, not a language name: `dan`
+        // is already what rft.language wants, and running it through a list
+        // of Italian names would silently drop it. Books keep storing free
+        // text, so both readings have to work here.
+        if (preg_match('/^[a-z]{3}$/D', $value) === 1) {
+            return $value;
+        }
+        if (preg_match('/^[a-z]{2}$/D', $value) === 1) {
+            return $value;
+        }
+
+        return match ($value) {
             'italiano', 'italian' => 'ita',
             'inglese', 'english'  => 'eng',
             'tedesco', 'german'   => 'ger',

@@ -146,6 +146,10 @@ $reviewTitle = "ZZ Review387 {$token}";
 $db->begin_transaction();
 
 try {
+    // Exercise the core book cache independently of optional live article results.
+    // Plugin activation is restored by the enclosing rollback.
+    $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
+
     // ── Seed: one book (2/2 available) + one user ───────────────────────────
     $stmt = $db->prepare("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES (?, 2, 2, 'disponibile')");
     $stmt->bind_param('s', $titleV1);

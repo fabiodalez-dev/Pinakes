@@ -841,7 +841,18 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
     if (await approveBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await approveBtn.click();
       await adminPage.waitForSelector('.swal2-popup', { timeout: 8_000 });
+      // Waited on the RESPONSE, not on a popup going away: the handler closes
+      // the confirm dialog, awaits the fetch and only then opens the success
+      // one, so "or no popup" is already true while the POST is still in flight
+      // and the assertions below race the server. Two other call sites in this
+      // suite already wait this way; see tests/loan-reservation.spec.js.
+      const approveResponsePromise = adminPage.waitForResponse(
+        r => r.url().includes('/admin/loans/approve') && r.request().method() === 'POST',
+        { timeout: 15_000 },
+      );
       await adminPage.locator('.swal2-confirm').click();
+      const approveResponse = await approveResponsePromise;
+      expect(approveResponse.ok(), `approve HTTP ${approveResponse.status()}`).toBe(true);
       await adminPage.waitForFunction(
         () => !!document.querySelector('.swal2-icon-success') || !document.querySelector('.swal2-popup'),
         null,

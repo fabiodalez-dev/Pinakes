@@ -533,3 +533,5 @@ $currentYear = (int) date('Y');
     <script src="<?= $e(assetUrl('copy-scanner.bundle.js')) ?>" defer></script>
 <?php endif; ?>
 <script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-scan.js?v=1.4.0')) ?>" defer></script>
+
+<p class="my-6"><a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles?testata=' . (int)$testata['id'])) ?>"><?= __('Articoli associati alla testata') ?></a> <a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles?destination=' . (int)$testata['id'])) ?>"><?= __('Aggiungi articoli esistenti') ?></a></p>

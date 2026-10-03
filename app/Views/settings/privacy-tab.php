@@ -1,19 +1,36 @@
 <?php
 /** @var string $activeTab */
 /** @var string $csrfToken */
-use App\Support\HtmlHelper;
+
+/**
+ * Two subjects, two forms, two save buttons — and the boundary between them is
+ * the subject, not an accident of which endpoint happened to exist.
+ *
+ * It used to run the other way. One button labelled "Salva Privacy Policy"
+ * saved the privacy page, the cookie policy page, the banner on/off switch,
+ * two links and the category visibility; the texts of that same banner lived
+ * in a second form with a second button, and nothing on the page said so. A
+ * librarian who turned the banner on and rewrote its wording had to press two
+ * different buttons to keep both, with no way to tell.
+ *
+ *   A. The pages          — what a visitor reads at /privacy and /cookies
+ *   B. The cookie banner  — whether it appears, what it offers, what it says
+ */
 ?>
 <?php $cookieBannerTexts = $cookieBannerTexts ?? []; ?>
 <section id="privacy" data-settings-panel="privacy" class="settings-panel <?php echo $activeTab === 'privacy' ? 'block' : 'hidden'; ?>">
-  <form action="<?= htmlspecialchars(url('/admin/settings/privacy'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
-    <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
-    <!-- Contenuto Privacy Policy -->
+  <!-- =====================================================================
+       A. The two public pages
+       ===================================================================== -->
+  <form action="<?= htmlspecialchars(url('/admin/settings/privacy'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) ($csrfToken), ENT_QUOTES, 'UTF-8') ?>">
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">
         <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-file-contract text-gray-500"></i>
-          <?= __("Contenuto Privacy Policy") ?>
+          <?= __("Pagina Privacy Policy") ?>
         </h2>
         <p class="text-sm text-gray-600"><?= __("Personalizza il titolo e il contenuto della pagina privacy policy") ?></p>
       </div>
@@ -23,7 +40,7 @@ use App\Support\HtmlHelper;
           <input type="text"
                  id="privacy_page_title"
                  name="page_title"
-                 value="<?php echo HtmlHelper::e($privacySettings['page_title'] ?? ''); ?>"
+                 value="<?= htmlspecialchars((string) ($privacySettings['page_title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                  placeholder="<?= __('Privacy Policy') ?>" />
         </div>
@@ -33,16 +50,15 @@ use App\Support\HtmlHelper;
           <textarea id="privacy_page_content"
                     name="page_content"
                     rows="10"
-                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($privacySettings['page_content'] ?? ''); ?></textarea>
+                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($privacySettings['page_content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
         </div>
       </div>
     </div>
 
-    <!-- Cookie Policy Content -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">
         <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-cookie-bite text-gray-500"></i>
+          <i class="fas fa-file-alt text-gray-500"></i>
           <?= __("Pagina Cookie Policy") ?>
         </h2>
         <p class="text-sm text-gray-600"><?= __("Contenuto della pagina /cookies accessibile dal banner") ?></p>
@@ -53,150 +69,157 @@ use App\Support\HtmlHelper;
           <textarea id="cookie_policy_content"
                     name="cookie_policy_content"
                     rows="10"
-                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($privacySettings['cookie_policy_content'] ?? ''); ?></textarea>
+                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($privacySettings['cookie_policy_content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
           <p class="mt-2 text-xs text-gray-500"><?= __("Questo contenuto verrà mostrato nella pagina /cookies linkata dal cookie banner") ?></p>
         </div>
       </div>
     </div>
 
-    <!-- Cookie Banner -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="space-y-4">
-        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-cookie-bite text-gray-500"></i>
-          <?= __("Cookie Banner") ?>
-        </h2>
-        <p class="text-sm text-gray-600"><?= __("Configurazione del banner cookie") ?></p>
-      </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
-        <div class="flex items-center justify-between">
-          <label for="cookie_banner_enabled" class="text-sm font-medium text-gray-700"><?= __("Abilita Cookie Banner") ?></label>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox"
-                   id="cookie_banner_enabled"
-                   name="cookie_banner_enabled"
-                   value="1"
-                   <?php echo !empty($privacySettings['cookie_banner_enabled']) ? 'checked' : ''; ?>
-                   class="toggle-checkbox sr-only">
-            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
-            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
-          </label>
-        </div>
-
-        <div>
-          <label for="cookie_statement_link" class="block text-sm font-medium text-gray-700"><?= __("Link Cookie Statement") ?></label>
-          <input type="url"
-                 id="cookie_statement_link"
-                 name="cookie_statement_link"
-                 value="<?php echo HtmlHelper::e($privacySettings['cookie_statement_link'] ?? ''); ?>"
-                 class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('https://esempio.com/cookie-policy') ?>" />
-          <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con la cookie policy") ?></p>
-        </div>
-
-        <div>
-          <label for="cookie_technologies_link" class="block text-sm font-medium text-gray-700"><?= __("Link Cookie Technologies") ?></label>
-          <input type="url"
-                 id="cookie_technologies_link"
-                 name="cookie_technologies_link"
-                 value="<?php echo HtmlHelper::e($privacySettings['cookie_technologies_link'] ?? ''); ?>"
-                 class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('https://esempio.com/tecnologie-cookie') ?>" />
-          <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con le tecnologie dei cookie") ?></p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cookie Categories Visibility -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="space-y-4">
-        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-sliders-h text-gray-500"></i>
-          <?= __("Categorie Cookie") ?>
-        </h2>
-        <p class="text-sm text-gray-600"><?= __("Gestisci la visibilità delle categorie di cookie nel banner. I cookie essenziali sono sempre visibili e obbligatori.") ?></p>
-      </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
-        <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
-          <div class="flex-1">
-            <label for="show_analytics" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
-              <i class="fas fa-chart-line text-blue-600"></i>
-              <?= __("Mostra Cookie Analitici") ?>
-            </label>
-            <p class="text-xs text-gray-500 mt-1"><?= __("Nascondi se il sito non utilizza strumenti di analytics (es. Google Analytics)") ?></p>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox"
-                   id="show_analytics"
-                   name="show_analytics"
-                   value="1"
-                   <?php echo ($privacySettings['show_analytics'] ?? true) ? 'checked' : ''; ?>
-                   class="toggle-checkbox sr-only">
-            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
-            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
-          </label>
-        </div>
-
-        <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
-          <div class="flex-1">
-            <label for="show_marketing" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
-              <i class="fas fa-bullhorn text-orange-600"></i>
-              <?= __("Mostra Cookie di Marketing") ?>
-            </label>
-            <p class="text-xs text-gray-500 mt-1"><?= __("Nascondi se il sito non utilizza cookie di marketing o advertising") ?></p>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox"
-                   id="show_marketing"
-                   name="show_marketing"
-                   value="1"
-                   <?php echo ($privacySettings['show_marketing'] ?? true) ? 'checked' : ''; ?>
-                   class="toggle-checkbox sr-only">
-            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
-            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
-          </label>
-        </div>
-
-        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <div class="flex gap-2">
-            <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
-            <div class="text-sm text-blue-800">
-              <p class="font-medium mb-1"><?= __("Nota:") ?></p>
-              <p><?= __("I Cookie Essenziali sono sempre visibili e non possono essere disabilitati poiché necessari per il funzionamento del sito.") ?></p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  <div class="flex justify-end gap-2 md:gap-3">
+    <div class="flex justify-end gap-2 md:gap-3">
       <a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
         <i class="fas fa-eye"></i>
-        <?= __("Anteprima") ?>
+        <?= __("Anteprima privacy") ?>
+      </a>
+      <a href="<?= htmlspecialchars(route_path('cookies'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+        <i class="fas fa-eye"></i>
+        <?= __("Anteprima cookie policy") ?>
       </a>
       <button type="submit" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
         <i class="fas fa-save"></i>
-        <?= __("Salva Privacy Policy") ?>
+        <?= __("Salva le pagine") ?>
       </button>
     </div>
   </form>
 
-  <div class="mt-12">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="space-y-4">
-        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-language text-gray-500"></i>
-          <?= __("Testi Banner Cookie") ?>
-        </h2>
-        <p class="text-sm text-gray-600">
-          <?= __("Personalizza i testi mostrati sia nel banner iniziale che nel pannello delle preferenze.") ?>
-        </p>
-      </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-3xl p-3 md:p-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
-        <form action="<?= htmlspecialchars(url('/admin/settings/cookie-banner'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
-          <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
+  <!-- =====================================================================
+       B. The cookie banner: whether it appears, what it offers, what it says.
+       All of it saved by one button, because it is all one thing.
+       ===================================================================== -->
+  <div class="mt-12 pt-12 border-t border-gray-200">
+    <form action="<?= htmlspecialchars(url('/admin/settings/cookie-banner'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) ($csrfToken), ENT_QUOTES, 'UTF-8') ?>">
 
-          <details class="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 group" open>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-cookie-bite text-gray-500"></i>
+            <?= __("Banner dei cookie") ?>
+          </h2>
+          <p class="text-sm text-gray-600"><?= __("Se il banner compare all'arrivo, quali categorie offre e con quali testi. Si salva tutto insieme.") ?></p>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+          <div class="flex items-center justify-between">
+            <label for="cookie_banner_enabled" class="text-sm font-medium text-gray-700"><?= __("Abilita Cookie Banner") ?></label>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox"
+                     id="cookie_banner_enabled"
+                     name="cookie_banner_enabled"
+                     value="1"
+                     <?php echo !empty($privacySettings['cookie_banner_enabled']) ? 'checked' : ''; ?>
+                     class="toggle-checkbox sr-only">
+              <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+              <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500"><?= __("Disattivandolo il banner non compare più all'arrivo. Se una pagina contiene qualcosa che richiede consenso, come la mappa dei contatti, restano comunque l'icona dei cookie e il pannello delle preferenze: altrimenti quel contenuto non potrebbe mai essere sbloccato.") ?></p>
+
+          <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
+            <div class="flex-1">
+              <label for="show_analytics" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
+                <i class="fas fa-chart-line text-blue-600"></i>
+                <?= __("Mostra Cookie Analitici") ?>
+              </label>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nascondi se il sito non utilizza strumenti di analytics (es. Google Analytics)") ?></p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox"
+                     id="show_analytics"
+                     name="show_analytics"
+                     value="1"
+                     <?php echo ($privacySettings['show_analytics'] ?? true) ? 'checked' : ''; ?>
+                     class="toggle-checkbox sr-only">
+              <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+              <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
+            <div class="flex-1">
+              <label for="show_marketing" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
+                <i class="fas fa-bullhorn text-orange-600"></i>
+                <?= __("Mostra Cookie di Marketing") ?>
+              </label>
+              <p class="text-xs text-gray-500 mt-1"><?= __("Nascondi se il sito non utilizza cookie di marketing o advertising") ?></p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox"
+                     id="show_marketing"
+                     name="show_marketing"
+                     value="1"
+                     <?php echo ($privacySettings['show_marketing'] ?? true) ? 'checked' : ''; ?>
+                     class="toggle-checkbox sr-only">
+              <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+              <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+            </label>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div class="flex gap-2">
+              <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
+              <div class="text-sm text-blue-800">
+                <p class="font-medium mb-1"><?= __("Nota:") ?></p>
+                <p><?= __("I Cookie Essenziali sono sempre visibili e non possono essere disabilitati poiché necessari per il funzionamento del sito.") ?></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-link text-gray-500"></i>
+            <?= __("Collegamenti nel pannello delle preferenze") ?>
+          </h2>
+          <p class="text-sm text-gray-600"><?= __("Compaiono in fondo al pannello delle preferenze. Lasciando vuoto il primo viene usata la pagina Cookie Policy di questo sito.") ?></p>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+          <div>
+            <label for="cookie_statement_link" class="block text-sm font-medium text-gray-700"><?= __("Link Cookie Statement") ?></label>
+            <input type="url"
+                   id="cookie_statement_link"
+                   name="cookie_statement_link"
+                   value="<?= htmlspecialchars((string) ($privacySettings['cookie_statement_link'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                   placeholder="<?= __('https://esempio.com/cookie-policy') ?>" />
+            <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con la cookie policy") ?></p>
+          </div>
+
+          <div>
+            <label for="cookie_technologies_link" class="block text-sm font-medium text-gray-700"><?= __("Link Cookie Technologies") ?></label>
+            <input type="url"
+                   id="cookie_technologies_link"
+                   name="cookie_technologies_link"
+                   value="<?= htmlspecialchars((string) ($privacySettings['cookie_technologies_link'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                   placeholder="<?= __('https://esempio.com/tecnologie-cookie') ?>" />
+            <p class="mt-1 text-xs text-gray-500"><?= __("URL della pagina con le tecnologie dei cookie") ?></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-language text-gray-500"></i>
+            <?= __("Testi Banner Cookie") ?>
+          </h2>
+          <p class="text-sm text-gray-600">
+            <?= __("Personalizza i testi mostrati sia nel banner iniziale che nel pannello delle preferenze.") ?>
+          </p>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-3xl p-3 md:p-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+          <details class="bg-white rounded-2xl border border-gray-200 p-4 md:p-6 group">
             <summary class="flex items-center justify-between cursor-pointer text-left">
               <div>
                 <p class="text-base font-semibold text-gray-900">
@@ -225,7 +248,7 @@ use App\Support\HtmlHelper;
                     <textarea id="cookie_banner_description"
                               name="cookie_banner_description"
                               rows="4"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($cookieBannerTexts['banner_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($cookieBannerTexts['banner_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -233,7 +256,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_accept_all_text"
                              name="cookie_accept_all_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['accept_all_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['accept_all_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -241,7 +264,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_reject_non_essential_text"
                              name="cookie_reject_non_essential_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['reject_non_essential_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['reject_non_essential_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                   </div>
@@ -251,7 +274,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_preferences_button_text"
                              name="cookie_preferences_button_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['preferences_button_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['preferences_button_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -259,7 +282,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_save_selected_text"
                              name="cookie_save_selected_text"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['save_selected_text'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['save_selected_text'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                   </div>
@@ -279,7 +302,7 @@ use App\Support\HtmlHelper;
                     <input type="text"
                            id="cookie_preferences_title"
                            name="cookie_preferences_title"
-                           value="<?php echo HtmlHelper::e($cookieBannerTexts['preferences_title'] ?? ''); ?>"
+                           value="<?= htmlspecialchars((string) ($cookieBannerTexts['preferences_title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                            class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                   </div>
                   <div>
@@ -287,7 +310,7 @@ use App\Support\HtmlHelper;
                     <textarea id="cookie_preferences_description"
                               name="cookie_preferences_description"
                               rows="4"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?php echo HtmlHelper::e($cookieBannerTexts['preferences_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 tinymce-editor"><?= htmlspecialchars((string) ($cookieBannerTexts['preferences_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                 </div>
               </div>
@@ -306,7 +329,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_essential_name"
                              name="cookie_essential_name"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['cookie_essential_name'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['cookie_essential_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -314,7 +337,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_analytics_name"
                              name="cookie_analytics_name"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['cookie_analytics_name'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['cookie_analytics_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                     <div>
@@ -322,7 +345,7 @@ use App\Support\HtmlHelper;
                       <input type="text"
                              id="cookie_marketing_name"
                              name="cookie_marketing_name"
-                             value="<?php echo HtmlHelper::e($cookieBannerTexts['cookie_marketing_name'] ?? ''); ?>"
+                             value="<?= htmlspecialchars((string) ($cookieBannerTexts['cookie_marketing_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4" />
                     </div>
                   </div>
@@ -331,40 +354,40 @@ use App\Support\HtmlHelper;
                     <textarea id="cookie_essential_description"
                               name="cookie_essential_description"
                               rows="3"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?php echo HtmlHelper::e($cookieBannerTexts['cookie_essential_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($cookieBannerTexts['cookie_essential_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                   <div>
                     <label for="cookie_analytics_description" class="block text-sm font-medium text-gray-700"><?= __("Descrizione cookie analitici") ?></label>
                     <textarea id="cookie_analytics_description"
                               name="cookie_analytics_description"
                               rows="3"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?php echo HtmlHelper::e($cookieBannerTexts['cookie_analytics_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($cookieBannerTexts['cookie_analytics_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                   <div>
                     <label for="cookie_marketing_description" class="block text-sm font-medium text-gray-700"><?= __("Descrizione cookie marketing") ?></label>
                     <textarea id="cookie_marketing_description"
                               name="cookie_marketing_description"
                               rows="3"
-                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?php echo HtmlHelper::e($cookieBannerTexts['cookie_marketing_description'] ?? ''); ?></textarea>
+                              class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($cookieBannerTexts['cookie_marketing_description'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
                   </div>
                 </div>
               </div>
             </div>
           </details>
-
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900">
-              <i class="fas fa-external-link-alt"></i>
-              <?= __("Anteprima Banner") ?>
-            </a>
-            <button type="submit" class="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
-              <i class="fas fa-save"></i>
-              <?= __("Salva testi banner") ?>
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
-    </div>
+
+      <div class="flex justify-end gap-2 md:gap-3">
+        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+          <i class="fas fa-eye"></i>
+          <?= __("Anteprima Banner") ?>
+        </a>
+        <button type="submit" class="inline-flex items-center gap-2 px-3 py-2 md:px-5 md:py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+          <i class="fas fa-save"></i>
+          <?= __("Salva il banner") ?>
+        </button>
+      </div>
+    </form>
   </div>
 </section>
 

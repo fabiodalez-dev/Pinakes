@@ -154,16 +154,23 @@ class SurveyRepo
     // Surveys
     // ------------------------------------------------------------------
 
-    private const SURVEY_SELECT = "SELECT s.*, l.titolo AS book_title,
+    // LEFT JOIN on purpose: a soft-deleted catalogue book may empty book_title
+    // but must never make the survey unresolvable, or answering and closing it
+    // would 404. See Repo::bookSelect() for why no desiderata predicate belongs
+    // on this join either.
+    private function surveySelect(): string
+    {
+        return "SELECT s.*, l.titolo AS book_title,
                (SELECT COUNT(*) FROM bookclub_survey_answers a WHERE a.survey_id = s.id) AS answer_count
           FROM bookclub_surveys s
           LEFT JOIN bookclub_books cb ON cb.id = s.club_book_id
           LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL";
+    }
 
     /** @return list<array<string, mixed>> open first, then drafts, then closed */
     public function listSurveys(int $clubId, bool $includeDrafts): array
     {
-        $sql = self::SURVEY_SELECT . ' WHERE s.club_id = ?';
+        $sql = $this->surveySelect() . ' WHERE s.club_id = ?';
         if (!$includeDrafts) {
             $sql .= " AND s.status <> 'draft'";
         }
@@ -174,7 +181,7 @@ class SurveyRepo
     /** @return array<string, mixed>|null */
     public function surveyById(int $surveyId): ?array
     {
-        return $this->row(self::SURVEY_SELECT . ' WHERE s.id = ?', 'i', [$surveyId]);
+        return $this->row($this->surveySelect() . ' WHERE s.id = ?', 'i', [$surveyId]);
     }
 
     public function createSurvey(int $clubId, ?int $clubBookId, string $title, int $anonymous, ?string $opensAt, ?string $closesAt, ?int $createdBy): ?int

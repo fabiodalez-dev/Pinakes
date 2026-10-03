@@ -25,8 +25,10 @@ class UserDashboardController
             // Get user stats
             $userId = (int)($_SESSION['user']['id'] ?? 0);
             
-            // Count total books
-            $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
+            // Count total books. This is a PATRON-facing figure, so it counts
+            // holdings: a title the library is still looking for is not a book
+            // a reader can come and borrow.
+            $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db));
             $stats['libri'] = (int)($res->fetch_assoc()['c'] ?? 0);
             
             // Count user active loans (exclude soft-deleted books)
@@ -37,8 +39,10 @@ class UserDashboardController
             $stats['prestiti_in_corso'] = (int)($res->fetch_assoc()['c'] ?? 0);
             $stmt->close();
             
-            // Count user favorites (exclude soft-deleted books)
-            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM wishlist w JOIN libri l ON w.libro_id = l.id WHERE w.utente_id = ? AND l.deleted_at IS NULL");
+            // Count user favorites (exclude soft-deleted books). Same
+            // predicate as the wishlist page, or the badge says '3 preferiti'
+            // over a list of 2 and reads as data loss.
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM wishlist w JOIN libri l ON w.libro_id = l.id WHERE w.utente_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l'));
             $stmt->bind_param('i', $userId);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -65,7 +69,7 @@ class UserDashboardController
                         LIMIT 3) AS autore,
                        l.copie_disponibili
                 FROM libri l
-                WHERE l.deleted_at IS NULL
+                WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                 ORDER BY l.created_at DESC
                 LIMIT 5
             ");

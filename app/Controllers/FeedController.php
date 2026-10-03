@@ -80,7 +80,7 @@ class FeedController
                    e.nome AS editore
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE l.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
             ORDER BY l.created_at DESC
             LIMIT 50
         ";

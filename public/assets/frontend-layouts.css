@@ -284,8 +284,7 @@ body.layout-editorial.home .cta-section {
 }
 
 body.layout-editorial.home .section-title,
-body.layout-editorial.home .section-subtitle,
-body.layout-editorial.home .genre-carousel-header {
+body.layout-editorial.home .section-subtitle {
   text-align: left;
   margin-left: 0;
   margin-right: auto;

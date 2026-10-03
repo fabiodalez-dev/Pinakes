@@ -2184,6 +2184,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                 }
             }
 
+            // Injected from PHP rather than through the JS __(): this renderer
+            // builds HTML by string concatenation, so the label must arrive
+            // already escaped for a JS string literal.
+            const WANTED_LABEL = <?= json_encode(__('Cercato dalla biblioteca'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
             function displaySearchResults(results, container, query) {
                 if (!Array.isArray(results) || results.length === 0) {
                     container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + __('Nessun risultato trovato') + '</div>';
@@ -2214,6 +2219,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
                             '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: var(--text-color); text-align: left;">' + bookTitle + '</div>' +
+                            (book.wanted ? '<div class="search-book-wanted" style="font-size: 0.7rem; font-weight: 600; color: var(--primary-color); text-align: left;">' + WANTED_LABEL + '</div>' : '') +
                             (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
                             (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
                             (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: var(--text-muted); text-align: left;">' + bookYear + '</div>' : '') +

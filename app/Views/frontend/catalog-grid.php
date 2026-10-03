@@ -46,6 +46,7 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
 <?php $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg'); ?>
 <?php if (!empty($books)): ?>
     <?php foreach($books as $book): ?>
+        <?php if (($book['_record_kind'] ?? '') === 'article') { include __DIR__ . '/partials/catalog-article-card.php'; continue; } ?>
         <div class="book-card">
             <div class="book-image-container">
                 <a href="<?= htmlspecialchars($createBookUrl($book), ENT_QUOTES, 'UTF-8') ?>">
@@ -59,7 +60,18 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
                          loading="lazy" decoding="async"
                          onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
                 </a>
-                <?= $getBookStatusBadge($book) ?>
+                <?php if (!empty($book['is_desiderata'])): ?>
+                    <?php
+                    // A book the library WANTS, not one it holds: it has no
+                    // availability to hydrate, so this badge deliberately
+                    // carries no data-live-* attributes — the edge-cache
+                    // hydration in live-availability.js only rewrites those,
+                    // and would otherwise relabel it "Non disponibile".
+                    ?>
+                    <span class="book-status-badge status-unavailable dw-wanted-badge"><span><i class="fas fa-hand-holding-heart" aria-hidden="true"></i> <?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
+                <?php else: ?>
+                    <?= $getBookStatusBadge($book) ?>
+                <?php endif; ?>
                 <?php if (($book['tipo_media'] ?? 'libro') !== 'libro'): ?>
                   <span class="book-media-badge" title="<?= htmlspecialchars(\App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(\App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>
@@ -104,7 +116,7 @@ $getBookStatusBadge = static function ($book) use ($edgeCacheEnabled) {
 <?php else: ?>
     <div class="empty-state">
         <i class="fas fa-search empty-state-icon"></i>
-        <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
+        <h4 class="empty-state-title"><?= __("Nessun risultato trovato") ?></h4>
         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
         <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
             <i class="fas fa-redo mr-2"></i>

@@ -116,15 +116,26 @@ class OpereRepository
     /**
      * All non-deleted manifestations (libri) attached to an opera.
      *
+     * The method serves both the admin opera page and the anonymous
+     * /opera/{slug} page, so the catalogue filter is a PARAMETER and defaults
+     * to permissive: an operator must keep seeing every manifestation attached
+     * to an opera, including the ones the library is still looking for.
+     * Filtering unconditionally here would hide them from the admin too.
+     *
+     * @param bool $catalogueOnly true only from the public entry point: drops
+     *        wanted titles, which the public book page answers 404 for.
      * @return array<int, array<string, mixed>>
      */
-    public function editionsForOpera(int $operaId): array
+    public function editionsForOpera(int $operaId, bool $catalogueOnly = false): array
     {
+        $visible = $catalogueOnly
+            ? ' AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
+            : '';
         $sql = "SELECT l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.copertina_url,
                        l.isbn13, l.isbn10, e.nome AS editore
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                WHERE l.opera_id = ? AND l.deleted_at IS NULL
+                WHERE l.opera_id = ? AND l.deleted_at IS NULL{$visible}
                 ORDER BY l.anno_pubblicazione ASC, l.titolo ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $operaId);

@@ -383,8 +383,10 @@ class MaintenanceService
     public function generateIcsCalendar(): bool
     {
         $icsGenerator = new IcsGenerator($this->db);
-        // IcsGenerator::saveToFile() creates the directory if needed
-        return $icsGenerator->saveToFile(self::ICS_PATH);
+        // IcsGenerator::saveToFile() creates the directory if needed.
+        // catalogueOnly: this file is served at /storage/calendar/… to anonymous
+        // subscribers, so it follows the same rule as /calendar/events.ics.
+        return $icsGenerator->saveToFile(self::ICS_PATH, true);
     }
 
     /**

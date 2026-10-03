@@ -543,3 +543,5 @@ $prestabileLabels = [
 })();
 </script>
 <script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.2.3')) ?>" defer></script>
+
+<?php if (!empty($editId)): ?><p class="my-5"><a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles?testata='.(int)$editId)) ?>"><?= __('Articoli associati alla testata') ?></a> <a class="btn-secondary" href="<?= $e(url('/admin/periodicals/articles?destination='.(int)$editId)) ?>"><?= __('Aggiungi articoli esistenti') ?></a></p><?php endif; ?>

@@ -751,11 +751,31 @@ class Repo
     // Club books
     // ------------------------------------------------------------------
 
-    // A club book is EITHER a catalogue book (cb.libro_id → libri) OR an
-    // external proposal (cb.external_book_id → bookclub_external_books, a book
-    // not in the library). Both are LEFT JOINed and the display fields are
-    // COALESCEd so one SELECT serves both; is_external tells them apart.
-    private const BOOK_SELECT = "SELECT cb.*,
+    /**
+     * A club book is EITHER a catalogue book (cb.libro_id → libri) OR an
+     * external proposal (cb.external_book_id → bookclub_external_books, a book
+     * not in the library). Both are LEFT JOINed and the display fields are
+     * COALESCEd so one SELECT serves both; is_external tells them apart.
+     *
+     * A club's reading list deliberately does NOT hide a book the library has
+     * flagged as wanted rather than held.
+     *
+     * The filter that used to live here put `is_desiderata = 0` on the JOIN
+     * condition over `libri`, which cannot express "blank the title, keep the
+     * row": on a LEFT JOIN it nulls the whole `l.*` projection, and the
+     * "(l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)" guard below —
+     * written to hide a DELETED book — then read that as a missing row and
+     * dropped the entry, so clubBook() answered null and every route keyed on
+     * it 404d. On the sibling repositories' INNER JOINs the row simply vanished.
+     *
+     * Nor was there anything to protect: `/desiderata` is registered without
+     * auth middleware and publishes the whole wish list — titles, authors,
+     * publishers, covers — to anonymous visitors by design. A club showing the
+     * title of a book its members chose to read discloses nothing that feature
+     * does not already publish itself, and the members still need to see what
+     * they are reading.
+     */
+    private function bookSelect(): string { return "SELECT cb.*,
                        COALESCE(l.titolo, ext.titolo) AS titolo,
                        COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                        COALESCE(l.anno_pubblicazione, ext.anno) AS anno_pubblicazione,
@@ -773,7 +793,7 @@ class Repo
                   FROM bookclub_books cb
                   LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                   LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
-                  LEFT JOIN utenti up ON up.id = cb.proposed_by";
+                  LEFT JOIN utenti up ON up.id = cb.proposed_by"; }
 
     // Guard shared by the list methods: keep the old behaviour of hiding a
     // catalogue book whose libri row is missing/soft-deleted, while still
@@ -784,7 +804,7 @@ class Repo
     public function clubBooks(int $clubId): array
     {
         return $this->rows(
-            self::BOOK_SELECT . ' WHERE cb.club_id = ? AND' . self::BOOK_PRESENT . 'ORDER BY cb.position ASC, cb.created_at DESC',
+            $this->bookSelect() . ' WHERE cb.club_id = ? AND' . self::BOOK_PRESENT . 'ORDER BY cb.position ASC, cb.created_at DESC',
             'i',
             [$clubId]
         );
@@ -793,7 +813,7 @@ class Repo
     /** @return array<string, mixed>|null */
     public function clubBook(int $clubBookId): ?array
     {
-        return $this->row(self::BOOK_SELECT . ' WHERE cb.id = ? AND' . self::BOOK_PRESENT, 'i', [$clubBookId]);
+        return $this->row($this->bookSelect() . ' WHERE cb.id = ? AND' . self::BOOK_PRESENT, 'i', [$clubBookId]);
     }
 
     public function bookAlreadyInClub(int $clubId, int $libroId): bool
@@ -1189,15 +1209,21 @@ class Repo
     ): int {
         $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
 
+        // This method promotes an external club title INTO the catalogue, so
+        // the row is born catalogued and carries the stamp. The fragments are
+        // raw SQL (NOW(), no placeholder), so the bind type strings below are
+        // unaffected. See BookVisibility::catalogueBirth().
+        [$cataloguedCol, $cataloguedVal] = \App\Support\BookVisibility::catalogueBirth($this->db);
+
         // Only `titolo` is mandatory in `libri`; everything else is optional.
         $inserted = $publisherId !== null
             ? $this->exec(
-                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
+                "INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id{$cataloguedCol}) VALUES (?, ?, ?, ?, ?, ?{$cataloguedVal})",
                 'sisssi',
                 [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
             )
             : $this->exec(
-                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
+                "INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url{$cataloguedCol}) VALUES (?, ?, ?, ?, ?{$cataloguedVal})",
                 'sisss',
                 [$titolo, $anno, $isbn13, $isbn10, $cover]
             );
@@ -1599,19 +1625,19 @@ class Repo
     // Meetings
     // ------------------------------------------------------------------
 
-    private const MEETING_SELECT = "SELECT mt.*, COALESCE(l.titolo, ext.titolo) AS book_title,
+    private function meetingSelect(): string { return "SELECT mt.*, COALESCE(l.titolo, ext.titolo) AS book_title,
                        (SELECT COUNT(*) FROM bookclub_meeting_rsvps r WHERE r.meeting_id = mt.id AND r.response = 'yes') AS yes_count,
                        (SELECT COUNT(*) FROM bookclub_meeting_rsvps r WHERE r.meeting_id = mt.id AND r.response = 'maybe') AS maybe_count
                   FROM bookclub_meetings mt
                   LEFT JOIN bookclub_books cb ON cb.id = mt.club_book_id
                   LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
-                  LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id";
+                  LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id"; }
 
     /** @return list<array<string, mixed>> */
     public function clubMeetings(int $clubId): array
     {
         return $this->rows(
-            self::MEETING_SELECT . ' WHERE mt.club_id = ? ORDER BY mt.starts_at DESC',
+            $this->meetingSelect() . ' WHERE mt.club_id = ? ORDER BY mt.starts_at DESC',
             'i',
             [$clubId]
         );
@@ -1620,14 +1646,14 @@ class Repo
     /** @return array<string, mixed>|null */
     public function meeting(int $meetingId): ?array
     {
-        return $this->row(self::MEETING_SELECT . ' WHERE mt.id = ?', 'i', [$meetingId]);
+        return $this->row($this->meetingSelect() . ' WHERE mt.id = ?', 'i', [$meetingId]);
     }
 
     /** @return array<string, mixed>|null */
     public function nextMeeting(int $clubId): ?array
     {
         return $this->row(
-            self::MEETING_SELECT . " WHERE mt.club_id = ? AND mt.status = 'scheduled' AND mt.starts_at >= NOW()
+            $this->meetingSelect() . " WHERE mt.club_id = ? AND mt.status = 'scheduled' AND mt.starts_at >= NOW()
               ORDER BY mt.starts_at ASC LIMIT 1",
             'i',
             [$clubId]
@@ -1793,7 +1819,7 @@ class Repo
             $placeholders = implode(',', array_fill(0, count($currentKeys), '?'));
             $types = 'i' . str_repeat('s', count($currentKeys));
             $currentBooks = $this->rows(
-                self::BOOK_SELECT . " WHERE cb.club_id = ? AND cb.state IN ($placeholders)
+                $this->bookSelect() . " WHERE cb.club_id = ? AND cb.state IN ($placeholders)
                   ORDER BY cb.position ASC, cb.updated_at DESC LIMIT 5",
                 $types,
                 array_merge([(int) $club['id']], $currentKeys)

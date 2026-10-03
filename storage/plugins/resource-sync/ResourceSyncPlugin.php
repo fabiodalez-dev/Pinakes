@@ -569,8 +569,19 @@ class ResourceSyncPlugin
         }
 
         foreach ($books as $book) {
-            if ($book['deleted_at'] !== null) {
-                $modified = $this->w3cDate((string) $book['deleted_at']);
+            // A book flagged as a request (desiderata) after it was published is
+            // a WITHDRAWAL, not a disappearance: it stops being a holding, so
+            // the change list owes its subscribers a 'deleted' entry. Staying
+            // silent would leave a stale record in every remote catalogue
+            // forever — the record simply never comes up again.
+            //
+            // deleted_at wins when both apply, because a soft-deleted row is
+            // gone for a reason that has its own timestamp; a de-listed one is
+            // dated by the update that flagged it.
+            $delisted = !empty($book['is_delisted']);
+            if ($book['deleted_at'] !== null || $delisted) {
+                $when = (string) ($book['deleted_at'] ?? $book['updated_at'] ?? $book['created_at'] ?? '');
+                $modified = $this->w3cDate($when);
                 $change   = 'deleted';
             } else {
                 $modified = $this->w3cDate((string) ($book['updated_at'] ?? $book['created_at'] ?? ''));
@@ -601,10 +612,12 @@ class ResourceSyncPlugin
     private function fetchBooks(int $page = 0): array
     {
         $offset = $page * self::PAGE_SIZE;
+        // A requested (desiderata) title is not a holding: keep it out of every list and change list.
         $stmt   = $this->db->prepare(
             'SELECT id, titolo, updated_at, created_at
              FROM libri
              WHERE deleted_at IS NULL
+               AND ' . \App\Support\BookVisibility::catalogue($this->db) . '
              ORDER BY id ASC
              LIMIT ? OFFSET ?'
         );
@@ -629,21 +642,60 @@ class ResourceSyncPlugin
             $since = null;
         }
 
+        // The visibility predicate is applied PER ARM, never over the whole
+        // WHERE. ANDing it across everything also silenced the tombstone arm, so
+        // a wanted title that was later soft-deleted produced no deletion event
+        // on any path — ResourceSync was then strictly worse than OAI-PMH, which
+        // at least still reports its own tombstones.
+        $visible  = \App\Support\BookVisibility::catalogue($this->db);
+        $delisted = \App\Support\BookVisibility::delisted($this->db);
+        // A de-listing is only owed to a harvester that was GIVEN the record.
+        // is_desiderata = 1 is reached both by withdrawing a catalogued book
+        // and by creating a request that was never published, and the flag
+        // keeps no memory of which — so the arm announced removals for wishes
+        // nobody ever received. Paired with the de-listing arms below, never
+        // with the live one.
+        $everCatalogued = \App\Support\BookVisibility::everCatalogued($this->db);
+        // The soft-delete tombstones owe the same courtesy, with one case to
+        // exclude and only one: a row that is a request AND never reached the
+        // catalogue. Soft-deleting such a row used to emit change="deleted" for
+        // a record no harvester was ever given — a false sync event that also
+        // leaked the request's id and timestamps.
+        //
+        // Written as "not (request and never catalogued)" rather than simply
+        // appending $everCatalogued, which would be wrong twice over: on an
+        // installation without the plugin everCatalogued() is 0=1 and every
+        // soft-delete tombstone would vanish, and an ordinary holding created
+        // before catalogued_at was stamped on every insert would stop being
+        // announced as deleted. With the column absent, delisted() is 0=1 and
+        // this whole guard is inert.
+        $publishedOnce = 'NOT (' . $delisted . ' AND NOT (' . $everCatalogued . '))';
+
         if ($since !== null) {
             // FIX F078: bound tombstone exposure on `?from=` queries.
             // - Live rows: deleted_at IS NULL AND updated_at >= ?  (soft-delete consistency)
+            // - De-listings: a still-present row now flagged as a request. It is
+            //   reported as a deletion, dated by updated_at, and bounded by the
+            //   same 90-day window as the tombstones so a ?from=1970-01-01 sweep
+            //   cannot pull the whole de-listing history out of the catalogue.
             // - Tombstones: deleted_at IS NOT NULL AND deleted_at >= ?
             //   AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
             //   This caps the tombstone window at 90 days regardless of how far back
             //   the harvester asks (?from=1970-01-01 no longer leaks every soft-deleted
             //   id/timestamp ever recorded).
+            // The first two arms are mutually exclusive by construction (one
+            // wants is_desiderata = 0, the other = 1), so no id can be reported
+            // as both live and withdrawn in one response.
             $stmt = $this->db->prepare(
                 'SELECT id, titolo, updated_at, created_at, deleted_at,
+                        (' . $delisted . ') AS is_delisted,
                         (created_at >= ?) AS is_new_entry
                  FROM libri
-                 WHERE (deleted_at IS NULL AND updated_at >= ?)
-                    OR (deleted_at IS NOT NULL AND deleted_at >= ?
-                        AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))
+                 WHERE ((deleted_at IS NULL AND updated_at >= ? AND ' . $visible . ')
+                    OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . ' AND updated_at >= ?
+                        AND updated_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))
+                    OR (deleted_at IS NOT NULL AND deleted_at >= ? AND ' . $publishedOnce . '
+                        AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)))
                  ORDER BY COALESCE(deleted_at, updated_at) ASC
                  LIMIT ? OFFSET ?'
             );
@@ -652,13 +704,18 @@ class ResourceSyncPlugin
             }
             $limit  = self::PAGE_SIZE;
             $offset = max(0, $page) * self::PAGE_SIZE;
-            $stmt->bind_param('sssii', $since, $since, $since, $limit, $offset);
+            $stmt->bind_param('ssssii', $since, $since, $since, $since, $limit, $offset);
         } else {
-            // Include recent tombstones (≤30 days) for ResourceSync — intentional exception to strict deleted_at IS NULL rule
+            // Include recent tombstones (≤30 days) for ResourceSync — intentional exception to strict deleted_at IS NULL rule.
+            // Recent de-listings ride the same 30-day window.
             $stmt = $this->db->prepare(
-                'SELECT id, titolo, updated_at, created_at, deleted_at, 0 AS is_new_entry
+                'SELECT id, titolo, updated_at, created_at, deleted_at,
+                        (' . $delisted . ') AS is_delisted, 0 AS is_new_entry
                  FROM libri
-                 WHERE (deleted_at IS NULL OR deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                 WHERE ((deleted_at IS NULL AND ' . $visible . ')
+                    OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . '
+                        AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                    OR (deleted_at IS NOT NULL AND ' . $publishedOnce . ' AND deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))
                  ORDER BY COALESCE(deleted_at, updated_at, created_at) DESC
                  LIMIT ? OFFSET ?'
             );

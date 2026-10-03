@@ -11,6 +11,7 @@ final class BundledPlugins
         'bibframe-linked-data',
         'book-club',
         'deezer',
+        'desiderata',
         'dewey-editor',
         'digital-library',
         'discogs',

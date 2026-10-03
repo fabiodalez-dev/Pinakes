@@ -127,7 +127,7 @@ foreach ([
     'sendTestEmail',
     'updateEmailSettings',
     'updateEmailTemplate',
-    'updateCookieBannerTexts',
+    'updateCookieBannerSettings',
     'createApiKey',
     'toggleApiKey',
     'deleteApiKey',
@@ -203,10 +203,10 @@ $check(
 // 4. STATIC — cookie-banner HTML is sanitized; smtp_port clamp is bounded.
 // ---------------------------------------------------------------------------
 echo "-- Input sanitization / clamping --\n";
-$body = $sliceMethod($settingsSource, 'updateCookieBannerTexts');
+$body = $sliceMethod($settingsSource, 'updateCookieBannerSettings');
 $check(
     $body !== null && str_contains($body, 'sanitizeHtml('),
-    'updateCookieBannerTexts sanitizes the HTML description fields'
+    'updateCookieBannerSettings sanitizes the HTML description fields'
 );
 $body = $sliceMethod($settingsSource, 'updateEmailSettings');
 $check(
@@ -288,7 +288,7 @@ $check(
 // ---------------------------------------------------------------------------
 // 8. BEHAVIORAL — SettingsRepository round-trip on cookie_banner: set a
 //    marker on a NEW test-only key, read it back, delete the row, verify it
-//    is gone (the clear-to-default mechanism updateCookieBannerTexts uses).
+//    is gone (the clear-to-default mechanism updateCookieBannerSettings uses).
 // ---------------------------------------------------------------------------
 echo "-- SettingsRepository cookie_banner round-trip --\n";
 $repository = new SettingsRepository($db);

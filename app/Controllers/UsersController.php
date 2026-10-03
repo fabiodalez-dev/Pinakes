@@ -179,12 +179,14 @@ class UsersController
             $sendSetupEmail = true;
         }
 
+        // The token is NOT written here. It is issued by PasswordSetupToken
+        // after the row exists, which is the only place that knows the whole
+        // contract: hash stored, original mailed, expiry in the future. This
+        // INSERT used to write the token in clear with the current instant
+        // beside it, and the recovery page looks up a hash and demands a future
+        // expiry — so every invitation was refused the moment it was followed.
         $tokenReset = null;
         $dataTokenReset = null;
-        if ($sendSetupEmail) {
-            $tokenReset = bin2hex(random_bytes(32));
-            $dataTokenReset = gmdate('Y-m-d H:i:s');
-        }
 
         $telefono = $telefono !== '' ? $telefono : null;
         $emailVerificata = $isAdmin ? 1 : 1; // l'admin crea utenti già verificati
@@ -240,9 +242,21 @@ class UsersController
 
         $notifier = new NotificationService($db);
 
+        // One token per invitation, minted now and carried to the email as the
+        // original. issue() returns null when it could not be stored, and the
+        // notifier then declines to send a link that could not work.
+        $setupToken = $sendSetupEmail ? \App\Support\PasswordSetupToken::issue($db, $userId) : null;
+
+        // Whether the invitation actually left. The notifier returns false when
+        // it has no trustworthy address to build the link from, or when the
+        // mail itself fails — and an account created with a setup link that was
+        // never sent looks identical to one that works: the operator is told
+        // "created", nobody arrives, and the reason is only in a log.
+        $inviteSent = true;
+
         if ($isAdmin) {
             if ($sendSetupEmail) {
-                $notifier->sendAdminInvitation($userId);
+                $inviteSent = $notifier->sendAdminInvitation($userId, $setupToken);
             }
         } else {
             // Audit logging for user creation
@@ -256,14 +270,16 @@ class UsersController
             ]);
 
             if ($sendSetupEmail) {
-                $notifier->sendUserPasswordSetup($userId);
+                $inviteSent = $notifier->sendUserPasswordSetup($userId, $setupToken);
             }
             if ($stato === 'attivo') {
                 $notifier->sendUserAccountApproved($userId);
             }
         }
 
-        return $response->withHeader('Location', url('/admin/users?created=1'))->withStatus(302);
+        $createdUrl = url('/admin/users?created=1') . ($inviteSent ? '' : '&invite=failed');
+
+        return $response->withHeader('Location', $createdUrl)->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -572,17 +588,17 @@ class UsersController
             $notifier->sendUserAccountApproved($id);
         }
 
+        // Same rule as creation: a promotion whose invitation never left leaves
+        // an administrator who cannot set a password, and saying "updated" hides
+        // it. The account keeps the new role either way — that part did happen.
+        $inviteSent = true;
         if ($isAdmin && ($original['tipo_utente'] ?? '') !== 'admin' && empty($data['password'])) {
-            $tokenReset = bin2hex(random_bytes(32));
-            $dataTokenReset = gmdate('Y-m-d H:i:s');
-            $updateToken = $db->prepare("UPDATE utenti SET token_reset_password = ?, data_token_reset = ? WHERE id = ?");
-            $updateToken->bind_param('ssi', $tokenReset, $dataTokenReset, $id);
-            $updateToken->execute();
-            $updateToken->close();
-            $notifier->sendAdminInvitation($id);
+            $inviteSent = $notifier->sendAdminInvitation($id, \App\Support\PasswordSetupToken::issue($db, $id));
         }
 
-        return $response->withHeader('Location', url('/admin/users?updated=1'))->withStatus(302);
+        $updatedUrl = url('/admin/users?updated=1') . ($inviteSent ? '' : '&invite=failed');
+
+        return $response->withHeader('Location', $updatedUrl)->withStatus(302);
     }
 
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response

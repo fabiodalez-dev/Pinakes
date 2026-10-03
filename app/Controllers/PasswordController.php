@@ -63,18 +63,11 @@ class PasswordController
             // trusted host, NEVER from the request Host header (which an attacker
             // controls on a catch-all vhost → reset-link poisoning, CWE-20).
             $resetPath = RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
-            $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
-            $resetUrl = null;
-            if (is_string($envUrl) && $envUrl !== '') {
-                // Full canonical URL preserves scheme and any base path.
-                $resetUrl = rtrim($envUrl, '/') . $resetPath;
-            } else {
-                // No canonical URL: fall back ONLY to a configured trusted host.
-                $trustedHost = \App\Support\HtmlHelper::configuredTrustedHost();
-                if ($trustedHost !== null) {
-                    $resetUrl = 'https://' . $trustedHost . $resetPath;
-                }
-            }
+            // This rule now lives in one place. It used to live only here, which
+            // is exactly why the two other paths that mail the same kind of
+            // link — the Mobile API's recovery and the invitation emails —
+            // never received it.
+            $resetUrl = \App\Support\TrustedLink::build($resetPath);
 
             if ($resetUrl === null) {
                 // Fail closed: no trustworthy host is configured, so refuse to
@@ -190,10 +183,46 @@ class PasswordController
             $stmt->close();
 
             $hash = password_hash($pwd1, PASSWORD_DEFAULT);
-            $stmt = $db->prepare("UPDATE utenti SET password = ?, token_reset_password = NULL, data_token_reset = NULL WHERE id = ?");
-            $stmt->bind_param('si', $hash, $uid);
-            $stmt->execute();
-            $stmt->close();
+
+            // The write and the revocations are one act, not two. In autocommit
+            // the UPDATE would land on its own and a revocation that failed
+            // afterwards would leave the account with a new password and the
+            // old access still open — while this page said the recovery had
+            // worked. Rolling back instead leaves the reset token unused, so
+            // the link in the mailbox still works and the person can retry.
+            //
+            // Recovering an account has to end the access the old password was
+            // protecting. A remember-me cookie and a Mobile API token both
+            // outlive the session that made them, so without this someone who
+            // held one kept their way in across the very act performed to take
+            // the account back. Nothing is kept: whoever is at this page holds
+            // a link sent to the address, not necessarily the owner's browser.
+            try {
+                \App\Support\CredentialRevoker::atomically($db, static function () use ($db, $hash, $uid): void {
+                    $stmt = $db->prepare("UPDATE utenti SET password = ?, token_reset_password = NULL, data_token_reset = NULL WHERE id = ?");
+                    if ($stmt === false) {
+                        throw new \RuntimeException($db->error);
+                    }
+                    $stmt->bind_param('si', $hash, $uid);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    \App\Support\CredentialRevoker::revokeAll($db, $uid, false);
+                });
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error(
+                    '[PasswordController] Reset rolled back: the password was not changed because the old access could not be revoked',
+                    ['user_id' => $uid, 'error' => $e->getMessage()]
+                );
+
+                // Carry the token, like every other error on this page: the
+                // rollback kept it valid on purpose, and a form without it is
+                // a form nobody can submit.
+                return $response
+                    ->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=server')
+                    ->withStatus(302);
+            }
+
             return $response->withHeader('Location', RouteTranslator::route('login') . '?reset=1')->withStatus(302);
         }
         $stmt->close();

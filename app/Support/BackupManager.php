@@ -52,12 +52,48 @@ class BackupManager
     private const GENERATED_NAME_PATTERN = '/^backup_\d{4}-\d{2}-\d{2}_\d{6}_[0-9a-f]{6}\.zip$/';
 
     /**
+     * Where a backup came from. Only ORIGIN_AUTO — the copy taken automatically
+     * before an update — is subject to rotation.
+     *
+     * A backup the operator ASKED for is not interchangeable with one the system
+     * took on its own: it exists because someone decided, at that moment, that
+     * this state was worth keeping, usually right before doing something risky.
+     * Letting ten automatic pre-update copies evict it turns a deliberate
+     * restore point into a rolling window, which is not what the button
+     * promises. The same holds, more strongly, for the safety copy taken before
+     * a restore: that one IS the undo.
+     *
+     * The origin is encoded in the FILENAME, not only in the manifest, because
+     * the rotation has to decide from a glob — reading a manifest means opening
+     * every archive. A non-auto name simply falls outside
+     * GENERATED_NAME_PATTERN, so it is excluded by the rule that was already
+     * there for hand-placed archives, with no second rule to keep in sync.
+     */
+    public const ORIGIN_AUTO = 'auto';
+    public const ORIGIN_MANUAL = 'manual';
+    public const ORIGIN_SAFETY = 'safety';
+    public const ORIGIN_UPLOAD = 'upload';
+
+    /**
+     * The pre-0.7.x layout: a directory holding a single database.sql, written
+     * by an updater that no longer exists. Nothing creates these any more, but
+     * listBackups() still surfaces them as backups (contents: 'db'), so an
+     * operator sees them in the same list — and until now nothing pruned them.
+     * Same discipline as the pattern above: match the EXACT generated shape, so
+     * a directory someone parked there by hand is never a rotation candidate.
+     */
+    private const LEGACY_DIR_PATTERN = '/^update_\d{4}-\d{2}-\d{2}_\d{6}$/';
+
+    /**
      * Hard cap for the cumulative DECOMPRESSED size of a restore archive (4 GB).
      * Guards against a decompression-bomb ZIP whose compressed form passes
      * MAX_UPLOAD_BYTES but expands to exhaust disk during extraction.
      */
     private const MAX_RESTORE_DECOMPRESSED_BYTES = 4 * 1024 * 1024 * 1024;
 
+    /**
+     * @param string $rootPath project root; normalized to forward slashes and stripped of a trailing slash
+     */
     public function __construct(mysqli $db, string $rootPath)
     {
         $this->db = $db;
@@ -146,9 +182,38 @@ class BackupManager
      * @param string $scope 'full' (DB + files) or 'db' (database only)
      * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
      */
-    public function createBackup(string $scope = 'full'): array
+    /**
+     * Build a backup filename carrying its origin.
+     *
+     * The automatic shape is left EXACTLY as it was, so every archive already on
+     * disk keeps being recognised — and keeps being rotated. Anything else gets
+     * an origin suffix, which puts it outside GENERATED_NAME_PATTERN and thus
+     * outside the rotation, without a second exclusion rule to maintain.
+     */
+    private static function backupFileName(string $timestamp, string $origin): string
+    {
+        $suffix = bin2hex(random_bytes(3));
+        if ($origin === self::ORIGIN_AUTO) {
+            return 'backup_' . $timestamp . '_' . $suffix . '.zip';
+        }
+        return 'backup_' . $timestamp . '_' . $suffix . '_' . $origin . '.zip';
+    }
+
+    /**
+     * Create a backup ZIP containing the database dump and, for scope 'full', the uploaded file
+     * trees. Serializes the whole write-then-rotate sequence behind a lock so two concurrent
+     * backups can't delete each other's freshly written archive.
+     *
+     * @param string $scope 'full' (DB + files) or 'db' (database only)
+     * @param string $origin one of ORIGIN_AUTO/ORIGIN_MANUAL/ORIGIN_SAFETY
+     * @return array{success: bool, name: string|null, path: string|null, size: int, error: string|null}
+     */
+    public function createBackup(string $scope = 'full', string $origin = self::ORIGIN_AUTO): array
     {
         $scope = $scope === 'db' ? 'db' : 'full';
+        if (!in_array($origin, [self::ORIGIN_AUTO, self::ORIGIN_MANUAL, self::ORIGIN_SAFETY], true)) {
+            return ['success' => false, 'name' => null, 'path' => null, 'size' => 0, 'error' => __('Origine backup non valida')];
+        }
         $sqlTmp = null;
 
         try {
@@ -172,7 +237,7 @@ class BackupManager
             // A random suffix avoids collisions when two backups land in the
             // same second (e.g. a manual backup + the pre-restore safety backup).
             $timestamp = date('Y-m-d_His');
-            $name = 'backup_' . $timestamp . '_' . bin2hex(random_bytes(3)) . '.zip';
+            $name = self::backupFileName($timestamp, $origin);
             $zipPath = $this->backupPath . '/' . $name;
 
             // 1. Dump the database to a temp file.
@@ -210,6 +275,7 @@ class BackupManager
                 'version' => $this->getCurrentVersion(),
                 'created_at' => date('c'),
                 'scope' => $scope,
+                'origin' => $origin,
                 'tables' => $tableCount,
                 'files' => $fileCount,
                 'database_sha256' => hash_file('sha256', $sqlTmp) ?: '',
@@ -327,7 +393,10 @@ class BackupManager
                 return;
             }
 
-            $files = [];
+            // One pool across BOTH formats, because listBackups() shows them as
+            // one list sorted by date: rotating them separately would let the
+            // operator watch a recent entry vanish while an older one survives.
+            $entries = [];
             foreach (glob($this->backupPath . '/backup_*.zip') ?: [] as $file) {
                 if (!is_file($file) || realpath($file) === realpath($justWritten)) {
                     continue;
@@ -335,22 +404,57 @@ class BackupManager
                 if (preg_match(self::GENERATED_NAME_PATTERN, basename($file)) !== 1) {
                     continue; // hand-placed archive: never a rotation candidate
                 }
-                $files[$file] = (int) filemtime($file);
+                $entries[$file] = (int) filemtime($file);
             }
-            arsort($files);
+            foreach (glob($this->backupPath . '/update_*', GLOB_ONLYDIR) ?: [] as $dir) {
+                // A symlink must never be a rotation candidate: deleteDirectory()
+                // would unlink the link, but a link is not something this class
+                // wrote and not ours to reclaim.
+                if (is_link($dir) || !is_dir($dir)) {
+                    continue;
+                }
+                if (preg_match(self::LEGACY_DIR_PATTERN, basename($dir)) !== 1) {
+                    continue; // hand-placed directory: never a rotation candidate
+                }
+                // A generated legacy backup IS its database.sql — that is the
+                // whole content of the format. A directory carrying the name but
+                // not the dump is something else wearing our shape, and this
+                // rotation deletes recursively: reclaiming only what we can show
+                // we wrote is worth one directory listing per candidate. The dump
+                // must be the ONLY entry — a note or a file an operator dropped
+                // beside it would otherwise be deleted along with the backup.
+                if (!self::isLegacyBackupDirectory($dir)) {
+                    continue;
+                }
+                $entries[$dir] = (int) filemtime($dir);
+            }
+            arsort($entries);
 
-            // The freshly written file counts against the quota too.
-            $slots = max(0, $keep - 1);
-            $stale = array_slice(array_keys($files), $slots);
+            // Only a newly written automatic backup occupies a retention slot.
+            $automatic = preg_match(self::GENERATED_NAME_PATTERN, basename($justWritten)) === 1;
+            $slots = max(0, $keep - ($automatic ? 1 : 0));
+            $stale = array_slice(array_keys($entries), $slots);
             $removed = 0;
-            foreach ($stale as $file) {
+            $removedLegacy = 0;
+            foreach ($stale as $path) {
+                if (is_dir($path)) {
+                    if ($this->deleteDirectory($path)) {
+                        $removed++;
+                        $removedLegacy++;
+                    }
+                    continue;
+                }
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- glob-matched backup_*.zip under storage/backups, not user input
-                if (@unlink($file)) {
+                if (@unlink($path)) {
                     $removed++;
                 }
             }
             if ($removed > 0) {
-                SecureLogger::info('BackupManager: rotated old backups', ['removed' => $removed, 'kept' => $keep]);
+                SecureLogger::info('BackupManager: rotated old backups', [
+                    'removed' => $removed,
+                    'legacy_dirs' => $removedLegacy,
+                    'kept' => $keep,
+                ]);
             }
         } catch (\Throwable $e) {
             SecureLogger::warning('BackupManager: backup rotation failed', ['error' => $e->getMessage()]);
@@ -359,6 +463,50 @@ class BackupManager
 
     /**
      * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, created_at: int}>
+     */
+    /**
+     * Origin encoded in a filename, for archives whose manifest predates it.
+     * Unknown or absent suffix means the automatic shape, which is what every
+     * archive written before this existed actually was.
+     */
+    /** True only for a directory whose sole entry is a database.sql file. */
+    private static function isLegacyBackupDirectory(string $dir): bool
+    {
+        $entries = @scandir($dir);
+        if ($entries === false) {
+            return false;
+        }
+        $entries = array_values(array_diff($entries, ['.', '..']));
+        return $entries === ['database.sql'] && is_file($dir . '/database.sql');
+    }
+
+    /**
+     * Extract the origin encoded in a generated backup filename's suffix. Falls back to
+     * ORIGIN_AUTO for names without a recognized suffix, which is correct both for the
+     * automatic shape and for archives written before origins existed.
+     */
+    private static function originFromName(string $name): string
+    {
+        if (preg_match('/^backup_\\d{4}-\\d{2}-\\d{2}_\\d{6}_[0-9a-f]{6}_([a-z]+)\\.zip$/', $name, $m) === 1) {
+            return in_array($m[1], [self::ORIGIN_MANUAL, self::ORIGIN_SAFETY, self::ORIGIN_UPLOAD], true) ? $m[1] : self::ORIGIN_AUTO;
+        }
+        return self::ORIGIN_AUTO;
+    }
+
+    /** Human date label, with any origin suffix stripped out of it. */
+    private static function backupDateLabel(string $name): string
+    {
+        $base = pathinfo($name, PATHINFO_FILENAME);
+        $base = preg_replace('/_(?:' . self::ORIGIN_MANUAL . '|' . self::ORIGIN_SAFETY . '|' . self::ORIGIN_UPLOAD . ')$/', '', $base) ?? $base;
+        return str_replace(['backup_', '_'], ['', ' '], $base);
+    }
+
+    /**
+     * List every backup found in storage/backups: new ZIP archives (reading scope/origin from
+     * their manifest, falling back to the filename) plus legacy update_* directories (DB-only,
+     * pre-0.7.x layout), sorted newest first.
+     *
+     * @return array<int, array{name: string, path: string, size: int, date: string, contents: string, origin: string, created_at: int}>
      */
     public function listBackups(): array
     {
@@ -375,8 +523,17 @@ class BackupManager
                 'name' => $name,
                 'path' => $file,
                 'size' => (int) filesize($file),
-                'date' => str_replace(['backup_', '_'], ['', ' '], pathinfo($name, PATHINFO_FILENAME)),
+                'date' => self::backupDateLabel($name),
                 'contents' => (string) ($manifest['scope'] ?? 'full'),
+                // The name wins for uploads, and only for them: an uploaded
+                // archive carries the manifest of ANOTHER installation, which
+                // would claim 'auto' and hand a restore point to the rotation.
+                // Everywhere else the manifest is the source and the name the
+                // fallback — archives written before origins existed carry
+                // neither, and default to auto, which is what they were.
+                'origin' => self::originFromName($name) === self::ORIGIN_UPLOAD
+                    ? self::ORIGIN_UPLOAD
+                    : (string) ($manifest['origin'] ?? self::originFromName($name)),
                 'created_at' => (int) filemtime($file),
             ];
         }
@@ -391,6 +548,7 @@ class BackupManager
                 'size' => is_file($dbFile) ? (int) filesize($dbFile) : 0,
                 'date' => str_replace(['update_', '_'], ['', ' '], $name),
                 'contents' => 'db',
+                'origin' => self::ORIGIN_AUTO,
                 'created_at' => (int) filemtime($dir),
             ];
         }
@@ -410,10 +568,13 @@ class BackupManager
         }
         try {
             if (is_dir($target)) {
-                $this->deleteDirectory($target);
+                $deleted = $this->deleteDirectory($target);
             } else {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- $target validated by resolveBackup() (no traversal, realpath under storage/backups)
-                @unlink($target);
+                $deleted = @unlink($target);
+            }
+            if (!$deleted) {
+                return ['success' => false, 'error' => __('Impossibile eliminare il backup. Verifica i permessi e riprova.')];
             }
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {
@@ -493,7 +654,7 @@ class BackupManager
         // Same naming scheme as createBackup() so the uploaded archive is listed
         // and deletable like any other backup; the random suffix avoids the
         // same-second collision a plain timestamp would allow.
-        $dest = $this->backupPath . '/backup_' . date('Y-m-d_His') . '_' . bin2hex(random_bytes(3)) . '.zip';
+        $dest = $this->backupPath . '/' . self::backupFileName(date('Y-m-d_His'), self::ORIGIN_UPLOAD);
         if (!@rename($tmpPath, $dest) && !@copy($tmpPath, $dest)) {
             return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile salvare il file caricato')];
         }
@@ -516,6 +677,20 @@ class BackupManager
      *
      * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
+    /**
+     * True from the instant the import may have executed its first DROP TABLE
+     * until it has finished.
+     *
+     * MySQL cannot roll back DDL, so between those two points the database is
+     * neither the one the site was serving nor the one the archive describes.
+     * Two things must follow from that and neither did: the outcome has to say
+     * so, and the site must stay closed. An interrupted restore reported as an
+     * ordinary failure invites the operator to retry into the wreckage, and the
+     * maintenance flag was being lifted on the way out — including by the
+     * fatal-error shutdown handler, which is exactly the case this describes.
+     */
+    private bool $databaseReplacementStarted = false;
+
     private function restoreZip(string $zipPath): array
     {
         $lockFile = $this->rootPath . '/storage/cache/update.lock';
@@ -544,13 +719,26 @@ class BackupManager
         // Safety net: a fatal error mid-restore must not leave the site locked
         // in maintenance (the front controller's 30-minute staleness fallback
         // remains the last resort). Mirrors Updater's shutdown handler.
-        register_shutdown_function(static function () use ($maintenanceFile): void {
+        // NOT static, and conditional: the handler exists so a fatal error
+        // BEFORE anything was touched cannot leave the site locked out. Once
+        // the import may have started replacing tables the opposite is true —
+        // lifting the flag then reopens the site on a half-replaced database,
+        // which is the worst of the two outcomes and the one nobody chose.
+        register_shutdown_function(function () use ($maintenanceFile): void {
             $error = error_get_last();
-            if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-                if (file_exists($maintenanceFile)) {
-                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
-                    @unlink($maintenanceFile);
-                }
+            if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                return;
+            }
+            if ($this->databaseReplacementStarted) {
+                SecureLogger::error(
+                    '[BackupManager] Fatal error during the database replacement; maintenance mode is left ON '
+                    . 'because the database is in an unknown state'
+                );
+                return;
+            }
+            if (file_exists($maintenanceFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
+                @unlink($maintenanceFile);
             }
         });
 
@@ -560,15 +748,37 @@ class BackupManager
         // Inside the try so a failure to arm the flag aborts cleanly: the
         // finally below still releases the flock, and the catch keeps the
         // array-return contract instead of leaking the exception. (#167 review)
+        $outcome = null;
         try {
             $this->enterRestoreMaintenanceMode($maintenanceFile);
-            return $this->doRestoreZip($zipPath);
+            $outcome = $this->doRestoreZip($zipPath);
+            return $outcome;
         } catch (\Throwable $e) {
-            return ['success' => false, 'safety_backup' => null, 'error' => $e->getMessage()];
+            $outcome = ['success' => false, 'safety_backup' => null, 'error' => $e->getMessage()];
+            return $outcome;
         } finally {
-            if (file_exists($maintenanceFile)) {
+            // Reopen the site only when the database is whole: either the
+            // restore finished, or it failed without ever starting to replace
+            // anything. An import that began and did not finish keeps the flag,
+            // because what is behind it is not a library catalogue any more.
+            $incomplete = ($outcome['restored_phase'] ?? '') === 'database_incomplete';
+            if (!$incomplete && file_exists($maintenanceFile)) {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
                 @unlink($maintenanceFile);
+            }
+            if ($incomplete) {
+                // Replace the "try again in a few minutes" text: it is not true
+                // any more, and the operator reading the page has one specific
+                // thing to do.
+                @file_put_contents($maintenanceFile, json_encode([
+                    'time' => time(),
+                    'sticky' => true,
+                    'message' => __('Ripristino interrotto: il database è incompleto. Ripristina il backup di sicurezza prima di riaprire il sito.'),
+                ]), LOCK_EX);
+                SecureLogger::error(
+                    '[BackupManager] Restore left the database incomplete; maintenance mode stays ON until an '
+                    . 'operator restores the safety backup: ' . (string) ($outcome['safety_backup'] ?? 'none')
+                );
             }
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
@@ -589,8 +799,17 @@ class BackupManager
         }
         // Fail loud: if the flag can't be written the restore must NOT proceed,
         // otherwise visitors hit the site mid DROP/CREATE. (#167 review)
+        // 'sticky' switches off the 30-minute staleness net in public/index.php.
+        // That net exists for an update that died and left the flag behind, and
+        // it is right for one — but a restore is the one operation where
+        // reopening on a timer is the wrong answer: past the first DROP TABLE
+        // the database may be half old and half new, and thirty minutes is a
+        // plausible length for a large import, not evidence that it finished.
+        // The flag is cleared by the finally below on every outcome except the
+        // one where the database really was left incomplete.
         $written = @file_put_contents($maintenanceFile, json_encode([
             'time' => time(),
+            'sticky' => true,
             'message' => __('Ripristino in corso. Riprova tra qualche minuto.'),
         ]), LOCK_EX);
         if ($written === false) {
@@ -607,10 +826,14 @@ class BackupManager
         $stagingDir = null;
         $safetyName = null;
         $dbImported = false;
+        // Per restore, not per object: a second restore through the same
+        // instance would otherwise inherit the first one's verdict and report
+        // an untouched database as half-replaced.
+        $this->databaseReplacementStarted = false;
         try {
             // 1. Safety backup of the current state (always full) — the rollback
             //    path, since MySQL DDL can't run inside a transaction.
-            $safety = $this->createBackup('full');
+            $safety = $this->createBackup('full', self::ORIGIN_SAFETY);
             if (!$safety['success']) {
                 throw new \RuntimeException(__('Impossibile creare il backup di sicurezza pre-ripristino') . ': ' . (string) $safety['error']);
             }
@@ -650,8 +873,10 @@ class BackupManager
                 $zip->close();
             }
 
-            // 4. Import the DB (hash-verified inside). After this point the DB is
-            //    the restored one; files are already safely staged.
+            // 4. Import the DB (hash-verified inside). importDatabase() raises
+            //    $databaseReplacementStarted itself, once its own preconditions
+            //    have passed and the first DROP TABLE is imminent — that is the
+            //    only place that knows where "whole" ends.
             $this->importDatabase($sqlTmp, $expectedSha);
             // The live DB is now the restored one — any later failure is a
             // PARTIAL restore, not a no-op, and must be reported as such.
@@ -684,6 +909,25 @@ class BackupManager
                     'restored_phase' => 'database',
                     'safety_backup' => $safetyName,
                     'error' => $e->getMessage(),
+                ];
+            }
+            if ($this->databaseReplacementStarted) {
+                // The import started and did not finish: the database holds an
+                // unknown mixture of both versions. This is a DIFFERENT outcome
+                // from the one above — there the data is whole and only the
+                // uploaded files are stale — and the operator has to be told
+                // which, because only this one requires restoring the safety
+                // backup before the site can serve anything.
+                return [
+                    'success' => false,
+                    'partial' => true,
+                    'restored_phase' => 'database_incomplete',
+                    'safety_backup' => $safetyName,
+                    // The operator reads this string, and what it has to convey
+                    // is not the SQL error but what to do next. The site is
+                    // closed and stays closed until someone acts.
+                    'error' => __('Il ripristino si è interrotto mentre sostituiva il database, che ora è incompleto. Il sito resta in manutenzione: ripristina il backup di sicurezza prima di riaprirlo.')
+                        . ' (' . $e->getMessage() . ')',
                 ];
             }
             return ['success' => false, 'safety_backup' => $safetyName, 'error' => $e->getMessage()];
@@ -855,6 +1099,104 @@ class BackupManager
      * backup/restore round-trip. The schema is text/numeric/datetime only —
      * adding a binary column requires changing this serialization first.
      */
+    /**
+     * The columns of $table a restore may write, in declaration order.
+     *
+     * Generated columns are excluded: MySQL and MariaDB both reject an INSERT
+     * that supplies a value for one ("The value specified for generated column
+     * … is not allowed"), and the value is reproduced by the database from the
+     * expression the dumped CREATE TABLE already carries, so nothing is lost.
+     * GENERATION_EXPRESSION is the portable test — EXTRA also says
+     * DEFAULT_GENERATED for an ordinary DEFAULT CURRENT_TIMESTAMP, which is not
+     * a generated column and must keep being written.
+     *
+     * A probe that fails returns every column rather than none: the dump is
+     * then exactly what it was before this method existed, which is wrong only
+     * for a table that has a generated column — never silently empty.
+     *
+     * @return list<string>
+     */
+    private function insertableColumns(string $table): array
+    {
+        $columns = [];
+        // Whether the catalogue ANSWERED, as opposed to returning nothing.
+        // The two are not the same thing and the difference decides whether an
+        // empty list is a fact or a failure — see the note below.
+        $probed = false;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                    AND (GENERATION_EXPRESSION IS NULL OR GENERATION_EXPRESSION = \'\')
+                  ORDER BY ORDINAL_POSITION'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('s', $table);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $probed = true;
+            while ($result instanceof \mysqli_result && ($row = $result->fetch_row())) {
+                $columns[] = (string) $row[0];
+            }
+            $stmt->close();
+        } catch (\Throwable $e) {
+            SecureLogger::warning(
+                "[BackupManager] Could not read the column list of {$table} from information_schema: "
+                . $e->getMessage()
+            );
+            $probed = false;
+            $columns = [];
+        }
+
+        if ($probed) {
+            // Authoritative. An empty list here means the table really has no
+            // column that can be written — every one of them is generated —
+            // which dumpDatabaseTo() handles by emitting no INSERT at all.
+            return $columns;
+        }
+
+        // information_schema was unreadable. SHOW COLUMNS answers from the open
+        // connection and its Extra field names a generated column, so the same
+        // distinction survives the fallback. "DEFAULT_GENERATED" is an ordinary
+        // DEFAULT CURRENT_TIMESTAMP and must NOT be excluded — it contains the
+        // word, which is exactly how this check gets written wrong.
+        try {
+            $describe = $this->db->query("SHOW COLUMNS FROM `{$table}`");
+            if ($describe === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            while ($describe instanceof \mysqli_result && ($row = $describe->fetch_assoc())) {
+                $extra = strtoupper((string) ($row['Extra'] ?? ''));
+                if (str_contains($extra, 'VIRTUAL GENERATED') || str_contains($extra, 'STORED GENERATED')) {
+                    continue;
+                }
+                $columns[] = (string) $row['Field'];
+            }
+            if ($describe instanceof \mysqli_result) {
+                $describe->free();
+            }
+        } catch (\Throwable $e) {
+            // NOT an empty list. Returning one would make dumpDatabaseTo() skip
+            // the table and write an archive that restores it empty, with no
+            // error anywhere — a backup that looks complete and has lost a
+            // table. A backup that cannot be trusted must not be produced.
+            throw new \RuntimeException(
+                sprintf(__('Errore nella lettura delle colonne della tabella %s'), $table) . ': ' . $e->getMessage()
+            );
+        }
+
+        if ($columns === []) {
+            throw new \RuntimeException(
+                sprintf(__('Errore nella lettura delle colonne della tabella %s'), $table)
+                . ': ' . __('nessuna colonna leggibile')
+            );
+        }
+
+        return $columns;
+    }
+
     private function dumpDatabaseTo(string $filepath): int
     {
         $handle = fopen($filepath, 'w');
@@ -900,7 +1242,24 @@ class BackupManager
                 fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
                 fwrite($handle, ((string) ($createRow[1] ?? '')) . ";\n\n");
 
-                $this->db->real_query("SELECT * FROM `{$table}`");
+                // Only the columns a restore is allowed to write. MySQL refuses
+                // an INSERT that supplies a value for a generated column, and
+                // `SELECT *` returns them like any other — so a table with one
+                // produced a dump that could be created but never imported. The
+                // database recomputes them from the definition the CREATE TABLE
+                // above already carries. Naming the columns also frees the
+                // restore from depending on their order.
+                $columns = $this->insertableColumns($table);
+                if ($columns === []) {
+                    // A table made only of generated columns cannot be written
+                    // to at all; there is nothing to restore and an INSERT with
+                    // an empty column list is not valid SQL.
+                    fwrite($handle, "\n");
+                    continue;
+                }
+                $columnList = '`' . implode('`, `', $columns) . '`';
+
+                $this->db->real_query("SELECT {$columnList} FROM `{$table}`");
                 $dataResult = $this->db->use_result();
                 if ($dataResult === false) {
                     throw new \RuntimeException(sprintf(__('Errore nel recupero dati tabella %s'), $table) . ': ' . $this->db->error);
@@ -910,7 +1269,7 @@ class BackupManager
                     $values = array_map(function ($value): string {
                         return $value === null ? 'NULL' : "'" . $this->db->real_escape_string((string) $value) . "'";
                     }, $row);
-                    fwrite($handle, "INSERT INTO `{$table}` VALUES (" . implode(', ', $values) . ");\n");
+                    fwrite($handle, "INSERT INTO `{$table}` ({$columnList}) VALUES (" . implode(', ', $values) . ");\n");
                 }
                 $dataResult->free();
                 fwrite($handle, "\n");
@@ -1000,6 +1359,13 @@ class BackupManager
                 throw new \RuntimeException(__('Il backup è corrotto (checksum del database non valido)'));
             }
         }
+
+        // Every check that can reject the dump has now passed. From here the
+        // first DROP TABLE may land at any moment, so this — not a line earlier
+        // — is where the database stops being whole. Setting it before the
+        // checksum would report a corrupt archive, which touched nothing, as a
+        // half-replaced database and keep the site closed for no reason.
+        $this->databaseReplacementStarted = true;
 
         if (!$this->importViaCli($sqlPath)) {
             $this->importViaPhp($sqlPath);
@@ -1137,7 +1503,20 @@ class BackupManager
             throw new \RuntimeException(__('Dump del database vuoto o illeggibile'));
         }
 
-        $conn = $this->openImportConnection();
+        // openImportConnection() disarms mysqli's exception reporting, and
+        // mysqli_report() is PROCESS-WIDE: left off, it outlives the import and
+        // every later query in the request fails silently instead of throwing —
+        // including the optional-column probes other components rely on. PHP
+        // exposes no getter for the current mode, so the canonical one is
+        // restored: MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT is both what
+        // ConfigStore::connect() sets and PHP's own default since 8.1.
+        try {
+            $conn = $this->openImportConnection();
+        } catch (\Throwable $e) {
+            mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+            fclose($handle);
+            throw $e;
+        }
         try {
             $conn->autocommit(true);
 
@@ -1203,6 +1582,8 @@ class BackupManager
             if (is_resource($handle)) {
                 fclose($handle);
             }
+            // Re-arm reporting for the rest of the process, whatever happened.
+            mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         }
     }
 
@@ -1321,6 +1702,13 @@ class BackupManager
 
     /**
      * Open a fresh mysqli connection to the same database (from env config).
+     *
+     * Turns mysqli's exception reporting OFF process-wide so the connect attempt
+     * (and the batched import that follows) can be handled by return value.
+     * The ONLY caller, importViaPhp(), is responsible for re-arming it in a
+     * finally — leaving it off would silence every query in the rest of the
+     * request, which is how an optional-column probe elsewhere can come back
+     * false and quietly drop a visibility filter.
      */
     private function openImportConnection(): mysqli
     {
@@ -1505,22 +1893,28 @@ class BackupManager
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function deleteDirectory(string $dir): void
+    /**
+     * Recursively delete a directory, treating any symlink (the root or a child) as a leaf to
+     * unlink rather than a target to descend into.
+     *
+     * @return bool false if the directory could not be listed or the final rmdir() failed;
+     *              true if the directory was already gone
+     */
+    private function deleteDirectory(string $dir): bool
     {
         // A symlinked root must not be followed either — unlink the link
         // itself, never recurse into its target (symmetric with the per-child
         // is_link guard below; is_dir() returns true through a dir symlink). (#167 review)
         if (is_link($dir)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- removes the symlink, not its target
-            @unlink($dir);
-            return;
+            return @unlink($dir);
         }
         if (!is_dir($dir)) {
-            return;
+            return true; // already gone: the postcondition holds
         }
         $files = @scandir($dir);
         if ($files === false) {
-            return;
+            return false;
         }
         foreach (array_diff($files, ['.', '..']) as $file) {
             $path = $dir . '/' . $file;
@@ -1535,7 +1929,11 @@ class BackupManager
                 @unlink($path);
             }
         }
-        @rmdir($dir);
+        // The return value is what the rotation counts on. Re-checking the path
+        // afterwards would be the obvious alternative, but static analysis has
+        // already narrowed it to "a directory" and cannot see a filesystem side
+        // effect, so the helper reports its own outcome instead.
+        return @rmdir($dir);
     }
 
     private function getCurrentVersion(): string

@@ -207,6 +207,8 @@ const ENDPOINTS = [
     // ── Emeroteca bridge (/api/v1/periodicals, mounted by the emeroteca plugin) ──
     // skipIf: optional plugin — rows only run when the bridge answers (probed
     // in beforeAll via /periodicals/health, authed) and the demo data exists.
+    { name: 'GET /periodicals/articles', method: 'GET', path: '/periodicals/articles', auth: true, kind: 'etag', skipIf: (c) => !c.periodicalsActive },
+    { name: 'GET /periodicals/articles/{articleId}', method: 'GET', path: '/periodicals/articles/{periodicalArticleId}', auth: true, kind: 'etag', skipIf: (c) => !c.periodicalsActive || !c.periodicalArticleId },
     { name: 'GET /periodicals/health',               method: 'GET', path: '/periodicals/health',                     auth: true, kind: 'safeGet', skipIf: (c) => !c.periodicalsActive },
     { name: 'GET /periodicals',                      method: 'GET', path: '/periodicals',                            auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive },
     { name: 'GET /periodicals/{periodicalId}',       method: 'GET', path: '/periodicals/{periodicalId}',             auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalId },
@@ -421,6 +423,15 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             ctx.periodicalsActive = pHealth.status() === 200;
         } catch {}
         if (ctx.periodicalsActive) {
+            // Its own try: health does not probe the schema, so a missing table
+            // would otherwise throw here and take down ETag tests for endpoints
+            // that have nothing to do with standalone articles. Undefined lets
+            // skipIf drop only the article detail.
+            try {
+                ctx.periodicalArticleId = dbScalar('SELECT id FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT 1') || undefined;
+            } catch {
+                ctx.periodicalArticleId = undefined;
+            }
             try {
                 ctx.periodicalId = dbScalar('SELECT id FROM emeroteca_testate ORDER BY id LIMIT 1') || undefined;
                 if (ctx.periodicalId) {

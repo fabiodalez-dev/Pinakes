@@ -56,11 +56,14 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
     $ok ? $passed++ : $failed++;
 };
 
-// Derive the reference date from the SAME MySQL connection the backfill uses
-// (it computes deadlines with CURDATE()); PHP's default timezone can differ by
-// a day near midnight and make the expected deadlines drift.
-$mysqlTodayRow = $db->query('SELECT CURDATE() AS d')->fetch_assoc();
-$today = (string) $mysqlTodayRow['d'];
+// Derive the reference date from the SAME clock the backfill uses:
+// DateHelper::today(), i.e. the configured application timezone. It is
+// deliberately NOT the database's CURDATE() — the backfill says so, because the
+// sweeps that later enforce the deadline compare against the app timezone too.
+// Reading CURDATE() here made the test fail whenever the two disagreed: CI runs
+// its database in UTC, so between 22:00 UTC and midnight the expected deadline
+// was computed a day behind the one the code produced.
+$today = \App\Support\DateHelper::today();
 $plus = static fn (int $days): string => (new DateTimeImmutable($today))->modify(($days >= 0 ? '+' : '') . $days . ' days')->format('Y-m-d');
 
 $makeBookWithCopy = static function () use ($db, $titlePrefix): array {

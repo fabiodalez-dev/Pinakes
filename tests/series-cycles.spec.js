@@ -305,6 +305,67 @@ test.describe.serial('Series groups and cycles', () => {
     await expect(page.locator('table')).toContainText(SPINOFF_SERIES);
   });
 
+  test('05b. the list draws the universe as a tree, with a visible start and end (#428)', async () => {
+    await page.goto(`${BASE}/admin/series`);
+    // The rows were already ordered as a tree but every row looked identical:
+    // you had to read the parent column to see who belonged to whom.
+    const header = page.locator('tr.series-block-header', { hasText: GROUP_FAIRY }).first();
+    await expect(header).toBeVisible();
+    await expect(header).toHaveClass(/series-block-start/);
+    // The header counts the series it collects, so the block announces its size.
+    await expect(header.locator('.series-block-count')).toHaveText(/^[1-9][0-9]*$/);
+
+    // Everything below is read from THIS block, walked from its own header to
+    // its closing row: the page lists every series in the installation, so a
+    // global selector could just as well be measuring somebody else's universe.
+    const block = await page.evaluate((group) => {
+      const rows = [...document.querySelectorAll('tr')];
+      const header = rows.find(
+        (r) => r.classList.contains('series-block-header') && (r.textContent || '').includes(group)
+      );
+      if (!header) return null;
+
+      const members = [];
+      for (let el = header.nextElementSibling; el; el = el.nextElementSibling) {
+        members.push(el);
+        if (el.classList.contains('series-block-end')) break;
+      }
+      const cells = members.map((r) => r.querySelector('td.series-cell-child')).filter(Boolean);
+      const middle = cells.find((c) => !c.classList.contains('series-cell-last'));
+      const last = cells.find((c) => c.classList.contains('series-cell-last'));
+      const endRow = members.find((r) => r.classList.contains('series-block-end'));
+      const endCell = endRow ? endRow.querySelector('td') : null;
+      const after = endRow ? endRow.nextElementSibling : null;
+
+      return {
+        children: cells.length,
+        lastCells: cells.filter((c) => c.classList.contains('series-cell-last')).length,
+        middleBottom: middle ? getComputedStyle(middle, '::before').bottom : null,
+        lastBottom: last ? getComputedStyle(last, '::before').bottom : null,
+        arm: last ? getComputedStyle(last, '::after').borderTopWidth : null,
+        closingWidth: endCell ? parseFloat(getComputedStyle(endCell).borderBottomWidth) : null,
+        nextIsOutside: after ? !after.querySelector('td.series-cell-child') : true,
+      };
+    }, GROUP_FAIRY);
+
+    expect(block, 'the universe block is on the page').not.toBeNull();
+    expect(block.children, 'the group has children drawn as such').toBeGreaterThan(0);
+    // Exactly one closing cell in this block: that is what says where it ends.
+    expect(block.lastCells, 'the block closes on a single last child').toBe(1);
+
+    // The connector must run through a continuing child and stop halfway on the
+    // last one; without the difference the block has no visible end.
+    expect(block.middleBottom, 'a continuing child carries the line to the bottom').toBe('0px');
+    expect(parseFloat(block.lastBottom), 'the last child closes the line before the bottom').toBeGreaterThan(1);
+    expect(parseFloat(block.arm), 'the child is joined to the block by a visible arm').toBeGreaterThan(0);
+
+    // The closing rule is what keeps the universe from bleeding into whatever
+    // follows — often an ordinary series with no hierarchy, which is exactly
+    // when a reader cannot tell the block ended.
+    expect(block.closingWidth, 'the universe closes with a rule of its own').toBeGreaterThanOrEqual(2);
+    expect(block.nextIsOutside, 'the row after the closing rule is outside the block').toBe(true);
+  });
+
   test('06. series detail links other spin-offs in the same group', async () => {
     await page.goto(`${BASE}/admin/series/detail?nome=${encodeURIComponent(MAIN_SERIES)}`);
     await expect(page.locator('body')).toContainText('Altre serie nello stesso gruppo');

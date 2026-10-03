@@ -70,6 +70,12 @@ $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
 $bookCover = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
 $bookCover = url($bookCover);
 $isAvailable = !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0;
+// Every owned copy is out of circulation (maintenance, restoration, transfer,
+// lost, damaged): the reservation queue counts loanable copies, so it would
+// refuse the request the button invites (#426). Say so instead of inviting it.
+$bookHoldings = $bookHoldings ?? null;
+$nothingInCirculation = \App\Support\CopyHoldings::publishedTotal($bookHoldings, (int) ($book['copie_totali'] ?? 0)) > 0
+    && (int) ($book['copie_totali'] ?? 0) === 0;
 $authorNames = [];
 foreach ($authors as $authorData) {
     $name = trim(html_entity_decode(AuthorName::display($authorData), ENT_QUOTES, 'UTF-8'));
@@ -780,6 +786,29 @@ $additional_css = "
         box-shadow: none;
     }
 
+    /* Wanted book: an invitation to donate, not an error. Same neutral grey as the catalogue grid. */
+    .availability-badge.wanted {
+        background: #6b7280;
+        color: white;
+        border-color: #6b7280;
+        box-shadow: none;
+    }
+
+    .availability-badge.wanted:hover {
+        background: #6b7280;
+        transform: translateY(-2px);
+        box-shadow: none;
+    }
+
+    body[class*='layout-'] .availability-badge.wanted {
+        background: color-mix(in srgb, #6b7280 11%, var(--white));
+        color: color-mix(in srgb, #6b7280 72%, #1a1a1a);
+    }
+
+    .book-status-inline.is-wanted::before {
+        background: #6b7280;
+    }
+
     .book-meta {
         background: transparent;
         padding: 3rem 0;
@@ -825,6 +854,14 @@ $additional_css = "
         color: var(--text-light);
         font-size: 1.05rem;
         font-weight: 300;
+    }
+
+    .meta-note {
+        color: var(--text-light);
+        font-size: 0.85rem;
+        font-weight: 300;
+        margin-top: 0.35rem;
+        opacity: 0.85;
     }
 
     .authors-list {
@@ -1914,14 +1951,20 @@ ob_start();
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
                             <?php
-                                // Pseudonym-aware display "Pseudonimo (Nome)"; the link still
-                                // targets the real name (author page keys on nome). Issue #237.
+                                // Pseudonym-aware display "Pseudonimo (Nome)". Issue #237.
+                                // The link targets the author id, not the name: homonyms
+                                // are legitimate, so a name URL could open another
+                                // person's archive that does not list this book.
+                                $authorHrefId = (int) ($author['id'] ?? 0);
+                                $authorHref = $authorHrefId > 0
+                                    ? route_path('author') . '/' . $authorHrefId
+                                    : route_path('author') . '/' . rawurlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8'));
                                 $authorDisplay = \App\Support\AuthorName::display([
                                     'nome' => html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8'),
                                     'pseudonimo' => html_entity_decode($author['pseudonimo'] ?? '', ENT_QUOTES, 'UTF-8'),
                                 ]);
                             ?>
-                            <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
+                            <a href="<?= htmlspecialchars($authorHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
                                 <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars($authorDisplay, ENT_QUOTES, 'UTF-8') ?><?php if ($author['ruolo'] !== 'principale'): ?> <span class="contributor-role-sep">·</span> <?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
                                 </span>
@@ -1936,6 +1979,14 @@ ob_start();
                     <?php endif; ?>
 
                     <div class="mt-4">
+                        <?php if (!empty($book['is_desiderata'])): ?>
+                        <?php
+                        // No data-live-* attributes on purpose: this book has
+                        // no copies to hydrate, and the edge-cache availability
+                        // script only rewrites badges that carry them.
+                        ?>
+                        <span class="availability-badge wanted"><i class="fas fa-hand-holding-heart mr-2" aria-hidden="true"></i><span><?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?></span></span>
+                        <?php else: ?>
                         <span class="availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'available' : 'unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="detail-badge" data-live-pending="1"' : '' ?>>
                             <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : (($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle') ?> mr-2" aria-hidden="true"></i>
                             <span data-live-label><?= $edgeCacheEnabled ? htmlspecialchars(__("Verifica disponibilità"), ENT_QUOTES, 'UTF-8') : (($book['copie_disponibili'] > 0)
@@ -1944,6 +1995,7 @@ ob_start();
                                     : __("Disponibile"))
                                 : __("Non disponibile oggi")) /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?></span>
                         </span>
+                        <?php endif; ?>
                     </div>
 
                 </div>
@@ -1959,12 +2011,13 @@ ob_start();
             <!-- Main Content -->
             <div class="w-full lg:w-2/3 px-3">
                 <!-- Action Buttons -->
-                <?php if (!$isCatalogueMode): ?>
+                <?php // No loan, reservation or favourite for a book the library does not own. ?>
+                <?php if (!$isCatalogueMode && empty($book['is_desiderata'])): ?>
                 <div class="action-buttons text-center mb-4" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
-                    <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
-                        <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : ((($book['copie_disponibili'] ?? 0) > 0) ? 'book-reader' : 'calendar-alt') ?> mr-2"></i>
-                        <span data-live-label><?= $edgeCacheEnabled ? __('Verifica disponibilità') : ((($book['copie_disponibili'] ?? 0) > 0) ? __('Richiedi Prestito') : __('Prenota Quando Disponibile')) ?></span>
+                    <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= !$edgeCacheEnabled && $nothingInCirculation ? ' disabled' : '' ?><?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
+                        <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : ((($book['copie_disponibili'] ?? 0) > 0) ? 'book-reader' : ($nothingInCirculation ? 'ban' : 'calendar-alt')) ?> mr-2"></i>
+                        <span data-live-label><?= $edgeCacheEnabled ? __('Verifica disponibilità') : ((($book['copie_disponibili'] ?? 0) > 0) ? __('Richiedi Prestito') : ($nothingInCirculation ? __('Momentaneamente non prenotabile') : __('Prenota Quando Disponibile'))) ?></span>
                     </button>
                     <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
                     <?php if ($isLogged): ?>
@@ -2493,16 +2546,44 @@ ob_start();
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
                             <div class="meta-value">
+                                <?php if (!empty($book['is_desiderata'])): ?>
+                                <span class="book-status-inline is-wanted">
+                                    <?= htmlspecialchars(__('Cercato dalla biblioteca'), ENT_QUOTES, 'UTF-8') ?>
+                                </span>
+                                <?php else: ?>
                                 <span class="book-status-inline <?= $edgeCacheEnabled ? 'availability-pending' : (($book['copie_disponibili'] > 0) ? 'is-available' : 'is-unavailable') ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="status" data-live-pending="1"' : '' ?>>
                                     <?= $edgeCacheEnabled ? __("Verifica disponibilità") : (($book['copie_disponibili'] > 0) ? __("Disponibile") : __("Non disponibile oggi")) ?>
                                 </span>
+                                <?php endif; ?>
                             </div>
                         </div>
 
+                        <?php if (empty($book['is_desiderata'])): ?>
+                        <?php
+                        // A wanted book owns no copy by definition: the status line
+                        // above already says the library is looking for it, and a
+                        // "0 / 0" underneath contradicted that invitation — while,
+                        // with the edge cache on, it also hydrated live availability
+                        // for copies that do not exist. Holdings only.
+                        //
+                        // The denominator is what the library owns, not what is in
+                        // circulation: with the only copy under maintenance the old
+                        // "0 / 0" read as "not in this library" (#426).
+                        $holdings = $bookHoldings ?? null;
+                        $publishedTotal = \App\Support\CopyHoldings::publishedTotal($holdings, (int) ($book['copie_totali'] ?? 0));
+                        $outNote = \App\Support\CopyHoldings::outOfCirculationNote($holdings);
+                        ?>
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Copie Disponibili") ?></div>
-                            <div class="meta-value <?= $edgeCacheEnabled ? 'availability-pending' : '' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="count" data-live-pending="1"' : '' ?>><?= $edgeCacheEnabled ? __("Verifica disponibilità") : ((int) $book['copie_disponibili'] . ' / ' . (int) $book['copie_totali']) ?></div>
+                            <div class="meta-value <?= $edgeCacheEnabled ? 'availability-pending' : '' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="count" data-live-pending="1"' : '' ?>><?= $edgeCacheEnabled ? __("Verifica disponibilità") : ((int) $book['copie_disponibili'] . ' / ' . $publishedTotal) ?></div>
+                            <?php if (!$edgeCacheEnabled && $outNote !== ''): ?>
+                                <div class="meta-note"><?= htmlspecialchars(__('Copie non in circolazione'), ENT_QUOTES, 'UTF-8') ?> — <?= htmlspecialchars($outNote, ENT_QUOTES, 'UTF-8') ?></div>
+                            <?php endif; ?>
+                            <?php if ($edgeCacheEnabled): ?>
+                                <div class="meta-note" data-live-book-id="<?= (int) $book['id'] ?>" data-live-role="count-note" hidden></div>
+                            <?php endif; ?>
                         </div>
+                        <?php endif; ?>
 
                         <?php if (!empty($book['collocazione'])): ?>
                         <div class="meta-item">

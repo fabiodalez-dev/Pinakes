@@ -702,6 +702,20 @@ $applicationToday = \App\Support\DateHelper::today();
     <?php endif; ?>
     <?php endif; ?>
 
+<?php
+// Plugin panels (e.g. desiderata donations): after the circulation urgencies,
+// before the informational lists, and deliberately outside the catalogue-mode
+// gate closed just above, so a library that lends nothing still gets them.
+// Gated like the sidebar hook in layout.php:359 — this route is
+// AuthMiddleware(['admin','staff','standard','premium']) (web.php:1126-1131),
+// so a patron reaches this view too, and firing the hook for them would run
+// plugin callbacks and put administrative markup in their page.
+// Tags at column 0 on purpose: indenting them would emit stray whitespace and
+// the no-handler render would no longer be byte-identical to the previous one.
+if (!empty($isAdminOrStaff)) {
+    \App\Support\Hooks::do('admin.dashboard.sections');
+}
+?>
     <!-- ============================================== -->
     <!-- SECTION 7: RECENT BOOKS (Informational - Gray) -->
     <!-- ============================================== -->

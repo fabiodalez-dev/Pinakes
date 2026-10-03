@@ -157,6 +157,16 @@ class SitemapGenerator
      */
     public function saveTo(string $filePath): void
     {
+        // generate() reads the plugin state, the catalogue and the CMS pages;
+        // on a large collection that takes long enough for a plugin to be
+        // activated or removed in the meantime. Without this the publisher
+        // would then write a document describing the world as it was before
+        // that change — over a file the invalidation had just deleted
+        // precisely because it no longer described the world. Capturing the
+        // revision first and re-reading it after the write turns that race
+        // into a no-op instead of a stale publication.
+        $revisionBefore = SitemapCache::revision();
+
         $xml = $this->generate();
         $directory = dirname($filePath);
 
@@ -168,6 +178,23 @@ class SitemapGenerator
 
         if (file_put_contents($filePath, $xml) === false) {
             throw new RuntimeException("Impossibile scrivere la sitemap in {$filePath}");
+        }
+
+        // Withdraw rather than refuse to publish: the caller asked for a file
+        // and gets the same outcome an invalidation would have produced on its
+        // own — no stale file, and /sitemap.xml serving the current document on
+        // the next request. Refusing earlier would have been worse, because the
+        // work is already done by the time we can detect the change, and a
+        // caller told "failed" over a correct state would only retry into it.
+        if (SitemapCache::revision() !== $revisionBefore) {
+            // Withdraw the file THIS call wrote, not the published one: saveTo()
+            // takes an arbitrary path and the suites use a temporary file, so
+            // defaulting to publishedPath() would leave the stale document
+            // behind and delete an unrelated file instead.
+            SitemapCache::invalidate(
+                'plugin state changed while the sitemap was being generated',
+                $filePath
+            );
         }
     }
 
@@ -460,7 +487,7 @@ class SitemapGenerator
                        LIMIT 1
                    ) AS autore_principale_nome
             FROM libri l
-            WHERE l.deleted_at IS NULL
+            WHERE l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             ORDER BY l.updated_at DESC
             LIMIT {$limit}
         ";
@@ -504,7 +531,7 @@ class SitemapGenerator
             SELECT a.nome, a.created_at
             FROM autori a
             JOIN libri_autori la ON la.autore_id = a.id
-            JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+            JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY a.id, a.nome, a.created_at
             ORDER BY a.created_at DESC
             LIMIT {$limit}
@@ -557,7 +584,7 @@ class SitemapGenerator
         $sql = "
             SELECT e.nome
             FROM editori e
-            JOIN libri l ON ({$publisherMatch}) AND l.deleted_at IS NULL
+            JOIN libri l ON ({$publisherMatch}) AND l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY e.id, e.nome
             HAVING COUNT(l.id) > 0
             ORDER BY e.nome ASC
@@ -596,7 +623,7 @@ class SitemapGenerator
         $sql = "
             SELECT g.nome
             FROM generi g
-            JOIN libri l ON l.genere_id = g.id AND l.deleted_at IS NULL
+            JOIN libri l ON l.genere_id = g.id AND l.deleted_at IS NULL AND " . BookVisibility::catalogue($this->db, 'l') . "
             GROUP BY g.id, g.nome
             HAVING COUNT(l.id) > 0
             ORDER BY g.nome ASC

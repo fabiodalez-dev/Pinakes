@@ -20,6 +20,12 @@ class DashboardStats
             // diversi, a cavallo della mezzanotte i due conteggi divergevano.
             // Y-m-d validato da DateHelper: interpolazione sicura tra apici.
             $today = \App\Support\DateHelper::today();
+            // The `libri` counter below is an ADMIN counter and is deliberately
+            // UNFILTERED. BookVisibility is the public-catalogue predicate;
+            // /admin/books, the DataTables total and the export all list
+            // requests, so filtering here alone made the card and the list the
+            // operator reaches by clicking it disagree by exactly the number of
+            // wanted titles, with nothing in the UI saying so.
             $sql = "SELECT
                         (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
                         (SELECT COUNT(*) FROM utenti) AS utenti,

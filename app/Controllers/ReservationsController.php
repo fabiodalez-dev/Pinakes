@@ -655,6 +655,14 @@ class ReservationsController
      * exist or is soft-deleted. Every caller must 404 on null: without this
      * guard the method served real per-day occupancy for soft-deleted books
      * (libri queries MUST honour deleted_at IS NULL).
+     *
+     * Deliberately NOT filtered by BookVisibility. The method backs an admin
+     * calendar as well as the public one, and a member must keep seeing a
+     * commitment they already hold. A request carries zero copies by invariant
+     * (DataIntegrity clears the flag the moment a copy appears), so it reports
+     * nothing available and the loan gates refuse it on that ground — the same
+     * answer the filter would give, without hiding the record from the
+     * operator or from the reader who already has it reserved.
      */
     public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null): ?array
     {

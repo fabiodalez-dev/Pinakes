@@ -580,7 +580,12 @@ class CollaneController
         $linkedCount = 0;
         $db->begin_transaction();
         try {
-            $stmt = $db->prepare("INSERT INTO libri (titolo, collana, copie_totali, copie_disponibili, created_at, updated_at) VALUES (?, ?, 0, 0, NOW(), NOW())");
+            // Zero copies, but is_desiderata defaults to 0, so the parent work
+            // IS in the catalogue and IS harvestable — it therefore carries the
+            // stamp, or withdrawing it later would emit no OAI-PMH tombstone.
+            // "No copies" and "not catalogued" are different facts.
+            [$cataloguedCol, $cataloguedVal] = \App\Support\BookVisibility::catalogueBirth($db);
+            $stmt = $db->prepare("INSERT INTO libri (titolo, collana, copie_totali, copie_disponibili, created_at, updated_at{$cataloguedCol}) VALUES (?, ?, 0, 0, NOW(), NOW(){$cataloguedVal})");
             if (!$stmt) {
                 throw new \RuntimeException('Unable to prepare parent-work insert');
             }

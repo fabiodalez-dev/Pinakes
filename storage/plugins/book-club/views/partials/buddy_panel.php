@@ -47,7 +47,9 @@ $statusMeta = [
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="overflow-hidden">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="font-semibold truncate"><i class="fas fa-book mr-1 text-gray-500"></i><?= $e($pairing['book_title']) ?></span>
+            <?php if (!empty($pairing['book_title'])): ?>
+              <span class="font-semibold truncate"><i class="fas fa-book mr-1 text-gray-500"></i><?= $e($pairing['book_title']) ?></span>
+            <?php endif; ?>
             <span class="bc-badge <?= $statusClass ?>"><?= $e($statusLabel) ?></span>
           </div>
           <div class="bc-muted text-sm mt-1">

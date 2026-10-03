@@ -40,11 +40,17 @@ class IcsGenerator
      * Fetches all active loans and reservations from the database
      * and formats them as iCalendar events with proper escaping.
      *
+     * @param bool $catalogueOnly Drop events whose book is a request the library
+     *        does not own. Defaults to FALSE so operator-facing callers keep a
+     *        complete calendar; the anonymous /calendar/events.ics endpoint and
+     *        the publicly served generated file pass true, because the title is
+     *        written into the VEVENT summary and would then live on in the
+     *        subscriber's calendar client.
      * @return string Complete ICS file content with VCALENDAR wrapper
      */
-    public function generate(): string
+    public function generate(bool $catalogueOnly = false): string
     {
-        $events = $this->fetchEvents();
+        $events = $this->fetchEvents($catalogueOnly);
 
         $body = '';
         foreach ($events as $event) {
@@ -64,6 +70,12 @@ class IcsGenerator
      */
     public function generateForLoan(int $loanId): ?string
     {
+        // Deliberately NOT filtered on BookVisibility: this endpoint is gated by
+        // a per-loan HMAC token and is only ever reached by the borrower of that
+        // exact loan, from the confirmation e-mail. Someone who already holds a
+        // loan on a record must keep being able to add it to their calendar,
+        // even in the legacy case of a flagged title that still carries one.
+
         $stmt = $this->db->prepare("SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.updated_at,
                        l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome
                 FROM prestiti p
@@ -131,9 +143,9 @@ class IcsGenerator
      * @param string $path Absolute path where the .ics file will be saved
      * @return bool True if file was written successfully, false otherwise
      */
-    public function saveToFile(string $path): bool
+    public function saveToFile(string $path, bool $catalogueOnly = false): bool
     {
-        $content = $this->generate();
+        $content = $this->generate($catalogueOnly);
 
         // Ensure directory exists
         $dir = dirname($path);
@@ -169,17 +181,20 @@ class IcsGenerator
      *
      * @return array<int, array{uid: string, title: string, description: string, start: string, end: string, type: string, status: string, updated: string}> Array of event data
      */
-    private function fetchEvents(): array
+    private function fetchEvents(bool $catalogueOnly = false): array
     {
         $events = [];
         $today = DateHelper::today();
+        $visible = $catalogueOnly
+            ? ' AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
+            : '';
 
         // Fetch active/scheduled loans
         $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            u.email, p.updated_at
                     FROM prestiti p
-                    JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                    JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL{$visible}
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
@@ -232,7 +247,7 @@ class IcsGenerator
                           l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                           u.email, r.updated_at
                    FROM prenotazioni r
-                   JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
+                   JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL{$visible}
                    JOIN utenti u ON r.utente_id = u.id
                    WHERE r.stato = 'attiva'
                      AND COALESCE(r.data_fine_richiesta, DATE(r.data_scadenza_prenotazione), r.data_inizio_richiesta, DATE(r.data_prenotazione)) >= ?

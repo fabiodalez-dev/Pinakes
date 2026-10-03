@@ -148,8 +148,17 @@ test.describe.serial('Public Frontend', () => {
   });
 
   test('Test 4: Author archive page shows books', async () => {
-    // Get an author that has books (autori table has single 'nome' field for full name)
-    const authorData = dbQuery(`SELECT a.id, a.nome FROM autori a INNER JOIN libri_autori la ON a.id = la.autore_id INNER JOIN libri l ON la.libro_id = l.id AND l.deleted_at IS NULL LIMIT 1`);
+    // Get an author that has a book IN THE CATALOGUE (autori table has single
+    // 'nome' field for full name). A book the library has flagged as wanted
+    // (desiderata plugin) is deliberately kept off the public author archive,
+    // so an author whose only book is a request legitimately shows none — and
+    // picking one made this test fail on any installation with requests.
+    // The column is probed first because it only exists once the plugin has
+    // been activated; filtering on it blindly would make the query fail, the
+    // test skip, and the skip read as a pass.
+    const wantedColumn = dbQuery(`SHOW COLUMNS FROM libri LIKE 'is\\_desiderata'`);
+    const catalogueOnly = wantedColumn ? ' AND l.is_desiderata = 0' : '';
+    const authorData = dbQuery(`SELECT a.id, a.nome FROM autori a INNER JOIN libri_autori la ON a.id = la.autore_id INNER JOIN libri l ON la.libro_id = l.id AND l.deleted_at IS NULL${catalogueOnly} LIMIT 1`);
     test.skip(!authorData, 'No authors with books found');
 
     const [authorId, nome] = authorData.split('\t');

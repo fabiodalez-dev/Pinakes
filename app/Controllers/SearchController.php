@@ -22,6 +22,15 @@ class SearchController
         // and each query word may match either the real name or the pseudonym so an
         // author is findable by pen name.
         $label = \App\Support\AuthorName::displaySql('autori') . ' AS label';
+        // `nome` travels alongside the display label because a caller that
+        // resolves people by name — the bulk field editor (#380) — would
+        // otherwise create a second author literally called "Pen name (Real
+        // name)". Pickers that bind on the id simply ignore the extra key.
+        // Life dates tell homonyms apart in the staff article-author picker, but
+        // this route is public: only operator sessions (re-validated by
+        // SessionRoleRefreshMiddleware) receive them, as on the admin-only /api/autori.
+        $lifeDates = $this->isOperatorSession($request) ? ', data_nascita, data_morte' : '';
+        $select = "id, nome{$lifeDates}, {$label}";
         if ($q !== '') {
             // Split query into words — each word must match (AND logic)
             $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
@@ -35,7 +44,7 @@ class SearchController
                 $params[] = $like;
                 $types .= 'ss';
             }
-            $sql = "SELECT id, {$label} FROM autori WHERE " . implode(' AND ', $conditions)
+            $sql = "SELECT {$select} FROM autori WHERE " . implode(' AND ', $conditions)
                 . " ORDER BY " . \App\Support\AuthorName::preferredSql('autori');
             $stmt = $db->prepare($sql);
             $stmt->bind_param($types, ...$params);
@@ -43,13 +52,15 @@ class SearchController
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
+                $r['nome'] = HtmlHelper::decode((string) $r['nome']);
                 $rows[] = $r;
             }
         } else {
             // Return all authors (for Choices.js initial load)
-            $res = $db->query("SELECT id, {$label} FROM autori ORDER BY " . \App\Support\AuthorName::preferredSql('autori'));
+            $res = $db->query("SELECT {$select} FROM autori ORDER BY " . \App\Support\AuthorName::preferredSql('autori'));
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
+                $r['nome'] = HtmlHelper::decode((string) $r['nome']);
                 $rows[] = $r;
             }
         }
@@ -150,7 +161,7 @@ class SearchController
                        l.copie_disponibili,
                        l.copie_totali
                 FROM libri l
-                WHERE l.deleted_at IS NULL AND {$cond['sql']}
+                WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . " AND {$cond['sql']}
                 ORDER BY {$rel['sql']}
                 LIMIT " . self::AJAX_BOOK_RESULT_LIMIT . "
             ");
@@ -192,14 +203,51 @@ class SearchController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    /**
+     * Is the current session an operator one (admin or staff)?
+     *
+     * /api/search/unified takes no AUTHORISING middleware — unlike its sibling
+     * /api/search/utenti, which chains AdminAuthMiddleware — and is reached
+     * both from the back-office quick-search and from anonymous callers
+     * (plugins publish their own sources into it through the
+     * `search.unified.sources` hook, and the archives E2E suite drives it
+     * logged out). So the endpoint stays open and the RESULTS are scoped
+     * instead: a wanted title is an operator-only record HERE and is disclosed
+     * only to a session that could edit it anyway.
+     *
+     * "Here" is load-bearing. The public header preview
+     * (searchBooksWithDetails) runs BookVisibility::discoverable(), which a
+     * plugin may widen so a visitor searching by name learns the library is
+     * looking for that title. This gate is deliberately NOT widened: unified
+     * search links to /admin/books/{id}, so widening it would hand anonymous
+     * callers a back-office URL.
+     *
+     * The verdict is READ FROM THE REQUEST, not from $_SESSION.
+     * SessionRoleRefreshMiddleware re-validated it against the DB for this
+     * request; reading the session here would throw that away and go back to
+     * the login-time snapshot, which keeps admitting a demoted or suspended
+     * operator until the session expires (CWE-613). Absent attribute means
+     * false, so a route that forgets the middleware discloses nothing.
+     */
+    private function isOperatorSession(Request $request): bool
+    {
+        return $request->getAttribute(
+            \App\Middleware\SessionRoleRefreshMiddleware::ATTRIBUTE,
+            false
+        ) === true;
+    }
+
     public function unifiedSearch(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $results = [];
 
         if ($q !== '') {
-            // Search books by ISBN, EAN, title, subtitle
-            $bookResults = $this->searchBooks($db, $q);
+            // Search books by ISBN, EAN, title, subtitle.
+            // The quick-search box links to url('/admin/books/{id}'), so an
+            // operator must be able to find a title they have just recorded as
+            // wanted; everyone else gets the public catalogue.
+            $bookResults = $this->searchBooks($db, $q, $this->isOperatorSession($request));
             $results = array_merge($results, $bookResults);
 
             // Search authors
@@ -258,7 +306,14 @@ class SearchController
         return $response->withHeader('Content-Type', 'application/json');
     }
     
-    private function searchBooks(mysqli $db, string $query): array
+    /**
+     * @param bool $includeRequests TRUE only for an operator session: wanted
+     *                              titles (desiderata) join the results so the
+     *                              back-office quick-search can find a record
+     *                              that has just been created. Defaults to
+     *                              FALSE, which is the public catalogue.
+     */
+    private function searchBooks(mysqli $db, string $query, bool $includeRequests = false): array
     {
         $results = [];
         $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $query);
@@ -277,8 +332,14 @@ class SearchController
             'l.',
             self::AJAX_RELEVANCE_WORD_LIMIT
         );
+        $visibility = $includeRequests ? '1=1' : \App\Support\BookVisibility::catalogue($db, 'l');
+        // Reported, never used to select: the predicate above decides who sees
+        // a wanted title, this column only lets the operator quick-search say
+        // so on a row it was already allowed to return.
+        $wantedColumn = \App\Support\BookVisibility::hasDesiderata($db) ? 'l.is_desiderata' : '0';
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
+                   {$wantedColumn} AS is_desiderata,
                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
                             ORDER BY (la.ruolo = 'principale') DESC,
                                      COALESCE(la.ordine_credito, 0), a.nome SEPARATOR ', ')
@@ -286,7 +347,7 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND {$cond['sql']}
+            WHERE l.deleted_at IS NULL AND " . $visibility . " AND {$cond['sql']}
             ORDER BY {$rel['sql']} LIMIT 10
         ");
         $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
@@ -319,6 +380,7 @@ class SearchController
                 'identifier' => $identifier,
                 'isbn' => $isbn,
                 'type' => 'book',
+                'wanted' => (int) ($row['is_desiderata'] ?? 0) === 1,
                 'url' => url('/admin/books/' . (int)$row['id'])
             ];
         }
@@ -409,14 +471,19 @@ class SearchController
             'l.',
             self::AJAX_RELEVANCE_WORD_LIMIT
         );
+        // The public header preview is a visitor asking for a title by name —
+        // the one moment a wanted book should answer. Without the desiderata
+        // plugin discoverable() IS catalogue(), so this is today's query.
+        $wantedColumn = \App\Support\BookVisibility::hasDesiderata($db) ? 'l.is_desiderata' : '0';
         $stmt = $db->prepare("
             SELECT l.id, l.titolo, l.sottotitolo, l.copertina_url, l.anno_pubblicazione,
+                   {$wantedColumn} AS is_desiderata,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
             FROM libri l
-            WHERE l.deleted_at IS NULL AND {$cond['sql']}
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::discoverable($db, 'l') . " AND {$cond['sql']}
             ORDER BY {$rel['sql']} LIMIT 8
         ");
         $stmt->bind_param($cond['types'] . $rel['types'], ...array_merge($cond['params'], $rel['params']));
@@ -438,6 +505,7 @@ class SearchController
                 'year' => $row['anno_pubblicazione'],
                 'cover' => $absoluteCoverUrl,
                 'type' => 'book',
+                'wanted' => (int) ($row['is_desiderata'] ?? 0) === 1,
                 'url' => book_url([
                     'id' => $row['id'],
                     'titolo' => $row['titolo'],
@@ -466,7 +534,7 @@ class SearchController
 
         $sql = "
             SELECT a.id, a.nome, a.pseudonimo, a.biografia,
-                   (SELECT COUNT(DISTINCT la2.libro_id) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
+                   (SELECT COUNT(DISTINCT la2.libro_id) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l2') . ") as libro_count
             FROM autori a
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY " . \App\Support\AuthorName::preferredSql('a') . " LIMIT 4
@@ -516,7 +584,7 @@ class SearchController
             SELECT e.id, e.nome, e.indirizzo,
                    (SELECT COUNT(*) FROM libri l2
                     WHERE (l2.editore_id = e.id{$exists})
-                          AND l2.deleted_at IS NULL) as libro_count
+                          AND l2.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l2') . ") as libro_count
             FROM editori e
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY e.nome LIMIT 3

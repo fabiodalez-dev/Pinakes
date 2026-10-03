@@ -388,7 +388,11 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
       await uppyInput.setInputFiles(tmpPng);
       await expect(page.locator('#emt-logo-preview-image')).toBeVisible({ timeout: 10000 });
       await page.locator('form button[type="submit"]').first().click();
-      await page.waitForURL(/\/admin\/periodicals$/, { timeout: 15000 });
+      // Saving a masthead returns to the mastheads list explicitly: in Simple
+      // mode the bare path bounces on to the articles list, so the operator
+      // would lose the list they were working in. Pinned, not loosened — a
+      // revert to the bare target has to fail here.
+      await page.waitForURL(/\/admin\/periodicals\?view=titles/, { timeout: 15000 });
     } finally {
       fs.rmSync(tmpPng, { force: true });
     }

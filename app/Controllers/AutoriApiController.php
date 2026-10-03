@@ -170,6 +170,23 @@ class AutoriApiController
         }
 
         $selectNaz = $colNaz !== null ? "a.`$colNaz` AS nazionalita" : "'' AS nazionalita";
+        // The libri_count below is deliberately UNFILTERED by BookVisibility,
+        // following the operator-counts rule: /admin/books, DashboardStats and
+        // the header quick-stat all count every record, requests (desiderata)
+        // among them. Filtering here alone would make the "N. Libri" column
+        // disagree with the list an operator reaches by clicking it, by exactly
+        // the number of wanted titles, with nothing on screen explaining the gap.
+        // The public-facing twin, SearchController::searchAuthorsWithDetails(),
+        // is the one that carries the catalogue filter.
+        //
+        // "Operator surface" is now an enforced audience and not just an
+        // intended one: GET /api/autori used to be the one registration in its
+        // block chaining no AdminAuthMiddleware while its bulk-delete and
+        // bulk-export siblings did, which left this SELECT's biografia,
+        // sito_web and life dates readable by anyone (CWE-306). The route
+        // carries the middleware now — the fix belonged there, not in this
+        // count, because filtering the count would have papered over the
+        // exposure while breaking the operator's arithmetic.
         $sql_prepared = "SELECT a.id, a.nome, a.pseudonimo, a.data_nascita, a.data_morte, a.biografia, a.sito_web,
                        $selectNaz,
                        (SELECT COUNT(DISTINCT la.libro_id)
@@ -285,6 +302,14 @@ class AutoriApiController
         $db->begin_transaction();
 
         try {
+            // Same pre-delete step as AuthorRepository::delete(): linked article
+            // credits keep the author's name as text instead of being left to
+            // the FK's ON DELETE SET NULL with whatever name they were saved with.
+            $articleAuthors = new \App\Services\ArticleAuthorService($db);
+            foreach ($cleanIds as $authorId) {
+                $articleAuthors->beforeDelete((int) $authorId);
+            }
+
             // Delete author-book relationships first
             $delRelSql = "DELETE FROM libri_autori WHERE autore_id IN ($placeholders)";
             $delRelStmt = $db->prepare($delRelSql);

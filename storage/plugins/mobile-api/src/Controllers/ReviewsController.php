@@ -354,10 +354,15 @@ class ReviewsController
      * Helpers
      * ------------------------------------------------------------------- */
 
-    /** Book exists and is not soft-deleted (project rule: deleted_at IS NULL). */
+    /**
+     * Book exists, is not soft-deleted (project rule: deleted_at IS NULL) and
+     * is a holding rather than a request: a patron who knows the id must not be
+     * able to read or post reviews for a book the library does not own, whose
+     * public page answers 404.
+     */
     private function bookExists(int $bookId): bool
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+        $stmt = $this->db->prepare('SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($this->db) . ' LIMIT 1');
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
         $found = $stmt->get_result()->num_rows > 0;

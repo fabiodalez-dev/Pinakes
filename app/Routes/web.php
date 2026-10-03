@@ -28,6 +28,7 @@ use App\Controllers\LanguageController;
 use App\Controllers\ReservationsAdminController;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminAuthMiddleware;
+use App\Middleware\SessionRoleRefreshMiddleware;
 use App\Support\RouteTranslator;
 use App\Support\I18n;
 
@@ -682,7 +683,7 @@ return function (App $app): void {
     $app->post('/admin/settings/cookie-banner', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
-        return $controller->updateCookieBannerTexts($request, $response, $db);
+        return $controller->updateCookieBannerSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/templates/{template}', function ($request, $response, $args) use ($app) {
@@ -1008,6 +1009,14 @@ return function (App $app): void {
         return $controller->delete($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Admin CMS index. Declared before /admin/cms/{slug} so the bare address
+    // lists the content instead of being read as a page slug.
+    $app->get('/admin/cms[/]', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\CmsController();
+        return $controller->index($request, $response, $db, $args);
+    })->add(new AdminAuthMiddleware());
+
     // Admin CMS routes - Homepage
     $app->get('/admin/cms/home', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -1133,6 +1142,11 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $count = 0;
         if ($db) {
+            // Deliberately UNFILTERED by BookVisibility. This feeds the admin
+            // layout's header quick-stat, so it follows the same rule as
+            // DashboardStats and /admin/books: operator surfaces count every
+            // record, requests included. Filtering only this one would make the
+            // header disagree with the dashboard card next to it.
             $res = $db->query("SELECT COUNT(*) AS c FROM libri WHERE deleted_at IS NULL");
             if ($res) {
                 $count = (int) ($res->fetch_assoc()['c'] ?? 0);
@@ -2068,7 +2082,7 @@ return function (App $app): void {
     $app->get('/api/books/{id:\\d+}/availability', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $bookId = (int) $args['id'];
-        $data = ['available' => false, 'copies_available' => 0, 'copies_total' => 0, 'next_due_date' => null, 'queue' => 0];
+        $data = ['available' => false, 'copies_available' => 0, 'copies_total' => 0, 'copies_owned' => 0, 'copies_out_of_circulation' => 0, 'next_due_date' => null, 'queue' => 0];
         // Copies info
         $stmt = $db->prepare("SELECT copie_disponibili, copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
         $stmt->bind_param('i', $bookId);
@@ -2078,7 +2092,13 @@ return function (App $app): void {
         if ($row = $res->fetch_assoc()) {
             $bookFound = true;
             $data['copies_available'] = (int) ($row['copie_disponibili'] ?? 0);
+            // copies_total stays the lending capacity (copies in circulation);
+            // copies_owned is what the catalogue publishes, so a book whose only
+            // copy is under maintenance reads "0 / 1", not "0 / 0" (#426).
             $data['copies_total'] = (int) ($row['copie_totali'] ?? 0);
+            $holdings = \App\Support\CopyHoldings::forBook($db, $bookId);
+            $data['copies_owned'] = \App\Support\CopyHoldings::publishedTotal($holdings, $data['copies_total']);
+            $data['copies_out_of_circulation'] = $holdings['out'] ?? 0;
         }
         $stmt->close();
         if (!$bookFound) {
@@ -2220,11 +2240,16 @@ return function (App $app): void {
         return $controller->list($request, $response, $db);
     })->add(new AdminAuthMiddleware());
     // API Autori (server-side DataTables)
+    // Admin-only: this feed returns biografia, sito_web and the life dates,
+    // and it was the one registration in its block chaining no auth while its
+    // bulk-delete and bulk-export siblings did (CWE-306). Its only consumer is
+    // the /admin/authors DataTables — the book form's author picker is a
+    // different endpoint, /api/search/autori — so gating it costs no caller.
     $app->get('/api/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\AutoriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
 
     // API Autori - Bulk Delete
     $app->post('/api/autori/bulk-delete', function ($request, $response) use ($app) {
@@ -2271,11 +2296,13 @@ return function (App $app): void {
         return \App\Support\MergeHelper::handleMergeRequest($request, $response, $db, 'editori');
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Public picker feed; SessionRoleRefreshMiddleware re-validates the operator
+    // claim that decides whether author life dates are included (CWE-613).
     $app->get('/api/search/autori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->authors($request, $response, $db);
-    });
+    })->add(new SessionRoleRefreshMiddleware(null, $app->getContainer()));
     $app->get('/api/search/editori', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
@@ -2419,11 +2446,18 @@ return function (App $app): void {
         return $controller->search($request, $response, $db);
     });
 
+    // Stays open — plugins publish sources into it through the
+    // `search.unified.sources` hook and the archives suite drives it logged
+    // out — but its results are scoped by operator role, and a role read on a
+    // route with no middleware is the login-time snapshot with nothing
+    // refreshing it (CWE-613). SessionRoleRefreshMiddleware re-validates the
+    // claim against the DB and lets everyone through; AdminAuthMiddleware
+    // cannot go here because it would answer 401 to the anonymous callers.
     $app->get('/api/search/unified', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->unifiedSearch($request, $response, $db);
-    });
+    })->add(new SessionRoleRefreshMiddleware(null, $app->getContainer()));
     $app->get('/api/search/preview', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
@@ -2506,6 +2540,13 @@ return function (App $app): void {
         $controller = new \App\Controllers\LibriApiController();
         $db = $app->getContainer()->get('db');
         return $controller->bulkDelete($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Manual bulk edit of one field across the selection (issue #380)
+    $app->post('/api/libri/bulk-edit', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\LibriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkEdit($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API Increase copies of a book (admin only)
@@ -3263,7 +3304,10 @@ return function (App $app): void {
         try {
             $db = $app->getContainer()->get('db');
             $generator = new \App\Support\IcsGenerator($db);
-            $content = $generator->generate();
+            // Anonymous endpoint: the book title goes into the VEVENT summary
+            // and is retained by the subscriber's calendar client, so wanted
+            // titles must not be published here.
+            $content = $generator->generate(true);
 
             $response->getBody()->write($content);
             return $response

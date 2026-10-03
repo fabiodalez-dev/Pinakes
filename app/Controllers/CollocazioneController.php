@@ -131,10 +131,18 @@ class CollocazioneController
             return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
         }
 
-        // Delete scaffale
+        // Delete scaffale. The row count is checked, not assumed: a stale page
+        // or a double click deletes nothing, and announcing "deleted" for a
+        // row that was already gone hides the double submission.
         $stmt = $db->prepare("DELETE FROM scaffali WHERE id = ?");
         $stmt->bind_param('i', $id);
         $stmt->execute();
+        $deleted = $stmt->affected_rows > 0;
+        $stmt->close();
+        if (!$deleted) {
+            $_SESSION['error_message'] = __('Scaffale non trovato: potrebbe essere già stato eliminato.');
+            return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
+        }
 
         $_SESSION['success_message'] = __('Scaffale eliminato');
         return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
@@ -177,10 +185,19 @@ class CollocazioneController
             return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
         }
 
-        // Delete mensola
+        // Delete mensola, and only go on if a row actually went. shelf.deleted
+        // tells plugins the shelf is GONE so they can drop derived data; firing
+        // it for an id that matched nothing (a stale page, a double click)
+        // would have them clean up after a deletion that never happened.
         $stmt = $db->prepare("DELETE FROM mensole WHERE id = ?");
         $stmt->bind_param('i', $id);
         $stmt->execute();
+        $deleted = $stmt->affected_rows > 0;
+        $stmt->close();
+        if (!$deleted) {
+            $_SESSION['error_message'] = __('Mensola non trovata: potrebbe essere già stata eliminata.');
+            return $response->withHeader('Location', url('/admin/placement'))->withStatus(302);
+        }
 
         // Hook: shelf.deleted (action) — args: int $mensolaId. Emitted after
         // the row is gone so plugins can refresh caches/derived data. Never

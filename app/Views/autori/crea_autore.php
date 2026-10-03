@@ -129,6 +129,12 @@
         </div>
       </div>
 
+      <div class="mb-6">
+        <label for="gnd_id" class="form-label">GND</label>
+        <input id="gnd_id" name="gnd_id" class="form-input" maxlength="64" value="<?= htmlspecialchars((string)($autore['gnd_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="118559792">
+        <p class="text-xs text-gray-500 mt-1"><?= __('Identificativo GND confermato per questa persona, oppure URL d-nb.info/gnd. Facoltativo.') ?></p>
+      </div>
+
       <!-- Submit Section -->
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <a href="<?= htmlspecialchars(url('/admin/authors'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary order-2 sm:order-1 text-center">

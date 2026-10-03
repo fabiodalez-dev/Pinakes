@@ -98,6 +98,13 @@ $tmp = sys_get_temp_dir() . '/zz_backup_retention_' . bin2hex(random_bytes(4));
 mkdir($tmp, 0777, true);
 $cleanup = static function () use ($tmp, &$origRetention, &$setRetention): void {
     foreach (glob($tmp . '/*') ?: [] as $f) {
+        if (is_dir($f)) {
+            foreach (glob($f . '/*') ?: [] as $inner) {
+                @unlink($inner);
+            }
+            @rmdir($f);
+            continue;
+        }
         @unlink($f);
     }
     @rmdir($tmp);
@@ -193,6 +200,192 @@ $kept = count(glob($tmp . '/backup_*.zip') ?: []);
 $check($kept === BackupManager::DEFAULT_RETENTION,
     'the default retention applies when the setting cannot be read (kept ' . $kept . ')');
 
+echo "E. the legacy directory format is rotated too\n";
+// Pre-0.7.x updates left a directory holding a single database.sql. Nothing
+// creates them any more, but listBackups() still shows them as backups — and the
+// rotation only ever globbed backup_*.zip, so they accumulated forever. One
+// production install had 60 of them, 17 MB, spanning six months.
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+
+/** Seed n legacy update_ directories, oldest first. */
+$seedLegacy = static function (int $n) use ($tmp): array {
+    $paths = [];
+    for ($i = 0; $i < $n; $i++) {
+        $d = $tmp . '/update_2025-12-' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) . '_000000';
+        @mkdir($d, 0775, true);
+        file_put_contents($d . '/database.sql', 'x');
+        touch($d, time() - ((100 - $i) * 3600));
+        $paths[] = $d;
+    }
+    return $paths;
+};
+
+$legacy = $seedLegacy(8);
+$zips = $seed(4);
+$newest = end($zips);
+$manager = $makeManager($tmp, '5');
+$prune($manager, $newest);
+
+$survivingZips = glob($tmp . '/backup_*.zip') ?: [];
+$survivingDirs = glob($tmp . '/update_*', GLOB_ONLYDIR) ?: [];
+$check(count($survivingZips) + count($survivingDirs) === 5,
+    'both formats share one retention pool (got ' . count($survivingZips) . ' zip + ' . count($survivingDirs) . ' dir)');
+$check(in_array($newest, $survivingZips, true), 'the backup just written still survives');
+// The zips were seeded newer than every legacy directory, so with five slots the
+// four zips plus the single newest directory must be what remains.
+$check(count($survivingZips) === 4, 'the four recent archives all survive');
+$check($survivingDirs === [end($legacy)], 'only the newest legacy directory survives, by age');
+$check(!is_dir($legacy[0]), 'a rotated legacy directory is removed with its contents');
+
+echo "F. hand-placed directories are never touched\n";
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+$seedLegacy(6);
+// Same discipline as the archive pattern: only the EXACT generated shape is a
+// candidate. A directory an operator parked here by hand must survive whatever
+// the retention says.
+$manual = $tmp . '/update_migrazione_manuale';
+@mkdir($manual, 0775, true);
+file_put_contents($manual . '/database.sql', 'x');
+touch($manual, time() - (999 * 3600)); // older than every seeded one
+$zips = $seed(2);
+$manager = $makeManager($tmp, '2');
+$prune($manager, end($zips));
+$check(is_dir($manual), 'a hand-named directory is never a rotation candidate');
+$check(is_file($manual . '/database.sql'), 'and its contents are left alone');
+
+echo "G. a backup the operator asked for is never rotated away\n";
+// The manual button and the automatic pre-update copy used to produce identical
+// names, so ten automatic backups would evict a restore point someone created on
+// purpose — usually right before doing something risky. The origin now lives in
+// the filename, which is what the rotation can see from a glob.
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+
+$nameFor = new ReflectionMethod(BackupManager::class, 'backupFileName');
+$nameFor->setAccessible(true);
+
+$manual = $tmp . '/' . $nameFor->invoke(null, '2025-01-01_000000', BackupManager::ORIGIN_MANUAL);
+$safety = $tmp . '/' . $nameFor->invoke(null, '2025-01-02_000000', BackupManager::ORIGIN_SAFETY);
+foreach ([$manual, $safety] as $i => $path) {
+    file_put_contents($path, 'x');
+    touch($path, time() - ((900 - $i) * 3600)); // older than every automatic one
+}
+
+$autos = $seed(12);
+$manager = $makeManager($tmp, '3');
+$prune($manager, end($autos));
+
+$check(is_file($manual), 'a backup created from the button survives the rotation');
+$check(is_file($safety), 'the safety copy taken before a restore survives too');
+$survivingAuto = array_values(array_filter(glob($tmp . '/backup_*.zip') ?: [],
+    static fn(string $f): bool => !str_contains($f, '_manual.') && !str_contains($f, '_safety.')));
+$check(count($survivingAuto) === 3,
+    'the automatic ones are still rotated to the configured count (got ' . count($survivingAuto) . ')');
+// And they must not consume the quota either: the retention counts automatic
+// copies, so a hoard of manual ones cannot starve the rolling window.
+$check(count($survivingAuto) === 3 && is_file($manual) && is_file($safety),
+    'preserved backups do not consume rotation slots');
+
+echo "H. the origin survives a round trip through the list\n";
+$listed = $manager->listBackups();
+$byName = [];
+foreach ($listed as $row) {
+    $byName[$row['name']] = $row;
+}
+$check(($byName[basename($manual)]['origin'] ?? null) === BackupManager::ORIGIN_MANUAL,
+    'the list reports a manual backup as manual');
+$check(($byName[basename($safety)]['origin'] ?? null) === BackupManager::ORIGIN_SAFETY,
+    'the list reports the safety copy as such');
+$anAuto = basename((string) end($survivingAuto));
+$check(($byName[$anAuto]['origin'] ?? null) === BackupManager::ORIGIN_AUTO,
+    'an archive with no origin recorded reads as automatic, which is what it was');
+// The suffix must not leak into the date shown to the operator.
+$check(!str_contains((string) ($byName[basename($manual)]['date'] ?? ''), 'manual'),
+    'the origin suffix stays out of the displayed date');
+
+echo "I. a directory wearing the name but not the content is left alone\n";
+foreach (glob($tmp . '/*') ?: [] as $f) {
+    if (is_dir($f)) {
+        foreach (glob($f . '/*') ?: [] as $inner) { @unlink($inner); }
+        @rmdir($f);
+    } else {
+        @unlink($f);
+    }
+}
+// A generated legacy backup IS its database.sql. A directory that matches the
+// name but has no dump is something else wearing our shape — and this rotation
+// deletes recursively, so getting it wrong destroys whatever is inside.
+$impostor = $tmp . '/update_2019-03-03_030303';
+@mkdir($impostor, 0775, true);
+file_put_contents($impostor . '/note.txt', 'roba mia');
+touch($impostor, time() - (999 * 3600)); // oldest of all: first to go if eligible
+$seedLegacy(4);
+$zips = $seed(2);
+$manager = $makeManager($tmp, '2');
+$prune($manager, end($zips));
+$check(is_dir($impostor), 'a legacy-named directory without database.sql is not a rotation candidate');
+$check(is_file($impostor . '/note.txt'), 'and whatever it contained is still there');
+
+// The harder impostor: the right name AND a database.sql, plus something else.
+// Checking only for the dump would reclaim it, and deleteDirectory() is
+// recursive — the operator's note would go with it. A generated legacy backup
+// holds the dump and nothing more.
+$mixed = $tmp . '/update_2019-02-02_020202';
+@mkdir($mixed, 0775, true);
+file_put_contents($mixed . '/database.sql', '-- dump');
+file_put_contents($mixed . '/note.txt', 'da non perdere');
+touch($mixed, time() - (1000 * 3600)); // older still than the impostor above
+$seedLegacy(4);
+$zips = $seed(2);
+$manager = $makeManager($tmp, '2');
+$prune($manager, end($zips));
+$check(is_dir($mixed), 'a legacy directory with anything beside database.sql is not a rotation candidate');
+$check(is_file($mixed . '/note.txt') && is_file($mixed . '/database.sql'), 'and both of its files are still there');
+
+echo "J. a newly written preserved backup does not consume automatic slots\n";
+foreach ([BackupManager::ORIGIN_MANUAL, BackupManager::ORIGIN_SAFETY, BackupManager::ORIGIN_UPLOAD] as $origin) {
+    $originDir = $tmp . '/origin_' . $origin;
+    mkdir($originDir);
+    $autos = [];
+    for ($i = 1; $i <= 3; $i++) {
+        $auto = $originDir . '/' . $nameFor->invoke(null, '2026-01-0' . $i . '_000000', BackupManager::ORIGIN_AUTO);
+        file_put_contents($auto, 'x');
+        touch($auto, time() - (4 - $i) * 3600);
+        $autos[] = $auto;
+    }
+    $preserved = $originDir . '/' . $nameFor->invoke(null, '2026-02-01_000000', $origin);
+    file_put_contents($preserved, 'x');
+    $manager = $makeManager($originDir, '1');
+    $prune($manager, $preserved);
+    $check(is_file(end($autos)), $origin . ': the newest automatic backup survives at retention 1');
+    $check(!is_file($autos[0]) && !is_file($autos[1]), $origin . ': older automatic backups still rotate');
+    $check(is_file($preserved), $origin . ': the newly written preserved backup survives');
+}
+
+// Teardown belongs at the END, after the last section. It restores the SHARED
+// system_settings.retention_count that $makeManager() overwrites — leave it and
+// the next suite to run rotates at whatever number this file last set.
 $cleanup();
+
 echo PHP_EOL . "Passed: {$passed}   Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

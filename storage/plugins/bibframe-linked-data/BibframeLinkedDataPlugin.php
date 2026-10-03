@@ -881,7 +881,8 @@ class BibframeLinkedDataPlugin
                    ORDER BY (la2.ruolo = \'principale\') DESC,
                             la2.ordine_credito IS NULL, la2.ordine_credito, la2.autore_id LIMIT 1
                )
-              WHERE l.id = ? AND l.deleted_at IS NULL'
+              WHERE l.id = ? AND l.deleted_at IS NULL
+                AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l') // a requested title is not a holding
         );
         if ($stmt === false) { return null; }
         $stmt->bind_param('i', $id);

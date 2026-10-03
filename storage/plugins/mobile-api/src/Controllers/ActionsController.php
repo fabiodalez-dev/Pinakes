@@ -395,6 +395,7 @@ final class ActionsController
                             ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1) AS autore
                     FROM wishlist w
                     JOIN libri l ON l.id = w.libro_id AND l.deleted_at IS NULL
+                        AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
                     WHERE w.utente_id = ?
                     ORDER BY w.id DESC";
 
@@ -435,9 +436,13 @@ final class ActionsController
         }
 
         try {
-            // Validate the book exists and is not soft-deleted before inserting —
-            // mirrors UserWishlistController::toggle's guard. Idempotent add.
-            $check = $this->db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+            // Validate the book exists, is not soft-deleted and is a holding
+            // rather than a request, before inserting — mirrors
+            // UserWishlistController::toggle's guard. Idempotent add.
+            // Without the second half the app could keep creating favourites
+            // whose own detail endpoint answers 404, and register a push
+            // watcher on a book the library does not own.
+            $check = $this->db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL AND ' . \App\Support\BookVisibility::catalogue($this->db) . ' LIMIT 1');
             if ($check === false) {
                 return ResponseEnvelope::error($response, 'internal_error', __('Operazione non disponibile.'), 500);
             }

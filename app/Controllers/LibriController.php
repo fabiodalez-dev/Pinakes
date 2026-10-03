@@ -399,6 +399,7 @@ class LibriController
         }
 
         ob_start();
+        $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
         $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName];
         // extract($data);
         require __DIR__ . '/../Views/libri/index.php';
@@ -623,6 +624,7 @@ class LibriController
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
+        $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
@@ -1297,6 +1299,8 @@ class LibriController
                 $fields['collocazione'] = $fields['collocazione'] ?? '';
             }
 
+            $fields = \App\Support\Hooks::apply('book.form.save', $fields, [$data, null]);
+
             // Plugin hook: Before book save
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
 
@@ -1477,6 +1481,7 @@ class LibriController
         $generi = $taxRepo->genres();
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
+        $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
@@ -1495,6 +1500,12 @@ class LibriController
      */
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        // Snapshotted before any work, so the success message at the end can
+        // tell an error THIS request raised (a cover/plugin step writing the
+        // flash) from a stale one left by an earlier request that nobody has
+        // rendered yet — the latter must not swallow "book updated".
+        $errorBeforeUpdate = $_SESSION['error_message'] ?? null;
+
         $data = $this->parseRequestBody($request);
         if ($data === null) {
             $_SESSION['error_message'] = __('Impossibile leggere i dati del modulo. Riprova.');
@@ -1979,6 +1990,8 @@ class LibriController
                 }
             }
 
+            $fields = \App\Support\Hooks::apply('book.form.save', $fields, [$data, $id]);
+
             // Plugin hook: Before book save (update)
             \App\Support\Hooks::do('book.save.before', [$fields, $id]);
 
@@ -2065,7 +2078,9 @@ class LibriController
                 source: 'manual'
             );
 
-            $_SESSION['success_message'] = __('Libro aggiornato con successo!');
+            if (($_SESSION['error_message'] ?? null) === $errorBeforeUpdate) {
+                $_SESSION['success_message'] = __('Libro aggiornato con successo!');
+            }
 
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
 
@@ -3466,6 +3481,15 @@ class LibriController
 
         $whereClauses[] = "l.deleted_at IS NULL";
 
+        // The LibraryThing column set is a third party's fixed schema with no
+        // place for the request flag, so a wanted title exported there would
+        // arrive at the destination indistinguishable from a holding. Excluding
+        // it is the honest representation; the standard CSV carries the flag
+        // instead (see $exportsDesiderata below).
+        if ($format === 'librarything') {
+            $whereClauses[] = \App\Support\BookVisibility::catalogue($db, 'l');
+        }
+
         $query .= " WHERE " . implode(' AND ', $whereClauses);
 
         $query .= " GROUP BY l.id ORDER BY l.id DESC";
@@ -3506,6 +3530,10 @@ class LibriController
         // UTF-8 BOM
         fwrite($stream, "\xEF\xBB\xBF");
 
+        // Probed once: the column only exists where the desiderata plugin has
+        // run its schema step.
+        $exportsDesiderata = $format !== 'librarything' && \App\Support\BookVisibility::hasDesiderata($db);
+
         // CSV headers based on format
         if ($format === 'librarything') {
             $headers = $this->getLibraryThingHeaders();
@@ -3540,6 +3568,12 @@ class LibriController
                 'classificazione_dewey',
                 'parole_chiave'
             ];
+            // Appended ONLY when the column exists, so an export from an
+            // installation without the desiderata plugin stays byte-identical
+            // and any consumer positioning by index keeps working.
+            if ($exportsDesiderata) {
+                $headers[] = 'is_desiderata';
+            }
         }
 
         // formulaPrefix "'" neutralizes CSV injection: user-controlled fields
@@ -3595,6 +3629,9 @@ class LibriController
                     $libro['classificazione_dewey'] ?? '',
                     $libro['parole_chiave'] ?? ''
                 ];
+                if ($exportsDesiderata) {
+                    $row[] = (int) ($libro['is_desiderata'] ?? 0);
+                }
             }
 
             $writer->insertOne($row);

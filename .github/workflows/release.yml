@@ -48,7 +48,7 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
-      - name: Install locked build inputs
+      - name: Install locked build inputs # zizmor: ignore[adhoc-packages]
         run: |
           sudo apt-get update -q
           sudo apt-get install -y jq rsync unzip zip
@@ -58,6 +58,12 @@ jobs:
           # npm bundled with Node 22 POSTs the retired quick-audit endpoint;
           # npm 11 uses the bulk one, and the wrapper distinguishes real
           # advisories from registry outages (retry, then loud neutral).
+          # The zizmor exemption on this step's name is anchored to the step
+          # itself, not to a line number: a config pin drifts the moment
+          # anything above it changes, and it did three times in one day.
+          # It stays this narrow on purpose — nothing installed on an
+          # ephemeral runner ships in an asset, and asset reproducibility is
+          # enforced separately by the vendor-assets and double-build checks.
           npm install -g npm@11.19.1 --silent
           npm ci --silent
           bash scripts/ci-npm-audit.sh .
