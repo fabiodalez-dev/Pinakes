@@ -439,7 +439,7 @@ class SbnClient
 
         // Edition statement, when the record carries one
         if (is_string($record['edizione'] ?? null) && trim($record['edizione']) !== '') {
-            $book['edition'] = trim((string) preg_replace('/[\s\/:;=,.]+$/u', '', $this->stripMarcControlChars($record['edizione'])));
+            $book['edition'] = trim((string) preg_replace('/[\s\/:;=,]+$/u', '', $this->stripMarcControlChars($record['edizione'])));
         }
 
         // Publisher and publication info
@@ -452,8 +452,9 @@ class SbnClient
                 $book['year'] = $pubInfo['year'];
                 $book['anno_pubblicazione'] = $pubInfo['year'];
             }
-            if (!empty($pubInfo['place'])) {
-                $book['place'] = $pubInfo['place'];
+            $place = \App\Support\PublicationPlace::clean($pubInfo['place'] ?? null);
+            if ($place !== '') {
+                $book['place'] = $place;
             }
         }
 

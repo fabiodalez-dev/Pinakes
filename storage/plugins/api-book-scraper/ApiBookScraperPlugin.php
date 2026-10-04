@@ -548,11 +548,11 @@ class ApiBookScraperPlugin
             'subjects' => $data['subjects'] ?? $data['argomenti'] ?? [],
             'author_bio' => $data['author_bio'] ?? $data['biografia_autore'] ?? $data['bio'] ?? null,
             'year' => $data['year'] ?? $data['anno_pubblicazione'] ?? $data['anno'] ?? null,
-            'edition' => $data['edition'] ?? $data['edizione'] ?? null,
-            'place' => $data['place'] ?? $data['luogo_pubblicazione'] ?? $data['luogo'] ?? null,
+            'edition' => self::text($data['edition'] ?? $data['edizione'] ?? null),
+            'place' => self::text($data['place'] ?? $data['luogo_pubblicazione'] ?? $data['luogo'] ?? null),
             'editor' => $data['editor'] ?? $data['editors'] ?? $data['curatore'] ?? $data['curatori'] ?? null,
-            'translator' => $data['translator'] ?? $data['traduttore'] ?? null,
-            'illustrator' => $data['illustrator'] ?? $data['illustratore'] ?? null,
+            'translator' => self::firstName($data['translator'] ?? $data['traduttore'] ?? null),
+            'illustrator' => self::firstName($data['illustrator'] ?? $data['illustratore'] ?? null),
         ];
         // The book form reads `image` and `pubDate`; the API's own names are kept
         // for anything already relying on them.
@@ -564,6 +564,21 @@ class ApiBookScraperPlugin
         });
 
         return !empty($mappedData) ? $mappedData : null;
+    }
+
+    /** A text field as a string: "2" from an edition sent as the number 2. */
+    private static function text(mixed $value): ?string
+    {
+        return is_string($value) || is_int($value) || is_float($value) ? trim((string) $value) : null;
+    }
+
+    /** The form takes one translator and one illustrator: the first name of a list. */
+    private static function firstName(mixed $value): ?string
+    {
+        if (is_array($value)) {
+            $value = array_values(array_filter($value, static fn($n): bool => is_string($n) && trim($n) !== ''))[0] ?? null;
+        }
+        return is_string($value) ? trim($value) : null;
     }
 
     /**

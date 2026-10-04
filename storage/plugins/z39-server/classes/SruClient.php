@@ -407,9 +407,9 @@ class SruClient
         if ($edition) {
             $book['edition'] = trim((string) preg_replace('/[\s\/:;=,]+$/u', '', $edition));
         }
-        $place = $getSubfield('260', 'a') ?? $getSubfield('264', 'a');
-        if ($place) {
-            $book['place'] = trim((string) preg_replace('/^\[|[\]\s:;,]+$/u', '', $place));
+        $place = \App\Support\PublicationPlace::clean($getSubfield('260', 'a') ?? $getSubfield('264', 'a'));
+        if ($place !== '') {
+            $book['place'] = $place;
         }
 
         // Publisher (260 $b or 264 $b)
@@ -728,9 +728,9 @@ class SruClient
         if ($edition !== null && trim($edition) !== '') {
             $book['edition'] = $clean(rtrim($edition, ' /:;=,'));
         }
-        $place = $getSub('214', 'a') ?? $getSub('210', 'a');
-        if ($place !== null && trim($place) !== '') {
-            $book['place'] = $clean(trim($place, ' []:;,'));
+        $place = \App\Support\PublicationPlace::clean($clean((string) ($getSub('214', 'a') ?? $getSub('210', 'a'))));
+        if ($place !== '') {
+            $book['place'] = $place;
         }
 
         // Publisher: 214 $c (UNIMARC 2014+), fallback 210 $c
@@ -842,33 +842,40 @@ class SruClient
     }
 
     /**
-     * The part an added entry played: 'author', 'editor', 'translator',
-     * 'illustrator' or 'other'. The relator code wins over the term; an entry
-     * with neither is an author (the shape of most records, and what these
-     * parsers always assumed).
+     * The part an added entry played: 'editor', 'translator', 'illustrator',
+     * 'other' for a contribution to part of the book (an introduction, a
+     * preface, a commentary) or for the publisher, and 'author' otherwise.
      *
-     * MARC 21 codes: aut, edt/edc, trl, ill. UNIMARC (IFLA) codes: 070, 340,
-     * 730, 440. Terms are matched in English and Italian.
+     * Only roles positively recognised leave the authors: a joint author, a
+     * compiler, a composer or a relator this list does not know stays an
+     * author, as every added entry was before roles were read. The relator
+     * code wins over the term; a code given as a URI
+     * (http://id.loc.gov/vocabulary/relators/edt) is read by its last segment.
+     *
+     * MARC 21 codes: edt/edc, trl, ill; aui, aft, win, wpr, wfw, wac, wst, wat,
+     * pbl for the others. UNIMARC (IFLA) codes: 340, 730, 440; 080, 075, 650
+     * for the others. Terms are matched in English and Italian.
      */
     public static function contributorRole(?string $code, ?string $term, string $scheme): string
     {
-        $code = strtolower(trim((string) $code, " .\t"));
+        $code = strtolower(trim((string) preg_replace('#^.*/#', '', trim((string) $code)), " .\t"));
         if ($code !== '') {
             $map = $scheme === 'unimarc'
-                ? ['070' => 'author', '340' => 'editor', '730' => 'translator', '440' => 'illustrator']
-                : ['aut' => 'author', 'edt' => 'editor', 'edc' => 'editor', 'trl' => 'translator', 'ill' => 'illustrator'];
-            return $map[$code] ?? 'other';
+                ? ['340' => 'editor', '730' => 'translator', '440' => 'illustrator',
+                    '080' => 'other', '075' => 'other', '650' => 'other']
+                : ['edt' => 'editor', 'edc' => 'editor', 'trl' => 'translator', 'ill' => 'illustrator',
+                    'aui' => 'other', 'aft' => 'other', 'win' => 'other', 'wpr' => 'other', 'wfw' => 'other',
+                    'wac' => 'other', 'wst' => 'other', 'wat' => 'other', 'pbl' => 'other'];
+            return $map[$code] ?? 'author';
         }
         $term = mb_strtolower(trim((string) $term, " .,;\t"));
-        if ($term === '') {
-            return 'author';
-        }
         return match (true) {
-            (bool) preg_match('/^(author|autore|autrice|writer)$/u', $term) => 'author',
+            $term === '' => 'author',
             (bool) preg_match('/\b(editor|ed|curatore|curatrice|a cura)\b/u', $term) => 'editor',
             (bool) preg_match('/\b(translator|trad|traduttore|traduttrice)\b/u', $term) => 'translator',
             (bool) preg_match('/\b(illustrator|ill|illustratore|illustratrice)\b/u', $term) => 'illustrator',
-            default => 'other',
+            (bool) preg_match('/\b(introduction|preface|foreword|afterword|postface|commentary|supplementary|notes|publisher|introduzione|prefazione|postfazione|commento|note|editore)\b/u', $term) => 'other',
+            default => 'author',
         };
     }
 

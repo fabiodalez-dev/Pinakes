@@ -684,19 +684,17 @@ class OpenLibraryPlugin
         return $data ?: null;
     }
 
-    /**
-     * Extract publisher from edition data
-     */
     /** Place(s) of publication, as Open Library lists them ("Torino"). */
     private function extractPlace(array $editionData): string
     {
-        $places = array_values(array_filter(array_map(
-            static fn($p): string => trim(is_array($p) ? (string) ($p['name'] ?? '') : (string) $p, " \t[]:;,"),
+        return \App\Support\PublicationPlace::fromList(
             is_array($editionData['publish_places'] ?? null) ? $editionData['publish_places'] : []
-        ), static fn(string $p): bool => $p !== ''));
-        return implode(', ', array_unique($places));
+        );
     }
 
+    /**
+     * Extract publisher from edition data
+     */
     /**
      * Editors, translator and illustrator of an edition, in the shape the book
      * form reads (`editor` a list, `translator` and `illustrator` one name).

@@ -78,6 +78,7 @@ class ScrapeController
                 'place' => 'Milano',
                 'editor' => ['Antonio Gagliardi'],
                 'translator' => 'E2E Traduttore',
+                'notes' => 'Collana: Universale Economica',
             ],
             '0720642442524' => [
                 'title' => 'Nevermind',
@@ -155,10 +156,29 @@ class ScrapeController
             $data['authors'] = array_map(fn($a) => $this->normalizeText((string)$a), $data['authors']);
         }
         // Editors: one name or a list (SBN, SRU and Open Library send a list)
-        if (isset($data['editor'])) {
-            $data['editor'] = is_array($data['editor'])
-                ? array_values(array_filter(array_map(fn($e) => $this->normalizeText((string) $e), $data['editor']), static fn(string $e): bool => $e !== ''))
-                : $this->normalizeText((string) $data['editor']);
+        // Only names are kept: a number, a nested list or an object is not one.
+        if (array_key_exists('editor', $data)) {
+            $editors = is_array($data['editor']) ? $data['editor'] : [$data['editor']];
+            $editors = array_values(array_filter(array_map(
+                fn($e): string => is_string($e) ? $this->normalizeText($e) : '',
+                $editors
+            ), static fn(string $e): bool => $e !== ''));
+            if ($editors === []) {
+                unset($data['editor']);
+            } else {
+                $data['editor'] = $editors;
+            }
+        }
+        // Translator and illustrator: the form takes one name each
+        foreach (['translator', 'illustrator'] as $role) {
+            if (array_key_exists($role, $data) && is_array($data[$role])) {
+                $first = array_values(array_filter($data[$role], static fn($n): bool => is_string($n) && trim($n) !== ''))[0] ?? null;
+                if ($first === null) {
+                    unset($data[$role]);
+                } else {
+                    $data[$role] = $first;
+                }
+            }
         }
 
         // Normalize any other string fields we might have missed
@@ -696,10 +716,9 @@ class ScrapeController
             'description' => is_array($data['description'] ?? null) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
             'image' => $cover,
             'edition' => trim((string) ($data['edition_name'] ?? '')),
-            'place' => implode(', ', array_filter(array_map(
-                static fn($p): string => trim(is_array($p) ? (string) ($p['name'] ?? '') : (string) $p, " \t[]:;,"),
+            'place' => \App\Support\PublicationPlace::fromList(
                 is_array($data['publish_places'] ?? null) ? $data['publish_places'] : []
-            ))),
+            ),
         ];
     }
 

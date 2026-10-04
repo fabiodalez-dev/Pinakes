@@ -3960,30 +3960,33 @@ function initializeIsbnImport() {
             // Handle notes
             try {
                 const noteField = document.querySelector('textarea[name="note_varie"]');
-                const noteParts = [];
-                if (noteField && noteField.value.trim() !== '') {
-                    noteParts.push(noteField.value.trim());
-                }
+                const incoming = [];
                 if (data.notes) {
-                    noteParts.push(data.notes.trim());
+                    incoming.push(...String(data.notes).split('\n'));
                 }
                 if (data.tipologia) {
-                    noteParts.push(`Tipologia: ${data.tipologia.trim()}`);
+                    incoming.push(`Tipologia: ${data.tipologia.trim()}`);
                 }
-                if (noteField && noteParts.length > 0) {
-                    // Line by line: a source's notes can already carry the
-                    // "Tipologia: ..." line added below, and a second import
-                    // repeats lines already in the field.
-                    const uniqueNotes = [];
-                    noteParts.join('\n').split('\n').forEach(part => {
-                        const clean = part.trim();
-                        if (!clean) return;
-                        const exists = uniqueNotes.some(existing => existing.toLowerCase() === clean.toLowerCase());
-                        if (!exists) {
-                            uniqueNotes.push(clean);
+                if (noteField) {
+                    // The text already in the field stays as it is, blank lines
+                    // and repeats included; an incoming line is added only when
+                    // neither the field nor an earlier incoming line holds it
+                    // (a source's notes can carry the "Tipologia: ..." line, and
+                    // "Aggiorna Dati" brings back lines saved on the last import).
+                    const current = noteField.value.replace(/\s+$/, '');
+                    const seen = new Set(current.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean));
+                    const added = [];
+                    incoming.forEach(line => {
+                        const clean = line.trim();
+                        const key = clean.toLowerCase();
+                        if (clean && !seen.has(key)) {
+                            seen.add(key);
+                            added.push(clean);
                         }
                     });
-                    noteField.value = uniqueNotes.join('\n');
+                    if (added.length > 0) {
+                        noteField.value = current.trim() === '' ? added.join('\n') : `${current}\n${added.join('\n')}`;
+                    }
                 }
                 const tipologiaHidden = document.getElementById('scraped_tipologia');
                 if (tipologiaHidden) {
@@ -4099,7 +4102,7 @@ function initializeIsbnImport() {
             try {
                 const textFields = [['edition', 'edizione'], ['place', 'luogo_pubblicazione']];
                 textFields.forEach(([key, name]) => {
-                    const value = typeof data[key] === 'string' ? data[key].trim() : '';
+                    const value = (typeof data[key] === 'string' || typeof data[key] === 'number') ? String(data[key]).trim() : '';
                     const input = document.querySelector(`input[name="${name}"]`);
                     if (value !== '' && input) {
                         input.value = value;
