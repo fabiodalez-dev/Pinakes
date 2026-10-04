@@ -118,17 +118,22 @@ $cardTitle=static function(string $icon,string $title,string $subtitle='',bool $
           <?php /* Uwe (#412): link the article to the journal's own record here, by
                    searching it, as an ILS does for 773. Picking one fills the
                    publication title and ISSN when they are still empty. */
-          $hostOptions = $hostOptions ?? [];
+          // null = the masthead list could not be read: the picker is shown
+          // disabled and host_testata_present is not sent, so saving leaves
+          // the stored link as it is.
+          $hostAvailable = is_array($hostOptions ?? null);
+          $hostOptions = $hostAvailable ? $hostOptions : [];
           $hostSelected = (int) ($row['testata_id'] ?? 0); ?>
           <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm" id="article-host-record">
-            <input type="hidden" name="host_testata_present" value="1">
+            <?php if ($hostAvailable): ?><input type="hidden" name="host_testata_present" value="1"><?php endif; ?>
             <label for="article-testata_id" class="form-label"><i class="fas fa-link mr-2 text-gray-900" aria-hidden="true"></i><?= __('Testata associata') ?></label>
-            <select id="article-testata_id" name="testata_id" class="form-input">
+            <select id="article-testata_id" name="testata_id" class="form-input"<?= $hostAvailable ? '' : ' disabled' ?>>
               <option value=""><?= __('Non associato') ?></option>
               <?php foreach ($hostOptions as $host): ?>
                 <option value="<?= (int) $host['id'] ?>" data-title="<?= $e($host['titolo']) ?>" data-issn="<?= $e($host['issn']) ?>" <?= $hostSelected === (int) $host['id'] ? 'selected' : '' ?>><?= $e($host['titolo']) ?><?= $host['issn'] !== '' ? ' (' . $e($host['issn']) . ')' : '' ?></option>
               <?php endforeach; ?>
             </select>
+            <?php if (!$hostAvailable): ?><p class="text-red-600 mt-1"><?= __('Elenco delle testate non disponibile: il collegamento attuale non viene modificato.') ?></p><?php endif; ?>
             <p class="text-gray-600 mt-1"><?= __('«Titolo della pubblicazione» è il nome della rivista o del giornale come lo scrivi in questa scheda. La testata associata è la scheda di quella rivista nell’Emeroteca, con le sue annate e i suoi fascicoli: è facoltativa. Sceglila qui cercandola per titolo; titolo e ISSN vengono copiati nei campi sopra se sono ancora vuoti.') ?></p>
             <script>
             document.addEventListener('DOMContentLoaded', function () {

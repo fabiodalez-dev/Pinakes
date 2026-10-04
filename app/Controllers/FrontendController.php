@@ -727,8 +727,14 @@ class FrontendController
         if (!is_array($live) || !isset($live[$bookId])) {
             return $response->withStatus(404);
         }
-        $detail = $this->buildBookDetailStatic($db, $bookId);
-        if ($detail === null) {
+        // The same cached DTO as the book page (same key, same TTL): the link
+        // sits on every public book page, so crawlers fetch it as often.
+        $detail = \App\Support\QueryCache::remember(
+            'book_detail_' . \App\Support\I18n::getLocale() . '_' . $bookId,
+            fn(): ?array => $this->buildBookDetailStatic($db, $bookId),
+            300
+        );
+        if (!is_array($detail) || !isset($detail['book'])) {
             return $response->withStatus(404);
         }
         $book = $detail['book'];
