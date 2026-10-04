@@ -10,7 +10,12 @@
 
 use App\Support\HtmlHelper;
 
-$title = __("Catalogo");
+// Header texts are editable per language (Settings → CMS); the page title follows them.
+$catalogHeader = $catalogHeader ?? [
+    'title' => __(\App\Support\CatalogHeader::DEFAULT_TITLE),
+    'subtitle' => __(\App\Support\CatalogHeader::DEFAULT_SUBTITLE),
+];
+$title = $catalogHeader['title'];
 if (!isset($filters)) {
     $filters = [];
 }
@@ -19,13 +24,14 @@ if (!isset($filters)) {
 $searchQuery = $filters['search'] ?? '';
 if ($searchQuery) {
     $sanitizedSearchQuery = htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8');
-    $seoTitle = __("Risultati per '%s' - Catalogo Biblioteca", $sanitizedSearchQuery);
+    // The catalogue is called what its header says, in the results title too.
+    $seoTitle = __("Risultati per '%s' - %s", $sanitizedSearchQuery, $catalogHeader['title']);
     $seoDescription = __("Scopri tutti i libri che contengono '%s' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.", $sanitizedSearchQuery);
     // Internal search results must not enter the index (infinite query space,
     // thin/duplicate content); links are still followed toward the books.
     $seoRobots = 'noindex,follow';
 } else {
-    $seoTitle = __("Catalogo");
+    $seoTitle = $catalogHeader['title'];
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
 if (!empty($filters['autore'])) { $seoRobots = 'noindex,follow'; }
@@ -95,15 +101,15 @@ ob_start();
 <section class="catalog-header">
     <div class="container">
         <div class="catalog-header-content text-center">
-            <h1 class="catalog-title"><?= __("Catalogo") ?></h1>
-            <p class="catalog-subtitle"><?= __("Scopri migliaia di titoli nella nostra collezione digitale") ?></p>
+            <h1 class="catalog-title"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
+            <p class="catalog-subtitle"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
                     <li class="breadcrumb-item">
                         <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
                     </li>
                     <li class="breadcrumb-item text-white active" aria-current="page">
-                        <?= __("Catalogo") ?>
+                        <?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?>
                     </li>
                 </ol>
             </nav>

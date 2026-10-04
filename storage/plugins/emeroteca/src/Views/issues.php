@@ -602,4 +602,3 @@ $checkboxClass = 'w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-
     <script src="<?= $e(assetUrl('copy-scanner.bundle.js')) ?>" defer></script>
 <?php endif; ?>
 <script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-scan.js?v=1.4.0')) ?>" defer></script>
-

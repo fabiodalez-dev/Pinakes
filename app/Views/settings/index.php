@@ -702,6 +702,76 @@ $activeTab = $activeTab ?? 'general';
                 </form>
               </div>
             </div>
+
+            <?php
+            /** @var array<string, string> $catalogHeaderLocales */
+            /** @var array<string, array{title: string, subtitle: string}> $catalogHeaderTexts */
+            /** @var array<string, array{title: string, subtitle: string}> $catalogHeaderDefaults */
+            ?>
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                      <i class="fas fa-book-open text-amber-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900"><?= __("Catalogo") ?></h3>
+                  </div>
+                  <p class="text-sm text-gray-600"><?= __("Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. Un campo vuoto usa il testo predefinito.") ?></p>
+                  <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                    <i class="fas fa-link"></i>
+                    <a href="<?= htmlspecialchars(route_path('catalog'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-5 pt-5 border-t border-gray-200">
+                <form action="<?= htmlspecialchars(url('/admin/settings/catalog-header'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-5" id="catalog-header-form">
+                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                  <?php foreach ($catalogHeaderLocales as $catalogLocale => $catalogLanguage): ?>
+                    <?php
+                    $catalogLocale = (string) $catalogLocale;
+                    $catalogFieldId = 'catalog_' . preg_replace('/[^A-Za-z0-9_]/', '', $catalogLocale);
+                    $catalogStored = $catalogHeaderTexts[$catalogLocale] ?? ['title' => '', 'subtitle' => ''];
+                    $catalogDefault = $catalogHeaderDefaults[$catalogLocale] ?? ['title' => '', 'subtitle' => ''];
+                    ?>
+                    <fieldset class="space-y-2">
+                      <legend class="block text-sm font-semibold text-gray-900 mb-1"><?= htmlspecialchars((string) $catalogLanguage, ENT_QUOTES, 'UTF-8') ?></legend>
+                      <div>
+                        <label for="<?= htmlspecialchars($catalogFieldId, ENT_QUOTES, 'UTF-8') ?>_title" class="block text-xs font-medium text-gray-600 mb-1"><?= __("Titolo") ?></label>
+                        <input
+                          type="text"
+                          id="<?= htmlspecialchars($catalogFieldId, ENT_QUOTES, 'UTF-8') ?>_title"
+                          name="catalog_title[<?= htmlspecialchars($catalogLocale, ENT_QUOTES, 'UTF-8') ?>]"
+                          value="<?= htmlspecialchars($catalogStored['title'], ENT_QUOTES, 'UTF-8') ?>"
+                          placeholder="<?= htmlspecialchars($catalogDefault['title'], ENT_QUOTES, 'UTF-8') ?>"
+                          maxlength="<?= \App\Support\CatalogHeader::TITLE_MAX ?>"
+                          class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        >
+                      </div>
+                      <div>
+                        <label for="<?= htmlspecialchars($catalogFieldId, ENT_QUOTES, 'UTF-8') ?>_subtitle" class="block text-xs font-medium text-gray-600 mb-1"><?= __("Sottotitolo") ?></label>
+                        <input
+                          type="text"
+                          id="<?= htmlspecialchars($catalogFieldId, ENT_QUOTES, 'UTF-8') ?>_subtitle"
+                          name="catalog_subtitle[<?= htmlspecialchars($catalogLocale, ENT_QUOTES, 'UTF-8') ?>]"
+                          value="<?= htmlspecialchars($catalogStored['subtitle'], ENT_QUOTES, 'UTF-8') ?>"
+                          placeholder="<?= htmlspecialchars($catalogDefault['subtitle'], ENT_QUOTES, 'UTF-8') ?>"
+                          maxlength="<?= \App\Support\CatalogHeader::SUBTITLE_MAX ?>"
+                          class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        >
+                      </div>
+                    </fieldset>
+                  <?php endforeach; ?>
+                  <button
+                    type="submit"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center"
+                  >
+                    <i class="fas fa-save"></i>
+                    <?= __("Salva intestazione del catalogo") ?>
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
 
           <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5">
