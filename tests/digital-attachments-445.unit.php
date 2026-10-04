@@ -80,4 +80,13 @@ check(!str_contains($badge,'ebook-icon'),'a review alone does not advertise an e
 ob_start();$book=$saved;include __DIR__.'/../storage/plugins/digital-library/views/badge-icons.php';$badge=(string)ob_get_clean();
 check(str_contains($badge,'ebook-icon') && str_contains($badge,'audio-icon'),'an edition and a track still show both badges');
 check(!str_contains($html,'sandbox'),'inline PDFs are not sandboxed, which would stop the browser PDF viewer');
+// A root-relative path outside /uploads/ was stored and shown by the old single-file
+// field; after the upgrade it must still be shown and savable, not hidden or blocking.
+$legacyPath=Attachments::fromBook(['file_url'=>'/files/manual.pdf','digital_attachments'=>null]);
+check($legacyPath===[['url'=>'/files/manual.pdf','label'=>'manual.pdf','kind'=>'ebook']],'a legacy link to another path of this site is shown to readers');
+check(empty(Attachments::fromBook(['file_url'=>'/files/manual.pdf'],true)[0]['invalid']),'the editor does not mark it invalid, so the record can be saved');
+foreach (['/files/../secret','/files/%2e%2e/secret','/files/%5csecret','//evil.example/files/x'] as $bad) {
+    try { Attachments::normalize([['url'=>$bad]]); check(false,'unsafe local path rejected: '.$bad); }
+    catch (InvalidArgumentException $e) { check(true,'unsafe local path rejected: '.$bad); }
+}
 echo "SUCCESS $checks checks\n";

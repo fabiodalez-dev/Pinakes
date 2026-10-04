@@ -129,7 +129,7 @@ test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ pa
         // And they arrive AFTER updated_at: an ALTER without AFTER appends, so
         // a fresh install that disagreed would mean CREATE TABLE and the
         // repair had drifted apart.
-        // 1.9.0 appends the host volume of an anthology chapter after them.
+        // 1.10.0 appends the host volume of an anthology chapter after them.
         expect(db("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME IN ('contenitore_curatori','contenitore_editore','contenitore_luogo','isbn')")).toBe('4');
         expect(db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' ORDER BY ORDINAL_POSITION DESC LIMIT 1")).toBe('isbn');
         await page.goto(BASE + '/admin/periodicals/articles/create');

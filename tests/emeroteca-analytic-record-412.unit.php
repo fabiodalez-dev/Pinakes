@@ -128,7 +128,7 @@ $rejects = static function (callable $fn, string $label) use ($check): void {
 /** The ten columns the analytic record adds, in the order they must appear. */
 const ANALYTIC_COLUMNS = ['sottotitolo','lingua','paese','classificazione_schema','classificazione','nota_possesso','risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica'];
 
-/** The four columns 1.9.0 adds for a chapter's host volume, after the ten above. */
+/** The four columns 1.10.0 adds for a chapter's host volume, after the ten above. */
 const HOST_COLUMNS = ['contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
 
 /** Uwe's own article, as the Royal Danish Library records it. */
@@ -264,7 +264,7 @@ try {
     $check(array_diff([...ANALYTIC_COLUMNS, ...HOST_COLUMNS], $sentinels) === [],
         'each new column is a boot-time self-heal sentinel');
 
-    // 1.8.0 -> 1.9.0: an installation that already has the analytic record
+    // 1.8.0 -> 1.10.0: an installation that already has the analytic record
     // gains only the host-volume columns, after risorsa_pubblica, and keeps
     // what it had catalogued.
     foreach (HOST_COLUMNS as $column) {
@@ -273,8 +273,8 @@ try {
     $shape18 = $columns();
     $check(end($shape18) === 'risorsa_pubblica', 'the table is back to the 1.8.0 shape, ending at risorsa_pubblica');
     $db->query("UPDATE emeroteca_contributi SET lingua='dan' WHERE reference_key='legacy-1'");
-    $upgrade19 = (new EmerotecaPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
-    $check($upgrade19['failed'] === [], 'the 1.9.0 upgrade reports no failed table');
+    $upgrade110 = (new EmerotecaPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
+    $check($upgrade110['failed'] === [], 'the 1.10.0 upgrade reports no failed table');
     $check(array_slice($columns(), -count(HOST_COLUMNS) - 1) === ['risorsa_pubblica', ...HOST_COLUMNS],
         'the host-volume columns are appended after risorsa_pubblica, in order');
     $row18 = $svc->rows("SELECT * FROM emeroteca_contributi WHERE reference_key='legacy-1'")[0];

@@ -952,7 +952,6 @@ form.hero-search-form {
         background: var(--secondary-color);
         color: #ffffff;
     }
-</style>
 ";
 
 ob_start();

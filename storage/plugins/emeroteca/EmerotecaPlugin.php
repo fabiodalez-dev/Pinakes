@@ -2602,9 +2602,6 @@ class EmerotecaPlugin
         return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
     }
 
-    /** How many mastheads /emeroteca?q= ever lists; the hint caps its total the same way. */
-    public const TESTATA_SEARCH_LIMIT = 500;
-
     /**
      * The WHERE fragment that decides whether a masthead answers a free term,
      * owned here and used by BOTH the public listing
@@ -2798,8 +2795,8 @@ class EmerotecaPlugin
      * The predicate is testataSearchWhere(), the same fragment
      * PublicController::index() runs — including the indexed articles inside
      * owned issues — so the number in "Testate nell’emeroteca (%d)" is the
-     * number the page behind that link prints. The total is capped at
-     * TESTATA_SEARCH_LIMIT for the same reason: the listing stops there too.
+     * number the page behind that link prints. The total is not capped:
+     * the listing pages through every match, so the hint counts them all.
      *
      * The article arm is dropped on a degraded install missing any of
      * emeroteca_articoli / _fascicoli / _annate: narrow but answering beats a
@@ -2833,10 +2830,7 @@ class EmerotecaPlugin
             return $empty;
         }
         $total = count($rows) > 5
-            ? min(
-                $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_testate t WHERE $where", $types, $params),
-                self::TESTATA_SEARCH_LIMIT
-            )
+            ? $this->emerotecaCount("SELECT COUNT(*) c FROM emeroteca_testate t WHERE $where", $types, $params)
             : count($rows);
         $rows = array_slice($rows, 0, 5);
         $items = [];

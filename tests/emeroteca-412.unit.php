@@ -131,7 +131,7 @@ try {
     $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
     // Still derived from TEXT_FIELDS, still asserting ORDER: the 1.7 analytic
-    // fields, then risorsa_pubblica, then the 1.9 host-volume fields (#412);
+    // fields, then risorsa_pubblica, then the 1.10 host-volume fields (#412);
     // fields are appended after updated_at, which is the only order an ALTER
     // without AFTER can produce on an upgraded install — so a fresh install
     // that disagreed with it would mean CREATE TABLE and ALTER had drifted.

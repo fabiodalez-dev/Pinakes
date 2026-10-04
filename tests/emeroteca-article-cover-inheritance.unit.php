@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * An article with no image of its own shows the masthead's.
+ * An article with no image of its own shows its issue's cover, else the
+ * masthead's logo.
  *
  * WHY: a standalone article is usually a citation, and its image field — added
  * in plugin 1.6 — is optional and most often empty. Falling straight through to
@@ -11,8 +12,11 @@ declare(strict_types=1);
  * true statement about the record and, in a list, does real work: it says at a
  * glance which publication each result came from.
  *
- * Deliberately NOT the issue's cover, even when the article is attached to one:
- * a per-issue photograph varies row by row and stops carrying that signal.
+ * Since the emeroteca redesign (#439) the issue's cover comes first when the
+ * article is placed in an issue: on the issue and article pages the reader is
+ * looking at that issue, and its cover identifies it. The masthead's logo
+ * remains the fallback, and these checks exercise it (none of the fixtures
+ * place an article in an issue with a cover).
  *
  * THE SHAPE THIS GUARDS. The rule has ONE owner, ContributionService::coverUrl(),
  * because the previous arrangement — each view writing "own cover, else the

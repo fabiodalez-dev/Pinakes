@@ -2,17 +2,28 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
-## [Unreleased]
+## [0.7.89]
 
 ### Added
-- **Multiple digital attachments on one book** ([#445](https://github.com/fabiodalez-dev/Pinakes/issues/445)): PDF/ePub editions, reviews and articles about the book, and multiple audio recordings, each with a title, download and appropriate viewer. Uploads append files; existing single-file records remain available. Digital Library is now 1.4.0.
-- **Oxford (Umeå) in the shared Cite dialog** for books, articles and anthology chapters, alongside APA, Harvard, MLA and Chicago ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)).
 - **A book records where it was published** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). The book form has a *Place of publication* field, shown on the public and admin record. Chicago and Harvard citations now read "Lund: Nordic Academic Press", the MARCXML export carries it in 264 `$a` (SRU and OAI-PMH), and an empty place leaves no dangling colon. Core migration 0.7.89 adds the nullable `libri.luogo_pubblicazione` column; existing books get no invented value.
 - **A book's citation can be downloaded as RIS** for EndNote, Zotero and Mendeley, from the Cite dialog, built from the same data as the citation styles.
+- **Oxford (Umeå) in the shared Cite dialog** for books, articles and anthology chapters, alongside APA, Harvard, MLA and Chicago ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)).
 - **Articles in the live search and on the catalogue** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). The header search suggests published articles while the reader types; on /catalogo an article card links its authors and its publication. The article form links a record to a catalogued masthead by searching it and copies the masthead's title and ISSN into empty fields. Article MARCXML gains the MARC country code in 008/15-17, the public PDF in 856 and the authors in direct order in 245 `$c`; RIS names the journal in JF as well.
+- **Multiple digital attachments on one book** ([#445](https://github.com/fabiodalez-dev/Pinakes/issues/445)): PDF/ePub editions, reviews and articles about the book, and multiple audio recordings, each with a title, download and appropriate viewer. Uploads append files; existing single-file records remain available. Digital Library is now 1.4.0.
+- **The catalogue header is editable per language.** Settings → CMS has a Catalogue card with a title and subtitle for every active language; an empty field keeps the shipped wording.
+- **"New article" in the sidebar quick actions**, under "New book", whenever the Emeroteca is active ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)).
 
-### Verified for the release candidate
-- All of Uwe's cataloguing requests in #412 are mapped to implementation and regression coverage in `docs/reviews/issue-412-verifica.md`. This candidate includes the prerequisite release branches #439, #440 and #441.
+### Changed
+- **The public site reads as one product.** The periodicals section is rebuilt and linked end to end (masthead, year, issue, article, with previous/next and a way back), and every public page uses the same shared pieces: catalogue hero, breadcrumb, filter sidebar, article card, pagination and resource hero.
+- **Event images: three presets instead of four.** "Thumbnail beside the text" rendered exactly like the recommended cover, so it was merged into it; an event saved with it looks the same. The cover beside the title is now held to 350px (a masthead logo to 240px), as intended: a global `max-width: 100% !important` on images had been letting it fill its column.
+
+### Fixed
+- **An update that cannot fit is refused before anything is touched.** The updater measures the space the rollback copy needs and proves the account can write before starting, and a copy error now names its cause (space or quota, permissions, missing directory) instead of an arbitrary file name. The standalone recovery script does the same, and its "space checked by hand" option still writes 16 MB first, so a full disk stops there rather than halfway through the dump.
+- **Saving an article never unlinks its masthead by accident.** A masthead that sorted past the picker's list, or a list that could not be read, left the form on "not linked" and a plain save removed the link and the issue.
+- **A blank place of publication is stored as empty**, not as the spaces typed into it.
+- **The events pages keep their own styles.** The listing's spacing and the event image's margin and rounded corners were silently dropped, because the page wrapped its rules in a second `<style>` tag inside the layout's.
+- **Digital files linked before 0.7.89 stay visible after the upgrade.** A book whose eBook or audiobook pointed to a path of the site outside `/uploads/` showed it before; the new attachment list now accepts any path of the same site (never `//`, `..` or a backslash), so such a book neither loses its file on the public page nor refuses to save.
+
 
 ## [0.7.88]
 

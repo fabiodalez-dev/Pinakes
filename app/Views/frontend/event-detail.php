@@ -109,7 +109,6 @@ $eventPlace      = trim((string) ConfigStore::get('app.address', ''));
 
 // Only what the shared sheets do not cover: a wide image in the body.
 $additional_css = "
-<style>
     .event-cover { margin: 0 0 2rem; border-radius: 3px; overflow: hidden; }
     .event-cover img { display: block; width: 100%; height: auto; }
     .event-cover--banner img { height: 220px; object-fit: cover; }
@@ -118,7 +117,6 @@ $additional_css = "
     .book-card--event .book-image { object-fit: cover; }
     .book-card--event .book-image-icon { font-size: 3rem; color: var(--text-muted); opacity: 0.6; }
     @media (max-width: 767px) { .event-cover--banner img { height: 160px; } }
-</style>
 ";
 
 ob_start();
