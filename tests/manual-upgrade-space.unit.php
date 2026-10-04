@@ -21,6 +21,8 @@ use RecursiveIteratorIterator;
 use RecursiveDirectoryIterator;
 use FilesystemIterator;
 function disk_free_space($path) { return $GLOBALS['cliFree']; }
+// A disk that is full although PHP cannot say so: every write fails.
+function fwrite($handle, $data) { return empty($GLOBALS['cliWritesFail']) ? \fwrite($handle, $data) : false; }
 function stat($path) {
     $stat = \stat($path);
     if ($stat !== false) { $stat['dev'] = 1; }
@@ -87,6 +89,21 @@ try {
         $refused = str_contains($e->getMessage(), 'insufficienti');
     }
     $check($refused, 'the override never waives a volume that is actually full');
+    // Unmeasurable AND full: the waiver still writes 16 MiB, which fails, so
+    // the upgrade stops before the dump instead of halfway through it.
+    $cliFree = false;
+    $GLOBALS['cliWritesFail'] = true;
+    $GLOBALS['log'] = [];
+    $refused = false;
+    try {
+        CliSpaceFixture\verifyUpgradeSpace($root, [$root . '/storage/tmp' => 200 * 1024 * 1024]);
+    } catch (RuntimeException $e) {
+        $refused = str_contains($e->getMessage(), 'insufficienti');
+    }
+    $GLOBALS['cliWritesFail'] = false;
+    $check($refused, 'the override still refuses an unmeasurable volume that cannot be written');
+    $check($GLOBALS['log'] === [], 'a refused waiver is not logged as verified by hand');
+    $check((glob($root . '/storage/tmp/.upgrade_probe_*') ?: []) === [], 'the dense probe leaves no file behind');
     $GLOBALS['upgradeAssumeSpace'] = false;
 } finally {
     unlink($fixture);

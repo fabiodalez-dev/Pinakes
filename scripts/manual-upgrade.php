@@ -313,12 +313,16 @@ function verifyUpgradeSpace(string $rootPath, array $requirements): void
         $required = $volume['bytes'];
         $verdict = probeWriteBytes($rootPath, $required, $dir);
         if ($verdict === 'unknown' && !empty($GLOBALS['upgradeAssumeSpace'])) {
-            // Only "cannot be measured" is waived. A write that runs out of
-            // room, or a directory that cannot be written, still stops here.
-            if (isset($GLOBALS['log']) && is_array($GLOBALS['log'])) {
-                $GLOBALS['log'][] = '[ATTENZIONE] Spazio in ' . $dir . ' non misurabile da PHP: si prosegue perché è stato dichiarato verificato a mano (richiesti ' . formatBytes($required) . ').';
+            // Only "cannot be measured" is waived. A bounded dense write still
+            // proves the account can write right now, so a full disk or an
+            // exhausted quota stops here instead of halfway through the dump.
+            $verdict = probeWriteBytes($rootPath, 16 * 1024 * 1024, $dir);
+            if ($verdict === '') {
+                if (isset($GLOBALS['log']) && is_array($GLOBALS['log'])) {
+                    $GLOBALS['log'][] = '[ATTENZIONE] Spazio in ' . $dir . ' non misurabile da PHP: si prosegue perché è stato dichiarato verificato a mano (richiesti ' . formatBytes($required) . ').';
+                }
+                continue;
             }
-            continue;
         }
         if ($verdict !== '') {
             $reason = match ($verdict) {
