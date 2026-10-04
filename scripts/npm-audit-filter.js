@@ -74,12 +74,19 @@ function advisories(report) {
   return found;
 }
 
+/** A YYYY-MM-DD string naming a real calendar day: 2026-11-31 is not one. */
+function isCalendarDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function activeWaivers(list, today) {
   const active = new Map();
   for (const waiver of Array.isArray(list) ? list : []) {
     const id = String(waiver.id || '').toUpperCase();
     const expires = String(waiver.expires || '');
-    if (!GHSA.test(id) || !/^\d{4}-\d{2}-\d{2}$/.test(expires) || String(waiver.reason || '').trim() === '') {
+    if (!GHSA.test(id) || !isCalendarDate(expires) || String(waiver.reason || '').trim() === '') {
       console.log(`  ignored malformed waiver: ${JSON.stringify(waiver)}`);
       continue;
     }
