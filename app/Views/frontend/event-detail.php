@@ -94,11 +94,12 @@ $bookDetailStyles = true;
 $corePartials = __DIR__ . '/partials';
 
 // $eventImageLayout is set by the controller and re-validated there against
-// the allow-list; re-narrow here as defense in depth. Compact layouts
-// (contained, thumb) show the image as the hero cover; wide layouts (full,
-// banner) keep the hero plain and show the image across the body, in a
-// <figure class="event-cover event-cover--full|--banner">. The setting's other
-// values are event-cover--contained and event-cover--thumb (hero cover).
+// the allow-list; re-narrow here as defense in depth. 'contained' shows the
+// image as the hero cover; wide layouts (full, banner) keep the hero plain and
+// show the image across the body, in a <figure class="event-cover
+// event-cover--full|--banner">. 'thumb' is no longer offered in the settings
+// and the controllers read it as 'contained'; it is still accepted here so a
+// stale value can never fall through to a body figure.
 $coverAllowed    = ['full', 'banner', 'contained', 'thumb'];
 $requestedLayout = (string)($eventImageLayout ?? 'contained');
 $coverLayout     = in_array($requestedLayout, $coverAllowed, true) ? $requestedLayout : 'contained';

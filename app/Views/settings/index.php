@@ -654,9 +654,10 @@ $activeTab = $activeTab ?? 'general';
 
               <?php
               /** @var array{image_layout?: string} $eventSettings */
+              // 'thumb' is no longer offered: it renders as the hero cover,
+              // exactly like 'contained', so a stored 'thumb' selects that.
               $eventImageLayoutChoices = [
-                  'contained' => __('Piccola a sinistra (max 420px) — consigliato'),
-                  'thumb'     => __('Miniatura affiancata al testo (240px)'),
+                  'contained' => __('Copertina accanto al titolo (max 350px) — consigliata'),
                   'banner'    => __('Banner basso a tutta larghezza (max altezza 220px)'),
                   'full'      => __('Originale a tutta larghezza (grande)'),
               ];
