@@ -41,7 +41,17 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.88 — latest
+### v0.7.89 — latest
+
+**A book now records where it was published** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). The book form has a *Place of publication* field (core migration `migrate_0.7.89.sql`, a nullable column: existing books get no invented value). It appears on the record, reaches the Chicago and Harvard citations as "Place: Publisher" and the MARCXML export in 264 `$a`, and every book's Cite dialog now offers a RIS file for EndNote, Zotero and Mendeley, built from the same data as the citations. Oxford (Umeå) joins APA, Chicago, MLA and Harvard in that dialog.
+
+**Articles are found the way books are.** The header search suggests published articles while the reader types; on the catalogue an article's authors and publication are links; the article form links a record to its masthead by searching it, and fills the masthead's title and ISSN. The periodicals section is rebuilt and linked end to end, and every public page is assembled from the same shared pieces, so the catalogue, the emeroteca, archives and events read as one site. "New article" sits under "New book" in the sidebar when the Emeroteca is active.
+
+**One book, several digital files** ([#445](https://github.com/fabiodalez-dev/Pinakes/issues/445)). A record can carry more than one edition, related reviews and articles, and several audio tracks, each with its own title and viewer; books linked to a single file before the upgrade keep it. The catalogue's title and subtitle are editable per language from Settings → CMS.
+
+**An update that cannot fit is refused before anything is touched.** The updater measures the space the rollback copy needs and proves the account can write before it starts, and a copy error names its cause (space or quota, permissions, missing directory) instead of an arbitrary file name.
+
+### v0.7.88
 
 **An article you hold a copy of is catalogued as what it is** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). A photocopy, an offprint or the PDF of one paper out of a journal the library does not take can now carry the apparatus of an analytic record: subtitle, language and country of the host, a classification stored as scheme plus value, a note that the library holds a copy and not the run, and the electronic location with its access conditions. Every one of those fields is optional, so a collection that only wants a citation still fills in a title and stops. "Add article" sits beside "New book" in book management.
 
