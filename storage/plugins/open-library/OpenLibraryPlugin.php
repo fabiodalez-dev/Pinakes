@@ -693,9 +693,6 @@ class OpenLibraryPlugin
     }
 
     /**
-     * Extract publisher from edition data
-     */
-    /**
      * Editors, translator and illustrator of an edition, in the shape the book
      * form reads (`editor` a list, `translator` and `illustrator` one name).
      * Open Library gives them as `contributors` ({role, name}) or, in older
@@ -742,6 +739,9 @@ class OpenLibraryPlugin
         return $out;
     }
 
+    /**
+     * Extract publisher from edition data
+     */
     private function extractPublisher(array $editionData): string
     {
         if (!empty($editionData['publishers'][0])) {
