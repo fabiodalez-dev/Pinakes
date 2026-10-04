@@ -1513,6 +1513,18 @@ background-color: transparent;
     object-fit: contain;
 }
 
+/* main.css gives every img `max-width: 100% !important`, which beats the caps
+   above: on a resource page the cover filled its column (375px at 1280px).
+   Re-assert them for the shared hero only; the book page keeps its own sizing,
+   and body.layout-command's 300px (more specific) still wins. */
+.resource-hero .book-cover-large {
+    max-width: min(100%, 350px) !important;
+}
+
+.resource-hero .resource-cover--logo .book-cover-large {
+    max-width: min(100%, 240px) !important;
+}
+
 /* The info card of a resource page uses an <h2> for a correct outline; it
    reads as the book page's <h6> card label. */
 .card-header .resource-info-title {
@@ -1532,15 +1544,17 @@ background-color: transparent;
     color: var(--primary-color);
 }
 
-.meta-value a {
+/* Scoped to the resource pages: the book page's own card (genre path, review
+   HTML) keeps its link style. */
+.resource-info-card .meta-value a {
     color: inherit;
     text-decoration: underline;
     text-decoration-color: var(--border-color);
     text-underline-offset: 3px;
 }
 
-.meta-value a:hover,
-.meta-value a:focus-visible {
+.resource-info-card .meta-value a:hover,
+.resource-info-card .meta-value a:focus-visible {
     color: var(--primary-color);
     text-decoration-color: currentColor;
 }

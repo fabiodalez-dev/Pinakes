@@ -1174,7 +1174,8 @@ class SettingsController
     {
         $allowed = ['full', 'banner', 'contained', 'thumb'];
         $layout = strtolower((string) $repository->get('cms', 'event_image_layout', 'contained'));
-        if (!in_array($layout, $allowed, true)) {
+        if (!in_array($layout, $allowed, true) || $layout === 'thumb') {
+            // 'thumb' renders as the hero cover, the same as 'contained'.
             $layout = 'contained';
         }
         return [
@@ -1545,6 +1546,10 @@ class SettingsController
         $allowed = ['full', 'banner', 'contained', 'thumb'];
         $submitted = strtolower(trim((string) ($data['event_image_layout'] ?? 'contained')));
         $layout = in_array($submitted, $allowed, true) ? $submitted : 'contained';
+        if ($layout === 'thumb') {
+            // No longer offered: it renders as the hero cover, like 'contained'.
+            $layout = 'contained';
+        }
 
         $repository->set('cms', 'event_image_layout', $layout);
         ConfigStore::set('cms.event_image_layout', $layout);

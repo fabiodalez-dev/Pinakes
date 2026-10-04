@@ -360,6 +360,66 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
         await expect(page.locator(`.archive-ref:text("${FILE_REF}")`)).toBeVisible();
     });
 
+    test('25b · Pubblico: un intervallo di anni libero si scrive nella sidebar', async () => {
+        // The century links cannot express 1945–1960; the typed range can, and keeps the search.
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}`);
+        const panel = page.locator('.filters-panel');
+        await panel.locator('input.pages-input[name="date_from"]').fill('1945');
+        await panel.locator('input.pages-input[name="date_to"]').fill('1960');
+        await panel.locator('input.pages-input[name="date_to"]').press('Enter');
+        await expect(page).toHaveURL(/date_from=1945/);
+        const params = new URL(page.url()).searchParams;
+        expect(params.get('date_to')).toBe('1960');
+        expect(params.get('q')).toBe(TAG);
+        await expect(page.locator(`.archive-ref:text("${SERIES_REF}")`)).toBeVisible();
+        await expect(page.locator(`.archive-ref:text("${FILE_REF}")`)).not.toBeVisible();
+        await expect(panel.locator('input.pages-input[name="date_from"]')).toHaveValue('1945');
+    });
+
+    test('25c · Pubblico: ogni pagina dell\'indice dichiara se stessa come canonical; le ricerche non si indicizzano', async () => {
+        // 24 per page: 25 more root units guarantee a second browse page.
+        const rows = [];
+        for (let i = 1; i <= 25; i++) rows.push(`('${TAG}_P${i}', 'TEST', 'fonds', 'E2E Fondo P${i}', 'E2E Fondo P${i}')`);
+        dbExec(`INSERT INTO archival_units (reference_code, institution_code, level, formal_title, constructed_title) VALUES ${rows.join(',')}`);
+        const canonical = () => page.locator('link[rel="canonical"]').getAttribute('href');
+        // Read the tag only if it is there: getAttribute() would wait for it to appear.
+        const robots = async () => {
+            const tag = page.locator('meta[name="robots"]');
+            return (await tag.count()) > 0 ? tag.first().getAttribute('content') : null;
+        };
+        await page.goto(`${BASE}/archivio?page=2`);
+        await expect(page.locator('.pagination .page-link[aria-current="page"]')).toHaveText('2');
+        expect(await canonical()).toMatch(/\/archivio\?page=2$/);
+        expect(await robots() ?? '').not.toContain('noindex');
+        await page.goto(`${BASE}/archivio`);
+        expect(await canonical()).toMatch(/\/archivio$/);
+        // A filtered view lists other units than its canonical names: it stays out of the index.
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}&page=2`);
+        expect(await robots()).toBe('noindex,follow');
+    });
+
+    test('25d · Pubblico: il conteggio di un secolo è quello che apre il clic', async () => {
+        // An undated unit and one dated 1910 under the same search: only the dated one belongs to 1900–1999.
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}`);
+        const century = page.locator('.filters-panel a.filter-option[href*="date_from=1900"]').first();
+        await expect(century).toBeVisible();
+        const facetCount = Number(await century.locator('.count-badge').innerText());
+        await century.click();
+        const shown = Number((await page.locator('.results-info strong').innerText()).replace(/\D/g, ''));
+        expect(shown).toBe(facetCount);
+        await expect(page.locator(`.archive-ref:text("${FONDS_REF}")`), 'an undated fonds is in no period').not.toBeVisible();
+    });
+
+    test('25e · Pubblico: gli anni prima di Cristo sono un filtro vero, non un chip finto', async () => {
+        dbExec(`INSERT INTO archival_units (reference_code, institution_code, level, formal_title, constructed_title, date_start, date_end) VALUES ('${TAG}_BC', 'TEST', 'item', 'E2E Papiro', 'E2E Papiro', -500, -450)`);
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}&date_from=-600&date_to=-400`);
+        await expect(page.locator(`.archive-ref:text("${TAG}_BC")`)).toBeVisible();
+        await expect(page.locator(`.archive-ref:text("${SERIES_REF}")`)).not.toBeVisible();
+        // Garbage is dropped rather than shown as an active filter that does nothing.
+        await page.goto(`${BASE}/archivio?q=${encodeURIComponent(TAG)}&date_from=abc`);
+        await expect(page.locator('.filter-tag', { hasText: 'abc' })).toHaveCount(0);
+    });
+
     test('26 · Catalogo: ricerca per titolo mostra sezione archivio', async () => {
         // Search for "Fondo" — matches TAG_F1 "E2E Fondo Alpha"
         await page.goto(`${BASE}/catalogo?search=${encodeURIComponent('E2E Fondo')}`);

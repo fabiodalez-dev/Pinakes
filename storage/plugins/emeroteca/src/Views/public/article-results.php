@@ -74,12 +74,12 @@ $articleAuthorHref = static fn(array $an): string => $an['id'] !== null
     if ($articleKeep($a['pagine'] ?? '')) {
         $articleMeta[] = ['label' => (string) $a['pagine']];
     }
-    $articleCover = \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a);
+    $resultCover = \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a);
     $articleCard = [
         'id' => (int) $a['id'],
         'url' => url('/emeroteca/articolo/' . (int) $a['id']),
         'title' => (string) $a['titolo'],
-        'cover' => $articleCover !== '' ? url($articleCover) : '',
+        'cover' => $resultCover !== '' ? url($resultCover) : '',
         'subtitle' => (string) ($a['sottotitolo'] ?? ''),
         'authors' => array_map(static fn(array $an): array => ['name' => $an['name'], 'href' => $articleAuthorHref($an)], $articleLinks),
         'authorsText' => (string) ($a['autori'] ?? ''),

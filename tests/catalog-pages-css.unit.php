@@ -90,5 +90,10 @@ foreach ($rules as $selector => $body) {
 check($unfocused === [], 'every :focus that drops the outline has a :focus-visible ring' . ($unfocused ? ': ' . implode(', ', $unfocused) : ''));
 check(isset($rules['.search-box input:focus-visible']), 'the article and catalogue search box has its keyboard ring');
 
+// book-detail.css is also the real book page's stylesheet: the resource pages'
+// link style must not reach its genre path or review HTML.
+$bookCss = (string) file_get_contents(dirname(__DIR__) . '/public/assets/book-detail.css');
+check(preg_match('/(^|[},])\s*\.meta-value\s+a\s*[{,:]/m', preg_replace('#/\*.*?\*/#s', '', $bookCss)) === 0, 'book-detail.css styles .meta-value links only inside a resource card');
+
 echo "\n" . ($failures === 0 ? "SUCCESS {$checks} checks" : "FAILURE {$failures} of {$checks} checks failed") . "\n";
 exit($failures === 0 ? 0 : 1);
