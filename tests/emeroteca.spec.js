@@ -373,6 +373,53 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(row).toContain('1125-3460');
   });
 
+  test('a masthead language catalogued as "it" is shown and saved as the picker stores it', async ({ page }) => {
+    test.setTimeout(60000);
+    // Mastheads catalogued before the language picker hold two-letter codes;
+    // the picker stores ISO 639-2/T. Opened and saved, the old code is
+    // converted rather than shown as an unknown "(it)" next to "ita".
+    dbQuery(`UPDATE emeroteca_testate SET lingua='it' WHERE id=${Number(testataId)}`);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+    await expect(page.locator('#lingua')).toHaveValue('ita', { timeout: 10000 });
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    expect(dbQuery(`SELECT lingua FROM emeroteca_testate WHERE id=${Number(testataId)}`)).toBe('ita');
+    // schema.org reads BCP 47: the public page says "it", not "ita".
+    await page.goto(`${BASE}/emeroteca/${testataId}`);
+    const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).join(' ');
+    expect(ld).toMatch(/"inLanguage":\s*"it"/);
+  });
+
+  test('the mobile API gives a legacy masthead language in the form the picker stores', async ({ request }) => {
+    test.setTimeout(60000);
+    test.skip(dbQuery("SELECT is_active FROM plugins WHERE name = 'mobile-api'") !== '1', 'mobile-api plugin is not active');
+    const previous = dbQuery("SELECT setting_value FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'");
+    dbQuery("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('mobile_api','enabled','1') ON DUPLICATE KEY UPDATE setting_value='1'");
+    // A masthead never re-saved since the picker arrived still holds "it";
+    // the app must not see "it" for one masthead and "ita" for the next.
+    dbQuery(`UPDATE emeroteca_testate SET lingua='it' WHERE id=${Number(testataId)}`);
+    try {
+      const login = await request.post(`${BASE}/api/v1/auth/login`, {
+        data: { email: process.env.E2E_ADMIN_EMAIL, password: process.env.E2E_ADMIN_PASS, device_name: 'EmerotecaLang', device_id: `emeroteca-lang-${RUN}`, platform: 'test' },
+      });
+      expect(login.status(), 'admin API login').toBe(200);
+      const token = (await login.json()).data.token;
+      const detail = await request.get(`${BASE}/api/v1/periodicals/${testataId}`, { headers: { Authorization: `Bearer ${token}` } });
+      expect(detail.status()).toBe(200);
+      expect((await detail.json()).data.language).toBe('ita');
+    } finally {
+      dbQuery(`UPDATE emeroteca_testate SET lingua='ita' WHERE id=${Number(testataId)}`);
+      if (previous === '') {
+        dbQuery("DELETE FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'");
+      } else {
+        dbQuery(`UPDATE system_settings SET setting_value='${sqlEscape(previous)}' WHERE category='mobile_api' AND setting_key='enabled'`);
+      }
+    }
+  });
+
   test('logo upload uses Uppy and persists a served image', async ({ page }) => {
     test.setTimeout(90000);
     await loginAsAdmin(page);
@@ -844,7 +891,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await expect(page.locator('#ab-fornitore')).toBeVisible({ timeout: 10000 });
     await page.fill('#ab-fornitore', 'Fornitore E2E');
     await page.fill('#ab-costo', '129,90');
-    await page.fill('#ab-valuta', 'EUR');
+    await expect(page.locator('#ab-valuta'), 'the currency picker preselects the euro').toHaveValue('EUR');
     await setDateField(page, '#ab-inizio', inDays(-300));
     // Inside the 60-day renewal window → the list must warn.
     await setDateField(page, '#ab-scadenza', inDays(20));

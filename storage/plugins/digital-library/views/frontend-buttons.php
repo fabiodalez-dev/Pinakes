@@ -27,7 +27,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
         class="ui-button btn-outline-primary plugin-book-action plugin-book-action--reader"
         aria-controls="pdf-viewer-container"
         aria-expanded="false"
-        title="<?= __("Leggi PDF") ?>">
+        title="<?= htmlspecialchars(__("Leggi PDF"), ENT_QUOTES, 'UTF-8') ?>">
     <i class="fas fa-book-reader mr-2"></i>
     <?= __("Leggi PDF") ?>
 </button>
@@ -35,7 +35,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
 <a href="<?= htmlspecialchars(url($book['file_url']), ENT_QUOTES, 'UTF-8') ?>"
    download
    class="ui-button btn-outline-primary plugin-book-action plugin-book-action--download"
-   title="<?= __("Scarica PDF") ?>">
+   title="<?= htmlspecialchars(__("Scarica PDF"), ENT_QUOTES, 'UTF-8') ?>">
     <i class="fas fa-download mr-2"></i>
     <?= __("Scarica PDF") ?>
 </a>
@@ -45,7 +45,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
    target="_blank"
    rel="noopener noreferrer"
    class="ui-button btn-outline-primary plugin-book-action plugin-book-action--reader"
-   title="<?= __("Scarica l'eBook in formato digitale") ?>">
+   title="<?= htmlspecialchars(__("Scarica l'eBook in formato digitale"), ENT_QUOTES, 'UTF-8') ?>">
     <i class="fas fa-book-open mr-2"></i>
     <?= __("Scarica eBook") ?>
 </a>
@@ -57,7 +57,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
         class="ui-button btn-outline-primary plugin-book-action plugin-book-action--audio"
         aria-controls="audiobook-player-container"
         aria-expanded="false"
-        title="<?= __("Ascolta l'audiobook") ?>">
+        title="<?= htmlspecialchars(__("Ascolta l'audiobook"), ENT_QUOTES, 'UTF-8') ?>">
     <i class="fas fa-headphones mr-2"></i>
     <?= __("Ascolta Audiobook") ?>
 </button>

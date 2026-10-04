@@ -96,7 +96,7 @@
                   </div>
                   <a href="<?= htmlspecialchars(url('/admin/users/details/' . (int)$user['id']), ENT_QUOTES, 'UTF-8') ?>"
                      class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                     title="<?= __("Visualizza dettagli") ?>">
+                     title="<?= htmlspecialchars(__("Visualizza dettagli"), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-external-link-alt text-sm"></i>
                   </a>
                 </div>
@@ -177,7 +177,7 @@
               <i class="fas fa-search mr-1"></i>
               <?= __("Cerca testo") ?>
             </label>
-            <input id="search_text" placeholder="<?= __('Nome, cognome, email...') ?>" class="form-input" />
+            <input id="search_text" placeholder="<?= htmlspecialchars(__('Nome, cognome, email...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
           </div>
           
           <div>
@@ -238,15 +238,15 @@
           <span id="total-count" class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"></span>
         </h2>
         <div id="export-buttons" class="flex items-center space-x-2">
-          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta CSV (formato compatibile per import)") ?>">
+          <button id="export-excel" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= htmlspecialchars(__("Esporta CSV (formato compatibile per import)"), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-file-csv mr-1"></i>
             CSV
           </button>
-          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Esporta PDF") ?>">
+          <button id="export-pdf" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= htmlspecialchars(__("Esporta PDF"), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-file-pdf mr-1"></i>
             PDF
           </button>
-          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= __("Stampa") ?>">
+          <button id="print-table" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center" title="<?= htmlspecialchars(__("Stampa"), ENT_QUOTES, 'UTF-8') ?>">
             <i class="fas fa-print mr-1"></i>
             <?= __("Stampa") ?>
           </button>

@@ -25,7 +25,7 @@ use App\Support\HtmlHelper;
                  name="page_title"
                  value="<?php echo HtmlHelper::e($contactSettings['page_title'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('Contattaci') ?>" />
+                 placeholder="<?= htmlspecialchars(__('Contattaci'), ENT_QUOTES, 'UTF-8') ?>" />
         </div>
 
         <div>
@@ -55,7 +55,7 @@ use App\Support\HtmlHelper;
                  name="contact_email"
                  value="<?php echo HtmlHelper::e($contactSettings['contact_email'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('info@biblioteca.it') ?>" />
+                 placeholder="<?= htmlspecialchars(__('info@biblioteca.it'), ENT_QUOTES, 'UTF-8') ?>" />
           <p class="mt-1 text-xs text-gray-500"><?= __("Visibile pubblicamente sulla pagina contatti") ?></p>
         </div>
 
@@ -66,7 +66,7 @@ use App\Support\HtmlHelper;
                  name="contact_phone"
                  value="<?php echo HtmlHelper::e($contactSettings['contact_phone'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('+39 049 123 4567') ?>" />
+                 placeholder="<?= htmlspecialchars(__('+39 049 123 4567'), ENT_QUOTES, 'UTF-8') ?>" />
         </div>
 
         <div>
@@ -76,7 +76,7 @@ use App\Support\HtmlHelper;
                  name="notification_email"
                  value="<?php echo HtmlHelper::e($contactSettings['notification_email'] ?? ''); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-                 placeholder="<?= __('admin@biblioteca.it') ?>" />
+                 placeholder="<?= htmlspecialchars(__('admin@biblioteca.it'), ENT_QUOTES, 'UTF-8') ?>" />
           <p class="mt-1 text-xs text-gray-500"><?= __("Email dove ricevere i messaggi dal form contatti") ?></p>
         </div>
       </div>

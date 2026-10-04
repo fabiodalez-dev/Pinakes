@@ -97,7 +97,7 @@ $forgotPasswordRoute = route_path('forgot_password');
             required aria-required="true"
             aria-describedby="email-error"
             class="auth-input"
-            placeholder="<?= __('mario.rossi@email.it') ?>"
+            placeholder="<?= htmlspecialchars(__('mario.rossi@email.it'), ENT_QUOTES, 'UTF-8') ?>"
             value="<?php echo htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
           />
           <p class="auth-help">

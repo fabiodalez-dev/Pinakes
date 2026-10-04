@@ -1868,6 +1868,10 @@ class OaiPmhServerPlugin
         // 264 — Production/Publication (RDA). MARC21 $b (publisher name) is
         // repeatable, so multiple publishers become repeated $b in one 264.
         $pubSubs = [];
+        // $a — place of publication, as printed (core 0.7.89).
+        if (!empty($row['luogo_pubblicazione'])) {
+            $pubSubs[] = ['a', (string) $row['luogo_pubblicazione']];
+        }
         foreach ($publishers as $pub) {
             if (!empty($pub['nome'])) {
                 $pubSubs[] = ['b', (string) $pub['nome']];

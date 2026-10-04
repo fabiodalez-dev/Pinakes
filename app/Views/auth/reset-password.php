@@ -112,7 +112,7 @@ $resetPasswordRoute = route_path('reset_password');
               required aria-required="true"
               aria-describedby="password-error"
               class="auth-input"
-              placeholder="<?= __('••••••••') ?>"
+              placeholder="<?= htmlspecialchars(__('••••••••'), ENT_QUOTES, 'UTF-8') ?>"
               minlength="8"
             />
             <p class="auth-help">
@@ -132,7 +132,7 @@ $resetPasswordRoute = route_path('reset_password');
               required aria-required="true"
               aria-describedby="password_confirm-error"
               class="auth-input"
-              placeholder="<?= __('••••••••') ?>"
+              placeholder="<?= htmlspecialchars(__('••••••••'), ENT_QUOTES, 'UTF-8') ?>"
               minlength="8"
             />
             <span id="password_confirm-error" class="auth-field-error hidden" role="alert" aria-live="polite"></span>

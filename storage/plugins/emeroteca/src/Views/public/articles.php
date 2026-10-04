@@ -47,7 +47,7 @@ $corePartials=dirname(__DIR__, 6).'/app/Views/frontend/partials';
 // The catalogue surface: hero, sidebar, grid and pagination (read by the layout).
 $catalogPageStyles=true;
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.9.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
 
 <?php
 $heroTitle=__('Articoli');

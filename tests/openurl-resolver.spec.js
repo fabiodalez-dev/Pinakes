@@ -325,4 +325,31 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
         const missing = await request.get(`${BASE}/api/coins/article/9999999`);
         expect(missing.status()).toBe(404);
     });
+
+    test('17. journal and book-item requests keep to their own kind of record', async ({ request }) => {
+        test.skip(articleId === 0, 'Emeroteca standalone articles are not available');
+        // A chapter of an anthology sharing nothing but its title with the
+        // request must not answer a journal request, and a journal article must
+        // not answer a book-item request.
+        const chapterTitle = `OpenUrlChapter412 ${Date.now()}`;
+        dbQuery(`INSERT INTO emeroteca_contributi (reference_key, titolo, contenitore_titolo, contenitore_tipo, isbn, pubblico)
+                 VALUES ('openurl412c-${Date.now()}', '${chapterTitle}', 'Exil in Dänemark', 'antologia', '9780306406157', 1)`);
+        const chapterId = parseInt(dbQuery(`SELECT id FROM emeroteca_contributi WHERE titolo='${chapterTitle}'`)) || 0;
+        try {
+            const asJournal = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:journal&rft.atitle=${encodeURIComponent(chapterTitle)}`, { maxRedirects: 0 });
+            expect(asJournal.status()).toBe(302);
+            expect(asJournal.headers()['location'], 'a journal request does not land on a chapter').not.toContain(`/emeroteca/articolo/${chapterId}`);
+
+            const asChapter = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:book&rft.genre=bookitem&rft.atitle=${encodeURIComponent(chapterTitle)}&rft.isbn=9780306406157`, { maxRedirects: 0 });
+            expect(asChapter.headers()['location'], 'the book-item request finds the chapter').toContain(`/emeroteca/articolo/${chapterId}`);
+
+            const otherVolume = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:book&rft.genre=bookitem&rft.atitle=${encodeURIComponent(chapterTitle)}&rft.isbn=9788842935780`, { maxRedirects: 0 });
+            expect(otherVolume.headers()['location'], 'a chapter of another volume does not answer').not.toContain(`/emeroteca/articolo/${chapterId}`);
+
+            const journalAsChapter = await request.get(`${BASE}/openurl?rft_val_fmt=info:ofi/fmt:kev:mtx:book&rft.genre=bookitem&rft.atitle=${encodeURIComponent(articleTitle)}`, { maxRedirects: 0 });
+            expect(journalAsChapter.headers()['location'], 'a book-item request does not land on a journal article').not.toContain(`/emeroteca/articolo/${articleId}`);
+        } finally {
+            if (chapterId > 0) dbQuery(`DELETE FROM emeroteca_contributi WHERE id=${chapterId}`);
+        }
+    });
 });

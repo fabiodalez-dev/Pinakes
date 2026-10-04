@@ -166,8 +166,9 @@ test.describe.serial('Public Frontend', () => {
     await page.goto(`${BASE}/autore/${authorId}`);
     await page.waitForLoadState('networkidle');
 
-    // Verify page loads (not 404/500)
-    const heading = page.locator('h1');
+    // Verify page loads (not 404/500). The archive's own title: the cookie
+    // banner, when shown, has an <h1> of its own.
+    const heading = page.locator('h1#archive-title');
     await expect(heading).toBeVisible({ timeout: 5000 });
 
     // Verify at least one book card or book reference exists

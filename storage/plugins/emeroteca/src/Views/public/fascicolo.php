@@ -133,7 +133,7 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
 <?php if (!$isScartato): ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
 <?php endif; ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.9.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
 <?php
 $corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
 $catalogPageStyles = true;

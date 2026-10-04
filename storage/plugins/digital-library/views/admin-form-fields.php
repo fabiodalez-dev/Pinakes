@@ -51,7 +51,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
             <input type="text"
                    id="file_url_display"
                    class="form-input w-full md:flex-1"
-                   placeholder="<?= __('URL del file o carica usando il pulsante') ?>"
+                   placeholder="<?= htmlspecialchars(__('URL del file o carica usando il pulsante'), ENT_QUOTES, 'UTF-8') ?>"
                    value="<?= HtmlHelper::e($currentFileUrl) ?>"
                    onchange="document.getElementById('file_url').value = this.value">
             <button type="button"
@@ -101,7 +101,7 @@ $currentAudioUrl = $book['audio_url'] ?? '';
             <input type="text"
                    id="audio_url_display"
                    class="form-input w-full md:flex-1"
-                   placeholder="<?= __('URL del file o carica usando il pulsante') ?>"
+                   placeholder="<?= htmlspecialchars(__('URL del file o carica usando il pulsante'), ENT_QUOTES, 'UTF-8') ?>"
                    value="<?= HtmlHelper::e($currentAudioUrl) ?>"
                    onchange="document.getElementById('audio_url').value = this.value">
             <button type="button"

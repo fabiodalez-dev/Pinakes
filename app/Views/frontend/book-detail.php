@@ -631,7 +631,7 @@ ob_start();
                                   echo __("Prestito richiesto con successo.");
                               }
                             ?>
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
                         <div class="alert alert-error relative pr-12 fade show" role="alert">
@@ -649,13 +649,13 @@ ob_start();
                             <?php else: ?>
                               <?= __('Errore nella richiesta di prestito.') ?>
                             <?php endif; ?>
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($_GET['reserve_success'])): ?>
                         <div class="alert alert-success relative pr-12 fade show" role="alert">
                             <i class="fas fa-check-circle mr-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date'], ENT_QUOTES, 'UTF-8') ?></strong><?php endif; ?>.
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['reserve_error'])): ?>
                         <div class="alert alert-error relative pr-12 fade show" role="alert">
@@ -685,7 +685,7 @@ ob_start();
                                   'UTF-8'
                               );
                             ?>
-                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= __('Chiudi') ?>"></button>
+                            <button type="button" class="alert-dismiss" data-dismiss-alert aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"></button>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -1113,6 +1113,12 @@ ob_start();
                             <div class="meta-value"><?= htmlspecialchars(implode(', ', $metaPublisherNames), ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
+                        <?php if (trim((string) ($book['luogo_pubblicazione'] ?? '')) !== ''): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Luogo di pubblicazione") ?></div>
+                            <div class="meta-value"><?= App\Support\HtmlHelper::e((string) $book['luogo_pubblicazione']) ?></div>
+                        </div>
+                        <?php endif; ?>
 
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
@@ -1172,6 +1178,24 @@ ob_start();
 
                 <!-- Share Card (configurable via Settings > Sharing) -->
                 <?php include __DIR__ . '/partials/social-sharing.php'; ?>
+
+                <?php
+                // "Cite" (#412): the book as the shared citation styles read it;
+                // the RIS download starts from the same input.
+                $citeCitations = \App\Support\CitationStyles::all(\App\Support\BookCitation::input($book, $authors));
+                $citeTitle = $bookTitle;
+                $citeDownloads = [
+                    ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/books/' . (int) $book['id'] . '/citation.ris')],
+                ];
+                ?>
+                <div class="card" id="book-cite-card">
+                  <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-quote-left mr-2"></i><?= htmlspecialchars(__('Cita questo libro'), ENT_QUOTES, 'UTF-8') ?></h6>
+                  </div>
+                  <div class="card-body py-2 px-3">
+                    <?php include dirname(__DIR__) . '/partials/cite-dialog.php'; ?>
+                  </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1659,7 +1683,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `<div class="loan-request-form">`+
             `<div class="loan-request-field">`+
             `<label class="loan-request-label" data-for-picker="start">${__('Quando vuoi iniziare il prestito?')}</label>`+
-            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="<?= __('Data inizio') ?>">`+
+            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="<?= htmlspecialchars(__('Data inizio'), ENT_QUOTES, 'UTF-8') ?>">`+
             `</div>`+
             `<div class="loan-request-field">`+
             `<label class="loan-request-label" data-for-picker="end">${__('Fino a quando? (opzionale):')}</label>`+

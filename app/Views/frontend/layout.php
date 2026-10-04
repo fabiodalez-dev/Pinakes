@@ -1797,19 +1797,19 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                     <!-- Compact search toggle -->
                     <button class="mobile-search-toggle md:hidden" id="mobileSearchToggle"
-                        aria-label="<?= __('Toggle search') ?>">
+                        aria-label="<?= htmlspecialchars(__('Toggle search'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-search"></i>
                     </button>
 
                     <!-- Mobile Menu Toggle -->
                     <button class="mobile-menu-toggle md:hidden" id="mobileMenuToggle"
-                        aria-label="<?= __('Toggle menu') ?>">
+                        aria-label="<?= htmlspecialchars(__('Toggle menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
                     <form class="search-form hidden md:block" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="<?= __('Search') ?>">
+                            placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
 
                     <div class="user-menu hidden md:flex">
@@ -1877,9 +1877,9 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container md:hidden" id="mobileSearchContainer">
                         <form class="search-form mobile-search-form" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
-                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= __('Cerca libri, autori, ISBN...') ?>"
-                                aria-label="<?= __('Search') ?>" autocomplete="off">
-                            <button type="submit" class="btn-search-mobile" aria-label="<?= __('Cerca') ?>">
+                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>"
+                                aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
+                            <button type="submit" class="btn-search-mobile" aria-label="<?= htmlspecialchars(__('Cerca'), ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas fa-search"></i>
                                 <span class="hidden sm:inline"><?= __('Cerca') ?></span>
                             </button>
@@ -1894,7 +1894,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= __('Close menu') ?>">
+                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= htmlspecialchars(__('Close menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -2249,6 +2249,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 const authors = results.filter(r => r.type === 'author');
                 const publishers = results.filter(r => r.type === 'publisher');
                 const archives = results.filter(r => r.type === 'archive');
+                const articles = results.filter(r => r.type === 'article');
 
                 // Books section
                 if (books.length > 0) {
@@ -2311,6 +2312,27 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<div class="search-publisher-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-color);">' + publisherName + '</div>' +
                             '<div class="search-publisher-books" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem;">' + publisherBooks + '</div>' +
                             (publisher.description ? '<div class="search-publisher-desc" style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.2;">' + publisherDesc + '</div>' : '') +
+                            '</div>' +
+                            '</a>';
+                    });
+                    html += '</div>';
+                }
+
+                // Articles section (Emeroteca, #412): a journal or newspaper
+                // article is found by the same search as a book.
+                if (articles.length > 0) {
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Articoli') + '</h6>';
+                    articles.forEach(art => {
+                        const artUrl = sanitizeUrl(art.url ?? '#');
+                        const artLabel = escapeHtml(art.label ?? '');
+                        const artAuthor = escapeHtml(art.author ?? '');
+                        const artSource = escapeHtml(art.identifier ?? '');
+                        html += '<a href="' + artUrl + '" class="search-result-item article-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                            '<div style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light); flex-shrink: 0;"><i class="fas fa-newspaper" aria-hidden="true"></i></div>' +
+                            '<div>' +
+                            '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: var(--text-color); text-align: left;">' + artLabel + '</div>' +
+                            (artAuthor ? '<div style="font-size: 0.75rem; color: var(--text-light); text-align: left;">' + artAuthor + '</div>' : '') +
+                            (artSource ? '<div style="font-size: 0.75rem; color: var(--text-muted); text-align: left;">' + artSource + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });

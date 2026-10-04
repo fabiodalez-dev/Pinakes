@@ -398,7 +398,11 @@ final class MobileModule
             $data = $this->mapPeriodicalItem($row);
             $data['description'] = $this->nullableString($row['descrizione'] ?? null);
             $data['place']       = $this->nullableString($row['luogo_pubblicazione'] ?? null);
-            $data['language']    = $this->nullableString($row['lingua'] ?? null);
+            // Older mastheads hold "it", newer ones the picker's "ita": the app
+            // gets one form, the three-letter code the picker stores.
+            require_once __DIR__.'/../Support/CodeLists.php';
+            $language = $this->nullableString($row['lingua'] ?? null);
+            $data['language']    = $language === null ? null : \App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($language);
             $data['holdings']    = \EmerotecaPlugin::consistenzaTestata($this->db, $id);
             $data['years']       = $years;
 

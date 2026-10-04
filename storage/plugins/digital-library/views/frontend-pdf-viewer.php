@@ -30,7 +30,7 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'PDF', ENT_QUOTES, 'UTF-8');
                 <button type="button"
                         onclick="document.getElementById('btn-toggle-pdf-viewer')?.click()"
                         class="ui-button btn-outline plugin-player-action plugin-player-action--close"
-                        aria-label="<?= __("Chiudi Visualizzatore") ?>">
+                        aria-label="<?= htmlspecialchars(__("Chiudi Visualizzatore"), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -46,7 +46,7 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'PDF', ENT_QUOTES, 'UTF-8');
                     class="pdf-viewer-frame"
                     src="about:blank"
                     data-pdf-src="<?= $pdfUrl ?>#toolbar=1&navpanes=1"
-                    title="<?= __("Visualizzatore PDF") ?> — <?= $bookTitle ?>"
+                    title="<?= htmlspecialchars(__("Visualizzatore PDF"), ENT_QUOTES, 'UTF-8') ?> — <?= $bookTitle ?>"
                     allowfullscreen>
             </iframe>
 

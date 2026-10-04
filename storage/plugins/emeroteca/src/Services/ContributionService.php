@@ -66,7 +66,19 @@ final class ContributionService
         'risorsa_testo' => "VARCHAR(255) NULL",
         'risorsa_accesso' => "VARCHAR(255) NULL",
         'risorsa_pubblica' => "TINYINT(1) NOT NULL DEFAULT 0",
+        // 1.9.0 — a chapter in an anthology (#412): the host is a book, and a
+        // chapter citation names its editors, publisher and place. Appended
+        // after risorsa_pubblica for the same reason as the 1.7 block.
+        'contenitore_curatori' => "VARCHAR(500) NULL",
+        'contenitore_editore' => "VARCHAR(255) NULL",
+        'contenitore_luogo' => "VARCHAR(255) NULL",
+        'isbn' => "VARCHAR(17) NULL",
     ];
+    /**
+     * The article form's "Other scheme" choice: the scheme's name is then
+     * typed into classificazione_schema_altro and stored in its place.
+     */
+    public const OTHER_SCHEME = '__altro';
     public const TEXT_FIELDS = ['titolo' => 500,'autori' => 500,'tipo_contributo' => 30,'contenitore_tipo' => 30,
         'contenitore_titolo' => 255,'issn' => 9,'data_pubblicazione_testo' => 100,'volume' => 50,'numero' => 50,
         'pagine' => 100,'doi' => 255,'supporto' => 20,'keywords' => 500,'abstract' => 10000,'collocazione' => 255,'note_private' => 10000,
@@ -74,14 +86,17 @@ final class ContributionService
         // the physical column order from this map's key order.
         'sottotitolo' => 500,'lingua' => 10,'paese' => 2,'classificazione_schema' => 20,
         'classificazione' => 100,'nota_possesso' => 255,'risorsa_url' => 500,
-        'risorsa_testo' => 255,'risorsa_accesso' => 255];
+        'risorsa_testo' => 255,'risorsa_accesso' => 255,
+        // 1.9.0 — the host volume of an anthology chapter.
+        'contenitore_curatori' => 500,'contenitore_editore' => 255,'contenitore_luogo' => 255,'isbn' => 17];
     /** A reference_key the table accepts: shared by save() and the CSV preview. */
     public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';
 
     public const CSV_FIELDS = ['reference_key','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo',
         'issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract',
         'lingua','paese','classificazione_schema','classificazione','nota_possesso',
-        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico'];
+        'risorsa_url','risorsa_testo','risorsa_accesso','risorsa_pubblica','collocazione','note_private','pubblico',
+        'contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
 
     /**
      * The header the template and the export carry.
@@ -227,6 +242,9 @@ SQL;
      */
     public static function normalize(array $input): array
     {
+        if (($input['classificazione_schema'] ?? null) === self::OTHER_SCHEME) {
+            $input['classificazione_schema'] = $input['classificazione_schema_altro'] ?? '';
+        }
         $out = [];
         foreach (self::TEXT_FIELDS as $key => $max) {
             if (isset($input[$key]) && !is_scalar($input[$key])) {
@@ -245,14 +263,31 @@ SQL;
         $out['supporto'] ??= 'cartaceo';
         if (!in_array($out['tipo_contributo'], ['articolo','editoriale','recensione','intervista','dossier','rubrica'], true)
             || !in_array($out['supporto'], ['cartaceo','digitale','entrambi'], true)
-            || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine'], true))) {
+            || ($out['contenitore_tipo'] !== null && !in_array($out['contenitore_tipo'], ['rivista','giornale','magazine','bollettino','fanzine','antologia'], true))) {
             throw new \InvalidArgumentException(__('Tipo non valido.'));
+        }
+        // Editors, publisher, place and ISBN describe the volume an anthology
+        // chapter sits in. For any other container they mean nothing: the form
+        // hides them, and a value left over from an anthology draft must not
+        // be stored, shown publicly, or block the save with an invalid ISBN
+        // the cataloguer can no longer see.
+        if ($out['contenitore_tipo'] !== 'antologia') {
+            foreach (['contenitore_curatori', 'contenitore_editore', 'contenitore_luogo', 'isbn'] as $hostField) {
+                $out[$hostField] = null;
+            }
         }
         if ($out['issn'] !== null) {
             if (!IssnHelper::isValidChecksum($out['issn'])) {
                 throw new \InvalidArgumentException(__('ISSN non valido.'));
             }
             $out['issn'] = IssnHelper::normalize($out['issn']);
+        }
+        if ($out['isbn'] !== null) {
+            $isbn = \App\Support\IsbnFormatter::clean($out['isbn']);
+            if (!\App\Support\IsbnFormatter::isValid($isbn)) {
+                throw new \InvalidArgumentException(__('ISBN non valido.'));
+            }
+            $out['isbn'] = $isbn;
         }
         if ($out['doi'] !== null) {
             $out['doi'] = strtolower(preg_replace('~^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)~i', '', $out['doi']) ?? '');
@@ -363,6 +398,27 @@ SQL;
                 }
             }
             $values = self::normalize($data);
+            // The form's masthead picker (#412). Imports and older clients do not
+            // send it and leave the link alone. Moving to another masthead drops
+            // an issue that belongs to the old one.
+            if (array_key_exists('host_testata_present', $data)) {
+                $rawHost = $data['testata_id'] ?? '';
+                if (!is_scalar($rawHost) || ($rawHost !== '' && !ctype_digit((string) $rawHost))) {
+                    throw new \InvalidArgumentException(__('Testata non valida.'));
+                }
+                $hostId = (int) $rawHost;
+                if ($hostId > 0 && $this->rows('SELECT id FROM emeroteca_testate WHERE id=?', [$hostId]) === []) {
+                    throw new \InvalidArgumentException(__('Testata non valida.'));
+                }
+                $values['testata_id'] = $hostId > 0 ? $hostId : null;
+                $currentIssue = $id > 0 ? (int) ($this->rows('SELECT fascicolo_id FROM emeroteca_contributi WHERE id=?', [$id])[0]['fascicolo_id'] ?? 0) : 0;
+                if ($currentIssue > 0) {
+                    $issueHost = (int) ($this->rows('SELECT a.testata_id FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id WHERE f.id=?', [$currentIssue])[0]['testata_id'] ?? 0);
+                    if ($issueHost !== $hostId) {
+                        $values['fascicolo_id'] = null;
+                    }
+                }
+            }
             foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
                 if (array_key_exists($field, $files)) {
                     $values[$field] = $files[$field];
@@ -422,7 +478,7 @@ SQL;
      * cover, status) and that issue's year. Aliased so they never collide with
      * the article's own free-text `numero` / `volume` citation fields.
      */
-    public const PLACEMENT_COLUMNS = 't.titolo testata_titolo, t.logo_url testata_logo_url,'
+    public const PLACEMENT_COLUMNS = 't.titolo testata_titolo, t.issn testata_issn, t.logo_url testata_logo_url,'
         . ' f.numero fascicolo_numero, f.titolo_fascicolo fascicolo_titolo, f.copertina_url fascicolo_copertina_url,'
         . ' f.stato fascicolo_stato, f.annata_id fascicolo_annata_id, fa.anno fascicolo_anno, fa.volume fascicolo_volume';
 
@@ -796,6 +852,9 @@ SQL;
         if ($container === 'giornale') {
             return __('Articolo di giornale');
         }
+        if ($container === 'antologia') {
+            return __('Capitolo di un volume');
+        }
         if ($container !== '') {
             return __('Articolo di rivista');
         }
@@ -853,7 +912,7 @@ SQL;
      */
     public static function publicData(array $r): array
     {
-        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','testata_id','fascicolo_id','updated_at']));
+        $out = array_intersect_key($r, array_flip(['id','titolo','sottotitolo','autori','tipo_contributo','contenitore_tipo','contenitore_titolo','issn','data_pubblicazione_testo','anno_pubblicazione','volume','numero','pagine','doi','supporto','keywords','abstract','lingua','paese','classificazione_schema','classificazione','nota_possesso','contenitore_curatori','contenitore_editore','contenitore_luogo','isbn','testata_id','fascicolo_id','updated_at']));
         foreach (['id','anno_pubblicazione','testata_id','fascicolo_id'] as $key) {
             if (isset($out[$key])) { $out[$key] = (int) $out[$key]; }
         }

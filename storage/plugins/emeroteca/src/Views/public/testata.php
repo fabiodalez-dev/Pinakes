@@ -17,6 +17,7 @@
  * @var array<string, string>           $statoFascicoloLabels
  */
 declare(strict_types=1);
+require_once dirname(__DIR__, 2) . '/Support/CodeLists.php';
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
@@ -74,7 +75,7 @@ $schema = [
     'issn'          => (string) ($testata['issn'] ?? ''),
     'url'           => $canonicalSelf,
     'description'   => (string) ($testata['descrizione'] ?? ''),
-    'inLanguage'    => (string) ($testata['lingua'] ?? ''),
+    'inLanguage'    => \App\Plugins\Emeroteca\Support\CodeLists::languageTag((string) ($testata['lingua'] ?? '')),
     'temporalCoverage' => $temporalCoverage,
 ];
 if (!empty($testata['editore_nome'])) {
@@ -90,7 +91,7 @@ $schema = array_filter($schema, static fn($v) => $v !== null && $v !== '');
 $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.9.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
 <?php
 $corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
 $catalogPageStyles = true;

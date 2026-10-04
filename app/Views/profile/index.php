@@ -527,19 +527,19 @@
         <div class="form-group" style="grid-column: 1 / -1;">
           <label for="current_password" class="form-label"><?= __("Password attuale") ?></label>
           <input type="password" id="current_password" name="current_password" class="form-input" autocomplete="current-password" required aria-required="true"
-                 placeholder="<?= __("Inserisci la password attuale") ?>">
+                 placeholder="<?= htmlspecialchars(__("Inserisci la password attuale"), ENT_QUOTES, 'UTF-8') ?>">
         </div>
         <div class="form-group">
           <label for="password" class="form-label"><?= __("Nuova password") ?></label>
           <input type="password" id="password" name="password" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password-error"
-                 minlength="8" placeholder="<?= __("Minimo 8 caratteri") ?>">
+                 minlength="8" placeholder="<?= htmlspecialchars(__("Minimo 8 caratteri"), ENT_QUOTES, 'UTF-8') ?>">
           <small><?= __("Deve contenere maiuscole, minuscole e numeri") ?></small>
           <span id="password-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
         <div class="form-group">
           <label for="password_confirm" class="form-label"><?= __("Conferma password") ?></label>
           <input type="password" id="password_confirm" name="password_confirm" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password_confirm-error"
-                 minlength="8" placeholder="<?= __("Ripeti la password") ?>">
+                 minlength="8" placeholder="<?= htmlspecialchars(__("Ripeti la password"), ENT_QUOTES, 'UTF-8') ?>">
           <span id="password_confirm-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
       </div>

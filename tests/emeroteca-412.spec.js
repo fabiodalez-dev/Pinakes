@@ -67,6 +67,12 @@ async function restoreEmerotecaActivation(browser) {
   if(active()) throw new Error('emeroteca was activated by this suite and could not be deactivated again');
 }
 let originalMode; let wasActive; let articleId; let testataId;
+// Authors are picked as on the book form (#412): type the name, Enter adds it.
+async function addArticleAuthor(page,name){
+  const input=page.locator('#article-author-editor .choices__input--cloned');
+  await input.click();await input.pressSequentially(name);await input.press('Enter');
+  await expect(page.locator('#article-credits input[name$="[nome_credito]"]').last()).toHaveValue(name);
+}
 test.describe.serial('Emeroteca 412 complete workflow',()=>{
   test.beforeAll(()=>{
     if(!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
@@ -76,7 +82,10 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
   test.afterAll(async({browser})=>{
     try {
       const pdf=db(`SELECT COALESCE(pdf_path,'') FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
+      // Names added through the picker became authors: remove the ones only this suite used.
+      const authorIds=db(`SELECT DISTINCT ca.autore_id FROM emeroteca_contributi_autori ca JOIN emeroteca_contributi c ON c.id=ca.contributo_id WHERE c.titolo LIKE '${marker}%' AND ca.autore_id IS NOT NULL`).split('\n').filter(Boolean);
       db(`DELETE FROM emeroteca_contributi WHERE titolo LIKE '${marker}%'`);
+      for(const id of authorIds) db(`DELETE FROM autori WHERE id=${Number(id)} AND NOT EXISTS (SELECT 1 FROM libri_autori WHERE autore_id=${Number(id)}) AND NOT EXISTS (SELECT 1 FROM emeroteca_contributi_autori WHERE autore_id=${Number(id)})`);
       db(`DELETE FROM emeroteca_testate WHERE titolo LIKE '${marker}%'`);
       if(originalMode) db(`UPDATE plugin_settings SET setting_value='${originalMode==='simple'?'simple':'complete'}' WHERE plugin_id=(SELECT id FROM plugins WHERE name='emeroteca') AND setting_key='mode'`);
       // A clean collection has no mode row until the administrator chooses; the
@@ -93,9 +102,10 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.goto(BASE+'/admin/periodicals/articles');
     await expect(page.getByRole('heading',{name:'Articoli',exact:true})).toBeVisible();
     await page.getByRole('link',{name:'Aggiungi articolo',exact:true}).click();
-    for(const [name,value] of Object.entries({titolo:marker+' Tyll',autori:'Marc J. Schweissinger',contenitore_titolo:'International Journal of Language and Literature',data_pubblicazione_testo:'giugno 2019',anno_pubblicazione:'2019',volume:'7',numero:'1',pagine:'138–148'})) {
+    for(const [name,value] of Object.entries({titolo:marker+' Tyll',contenitore_titolo:'International Journal of Language and Literature',data_pubblicazione_testo:'giugno 2019',anno_pubblicazione:'2019',volume:'7',numero:'1',pagine:'138–148'})) {
       await page.locator(`[name="${name}"]`).fill(value);
     }
+    await addArticleAuthor(page,'Schweissinger, Marc J.');
     await page.locator('[name=pubblico]').check();
     await page.getByText('Descrizione, note e PDF',{exact:true}).click();
     await page.locator('[name=note_private]').fill('SECRET412');
@@ -174,6 +184,16 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.getByRole('button',{name:'Conferma associazione'}).click();
     expect(issueOf(),'confirmed detach removes the issue link').toBe('0');
     expect(Number(db(`SELECT testata_id FROM emeroteca_contributi WHERE id=${articleId}`)),'the masthead survives the detach').toBe(testataId);
+    // The form names the linked masthead, and a rejected save must not turn
+    // that into "not linked": the 422 re-render looks the record up too.
+    await page.goto(BASE+`/admin/periodicals/articles/${articleId}`);
+    await expect(page.locator('#article-host-record')).toContainText(marker+' Journal');
+    await page.getByText('Identificativi e collocazione',{exact:true}).click();
+    await page.locator('#article-doi').fill('not-a-doi');
+    await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
+    await expect(page.getByText('DOI non valido.')).toBeVisible();
+    await expect(page.locator('#article-host-record')).toContainText(marker+' Journal');
+    await page.goto(BASE+'/admin/periodicals/articles');
     await publicPage.goto(BASE+`/emeroteca/${testataId}`);await expect(publicPage.getByRole('link',{name:marker+' Tyll'})).toBeVisible();
     // The chooser is radio rows now (the plugin's emt-choice pattern, shared by
     // the mastheads list, the articles list and the plugin settings page) and it
@@ -184,6 +204,13 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.locator('input[name=mode][value=complete]').check();await page.getByRole('button',{name:'Salva modalità'}).click();
     await expect(page).toHaveURL(/\/admin\/periodicals\/articles/);
     await page.goto(BASE+'/admin/periodicals/articles/import');
+    // The upload area takes no more than the server accepts, and says how much.
+    await expect(page.locator('#articles-csv-upload')).toHaveAttribute('data-max-bytes',String(5*1024*1024));
+    await expect(page.locator('#articles-csv-limit')).toContainText('5 MB');
+    // No file is reported as no file, a file over the limit as too large.
+    await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Nessun file caricato.')).toBeVisible();
+    await page.locator('[name=csv]').setInputFiles({name:'big.csv',mimeType:'text/csv',buffer:Buffer.alloc(5*1024*1024+10,'a')});
+    await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Il CSV supera 5 MB.')).toBeVisible();
     await page.locator('[name=csv]').setInputFiles({name:'articles.csv',mimeType:'text/csv',buffer:Buffer.from(`titolo,media_type,container_title,pages\n${marker} Imported,journal_article,Host,iv–x\n`)});
     await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Anteprima: destinazione Emeroteca')).toBeVisible();
     await page.getByRole('button',{name:'Importa le righe valide'}).click();await expect(page.getByText('Risultato importazione')).toBeVisible();

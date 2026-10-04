@@ -13,6 +13,7 @@
  * Input $relatedAuthorName: string
  */
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
+require_once dirname(__DIR__, 2) . '/Support/CodeLists.php';
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
 $articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url('/emeroteca/articoli')).'?'.http_build_query([$key=>$value]);
 // Plugin classes have no autoloader scope and a view must not depend on the
@@ -30,8 +31,7 @@ $articleResource=\App\Plugins\Emeroteca\Services\ContributionService::resource($
 $articleHasPdf=!empty($article['pdf_path']) && !empty($article['pdf_pubblico']);
 /** The reader may open at most one primary action; the PDF is the library's own copy and wins. */
 $articleResourceIsPrimary=$articleResource!==null && $articleResource['linkable'] && !$articleHasPdf;
-$articleApa=\App\Plugins\Emeroteca\Support\CitationFormatter::apa($article);
-$articleHarvard=\App\Plugins\Emeroteca\Support\CitationFormatter::harvard($article);
+$articleCitations=\App\Plugins\Emeroteca\Support\CitationFormatter::all($article);
 $articleParts=\App\Plugins\Emeroteca\Support\CitationFormatter::parts($article);
 /**
  * A stored ISO code rendered in the READER's language, not the cataloguer's.
@@ -63,7 +63,7 @@ $articleTestataUrl=$articleTestataId>0 ? url('/emeroteca/'.$articleTestataId) : 
 $articleIssueUrl=$articleIssueLabel!=='' ? url('/emeroteca/fascicolo/'.$articleFascicoloId) : '';
 $articleAuthorHref=static fn(array $an):string=>$an['id']!==null ? route_path('author').'/'.$an['id'] : $articleFilterUrl('autore',$an['name']);
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.9.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
 <?php
 // ── Hero: the same "scheda" as a book ──────────────────────────────────────
 $kicker='<span class="book-media-type"><i class="far fa-file-lines mr-1" aria-hidden="true"></i>'.$e(\App\Plugins\Emeroteca\Services\ContributionService::materialType($article)).'</span>';
@@ -158,7 +158,7 @@ include $corePartials.'/resource-pager.php';
 <?php /* What this record IS. A component-part record exists to say "this is a
          piece of something". */ ?>
 <div class="meta-item"><div class="meta-label"><?= __('Tipo di materiale') ?></div><div class="meta-value"><?= $e(\App\Plugins\Emeroteca\Services\ContributionService::materialType($article)) ?></div></div>
-<?php foreach(['contenitore_titolo'=>__('Pubblicazione'),'data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'issn'=>'ISSN','doi'=>'DOI'] as $key=>$label): if(empty($article[$key]))continue; ?><div class="meta-item"><div class="meta-label"><?= $e($label) ?></div><div class="meta-value"><?php if($key==='contenitore_titolo'): ?><a href="<?= $e($articleFilterUrl('pubblicazione',(string)$article[$key])) ?>"><?= $e($article[$key]) ?></a><?php else: ?><?= $e($article[$key]) ?><?php endif; ?></div></div><?php endforeach; ?>
+<?php foreach(['contenitore_titolo'=>__('Pubblicazione'),'contenitore_curatori'=>__('Curatori del volume'),'contenitore_editore'=>__('Editore'),'contenitore_luogo'=>__('Luogo di pubblicazione'),'isbn'=>'ISBN','data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'issn'=>'ISSN','doi'=>'DOI'] as $key=>$label): if(empty($article[$key]))continue; if(in_array($key,['contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'],true) && ($article['contenitore_tipo']??'')!=='antologia')continue; ?><div class="meta-item"><div class="meta-label"><?= $e($label) ?></div><div class="meta-value"><?php if($key==='contenitore_titolo'): ?><a href="<?= $e($articleFilterUrl('pubblicazione',(string)$article[$key])) ?>"><?= $e($article[$key]) ?></a><?php else: ?><?= $e($article[$key]) ?><?php endif; ?></div></div><?php endforeach; ?>
 </div><div class="details-column">
 <?php if($articleKeywords): ?><div class="meta-item"><div class="meta-label"><?= __('Parole chiave') ?></div><div class="meta-value"><?php foreach($articleKeywords as $i=>$kw): ?><?= $i?', ':'' ?><a href="<?= $e($articleFilterUrl('keyword',$kw)) ?>"><?= $e($kw) ?></a><?php endforeach; ?></div></div><?php endif; ?>
 <?php if(!empty($article['lingua'])): ?><div class="meta-item"><div class="meta-label"><?= __('Lingua') ?></div><div class="meta-value"><?= $e($articleCodeLabel((string)$article['lingua'],false)) ?></div></div><?php endif; ?>
@@ -175,15 +175,17 @@ include $corePartials.'/resource-pager.php';
          every part of it and would not assemble it, leaving the reader to
          retype a string the database already knew. */ ?>
 <section class="book-details-section" id="article-citation">
-<h2 class="section-title"><i class="fas fa-quote-right" aria-hidden="true"></i> <?= __('Cita questo articolo') ?></h2>
-<?php foreach(['APA'=>$articleApa,'Harvard'=>$articleHarvard] as $style=>$text): ?>
-<div class="resource-citation">
-<p class="meta-label"><?= $e($style) ?></p>
-<p class="resource-citation-text select-all" data-citation-text><?= $e($text) ?></p>
-<button type="button" class="ui-button btn-outline resource-citation-copy" data-citation-copy><i class="far fa-copy" aria-hidden="true"></i> <?= __('Copia') ?></button>
-</div>
-<?php endforeach; ?>
-<p class="resource-citation-exports"><a href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')) ?>"><?= __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)') ?></a> · <a href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/marc.xml')) ?>">MARCXML</a></p>
+<h2 class="section-title"><?= __('Cita questo articolo') ?></h2>
+<?php
+// One "Cite" button and a dialog with every style (#412), as on the book page.
+$citeCitations = $articleCitations;
+$citeTitle = (string) $article['titolo'];
+$citeDownloads = [
+    ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')],
+    ['label' => 'MARCXML', 'url' => url('/emeroteca/articolo/'.(int)$article['id'].'/marc.xml')],
+];
+include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
+?>
 </section>
 </div>
 
@@ -227,36 +229,6 @@ include $corePartials.'/resource-pager.php';
 </section>
 <?php endif; ?>
 
-<script>
-(function(){
-  var copied = <?= json_encode(__('Copiato'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-  function feedback(btn){
-    var original = btn.textContent;
-    btn.textContent = copied;
-    setTimeout(function(){ btn.textContent = original; }, 2000);
-  }
-  function fallback(text, btn){
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); } catch (e) { /* nothing to do but leave the text selectable */ }
-    document.body.removeChild(ta);
-    feedback(btn);
-  }
-  document.querySelectorAll('[data-citation-copy]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var box = btn.parentNode.querySelector('[data-citation-text]');
-      if (!box) { return; }
-      var text = box.textContent;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function(){ feedback(btn); }).catch(function(){ fallback(text, btn); });
-      } else {
-        fallback(text, btn);
-      }
-    });
-  });
-})();
-</script>
 
 <?php
 $structured=['@context'=>'https://schema.org','@type'=>'Article','headline'=>$article['titolo'],'url'=>absoluteUrl('/emeroteca/articolo/'.(int)$article['id'])];
@@ -268,7 +240,13 @@ if ($articleAuthors) {
 } elseif (!empty($article['autori'])) {
     $structured['author']=['@type'=>'Person','name'=>$article['autori']];
 }
-if (!empty($article['contenitore_titolo'])) {
+if (($article['contenitore_tipo']??'')==='antologia' && !empty($article['contenitore_titolo'])) {
+    // A chapter is part of a book, not of a periodical (#412).
+    $editors=array_map(static fn(string $n):array=>['@type'=>'Person','name'=>$n], \App\Plugins\Emeroteca\Services\ContributionService::authorList((string)($article['contenitore_curatori']??'')));
+    $structured['@type']='Chapter';
+    $structured['isPartOf']=array_filter(['@type'=>'Book','name'=>$article['contenitore_titolo'],'isbn'=>$article['isbn']??null,
+        'editor'=>$editors?:null,'publisher'=>!empty($article['contenitore_editore'])?['@type'=>'Organization','name'=>$article['contenitore_editore']]:null]);
+} elseif (!empty($article['contenitore_titolo'])) {
     $periodical=array_filter(['@type'=>'Periodical','name'=>$article['contenitore_titolo'],'issn'=>$article['issn']??null]);
     // The real chain when the record carries one: an article is part of an
     // issue, which is part of a volume, which is part of the periodical.
@@ -276,7 +254,8 @@ if (!empty($article['contenitore_titolo'])) {
     if (!empty($article['numero'])) { $periodical=['@type'=>'PublicationIssue','issueNumber'=>(string)$article['numero'],'isPartOf'=>$periodical]; }
     $structured['isPartOf']=$periodical;
 }
-if (!empty($article['lingua'])) { $structured['inLanguage']=$article['lingua']; }
+// schema.org reads BCP 47: "it", not the "ita" the record stores.
+if (!empty($article['lingua'])) { $structured['inLanguage']=\App\Plugins\Emeroteca\Support\CodeLists::languageTag((string)$article['lingua']); }
 // A bare year is valid ISO 8601. The free-text date is NOT parsed into one:
 // "giugno 2019" and "Nr. 31 (1988)" are prose, and guessing a day from them
 // would publish a precision the record never had.

@@ -77,7 +77,7 @@ $yearsLabel = static function (array $t): string {
 
 $catalogPageStyles = true;
 ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.9.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
 
 <?php
 $heroTitle = __('Emeroteca');
