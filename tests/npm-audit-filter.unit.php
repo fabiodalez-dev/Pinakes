@@ -108,6 +108,20 @@ try {
     check(run(report([['debug', 'GHSA-gggg-hhhh-iiii', 'moderate']]), $clean, []) === 0, 'a moderate advisory is below the bar');
     check(run(report([$braces]), $clean, [['reason' => ''] + $waiver]) === 1, 'a waiver without a reason counts as absent');
     check(run(report([$braces]), $clean, [['expires' => 'soon'] + $waiver]) === 1, 'a waiver without a real expiry date counts as absent');
+    check(run(report([$braces]), $clean, [['expires' => '2026-11-31'] + $waiver]) === 1, 'an impossible calendar date (2026-11-31) counts as absent');
+    check(run(report([$braces]), $clean, [['expires' => '2026-02-29'] + $waiver], '2026-02-01') === 1, 'a day that does not exist in that year counts as absent');
+    check(run(report([$braces]), $clean, [['expires' => '2028-02-29'] + $waiver], '2028-02-01') === 0, 'a real leap day is accepted');
+
+    // ci-npm-audit.sh: a filter that cannot read the JSON reports still fails, but names the transport.
+    $bin = "{$tmp}/bin";
+    mkdir($bin);
+    file_put_contents("{$bin}/npm", "#!/bin/sh\nif [ \"\$2\" = \"--json\" ] || [ \"\$3\" = \"--json\" ]; then echo '{\"error\":{\"code\":\"E503\"}}'; exit 1; fi\necho '# npm audit report'; echo 'braces  *'; echo 'Severity: high'; exit 1\n");
+    chmod("{$bin}/npm", 0755);
+    exec('PATH=' . escapeshellarg($bin) . ':"$PATH" bash ' . escapeshellarg($root . '/scripts/ci-npm-audit.sh') . ' ' . escapeshellarg($tmp) . ' 2>&1', $auditOut, $auditCode);
+    $auditText = implode("\n", $auditOut);
+    check($auditCode === 1 && str_contains($auditText, 'JSON audit needed to apply waivers was unreadable') && !str_contains($auditText, 'vulnerabilities found'), 'an unreadable JSON audit fails as a transport problem, not as a vulnerability');
+    array_map('unlink', glob("{$bin}/*") ?: []);
+    rmdir($bin);
 
     // The committed list: every entry well formed, and none set so far ahead
     // that the build would stop asking whether a fix has been published.
