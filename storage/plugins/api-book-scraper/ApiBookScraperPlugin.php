@@ -547,7 +547,17 @@ class ApiBookScraperPlugin
             'genres' => $data['genres'] ?? $data['generi'] ?? [],
             'subjects' => $data['subjects'] ?? $data['argomenti'] ?? [],
             'author_bio' => $data['author_bio'] ?? $data['biografia_autore'] ?? $data['bio'] ?? null,
+            'year' => $data['year'] ?? $data['anno_pubblicazione'] ?? $data['anno'] ?? null,
+            'edition' => $data['edition'] ?? $data['edizione'] ?? null,
+            'place' => $data['place'] ?? $data['luogo_pubblicazione'] ?? $data['luogo'] ?? null,
+            'editor' => $data['editor'] ?? $data['editors'] ?? $data['curatore'] ?? $data['curatori'] ?? null,
+            'translator' => $data['translator'] ?? $data['traduttore'] ?? null,
+            'illustrator' => $data['illustrator'] ?? $data['illustratore'] ?? null,
         ];
+        // The book form reads `image` and `pubDate`; the API's own names are kept
+        // for anything already relying on them.
+        $mappedData['image'] = $mappedData['cover_url'];
+        $mappedData['pubDate'] = $mappedData['publish_date'];
 
         $mappedData = array_filter($mappedData, function($value) {
             return $value !== null && $value !== '' && $value !== [];

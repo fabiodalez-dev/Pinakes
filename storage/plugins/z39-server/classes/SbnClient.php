@@ -433,6 +433,15 @@ class SbnClient
             $book['author'] = implode(', ', $authors);
         }
 
+        // Editors, translator and illustrator, from the roles SBN gives each
+        // name ("[Curatore]  Gagliardi, Antonio <1943- >").
+        $book += $this->extractContributors($record);
+
+        // Edition statement, when the record carries one
+        if (is_string($record['edizione'] ?? null) && trim($record['edizione']) !== '') {
+            $book['edition'] = trim((string) preg_replace('/[\s\/:;=,.]+$/u', '', $this->stripMarcControlChars($record['edizione'])));
+        }
+
         // Publisher and publication info
         $pubInfo = $this->parsePublicationInfo($record['pubblicazione'] ?? '');
         if ($pubInfo) {
@@ -717,6 +726,45 @@ class SbnClient
         }
 
         return $authors;
+    }
+
+    /**
+     * The non-author names of a record, by the role SBN prints in brackets:
+     * `editor` as a list, `translator` and `illustrator` as the first name
+     * (the shape the book form reads). Text after the life dates ("..., anche
+     * introduzione") is a note on the role, not part of the name.
+     *
+     * @param array<string, mixed> $record
+     * @return array<string, string|list<string>>
+     */
+    private function extractContributors(array $record): array
+    {
+        $roles = ['curatore' => 'editor', 'curatrice' => 'editor', 'traduttore' => 'translator', 'traduttrice' => 'translator', 'illustratore' => 'illustrator', 'illustratrice' => 'illustrator'];
+        $found = ['editor' => [], 'translator' => [], 'illustrator' => []];
+        foreach (is_array($record['nomi'] ?? null) ? $record['nomi'] : [] as $nome) {
+            if (!preg_match('/^\[([^\]]+)\]\s*(.+)$/u', (string) $nome, $m)) {
+                continue;
+            }
+            $role = $roles[mb_strtolower(trim($m[1]))] ?? null;
+            if ($role === null) {
+                continue;
+            }
+            $raw = (string) preg_replace('/>\s*,.*$/u', '>', trim($m[2]));
+            $name = $this->cleanAuthorName($raw);
+            if ($name !== '' && !in_array($name, $found[$role], true)) {
+                $found[$role][] = $name;
+            }
+        }
+        $out = [];
+        if ($found['editor'] !== []) {
+            $out['editor'] = $found['editor'];
+        }
+        foreach (['translator', 'illustrator'] as $role) {
+            if ($found[$role] !== []) {
+                $out[$role] = $found[$role][0];
+            }
+        }
+        return $out;
     }
 
     /**

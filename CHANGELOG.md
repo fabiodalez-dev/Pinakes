@@ -2,6 +2,15 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.90]
+
+### Added
+- **An ISBN import fills Edition, Place of publication and Editor.** Every book source now hands the form the same fields: the edition goes to *Edizione*, the place to *Luogo di pubblicazione*, editors ("a cura di") to the Editor picker, alongside the translator and illustrator the form already took. Before, the edition and the place were dropped or ended up in the notes, and editors were lost. SRU/MARC reads them from 250/260/264 (MARC 21) and 205/210/214 (UNIMARC), SBN from the record's edition and its *[Curatore]*, *[Traduttore]* and *[Illustratore]* names, Open Library from `edition_name`, `publish_places` and the edition's contributors. Open Library is now 1.0.5, Z39.50/SRU 1.3.2, API Book Scraper 1.1.2. No migration.
+
+### Fixed
+- **A translator or an editor is no longer imported as an author.** SRU records listed every added entry (MARC 700/UNIMARC 700-702) among the authors whatever its role; the relator code (`$4`, MARC 21 or UNIMARC) or term (`$e`, English or Italian) now sends each name to its role, and a name with no relator stays an author as before. A "writer of introduction" is no longer taken for an author.
+- **The external book API's cover and publication date reach the form.** They were sent under names the form never read.
+
 ## [0.7.89]
 
 ### Added

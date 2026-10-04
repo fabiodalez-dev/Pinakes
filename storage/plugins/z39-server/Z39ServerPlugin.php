@@ -15,7 +15,7 @@
  * - Comprehensive logging
  *
  * @package Z39ServerPlugin
- * @version 1.3.1
+ * @version 1.3.2
  * @see https://www.loc.gov/standards/sru/
  */
 

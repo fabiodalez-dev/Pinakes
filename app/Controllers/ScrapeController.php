@@ -62,6 +62,23 @@ class ScrapeController
                 'isbn13' => $identifier,
                 'classificazione_dewey' => '188',
             ],
+            // Edition, place and contributors (#412 follow-up): every source
+            // hands these to the form under the same keys.
+            '9788807900389' => [
+                'title' => 'Il fu Mattia Pascal',
+                'authors' => ['Luigi Pirandello'],
+                'publisher' => 'Feltrinelli',
+                'year' => 2013,
+                'image' => $cover,
+                'source' => 'https://opac.sbn.it',
+                'tipo_media' => 'libro',
+                'isbn' => $identifier,
+                'isbn13' => $identifier,
+                'edition' => '13',
+                'place' => 'Milano',
+                'editor' => ['Antonio Gagliardi'],
+                'translator' => 'E2E Traduttore',
+            ],
             '0720642442524' => [
                 'title' => 'Nevermind',
                 'authors' => ['Nirvana'],
@@ -136,6 +153,12 @@ class ScrapeController
         // Normalize authors array
         if (isset($data['authors']) && is_array($data['authors'])) {
             $data['authors'] = array_map(fn($a) => $this->normalizeText((string)$a), $data['authors']);
+        }
+        // Editors: one name or a list (SBN, SRU and Open Library send a list)
+        if (isset($data['editor'])) {
+            $data['editor'] = is_array($data['editor'])
+                ? array_values(array_filter(array_map(fn($e) => $this->normalizeText((string) $e), $data['editor']), static fn(string $e): bool => $e !== ''))
+                : $this->normalizeText((string) $data['editor']);
         }
 
         // Normalize any other string fields we might have missed
@@ -671,7 +694,12 @@ class ScrapeController
             'pages' => $data['number_of_pages'] ?? '',
             'isbn' => $isbn,
             'description' => is_array($data['description'] ?? null) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
-            'image' => $cover
+            'image' => $cover,
+            'edition' => trim((string) ($data['edition_name'] ?? '')),
+            'place' => implode(', ', array_filter(array_map(
+                static fn($p): string => trim(is_array($p) ? (string) ($p['name'] ?? '') : (string) $p, " \t[]:;,"),
+                is_array($data['publish_places'] ?? null) ? $data['publish_places'] : []
+            ))),
         ];
     }
 

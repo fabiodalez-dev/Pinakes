@@ -4454,6 +4454,19 @@ test.describe.serial('Phase 24: Place of publication, RIS and event layouts', ()
   });
 
   // ── Event image layouts ────────────────────────────────────────────────
+  test('24.26 An import fills Edizione, Luogo di pubblicazione, Curatore and Traduttore', async () => {
+    await page.goto(`${BASE}/admin/books/create`);
+    await page.locator('#importIsbn').fill('9788807900389');
+    await page.locator('#btnImportIsbn').click();
+    await expect(page.locator('#titolo')).toHaveValue('Il fu Mattia Pascal', { timeout: 15000 });
+    await expect(page.locator('input[name="edizione"]')).toHaveValue('13');
+    await expect(page.locator('input[name="luogo_pubblicazione"]')).toHaveValue('Milano');
+    await expect(page.locator('#curatori_select option', { hasText: 'Antonio Gagliardi' })).toHaveCount(1);
+    await expect(page.locator('#traduttori_select option', { hasText: 'E2E Traduttore' })).toHaveCount(1);
+    // The editor is a curator, not an author of the book.
+    await expect(page.locator('#autori_select option', { hasText: 'Antonio Gagliardi' })).toHaveCount(0);
+  });
+
   test('24.25 Event presets: three choices, a legacy thumb saves as contained, the cover stops at 350px', async () => {
     putSetting('event_image_layout', 'thumb');
     await page.goto(`${BASE}/admin/settings?tab=cms`);
