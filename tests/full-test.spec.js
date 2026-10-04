@@ -4485,5 +4485,14 @@ test.describe.serial('Phase 24: Place of publication, RIS and event layouts', ()
     await openEvent();
     await expect(page.locator('.resource-hero .book-cover-large')).toHaveCount(0);
     await expect(page.locator('figure.event-cover.event-cover--full')).toHaveCount(1);
+    // The page's own rules apply: a <style> nested in $additional_css used to drop the first one.
+    const figureStyle = await page.locator('figure.event-cover').evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { bottom: cs.marginBottom, overflow: cs.overflow };
+    });
+    // The radius is the visual layout's; margin and overflow come only from this page's rule.
+    expect(figureStyle).toEqual({ bottom: '32px', overflow: 'hidden' });
+    await page.goto(`${BASE}${eventPrefix}`);
+    expect(await page.locator('.events-listing').first().evaluate((el) => getComputedStyle(el).paddingTop)).toBe('40px');
   });
 });

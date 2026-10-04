@@ -27,9 +27,11 @@ final class DigitalAttachments
             $url = trim($row['url']);
             if ($url === '') { continue; }
             $kind = $row['kind'] ?? 'ebook';
-            // Accept HTTP resources and installation-relative uploads; never executable schemes,
+            // Accept HTTP resources and paths on this site (uploads, but also any other
+            // root-relative path a record held before the list existed, which the old
+            // single-file field stored and showed as is); never executable schemes,
             // protocol-relative URLs, backslashes or traversal paths.
-            $local = str_starts_with($url, '/uploads/') && !str_contains(rawurldecode($url), '..')
+            $local = str_starts_with($url, '/') && !str_starts_with($url, '//') && !str_contains(rawurldecode($url), '..')
                 && !str_contains(rawurldecode($url), '\\') && !str_contains(rawurldecode($url), '//');
             if ((!$local && HtmlHelper::sanitizePublicHttpUrl($url) === '')
                 || preg_match('/[\x00-\x20\x7f]/', $url) || strlen($url) > 2048

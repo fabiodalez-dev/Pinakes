@@ -714,10 +714,6 @@ class FrontendController
     }
 
     /**
-     * Render the public book-detail page, loading the book with its authors,
-     * publishers (issue #143), series, reviews and related volumes.
-     */
-    /**
      * The book as a RIS file (#412), from the same data as the Cite dialog.
      * Visibility is the detail page's: a soft-deleted or unknown book is a 404.
      */
@@ -753,6 +749,10 @@ class FrontendController
             ->withHeader('X-Content-Type-Options', 'nosniff');
     }
 
+    /**
+     * Render the public book-detail page, loading the book with its authors,
+     * publishers (issue #143), series, reviews and related volumes.
+     */
     public function bookDetail(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();

@@ -1566,7 +1566,7 @@ body.layout-soft :where(.form-input, .form-select, .wishlist-filter-card input, 
 
 /* Native secondary pages ------------------------------------------------- */
 
-body[class*="layout-"] :where(.contact-title, .cookie-header h1, .privacy-header h1, .archive-title) {
+body[class*="layout-"] :where(.archive-title) {
   text-wrap: balance;
   letter-spacing: -.035em;
 }
@@ -1575,7 +1575,7 @@ body[class*="layout-"] :where(.archive-info-card) {
   transition: transform 220ms var(--layout-ease), box-shadow 220ms var(--layout-ease), border-color 220ms ease;
 }
 
-body.layout-editorial :where(.contact-title, .cookie-header h1, .privacy-header h1, .archive-title, .books-section .section-title) {
+body.layout-editorial :where(.archive-title, .books-section .section-title) {
   font-family: var(--serif, Fraunces, Georgia, serif);
   font-weight: 460;
 }
@@ -1655,20 +1655,20 @@ body.layout-soft :where(.error-404-content, .error-500-content) {
 
 /* Public plugin surfaces ------------------------------------------------- */
 
-body[class*="layout-"] :where(.archive-hero-index, .archive-search-form, .archive-card, .archive-body .card, .authority-item),
+body[class*="layout-"] :where(.archive-hero-index, .archive-card, .authority-item),
 body[class*="layout-"] :where(.bc-card, .bc-hero, .bc-list-item, .bc-scrollbox),
 body[class*="layout-"] .frbr-opera-page :where(header, .aspect-\[2\/3\]) {
   transition: transform 220ms var(--layout-ease), box-shadow 220ms var(--layout-ease), border-color 220ms ease;
 }
 
-body.layout-editorial :where(.archive-hero-index h1, .archive-hero h1, .archive-body h2, .bc-hero h1, .bc-section-header h1, .bc-section-header h2),
+body.layout-editorial :where(.archive-hero-index h1, .archive-hero h1, .bc-hero h1, .bc-section-header h1, .bc-section-header h2),
 body.layout-editorial .frbr-opera-page :where(h1, h2, h3) {
   font-family: var(--serif, Fraunces, Georgia, serif);
   font-weight: 460;
   letter-spacing: -.03em;
 }
 
-body.layout-editorial :where(.archive-hero-index, .archive-search-form, .archive-card, .archive-body .card, .bc-card) {
+body.layout-editorial :where(.archive-hero-index, .archive-card, .bc-card) {
   border: 0;
   border-top: 1px solid var(--border-color);
   border-radius: 0;
@@ -1694,7 +1694,7 @@ body.layout-editorial .archive-hero-index :where(h1, p) {
   color: var(--text-color);
 }
 
-body.layout-workspace :where(.archive-hero-index, .archive-search-form, .archive-card, .archive-body .card, .bc-card) {
+body.layout-workspace :where(.archive-hero-index, .archive-card, .bc-card) {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: none;
@@ -1705,7 +1705,7 @@ body.layout-workspace :where(.archive-hero, .bc-hero) {
   border-radius: 12px;
 }
 
-body.layout-workspace :where(.bc-btn, .bc-badge, .archive-actions .btn) {
+body.layout-workspace :where(.bc-btn, .bc-badge) {
   border-radius: 8px;
 }
 
@@ -1719,14 +1719,14 @@ body.layout-command :where(.archive-hero-index, .archive-hero, .bc-hero) :where(
   color: var(--white);
 }
 
-body.layout-command :where(.archive-search-form, .archive-card, .archive-body .card, .bc-card) {
+body.layout-command :where(.archive-card, .bc-card) {
   border: 0;
   border-radius: 14px;
   background: var(--white);
   box-shadow: 0 12px 34px rgba(15, 23, 42, .07);
 }
 
-body.layout-command :where(.bc-btn, .bc-badge, .archive-actions .btn) {
+body.layout-command :where(.bc-btn, .bc-badge) {
   border-radius: 9px;
 }
 
@@ -1807,7 +1807,7 @@ body[class*="layout-"] .filters-mobile-toggle[aria-expanded="true"] i {
   }
 }
 
-body.layout-soft :where(.archive-search-form, .archive-card, .archive-body .card, .bc-card) {
+body.layout-soft :where(.archive-card, .bc-card) {
   border: 0;
   border-radius: 20px;
   background: var(--white);
@@ -1819,7 +1819,7 @@ body.layout-soft :where(.archive-card, .bc-card):hover {
   box-shadow: 0 20px 46px rgba(15, 23, 42, .11);
 }
 
-body.layout-soft :where(.bc-btn, .bc-badge, .archive-actions .btn) {
+body.layout-soft :where(.bc-btn, .bc-badge) {
   border-radius: 12px;
 }
 
@@ -1998,7 +1998,7 @@ body[class*="layout-"] :where(.plugin-book-action, .plugin-source-link):focus-vi
 
 /* Shared public-plugin action language. These selectors deliberately carry the
    layout class so they also normalize older plugin views with local CSS. */
-body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button) {
+body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2018,7 +2018,7 @@ body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-
   transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms var(--layout-ease);
 }
 
-body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button):hover {
+body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button):hover {
   border-color: var(--button-hover);
   background: var(--button-hover);
   color: var(--button-text-color);
@@ -2026,13 +2026,13 @@ body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-
   transform: translateY(-1px);
 }
 
-body[class*="layout-"] :is(.bc-btn-outline, .archive-page .btn-outline, .archive-body .btn-outline, .archive-search-form .btn-outline, .frbr-opera-page .btn-outline) {
+body[class*="layout-"] :is(.bc-btn-outline, .archive-page .btn-outline, .frbr-opera-page .btn-outline) {
   border-color: color-mix(in srgb, var(--text-color) 20%, transparent);
   background: transparent;
   color: var(--text-color);
 }
 
-body[class*="layout-"] :is(.bc-btn-outline, .archive-page .btn-outline, .archive-body .btn-outline, .archive-search-form .btn-outline, .frbr-opera-page .btn-outline):hover {
+body[class*="layout-"] :is(.bc-btn-outline, .archive-page .btn-outline, .frbr-opera-page .btn-outline):hover {
   border-color: color-mix(in srgb, var(--primary-color) 48%, transparent);
   background: color-mix(in srgb, var(--primary-color) 7%, var(--white));
   color: var(--primary-color);
@@ -2050,34 +2050,34 @@ body[class*="layout-"] .bc-btn-danger:hover {
   color: var(--white);
 }
 
-body[class*="layout-"] :is(.bc-btn-sm, .archive-page .ui-button.text-xs, .archive-body .ui-button.text-xs) {
+body[class*="layout-"] :is(.bc-btn-sm, .archive-page .ui-button.text-xs) {
   min-height: 40px;
   padding: .55rem .75rem;
   font-size: .78rem;
 }
 
-body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button):focus-visible {
+body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button):focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: 3px;
 }
 
-body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button):disabled,
-body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button)[aria-disabled="true"] {
+body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button):disabled,
+body[class*="layout-"] :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button)[aria-disabled="true"] {
   opacity: .52;
   transform: none;
   cursor: not-allowed;
 }
 
-body.layout-editorial :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button) {
+body.layout-editorial :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button) {
   border-radius: 2px;
 }
 
-body.layout-workspace :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button),
-body.layout-command :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button) {
+body.layout-workspace :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button),
+body.layout-command :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button) {
   border-radius: 9px;
 }
 
-body.layout-soft :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button, .archive-search-form .ui-button, .frbr-opera-page .ui-button) {
+body.layout-soft :is(.bc-btn, .archive-page .ui-button, .frbr-opera-page .ui-button) {
   border-radius: 13px;
 }
 
@@ -2101,13 +2101,13 @@ body.layout-soft :is(.bc-btn, .archive-page .ui-button, .archive-body .ui-button
     display: none !important;
   }
 
-  body[class*="layout-"] :is(#book-action-buttons, .event-card__actions, .archive-actions) {
+  body[class*="layout-"] :is(#book-action-buttons, .event-card__actions) {
     align-items: stretch;
     flex-direction: column;
   }
 
-  body[class*="layout-"] :is(#book-action-buttons, .event-card__actions, .archive-actions) > :is(a, button, form),
-  body[class*="layout-"] :is(#book-action-buttons, .event-card__actions, .archive-actions) > form > :is(a, button) {
+  body[class*="layout-"] :is(#book-action-buttons, .event-card__actions) > :is(a, button, form),
+  body[class*="layout-"] :is(#book-action-buttons, .event-card__actions) > form > :is(a, button) {
     width: 100%;
     max-width: none;
     justify-content: center;

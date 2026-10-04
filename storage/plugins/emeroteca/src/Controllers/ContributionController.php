@@ -94,10 +94,9 @@ final class ContributionController extends AbstractAdminController
         if ($row === null) {
             return $rs->withStatus(404);
         }
-        // The masthead record this article is linked to, if any: the form says
-        // so, because "Publication" (typed here) and the linked record are
-        // two different things and the list shows both side by side.
-        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostTitle' => $this->hostTitle($row),'hostOptions' => $this->hostOptions((int) ($row['testata_id'] ?? 0))]);
+        // The masthead picker lists the catalogued mastheads, with this
+        // article's own link always among them (see hostOptions()).
+        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostOptions' => $this->hostOptions((int) ($row['testata_id'] ?? 0))]);
     }
     /**
      * The catalogued mastheads the form can link an article to (#412: pick the
@@ -119,27 +118,6 @@ final class ContributionController extends AbstractAdminController
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca] masthead options: '.$e->getMessage());
             return null;
-        }
-    }
-    /**
-     * Title of the masthead record a stored article is linked to, or '' when
-     * it is not linked. The form's error re-render asks too, and it runs after
-     * a failure that may be the database's own: a lookup that fails there
-     * shows "not linked" rather than replacing the operator's error.
-     *
-     * @param array<string,mixed>|null $row
-     */
-    private function hostTitle(?array $row): string
-    {
-        if (empty($row['testata_id'])) {
-            return '';
-        }
-        try {
-            $host = $this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [(int) $row['testata_id']]);
-            return (string) ($host[0]['titolo'] ?? '');
-        } catch (\Throwable $e) {
-            SecureLogger::error('[Emeroteca] masthead title lookup: '.$e->getMessage());
-            return '';
         }
     }
     /**
@@ -267,7 +245,7 @@ final class ContributionController extends AbstractAdminController
             foreach (['pubblico','pdf_pubblico','risorsa_pubblica','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
-            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostTitle' => $this->hostTitle($old),'hostOptions' => $this->hostOptions((int) (($old ?? [])['testata_id'] ?? 0))]);
+            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostOptions' => $this->hostOptions((int) (($old ?? [])['testata_id'] ?? 0))]);
         }
     }
     /**

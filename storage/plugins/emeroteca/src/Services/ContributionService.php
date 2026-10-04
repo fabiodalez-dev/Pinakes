@@ -66,7 +66,7 @@ final class ContributionService
         'risorsa_testo' => "VARCHAR(255) NULL",
         'risorsa_accesso' => "VARCHAR(255) NULL",
         'risorsa_pubblica' => "TINYINT(1) NOT NULL DEFAULT 0",
-        // 1.9.0 — a chapter in an anthology (#412): the host is a book, and a
+        // 1.10.0 — a chapter in an anthology (#412): the host is a book, and a
         // chapter citation names its editors, publisher and place. Appended
         // after risorsa_pubblica for the same reason as the 1.7 block.
         'contenitore_curatori' => "VARCHAR(500) NULL",
@@ -87,7 +87,7 @@ final class ContributionService
         'sottotitolo' => 500,'lingua' => 10,'paese' => 2,'classificazione_schema' => 20,
         'classificazione' => 100,'nota_possesso' => 255,'risorsa_url' => 500,
         'risorsa_testo' => 255,'risorsa_accesso' => 255,
-        // 1.9.0 — the host volume of an anthology chapter.
+        // 1.10.0 — the host volume of an anthology chapter.
         'contenitore_curatori' => 500,'contenitore_editore' => 255,'contenitore_luogo' => 255,'isbn' => 17];
     /** A reference_key the table accepts: shared by save() and the CSV preview. */
     public const REFERENCE_KEY_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._:\/-]{0,190}$/D';

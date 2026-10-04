@@ -101,13 +101,11 @@ $corePartials = __DIR__ . '/partials';
 // Event cards are book cards with a landscape image box (events have posters,
 // not 2:3 covers); everything else comes from catalog-pages.css.
 $additional_css = "
-<style>
     .events-listing { padding-top: 2.5rem; padding-bottom: 4rem; }
     .books-grid--events { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
     .book-card--event .book-image-container { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
     .book-card--event .book-image { object-fit: cover; }
     .book-card--event .book-image-icon { font-size: 3rem; color: var(--text-muted); opacity: 0.6; }
-</style>
 ";
 
 ob_start();

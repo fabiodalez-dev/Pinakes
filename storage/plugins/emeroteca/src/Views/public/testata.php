@@ -209,7 +209,7 @@ include $corePartials . '/resource-hero.php';
                     include $corePartials . '/empty-state.php';
                     ?>
                 <?php else: ?>
-                    <div class="books-grid emeroteca-issues-grid">
+                    <div class="books-grid">
                         <?php foreach ($fascicoli as $f):
                             $stato = (string) $f['stato'];
                             $posseduto = $stato === 'posseduto';
