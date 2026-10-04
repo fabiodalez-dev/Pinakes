@@ -8,11 +8,15 @@
  * Input $filterSections: list<array{title: string, icon: string, grid?: bool, options: list<array{label: string, count?: ?int, href: string, active?: bool}>}>
  *      Sections with no options are skipped. `grid` lays short labels (an
  *      A–Z index) out as a compact grid of tiles instead of a list.
+ * Input $filterRange: array{action: string, title: string, icon?: string, from: array{name: string, value?: string, label: string}, to: array{name: string, value?: string, label: string}, hidden?: array<string, string>}|null
+ *      An optional typed range (e.g. years) submitted as its own GET form, for
+ *      values a fixed list of facet links cannot cover.
  * Input $filterClearHref: string '' hides the "clear all" button
  */
 $fsEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $filterSearch = $filterSearch ?? null;
 $filterSections = $filterSections ?? [];
+$filterRange = $filterRange ?? null;
 $filterClearHref = (string) ($filterClearHref ?? '');
 ?>
 <div class="catalog-filters-column w-full lg:w-1/3 px-3 xl:w-1/4 mb-4">
@@ -50,6 +54,24 @@ $filterClearHref = (string) ($filterClearHref ?? '');
                 </div>
             </div>
             <?php endforeach; ?>
+
+            <?php if ($filterRange !== null): ?>
+            <div class="filter-section">
+                <div class="filter-title"><i class="fas <?= $fsEscape($filterRange['icon'] ?? 'fa-filter') ?>" aria-hidden="true"></i> <?= $fsEscape($filterRange['title']) ?></div>
+                <form method="get" action="<?= $fsEscape($filterRange['action']) ?>">
+                    <?php foreach (($filterRange['hidden'] ?? []) as $fsKey => $fsValue): if ((string) $fsValue === '') { continue; } ?>
+                        <input type="hidden" name="<?= $fsEscape($fsKey) ?>" value="<?= $fsEscape($fsValue) ?>">
+                    <?php endforeach; ?>
+                    <div class="custom-pages-inputs">
+                        <?php foreach (['from', 'to'] as $fsEdge): $fsField = $filterRange[$fsEdge]; ?>
+                            <?php if ($fsEdge === 'to'): ?><span class="pages-separator" aria-hidden="true">–</span><?php endif; ?>
+                            <input class="pages-input" type="number" inputmode="numeric" step="1" name="<?= $fsEscape($fsField['name']) ?>" value="<?= $fsEscape($fsField['value'] ?? '') ?>" placeholder="<?= $fsEscape($fsField['label']) ?>" aria-label="<?= $fsEscape($fsField['label']) ?>">
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="submit" class="sr-only"><?= __('Cerca') ?></button>
+                </form>
+            </div>
+            <?php endif; ?>
 
             <?php if ($filterClearHref !== ''): ?>
             <div class="filter-section">

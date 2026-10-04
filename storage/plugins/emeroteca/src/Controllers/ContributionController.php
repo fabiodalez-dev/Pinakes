@@ -97,7 +97,24 @@ final class ContributionController extends AbstractAdminController
         // The masthead record this article is linked to, if any: the form says
         // so, because "Publication" (typed here) and the linked record are
         // two different things and the list shows both side by side.
-        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostTitle' => $this->hostTitle($row)]);
+        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostTitle' => $this->hostTitle($row),'hostOptions' => $this->hostOptions()]);
+    }
+    /**
+     * The catalogued mastheads the form can link an article to (#412: pick the
+     * journal on the record, as in an ILS 773 search). A lookup that fails
+     * leaves the picker empty rather than breaking the form.
+     *
+     * @return list<array{id:int,titolo:string,issn:string}>
+     */
+    private function hostOptions(): array
+    {
+        try {
+            return array_map(static fn(array $r): array => ['id' => (int) $r['id'], 'titolo' => (string) $r['titolo'], 'issn' => (string) ($r['issn'] ?? '')],
+                $this->service()->rows('SELECT id, titolo, issn FROM emeroteca_testate ORDER BY titolo, id LIMIT 5000', []));
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] masthead options: '.$e->getMessage());
+            return [];
+        }
     }
     /**
      * Title of the masthead record a stored article is linked to, or '' when
@@ -245,7 +262,7 @@ final class ContributionController extends AbstractAdminController
             foreach (['pubblico','pdf_pubblico','risorsa_pubblica','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
-            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostTitle' => $this->hostTitle($old)]);
+            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostTitle' => $this->hostTitle($old),'hostOptions' => $this->hostOptions()]);
         }
     }
     /**

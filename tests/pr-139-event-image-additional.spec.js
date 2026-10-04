@@ -86,11 +86,14 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
     });
 
     // S4 — Locale key completeness for layout option strings (all 4 JSONs)
-    test('S4: layout option labels exist in all 4 locale JSONs', async () => {
-        const locales = ['it_IT', 'en_US', 'de_DE', 'fr_FR'];
+    test('S4: layout option labels exist in every locale JSON', async () => {
+        const locales = ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'];
+        for (const lang of locales) {
+            // The 'thumb' preset was merged into 'contained': its label is gone.
+            expect(readRepoFile(`locale/${lang}.json`)).not.toContain('Miniatura affiancata al testo');
+        }
         const keys = [
-            'Piccola a sinistra (max 420px) — consigliato',
-            'Miniatura affiancata al testo (240px)',
+            'Copertina accanto al titolo (max 350px) — consigliata',
             'Banner basso a tutta larghezza (max altezza 220px)',
             'Originale a tutta larghezza (grande)',
         ];
@@ -114,22 +117,27 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
         ).toEqual([]);
     });
 
-    // S5 — settings/index.php exposes the 4 layout choices
-    test('S5: settings/index.php declares the 4-preset layout enum', async () => {
+    // S5 — settings/index.php offers the 3 layout choices ('thumb' merged into 'contained')
+    test('S5: settings/index.php declares the 3-preset layout enum', async () => {
         const src = readRepoFile('app/Views/settings/index.php');
         expect(src).toMatch(/\$eventImageLayoutChoices\s*=\s*\[/);
-        for (const preset of ['full', 'banner', 'contained', 'thumb']) {
+        for (const preset of ['full', 'banner', 'contained']) {
             expect(src).toMatch(new RegExp(`['"]${preset}['"]\\s*=>`));
         }
+        expect(src).not.toMatch(/['"]thumb['"]\s*=>/);
     });
 
-    // S6 — event-detail.php renders distinct CSS class per preset
-    test('S6: event-detail.php emits event-cover--<preset> class', async () => {
-        const src = readRepoFile('app/Views/frontend/event-detail.php');
-        for (const preset of ['full', 'banner', 'contained', 'thumb']) {
-            expect(src).toMatch(new RegExp(`event-cover--${preset}`));
-        }
-        // contained/thumb render the image as the resource-hero cover.
+    // S6 — event-detail.php accepts every preset and names the body figure after it.
+    // Comments are stripped first: the preset names also appear in the prose
+    // there, and a check satisfied by a comment proves nothing. What each preset
+    // renders is asserted against the real page in issue-137-event-image-layout.spec.js.
+    test('S6: event-detail.php allow-lists every preset and renders event-cover--<preset>', async () => {
+        const src = readRepoFile('app/Views/frontend/event-detail.php')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+        expect(src).toMatch(/\$coverAllowed\s*=\s*\['full',\s*'banner',\s*'contained',\s*'thumb'\]/);
+        expect(src).toMatch(/class="event-cover event-cover--<\?= htmlspecialchars\(\$coverLayout/);
+        expect(src).toMatch(/in_array\(\$coverLayout,\s*\['contained',\s*'thumb'\],\s*true\)/);
         expect(src).toMatch(/resource-hero\.php/);
     });
 
@@ -194,7 +202,7 @@ test.describe('[HTTP] PR #139 admin-side behavior', () => {
             const sel = page.locator('select[name*="event_image_layout"], select[name*="image_layout"]');
             expect(await sel.count()).toBeGreaterThan(0);
         } else {
-            expect(n).toBeGreaterThanOrEqual(4);
+            expect(n).toBeGreaterThanOrEqual(3);
         }
     });
 

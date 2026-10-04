@@ -115,13 +115,39 @@ $cardTitle=static function(string $icon,string $title,string $subtitle='',bool $
           })();
           </script>
 
-          <?php /* Uwe (#412) could not find "Associated publication" on this form: it is
-                   not a field here, because linking to a masthead record goes through a
-                   preview in the article list. Say what it is, and what it is now. */ ?>
+          <?php /* Uwe (#412): link the article to the journal's own record here, by
+                   searching it, as an ILS does for 773. Picking one fills the
+                   publication title and ISSN when they are still empty. */
+          $hostOptions = $hostOptions ?? [];
+          $hostSelected = (int) ($row['testata_id'] ?? 0); ?>
           <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm" id="article-host-record">
-            <p class="font-medium text-gray-900"><i class="fas fa-link mr-2 text-gray-900" aria-hidden="true"></i><?= __('Testata associata') ?>: <?= !empty($hostTitle) ? $e($hostTitle) : __('Non associato') ?></p>
-            <p class="text-gray-600 mt-1"><?= __('«Titolo della pubblicazione» è il nome della rivista o del giornale come lo scrivi in questa scheda. La testata associata è la scheda di quella rivista nell’Emeroteca, con le sue annate e i suoi fascicoli: è facoltativa, e si collega dalla lista Articoli, selezionando l’articolo e aprendo «Associa gli articoli selezionati a una testata».') ?></p>
-            <p class="mt-2"><a class="text-gray-900 hover:underline font-medium" href="<?= $e(url('/admin/periodicals/articles')) ?>"><?= __('Apri la lista Articoli') ?></a></p>
+            <input type="hidden" name="host_testata_present" value="1">
+            <label for="article-testata_id" class="form-label"><i class="fas fa-link mr-2 text-gray-900" aria-hidden="true"></i><?= __('Testata associata') ?></label>
+            <select id="article-testata_id" name="testata_id" class="form-input">
+              <option value=""><?= __('Non associato') ?></option>
+              <?php foreach ($hostOptions as $host): ?>
+                <option value="<?= (int) $host['id'] ?>" data-title="<?= $e($host['titolo']) ?>" data-issn="<?= $e($host['issn']) ?>" <?= $hostSelected === (int) $host['id'] ? 'selected' : '' ?>><?= $e($host['titolo']) ?><?= $host['issn'] !== '' ? ' (' . $e($host['issn']) . ')' : '' ?></option>
+              <?php endforeach; ?>
+            </select>
+            <p class="text-gray-600 mt-1"><?= __('«Titolo della pubblicazione» è il nome della rivista o del giornale come lo scrivi in questa scheda. La testata associata è la scheda di quella rivista nell’Emeroteca, con le sue annate e i suoi fascicoli: è facoltativa. Sceglila qui cercandola per titolo; titolo e ISSN vengono copiati nei campi sopra se sono ancora vuoti.') ?></p>
+            <script>
+            document.addEventListener('DOMContentLoaded', function () {
+              const select = document.getElementById('article-testata_id');
+              if (!select) return;
+              if (typeof Choices === 'function') {
+                new Choices(select, { searchEnabled: true, shouldSort: false, itemSelectText: '', allowHTML: false,
+                  noResultsText: <?= json_encode(__('Nessun risultato trovato'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> });
+              }
+              select.addEventListener('change', function () {
+                const option = select.options[select.selectedIndex];
+                if (!option || option.value === '') return;
+                const title = document.getElementById('article-contenitore_titolo');
+                const issn = document.getElementById('article-issn');
+                if (title && title.value.trim() === '') title.value = option.dataset.title || '';
+                if (issn && issn.value.trim() === '' && option.dataset.issn) issn.value = option.dataset.issn;
+              });
+            });
+            </script>
           </div>
         </div>
       </div>
@@ -210,7 +236,9 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
             scheme.addEventListener('change', () => {
               // Keep one notation across the two inputs. Reuse the picker
               // instance on return rather than registering listeners again.
-              if (text.disabled) text.value = dewey.value;
+              // Only a code actually picked replaces the text: an empty picker
+              // (a DK5 notation is not a Dewey code) must not wipe what was typed.
+              if (text.disabled && dewey.value !== '') text.value = dewey.value;
               const typed = text.value.trim();
               keepText = scheme.value === 'DDC' && typed === legacyNotation;
               if (scheme.value === 'DDC' && !keepText && deweyStarted && typeof window.setDeweyCode === 'function') {

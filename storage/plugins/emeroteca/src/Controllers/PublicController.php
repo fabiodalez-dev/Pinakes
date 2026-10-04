@@ -134,11 +134,12 @@ class PublicController
                 $binds[] = $genere;
             }
             if ($lettera !== '' && $skip !== 'lettera') {
-                $where[] = $lettera === '#' ? "t.titolo NOT REGEXP '^[A-Za-z]'" : 'UPPER(LEFT(t.titolo, 1)) = ?';
-                if ($lettera !== '#') {
-                    $types .= 's';
-                    $binds[] = $lettera;
-                }
+                // The count's own bucket expression: under an accent-insensitive
+                // collation UPPER(LEFT(...)) = 'E' would also take "Époque", which
+                // the count files under '#', so one title would sit in two letters.
+                $where[] = "(CASE WHEN t.titolo REGEXP '^[A-Za-z]' THEN UPPER(LEFT(t.titolo, 1)) ELSE '#' END) = ?";
+                $types .= 's';
+                $binds[] = $lettera;
             }
             return [$where === [] ? '' : ' WHERE ' . implode(' AND ', $where), $types, $binds];
         };
@@ -220,7 +221,7 @@ class PublicController
                       GROUP BY testata_id
                ) ann ON ann.testata_id = t.id
                {$w}
-              ORDER BY t.titolo ASC
+              ORDER BY t.titolo ASC, t.id ASC
               LIMIT " . self::PER_PAGE . " OFFSET {$offset}",
             $t,
             $b
@@ -860,6 +861,8 @@ class PublicController
             ['href' => route_path('catalog'), 'icon' => 'fa-book', 'label' => __('Catalogo')],
         ];
         $seoRobots = 'noindex,follow';
+        // The layout's <title> reads $seoTitle, not the $pageTitle 404.php sets.
+        $seoTitle = $errorTitle . ' — ' . __('Emeroteca');
         // Same layout inputs renderPublic() supplies.
         $emerotecaAvailable = true;
         $db = $this->db;

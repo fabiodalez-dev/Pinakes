@@ -232,6 +232,15 @@ check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'the
     check412($plugin->suggestEmerotecaSearch([],'%%')===[],'wildcards in the term never match everything');
     check412($plugin->suggestEmerotecaSearch('not-an-array','Intertextuality')==='not-an-array','a non-array input is passed through untouched');
     check412(count($plugin->suggestEmerotecaSearch([['label'=>'zz existing','url'=>'/x'],],'Intertextuality'))===2,'the listener appends, it never replaces');
+    // The header search's live suggestions (#412): the same published article,
+    // typed as one, next to whatever the core already found.
+    $live=$plugin->addArticleSources([['type'=>'book','title'=>'A book']],'Intertextuality');
+    $liveArticles=array_values(array_filter($live, static fn($r)=>($r['type']??'')==='article'));
+    check412(count($live)===2 && count($liveArticles)===1,'live suggestions append the matching article after the core results');
+    check412(($liveArticles[0]['label']??'')===$base['titolo'] && str_ends_with((string)($liveArticles[0]['url']??''),'/emeroteca/articolo/'.$id),'with its title and its public page');
+    check412(str_contains((string)($liveArticles[0]['author']??''),'Schweissinger'),'and its authors on their own line');
+    check412($plugin->addArticleSources([],'Secret Article')===[],'an unpublished article never reaches the live suggestions');
+    check412($plugin->addArticleSources([],'z')===[] && $plugin->addArticleSources('x','Intertextuality')==='x','short terms and non-array input are left alone');
     $svc->rows("INSERT INTO emeroteca_testate (titolo,sottotitolo) VALUES ('Zeitschrift für Tests','Beilage')");
     $suggestTestata=$plugin->suggestEmerotecaSearch([],'Zeitschrift');
     check412(count($suggestTestata)===1 && ($suggestTestata[0]['items'][0]['meta']??'')==='Beilage','a masthead match yields its own section with the subtitle as meta');

@@ -89,13 +89,15 @@ final class CitationFormatter
             'month' => $date['month'],
             'day' => $date['day'],
             'title' => $title,
-            'container' => self::clean($row['contenitore_titolo'] ?? ''),
+            // An article linked to a catalogued masthead but with no free-text
+            // journal title is cited from that masthead (773 $t, RIS JF, ...).
+            'container' => self::clean(($row['contenitore_titolo'] ?? '') !== '' ? $row['contenitore_titolo'] : ($row['testata_titolo'] ?? '')),
             'volume' => self::clean($row['volume'] ?? ''),
             'issue' => self::clean($row['numero'] ?? ''),
             'pageStart' => $pageStart,
             'pageEnd' => $pageEnd,
             'doi' => self::clean($row['doi'] ?? ''),
-            'issn' => self::clean($row['issn'] ?? ''),
+            'issn' => self::clean(($row['issn'] ?? '') !== '' ? $row['issn'] : ($row['testata_issn'] ?? '')),
             'language' => self::clean($row['lingua'] ?? ''),
             'keywords' => array_values(array_filter(
                 array_map(
@@ -332,6 +334,9 @@ final class CitationFormatter
         }
         foreach ([
             'T2' => $p['container'],
+            // JF (journal, full name) as well as T2: some importers read only one
+            // of them, and danish union records (Uwe's #412 example) use JF.
+            'JF' => $type === 'JOUR' || $type === 'NEWS' ? $p['container'] : '',
             'VL' => $p['volume'],
             'IS' => $p['issue'],
             'SP' => $p['pageStart'],

@@ -93,7 +93,10 @@ test.describe.serial('Emeroteca public article search page', () => {
 
   test.afterAll(async ({ browser }) => {
     db(`DELETE FROM emeroteca_contributi WHERE reference_key LIKE '${RUN}-%'`);
-    db(`DELETE FROM emeroteca_testate WHERE titolo='${TESTATA}'`);
+    db(`DELETE ar FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON f.id=ar.fascicolo_id JOIN emeroteca_annate a ON a.id=f.annata_id WHERE a.testata_id=${testataId}`);
+    db(`DELETE f FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id WHERE a.testata_id=${testataId}`);
+    db(`DELETE FROM emeroteca_annate WHERE testata_id=${testataId}`);
+    db(`DELETE FROM emeroteca_testate WHERE titolo IN ('${TESTATA}', 'Époque ${RUN}')`);
     if (!wasActive) {
       const page = await browser.newPage();
       try { await login(page); await setEmerotecaActive(page, false); } finally { await page.close(); }
@@ -169,5 +172,47 @@ test.describe.serial('Emeroteca public article search page', () => {
     expect(await total(page)).toBe(0);
     await expect(page.locator('.empty-state')).toBeVisible();
     await expect(page.locator('.pagination')).toHaveCount(0);
+  });
+  test('an article keeps its own cover in the structured data, not a related card\'s', async ({ page }) => {
+    // The related-article cards render after the hero; their cover must not leak
+    // into the page's JSON-LD image, which is written at the end of the page.
+    db(`UPDATE emeroteca_contributi SET copertina_url='/uploads/emeroteca/${RUN}-related.jpg' WHERE reference_key LIKE '${RUN}-%'`);
+    db(`UPDATE emeroteca_contributi SET copertina_url='/uploads/emeroteca/${RUN}-own.jpg' WHERE reference_key='${RUN}-01'`);
+    const id = db(`SELECT id FROM emeroteca_contributi WHERE reference_key='${RUN}-01'`);
+    await page.goto(`${BASE}/emeroteca/articolo/${id}`);
+    await expect(page.locator('.resource-related .book-card').first()).toBeVisible();
+    const images = (await page.locator('script[type="application/ld+json"]').allTextContents())
+      .map(text => JSON.parse(text))
+      .flatMap(data => (Array.isArray(data) ? data : [data]))
+      .filter(data => typeof data.image === 'string')
+      .map(data => data.image);
+    expect(images.length, 'the article publishes an image in its structured data').toBeGreaterThan(0);
+    for (const image of images) expect(image).toMatch(new RegExp(`/uploads/emeroteca/${RUN}-own\\.jpg$`));
+  });
+  test('a title starting with an accented letter is filed under one initial only', async ({ page }) => {
+    // The count files "Époque" under '#'; the filter must agree, or it shows up under E too.
+    db(`INSERT INTO emeroteca_testate (titolo) VALUES ('Époque ${RUN}')`);
+    await page.goto(`${BASE}/emeroteca?lettera=E&q=${encodeURIComponent(RUN)}`);
+    await expect(page.locator('body')).not.toContainText(`Époque ${RUN}`);
+    await page.goto(`${BASE}/emeroteca?lettera=%23&q=${encodeURIComponent(RUN)}`);
+    await expect(page.locator('body')).toContainText(`Époque ${RUN}`);
+  });
+
+  test('an issue with a printed contents list but no catalogued article shows no empty heading', async ({ page }) => {
+    db(`INSERT INTO emeroteca_annate (testata_id, anno, volume) VALUES (${testataId}, 2019, '7')`);
+    const annata = db(`SELECT id FROM emeroteca_annate WHERE testata_id=${testataId} ORDER BY id DESC LIMIT 1`);
+    db(`INSERT INTO emeroteca_fascicoli (annata_id, numero) VALUES (${annata}, '1')`);
+    const fascicolo = db(`SELECT id FROM emeroteca_fascicoli WHERE annata_id=${annata} ORDER BY id DESC LIMIT 1`);
+    db(`INSERT INTO emeroteca_articoli (fascicolo_id, titolo) VALUES (${fascicolo}, '${RUN} printed entry')`);
+    await page.goto(`${BASE}/emeroteca/fascicolo/${fascicolo}`);
+    await expect(page.locator('#emeroteca-indice-title')).toBeVisible();
+    await expect(page.locator('.resource-toc')).toContainText(`${RUN} printed entry`);
+    await expect(page.locator('#emeroteca-sommario-title'), 'no "articles in this issue" heading with nothing under it').toHaveCount(0);
+  });
+
+  test('the Emeroteca not-found page names itself in the browser tab', async ({ page }) => {
+    const response = await page.goto(`${BASE}/emeroteca/fascicolo/2147483000`);
+    expect(response?.status()).toBe(404);
+    await expect(page).toHaveTitle(/Emeroteca/);
   });
 });

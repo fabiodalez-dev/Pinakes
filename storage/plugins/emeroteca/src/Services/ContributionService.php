@@ -398,6 +398,27 @@ SQL;
                 }
             }
             $values = self::normalize($data);
+            // The form's masthead picker (#412). Imports and older clients do not
+            // send it and leave the link alone. Moving to another masthead drops
+            // an issue that belongs to the old one.
+            if (array_key_exists('host_testata_present', $data)) {
+                $rawHost = $data['testata_id'] ?? '';
+                if (!is_scalar($rawHost) || ($rawHost !== '' && !ctype_digit((string) $rawHost))) {
+                    throw new \InvalidArgumentException(__('Testata non valida.'));
+                }
+                $hostId = (int) $rawHost;
+                if ($hostId > 0 && $this->rows('SELECT id FROM emeroteca_testate WHERE id=?', [$hostId]) === []) {
+                    throw new \InvalidArgumentException(__('Testata non valida.'));
+                }
+                $values['testata_id'] = $hostId > 0 ? $hostId : null;
+                $currentIssue = $id > 0 ? (int) ($this->rows('SELECT fascicolo_id FROM emeroteca_contributi WHERE id=?', [$id])[0]['fascicolo_id'] ?? 0) : 0;
+                if ($currentIssue > 0) {
+                    $issueHost = (int) ($this->rows('SELECT a.testata_id FROM emeroteca_fascicoli f JOIN emeroteca_annate a ON a.id=f.annata_id WHERE f.id=?', [$currentIssue])[0]['testata_id'] ?? 0);
+                    if ($issueHost !== $hostId) {
+                        $values['fascicolo_id'] = null;
+                    }
+                }
+            }
             foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
                 if (array_key_exists($field, $files)) {
                     $values[$field] = $files[$field];
@@ -457,7 +478,7 @@ SQL;
      * cover, status) and that issue's year. Aliased so they never collide with
      * the article's own free-text `numero` / `volume` citation fields.
      */
-    public const PLACEMENT_COLUMNS = 't.titolo testata_titolo, t.logo_url testata_logo_url,'
+    public const PLACEMENT_COLUMNS = 't.titolo testata_titolo, t.issn testata_issn, t.logo_url testata_logo_url,'
         . ' f.numero fascicolo_numero, f.titolo_fascicolo fascicolo_titolo, f.copertina_url fascicolo_copertina_url,'
         . ' f.stato fascicolo_stato, f.annata_id fascicolo_annata_id, fa.anno fascicolo_anno, fa.volume fascicolo_volume';
 

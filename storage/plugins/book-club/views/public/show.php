@@ -84,6 +84,13 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
   .bc-autocomplete.hidden{display:none}
   .bc-autocomplete-item{padding:.5rem .75rem;font-size:.9rem;cursor:pointer}
   .bc-autocomplete-item:hover{background:var(--accent-color)}
+  /* Members line and join/leave actions under the shared single-resource hero. */
+  .bc-hero-extra{display:flex;flex-direction:column;gap:1rem;margin-top:1rem}
+  .bc-hero-meta{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;font-size:.9rem;color:var(--text-light)}
+  .bc-hero-meta a{color:var(--primary-color);font-weight:600;text-decoration:none}
+  .bc-hero-meta a:hover{text-decoration:underline}
+  .bc-hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
+  .bc-hero-actions form{margin:0}
 </style>
 <?php
 // Hero: same single-resource header as the book / emeroteca pages.

@@ -382,6 +382,44 @@ try {
     $db->rollback();
 
     // -----------------------------------------------------------------------
+    echo "\nE2. The masthead picker on the article form (#412)\n";
+
+    $db->begin_transaction();
+    $svc->rows("INSERT INTO emeroteca_testate (titolo, issn) VALUES ('Arbejderhistorie', '0107-8461')");
+    $hostA = (int) $db->insert_id;
+    $svc->rows("INSERT INTO emeroteca_testate (titolo) VALUES ('Historisk Tidsskrift')");
+    $hostB = (int) $db->insert_id;
+    $svc->rows("INSERT INTO emeroteca_annate (testata_id, anno) VALUES ($hostA, 1988)");
+    $annata = (int) $db->insert_id;
+    $svc->rows("INSERT INTO emeroteca_fascicoli (annata_id, numero) VALUES ($annata, '31')");
+    $issueA = (int) $db->insert_id;
+    $linked = $svc->save(['titolo' => 'Linked', 'contenitore_titolo' => '', 'issn' => '', 'host_testata_present' => '1', 'testata_id' => (string) $hostA]);
+    $row = $svc->get($linked);
+    $check((int) $row['testata_id'] === $hostA, 'the form links the article to the masthead picked');
+    $citeParts = \App\Plugins\Emeroteca\Support\CitationFormatter::parts($row);
+    $check($citeParts['container'] === 'Arbejderhistorie' && $citeParts['issn'] === '0107-8461', 'with no free-text title, the masthead names the journal and its ISSN');
+    $svc->rows("UPDATE emeroteca_contributi SET fascicolo_id=$issueA WHERE id=$linked");
+    $row = $svc->get($linked);
+    $svc->save(['titolo' => 'Linked', 'host_testata_present' => '1', 'testata_id' => (string) $hostA], $linked, (int) $row['revision']);
+    $check((int) $svc->get($linked)['fascicolo_id'] === $issueA, 'saving with the same masthead keeps the issue');
+    $row = $svc->get($linked);
+    $svc->save(['titolo' => 'Linked', 'host_testata_present' => '1', 'testata_id' => (string) $hostB], $linked, (int) $row['revision']);
+    $row = $svc->get($linked);
+    $check((int) $row['testata_id'] === $hostB && empty($row['fascicolo_id']), 'moving to another masthead drops an issue of the old one');
+    $svc->save(['titolo' => 'Linked'], $linked, (int) $row['revision']);
+    $check((int) $svc->get($linked)['testata_id'] === $hostB, 'a save without the picker (import, older client) leaves the link alone');
+    $row = $svc->get($linked);
+    $svc->save(['titolo' => 'Linked', 'host_testata_present' => '1', 'testata_id' => ''], $linked, (int) $row['revision']);
+    $check(empty($svc->get($linked)['testata_id']), 'choosing "not associated" unlinks it');
+    foreach (['999999', 'abc', '-1'] as $bad) {
+        $row = $svc->get($linked);
+        $refused = false;
+        try { $svc->save(['titolo' => 'Linked', 'host_testata_present' => '1', 'testata_id' => $bad], $linked, (int) $row['revision']); }
+        catch (InvalidArgumentException $e) { $refused = true; }
+        $check($refused, "a masthead id that does not exist or is not a number is refused ($bad)");
+    }
+    $db->rollback();
+
     echo "\nF. The citation the catalogue already knew\n";
 
     $apa = CitationFormatter::apa(UWE);
