@@ -109,7 +109,7 @@ final class UnifiedCatalogService
             $marks = implode(',', array_fill(0, count($ids), '?'));
             $sql = $kind === 'book'
                 ? "SELECT l.*, $authorSelect, e.nome editore, g.nome genere FROM libri l LEFT JOIN editori e ON e.id=l.editore_id LEFT JOIN generi g ON g.id=l.genere_id WHERE l.deleted_at IS NULL AND l.id IN ($marks)"
-                : "SELECT c.*, c.autori autore, COALESCE(NULLIF(c.copertina_url,''),NULLIF(f.copertina_url,''),t.logo_url) copertina_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id LEFT JOIN emeroteca_fascicoli f ON f.id=c.fascicolo_id WHERE c.pubblico=1 AND c.id IN ($marks)";
+                : "SELECT c.*, c.autori autore, t.titolo testata_titolo, COALESCE(NULLIF(c.copertina_url,''),NULLIF(f.copertina_url,''),t.logo_url) copertina_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id LEFT JOIN emeroteca_fascicoli f ON f.id=c.fascicolo_id WHERE c.pubblico=1 AND c.id IN ($marks)";
             $pageRows = $this->rows($sql, str_repeat('i', count($ids)), $ids);
             if ($kind === 'article') { $pageRows = (new ArticleAuthorService($this->db))->hydrate($pageRows); }
             foreach ($pageRows as $row) {

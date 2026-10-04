@@ -1113,6 +1113,12 @@ ob_start();
                             <div class="meta-value"><?= htmlspecialchars(implode(', ', $metaPublisherNames), ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
+                        <?php if (trim((string) ($book['luogo_pubblicazione'] ?? '')) !== ''): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Luogo di pubblicazione") ?></div>
+                            <div class="meta-value"><?= App\Support\HtmlHelper::e((string) $book['luogo_pubblicazione']) ?></div>
+                        </div>
+                        <?php endif; ?>
 
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Stato") ?></div>
@@ -1174,36 +1180,13 @@ ob_start();
                 <?php include __DIR__ . '/partials/social-sharing.php'; ?>
 
                 <?php
-                // "Cite" (#412): the book as the shared citation styles read it.
-                // Authors and co-authors are cited as authors, editors
-                // (curatore) as editors; the other roles are not part of a
-                // reference.
-                $citeAuthors = [];
-                $citeEditors = [];
-                foreach ($authors as $authorData) {
-                    $citeName = trim(html_entity_decode(AuthorName::citation($authorData), ENT_QUOTES, 'UTF-8'));
-                    $citeRole = (string) ($authorData['ruolo'] ?? 'principale');
-                    if ($citeName === '') {
-                        continue;
-                    }
-                    if ($citeRole === 'principale' || $citeRole === 'co-autore') {
-                        $citeAuthors[] = $citeName;
-                    } elseif ($citeRole === 'curatore') {
-                        $citeEditors[] = $citeName;
-                    }
-                }
-                $citeSubtitle = trim(html_entity_decode((string) ($book['sottotitolo'] ?? ''), ENT_QUOTES, 'UTF-8'));
-                $citeCitations = \App\Support\CitationStyles::all([
-                    'type' => 'book',
-                    'authors' => array_values(array_unique($citeAuthors)),
-                    'editors' => array_values(array_unique($citeEditors)),
-                    'year' => !empty($book['anno_pubblicazione']) ? (string) (int) $book['anno_pubblicazione'] : '',
-                    'title' => $citeSubtitle !== '' ? $bookTitle . ' : ' . $citeSubtitle : $bookTitle,
-                    'publisher' => $bookPublisher,
-                    'edition' => html_entity_decode((string) ($book['edizione'] ?? ''), ENT_QUOTES, 'UTF-8'),
-                ]);
+                // "Cite" (#412): the book as the shared citation styles read it;
+                // the RIS download starts from the same input.
+                $citeCitations = \App\Support\CitationStyles::all(\App\Support\BookCitation::input($book, $authors));
                 $citeTitle = $bookTitle;
-                $citeDownloads = [];
+                $citeDownloads = [
+                    ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/books/' . (int) $book['id'] . '/citation.ris')],
+                ];
                 ?>
                 <div class="card" id="book-cite-card">
                   <div class="card-header">

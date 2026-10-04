@@ -2766,6 +2766,15 @@ return function (App $app): void {
         });
     }
 
+    // RIS citation of a book (#412). A technical endpoint, not a localized page
+    // ("/libro/{id}/citation.ris" would be taken as a slug by the route above).
+    $registerRouteIfUnique('GET', '/books/{id:\d+}/citation.ris', function ($request, $response, $args) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
+        return $controller->bookCitationRis($request, $response, $db, (int) $args['id']);
+    });
+
     // Canonical SEO route: /{author-slug}/{book-slug}/{id}
     $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($request, $response, $args) use ($app) {
         $container = $app->getContainer();

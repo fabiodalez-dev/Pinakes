@@ -511,6 +511,9 @@ class BookRepository
         if ($this->hasColumn('edizione')) {
             $addField('edizione', 's', $data['edizione'] ?? null);
         }
+        if ($this->hasColumn('luogo_pubblicazione')) {
+            $addField('luogo_pubblicazione', 's', self::nullIfBlank($data['luogo_pubblicazione'] ?? null));
+        }
         if ($this->hasColumn('traduttore') && array_key_exists('traduttore', $data)) {
             $val = $data['traduttore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
@@ -871,6 +874,9 @@ class BookRepository
         }
         if ($this->hasColumn('edizione')) {
             $addSet('edizione', 's', $data['edizione'] ?? null);
+        }
+        if ($this->hasColumn('luogo_pubblicazione') && array_key_exists('luogo_pubblicazione', $data)) {
+            $addSet('luogo_pubblicazione', 's', self::nullIfBlank($data['luogo_pubblicazione']));
         }
         if ($this->hasColumn('traduttore') && array_key_exists('traduttore', $data)) {
             $val = $data['traduttore'] ?? null;
@@ -1634,7 +1640,7 @@ class BookRepository
     public function updateOptionals(int $bookId, array $data): void
     {
         $cols = [];
-        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione', 'tipo_media', 'parole_chiave'] as $c) {
+        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione', 'luogo_pubblicazione', 'tipo_media', 'parole_chiave'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
                 if ($c === 'numero_pagine') {
                     $validated = filter_var($data[$c], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -1651,6 +1657,13 @@ class BookRepository
                     $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
                     $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
+                } elseif ($c === 'luogo_pubblicazione') {
+                    // Same rule as create()/update(): trimmed, and a blank
+                    // value is not written (it would overwrite their NULL).
+                    $place = self::nullIfBlank($data[$c]);
+                    if ($place !== null) {
+                        $cols[$c] = $place;
+                    }
                 } else {
                     $cols[$c] = $data[$c];
                 }
@@ -1895,6 +1908,13 @@ class BookRepository
     }
 
     private static array $columnCacheByDb = [];
+    /** A trimmed text value, or NULL for an empty one (no "" stored for "not known"). */
+    private static function nullIfBlank(mixed $value): ?string
+    {
+        $text = is_scalar($value) ? trim((string) $value) : '';
+        return $text === '' ? null : mb_substr($text, 0, 255);
+    }
+
     private function hasColumn(string $name): bool
     {
         $dbRes = $this->db->query('SELECT DATABASE()');

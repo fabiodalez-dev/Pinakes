@@ -717,6 +717,36 @@ class FrontendController
      * Render the public book-detail page, loading the book with its authors,
      * publishers (issue #143), series, reviews and related volumes.
      */
+    /**
+     * The book as a RIS file (#412), from the same data as the Cite dialog.
+     * Visibility is the detail page's: a soft-deleted or unknown book is a 404.
+     */
+    public function bookCitationRis(Request $request, Response $response, mysqli $db, int $bookId): Response
+    {
+        $live = $this->fetchLiveAvailability($db, [$bookId]);
+        if (!is_array($live) || !isset($live[$bookId])) {
+            return $response->withStatus(404);
+        }
+        $detail = $this->buildBookDetailStatic($db, $bookId);
+        if ($detail === null) {
+            return $response->withStatus(404);
+        }
+        $book = $detail['book'];
+        $book['id'] = $bookId;
+        $recordUrl = absoluteUrl(book_url([
+            'id' => $bookId,
+            'titolo' => $book['titolo'] ?? '',
+            'autore_principale' => $book['autore_principale'] ?? '',
+            'autori' => $book['autore_principale'] ?? '',
+        ]));
+        $body = \App\Support\BookCitation::ris(\App\Support\BookCitation::input($book, $detail['authors']), $book, $recordUrl);
+        $response->getBody()->write($body);
+        return $response
+            ->withHeader('Content-Type', 'application/x-research-info-systems; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="book-' . $bookId . '.ris"')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+    }
+
     public function bookDetail(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
@@ -3231,7 +3261,8 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // corrupted DB values.
         $eventImageLayoutAllowed = ['full', 'banner', 'contained', 'thumb'];
         $eventImageLayout = strtolower((string) $repository->get('cms', 'event_image_layout', 'contained'));
-        if (!in_array($eventImageLayout, $eventImageLayoutAllowed, true)) {
+        if (!in_array($eventImageLayout, $eventImageLayoutAllowed, true) || $eventImageLayout === 'thumb') {
+            // A 'thumb' saved before the presets were merged shows the hero cover, as 'contained'.
             $eventImageLayout = 'contained';
         }
 

@@ -7,12 +7,12 @@
 //   1. Default fallback ('contained') when the setting row is missing
 //   2. Explicit layout = 'full'         (legacy full-width-no-constraint)
 //   3. Explicit layout = 'banner'       (low banner, capped at 220px height with object-fit:cover)
-//   4. Explicit layout = 'contained'    (max-width 420px left-aligned, max-height 320px, object-fit: contain)
-//   5. Explicit layout = 'thumb'        (hero cover, like contained)
+//   4. Explicit layout = 'contained'    (the hero cover, max 350px wide)
+//   5. Stored legacy 'thumb'            (no longer offered; still the hero cover)
 //
 // Each case sets `cms.event_image_layout` directly in the KV store
 // (`system_settings`), navigates to the event detail page, and asserts:
-//   • contained / thumb → the image is the resource-hero cover
+//   • contained (and a legacy thumb) → the image is the resource-hero cover
 //     (`.resource-hero .book-cover-large`) and no body figure is rendered
 //   • full / banner     → the hero stays plain and the image is rendered in the
 //     body as `figure.event-cover.event-cover--<layout>` with
@@ -256,6 +256,8 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
 
         const heroCover = page.locator('.resource-hero .book-cover-large');
         const figure = page.locator('figure.event-cover');
+        // The layout owns the page's only main landmark.
+        await expect(page.locator('main'), 'one <main> per page').toHaveCount(1);
 
         if (expected === 'contained' || expected === 'thumb') {
             await expect(heroCover).toHaveCount(1);
@@ -289,9 +291,9 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         await expectLayout(page, 'contained');
     });
 
-    test('5/5 thumb — explicit layout=thumb renders the image as the hero cover', async ({ page }) => {
+    test('5/5 legacy thumb — a stored layout=thumb still renders the hero cover', async ({ page }) => {
         setLayout('thumb');
-        await expectLayout(page, 'thumb');
+        await expectLayout(page, 'contained');
     });
 
     // ────────────────────────────────────────────────────────────────────
@@ -300,7 +302,6 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
     //   full       → body figure at the full width of the description column
     //   banner     → body figure at full width, capped to ~220px tall
     //   contained  → hero cover, much narrower than the description column
-    //   thumb      → hero cover (same as contained)
     // ────────────────────────────────────────────────────────────────────
     test('effective size — each preset renders at its own dimension', async ({ page }) => {
         const longContent = '<p>' + 'Test event description. '.repeat(40) + '</p>';
@@ -331,7 +332,6 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         const full      = await measure('full', 'figure.event-cover--full');
         const banner    = await measure('banner', 'figure.event-cover--banner');
         const contained = await measure('contained', '.resource-hero .book-cover-large');
-        const thumb     = await measure('thumb', '.resource-hero .book-cover-large');
 
         expect(full.imgWidth, `full: figure should fill the column (got ${full.imgWidth}px of ${full.sectionWidth}px)`)
             .toBeGreaterThan(full.sectionWidth * 0.85);
@@ -341,12 +341,10 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         expect(banner.imgHeight, `banner: height must be capped to ~220px (got ${banner.imgHeight}px)`)
             .toBeLessThanOrEqual(225);
 
-        for (const [name, m] of [['contained', contained], ['thumb', thumb]]) {
-            expect(m.imgWidth, `${name}: hero cover must be visibly narrower than the body column (got ${m.imgWidth}px vs ${m.sectionWidth}px)`)
-                .toBeLessThan(m.sectionWidth * 0.8);
-            expect(m.imgWidth, `${name}: hero cover must be a poster, not full width (got ${m.imgWidth}px)`)
-                .toBeLessThanOrEqual(480);
-        }
+        expect(contained.imgWidth, `contained: hero cover must be visibly narrower than the body column (got ${contained.imgWidth}px vs ${contained.sectionWidth}px)`)
+            .toBeLessThan(contained.sectionWidth * 0.8);
+        expect(contained.imgWidth, `contained: the hero cover is capped at 350px (got ${contained.imgWidth}px)`)
+            .toBeLessThanOrEqual(351);
     });
 
     // Listing page: real cards from the shared catalogue markup.
@@ -438,12 +436,43 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         ).not.toBe(sqlPre);
     });
 
+    // The settings offer three presets. 'thumb' rendered exactly like
+    // 'contained', so it was merged into it: a stored 'thumb' shows as
+    // 'contained' in the picker and saving the form stores 'contained'.
+    test('admin settings: three presets, and a stored thumb is saved back as contained', async ({ page }) => {
+        setLayout('thumb');
+        await page.goto(`${BASE}/accedi`);
+        await page.fill('input[name="email"]', ADMIN_EMAIL);
+        await page.fill('input[name="password"]', ADMIN_PASS);
+        await Promise.all([
+            page.waitForURL(/\/(admin|profilo)/, { timeout: 15000 }),
+            page.click('button[type="submit"]'),
+        ]);
+
+        await page.goto(`${BASE}/admin/settings?tab=cms`);
+        const select = page.locator('select#event_image_layout');
+        await expect(select).toHaveCount(1);
+        const values = await select.locator('option').evaluateAll(options => options.map(o => o.value));
+        expect(values).toEqual(['contained', 'banner', 'full']);
+        await expect(select).toHaveValue('contained');
+
+        const form = page.locator('form[action*="/admin/settings/events"]');
+        await form.locator('button[type="submit"]').scrollIntoViewIfNeeded();
+        await Promise.all([
+            page.waitForURL(/\/admin\/settings/, { timeout: 15000 }),
+            form.locator('button[type="submit"]').click(),
+        ]);
+        await expect.poll(() => dbQuery(
+            "SELECT setting_value FROM system_settings WHERE category='cms' AND setting_key='event_image_layout'"
+        )).toBe('contained');
+    });
+
     // ────────────────────────────────────────────────────────────────────
     // Containment regression: with a short body the hero cover must stay
     // inside the hero band (never overlap the content below it).
     // ────────────────────────────────────────────────────────────────────
-    test('thumb layout: short-body event keeps the hero cover inside the hero', async ({ page }) => {
-        setLayout('thumb');
+    test('contained layout: short-body event keeps the hero cover inside the hero', async ({ page }) => {
+        setLayout('contained');
         dbExec(`UPDATE events SET content='${sqlEscape('<p>Breve.</p>')}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
 
         await page.setViewportSize({ width: 1280, height: 900 });

@@ -213,7 +213,7 @@ test.describe.serial('CMS admin', () => {
     expect(Number(db("SELECT display_order FROM home_content WHERE section_key='cta'"))).toBe(currentOrder + 1);
   });
 
-  test('a content page saves, and its title lines up with its text', async ({ page, browser }) => {
+  test('a content page saves, and shows its title in the hero with the text below it', async ({ page, browser }) => {
     await login(page);
     await page.goto(BASE + '/admin/cms/chi-siamo');
     const titleInput = page.locator('input[name=title]').first();
@@ -224,9 +224,8 @@ test.describe.serial('CMS admin', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.locator('input[name=title]').first()).toHaveValue(new RegExp(marker));
 
-    // The heading used to sit in the page container while the text sat in a
-    // narrower column, so on a left-aligned theme it started about a hundred
-    // pixels further left than its own first line.
+    // The saved title is the page's hero heading, and the text follows the
+    // hero rather than sharing a column with it.
     const anonymous = await browser.newContext();
     const reader = await anonymous.newPage();
     await reader.setViewportSize({ width: 1280, height: 900 });

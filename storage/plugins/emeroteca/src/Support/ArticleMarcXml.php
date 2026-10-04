@@ -78,7 +78,7 @@ final class ArticleMarcXml
         $xml->endElement();
         $xml->startElement('controlfield');
         $xml->writeAttribute('tag', '008');
-        $xml->text(self::fixedField($row, $parts['year'], self::marcLanguage($parts['language'])));
+        $xml->text(self::fixedField($row, $parts['year'], self::marcLanguage($parts['language']), self::marcCountry((string)($row['paese'] ?? ''))));
         $xml->endElement();
 
         /** @var list<array{tag:string,ind1:string,ind2:string,values:array<string,mixed>}> $fields */
@@ -113,7 +113,14 @@ final class ArticleMarcXml
             $author = trim((string)($credit['nome_credito'] ?? ''));
             $field($i === $primary ? '100' : '700', ['a'=>$author, '0'=>$credit['identifiers'] ?? []], str_contains($author, ',') ? '1' : '0', ' ', ['a']);
         }
-        $field('245', ['a'=>$row['titolo'] ?? '', 'b'=>$row['sottotitolo'] ?? '', 'c'=>$row['autori'] ?? ''], $parts['authors'] === [] ? '0' : '1', '0');
+        // 245 $c is the statement of responsibility as it would be read on the
+        // item: "Hans Uwe Petersen", not the inverted heading form of 100/700.
+        $responsibility = implode(', ', array_filter(array_map(static function (array $credit): string {
+            $name = trim((string)($credit['nome_credito'] ?? ''));
+            $comma = substr_count($name, ',') === 1 ? strpos($name, ',') : false;
+            return $comma === false ? $name : trim(substr($name, $comma + 1)) . ' ' . trim(substr($name, 0, $comma));
+        }, $credits), static fn(string $name): bool => $name !== ''));
+        $field('245', ['a'=>$row['titolo'] ?? '', 'b'=>$row['sottotitolo'] ?? '', 'c'=>$responsibility !== '' ? $responsibility : ($row['autori'] ?? '')], $parts['authors'] === [] ? '0' : '1', '0');
         $field('300', ['a'=>$row['pagine'] ?? '']);
         $enumeration = array_filter([
             $parts['volume'] !== '' ? 'Vol. '.$parts['volume'] : '',
@@ -134,8 +141,7 @@ final class ArticleMarcXml
             'z'=>$parts['isAnthology'] ? $parts['isbn'] : '', 'g'=>implode(', ', $enumeration), 'w'=>$hostControlNumber], '0', ' ', [['t', 'x', 'z', 'g']]);
         $language = self::marcLanguage($parts['language']);
         $field('041', ['a'=>$language], '0');
-        // ISO 3166 alpha-2 belongs in 044 $c; 008/15-17 needs MARC country
-        // codes, which are a different list, so it stays unspecified.
+        // ISO 3166 alpha-2 in 044 $c; 008/15-17 carries the MARC country code.
         $country = strtoupper(trim((string)($row['paese'] ?? '')));
         if (preg_match('/^[A-Z]{2}$/D', $country) === 1) {
             $field('044', ['c'=>$country]);
@@ -149,6 +155,11 @@ final class ArticleMarcXml
         $field('852', ['c'=>$includeInternal ? ($row['collocazione'] ?? '') : '', 'z'=>$row['nota_possesso'] ?? '']);
         // The catalogue's own page is a related resource (ind2 2), not the article.
         $field('856', ['u'=>$recordUrl, 'y'=>$recordUrl !== '' ? 'Catalogue record' : ''], '4', '2', ['u']);
+        // The uploaded PDF, when the article and its PDF are both public: the
+        // public download address is the electronic article itself (ind2 0).
+        if ($recordUrl !== '' && !empty($row['pdf_path']) && !empty($row['pdf_pubblico'])) {
+            $field('856', ['u'=>$recordUrl . '/pdf', 'q'=>'application/pdf', 'y'=>'Full text (PDF)'], '4', '0', ['u']);
+        }
         // The electronic article itself (ind2 0) only when published AND an
         // http(s) address: a UNC share, a file: URI or a document-management
         // identifier is an internal reference and is never exported.
@@ -183,12 +194,36 @@ final class ArticleMarcXml
     }
 
     /**
+     * MARC Code List for Countries, for the ISO 3166 codes a library is likely
+     * to record. The two lists differ (Germany is "gw", the UK "xxk"), so an
+     * ISO code is never copied as it is; one missing here stays unspecified.
+     */
+    private const MARC_COUNTRIES = [
+        'AD'=>'an','AL'=>'aa','AM'=>'ai','AR'=>'ag','AT'=>'au','AU'=>'at','AZ'=>'aj','BA'=>'bn','BE'=>'be','BG'=>'bu',
+        'BR'=>'bl','BY'=>'bw','CA'=>'xxc','CH'=>'sz','CL'=>'cl','CN'=>'cc','CO'=>'ck','CU'=>'cu','CY'=>'cy','CZ'=>'xr',
+        'DE'=>'gw','DK'=>'dk','DZ'=>'ae','EE'=>'er','EG'=>'ua','ES'=>'sp','ET'=>'et','FI'=>'fi','FO'=>'fa','FR'=>'fr',
+        'GB'=>'xxk','GE'=>'gs','GL'=>'gl','GR'=>'gr','HR'=>'ci','HU'=>'hu','ID'=>'io','IE'=>'ie','IL'=>'is','IN'=>'ii',
+        'IQ'=>'iq','IR'=>'ir','IS'=>'ic','IT'=>'it','JO'=>'jo','JP'=>'ja','KE'=>'ke','KR'=>'ko','KZ'=>'kz','LB'=>'le',
+        'LI'=>'lh','LT'=>'li','LU'=>'lu','LV'=>'lv','MA'=>'mr','MC'=>'mc','MD'=>'mv','ME'=>'mo','MK'=>'xn','MT'=>'mm',
+        'MX'=>'mx','NG'=>'nr','NL'=>'ne','NO'=>'no','NZ'=>'nz','PE'=>'pe','PH'=>'ph','PK'=>'pk','PL'=>'pl','PT'=>'po',
+        'RO'=>'rm','RS'=>'rb','RU'=>'ru','SA'=>'su','SE'=>'sw','SI'=>'xv','SK'=>'xo','SM'=>'sm','SY'=>'sy','TH'=>'th',
+        'TN'=>'ti','TR'=>'tu','TW'=>'ch','UA'=>'un','US'=>'xxu','UY'=>'uy','VA'=>'vc','VE'=>'ve','VN'=>'vm','ZA'=>'sa',
+    ];
+
+    /** The MARC country code for an ISO 3166 alpha-2 code, or '' when unknown. */
+    public static function marcCountry(string $iso): string
+    {
+        return self::MARC_COUNTRIES[strtoupper(trim($iso))] ?? '';
+    }
+
+    /**
      * 008, exactly forty positions. 00-05 is the date entered on file (the
      * record's created_at, else today); 06-14 a single known year, or
-     * "no dates" (n + uuuuuuuu) when none is known; 35-37 the MARC language.
-     * Everything else, 15-17 (place) included, stays unspecified.
+     * "no dates" (n + uuuuuuuu) when none is known; 15-17 the MARC country
+     * (left-justified, blank-filled); 35-37 the MARC language. Everything
+     * else stays unspecified.
      */
-    private static function fixedField(array $row, string $year, string $language): string
+    private static function fixedField(array $row, string $year, string $language, string $country = ''): string
     {
         $entered = '';
         $created = trim((string)($row['created_at'] ?? ''));
@@ -206,6 +241,9 @@ final class ArticleMarcXml
         $fixed = preg_match('/^\d{4}$/D', $year) === 1
             ? substr_replace($fixed, 's' . $year . '    ', 6, 9)
             : substr_replace($fixed, 'nuuuuuuuu', 6, 9);
+        if ($country !== '') {
+            $fixed = substr_replace($fixed, str_pad($country, 3), 15, 3);
+        }
         if ($language !== '') {
             $fixed = substr_replace($fixed, $language, 35, 3);
         }

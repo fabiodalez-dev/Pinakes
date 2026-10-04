@@ -233,6 +233,14 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
 
           <div class="form-grid-2">
             <div>
+              <label for="luogo_pubblicazione" class="form-label"><?= __("Luogo di pubblicazione") ?></label>
+              <input id="luogo_pubblicazione" name="luogo_pubblicazione" type="text" maxlength="255" class="form-input" placeholder="<?= htmlspecialchars(__('es. Milano'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['luogo_pubblicazione'] ?? ''); ?>" />
+              <p class="text-xs text-gray-500 mt-1"><?= __("La città indicata sul frontespizio; compare nelle citazioni Chicago e Harvard") ?></p>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div>
               <label for="data_pubblicazione" class="form-label"><?= __("Data di Pubblicazione") ?></label>
               <input id="data_pubblicazione" name="data_pubblicazione" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 26 agosto 2025'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['data_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Data di pubblicazione originale (testo libero)") ?></p>
