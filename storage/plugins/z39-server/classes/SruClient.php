@@ -377,16 +377,44 @@ class SruClient
             $book['authors'][] = trim(preg_replace('/,$/', '', $author));
         }
 
-        // Additional authors from 700 field (deduplicated against 100$a)
-        $additionalAuthors = $xpath->query(".//marc:datafield[@tag='700']/marc:subfield[@code='a']", $record);
-        if ($additionalAuthors->length === 0) {
-            $additionalAuthors = $xpath->query(".//datafield[@tag='700']/subfield[@code='a']", $record);
+        // Added entries (700), sorted by their relator ($4 code, else $e term):
+        // an editor, translator or illustrator is not an author of the book.
+        // An entry with no relator stays an author, as it always has.
+        $addedEntries = $xpath->query(".//marc:datafield[@tag='700']", $record);
+        if ($addedEntries->length === 0) {
+            $addedEntries = $xpath->query(".//datafield[@tag='700']", $record);
         }
-        foreach ($additionalAuthors as $addAuthor) {
-            $name = trim(preg_replace('/,$/', '', $addAuthor->nodeValue));
-            if ($name !== '' && !in_array($name, $book['authors'], true)) {
-                $book['authors'][] = $name;
+        $contributors = ['editor' => [], 'translator' => [], 'illustrator' => []];
+        foreach ($addedEntries as $entry) {
+            $subs = $this->subfields($entry);
+            $name = trim((string) preg_replace('/[,.]$/', '', $subs['a'][0] ?? ''));
+            if ($name === '') {
+                continue;
             }
+            $role = self::contributorRole($subs['4'][0] ?? null, $subs['e'][0] ?? null, 'marc21');
+            if ($role === 'author') {
+                if (!in_array($name, $book['authors'], true)) {
+                    $book['authors'][] = $name;
+                }
+            } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
+                $contributors[$role][] = $name;
+            }
+        }
+        $this->applyContributors($book, $contributors);
+
+        // Edition statement (250 $a) and place of publication (260/264 $a)
+        $edition = $getSubfield('250', 'a');
+        if ($edition) {
+            $book['edition'] = trim((string) preg_replace('/[\s\/:;=,]+$/u', '', $edition));
+        }
+        // 260 or 264: the first that names a place, not one that only says
+        // the place is unknown ("[S.l.]")
+        $place = \App\Support\PublicationPlace::clean($getSubfield('260', 'a'));
+        if ($place === '') {
+            $place = \App\Support\PublicationPlace::clean($getSubfield('264', 'a'));
+        }
+        if ($place !== '') {
+            $book['place'] = $place;
         }
 
         // Publisher (260 $b or 264 $b)
@@ -661,7 +689,10 @@ class SruClient
         $book['subtitle'] = rtrim($book['subtitle'], ' /:;=');
 
         // Authors: UNIMARC 700 (first author), 701 (other authors), 702 (contributor)
-        // Subfields: $a = surname, $b = forename — combine as "Surname, Forename"
+        // Subfields: $a = surname, $b = forename — combine as "Surname, Forename".
+        // The $4 relator (IFLA codes) sorts editors (340), translators (730) and
+        // illustrators (440) out of the authors; no relator keeps the author.
+        $contributors = ['editor' => [], 'translator' => [], 'illustrator' => []];
         foreach (['700', '701', '702'] as $tag) {
             $nameNodes = $xpath->query(".//*[local-name()='datafield'][@tag='$tag']", $record);
             foreach ($nameNodes as $nameNode) {
@@ -681,10 +712,33 @@ class SruClient
                 }
                 $name = $forename !== '' ? $surname . ', ' . $forename : $surname;
                 $name = $clean(rtrim($name, ' ,.'));
-                if ($name !== '' && !in_array($name, $book['authors'], true)) {
-                    $book['authors'][] = $name;
+                if ($name === '') {
+                    continue;
+                }
+                $relator = $this->subfields($nameNode)['4'][0] ?? null;
+                $role = self::contributorRole($relator, null, 'unimarc');
+                if ($role === 'author') {
+                    if (!in_array($name, $book['authors'], true)) {
+                        $book['authors'][] = $name;
+                    }
+                } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
+                    $contributors[$role][] = $name;
                 }
             }
+        }
+        $this->applyContributors($book, $contributors);
+
+        // Edition (205 $a) and place of publication (214 $a, fallback 210 $a)
+        $edition = $getSub('205', 'a');
+        if ($edition !== null && trim($edition) !== '') {
+            $book['edition'] = $clean(rtrim($edition, ' /:;=,'));
+        }
+        $place = \App\Support\PublicationPlace::clean($clean((string) $getSub('214', 'a')));
+        if ($place === '') {
+            $place = \App\Support\PublicationPlace::clean($clean((string) $getSub('210', 'a')));
+        }
+        if ($place !== '') {
+            $book['place'] = $place;
         }
 
         // Publisher: 214 $c (UNIMARC 2014+), fallback 210 $c
@@ -776,6 +830,80 @@ class SruClient
         }
 
         return $book;
+    }
+
+    /**
+     * The subfields of a datafield, by code. A numeric code ("4") becomes an
+     * integer key, as PHP does with any numeric string.
+     *
+     * @return array<array-key, list<string>>
+     */
+    private function subfields(\DOMNode $field): array
+    {
+        $out = [];
+        foreach ($field->childNodes as $sub) {
+            if ($sub instanceof \DOMElement && $sub->localName === 'subfield') {
+                $out[$sub->getAttribute('code')][] = trim($sub->nodeValue ?? '');
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * The part an added entry played: 'editor', 'translator', 'illustrator',
+     * 'other' for a contribution to part of the book (an introduction, a
+     * preface, a commentary) or for the publisher, and 'author' otherwise.
+     *
+     * Only roles positively recognised leave the authors: a joint author, a
+     * compiler, a composer or a relator this list does not know stays an
+     * author, as every added entry was before roles were read. The relator
+     * code wins over the term; a code given as a URI
+     * (http://id.loc.gov/vocabulary/relators/edt) is read by its last segment.
+     *
+     * MARC 21 codes: edt/edc, trl, ill; aui, aft, win, wpr, wfw, wac, wst, wat,
+     * pbl for the others. UNIMARC (IFLA) codes: 340, 730, 440; 080, 075, 650
+     * for the others. Terms are matched in English and Italian.
+     */
+    public static function contributorRole(?string $code, ?string $term, string $scheme): string
+    {
+        $code = strtolower(trim((string) preg_replace('#^.*/#', '', trim((string) $code)), " .\t"));
+        if ($code !== '') {
+            $map = $scheme === 'unimarc'
+                ? ['340' => 'editor', '730' => 'translator', '440' => 'illustrator',
+                    '080' => 'other', '075' => 'other', '650' => 'other']
+                : ['edt' => 'editor', 'edc' => 'editor', 'trl' => 'translator', 'ill' => 'illustrator',
+                    'aui' => 'other', 'aft' => 'other', 'win' => 'other', 'wpr' => 'other', 'wfw' => 'other',
+                    'wac' => 'other', 'wst' => 'other', 'wat' => 'other', 'pbl' => 'other'];
+            return $map[$code] ?? 'author';
+        }
+        $term = mb_strtolower(trim((string) $term, " .,;\t"));
+        return match (true) {
+            $term === '' => 'author',
+            (bool) preg_match('/\b(editor|ed|curatore|curatrice|a cura)\b/u', $term) => 'editor',
+            (bool) preg_match('/\b(translator|trad|traduttore|traduttrice)\b/u', $term) => 'translator',
+            (bool) preg_match('/\b(illustrator|ill|illustratore|illustratrice)\b/u', $term) => 'illustrator',
+            (bool) preg_match('/\b(introduction|preface|foreword|afterword|postface|commentary|supplementary|notes|publisher|introduzione|prefazione|postfazione|commento|note|editore)\b/u', $term) => 'other',
+            default => 'author',
+        };
+    }
+
+    /**
+     * Editors as a list, translator and illustrator as the first name: the
+     * shape the book form reads (`editor`, `translator`, `illustrator`).
+     *
+     * @param array<string, mixed> $book
+     * @param array{editor: list<string>, translator: list<string>, illustrator: list<string>} $contributors
+     */
+    private function applyContributors(array &$book, array $contributors): void
+    {
+        if ($contributors['editor'] !== []) {
+            $book['editor'] = $contributors['editor'];
+        }
+        foreach (['translator', 'illustrator'] as $role) {
+            if ($contributors[$role] !== []) {
+                $book[$role] = $contributors[$role][0];
+            }
+        }
     }
 
     /**

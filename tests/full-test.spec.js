@@ -4495,4 +4495,22 @@ test.describe.serial('Phase 24: Place of publication, RIS and event layouts', ()
     await page.goto(`${BASE}${eventPrefix}`);
     expect(await page.locator('.events-listing').first().evaluate((el) => getComputedStyle(el).paddingTop)).toBe('40px');
   });
+
+  // ── Import: edition, place and contributors ──────────────────────────
+  test('24.26 An import fills Edizione, Luogo di pubblicazione, Curatore and Traduttore', async () => {
+    await page.goto(`${BASE}/admin/books/create`);
+    // A note already in the field is kept as typed, blank line and repeat included.
+    const typed = 'Riga del bibliotecario\n\nRiga del bibliotecario';
+    await page.evaluate((v) => { document.querySelector('textarea[name="note_varie"]').value = v; }, typed);
+    await page.locator('#importIsbn').fill('9788807900389');
+    await page.locator('#btnImportIsbn').click();
+    await expect(page.locator('#titolo')).toHaveValue('Il fu Mattia Pascal', { timeout: 15000 });
+    await expect(page.locator('input[name="edizione"]')).toHaveValue('13');
+    await expect(page.locator('input[name="luogo_pubblicazione"]')).toHaveValue('Milano');
+    await expect(page.locator('#curatori_select option', { hasText: 'Antonio Gagliardi' })).toHaveCount(1);
+    await expect(page.locator('#traduttori_select option', { hasText: 'E2E Traduttore' })).toHaveCount(1);
+    // The editor is a curator, not an author of the book.
+    await expect(page.locator('#autori_select option', { hasText: 'Antonio Gagliardi' })).toHaveCount(0);
+    await expect(page.locator('textarea[name="note_varie"]')).toHaveValue(`${typed}\nCollana: Universale Economica`);
+  });
 });

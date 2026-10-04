@@ -62,6 +62,24 @@ class ScrapeController
                 'isbn13' => $identifier,
                 'classificazione_dewey' => '188',
             ],
+            // Edition, place and contributors (#412 follow-up): every source
+            // hands these to the form under the same keys.
+            '9788807900389' => [
+                'title' => 'Il fu Mattia Pascal',
+                'authors' => ['Luigi Pirandello'],
+                'publisher' => 'Feltrinelli',
+                'year' => 2013,
+                'image' => $cover,
+                'source' => 'https://opac.sbn.it',
+                'tipo_media' => 'libro',
+                'isbn' => $identifier,
+                'isbn13' => $identifier,
+                'edition' => '13',
+                'place' => 'Milano',
+                'editor' => ['Antonio Gagliardi'],
+                'translator' => 'E2E Traduttore',
+                'notes' => 'Collana: Universale Economica',
+            ],
             '0720642442524' => [
                 'title' => 'Nevermind',
                 'authors' => ['Nirvana'],
@@ -136,6 +154,31 @@ class ScrapeController
         // Normalize authors array
         if (isset($data['authors']) && is_array($data['authors'])) {
             $data['authors'] = array_map(fn($a) => $this->normalizeText((string)$a), $data['authors']);
+        }
+        // Editors: one name or a list (SBN, SRU and Open Library send a list)
+        // Only names are kept: a number, a nested list or an object is not one.
+        if (array_key_exists('editor', $data)) {
+            $editors = is_array($data['editor']) ? $data['editor'] : [$data['editor']];
+            $editors = array_values(array_filter(array_map(
+                fn($e): string => is_string($e) ? $this->normalizeText($e) : '',
+                $editors
+            ), static fn(string $e): bool => $e !== ''));
+            if ($editors === []) {
+                unset($data['editor']);
+            } else {
+                $data['editor'] = $editors;
+            }
+        }
+        // Translator and illustrator: the form takes one name each
+        foreach (['translator', 'illustrator'] as $role) {
+            if (array_key_exists($role, $data) && is_array($data[$role])) {
+                $first = array_values(array_filter($data[$role], static fn($n): bool => is_string($n) && trim($n) !== ''))[0] ?? null;
+                if ($first === null) {
+                    unset($data[$role]);
+                } else {
+                    $data[$role] = $this->normalizeText($first);
+                }
+            }
         }
 
         // Normalize any other string fields we might have missed
@@ -671,7 +714,11 @@ class ScrapeController
             'pages' => $data['number_of_pages'] ?? '',
             'isbn' => $isbn,
             'description' => is_array($data['description'] ?? null) ? ($data['description']['value'] ?? '') : ($data['description'] ?? ''),
-            'image' => $cover
+            'image' => $cover,
+            'edition' => trim((string) ($data['edition_name'] ?? '')),
+            'place' => \App\Support\PublicationPlace::fromList(
+                is_array($data['publish_places'] ?? null) ? $data['publish_places'] : []
+            ),
         ];
     }
 

@@ -3960,27 +3960,33 @@ function initializeIsbnImport() {
             // Handle notes
             try {
                 const noteField = document.querySelector('textarea[name="note_varie"]');
-                const noteParts = [];
-                if (noteField && noteField.value.trim() !== '') {
-                    noteParts.push(noteField.value.trim());
-                }
+                const incoming = [];
                 if (data.notes) {
-                    noteParts.push(data.notes.trim());
+                    incoming.push(...String(data.notes).split('\n'));
                 }
                 if (data.tipologia) {
-                    noteParts.push(`Tipologia: ${data.tipologia.trim()}`);
+                    incoming.push(`Tipologia: ${data.tipologia.trim()}`);
                 }
-                if (noteField && noteParts.length > 0) {
-                    const uniqueNotes = [];
-                    noteParts.forEach(part => {
-                        const clean = part.trim();
-                        if (!clean) return;
-                        const exists = uniqueNotes.some(existing => existing.toLowerCase() === clean.toLowerCase());
-                        if (!exists) {
-                            uniqueNotes.push(clean);
+                if (noteField) {
+                    // The text already in the field stays as it is, blank lines
+                    // and repeats included; an incoming line is added only when
+                    // neither the field nor an earlier incoming line holds it
+                    // (a source's notes can carry the "Tipologia: ..." line, and
+                    // "Aggiorna Dati" brings back lines saved on the last import).
+                    const current = noteField.value.replace(/\s+$/, '');
+                    const seen = new Set(current.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean));
+                    const added = [];
+                    incoming.forEach(line => {
+                        const clean = line.trim();
+                        const key = clean.toLowerCase();
+                        if (clean && !seen.has(key)) {
+                            seen.add(key);
+                            added.push(clean);
                         }
                     });
-                    noteField.value = uniqueNotes.join('\n');
+                    if (added.length > 0) {
+                        noteField.value = current.trim() === '' ? added.join('\n') : `${current}\n${added.join('\n')}`;
+                    }
                 }
                 const tipologiaHidden = document.getElementById('scraped_tipologia');
                 if (tipologiaHidden) {
@@ -4091,6 +4097,32 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
+            // Handle edition (edizione) and place of publication (luogo_pubblicazione):
+            // plain text fields, filled only when a source names them.
+            try {
+                const textFields = [['edition', 'edizione'], ['place', 'luogo_pubblicazione']];
+                textFields.forEach(([key, name]) => {
+                    const value = (typeof data[key] === 'string' || typeof data[key] === 'number') ? String(data[key]).trim() : '';
+                    const input = document.querySelector(`input[name="${name}"]`);
+                    if (value !== '' && input) {
+                        input.value = value;
+                    }
+                });
+            } catch (err) {
+            }
+
+            // Handle editor (curatore): one name or a list, added to the editors picker
+            try {
+                const editors = Array.isArray(data.editor) ? data.editor : (data.editor ? [data.editor] : []);
+                editors.forEach((name) => {
+                    const normalized = normalizeAuthorName(String(name));
+                    if (normalized && window.__contributorPickers && window.__contributorPickers.curatori) {
+                        window.__contributorPickers.curatori.addName(normalized, true);
+                    }
+                });
+            } catch (err) {
+            }
+
             // Handle Dewey classification (classificazione_dewey) - from SBN or other sources
             try {
                 if (data.classificazione_dewey) {
@@ -4143,6 +4175,9 @@ function initializeIsbnImport() {
             if (data.language) fieldsPopulated.push('language');
             if (data.keywords) fieldsPopulated.push('keywords');
             if (data.translator) fieldsPopulated.push('translator');
+            if (data.edition) fieldsPopulated.push('edition');
+            if (data.place) fieldsPopulated.push('place');
+            if (data.editor && (!Array.isArray(data.editor) || data.editor.length)) fieldsPopulated.push('editor');
             if (data.illustrator) fieldsPopulated.push('illustrator');
 
             // Show source information panel

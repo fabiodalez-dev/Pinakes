@@ -254,6 +254,8 @@ class OpenLibraryPlugin
                 'year' => $this->extractYear($editionData),
                 'pages' => $editionData['number_of_pages'] ?? null,
                 'weight' => $editionData['weight'] ?? null,
+                'edition' => trim((string) ($editionData['edition_name'] ?? '')),
+                'place' => $this->extractPlace($editionData),
                 'format' => $this->extractFormat($editionData),
                 'description' => $this->extractDescription($editionData, $workData),
                 'image' => $coverUrl,
@@ -264,6 +266,15 @@ class OpenLibraryPlugin
                 '_openlibrary_edition_key' => $editionData['key'] ?? null,
                 '_openlibrary_work_key' => $workData['key'] ?? null,
             ];
+
+            // Edition and place only when known: an empty string must not
+            // shadow what another source found.
+            foreach (['edition', 'place'] as $key) {
+                if ($openLibraryData[$key] === '') {
+                    unset($openLibraryData[$key]);
+                }
+            }
+            $openLibraryData += $this->extractContributors($editionData);
 
             // Merge with existing data
             return $this->mergeBookData($existing, $openLibraryData, 'open-library');
@@ -671,6 +682,61 @@ class OpenLibraryPlugin
 
         $data = json_decode($res['body'], true);
         return $data ?: null;
+    }
+
+    /** Place(s) of publication, as Open Library lists them ("Torino"). */
+    private function extractPlace(array $editionData): string
+    {
+        return \App\Support\PublicationPlace::fromList(
+            is_array($editionData['publish_places'] ?? null) ? $editionData['publish_places'] : []
+        );
+    }
+
+    /**
+     * Editors, translator and illustrator of an edition, in the shape the book
+     * form reads (`editor` a list, `translator` and `illustrator` one name).
+     * Open Library gives them as `contributors` ({role, name}) or, in older
+     * records, as `contributions` strings ("Tony Ross (Illustrator)").
+     *
+     * @return array<string, string|list<string>>
+     */
+    private function extractContributors(array $editionData): array
+    {
+        $pairs = [];
+        foreach (is_array($editionData['contributors'] ?? null) ? $editionData['contributors'] : [] as $c) {
+            if (is_array($c)) {
+                $pairs[] = [(string) ($c['name'] ?? ''), (string) ($c['role'] ?? '')];
+            }
+        }
+        foreach (is_array($editionData['contributions'] ?? null) ? $editionData['contributions'] : [] as $c) {
+            if (is_string($c) && preg_match('/^(.+?)\s*\(([^)]+)\)\s*$/u', $c, $m)) {
+                $pairs[] = [$m[1], $m[2]];
+            }
+        }
+        $found = ['editor' => [], 'translator' => [], 'illustrator' => []];
+        foreach ($pairs as [$name, $role]) {
+            $name = trim($name, " \t,.");
+            $role = mb_strtolower($role);
+            $kind = match (true) {
+                (bool) preg_match('/\b(editor|curatore|curatrice)\b/u', $role) => 'editor',
+                (bool) preg_match('/\b(translator|traduttore|traduttrice)\b/u', $role) => 'translator',
+                (bool) preg_match('/\b(illustrator|illustratore|illustratrice)\b/u', $role) => 'illustrator',
+                default => null,
+            };
+            if ($kind !== null && $name !== '' && !in_array($name, $found[$kind], true)) {
+                $found[$kind][] = $name;
+            }
+        }
+        $out = [];
+        if ($found['editor'] !== []) {
+            $out['editor'] = $found['editor'];
+        }
+        foreach (['translator', 'illustrator'] as $kind) {
+            if ($found[$kind] !== []) {
+                $out[$kind] = $found[$kind][0];
+            }
+        }
+        return $out;
     }
 
     /**

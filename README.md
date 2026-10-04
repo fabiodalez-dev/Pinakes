@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.89 — latest
+### v0.7.90 — latest
+
+**An ISBN import fills Edition, Place of publication and Editor.** Every book source (SRU/MARC, SBN, Open Library and the external API) now sends the edition, the place and the editors under the same names, and the book form puts them in *Edizione*, *Luogo di pubblicazione* and the Editor picker, next to the translator and illustrator. An SRU record no longer files its translator or its editor among the authors: each added entry follows its relator code or term. No migration.
+
+### v0.7.89
 
 **A book now records where it was published** ([#412](https://github.com/fabiodalez-dev/Pinakes/issues/412)). The book form has a *Place of publication* field (core migration `migrate_0.7.89.sql`, a nullable column: existing books get no invented value). It appears on the record, reaches the Chicago and Harvard citations as "Place: Publisher" and the MARCXML export in 264 `$a`, and every book's Cite dialog now offers a RIS file for EndNote, Zotero and Mendeley, built from the same data as the citations. Oxford (Umeå) joins APA, Chicago, MLA and Harvard in that dialog.
 
