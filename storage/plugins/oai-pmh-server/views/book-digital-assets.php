@@ -101,8 +101,8 @@ $oaiHasData = !empty($assets);
                         <button type="button"
                                 class="oai-delete-asset text-red-500 hover:text-red-700 transition-colors"
                                 data-asset-id="<?= (int) $asset['id'] ?>"
-                                title="<?= __("Elimina copia digitalizzata") ?>"
-                                aria-label="<?= __("Elimina copia digitalizzata") ?>">
+                                title="<?= htmlspecialchars(__("Elimina copia digitalizzata"), ENT_QUOTES, 'UTF-8') ?>"
+                                aria-label="<?= htmlspecialchars(__("Elimina copia digitalizzata"), ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
@@ -157,7 +157,7 @@ $oaiHasData = !empty($assets);
                         MD5 hash
                     </label>
                     <input type="text" id="oai-new-md5" maxlength="32" pattern="[0-9a-fA-F]{32}"
-                           placeholder="<?= __("facoltativo (32 hex)") ?>"
+                           placeholder="<?= htmlspecialchars(__("facoltativo (32 hex)"), ENT_QUOTES, 'UTF-8') ?>"
                            class="form-input w-full text-sm font-mono">
                 </div>
                 <div>

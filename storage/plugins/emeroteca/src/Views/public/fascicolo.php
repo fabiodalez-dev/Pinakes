@@ -39,15 +39,6 @@ $cover       = $asset((string) ($fascicolo['copertina_url'] ?? ''));
 // states — the ENUM cannot hold them any more — while 'reclamato' and
 // 'scartato' were added and used to fall through to the unlabelled grey
 // fallback.
-$statoBadgeClass = [
-    'posseduto' => 'bg-emerald-100 text-emerald-800',
-    'mancante'  => 'bg-slate-100 text-slate-700',
-    'atteso'    => 'bg-gray-100 text-gray-800',
-    'smarrito'  => 'bg-slate-100 text-slate-700',
-    'reclamato' => 'bg-amber-50 text-amber-900',
-    'scartato'  => 'bg-slate-100 text-slate-700',
-];
-$badge = $statoBadgeClass[$stato] ?? 'bg-gray-100 text-gray-800';
 
 // Physical condition (1.4.0): recorded separately from possession and,
 // until now, shown nowhere on the public side — so a reader could not
@@ -142,158 +133,131 @@ $emerotecaSchema = json_encode($schema, JSON_HEX_TAG | JSON_UNESCAPED_UNICODE | 
 <?php if (!$isScartato): ?>
 <script type="application/ld+json"><?= $emerotecaSchema ?: '{}' ?></script>
 <?php endif; ?>
-<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
+<link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
+<?php
+$corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
+$catalogPageStyles = true;
+$bookDetailStyles = true;
+$contributi = $contributi ?? [];
+$testataUrl = url('/emeroteca/' . $testataId);
+$annataUrl = $testataUrl . '?' . http_build_query(['anno' => $anno]) . '#emeroteca-fascicoli';
+$testataLogo = $asset((string) ($fascicolo['testata_logo_url'] ?? ''));
+$hasPdf = (int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path']);
 
-<main id="emeroteca-fascicolo" class="container emeroteca-public">
-    <nav aria-label="breadcrumb" class="mb-3 text-sm text-gray-500">
-        <a href="<?= $e(url('/')) ?>"><?= __('Home') ?></a>
-        <span aria-hidden="true">/</span>
-        <a href="<?= $e(url('/emeroteca')) ?>"><?= __('Emeroteca') ?></a>
-        <span aria-hidden="true">/</span>
-        <a href="<?= $e(url('/emeroteca/' . $testataId . '?anno=' . $anno)) ?>"><?= $e((string) $fascicolo['testata_titolo']) ?></a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page"><?= $e($issueLabel . ' (' . $anno . ')') ?></span>
-    </nav>
+// ── Hero ───────────────────────────────────────────────────────────────────
+$kicker = '<span class="book-media-type"><i class="far fa-newspaper mr-1" aria-hidden="true"></i>' . $e(__('Fascicolo')) . '</span>'
+    . '<span class="book-kicker-separator" aria-hidden="true">·</span><span class="book-hero-publishers"><a href="' . $e($testataUrl) . '">'
+    . $e((string) $fascicolo['testata_titolo']) . '</a></span>';
+$facts = array_values(array_filter([
+    $dataLabel,
+    !empty($fascicolo['volume']) ? sprintf(__('vol. %s'), (string) $fascicolo['volume']) : '',
+    ($fascicolo['pagine'] !== null && (int) $fascicolo['pagine'] > 0) ? sprintf(__('%d pagine'), (int) $fascicolo['pagine']) : '',
+], static fn(string $v): bool => $v !== ''));
+$extra = $facts !== [] ? '<p class="resource-placement">' . $e(implode(' · ', $facts)) . '</p>' : '';
+$statusClass = $stato === 'posseduto' ? 'is-available' : 'is-unavailable';
+$extra .= '<div class="mt-4"><span class="book-status-inline ' . $statusClass . '">' . $e(__($statoFascicoloLabels[$stato] ?? $stato)) . '</span>'
+    . ($condizioneLabel !== '' ? ' <span class="resource-placement">· ' . $e($condizioneLabel) . '</span>' : '')
+    . (!empty($fascicolo['rilegata']) ? ' <span class="resource-placement">· ' . $e(__('Annata rilegata')) . '</span>' : '')
+    . '</div>';
 
+// The issue's own cover; else the masthead's logo, shown as a logo.
+$resourceCover = $cover !== '' ? $cover : $testataLogo;
+$resourceCoverKind = $cover !== '' ? 'cover' : 'logo';
+$resourceCoverBlur = $cover !== '';
+$resourceCoverAlt = (string) $fascicolo['testata_titolo'] . ' — ' . $issueLabel;
+$resourceKickerHtml = $kicker;
+$resourceTitle = (string) $fascicolo['testata_titolo'] . ', ' . $issueLabel . ' (' . $anno . ')';
+$resourceSubtitle = (string) ($fascicolo['titolo_fascicolo'] ?? '');
+$resourceBylineHtml = '';
+$resourceExtraHtml = $extra;
+$breadcrumbItems = [
+    ['label' => __('Home'), 'href' => url('/')],
+    ['label' => __('Emeroteca'), 'href' => url('/emeroteca')],
+    ['label' => (string) $fascicolo['testata_titolo'], 'href' => $testataUrl],
+    ['label' => $issueLabel . ' (' . $anno . ')'],
+];
+include $corePartials . '/resource-hero.php';
+?>
+
+<div id="emeroteca-fascicolo" class="container emeroteca-public">
     <?php if ($isScartato): ?>
-        <div class="emeroteca-notice" role="alert">
+        <div class="resource-notice" role="status">
             <strong><?= __('Fascicolo scartato') ?></strong>
             <?= __('Questo fascicolo non fa più parte della raccolta della biblioteca.') ?>
         </div>
     <?php endif; ?>
 
-    <div class="emeroteca-issue-layout">
-        <!-- Copertina -->
-        <div>
-            <div class="emeroteca-cover-large">
-                <?php if ($cover !== ''): ?>
-                    <img src="<?= $e($cover) ?>"
-                         alt="<?= $e((string) $fascicolo['testata_titolo'] . ' — ' . $issueLabel) ?>">
-                <?php elseif ($stato === 'mancante'): ?>
-                    <i class="far fa-circle-xmark" aria-hidden="true"></i>
-                    <span class="emeroteca-cover-missing"><?= __('Mancante') ?></span>
-                <?php else: ?>
-                    <i class="far fa-newspaper" aria-hidden="true"></i>
-                <?php endif; ?>
-            </div>
-        </div>
+    <?php
+    $pagerLabel = __('Fascicoli della stessa annata');
+    $pagerPrev = $prev !== null ? ['href' => url('/emeroteca/fascicolo/' . (int) $prev['id']), 'label' => sprintf(__('n. %s'), (string) $prev['numero'])] : null;
+    $pagerNext = $next !== null ? ['href' => url('/emeroteca/fascicolo/' . (int) $next['id']), 'label' => sprintf(__('n. %s'), (string) $next['numero'])] : null;
+    $pagerUp = ['href' => $annataUrl, 'label' => sprintf(__('Annata %d'), $anno)];
+    include $corePartials . '/resource-pager.php';
+    ?>
 
-        <!-- Scheda -->
-        <div>
-            <div class="flex flex-wrap items-center gap-2 mb-2">
-                <span class="status-badge <?= $e($badge) ?>">
-                    <?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?>
-                </span>
-                <?php if ($condizioneLabel !== ''): ?>
-                    <span class="status-badge bg-amber-50 text-amber-900">
-                        <?= $e($condizioneLabel) ?>
-                    </span>
-                <?php endif; ?>
-                <?php if (!empty($fascicolo['rilegata'])): ?>
-                    <span class="status-badge bg-gray-100 text-gray-800"><?= __('Annata rilegata') ?></span>
-                <?php endif; ?>
+    <div class="flex flex-wrap -mx-3">
+        <div class="w-full lg:w-2/3 px-3">
+            <?php if ($hasPdf): ?>
+            <div class="action-buttons resource-action-buttons">
+                <a class="ui-button btn-primary" href="<?= $e(url('/emeroteca/fascicolo/' . $fascicoloId . '/pdf')) ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Consulta PDF') ?></a>
             </div>
-            <h1 class="text-2xl font-semibold mb-1">
-                <a href="<?= $e(url('/emeroteca/' . $testataId)) ?>" class="underline underline-offset-2">
-                    <?= $e((string) $fascicolo['testata_titolo']) ?>
-                </a>
-                — <?= $e($issueLabel . ' (' . $anno . ')') ?>
-            </h1>
-            <?php if (!empty($fascicolo['titolo_fascicolo'])): ?>
-                <p class="text-gray-500 italic mb-3"><?= $e((string) $fascicolo['titolo_fascicolo']) ?></p>
+            <?php endif; ?>
+            <?php // A printed table of contents with no catalogued article yet: the
+            // Sommario below says what the issue holds, so no bare heading here. ?>
+            <?php if ($contributi !== [] || $articoli === []): ?>
+            <section class="listing-section" id="emeroteca-sommario" aria-labelledby="emeroteca-sommario-title">
+                <h2 class="listing-section-title" id="emeroteca-sommario-title">
+                    <span><?= __('Articoli in questo fascicolo') ?></span>
+                    <?php if (count($contributi) > 0): ?>
+                        <a href="<?= $e(url('/emeroteca/articoli') . '?' . http_build_query(['fascicolo' => $fascicoloId])) ?>"><?= __('Cerca in questo fascicolo') ?> →</a>
+                    <?php endif; ?>
+                </h2>
+                <?php
+                $articleResults = ['rows' => $contributi];
+                $articleEmpty = $articoli === [] ? ['title' => __('Nessun articolo catalogato per questo fascicolo.')] : null;
+                require __DIR__ . '/article-results.php';
+                ?>
+            </section>
             <?php endif; ?>
 
-            <div class="emeroteca-data-sheet">
-                    <dl class="emeroteca-dl mb-0">
-                        <dt><?= __('Numero') ?></dt>
-                        <dd><?= $e((string) $fascicolo['numero']) ?><?php if (!empty($fascicolo['numero_progressivo'])): ?>
-                            <span class="text-gray-500">(<?= $e(sprintf(__('progressivo %s'), (string) $fascicolo['numero_progressivo'])) ?>)</span>
-                        <?php endif; ?></dd>
-                        <?php if ($dataLabel !== ''): ?>
-                            <dt><?= __('Data') ?></dt>
-                            <dd><?= $e($dataLabel) ?></dd>
-                        <?php endif; ?>
-                        <?php if (!empty($fascicolo['volume'])): ?>
-                            <dt><?= __('Volume') ?></dt>
-                            <dd><?= $e((string) $fascicolo['volume']) ?></dd>
-                        <?php endif; ?>
-                        <?php if ($fascicolo['pagine'] !== null && (int) $fascicolo['pagine'] > 0): ?>
-                            <dt><?= __('Pagine') ?></dt>
-                            <dd><?= $e((string) (int) $fascicolo['pagine']) ?></dd>
-                        <?php endif; ?>
-                        <?php if ($condizioneLabel !== ''): ?>
-                            <dt><?= __('Condizione') ?></dt>
-                            <dd><?= $e($condizioneLabel) ?></dd>
-                        <?php endif; ?>
-                        <?php if (!empty($fascicolo['supplementi'])): ?>
-                            <dt><?= __('Supplementi') ?></dt>
-                            <dd><?= $e((string) $fascicolo['supplementi']) ?></dd>
-                        <?php endif; ?>
-                        <?php if ($collocazioneLabel !== ''): ?>
-                            <dt><?= __('Collocazione') ?></dt>
-                            <dd><?= $e($collocazioneLabel) ?></dd>
-                        <?php endif; ?>
-                    </dl>
-            </div>
-
-            <!-- Navigazione fascicoli dentro l'annata -->
-            <div class="flex flex-wrap items-center gap-2">
-                <?php if ((int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path'])): ?>
-                    <a class="ui-button btn-primary"
-                       href="<?= $e(url('/emeroteca/fascicolo/' . $fascicoloId . '/pdf')) ?>"
-                       target="_blank" rel="noopener noreferrer">
-                        <i class="fas fa-file-pdf mr-2" aria-hidden="true"></i><?= __('Consulta PDF') ?>
-                    </a>
-                <?php endif; ?>
-                <?php if ($prev !== null): ?>
-                    <a class="ui-button btn-outline" href="<?= $e(url('/emeroteca/fascicolo/' . (int) $prev['id'])) ?>">
-                        <i class="fas fa-chevron-left mr-2" aria-hidden="true"></i><?= $e(sprintf(__('n. %s'), (string) $prev['numero'])) ?>
-                    </a>
-                <?php endif; ?>
-                <a class="ui-button btn-outline" href="<?= $e(url('/emeroteca/' . $testataId . '?anno=' . $anno)) ?>">
-                    <?= $e(sprintf(__('Annata %d'), $anno)) ?>
-                </a>
-                <?php if ($next !== null): ?>
-                    <a class="ui-button btn-outline" href="<?= $e(url('/emeroteca/fascicolo/' . (int) $next['id'])) ?>">
-                        <?= $e(sprintf(__('n. %s'), (string) $next['numero'])) ?><i class="fas fa-chevron-right ml-2" aria-hidden="true"></i>
-                    </a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sommario (spoglio) -->
-    <?php if (!empty($articoli)): ?>
-        <section class="emeroteca-toc">
-                <header>
-                    <h2 class="mb-0 text-base font-semibold">
-                        <i class="fas fa-list mr-2" aria-hidden="true"></i>
-                        <?= sprintf(__('Sommario (%d)'), count($articoli)) ?>
-                    </h2>
-                </header>
-                <ul class="divide-y divide-gray-200">
+            <?php if (!empty($articoli)): ?>
+            <section class="listing-section" aria-labelledby="emeroteca-indice-title">
+                <h2 class="listing-section-title" id="emeroteca-indice-title"><span><?= sprintf(__('Sommario (%d)'), count($articoli)) ?></span></h2>
+                <ol class="resource-toc">
                     <?php foreach ($articoli as $art):
                         $pp = $pagesLabel($art);
                         $tipoArt = (string) $art['tipo'];
                     ?>
-                        <li class="py-3 px-4 flex items-center gap-2">
-                            <?php if ($tipoArt !== 'articolo'): ?>
-                                <span class="status-badge bg-gray-100 text-gray-800">
-                                    <?= $e($tipoArticoloLabels[$tipoArt] ?? $tipoArt) ?>
-                                </span>
-                            <?php endif; ?>
-                            <span class="emeroteca-toc-main">
-                                <span class="font-medium"><?= $e((string) $art['titolo']) ?></span>
-                                <?php if (!empty($art['autori'])): ?>
-                                    <span class="text-gray-500 text-sm"> — <?= $e((string) $art['autori']) ?></span>
-                                <?php endif; ?>
+                        <li>
+                            <span class="resource-toc-main">
+                                <?php if ($tipoArt !== 'articolo'): ?><span class="resource-toc-kind"><?= $e($tipoArticoloLabels[$tipoArt] ?? $tipoArt) ?></span><?php endif; ?>
+                                <span class="resource-toc-title"><?= $e((string) $art['titolo']) ?></span>
+                                <?php if (!empty($art['autori'])): ?><span class="resource-toc-authors"><?= $e((string) $art['autori']) ?></span><?php endif; ?>
                             </span>
-                            <?php if ($pp !== ''): ?>
-                                <span class="emeroteca-toc-pages"><?= $e($pp) ?></span>
-                            <?php endif; ?>
+                            <?php if ($pp !== ''): ?><span class="resource-toc-pages"><?= $e($pp) ?></span><?php endif; ?>
                         </li>
                     <?php endforeach; ?>
-                </ul>
-        </section>
-    <?php endif; ?>
-</main>
+                </ol>
+            </section>
+            <?php endif; ?>
+        </div>
+
+        <aside class="w-full lg:w-1/3 px-3" aria-label="<?= $e(__('Informazioni fascicolo')) ?>">
+            <div class="card mb-4 resource-info-card">
+                <div class="card-header"><h2 class="mb-0 resource-info-title"><i class="fas fa-info-circle mr-2" aria-hidden="true"></i><?= __('Informazioni fascicolo') ?></h2></div>
+                <div class="card-body">
+                    <div class="meta-item"><div class="meta-label"><?= __('Testata') ?></div><div class="meta-value"><a href="<?= $e($testataUrl) ?>"><?= $e((string) $fascicolo['testata_titolo']) ?></a></div></div>
+                    <?php if (!empty($fascicolo['testata_issn'])): ?><div class="meta-item"><div class="meta-label">ISSN</div><div class="meta-value"><?= $e((string) $fascicolo['testata_issn']) ?></div></div><?php endif; ?>
+                    <div class="meta-item"><div class="meta-label"><?= __('Numero') ?></div><div class="meta-value"><?= $e((string) $fascicolo['numero']) ?><?php if (!empty($fascicolo['numero_progressivo'])): ?> (<?= $e(sprintf(__('progressivo %s'), (string) $fascicolo['numero_progressivo'])) ?>)<?php endif; ?></div></div>
+                    <?php if ($dataLabel !== ''): ?><div class="meta-item"><div class="meta-label"><?= __('Data') ?></div><div class="meta-value"><?= $e($dataLabel) ?></div></div><?php endif; ?>
+                    <div class="meta-item"><div class="meta-label"><?= __('Annata') ?></div><div class="meta-value"><a href="<?= $e($annataUrl) ?>"><?= $e((string) $anno) ?></a><?php if (!empty($fascicolo['volume'])): ?> · <?= $e(sprintf(__('vol. %s'), (string) $fascicolo['volume'])) ?><?php endif; ?></div></div>
+                    <?php if ($fascicolo['pagine'] !== null && (int) $fascicolo['pagine'] > 0): ?><div class="meta-item"><div class="meta-label"><?= __('Pagine') ?></div><div class="meta-value"><?= $e((string) (int) $fascicolo['pagine']) ?></div></div><?php endif; ?>
+                    <div class="meta-item"><div class="meta-label"><?= __('Stato') ?></div><div class="meta-value"><span class="book-status-inline <?= $statusClass ?>"><?= $e(__($statoFascicoloLabels[$stato] ?? $stato)) ?></span></div></div>
+                    <?php if ($condizioneLabel !== ''): ?><div class="meta-item"><div class="meta-label"><?= __('Condizione') ?></div><div class="meta-value"><?= $e($condizioneLabel) ?></div></div><?php endif; ?>
+                    <?php if (!empty($fascicolo['supplementi'])): ?><div class="meta-item"><div class="meta-label"><?= __('Supplementi') ?></div><div class="meta-value"><?= $e((string) $fascicolo['supplementi']) ?></div></div><?php endif; ?>
+                    <?php if ($collocazioneLabel !== ''): ?><div class="meta-item"><div class="meta-label"><?= __('Collocazione') ?></div><div class="meta-value"><?= $e($collocazioneLabel) ?></div></div><?php endif; ?>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>

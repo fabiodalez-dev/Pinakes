@@ -312,13 +312,13 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await expect(page.locator('#emeroteca-index')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#emeroteca-index')).toContainText(TITLE);
 
-    // Testata page shows the covers grid with the 2 fascicoli of 2024.
-    // Each owned issue renders TWO links (cover box + caption), so count
-    // the issue cards (one caption per fascicolo), then check that both
-    // fascicolo detail pages are linked.
+    // Testata page shows the issue cards grid with the 2 fascicoli of 2024.
+    // Each owned issue renders several links (cover, title, "Sfoglia"), so
+    // count the issue cards (one .book-title per fascicolo), then check that
+    // both fascicolo detail pages are linked.
     await page.goto(`${BASE}/emeroteca/${testataId}`);
-    await expect(page.locator('h1', { hasText: TITLE })).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.emeroteca-issue-caption')).toHaveCount(2);
+    await expect(page.locator('h1.resource-title', { hasText: TITLE })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#emeroteca-fascicoli .book-card .book-title')).toHaveCount(2);
     for (const fid of fascicoloIds) {
       await expect(
         page.locator(`a[href$="/emeroteca/fascicolo/${fid}"]`).first(),
@@ -328,12 +328,13 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     // Fascicolo page responds 200 with the right issue number.
     const resp = await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
     expect(resp.status()).toBe(200);
-    await expect(page.locator('h1')).toContainText('n. 1');
-    await expect(page.locator('h1')).toContainText(TITLE);
+    await expect(page.locator('h1.resource-title')).toContainText('n. 1');
+    await expect(page.locator('h1.resource-title')).toContainText(TITLE);
 
-    // Unknown fascicolo → 404 rendered inside the public layout.
+    // Unknown fascicolo → the core 404 page rendered inside the public layout.
     const missing = await page.goto(`${BASE}/emeroteca/fascicolo/99999999`);
     expect(missing.status()).toBe(404);
+    await expect(page.locator('.error-404-title')).toContainText('Contenuto non trovato');
 
     expect(errors).toEqual([]);
   });
@@ -370,6 +371,53 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const row = dbQuery(`SELECT sottotitolo, issn FROM emeroteca_testate WHERE id=${Number(testataId)}`);
     expect(row).toContain('Mensile di prova E2E');
     expect(row).toContain('1125-3460');
+  });
+
+  test('a masthead language catalogued as "it" is shown and saved as the picker stores it', async ({ page }) => {
+    test.setTimeout(60000);
+    // Mastheads catalogued before the language picker hold two-letter codes;
+    // the picker stores ISO 639-2/T. Opened and saved, the old code is
+    // converted rather than shown as an unknown "(it)" next to "ita".
+    dbQuery(`UPDATE emeroteca_testate SET lingua='it' WHERE id=${Number(testataId)}`);
+    await loginAsAdmin(page);
+    await page.goto(`${BASE}/admin/periodicals/edit/${testataId}`);
+    await expect(page.locator('#lingua')).toHaveValue('ita', { timeout: 10000 });
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 15000 }),
+      page.locator('form button[type="submit"]').first().click(),
+    ]);
+    expect(dbQuery(`SELECT lingua FROM emeroteca_testate WHERE id=${Number(testataId)}`)).toBe('ita');
+    // schema.org reads BCP 47: the public page says "it", not "ita".
+    await page.goto(`${BASE}/emeroteca/${testataId}`);
+    const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).join(' ');
+    expect(ld).toMatch(/"inLanguage":\s*"it"/);
+  });
+
+  test('the mobile API gives a legacy masthead language in the form the picker stores', async ({ request }) => {
+    test.setTimeout(60000);
+    test.skip(dbQuery("SELECT is_active FROM plugins WHERE name = 'mobile-api'") !== '1', 'mobile-api plugin is not active');
+    const previous = dbQuery("SELECT setting_value FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'");
+    dbQuery("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('mobile_api','enabled','1') ON DUPLICATE KEY UPDATE setting_value='1'");
+    // A masthead never re-saved since the picker arrived still holds "it";
+    // the app must not see "it" for one masthead and "ita" for the next.
+    dbQuery(`UPDATE emeroteca_testate SET lingua='it' WHERE id=${Number(testataId)}`);
+    try {
+      const login = await request.post(`${BASE}/api/v1/auth/login`, {
+        data: { email: process.env.E2E_ADMIN_EMAIL, password: process.env.E2E_ADMIN_PASS, device_name: 'EmerotecaLang', device_id: `emeroteca-lang-${RUN}`, platform: 'test' },
+      });
+      expect(login.status(), 'admin API login').toBe(200);
+      const token = (await login.json()).data.token;
+      const detail = await request.get(`${BASE}/api/v1/periodicals/${testataId}`, { headers: { Authorization: `Bearer ${token}` } });
+      expect(detail.status()).toBe(200);
+      expect((await detail.json()).data.language).toBe('ita');
+    } finally {
+      dbQuery(`UPDATE emeroteca_testate SET lingua='ita' WHERE id=${Number(testataId)}`);
+      if (previous === '') {
+        dbQuery("DELETE FROM system_settings WHERE category='mobile_api' AND setting_key='enabled'");
+      } else {
+        dbQuery(`UPDATE system_settings SET setting_value='${sqlEscape(previous)}' WHERE category='mobile_api' AND setting_key='enabled'`);
+      }
+    }
   });
 
   test('logo upload uses Uppy and persists a served image', async ({ page }) => {
@@ -638,7 +686,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(dbQuery(`SELECT pdf_pubblico FROM emeroteca_fascicoli WHERE id=${Number(fascicoloIds[0])}`).trim()).toBe('1');
     expect((await page.request.get(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}/pdf`)).status()).toBe(200);
     await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
-    await expect(page.locator('a', { hasText: 'Consulta PDF' })).toBeVisible();
+    await expect(page.locator('.action-buttons a.ui-button.btn-primary', { hasText: 'Consulta PDF' })).toBeVisible();
 
     // Removal clears both metadata and the private file after the DB commit.
     await page.goto(`${BASE}/admin/periodicals/issue/${fascicoloIds[0]}`);
@@ -696,17 +744,19 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const errors = [];
     attachConsoleGuard(page, errors);
     await page.goto(`${BASE}/emeroteca`);
-    const optionValues = await page.locator('#eme-tipo option').evaluateAll((options) =>
-      options.map((option) => option.value).filter(Boolean),
+    // The type facet is a list of links (a.filter-option) in the sidebar
+    // section titled "Tipologia"; read each link's tipo= value.
+    const tipoFacet = page.locator('.filters-panel .filter-section', { has: page.locator('.filter-title', { hasText: 'Tipologia' }) });
+    const optionValues = await tipoFacet.locator('a.filter-option').evaluateAll((links) =>
+      links.map((link) => new URL(link.getAttribute('href'), location.href).searchParams.get('tipo')).filter(Boolean),
     );
     const populatedTypes = dbQuery(
       'SELECT tipo FROM emeroteca_testate GROUP BY tipo HAVING COUNT(*) > 0 ORDER BY tipo',
     ).split('\n').filter(Boolean);
     expect([...optionValues].sort()).toEqual(populatedTypes.sort());
-    await page.selectOption('#eme-tipo', 'rivista');
     await Promise.all([
       page.waitForURL(/(?:\?|&)tipo=rivista(?:&|$)/),
-      page.locator('.emeroteca-search button[type="submit"]').click(),
+      tipoFacet.locator('a.filter-option[href*="tipo=rivista"]').click(),
     ]);
     await expect(page.locator('#emeroteca-index')).toContainText(TITLE, { timeout: 10000 });
     await page.goto(`${BASE}/emeroteca?q=${encodeURIComponent(TITLE)}`);
@@ -718,10 +768,12 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     expect(css.headers()['content-type']).toContain('text/css');
     await page.goto(`${BASE}/emeroteca?q=zz-nessuna-testata-cosi`);
     await expect(page.locator('#emeroteca-index')).not.toContainText(TITLE);
+    // Legacy ?vista= links still resolve to the same (ungrouped) list, noindex.
     for (const vista of ['editore', 'argomento']) {
       const resp = await page.goto(`${BASE}/emeroteca?vista=${vista}`);
       expect(resp.status()).toBe(200);
       await expect(page.locator('#emeroteca-index')).toContainText(TITLE);
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex,\s*follow/);
     }
     expect(errors).toEqual([]);
   });
@@ -729,9 +781,9 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
   test('public testata page: missing issues render as placeholders', async ({ page }) => {
     test.setTimeout(60000);
     await page.goto(`${BASE}/emeroteca/${testataId}?anno=${ANNO + 2}`);
-    await expect(page.locator('h1', { hasText: TITLE })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1.resource-title', { hasText: TITLE })).toBeVisible({ timeout: 10000 });
     const bodyText = await page.locator('body').innerText();
-    expect(bodyText).toContain('Mancante');
+    expect(bodyText.toLocaleLowerCase('it')).toContain('mancante');
   });
 
   test('public issue page shows the table of contents', async ({ page }) => {
@@ -745,10 +797,10 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
   test('public issue page navigates to the next issue in the annata', async ({ page }) => {
     test.setTimeout(60000);
     await page.goto(`${BASE}/emeroteca/fascicolo/${fascicoloIds[0]}`);
-    const next = page.locator(`a[href$="/emeroteca/fascicolo/${fascicoloIds[1]}"]`).first();
+    const next = page.locator(`nav.resource-pager a[href$="/emeroteca/fascicolo/${fascicoloIds[1]}"]`).first();
     await expect(next).toBeVisible({ timeout: 10000 });
     await next.click();
-    await expect(page.locator('h1')).toContainText('n. 2', { timeout: 10000 });
+    await expect(page.locator('h1.resource-title')).toContainText('n. 2', { timeout: 10000 });
   });
 
   test('schema.org: Periodical on the testata, PublicationIssue on the issue', async ({ page }) => {
@@ -839,7 +891,7 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await expect(page.locator('#ab-fornitore')).toBeVisible({ timeout: 10000 });
     await page.fill('#ab-fornitore', 'Fornitore E2E');
     await page.fill('#ab-costo', '129,90');
-    await page.fill('#ab-valuta', 'EUR');
+    await expect(page.locator('#ab-valuta'), 'the currency picker preselects the euro').toHaveValue('EUR');
     await setDateField(page, '#ab-inizio', inDays(-300));
     // Inside the 60-day renewal window → the list must warn.
     await setDateField(page, '#ab-scadenza', inDays(20));

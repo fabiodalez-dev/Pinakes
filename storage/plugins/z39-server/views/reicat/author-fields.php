@@ -37,13 +37,13 @@ use App\Support\HtmlHelper;
                 <label for="sbn_authorized_form" class="form-label"><?= __("Forma autorizzata (REICAT 18.0)") ?></label>
                 <input id="sbn_authorized_form" name="sbn_authorized_form" class="form-input"
                        value="<?php echo HtmlHelper::e($authData['sbn_authorized_form']); ?>"
-                       placeholder="<?= __('es. Calvino, Italo') ?>" />
+                       placeholder="<?= htmlspecialchars(__('es. Calvino, Italo'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
             <div>
                 <label for="ccn" class="form-label"><?= __("CCN (Codice di Controllo Nazionale)") ?></label>
                 <input id="ccn" name="ccn" class="form-input"
                        value="<?php echo HtmlHelper::e($authData['ccn']); ?>"
-                       placeholder="<?= __('opzionale') ?>" />
+                       placeholder="<?= htmlspecialchars(__('opzionale'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
         </div>
 
@@ -52,13 +52,13 @@ use App\Support\HtmlHelper;
                 <label for="qualifier_dates" class="form-label"><?= __("Qualificatore: date (REICAT 7.0)") ?></label>
                 <input id="qualifier_dates" name="qualifier_dates" class="form-input"
                        value="<?php echo HtmlHelper::e($authData['qualifier_dates']); ?>"
-                       placeholder="<?= __('es. 1923-1985') ?>" />
+                       placeholder="<?= htmlspecialchars(__('es. 1923-1985'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
             <div>
                 <label for="qualifier_role" class="form-label"><?= __("Qualificatore: ruolo/titolo") ?></label>
                 <input id="qualifier_role" name="qualifier_role" class="form-input"
                        value="<?php echo HtmlHelper::e($authData['qualifier_role']); ?>"
-                       placeholder="<?= __('es. santo, papa, di Sassonia') ?>" />
+                       placeholder="<?= htmlspecialchars(__('es. santo, papa, di Sassonia'), ENT_QUOTES, 'UTF-8') ?>" />
             </div>
         </div>
 

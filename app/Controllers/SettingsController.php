@@ -20,6 +20,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class SettingsController
 {
+    /**
+     * Render the settings page with every tab's current values, including the
+     * catalogue header of each active language and its shipped default.
+     */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         $repository = new SettingsRepository($db);
@@ -65,6 +69,11 @@ class SettingsController
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
         $eventSettings = $this->resolveEventSettings($repository);
+        // Catalogue header (Settings → CMS): one title and subtitle per active
+        // language, with the shipped wording of each language as placeholder.
+        $catalogHeaderLocales = \App\Support\I18n::getAvailableLocales();
+        $catalogHeaderTexts = \App\Support\CatalogHeader::stored($repository);
+        $catalogHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)));
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
@@ -93,6 +102,9 @@ class SettingsController
             'privacySettings',
             'labelSettings',
             'eventSettings',
+            'catalogHeaderLocales',
+            'catalogHeaderTexts',
+            'catalogHeaderDefaults',
             'advancedSettings',
             'loansSettings',
             'contactMessages',
@@ -1174,7 +1186,8 @@ class SettingsController
     {
         $allowed = ['full', 'banner', 'contained', 'thumb'];
         $layout = strtolower((string) $repository->get('cms', 'event_image_layout', 'contained'));
-        if (!in_array($layout, $allowed, true)) {
+        if (!in_array($layout, $allowed, true) || $layout === 'thumb') {
+            // 'thumb' renders as the hero cover, the same as 'contained'.
             $layout = 'contained';
         }
         return [
@@ -1545,6 +1558,10 @@ class SettingsController
         $allowed = ['full', 'banner', 'contained', 'thumb'];
         $submitted = strtolower(trim((string) ($data['event_image_layout'] ?? 'contained')));
         $layout = in_array($submitted, $allowed, true) ? $submitted : 'contained';
+        if ($layout === 'thumb') {
+            // No longer offered: it renders as the hero cover, like 'contained'.
+            $layout = 'contained';
+        }
 
         $repository->set('cms', 'event_image_layout', $layout);
         ConfigStore::set('cms.event_image_layout', $layout);
@@ -1554,6 +1571,36 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni eventi aggiornate.');
         return $this->redirect($response, '/admin/settings?tab=cms');
+    }
+
+    /**
+     * Save the catalogue title and subtitle of each active language from the
+     * CMS tab. A malformed post is rejected before any write; on success the
+     * catalogue pages are purged from the LiteSpeed cache.
+     */
+    public function updateCatalogHeader(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        // Both fields arrive as locale => text maps. Anything else (a missing
+        // field, a scalar, a nested array) is rejected before touching the
+        // database: read as an empty map, it would reset every language.
+        $titles = $data['catalog_title'] ?? null;
+        $subtitles = $data['catalog_subtitle'] ?? null;
+        if (!\App\Support\CatalogHeader::isTextMap($titles) || !\App\Support\CatalogHeader::isTextMap($subtitles)) {
+            $_SESSION['error_message'] = __('Intestazione del catalogo non salvata: dati del modulo non validi.');
+            return $this->redirect($response, '/admin/settings?tab=cms#cms');
+        }
+
+        \App\Support\CatalogHeader::save($repository, $titles, $subtitles);
+        LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_CATALOG]);
+
+        $_SESSION['success_message'] = __('Intestazione del catalogo aggiornata.');
+        return $this->redirect($response, '/admin/settings?tab=cms#cms');
     }
 
     /**
@@ -1638,8 +1685,12 @@ class SettingsController
         return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
     }
 
+    /** A 302 back to an admin path inside the application. */
     private function redirect(Response $response, string $location): Response
     {
-        return $response->withHeader('Location', $location)->withStatus(302);
+        // BasePathMiddleware already prefixes a Location that starts with "/";
+        // url() states the base path here too, and both skip a path that
+        // already carries it, so the two never add it twice.
+        return $response->withHeader('Location', url($location))->withStatus(302);
     }
 }

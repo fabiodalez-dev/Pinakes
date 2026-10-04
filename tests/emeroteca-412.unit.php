@@ -131,10 +131,11 @@ try {
     $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
     // Still derived from TEXT_FIELDS, still asserting ORDER: the 1.7 analytic
+    // fields, then risorsa_pubblica, then the 1.9 host-volume fields (#412);
     // fields are appended after updated_at, which is the only order an ALTER
     // without AFTER can produce on an upgraded install — so a fresh install
     // that disagreed with it would mean CREATE TABLE and ALTER had drifted.
-    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7,9),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at',...array_slice(array_keys(ContributionService::TEXT_FIELDS),16),'risorsa_pubblica'], 'fresh and repeated schema DDL');
+    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7,9),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at',...array_slice(array_keys(ContributionService::TEXT_FIELDS),16,9),'risorsa_pubblica',...array_slice(array_keys(ContributionService::TEXT_FIELDS),25)], 'fresh and repeated schema DDL');
     // The fragments in COLUMN_DEFINITIONS are interpolated into CREATE TABLE
     // by ddl() AND into ALTER TABLE by ensureAdditiveColumns(). AFTER is legal
     // in the second and a syntax error in the first, so one copied fragment
@@ -231,6 +232,15 @@ check412($svc->search('',0,true,1,['autore'=>'Schweissinger'])['total']===2,'the
     check412($plugin->suggestEmerotecaSearch([],'%%')===[],'wildcards in the term never match everything');
     check412($plugin->suggestEmerotecaSearch('not-an-array','Intertextuality')==='not-an-array','a non-array input is passed through untouched');
     check412(count($plugin->suggestEmerotecaSearch([['label'=>'zz existing','url'=>'/x'],],'Intertextuality'))===2,'the listener appends, it never replaces');
+    // The header search's live suggestions (#412): the same published article,
+    // typed as one, next to whatever the core already found.
+    $live=$plugin->addArticleSources([['type'=>'book','title'=>'A book']],'Intertextuality');
+    $liveArticles=array_values(array_filter($live, static fn($r)=>($r['type']??'')==='article'));
+    check412(count($live)===2 && count($liveArticles)===1,'live suggestions append the matching article after the core results');
+    check412(($liveArticles[0]['label']??'')===$base['titolo'] && str_ends_with((string)($liveArticles[0]['url']??''),'/emeroteca/articolo/'.$id),'with its title and its public page');
+    check412(str_contains((string)($liveArticles[0]['author']??''),'Schweissinger'),'and its authors on their own line');
+    check412($plugin->addArticleSources([],'Secret Article')===[],'an unpublished article never reaches the live suggestions');
+    check412($plugin->addArticleSources([],'z')===[] && $plugin->addArticleSources('x','Intertextuality')==='x','short terms and non-array input are left alone');
     $svc->rows("INSERT INTO emeroteca_testate (titolo,sottotitolo) VALUES ('Zeitschrift für Tests','Beilage')");
     $suggestTestata=$plugin->suggestEmerotecaSearch([],'Zeitschrift');
     check412(count($suggestTestata)===1 && ($suggestTestata[0]['items'][0]['meta']??'')==='Beilage','a masthead match yields its own section with the subtitle as meta');
@@ -561,6 +571,20 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
     $db->query("INSERT INTO plugins (id,name,is_active) VALUES (1,'emeroteca',1)");
     check412($hint::state($db,sys_get_temp_dir().'/pinakes-no-plugins-'.bin2hex(random_bytes(4)))===$hint::ABSENT,'a row without its plugin directory is treated as absent');
     check412($hint::state(null)===$hint::ABSENT,'no database connection: the book form still renders');
+    // The admin layout around a book page reuses the state the page already
+    // resolved: no second connection and no second query for the same answer.
+    $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
+    check412($hint::state($db)===$hint::INACTIVE,'the book page resolves the state with its own connection');
+    check412($hint::stateForLayout()===$hint::INACTIVE,'the layout reuses that state instead of asking again');
+    // On a page that resolved nothing, the layout asks through the connection
+    // its controller holds, in both directions, never opening one of its own.
+    $resolvedState = new ReflectionProperty($hint,'resolved');
+    $resolvedState->setValue(null,null);
+    check412($hint::stateForLayout($db)===$hint::INACTIVE,'the layout reads an inactive plugin through the controller connection');
+    $resolvedState->setValue(null,null);
+    $db->query("UPDATE plugins SET is_active=1 WHERE name='emeroteca'");
+    check412($hint::stateForLayout($db)===$hint::ACTIVE,'and an active one');
+    $db->query("UPDATE plugins SET is_active=0 WHERE name='emeroteca'");
     // Uninstalling removes the plugin, never the catalogued articles.
     $before=(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n'];
     (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->onUninstall();

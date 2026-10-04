@@ -7,14 +7,16 @@
 //   1. Default fallback ('contained') when the setting row is missing
 //   2. Explicit layout = 'full'         (legacy full-width-no-constraint)
 //   3. Explicit layout = 'banner'       (low banner, capped at 220px height with object-fit:cover)
-//   4. Explicit layout = 'contained'    (max-width 420px left-aligned, max-height 320px, object-fit: contain)
-//   5. Explicit layout = 'thumb'        (side thumbnail via CSS grid + .event-card--thumb-layout, 3:4 portrait)
+//   4. Explicit layout = 'contained'    (the hero cover, max 350px wide)
+//   5. Stored legacy 'thumb'            (no longer offered; still the hero cover)
 //
 // Each case sets `cms.event_image_layout` directly in the KV store
 // (`system_settings`), navigates to the event detail page, and asserts:
-//   • the figure has the class `event-cover--<layout>`
-//   • the figure has `data-event-cover-layout="<layout>"`
-//   • exactly one cover figure is rendered
+//   • contained (and a legacy thumb) → the image is the resource-hero cover
+//     (`.resource-hero .book-cover-large`) and no body figure is rendered
+//   • full / banner     → the hero stays plain and the image is rendered in the
+//     body as `figure.event-cover.event-cover--<layout>` with
+//     `data-event-cover-layout="<layout>"`
 //
 // Run:
 //   /tmp/run-e2e.sh tests/issue-137-event-image-layout.spec.js \
@@ -239,31 +241,34 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
     });
 
     /**
-     * Shared assertion: fetch the event page, assert the figure has the
-     * expected layout class + data attribute, and that there's exactly
-     * one cover figure (no duplicate rendering from a stale partial).
+     * Shared assertion: fetch the event page and check where the image is
+     * rendered for the given layout. contained/thumb → hero cover;
+     * full/banner → one body figure with the layout class + data attribute.
      */
     async function expectLayout(page, expected) {
         const url = `${BASE}${EVENT_URL_PREFIX}/${EVENT_SLUG}`;
         const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
         expect(response, `GET ${url} must succeed`).not.toBeNull();
-        // Defense in depth — some Apache setups normalise 200 → 200 but
-        // a 404 here would mean events_page_enabled rolled back, which
-        // the test should surface explicitly.
         expect(
             response.status(),
             `GET ${url} returned ${response.status()} — events_page_enabled may have been disabled`
         ).toBeLessThan(400);
 
-        const cover = page.locator('figure.event-cover');
-        await expect(cover).toHaveCount(1);
+        const heroCover = page.locator('.resource-hero .book-cover-large');
+        const figure = page.locator('figure.event-cover');
+        // The layout owns the page's only main landmark.
+        await expect(page.locator('main'), 'one <main> per page').toHaveCount(1);
 
-        // Class assertion: figure must carry the layout-specific modifier.
-        await expect(cover).toHaveClass(new RegExp(`event-cover--${expected}\\b`));
+        if (expected === 'contained' || expected === 'thumb') {
+            await expect(heroCover).toHaveCount(1);
+            await expect(figure).toHaveCount(0);
+            return;
+        }
 
-        // Data attribute — survives any future CSS class rename and is
-        // a stable hook for further QA tooling.
-        await expect(cover).toHaveAttribute('data-event-cover-layout', expected);
+        await expect(heroCover).toHaveCount(0);
+        await expect(figure).toHaveCount(1);
+        await expect(figure).toHaveClass(new RegExp(`event-cover--${expected}\\b`));
+        await expect(figure).toHaveAttribute('data-event-cover-layout', expected);
     }
 
     test('1/5 default — when cms.event_image_layout is unset, falls back to contained', async ({ page }) => {
@@ -271,131 +276,88 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         await expectLayout(page, 'contained');
     });
 
-    test('2/5 full — explicit layout=full applies event-cover--full', async ({ page }) => {
+    test('2/5 full — explicit layout=full renders the image in a body figure event-cover--full', async ({ page }) => {
         setLayout('full');
         await expectLayout(page, 'full');
     });
 
-    test('3/5 banner — explicit layout=banner applies event-cover--banner', async ({ page }) => {
+    test('3/5 banner — explicit layout=banner renders the image in a body figure event-cover--banner', async ({ page }) => {
         setLayout('banner');
         await expectLayout(page, 'banner');
     });
 
-    test('4/5 contained — explicit layout=contained applies event-cover--contained', async ({ page }) => {
+    test('4/5 contained — explicit layout=contained renders the image as the hero cover', async ({ page }) => {
         setLayout('contained');
         await expectLayout(page, 'contained');
     });
 
-    test('5/5 thumb — explicit layout=thumb applies event-cover--thumb', async ({ page }) => {
+    test('5/5 legacy thumb — a stored layout=thumb still renders the hero cover', async ({ page }) => {
         setLayout('thumb');
-        await expectLayout(page, 'thumb');
+        await expectLayout(page, 'contained');
     });
 
     // ────────────────────────────────────────────────────────────────────
-    // Effective-size regression (issue #137 user feedback): the four
-    // presets must actually render at DIFFERENT, progressively smaller
-    // dimensions. An earlier iteration of this feature shipped four
-    // visually-equivalent "full width" variants, defeating the purpose
-    // of the setting (the user explicitly asked for a smaller image).
-    //
-    // We assert:
-    //   contained  → figure narrower than the article (small centred)
-    //   thumb      → figure narrower than the article (side thumbnail)
-    //   banner     → figure at full article width, capped to ~220px tall
-    //   full       → figure at full article width, no height cap
-    //
-    // Using rendered bounding boxes (NOT computed CSS) catches the
-    // historical mistake where `width: 100%` was applied to all four
-    // variants but only the class name differed.
+    // Effective-size regression (issue #137): the presets must render at
+    // different dimensions. Measured on rendered bounding boxes, not CSS:
+    //   full       → body figure at the full width of the description column
+    //   banner     → body figure at full width, capped to ~220px tall
+    //   contained  → hero cover, much narrower than the description column
     // ────────────────────────────────────────────────────────────────────
-    test('effective size — each preset renders at a distinct, smaller dimension', async ({ page }) => {
-        // Reset content to a long enough body so 'banner' / 'contained'
-        // have something below them to measure against.
+    test('effective size — each preset renders at its own dimension', async ({ page }) => {
         const longContent = '<p>' + 'Test event description. '.repeat(40) + '</p>';
-        // Use the suite's sqlEscape() so backslashes get handled too
-        // (CodeQL flagged the previous inline replace as incomplete).
-        const sqlSafeLong = sqlEscape(longContent);
-        dbExec(`UPDATE events SET content='${sqlSafeLong}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
+        dbExec(`UPDATE events SET content='${sqlEscape(longContent)}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
 
         await page.setViewportSize({ width: 1280, height: 900 });
 
-        async function measure(layout) {
+        async function measure(layout, selector) {
             setLayout(layout);
             await page.goto(`${BASE}${EVENT_URL_PREFIX}/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
-            const card = page.locator('article.event-card').first();
-            const fig  = page.locator('figure.event-cover').first();
-            await expect(card).toBeVisible();
-            await expect(fig).toBeVisible();
-            const cardBox = await card.boundingBox();
-            const figBox  = await fig.boundingBox();
-            // boundingBox() returns null when the element gets detached
-            // mid-measurement (e.g. a layout shift during initial paint).
-            // Assert non-null first so a future flake surfaces as a clear
-            // assertion failure instead of a TypeError reading .x on null.
-            expect(cardBox, `event-card boundingBox missing for layout=${layout}`).not.toBeNull();
-            expect(figBox,  `event-cover boundingBox missing for layout=${layout}`).not.toBeNull();
+            const section = page.locator('.book-description-section').first();
+            const img = page.locator(selector).first();
+            await expect(section).toBeVisible();
+            await expect(img).toBeVisible();
+            const sectionBox = await section.boundingBox();
+            const imgBox = await img.boundingBox();
+            expect(sectionBox, `description section boundingBox missing for layout=${layout}`).not.toBeNull();
+            expect(imgBox, `image boundingBox missing for layout=${layout}`).not.toBeNull();
             return {
-                cardX:     cardBox ? cardBox.x     : 0,
-                cardWidth: cardBox ? cardBox.width : 0,
-                figX:      figBox  ? figBox.x      : 0,
-                figWidth:  figBox  ? figBox.width  : 0,
-                figHeight: figBox  ? figBox.height : 0,
+                sectionX: sectionBox ? sectionBox.x : 0,
+                sectionWidth: sectionBox ? sectionBox.width : 0,
+                imgX: imgBox ? imgBox.x : 0,
+                imgWidth: imgBox ? imgBox.width : 0,
+                imgHeight: imgBox ? imgBox.height : 0,
             };
         }
 
-        const full      = await measure('full');
-        const banner    = await measure('banner');
-        const contained = await measure('contained');
-        const thumb     = await measure('thumb');
+        const full      = await measure('full', 'figure.event-cover--full');
+        const banner    = await measure('banner', 'figure.event-cover--banner');
+        const contained = await measure('contained', '.resource-hero .book-cover-large');
 
-        // full: figure width equals the inner card width (within padding tolerance)
-        expect(
-            full.figWidth,
-            `full layout: figure should fill the card width (got ${full.figWidth}px, card ${full.cardWidth}px)`
-        ).toBeGreaterThan(full.cardWidth * 0.85);
+        expect(full.imgWidth, `full: figure should fill the column (got ${full.imgWidth}px of ${full.sectionWidth}px)`)
+            .toBeGreaterThan(full.sectionWidth * 0.85);
 
-        // banner: width like full, height ~ 220px (within ±5px CSS rendering tolerance)
-        expect(
-            banner.figWidth,
-            `banner layout: figure should be full-width (got ${banner.figWidth}px, card ${banner.cardWidth}px)`
-        ).toBeGreaterThan(banner.cardWidth * 0.85);
-        expect(
-            banner.figHeight,
-            `banner layout: figure height must be capped to ~220px (got ${banner.figHeight}px)`
-        ).toBeLessThanOrEqual(225);
+        expect(banner.imgWidth, `banner: figure should fill the column (got ${banner.imgWidth}px of ${banner.sectionWidth}px)`)
+            .toBeGreaterThan(banner.sectionWidth * 0.85);
+        expect(banner.imgHeight, `banner: height must be capped to ~220px (got ${banner.imgHeight}px)`)
+            .toBeLessThanOrEqual(225);
 
-        // contained: max-width 420px, NARROWER than the card
-        expect(
-            contained.figWidth,
-            `contained layout: figure must be ≤ 420px wide (got ${contained.figWidth}px) — the whole point of the default preset`
-        ).toBeLessThanOrEqual(420);
-        expect(
-            contained.figWidth,
-            `contained layout: figure must be visibly narrower than the card (got ${contained.figWidth}px vs card ${contained.cardWidth}px)`
-        ).toBeLessThan(contained.cardWidth * 0.7);
+        expect(contained.imgWidth, `contained: hero cover must be visibly narrower than the body column (got ${contained.imgWidth}px vs ${contained.sectionWidth}px)`)
+            .toBeLessThan(contained.sectionWidth * 0.8);
+        expect(contained.imgWidth, `contained: the hero cover is capped at 350px (got ${contained.imgWidth}px)`)
+            .toBeLessThanOrEqual(351);
+    });
 
-        // contained: must be LEFT-ALIGNED (figure.x ≈ card.x + padding).
-        // If a future refactor reintroduces margin: auto the figure
-        // would centre and figX would shift toward cardWidth/2 — guard
-        // against that here. We allow up to 100px of inner padding.
-        const containedOffsetFromLeft = contained.figX - contained.cardX;
-        expect(
-            containedOffsetFromLeft,
-            `contained layout: figure must be left-aligned (offset from card.left should be ≤ 100px of padding, got ${containedOffsetFromLeft}px)`
-        ).toBeLessThanOrEqual(100);
+    // Listing page: real cards from the shared catalogue markup.
+    test('events list renders the event as a book-card with a "Dettagli" button', async ({ page }) => {
+        const url = `${BASE}${EVENT_URL_PREFIX}`;
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+        expect(response).not.toBeNull();
+        expect(response.status(), `GET ${url}`).toBeLessThan(400);
 
-        // thumb: ~240px wide (grid column), NARROWER than the card
-        expect(
-            thumb.figWidth,
-            `thumb layout: figure must be ≤ 240px wide (got ${thumb.figWidth}px)`
-        ).toBeLessThanOrEqual(245);
-
-        // thumb: must be left-aligned too (grid column 1).
-        const thumbOffsetFromLeft = thumb.figX - thumb.cardX;
-        expect(
-            thumbOffsetFromLeft,
-            `thumb layout: figure must occupy the left grid column (offset ≤ 100px, got ${thumbOffsetFromLeft}px)`
-        ).toBeLessThanOrEqual(100);
+        await expect(page.locator('.catalog-header h1.catalog-title')).toBeVisible();
+        const card = page.locator('.books-grid .book-card--event', { hasText: EVENT_TITLE }).first();
+        await expect(card).toBeVisible();
+        await expect(card.locator(`a.btn-cta.btn-cta-sm[href$="/${EVENT_SLUG}"]`)).toHaveCount(1);
     });
 
     // ────────────────────────────────────────────────────────────────────
@@ -474,50 +436,62 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         ).not.toBe(sqlPre);
     });
 
-    // ────────────────────────────────────────────────────────────────────
-    // Containment regression — guards against the float-overflow bug
-    // reported during initial review: when content is short, a floated
-    // .event-cover--thumb escapes its parent .event-card and ends up
-    // visually on top of the page footer.
-    //
-    // The grid-based refactor places the figure in its own row/column,
-    // so geometrically the figure can never extend below its parent
-    // article. The test asserts that invariant at desktop width.
-    // ────────────────────────────────────────────────────────────────────
-    test('thumb layout: short-body event keeps the figure inside its article (no float overflow)', async ({ page }) => {
+    // The settings offer three presets. 'thumb' rendered exactly like
+    // 'contained', so it was merged into it: a stored 'thumb' shows as
+    // 'contained' in the picker and saving the form stores 'contained'.
+    test('admin settings: three presets, and a stored thumb is saved back as contained', async ({ page }) => {
         setLayout('thumb');
+        await page.goto(`${BASE}/accedi`);
+        await page.fill('input[name="email"]', ADMIN_EMAIL);
+        await page.fill('input[name="password"]', ADMIN_PASS);
+        await Promise.all([
+            page.waitForURL(/\/(admin|profilo)/, { timeout: 15000 }),
+            page.click('button[type="submit"]'),
+        ]);
 
-        // Shrink the event content so a CSS float would expose the bug.
-        const shortContent = '<p>Breve.</p>';
-        const sqlSafe = sqlEscape(shortContent);
-        dbExec(`UPDATE events SET content='${sqlSafe}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
+        await page.goto(`${BASE}/admin/settings?tab=cms`);
+        const select = page.locator('select#event_image_layout');
+        await expect(select).toHaveCount(1);
+        const values = await select.locator('option').evaluateAll(options => options.map(o => o.value));
+        expect(values).toEqual(['contained', 'banner', 'full']);
+        await expect(select).toHaveValue('contained');
 
-        // Desktop viewport — the grid kicks in at >=768px.
+        const form = page.locator('form[action*="/admin/settings/events"]');
+        await form.locator('button[type="submit"]').scrollIntoViewIfNeeded();
+        await Promise.all([
+            page.waitForURL(/\/admin\/settings/, { timeout: 15000 }),
+            form.locator('button[type="submit"]').click(),
+        ]);
+        await expect.poll(() => dbQuery(
+            "SELECT setting_value FROM system_settings WHERE category='cms' AND setting_key='event_image_layout'"
+        )).toBe('contained');
+    });
+
+    // ────────────────────────────────────────────────────────────────────
+    // Containment regression: with a short body the hero cover must stay
+    // inside the hero band (never overlap the content below it).
+    // ────────────────────────────────────────────────────────────────────
+    test('contained layout: short-body event keeps the hero cover inside the hero', async ({ page }) => {
+        setLayout('contained');
+        dbExec(`UPDATE events SET content='${sqlEscape('<p>Breve.</p>')}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
+
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.goto(`${BASE}${EVENT_URL_PREFIX}/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
 
-        const card = page.locator('article.event-card').first();
-        const fig  = page.locator('figure.event-cover--thumb').first();
-        await expect(card).toBeVisible();
-        await expect(fig).toBeVisible();
+        const hero = page.locator('.resource-hero').first();
+        const cover = page.locator('.resource-hero .book-cover-large').first();
+        await expect(hero).toBeVisible();
+        await expect(cover).toBeVisible();
 
-        // Card must carry the modifier that activates the grid layout.
-        await expect(card).toHaveClass(/event-card--thumb-layout/);
-
-        // Bounding-box invariant: figure.bottom MUST be <= card.bottom.
-        // If the float regression returns, figure.bottom escapes the
-        // parent and this assertion fails loudly.
-        const cardBox = await card.boundingBox();
-        const figBox  = await fig.boundingBox();
-        expect(cardBox, 'event-card must have a bounding box').not.toBeNull();
-        expect(figBox, 'event-cover--thumb must have a bounding box').not.toBeNull();
-        if (cardBox && figBox) {
-            const cardBottom = cardBox.y + cardBox.height;
-            const figBottom  = figBox.y  + figBox.height;
+        const heroBox = await hero.boundingBox();
+        const coverBox = await cover.boundingBox();
+        expect(heroBox, 'hero must have a bounding box').not.toBeNull();
+        expect(coverBox, 'hero cover must have a bounding box').not.toBeNull();
+        if (heroBox && coverBox) {
             expect(
-                figBottom,
-                `figure bottom (${figBottom}) must stay within card bottom (${cardBottom}) — the float-overflow regression has returned`
-            ).toBeLessThanOrEqual(cardBottom + 1);
+                coverBox.y + coverBox.height,
+                'hero cover bottom must stay within the hero band'
+            ).toBeLessThanOrEqual(heroBox.y + heroBox.height + 1);
         }
     });
 });

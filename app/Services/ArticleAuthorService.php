@@ -9,6 +9,11 @@ use mysqli;
 /** Explicit author identities for analytic records; legacy credits stay unlinked. */
 final class ArticleAuthorService
 {
+    /** Credits an article can link; the editor holds the same limit. */
+    public const MAX_CREDITS = 20;
+    /** Length of emeroteca_contributi_autori.nome_credito. */
+    public const MAX_CREDIT_LENGTH = 255;
+
     private ?bool $available = null;
     public function __construct(private mysqli $db) {}
 
@@ -39,8 +44,11 @@ final class ArticleAuthorService
      */
     public function resolve(mixed $input): array
     {
-        if (!is_array($input) || count($input) > 20) {
+        if (!is_array($input)) {
             throw new \InvalidArgumentException(__('Valore non valido.'));
+        }
+        if (count($input) > self::MAX_CREDITS) {
+            throw new \InvalidArgumentException(__('Puoi collegare al massimo 20 autori a un articolo.'));
         }
         $credits = []; $seen = [];
         foreach ($input as $credit) {
@@ -50,8 +58,11 @@ final class ArticleAuthorService
             $name = trim((string)($credit['nome_credito'] ?? ''));
             $rawId = (string)($credit['autore_id'] ?? '');
             $role = (string)($credit['ruolo'] ?? 'co-autore');
-            if (!in_array($role, ['principale', 'co-autore'], true) || mb_strlen($name) > 255 || str_contains($name, ';')) {
+            if (!in_array($role, ['principale', 'co-autore'], true) || str_contains($name, ';')) {
                 throw new \InvalidArgumentException(__('Valore non valido.'));
+            }
+            if (mb_strlen($name) > self::MAX_CREDIT_LENGTH) {
+                throw new \InvalidArgumentException(__('Il nome di un autore non può superare i 255 caratteri.'));
             }
             $id = null;
             if ($rawId !== '' && $rawId !== '0') {

@@ -391,6 +391,7 @@ CREATE TABLE `libri` (
   `lingua` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `original_languages` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original languages (LibraryThing)',
   `edizione` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `luogo_pubblicazione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Place of publication as printed (MARC 264 $a)',
   `numero_pagine` int DEFAULT NULL,
   `genere_id` int DEFAULT NULL,
   `sottogenere_id` int DEFAULT NULL,

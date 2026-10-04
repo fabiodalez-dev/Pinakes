@@ -284,7 +284,9 @@ try {
     // le pagine dell'emeroteca non entrano nella sitemap e senza
     // 'search.external_suggestions' cercare una rivista nel catalogo resta
     // un vicolo cieco — i due filtri esistono nel core ma senza queste
-    // righe non ha alcun ascoltatore.
+    // righe non ha alcun ascoltatore. Dalla 1.11.0 (#412) anche
+    // 'search.unified.sources': gli articoli nei suggerimenti della barra di
+    // ricerca, mentre si scrive.
     $expectedHooks = [
         'admin.menu.render',
         'app.routes.register',
@@ -293,6 +295,7 @@ try {
         'publisher.deleting',
         'publisher.merging',
         'search.external_suggestions',
+        'search.unified.sources',
         'shelf.can_delete',
         'shelf.deleted',
         'sitemap.entries',

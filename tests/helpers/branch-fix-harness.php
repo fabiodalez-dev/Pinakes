@@ -704,6 +704,12 @@ function scenarioProfileLocaleOmittedKeepsValue(mysqli $db): array
     }
 }
 
+/**
+ * A remembered sign-in restores the user's saved language, not the one the
+ * request started in. Runs against a private remember-me registry.
+ *
+ * @return array<string, mixed>
+ */
 function scenarioRememberMeLoadsLocale(mysqli $db): array
 {
     $_SESSION = [];
@@ -728,6 +734,16 @@ function scenarioRememberMeLoadsLocale(mysqli $db): array
 
     $_COOKIE['remember_token'] = $token;
 
+    // This runs as the CLI user, not the web server's. Left to its default,
+    // the middleware's registry would create storage/tmp/remember-session
+    // owned by this user, and the web server — another user in CI — could no
+    // longer write there: every later burst of remembered sign-ins would then
+    // mint one session per request, in whichever spec happened to run next.
+    $sharedRegistry = dirname(__DIR__, 2) . '/storage/tmp/remember-session';
+    $sharedRegistryExisted = is_dir($sharedRegistry);
+    $privateRegistry = sys_get_temp_dir() . '/pinakes-harness-remember-' . bin2hex(random_bytes(6));
+    \App\Support\RememberMeSessionRegistry::useDirectory($privateRegistry);
+
     try {
         $handler = new class implements \Psr\Http\Server\RequestHandlerInterface {
             public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
@@ -737,19 +753,29 @@ function scenarioRememberMeLoadsLocale(mysqli $db): array
         };
 
         $response = $middleware->process($factory->createServerRequest('GET', '/'), $handler);
+        $sharedRegistryUntouched = $sharedRegistryExisted || !is_dir($sharedRegistry);
 
         return [
             'ok' =>
                 $response->getStatusCode() === 200
                 && ($_SESSION['locale'] ?? null) === 'de_DE'
                 && \App\Support\I18n::getLocale() === 'de_DE'
-                && (int) ($_SESSION['user']['id'] ?? 0) === $user['id'],
+                && (int) ($_SESSION['user']['id'] ?? 0) === $user['id']
+                && $sharedRegistryUntouched,
             'statusCode' => $response->getStatusCode(),
             'sessionLocale' => $_SESSION['locale'] ?? null,
             'currentLocale' => \App\Support\I18n::getLocale(),
             'userId' => $_SESSION['user']['id'] ?? null,
+            'sharedRegistryUntouched' => $sharedRegistryUntouched,
         ];
     } finally {
+        \App\Support\RememberMeSessionRegistry::useDirectory(null);
+        foreach (glob($privateRegistry . '/{,.}*', GLOB_BRACE) ?: [] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        @rmdir($privateRegistry);
         deleteUser($db, $user['id']);
     }
 }

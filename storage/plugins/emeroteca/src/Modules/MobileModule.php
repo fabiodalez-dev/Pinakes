@@ -398,7 +398,11 @@ final class MobileModule
             $data = $this->mapPeriodicalItem($row);
             $data['description'] = $this->nullableString($row['descrizione'] ?? null);
             $data['place']       = $this->nullableString($row['luogo_pubblicazione'] ?? null);
-            $data['language']    = $this->nullableString($row['lingua'] ?? null);
+            // Older mastheads hold "it", newer ones the picker's "ita": the app
+            // gets one form, the three-letter code the picker stores.
+            require_once __DIR__.'/../Support/CodeLists.php';
+            $language = $this->nullableString($row['lingua'] ?? null);
+            $data['language']    = $language === null ? null : \App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($language);
             $data['holdings']    = \EmerotecaPlugin::consistenzaTestata($this->db, $id);
             $data['years']       = $years;
 
@@ -691,7 +695,7 @@ final class MobileModule
                     array_push($params,$pat,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
                     if ($extraAuthors !== '') { array_push($params,$pat,$pat); }
                 }
-                $rows=$service->rows('SELECT c.*, t.logo_url testata_logo_url FROM emeroteca_contributi c LEFT JOIN emeroteca_testate t ON t.id=c.testata_id WHERE '.$where.' ORDER BY c.id LIMIT '.($limit+1),$params);
+                $rows=$service->rows('SELECT c.*, '.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_COLUMNS.' FROM emeroteca_contributi c'.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_JOINS.' WHERE '.$where.' ORDER BY c.id LIMIT '.($limit+1),$params);
                 $rows=(new \App\Services\ArticleAuthorService($this->db))->hydrate($rows);
                 $more=count($rows)>$limit; if ($more) { array_pop($rows); }
                 $items=array_map($this->mapContribution(...),$rows);

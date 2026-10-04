@@ -14,6 +14,8 @@ final class ContributionCsv
 
     public const MAX_ROWS = 500;
     public const MAX_BYTES = 5 * 1024 * 1024;
+    /** record_type values the importer accepts; the README documents each one. */
+    public const RECORD_TYPES = ['article', 'articolo', 'journal_article', 'newspaper_article', 'book_chapter'];
 
     /** @param ContributionService $service used for both lookups during preview and the actual save in commit() */
     public function __construct(private ContributionService $service)
@@ -98,7 +100,7 @@ final class ContributionCsv
                 $row = array_map(self::decodeCell(...), $row);
                 $data = array_combine($headers, $row);
                 $type = strtolower(trim((string)($data['record_type'] ?? 'article')));
-                if (!in_array($type, ['article','articolo','journal_article','newspaper_article'], true)) {
+                if (!in_array($type, self::RECORD_TYPES, true)) {
                     throw new \InvalidArgumentException(__('Tipo di record non supportato.'));
                 }
                 if ($type === 'journal_article') {
@@ -106,6 +108,9 @@ final class ContributionCsv
                 }
                 if ($type === 'newspaper_article') {
                     $data['contenitore_tipo'] = 'giornale';
+                }
+                if ($type === 'book_chapter') {
+                    $data['contenitore_tipo'] = 'antologia';
                 }
                 unset($data['record_type']);
                 $key = trim((string)($data['reference_key'] ?? ''));
@@ -324,6 +329,7 @@ final class ContributionCsv
         return match ($containerType) {
             'rivista'  => 'journal_article',
             'giornale' => 'newspaper_article',
+            'antologia' => 'book_chapter',
             default    => 'article',
         };
     }

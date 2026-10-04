@@ -7,6 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DeweyDataFiles;
 use App\Support\I18n;
+use App\Support\SecureLogger;
 
 class DeweyApiController
 {
@@ -304,6 +305,66 @@ class DeweyApiController
             }
         }
         return null;
+    }
+
+    /**
+     * Autocomplete for the Dewey pickers (book form and Emeroteca article form):
+     * GET /api/dewey/autocomplete?q=… returns up to 20 {code, name} nodes whose
+     * code starts with q or whose name contains it, ignoring case and accents.
+     * Code matches come first, in code order, then name matches, so "59"
+     * lists 590, 591… and "mammif" lists the mammals wherever they sit.
+     */
+    public function autocomplete(Request $request, Response $response): Response
+    {
+        $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
+        $results = [];
+        try {
+            if (mb_strlen($query) >= 2) {
+                $data = $this->loadDeweyData();
+                if ($this->isNewFormat($data)) {
+                    $needle = self::foldForSearch($query);
+                    $byCode = [];
+                    $byName = [];
+                    $walk = function (array $nodes) use (&$walk, &$byCode, &$byName, $query, $needle): void {
+                        foreach ($nodes as $node) {
+                            $code = (string) ($node['code'] ?? '');
+                            $name = (string) ($node['name'] ?? '');
+                            if ($code !== '' && str_starts_with($code, $query)) {
+                                $byCode[$code] = ['code' => $code, 'name' => $name];
+                            } elseif ($name !== '' && str_contains(self::foldForSearch($name), $needle)) {
+                                $byName[$code] = ['code' => $code, 'name' => $name];
+                            }
+                            if (!empty($node['children']) && is_array($node['children'])) {
+                                $walk($node['children']);
+                            }
+                        }
+                    };
+                    $walk($data);
+                    ksort($byCode, SORT_STRING);
+                    ksort($byName, SORT_STRING);
+                    $results = array_slice(array_values($byCode + $byName), 0, 20);
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('Dewey API autocomplete error: ' . $e->getMessage());
+            $response->getBody()->write(json_encode(['error' => __('Errore nella ricerca.')], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /** Lower case without accents, so "eta" finds "Età" and "societa" finds "Società". */
+    private static function foldForSearch(string $text): string
+    {
+        $text = mb_strtolower($text, 'UTF-8');
+        if (class_exists(\Normalizer::class)) {
+            $decomposed = \Normalizer::normalize($text, \Normalizer::FORM_D);
+            if (is_string($decomposed)) {
+                $text = (string) preg_replace('/\p{Mn}+/u', '', $decomposed);
+            }
+        }
+        return $text;
     }
 
     /**

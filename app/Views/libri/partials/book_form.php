@@ -147,7 +147,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div class="form-grid-2">
             <div>
               <label class="form-label"><?= __("Codice ISBN o EAN") ?></label>
-              <input id="importIsbn" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo htmlspecialchars((string)($book['isbn13'] ?? ($book['ean'] ?? ($book['isbn10'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>" />
+              <input id="importIsbn" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 9788842935780'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string)($book['isbn13'] ?? ($book['ean'] ?? ($book['isbn10'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div class="flex items-end">
               <button type="button" id="btnImportIsbn" class="btn-primary w-full">
@@ -181,7 +181,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <i class="fas fa-layer-group"></i>
                 <?= __("Dati alternativi disponibili") ?>
               </h4>
-              <button type="button" id="btnCloseAlternatives" class="text-gray-800 hover:text-blue-800" aria-label="<?= __('Chiudi alternative') ?>">
+              <button type="button" id="btnCloseAlternatives" class="text-gray-800 hover:text-blue-800" aria-label="<?= htmlspecialchars(__('Chiudi alternative'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -207,39 +207,47 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <label for="titolo" class="form-label">
                 <?= __("Titolo") ?> <span class="text-red-500">*</span>
               </label>
-              <input id="titolo" name="titolo" type="text" required aria-required="true" class="form-input" placeholder="<?= __('es. La morale anarchica') ?>" value="<?php echo HtmlHelper::e($book['titolo'] ?? ''); ?>" />
+              <input id="titolo" name="titolo" type="text" required aria-required="true" class="form-input" placeholder="<?= htmlspecialchars(__('es. La morale anarchica'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['titolo'] ?? ''); ?>" />
             </div>
             <div>
               <label for="sottotitolo" class="form-label"><?= __("Sottotitolo") ?></label>
-              <input id="sottotitolo" name="sottotitolo" type="text" class="form-input" placeholder="<?= __('Sottotitolo del libro (opzionale)') ?>" value="<?php echo HtmlHelper::e($book['sottotitolo'] ?? ''); ?>" />
+              <input id="sottotitolo" name="sottotitolo" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('Sottotitolo del libro (opzionale)'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['sottotitolo'] ?? ''); ?>" />
             </div>
           </div>
           
           <div class="form-grid-3">
             <div>
               <label for="isbn10" class="form-label"><?= __("ISBN 10") ?></label>
-              <input id="isbn10" name="isbn10" type="text" class="form-input" placeholder="<?= __('es. 8842935786') ?>" value="<?php echo HtmlHelper::e($book['isbn10'] ?? ''); ?>" />
+              <input id="isbn10" name="isbn10" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 8842935786'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['isbn10'] ?? ''); ?>" />
             </div>
             <div>
               <label for="isbn13" class="form-label"><?= __("ISBN 13") ?></label>
-              <input id="isbn13" name="isbn13" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ''); ?>" />
+              <input id="isbn13" name="isbn13" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 9788842935780'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ''); ?>" />
             </div>
             <div>
               <label for="edizione" class="form-label"><?= __("Edizione") ?></label>
-              <input id="edizione" name="edizione" type="text" class="form-input" placeholder="<?= __('es. Prima edizione') ?>" value="<?php echo HtmlHelper::e($book['edizione'] ?? ''); ?>" />
+              <input id="edizione" name="edizione" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Prima edizione'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['edizione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Numero o descrizione dell'edizione") ?></p>
             </div>
           </div>
 
           <div class="form-grid-2">
             <div>
+              <label for="luogo_pubblicazione" class="form-label"><?= __("Luogo di pubblicazione") ?></label>
+              <input id="luogo_pubblicazione" name="luogo_pubblicazione" type="text" maxlength="255" class="form-input" placeholder="<?= htmlspecialchars(__('es. Milano'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['luogo_pubblicazione'] ?? ''); ?>" />
+              <p class="text-xs text-gray-500 mt-1"><?= __("La città indicata sul frontespizio; compare nelle citazioni Chicago e Harvard") ?></p>
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div>
               <label for="data_pubblicazione" class="form-label"><?= __("Data di Pubblicazione") ?></label>
-              <input id="data_pubblicazione" name="data_pubblicazione" type="text" class="form-input" placeholder="<?= __('es. 26 agosto 2025') ?>" value="<?php echo HtmlHelper::e($book['data_pubblicazione'] ?? ''); ?>" />
+              <input id="data_pubblicazione" name="data_pubblicazione" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 26 agosto 2025'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['data_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Data di pubblicazione originale (testo libero)") ?></p>
             </div>
             <div>
               <label for="anno_pubblicazione" class="form-label"><?= __("Anno di Pubblicazione") ?></label>
-              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="-9999" max="9999" class="form-input" placeholder="<?= __('es. 2025') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
+              <input id="anno_pubblicazione" name="anno_pubblicazione" type="number" min="-9999" max="9999" class="form-input" placeholder="<?= htmlspecialchars(__('es. 2025'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['anno_pubblicazione'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Anno numerico (usato per filtri e ordinamento)") ?></p>
             </div>
           </div>
@@ -247,7 +255,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div class="form-grid-3">
             <div>
               <label for="ean" class="form-label"><?= __("EAN") ?></label>
-              <input id="ean" name="ean" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['ean'] ?? ''); ?>" />
+              <input id="ean" name="ean" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 9788842935780'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['ean'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("European Article Number (opzionale)") ?></p>
             </div>
             <div>
@@ -257,7 +265,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             </div>
             <div>
               <label for="lingua" class="form-label"><?= __("Lingua") ?></label>
-              <input id="lingua" name="lingua" type="text" class="form-input" placeholder="<?= __('es. Italiano, Inglese') ?>" value="<?php echo HtmlHelper::e($book['lingua'] ?? ''); ?>" />
+              <input id="lingua" name="lingua" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Italiano, Inglese'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['lingua'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Lingua originale del libro") ?></p>
             </div>
           </div>
@@ -265,7 +273,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <!-- Authors with Choices.js (grouped with the other authoring fields, PR #308) -->
           <div>
             <label for="autori_select" class="form-label"><?= __("Autori") ?></label>
-            <select id="autori_select" name="autori_select[]" multiple placeholder="<?= __('Cerca autori esistenti o aggiungine di nuovi...') ?>" data-initial-authors="<?php echo $initialAuthorsJson; ?>">
+            <select id="autori_select" name="autori_select[]" multiple placeholder="<?= htmlspecialchars(__('Cerca autori esistenti o aggiungine di nuovi...'), ENT_QUOTES, 'UTF-8') ?>" data-initial-authors="<?php echo $initialAuthorsJson; ?>">
               <!-- Options will be populated dynamically -->
             </select>
             <div id="autori_hidden"></div>
@@ -291,7 +299,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <div>
               <label for="<?= $roleKey ?>_select" class="form-label"><?= htmlspecialchars((string)$meta['label'], ENT_QUOTES, 'UTF-8') ?></label>
               <select id="<?= $roleKey ?>_select" name="<?= $roleKey ?>_select[]" multiple
-                      placeholder="<?= __('Cerca o aggiungi...') ?>"
+                      placeholder="<?= htmlspecialchars(__('Cerca o aggiungi...'), ENT_QUOTES, 'UTF-8') ?>"
                       data-initial-contributors="<?php echo $initialContributorsJson[$roleKey]; ?>"></select>
               <div id="<?= $roleKey ?>_hidden"></div>
               <p class="text-xs text-gray-500 mt-1"><?= htmlspecialchars((string)$meta['help'], ENT_QUOTES, 'UTF-8') ?></p>
@@ -306,7 +314,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <!-- Publishers with Choices.js (multi-value, issue #143) -->
           <div>
             <label for="editori_select" class="form-label"><?= __("Editori") ?></label>
-            <select id="editori_select" name="editori_select[]" multiple placeholder="<?= __('Cerca editori esistenti o aggiungine di nuovi...') ?>" data-initial-publishers="<?php echo $initialPublishersJson; ?>">
+            <select id="editori_select" name="editori_select[]" multiple placeholder="<?= htmlspecialchars(__('Cerca editori esistenti o aggiungine di nuovi...'), ENT_QUOTES, 'UTF-8') ?>" data-initial-publishers="<?php echo $initialPublishersJson; ?>">
               <!-- Options populated dynamically -->
             </select>
             <div id="editori_hidden"></div>
@@ -329,7 +337,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <!-- Description -->
           <div>
             <label for="descrizione" class="form-label"><?= __("Descrizione") ?></label>
-            <textarea id="descrizione" name="descrizione" rows="4" class="form-input" placeholder="<?= __('Descrizione del libro...') ?>"><?php echo HtmlHelper::e($book['descrizione'] ?? ''); ?></textarea>
+            <textarea id="descrizione" name="descrizione" rows="4" class="form-input" placeholder="<?= htmlspecialchars(__('Descrizione del libro...'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($book['descrizione'] ?? ''); ?></textarea>
           </div>
         </div>
       </div>
@@ -342,47 +350,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           </h2>
         </div>
         <div class="card-body form-section">
-          <input type="hidden" name="classificazione_dewey" id="classificazione_dewey" value="<?php echo HtmlHelper::e($book['classificazione_dewey'] ?? ''); ?>" />
-
-          <!-- Chip Dewey selezionato -->
-          <div id="dewey_chip_container" class="mb-4" style="display: none;">
-            <label class="form-label"><?= __("Classificazione selezionata:") ?></label>
-            <div id="dewey_chip" class="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
-              <span class="font-mono font-bold" id="dewey_chip_code"></span>
-              <span class="text-sm" id="dewey_chip_name"></span>
-              <button type="button" id="dewey_chip_remove" class="text-gray-800 hover:text-blue-900" aria-label="<?= __('Rimuovi classificazione Dewey') ?>">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- Input manuale Dewey -->
-          <div class="mb-4">
-            <label for="dewey_manual_input" class="form-label"><?= __("Codice Dewey") ?></label>
-            <div class="flex gap-2">
-              <input type="text" id="dewey_manual_input" class="form-input" placeholder="<?= __('es. 599.9, 004.6782, 641.5945, 599.1') ?>" />
-              <button type="button" id="dewey_add_btn" class="ui-button btn-primary">
-                <i class="fas fa-plus"></i> <?= __("Aggiungi") ?>
-              </button>
-            </div>
-            <p class="text-xs text-gray-500 mt-1"><?= __("Inserisci qualsiasi codice Dewey (anche se non presente nell'elenco)") ?></p>
-          </div>
-
-          <!-- Navigazione per categorie (opzionale) -->
-          <details class="mb-4">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-700 hover:text-gray-800">
-              <?= __("Oppure naviga per categorie") ?>
-            </summary>
-            <div class="mt-3 p-3 bg-gray-50 rounded">
-              <div id="dewey_breadcrumb" class="text-xs text-gray-600 mb-2 flex items-center gap-1">
-                <i class="fas fa-home"></i>
-                <span><?= __("Nessuna selezione") ?></span>
-              </div>
-              <div id="dewey_levels_container" class="space-y-2">
-                <!-- I select verranno aggiunti dinamicamente -->
-              </div>
-            </div>
-          </details>
+          <?php $deweyFieldName = 'classificazione_dewey'; $deweyValue = (string) ($book['classificazione_dewey'] ?? ''); include __DIR__ . '/../../partials/dewey-picker.php'; ?>
 
           <p class="text-xs text-gray-500 mt-2"><?= __("La classificazione Dewey è utilizzata per organizzare i libri per argomento secondo standard internazionali") ?></p>
 
@@ -417,7 +385,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <!-- Keywords -->
           <div class="mt-4">
             <label for="parole_chiave" class="form-label"><?= __("Parole Chiave") ?></label>
-            <input id="parole_chiave" name="parole_chiave" type="text" class="form-input" placeholder="<?= __('es. romanzo, fantasy, avventura (separare con virgole)') ?>" value="<?php echo HtmlHelper::e($book['parole_chiave'] ?? ''); ?>" />
+            <input id="parole_chiave" name="parole_chiave" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. romanzo, fantasy, avventura (separare con virgole)'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['parole_chiave'] ?? ''); ?>" />
             <p class="text-xs text-gray-500 mt-1"><?= __("Inserisci parole chiave separate da virgole per facilitare la ricerca") ?></p>
           </div>
         </div>
@@ -438,11 +406,11 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             </div>
             <div>
               <label for="tipo_acquisizione" class="form-label"><?= __("Tipo Acquisizione") ?></label>
-              <input id="tipo_acquisizione" name="tipo_acquisizione" type="text" class="form-input" placeholder="<?= __('es. Acquisto, Donazione, Prestito') ?>" value="<?php echo HtmlHelper::e($book['tipo_acquisizione'] ?? ''); ?>" />
+              <input id="tipo_acquisizione" name="tipo_acquisizione" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Acquisto, Donazione, Prestito'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['tipo_acquisizione'] ?? ''); ?>" />
             </div>
             <div>
               <label for="prezzo" class="form-label"><?= __("Prezzo (€)") ?></label>
-              <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= __('es. 19.90') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
+              <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= htmlspecialchars(__('es. 19.90'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
             </div>
           </div>
         </div>
@@ -480,21 +448,21 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             </div>
             <div>
               <label for="formato" class="form-label"><?= __("Formato") ?></label>
-              <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= __('es. Copertina rigida, Brossura') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
+              <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Copertina rigida, Brossura'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
             </div>
             <div>
               <label for="numero_pagine" class="form-label"><?= __("Numero Pagine") ?></label>
-              <input id="numero_pagine" name="numero_pagine" type="number" class="form-input" placeholder="<?= __('es. 320') ?>" value="<?php echo HtmlHelper::e($book['numero_pagine'] ?? ''); ?>" />
+              <input id="numero_pagine" name="numero_pagine" type="number" class="form-input" placeholder="<?= htmlspecialchars(__('es. 320'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['numero_pagine'] ?? ''); ?>" />
             </div>
             <div>
               <label for="peso" class="form-label"><?= __("Peso (kg)") ?></label>
-              <input id="peso" name="peso" type="number" step="0.001" class="form-input" placeholder="<?= __('es. 0.450') ?>" value="<?php echo HtmlHelper::e($book['peso'] ?? ''); ?>" />
+              <input id="peso" name="peso" type="number" step="0.001" class="form-input" placeholder="<?= htmlspecialchars(__('es. 0.450'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['peso'] ?? ''); ?>" />
             </div>
           </div>
 
           <div>
             <label for="dimensioni" class="form-label"><?= __("Dimensioni") ?></label>
-            <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= __('es. 21x14 cm') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
+            <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 21x14 cm'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
           
           <?php
@@ -546,7 +514,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label for="numero_inventario" class="form-label"><?= __("Prefisso inventario copie") ?></label>
-              <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
+              <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. INV-2024-001'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1">
                 <?= $mode === 'edit'
                   ? __("Viene usato solo per generare automaticamente i codici delle nuove copie; i codici esistenti non cambiano.")
@@ -635,26 +603,25 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <!-- placeholder retained for old DOM selectors -->
           </div>
 
+          <?php ob_start(); do_action('book.form.digital_fields', $book); $digitalFields = (string) ob_get_clean(); ?>
+          <?php if (trim($digitalFields) === ''): ?>
           <div class="form-grid-2">
             <div>
               <label for="file_url" class="form-label"><?= __("File URL") ?></label>
-              <input id="file_url" name="file_url" type="text" class="form-input" placeholder="<?= __('Link al file digitale (se disponibile)') ?>" value="<?php echo HtmlHelper::e($book['file_url'] ?? ''); ?>" />
+              <input id="file_url" name="file_url" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('Link al file digitale (se disponibile)'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['file_url'] ?? ''); ?>" />
             </div>
             <div>
               <label for="audio_url" class="form-label"><?= __("Audio URL") ?></label>
-              <input id="audio_url" name="audio_url" type="text" class="form-input" placeholder="<?= __('Link all\'audiolibro (se disponibile)') ?>" value="<?php echo HtmlHelper::e($book['audio_url'] ?? ''); ?>" />
+              <input id="audio_url" name="audio_url" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('Link all\'audiolibro (se disponibile)'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['audio_url'] ?? ''); ?>" />
             </div>
           </div>
 
-          <?php
-          // Hook: Allow plugins to add digital content upload fields (e.g., Uppy uploaders)
-          do_action('book.form.digital_fields', $book);
-          ?>
+          <?php else: echo $digitalFields; endif; ?>
 
           <!-- Notes -->
           <div>
             <label for="note_varie" class="form-label"><?= __("Note Varie") ?></label>
-            <textarea id="note_varie" name="note_varie" rows="3" class="form-input" placeholder="<?= __('Note aggiuntive o osservazioni particolari...') ?>"><?php echo HtmlHelper::e($book['note_varie'] ?? ''); ?></textarea>
+            <textarea id="note_varie" name="note_varie" rows="3" class="form-input" placeholder="<?= htmlspecialchars(__('Note aggiuntive o osservazioni particolari...'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($book['note_varie'] ?? ''); ?></textarea>
           </div>
         </div>
       </div>
@@ -749,7 +716,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <div>
               <label for="posizione_progressiva_input" class="form-label"><?= __("Posizione progressiva") ?></label>
               <div class="flex flex-col gap-2">
-                <input type="number" min="1" name="posizione_progressiva" id="posizione_progressiva_input" class="form-input" value="<?php echo $initialPosizioneProgressiva ?: ''; ?>" placeholder="<?= __('Auto') ?>" />
+                <input type="number" min="1" name="posizione_progressiva" id="posizione_progressiva_input" class="form-input" value="<?php echo $initialPosizioneProgressiva ?: ''; ?>" placeholder="<?= htmlspecialchars(__('Auto'), ENT_QUOTES, 'UTF-8') ?>" />
                 <button type="button" id="btnAutoPosition" class="btn-outline w-full sm:w-auto"><i class="fas fa-sync mr-2"></i><?= __("Genera automaticamente") ?></button>
                 <p class="text-xs text-gray-500"><?= __("Lascia vuoto o usa \"Genera\" per assegnare automaticamente la prossima posizione disponibile.") ?></p>
               </div>
@@ -809,16 +776,16 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             </div>
             <div class="mt-3">
               <label for="review" class="form-label"><?= __("Recensione") ?></label>
-              <textarea id="review" name="review" rows="4" class="form-input" placeholder="<?= __('La tua recensione del libro...') ?>"><?= HtmlHelper::e($book['review'] ?? '') ?></textarea>
+              <textarea id="review" name="review" rows="4" class="form-input" placeholder="<?= htmlspecialchars(__('La tua recensione del libro...'), ENT_QUOTES, 'UTF-8') ?>"><?= HtmlHelper::e($book['review'] ?? '') ?></textarea>
             </div>
             <div class="form-grid-2 mt-3">
               <div>
                 <label for="comment" class="form-label"><?= __("Commento Pubblico") ?></label>
-                <textarea id="comment" name="comment" rows="3" class="form-input" placeholder="<?= __('Commento pubblico...') ?>"><?= HtmlHelper::e($book['comment'] ?? '') ?></textarea>
+                <textarea id="comment" name="comment" rows="3" class="form-input" placeholder="<?= htmlspecialchars(__('Commento pubblico...'), ENT_QUOTES, 'UTF-8') ?>"><?= HtmlHelper::e($book['comment'] ?? '') ?></textarea>
               </div>
               <div>
                 <label for="private_comment" class="form-label"><?= __("Commento Privato") ?></label>
-                <textarea id="private_comment" name="private_comment" rows="3" class="form-input" placeholder="<?= __('Note private...') ?>"><?= HtmlHelper::e($book['private_comment'] ?? '') ?></textarea>
+                <textarea id="private_comment" name="private_comment" rows="3" class="form-input" placeholder="<?= htmlspecialchars(__('Note private...'), ENT_QUOTES, 'UTF-8') ?>"><?= HtmlHelper::e($book['private_comment'] ?? '') ?></textarea>
               </div>
             </div>
           </div>
@@ -828,7 +795,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <h3 class="text-md font-semibold text-gray-700 mb-3"><?= __("Descrizione Fisica") ?></h3>
             <div>
               <label for="physical_description" class="form-label"><?= __("Descrizione Fisica") ?></label>
-              <input type="text" id="physical_description" name="physical_description" class="form-input" value="<?= HtmlHelper::e($book['physical_description'] ?? '') ?>" placeholder="<?= __('es. Hardcover, 500 pages') ?>">
+              <input type="text" id="physical_description" name="physical_description" class="form-input" value="<?= HtmlHelper::e($book['physical_description'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('es. Hardcover, 500 pages'), ENT_QUOTES, 'UTF-8') ?>">
               <p class="text-xs text-gray-500 mt-1"><?= __("Nota: Peso e dimensioni sono nei campi nativi dell'app (sezione Dati Fisici)") ?></p>
             </div>
           </div>
@@ -839,15 +806,15 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <div class="form-grid-2">
               <div class="col-span-2">
                 <label for="dewey_wording" class="form-label"><?= __("Descrizione Dewey") ?></label>
-                <input type="text" id="dewey_wording" name="dewey_wording" class="form-input" value="<?= HtmlHelper::e($book['dewey_wording'] ?? '') ?>" placeholder="<?= __('es. History & geography > History of Asia > ...') ?>">
+                <input type="text" id="dewey_wording" name="dewey_wording" class="form-input" value="<?= HtmlHelper::e($book['dewey_wording'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('es. History & geography > History of Asia > ...'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="lccn" class="form-label"><?= __("LCCN") ?></label>
-                <input type="text" id="lccn" name="lccn" class="form-input" value="<?= HtmlHelper::e($book['lccn'] ?? '') ?>" placeholder="<?= __('Library of Congress Control Number') ?>">
+                <input type="text" id="lccn" name="lccn" class="form-input" value="<?= HtmlHelper::e($book['lccn'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('Library of Congress Control Number'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="lc_classification" class="form-label"><?= __("Classificazione LC") ?></label>
-                <input type="text" id="lc_classification" name="lc_classification" class="form-input" value="<?= HtmlHelper::e($book['lc_classification'] ?? '') ?>" placeholder="<?= __('es. PS3566.A686') ?>">
+                <input type="text" id="lc_classification" name="lc_classification" class="form-input" value="<?= HtmlHelper::e($book['lc_classification'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('es. PS3566.A686'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="other_call_number" class="form-label"><?= __("Altro Numero di Chiamata") ?></label>
@@ -886,11 +853,11 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               </div>
               <div>
                 <label for="barcode" class="form-label"><?= __("Codice a Barre") ?></label>
-                <input type="text" id="barcode" name="barcode" class="form-input" value="<?= HtmlHelper::e($book['barcode'] ?? '') ?>" placeholder="<?= __('Barcode fisico') ?>">
+                <input type="text" id="barcode" name="barcode" class="form-input" value="<?= HtmlHelper::e($book['barcode'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('Barcode fisico'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="oclc" class="form-label"><?= __("OCLC") ?></label>
-                <input type="text" id="oclc" name="oclc" class="form-input" value="<?= HtmlHelper::e($book['oclc'] ?? '') ?>" placeholder="<?= __('OCLC number') ?>">
+                <input type="text" id="oclc" name="oclc" class="form-input" value="<?= HtmlHelper::e($book['oclc'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('OCLC number'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="work_id" class="form-label"><?= __("LibraryThing Work ID") ?></label>
@@ -906,11 +873,11 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <div class="form-grid-2">
               <div>
                 <label for="original_languages" class="form-label"><?= __("Lingue Originali") ?></label>
-                <input type="text" id="original_languages" name="original_languages" class="form-input" value="<?= HtmlHelper::e($book['original_languages'] ?? '') ?>" placeholder="<?= __('es. English, Italian') ?>">
+                <input type="text" id="original_languages" name="original_languages" class="form-input" value="<?= HtmlHelper::e($book['original_languages'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('es. English, Italian'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="source" class="form-label"><?= __("Fonte/Venditore") ?></label>
-                <input type="text" id="source" name="source" class="form-input" value="<?= HtmlHelper::e($book['source'] ?? '') ?>" placeholder="<?= __('es. Amazon, Libreria XYZ') ?>">
+                <input type="text" id="source" name="source" class="form-input" value="<?= HtmlHelper::e($book['source'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('es. Amazon, Libreria XYZ'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="from_where" class="form-label"><?= __("Da Dove Acquisito") ?></label>
@@ -925,7 +892,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <div class="form-grid-2">
               <div>
                 <label for="lending_patron" class="form-label"><?= __("Prestato A") ?></label>
-                <input type="text" id="lending_patron" name="lending_patron" class="form-input" value="<?= HtmlHelper::e($book['lending_patron'] ?? '') ?>" placeholder="<?= __('Nome del prestatore') ?>">
+                <input type="text" id="lending_patron" name="lending_patron" class="form-input" value="<?= HtmlHelper::e($book['lending_patron'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('Nome del prestatore'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div>
                 <label for="lending_status" class="form-label"><?= __("Stato Prestito") ?></label>
@@ -953,7 +920,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <div class="form-grid-2">
               <div>
                 <label for="value" class="form-label"><?= __("Valore Corrente Stimato") ?></label>
-                <input type="number" step="0.01" id="value" name="value" class="form-input" value="<?= HtmlHelper::e($book['value'] ?? '') ?>" placeholder="<?= __('es. 25.00') ?>">
+                <input type="number" step="0.01" id="value" name="value" class="form-input" value="<?= HtmlHelper::e($book['value'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('es. 25.00'), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="text-xs text-gray-500 mt-1"><?= __("Valore di mercato attuale (diverso dal prezzo di acquisto)") ?></p>
               </div>
               <div>
@@ -1253,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeIsbnImport();
     
     // Dewey classification
-    initializeDewey();
+    initializeDewey(INITIAL_BOOK.classificazione_dewey || '');
     initializeSuggestCollocazione();
     initializeCollocationFilters();
 
@@ -1736,401 +1703,6 @@ function initializeChoicesJS() {
     } catch (error) {
         console.error('Error initializing Choices.js:', error);
     }
-}
-
-// Initialize Dewey with chip-based selection
-async function initializeDewey() {
-  const container = document.getElementById('dewey_levels_container');
-  const breadcrumb = document.getElementById('dewey_breadcrumb');
-  const hidden = document.getElementById('classificazione_dewey');
-  const manualInput = document.getElementById('dewey_manual_input');
-  const addBtn = document.getElementById('dewey_add_btn');
-  const chipContainer = document.getElementById('dewey_chip_container');
-  const chipCode = document.getElementById('dewey_chip_code');
-  const chipName = document.getElementById('dewey_chip_name');
-  const chipRemove = document.getElementById('dewey_chip_remove');
-
-  let currentDeweyCode = '';
-  let currentDeweyName = '';
-
-  // Valida formato codice Dewey (3 cifre principali + opzionale parte decimale)
-  // Allineato con DeweyValidator::PATTERN_ANY_CODE lato server
-  const validateDeweyCode = (code) => {
-    return /^[0-9]{3}(\.[0-9]{1,4})?$/.test(code);
-  };
-
-  // Ottieni il codice parent (es. 599.1 → 599, 599.93 → 599.9)
-  const getParentCode = (code) => {
-    if (!code.includes('.')) return null; // Nessun parent se non ha decimali
-
-    const parts = code.split('.');
-    const intPart = parts[0]; // 599
-    const decPart = parts[1]; // 1 oppure 93
-
-    if (decPart.length === 1) {
-      // 599.1 → parent è 599
-      return intPart;
-    } else {
-      // 599.93 → parent è 599.9
-      return `${intPart}.${decPart.substring(0, decPart.length - 1)}`;
-    }
-  };
-
-  // Fetch the full hierarchical path for a Dewey code via API
-  // Returns { codes: "100 > 110 > 116", names: "Filosofia > Metafisica > Cambiamento" } or null
-  const fetchDeweyPath = async (code) => {
-    try {
-      const response = await fetch(`${window.BASE_PATH}/api/dewey/path?code=${encodeURIComponent(code)}`, {
-        credentials: 'same-origin'
-      });
-      if (!response.ok) return null;
-      const pathItems = await response.json();
-      if (Array.isArray(pathItems) && pathItems.length > 0) {
-        return {
-          codes: pathItems.map(item => item.code).join(' > '),
-          names: pathItems.map(item => item.name).join(' > ')
-        };
-      }
-    } catch (e) {
-      // Silently fail
-    }
-    return null;
-  };
-
-  // Imposta il codice Dewey corrente
-  const setDeweyCode = async (code, name = null) => {
-    if (!code) {
-      clearDeweyCode();
-      return;
-    }
-
-    currentDeweyCode = code;
-    currentDeweyName = '';
-    const requestCode = code;
-
-    // Fetch full hierarchy (codes + names) from API
-    const pathData = await fetchDeweyPath(code);
-    if (requestCode !== currentDeweyCode) return; // stale response
-    let chipCodeText = code;
-    if (pathData) {
-      chipCodeText = pathData.codes;
-      currentDeweyName = pathData.names;
-    } else if (name) {
-      // Fallback: use the provided leaf name only
-      currentDeweyName = name;
-    }
-
-    // Aggiorna UI - hidden field saves only the leaf code
-    hidden.value = currentDeweyCode;
-    chipCode.textContent = chipCodeText;
-    chipName.textContent = currentDeweyName ? `— ${currentDeweyName}` : '';
-    chipContainer.style.display = 'block';
-    manualInput.value = '';
-  };
-
-  // Expose to global scope for scraping handler
-  window.setDeweyCode = setDeweyCode;
-
-  // Rimuovi il codice Dewey corrente
-  const clearDeweyCode = () => {
-    currentDeweyCode = '';
-    currentDeweyName = '';
-    hidden.value = '';
-    chipContainer.style.display = 'none';
-    chipCode.textContent = '';
-    chipName.textContent = '';
-    manualInput.value = '';
-
-    // Reset navigazione
-    container.innerHTML = '';
-    breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span>${<?= json_encode(__("Nessuna selezione"), JSON_HEX_TAG) ?>}</span>`;
-    loadLevel(null, 0);
-  };
-
-  // Gestione pulsante "Aggiungi"
-  addBtn.addEventListener('click', async () => {
-    const code = manualInput.value.trim();
-
-    if (!code) {
-      if (window.Toast) {
-        window.Toast.fire({
-          icon: 'warning',
-          title: <?= json_encode(__("Inserisci un codice Dewey"), JSON_HEX_TAG) ?>
-        });
-      }
-      return;
-    }
-
-    if (!validateDeweyCode(code)) {
-      if (window.Toast) {
-        window.Toast.fire({
-          icon: 'error',
-          title: <?= json_encode(__("Formato codice non valido"), JSON_HEX_TAG) ?>,
-          text: <?= json_encode(__("Usa formato: 599 oppure 599.9 oppure 599.93"), JSON_HEX_TAG) ?>
-        });
-      }
-      return;
-    }
-
-    await setDeweyCode(code);
-  });
-
-  // Gestione rimozione chip
-  chipRemove.addEventListener('click', () => {
-    clearDeweyCode();
-  });
-
-  // Gestione Enter nell'input
-  manualInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addBtn.click();
-    }
-  });
-
-  // Build breadcrumb from all currently selected dropdowns
-  const updateBreadcrumbFromDropdowns = () => {
-    const icon = document.createElement('i');
-    icon.className = 'fas fa-home';
-    breadcrumb.textContent = '';
-    breadcrumb.appendChild(icon);
-    breadcrumb.appendChild(document.createTextNode(' '));
-
-    const selects = container.querySelectorAll('select');
-    let hasSelection = false;
-    selects.forEach((sel, i) => {
-      if (!sel.value) return;
-      const opt = sel.selectedOptions[0];
-      if (!opt) return;
-      hasSelection = true;
-      if (i > 0) {
-        const sep = document.createElement('span');
-        sep.className = 'text-gray-400 mx-1';
-        sep.textContent = '>';
-        breadcrumb.appendChild(sep);
-      }
-      const span = document.createElement('span');
-      span.className = 'text-gray-500';
-      span.textContent = sel.value;
-      span.title = opt.dataset.name || '';
-      breadcrumb.appendChild(span);
-    });
-
-    if (!hasSelection) {
-      const noSel = document.createElement('span');
-      noSel.textContent = <?= json_encode(__("Nessuna selezione"), JSON_HEX_TAG) ?>;
-      breadcrumb.appendChild(noSel);
-    }
-  };
-
-  // Carica livelli Dewey per navigazione
-  const loadLevel = async (parentCode = null, levelIndex = 0) => {
-    try {
-      const apiUrl = parentCode
-        ? `${window.BASE_PATH}/api/dewey/children?parent_code=${encodeURIComponent(parentCode)}`
-        : window.BASE_PATH + '/api/dewey/children';
-
-      const response = await fetch(apiUrl, { credentials: 'same-origin' });
-      if (!response.ok) {
-        console.error('Dewey children API error:', response.status);
-        return null;
-      }
-      const items = await response.json();
-
-      if (!Array.isArray(items) || items.length === 0) return null;
-
-      // Rimuovi tutti i select dopo questo livello
-      while (container.children.length > levelIndex) {
-        container.removeChild(container.lastChild);
-      }
-
-      // Crea nuovo select
-      const selectWrapper = document.createElement('div');
-      const select = document.createElement('select');
-      select.className = 'form-input';
-      select.dataset.level = levelIndex;
-
-      const opt0 = document.createElement('option');
-      opt0.value = '';
-      opt0.textContent = <?= json_encode(__("Seleziona..."), JSON_HEX_TAG) ?>;
-      select.appendChild(opt0);
-
-      items.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item.code;
-        opt.dataset.hasChildren = item.has_children;
-        opt.dataset.name = item.name;
-        opt.textContent = `${item.code} — ${item.name}`;
-        select.appendChild(opt);
-      });
-
-      select.addEventListener('change', async (e) => {
-        const selectedOption = e.target.selectedOptions[0];
-        const code = e.target.value;
-
-        if (!code) {
-          // Rimuovi select successivi
-          while (container.children.length > levelIndex + 1) {
-            container.removeChild(container.lastChild);
-          }
-          updateBreadcrumbFromDropdowns();
-          return;
-        }
-
-        const name = selectedOption.dataset.name;
-        const hasChildren = selectedOption.dataset.hasChildren === 'true';
-
-        // Rimuovi select successivi
-        while (container.children.length > levelIndex + 1) {
-          container.removeChild(container.lastChild);
-        }
-
-        // Aggiorna breadcrumb con tutto il percorso selezionato
-        updateBreadcrumbFromDropdowns();
-
-        // Imposta sempre il chip al livello corrente
-        await setDeweyCode(code, name);
-
-        // Se ha figli, carica anche il livello successivo
-        if (hasChildren) {
-          await loadLevel(code, levelIndex + 1);
-        }
-      });
-
-      selectWrapper.appendChild(select);
-      container.appendChild(selectWrapper);
-
-      return select;
-    } catch (e) {
-      console.error('Dewey level error:', e);
-    }
-  };
-
-  // Calcola il percorso gerarchico per un codice Dewey
-  // es. "133.5" → ["100", "130", "133", "133.5"]
-  const getCodePath = (code) => {
-    const path = [];
-
-    // Prima parte: classe principale (X00)
-    const mainClass = code.substring(0, 1) + '00';
-    path.push(mainClass);
-
-    // Se il codice è solo la classe principale, restituisci
-    if (code === mainClass) return path;
-
-    // Seconda parte: divisione (XX0) se diversa dalla classe
-    const division = code.substring(0, 2) + '0';
-    if (division !== mainClass) {
-      path.push(division);
-    }
-
-    // Terza parte: sezione (XXX) se non è una divisione
-    const intPart = code.split('.')[0];
-    if (intPart.length === 3 && intPart !== division && intPart !== mainClass) {
-      path.push(intPart);
-    }
-
-    // Parti decimali (XXX.X, XXX.XX, etc.)
-    if (code.includes('.')) {
-      const [base, decimal] = code.split('.');
-      // Aggiungi la parte intera se non già presente
-      if (!path.includes(base)) {
-        path.push(base);
-      }
-      // Aggiungi ogni livello decimale
-      for (let i = 1; i <= decimal.length; i++) {
-        const partial = base + '.' + decimal.substring(0, i);
-        path.push(partial);
-      }
-    }
-
-    return path;
-  };
-
-  // Naviga ai dropdown fino al codice specificato
-  const navigateToCode = async (targetCode) => {
-    const path = getCodePath(targetCode);
-    let lastFoundCode = null;
-    let lastFoundName = null;
-
-    // Per ogni codice nel percorso, carica il livello e seleziona
-    for (let i = 0; i < path.length; i++) {
-      const code = path[i];
-      const parentCode = i === 0 ? null : path[i - 1];
-
-      // Assicurati che il dropdown per questo livello esista. Se loadLevel
-      // ritorna null (parent non trovato nel JSON o API vuota) interrompi
-      // la navigazione: codici Dewey più specifici del JSON (es. '305.42097'
-      // legacy) sono trattati come custom — il fallback sotto mostrerà il
-      // codice nel breadcrumb senza tentare altri livelli.
-      if (container.children.length <= i) {
-        const loadedSelect = await loadLevel(parentCode, i);
-        if (!loadedSelect) {
-          break;
-        }
-      }
-
-      // Trova e seleziona l'opzione nel dropdown
-      const select = container.children[i]?.querySelector('select');
-      if (select) {
-        // Cerca l'opzione con questo codice
-        const option = Array.from(select.options).find(opt => opt.value === code);
-        if (option) {
-          select.value = code;
-          lastFoundCode = code;
-          lastFoundName = option.dataset.name;
-
-          // Se ha figli e non è l'ultimo nel percorso, carica il prossimo livello
-          const hasChildren = option.dataset.hasChildren === 'true';
-          const isLast = i === path.length - 1;
-
-          if (hasChildren && !isLast) {
-            await loadLevel(code, i + 1);
-          } else if (isLast) {
-            // Ultimo elemento: aggiorna breadcrumb con percorso completo
-            updateBreadcrumbFromDropdowns();
-            await setDeweyCode(code, option.dataset.name);
-            return; // Successfully navigated to target
-          }
-        } else {
-          // Codice non trovato nel dropdown - è un codice personalizzato
-          break;
-        }
-      }
-    }
-
-    // Se non abbiamo raggiunto il targetCode, mostra comunque il chip
-    // Questo gestisce i codici personalizzati non presenti nel JSON (es. 708.2)
-    if (targetCode !== lastFoundCode) {
-      // Aggiorna breadcrumb con percorso dai dropdown + codice custom
-      updateBreadcrumbFromDropdowns();
-      // Aggiungi il codice custom al breadcrumb
-      const sep = document.createElement('span');
-      sep.className = 'text-gray-400 mx-1';
-      sep.textContent = '>';
-      breadcrumb.appendChild(sep);
-      const codeSpan = document.createElement('span');
-      codeSpan.className = 'text-gray-500';
-      codeSpan.textContent = targetCode;
-      breadcrumb.appendChild(codeSpan);
-      // setDeweyCode fetch full hierarchy name via /api/dewey/path
-      await setDeweyCode(targetCode, null);
-    }
-  };
-
-  // Carica primo livello (classi principali)
-  await loadLevel(null, 0);
-
-  // Carica valore iniziale se presente e naviga fino ad esso
-  const initialCode = (INITIAL_BOOK.classificazione_dewey || '').trim();
-  if (initialCode) {
-    // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore
-    const parts = initialCode.split('-');
-    const finalCode = parts.length > 1 ? parts[parts.length - 1] : initialCode;
-
-    // Naviga ai dropdown fino al codice
-    await navigateToCode(finalCode);
-  }
 }
 
 // Load authors data for Choices.js
@@ -3663,12 +3235,12 @@ function initializeFormValidation() {
                         window.location.href = window.BASE_PATH + '/admin/books';
                     }
                 } else {
-                    // Other error
-                    Swal.fire({
-                        icon: 'error',
-                        title: __('Errore'),
-                        text: __('Si è verificato un errore durante il salvataggio.')
-                    });
+                    let message = __('Si è verificato un errore durante il salvataggio.');
+                    if (response.status === 400 && response.headers.get('Content-Type')?.includes('application/json')) {
+                        const error = await response.json();
+                        if (error.error === 'validation' && typeof error.message === 'string') message = error.message;
+                    }
+                    Swal.fire({ icon: 'error', title: __('Errore'), text: message });
                 }
             } catch (error) {
                 console.error('Form submission error:', error);
@@ -4749,112 +4321,6 @@ function convertItalianDateToISO(italianDate) {
         transform: none !important;
     }
     
-    /* Choices.js styling to match form inputs */
-    .choices__inner {
-        background-color: white !important;
-        border: 1px solid #d1d5db !important;
-        border-radius: 0.375rem !important;
-        font-size: 0.875rem !important;
-        padding: 8px !important;
-        min-height: 44px !important;
-    }
-
-    /* Desktop: use flex layout */
-    @media screen and (min-width: 769px) {
-        .choices__inner {
-            display: flex !important;
-            align-items: center !important;
-            padding: 0 !important;
-        }
-    }
-    
-    .choices__list--multiple .choices__item {
-        background-color: #1e293b !important;
-        border: 1px solid #334155 !important;
-        border-radius: 9999px !important;
-        color: #f1f5f9 !important;
-        font-size: 0.75rem !important;
-        margin: 2px !important;
-        padding: 4px 12px !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        gap: 6px !important;
-    }
-
-    /* Style for new authors (to be created) */
-    .choices__list--multiple .choices__item[data-custom-properties*="isNew\":true"] {
-        background-color: #1f2937 !important;
-        border-color: #1d4ed8 !important;
-        color: white !important;
-    }
-
-    .choices__input {
-        background-color: transparent !important;
-        margin: 0 8px !important;
-        font-size: 0.875rem !important;
-        flex: 1 1 auto !important;
-        min-width: 200px !important;
-    }
-
-    .choices__input--cloned {
-        flex: 1 1 auto !important;
-        min-width: 200px !important;
-    }
-
-    .choices__placeholder {
-        color: #9ca3af !important;
-        margin: 0 8px !important;
-    }
-
-    /* Dropdown styling */
-    .choices__list--dropdown {
-        background-color: white !important;
-        border: 1px solid #d1d5db !important;
-        border-radius: 0.375rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-        z-index: 100 !important;
-    }
-
-    .choices__list--dropdown .choices__item {
-        color: #111827 !important;
-        font-size: 0.875rem !important;
-        padding: 8px 12px !important;
-    }
-
-    .choices__list--dropdown .choices__item--selectable {
-        background-color: white !important;
-        color: #111827 !important;
-    }
-
-    .choices__list--dropdown .choices__item--selectable.is-highlighted {
-        background-color: #dbeafe !important;
-        color: #111827 !important;
-    }
-
-    .choices__list--dropdown .choices__item--selectable:hover {
-        background-color: #f3f4f6 !important;
-        color: #111827 !important;
-    }
-
-    .choices__list--dropdown .choices__item--selectable:active {
-        background-color: #e5e7eb !important;
-        color: #111827 !important;
-    }
-
-    .choices__list--dropdown .choices__item--selectable:focus {
-        background-color: #dbeafe !important;
-        color: #111827 !important;
-    }
-
-    .choices__item,
-    .choices__item:hover,
-    .choices__item:active,
-    .choices__item:focus,
-    .choices__item.is-highlighted,
-    .choices__item.is-selected {
-        color: #111827 !important;
-    }
-
     /* Editore chip styling */
     .editore-chip {
         transition: all 0.2s ease-in-out;
@@ -4879,54 +4345,8 @@ function convertItalianDateToISO(italianDate) {
         line-height: 1;
     }
 
-    /* Mobile styles for Choices.js chips */
+    /* Mobile layout of the publisher chips (the Choices.js rules are in admin-ui.css) */
     @media screen and (max-width: 768px) {
-        .choices .choices__inner,
-        div.choices__inner,
-        .choices__inner {
-            display: block !important;
-            padding: 8px !important;
-            min-height: auto !important;
-            height: auto !important;
-            flex-direction: unset !important;
-            align-items: unset !important;
-        }
-
-        .choices__list.choices__list--multiple,
-        .choices__list--multiple {
-            display: block !important;
-            width: 100% !important;
-            margin-bottom: 8px !important;
-        }
-
-        .choices__list--multiple .choices__item,
-        .choices__list--multiple .choices__item--selectable {
-            display: flex !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            white-space: normal !important;
-            padding: 8px 12px !important;
-            font-size: 0.875rem !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            border-radius: 8px !important;
-            margin-bottom: 6px !important;
-            box-sizing: border-box !important;
-        }
-
-        .choices__list--multiple .choices__item .choices__button {
-            flex-shrink: 0 !important;
-            margin-left: 8px !important;
-        }
-
-        .choices__input,
-        .choices__input--cloned,
-        input.choices__input--cloned {
-            min-width: 0 !important;
-            width: 100% !important;
-            display: block !important;
-        }
-
         /* Editore chips mobile */
         #editore_chip_list {
             display: block !important;

@@ -95,340 +95,74 @@ $formatTime = static function (?string $time) use ($timeFormatter, $createDateTi
     return $dateTime->format('H:i');
 };
 
+$catalogPageStyles = true;
+$corePartials = __DIR__ . '/partials';
+
+// Event cards are book cards with a landscape image box (events have posters,
+// not 2:3 covers); everything else comes from catalog-pages.css.
 $additional_css = "
 <style>
-    main {
-        padding-top: 120px;
-    }
-
-    @media (max-width: 576px) {
-        main {
-            padding-top: 110px;
-        }
-    }
-
-    .page-hero {
-        padding: 5rem 0 4rem;
-        background: var(--white);
-        border-bottom: 1px solid var(--border-color);
-        margin-bottom: 1.5rem;
-    }
-
-    .page-hero__content {
-        max-width: 760px;
-    }
-
-    .page-hero__eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0;
-        border-radius: 0;
-        background: none;
-        border: none;
-        font-size: 0.8rem;
-        font-weight: 600;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin-bottom: 1rem;
-        color: var(--primary-color);
-    }
-
-    .page-hero__title {
-        font-family: var(--serif);
-        font-size: clamp(2rem, 4vw, 3.25rem);
-        font-weight: 460;
-        color: var(--text-color);
-        margin-bottom: 0.75rem;
-        letter-spacing: -0.03em;
-    }
-
-    .page-hero__subtitle {
-        color: var(--text-light);
-        font-size: 1.125rem;
-        max-width: 640px;
-    }
-
-    .events-wrapper {
-        padding: 3rem 0 4rem;
-        background: var(--white);
-    }
-
-    .events-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 1.5rem;
-    }
-
-    @media (max-width: 1200px) {
-        .events-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 640px) {
-        .events-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .event-card {
-        background: transparent;
-        border: none;
-        border-radius: 0;
-        overflow: visible;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-    }
-
-    .event-card__thumb {
-        display: block;
-        height: 230px;
-        background: var(--accent-color);
-        border-radius: 3px;
-        overflow: hidden;
-        box-shadow: 0 1px 3px color-mix(in srgb, var(--text-color) 20%, transparent);
-        transition: box-shadow 0.2s ease, transform 0.2s ease;
-    }
-
-    .event-card:hover .event-card__thumb {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 16px color-mix(in srgb, var(--text-color) 24%, transparent);
-    }
-
-    .event-card__thumb img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-    .event-card__placeholder {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-muted);
-        font-size: 2rem;
-        height: 100%;
-    }
-
-    .event-card__body {
-        padding: 1.25rem 1.5rem 1.75rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        flex: 1;
-    }
-
-    .event-card__title {
-        font-family: var(--serif);
-        font-size: 1.35rem;
-        font-weight: 460;
-        letter-spacing: -0.01em;
-        color: var(--text-color);
-        margin: 0;
-    }
-
-    .event-card__title a {
-        color: inherit;
-        text-decoration: none;
-    }
-
-    .event-card__title a:hover {
-        color: var(--primary-color, #d70161);
-    }
-
-    .event-card__meta {
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--primary-color);
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-    }
-
-    .event-card__actions {
-        margin-top: auto;
-    }
-
-    .event-card__button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        gap: 0.4rem;
-        padding: 0.65rem 1rem;
-        border-radius: 2px;
-        border: 1px solid var(--text-color);
-        color: var(--text-color);
-        font-weight: 600;
-        text-decoration: none;
-        transition: all 0.2s ease;
-    }
-
-    .event-card__button:hover {
-        background: var(--text-color);
-        color: #fff;
-    }
-
-    .events-empty {
-        max-width: 560px;
-        margin: 2rem auto 0;
-        padding: 2.5rem 0 0;
-        border-radius: 0;
-        border: none;
-        border-top: 1px solid var(--border-color);
-        text-align: center;
-        background: none;
-    }
-
-    .events-empty__icon {
-        width: auto;
-        height: auto;
-        border-radius: 0;
-        background: none;
-        border: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--primary-color, #d70161);
-        font-size: 1.75rem;
-        margin-bottom: 1rem;
-    }
-
-    .events-pagination {
-        margin-top: 2.5rem;
-        display: flex;
-        justify-content: center;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-
-    .events-pagination a,
-    .events-pagination span {
-        min-width: 44px;
-        padding: 0.6rem 0.9rem;
-        border-radius: 2px;
-        border: 1px solid var(--border-color);
-        text-align: center;
-        font-weight: 600;
-        text-decoration: none;
-        color: var(--text-color);
-    }
-
-    .events-pagination a:hover {
-        border-color: var(--primary-color, #d70161);
-        color: var(--primary-color, #d70161);
-    }
-
-    .events-pagination .is-active {
-        background: var(--text-color);
-        border-color: var(--text-color);
-        color: #fff;
-    }
+    .events-listing { padding-top: 2.5rem; padding-bottom: 4rem; }
+    .books-grid--events { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+    .book-card--event .book-image-container { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
+    .book-card--event .book-image { object-fit: cover; }
+    .book-card--event .book-image-icon { font-size: 3rem; color: var(--text-muted); opacity: 0.6; }
 </style>
 ";
 
 ob_start();
+
+$heroTitle = __("Eventi");
+$heroSubtitle = __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.");
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __("Eventi")]];
+include $corePartials . '/catalog-hero.php';
 ?>
 
-<section class="page-hero">
-    <div class="container">
-        <div class="page-hero__content">
-            <div class="page-hero__eyebrow">
-                <i class="fas fa-calendar-alt"></i>
-                <?= __("Calendario eventi") ?>
-            </div>
-            <h1 class="page-hero__title"><?= __("Gli appuntamenti della biblioteca") ?></h1>
-            <p class="page-hero__subtitle">
-                <?= __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
-            </p>
-        </div>
-    </div>
-</section>
-
-<section class="events-wrapper">
-    <div class="container">
-        <?php if (empty($events)): ?>
-            <div class="events-empty">
-                <div class="events-empty__icon">
-                    <i class="fas fa-calendar-times"></i>
-                </div>
-                <h2><?= __("Nessun evento in programma") ?></h2>
-                <p><?= __("Al momento non ci sono eventi attivi. Continua a seguirci per restare aggiornato sui prossimi appuntamenti.") ?></p>
-            </div>
-        <?php else: ?>
-            <div class="events-grid">
-                <?php foreach ($events as $event): ?>
-                    <?php
-                    $eventDateFormatted = $formatDate($event['event_date'] ?? '');
-                    $eventTimeFormatted = $formatTime($event['event_time'] ?? '');
-                    $eventUrl = htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8');
-
-                    ?>
-                    <article class="event-card">
-                        <a href="<?= $eventUrl ?>" class="event-card__thumb">
+<div class="container events-listing">
+    <?php if (empty($events)): ?>
+        <?php
+        $emptyIcon = 'fa-calendar-times';
+        $emptyTitle = __("Nessun evento in programma");
+        $emptyText = __("Al momento non ci sono eventi attivi. Continua a seguirci per restare aggiornato sui prossimi appuntamenti.");
+        include $corePartials . '/empty-state.php';
+        ?>
+    <?php else: ?>
+        <div class="books-grid books-grid--events">
+            <?php foreach ($events as $event): ?>
+                <?php
+                $eventDateFormatted = $formatDate($event['event_date'] ?? '');
+                $eventTimeFormatted = $formatTime($event['event_time'] ?? '');
+                $eventMeta = trim($eventDateFormatted . ($eventTimeFormatted !== '' ? ' · ' . $eventTimeFormatted : ''));
+                $eventUrl = htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8');
+                ?>
+                <article class="book-card book-card--event">
+                    <div class="book-image-container">
+                        <a href="<?= $eventUrl ?>" tabindex="-1" aria-hidden="true" class="flex w-full h-full items-center justify-center">
                             <?php if (!empty($event['featured_image'])): ?>
-                                <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                                <img class="book-image" src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy" decoding="async">
                             <?php else: ?>
-                                <div class="event-card__placeholder">
-                                    <i class="fas fa-calendar"></i>
-                                </div>
+                                <i class="fas fa-calendar-alt book-image-icon" aria-hidden="true"></i>
                             <?php endif; ?>
                         </a>
-                        <div class="event-card__body">
-                            <div class="event-card__meta">
-                                <?= HtmlHelper::e($eventDateFormatted) ?>
-                            </div>
-                            <h2 class="event-card__title">
-                                <a href="<?= $eventUrl ?>">
-                                    <?= HtmlHelper::e($event['title']) ?>
-                                </a>
-                            </h2>
-                            <div class="event-card__actions">
-                                <a href="<?= $eventUrl ?>" class="event-card__button">
-                                    <?= __("Scopri l'evento") ?>
-                                    <i class="fas fa-arrow-right"></i>
-                                </a>
-                            </div>
-                        </div>
-                    </article>
-                <?php endforeach; ?>
-            </div>
+                    </div>
+                    <div class="book-content">
+                        <h2 class="book-title"><a href="<?= $eventUrl ?>"><?= HtmlHelper::e($event['title']) ?></a></h2>
+                        <?php if ($eventMeta !== ''): ?><p class="book-meta"><?= HtmlHelper::e($eventMeta) ?></p><?php endif; ?>
+                        <div class="book-actions"><a class="btn-cta btn-cta-sm" href="<?= $eventUrl ?>"><i class="fas fa-eye" aria-hidden="true"></i> <?= __("Dettagli") ?></a></div>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </div>
 
-            <?php if ($totalPages > 1): ?>
-                <div class="events-pagination" aria-label="<?= __("Paginazione eventi") ?>">
-                    <?php if ($page > 1): ?>
-                        <a href="?page=<?= $page - 1 ?>">
-                            <?= __("Precedente") ?>
-                        </a>
-                    <?php endif; ?>
-
-                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                        <?php if ($i == $page): ?>
-                            <span class="is-active"><?= $i ?></span>
-                        <?php elseif ($i == 1 || $i == $totalPages || abs($i - $page) <= 2): ?>
-                            <a href="?page=<?= $i ?>"><?= $i ?></a>
-                        <?php elseif (abs($i - $page) == 3): ?>
-                            <span>…</span>
-                        <?php endif; ?>
-                    <?php endfor; ?>
-
-                    <?php if ($page < $totalPages): ?>
-                        <a href="?page=<?= $page + 1 ?>">
-                            <?= __("Successivo") ?>
-                        </a>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        <?php endif; ?>
-    </div>
-</section>
+        <?php
+        $paginationPage = (int) $page;
+        $paginationPages = (int) $totalPages;
+        $paginationUrl = static fn(int $p): string => route_path('events') . ($p > 1 ? '?page=' . $p : '');
+        include $corePartials . '/pagination.php';
+        ?>
+    <?php endif; ?>
+</div>
 
 <?php
 $content = ob_get_clean();
 include __DIR__ . '/layout.php';
-?>

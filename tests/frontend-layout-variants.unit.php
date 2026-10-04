@@ -52,6 +52,8 @@ $mainCss = file_get_contents($root . '/public/assets/main.css');
 $swalThemeCss = file_get_contents($root . '/public/assets/css/swal-theme.css');
 $archiveView = file_get_contents($root . '/app/Views/frontend/archive.php');
 $archiveCss = file_get_contents($root . '/public/assets/archive-pages.css');
+$catalogCss = file_get_contents($root . '/public/assets/catalog-pages.css');
+$bookDetailCss = file_get_contents($root . '/public/assets/book-detail.css');
 $bootstrapClassReference = false;
 $bootstrapClassPattern = '/class\s*=\s*["\'][^"\'\n]*(?:\bd-(?:none|flex|block|inline(?:-flex)?)\b|\bcol-(?:\d+|(?:sm|md|lg|xl)-\d+)\b|\b(?:me|ms|pe|ps)-\d+\b|\bform-(?:control|select|check(?:-input|-label)?)\b|\bspinner-border\b|\bvisually-hidden\b)/';
 $viewDirectories = [$root . '/app/Views', $root . '/storage/plugins'];
@@ -119,10 +121,17 @@ $checks = [
     'stylesheet includes command rules' => str_contains($css, 'body.layout-command'),
     'stylesheet includes soft rules' => str_contains($css, 'body.layout-soft'),
     'event pages are covered by layout variants' => str_contains($css, '.event-card') && str_contains($css, '.event-hero'),
-    'CMS pages are covered by layout variants' => str_contains($css, '.cms-content') && str_contains($css, '.cms-title'),
     'profile and dashboard pages are covered' => str_contains($css, '.profile-container') && str_contains($css, '.dashboard-hero'),
     'wishlist and reservations are covered' => str_contains($css, '.wishlist-card') && str_contains($css, '.loans-container'),
-    'native archive, contact and legal pages are covered' => str_contains($css, '.archive-info-card') && str_contains($css, '.contact-page') && str_contains($css, '.cookie-page') && str_contains($css, '.privacy-page'),
+    'native contact, about and legal pages share one static surface' => (static function () use ($root): bool {
+        foreach (['cms-page.php', 'contact.php', 'privacy-page.php', 'cookies-page.php'] as $staticView) {
+            $staticSrc = (string) file_get_contents($root . '/app/Views/frontend/' . $staticView);
+            if (!str_contains($staticSrc, 'class="static-page"') || !str_contains($staticSrc, "partials/catalog-hero.php")) {
+                return false;
+            }
+        }
+        return true;
+    })(),
     'every native public page view uses the shared themed layout' => $publicFrontendViewsUseSharedLayout,
     'author and publisher routes share the redesigned archive surface' => str_contains($archiveView, 'class="archive-page archive-page-') && str_contains($archiveView, '$archivePageStyles = true') && str_contains($layout, '$archivePagesVersion') && str_contains($archiveCss, '.archive-books-grid'),
     'publisher book cards link their canonical author without extra queries' => str_contains($archiveView, '$authorCanonicalName') && str_contains($archiveView, '$authorRoute . \'/\' . urlencode($authorCanonicalName)') && str_contains($frontendController, 'AS autore_principale_nome'),
@@ -134,7 +143,7 @@ $checks = [
     'command mobile header keeps search and burger controls visible' => str_contains($css, 'body.layout-command .mobile-menu-toggle') && str_contains($css, 'body.layout-command .mobile-search-toggle'),
     'workspace removes the header strip and gives hero copy deliberate breathing room' => str_contains($css, "body.layout-workspace main {\n  padding-top: 67px;") && str_contains($css, 'padding-block: 8.5rem 4.5rem;') && str_contains($css, 'padding-block: 4rem 3.5rem;') && str_contains($archiveCss, "body.layout-workspace .archive-hero {\n  background: var(--light-bg);\n  padding-block: 4rem 3.5rem;"),
     'native error pages are covered' => str_contains($css, '.error-404-content') && str_contains($css, '.error-500-content'),
-    'archives plugin keeps the shared public layout surface' => str_contains($archiveIndex, 'archive-hero-index') && str_contains($css, '.archive-hero-index') && str_contains($css, '.archive-body'),
+    'archives plugin keeps the shared public layout surface' => str_contains($archiveIndex, "/catalog-hero.php'") && str_contains($archiveIndex, "/filters-sidebar.php'") && str_contains($archiveIndex, "/pagination.php'"),
     'book club public views use shared layout and namespace' => str_contains($bookClubBase, 'frontend/layout.php') && str_contains($css, '.bc-card') && str_contains($css, '.bc-hero'),
     'FRBR public opera uses shared layout and namespace' => str_contains($frbrPlugin, 'frontend/layout.php') && str_contains($frbrOpera, 'frbr-opera-page') && str_contains($css, '.frbr-opera-page'),
     'header keeps reservations action' => str_contains($layout, 'absoluteUrl($reservationsRoute)'),
@@ -155,7 +164,9 @@ $checks = [
     'related books always render an author label' => str_contains($bookDetail, '$relatedAuthorDisplay') && str_contains($bookDetail, 'Autore sconosciuto'),
     'catalog does not duplicate the active-theme query' => !str_contains($catalog, 'getActiveTheme()'),
     'catalog filter sidebar widens responsively on laptops' => str_contains($catalog, 'catalog-filters-column w-full lg:w-1/3') && str_contains($catalog, 'catalog-results-column w-full lg:w-2/3'),
-    'catalog filter controls retain touch-safe spacing' => str_contains($catalog, 'min-height: 44px;') && str_contains($catalog, 'padding: 0.7rem 0.75rem;'),
+    'catalog filter controls retain touch-safe spacing' => str_contains($catalogCss, 'min-height: 44px;') && str_contains($catalogCss, 'padding: 0.7rem 0.75rem;'),
+    'book detail surface is a shared stylesheet linked by the layout' => str_contains($bookDetail, '$bookDetailStyles = true') && str_contains($bookDetail, '--book-hero-cover:') && str_contains($layout, '$bookDetailVersion') && str_contains($bookDetailCss, 'var(--book-hero-cover, none)') && !str_contains($bookDetailCss, '<?'),
+    'catalog surface is a shared stylesheet linked by the layout' => str_contains($catalog, '$catalogPageStyles = true') && !str_contains($catalog, '<style>') && str_contains($layout, '$catalogPagesVersion') && str_contains($catalogCss, '.books-grid') && !str_contains($catalogCss, ':root {'),
     'catalog filters collapse behind an accessible mobile control' => str_contains($catalog, 'id="catalog-filters-toggle"') && str_contains($catalog, 'aria-controls="catalog-filters-content"') && str_contains($catalog, 'mobileFilters.matches'),
     'catalog pagination emits a syntactically complete active class' => str_contains($catalog, "' + activeClass + '\"><a class=\"page-link\""),
     'related-book fallback uses one ranked query' => str_contains($frontendController, 'Priorities 1-3 in one ranked query') && str_contains($frontendController, 'ORDER BY {$priorityOrder}'),
@@ -168,7 +179,7 @@ $checks = [
     'mobile feature icons share one heading row with their title' => str_contains($homeFeatures, 'class="feature-heading"') && str_contains($home, '.feature-heading .feature-icon') && str_contains($home, '.feature-heading .feature-title'),
     'empty publisher metadata collapses only on mobile' => str_contains($homeBooksGrid, 'book-meta book-meta-empty') && str_contains($catalogGrid, 'book-meta book-meta-empty') && str_contains($css, '.book-meta-empty') && str_contains($css, 'display: none !important;'),
     'catalog detail actions have a visible themed border' => str_contains($css, '.book-actions .btn-cta') && str_contains($css, 'border: 1px solid color-mix'),
-    'catalog covers preserve the full artwork with only a minimal hover crop' => str_contains($catalogGrid, 'aspect-ratio: 2/3;') && str_contains($catalogGrid, 'object-fit: contain;') && str_contains($catalogGrid, 'scale(1.012)') && str_contains($homeBooksGrid, 'scale(1.012)'),
+    'catalog covers preserve the full artwork with only a minimal hover crop' => str_contains($catalogCss, 'aspect-ratio: 2/3;') && str_contains($catalogCss, 'object-fit: contain;') && str_contains($catalogCss, 'scale(1.012)') && !str_contains($catalogGrid, '<style>') && str_contains($home, '$catalogPageStyles = true') && !str_contains($homeBooksGrid, '<style>'),
     'admin books media icon keeps a syntactically complete class concatenation' => str_contains($adminBooks, "(icons[data] || 'fa-book') + ' text-gray-400\"") && !str_contains($adminBooks, "(icons[data] || 'fa-book') text-gray-400\""),
     'admin shell loads one cache-busted shared action stylesheet' => str_contains($adminLayout, "assetUrl('admin-ui.css')") && str_contains($adminLayout, 'adminUiVersion') && str_contains($adminLayout, 'class="admin-shell '),
     'backend action groups wrap with visible primary and secondary controls' => str_contains($adminUiCss, '--admin-action-border: #cbd0d8') && str_contains($adminUiCss, ":has(\n  > :is(a, button") && str_contains($adminUiCss, "[class~='bg-gray-900']"),
@@ -190,11 +201,11 @@ $checks = [
     'compiled vendor stylesheet contains no bootstrap variables' => !str_contains($vendorCss, '--bs-') && !str_contains($vendorCss, 'Bootstrap v'),
     'views contain no bootstrap-only layout classes' => !$bootstrapClassReference,
     'container centering and page padding come from the tailwind source' => str_contains($tailwindSource, 'margin-left: auto;') && str_contains($tailwindSource, 'margin-right: auto;'),
-    'book hero uses a real two-column grid' => str_contains($bookDetail, 'grid-template-columns: minmax(0, 1fr) minmax(0, 2fr)') && str_contains($bookDetail, 'class="book-info-column"'),
+    'book hero uses a real two-column grid' => str_contains($bookDetailCss, 'grid-template-columns: minmax(0, 1fr) minmax(0, 2fr)') && str_contains($bookDetail, 'class="book-info-column"'),
     'book identity is ordered and shared by every layout' => str_contains($bookDetail, 'class="book-breadcrumb"') && str_contains($bookDetail, 'class="book-kicker"') && str_contains($css, 'body[class*="layout-"] .book-breadcrumb') && str_contains($css, "content: '›'"),
     'book subtitle has no oversized inline typography' => str_contains($bookDetail, 'class="book-subtitle-hero mb-3"') && !str_contains($bookDetail, 'id="book-subtitle" style='),
     'book status is a compact semantic text-and-dot component' => str_contains($bookDetail, 'book-status-inline') && str_contains($css, '.book-status-inline::before'),
-    'workspace book metadata avoids boxed grid separators' => str_contains($css, 'body.layout-workspace .details-grid') && str_contains($css, 'gap: clamp(2rem, 5vw, 4rem);') && str_contains($css, 'body.layout-workspace #book-info-card'),
+    'workspace book metadata avoids boxed grid separators' => str_contains($css, 'body.layout-workspace .details-grid') && str_contains($css, 'gap: clamp(2rem, 5vw, 4rem);') && str_contains($css, 'body.layout-workspace :is(#book-info-card, .resource-info-card)'),
     'core tailwind buttons use solid colors without gradients' => !str_contains($tailwindSource, 'linear-gradient'),
     'loan date calendars stay inside the scrollable modal flow' => str_contains($bookDetail, 'static: true') && str_contains($bookDetail, "popup: 'loan-request-popup'") && str_contains($bookDetail, 'heightAuto: false') && str_contains($swalThemeCss, '.loan-request-popup .flatpickr-calendar.static') && str_contains($swalThemeCss, 'position: relative !important;'),
     'loan modal locks the document and contains its own overflow' => str_contains($swalThemeCss, 'html.swal2-shown') && str_contains($swalThemeCss, 'overflow-y: auto !important;') && str_contains($swalThemeCss, 'overscroll-behavior: contain;'),

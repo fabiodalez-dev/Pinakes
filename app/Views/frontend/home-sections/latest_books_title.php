@@ -9,7 +9,7 @@
  * "load more" button keeps paging through /api/home/latest from page 2.
  */
 $latestBooksData = $section ?? [];
-$legacyCatalogRoute = $legacyCatalogRoute ?? route_path('catalog_legacy');
+$catalogRoute = $catalogRoute ?? route_path('catalog');
 $latestBooksPrefetched = isset($latest_books) && is_array($latest_books) && $latest_books !== [];
 $latestBooksTotal = (int) ($latestBooksTotal ?? 0);
 $latestHasMore = $latestBooksPrefetched && $latestBooksTotal > count($latest_books);
@@ -22,7 +22,7 @@ $latestHasMore = $latestBooksPrefetched && $latestBooksTotal > count($latest_boo
         <p class="section-subtitle">
             <?php echo htmlspecialchars($latestBooksData['subtitle'] ?? __("Scopri le ultime novità della nostra collezione"), ENT_QUOTES, 'UTF-8'); ?>
         </p>
-        <div id="latest-books-grid"<?= $latestBooksPrefetched ? ' data-server-rendered="1" data-has-more="' . ($latestHasMore ? '1' : '0') . '"' : '' ?>>
+        <div id="latest-books-grid" class="books-grid"<?= $latestBooksPrefetched ? ' data-server-rendered="1" data-has-more="' . ($latestHasMore ? '1' : '0') . '"' : '' ?>>
             <?php if ($latestBooksPrefetched): ?>
                 <?php $books = $latest_books; include __DIR__ . '/../home-books-grid.php'; unset($books); ?>
             <?php else: ?>
@@ -39,7 +39,7 @@ $latestHasMore = $latestBooksPrefetched && $latestBooksTotal > count($latest_boo
                 <i class="fas fa-plus"></i>
                 <?= __("Carica Altri") ?>
             </button>
-            <a href="<?= htmlspecialchars($legacyCatalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-cta">
+            <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-cta">
                 <i class="fas fa-th-large"></i>
                 <?= __("Visualizza Tutto il Catalogo") ?>
             </a>

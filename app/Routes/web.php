@@ -711,6 +711,12 @@ return function (App $app): void {
         return $controller->updateEventSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/settings/catalog-header', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->updateCatalogHeader($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/settings/advanced', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
@@ -2213,6 +2219,7 @@ return function (App $app): void {
     // Nuovi endpoint per formato completo con decimali (fino a livello 7)
     $app->get('/api/dewey/children', [DeweyApiController::class, 'getChildren'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/search', [DeweyApiController::class, 'search'])->add(new AdminAuthMiddleware());
+    $app->get('/api/dewey/autocomplete', [DeweyApiController::class, 'autocomplete'])->add(new AdminAuthMiddleware());
     $app->get('/api/dewey/path', [DeweyApiController::class, 'getPath'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
@@ -2758,6 +2765,15 @@ return function (App $app): void {
             return $controller->bookDetailSEO($request, $response, $db, (int) $args['id'], $args['slug']);
         });
     }
+
+    // RIS citation of a book (#412). A technical endpoint, not a localized page
+    // ("/libro/{id}/citation.ris" would be taken as a slug by the route above).
+    $registerRouteIfUnique('GET', '/books/{id:\d+}/citation.ris', function ($request, $response, $args) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
+        return $controller->bookCitationRis($request, $response, $db, (int) $args['id']);
+    });
 
     // Canonical SEO route: /{author-slug}/{book-slug}/{id}
     $registerRouteIfUnique('GET', '/{authorSlug}/{bookSlug}/{id:\d+}', function ($request, $response, $args) use ($app) {

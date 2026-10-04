@@ -1,127 +1,50 @@
 <?php
-/**
- * Digital Library Plugin - Admin Form Fields
- *
- * Renders enhanced upload fields for eBooks and audiobooks in the book form.
- * Uses Uppy for file uploads (following the existing pattern).
- */
-
+/** Multiple files are edited as ordinary fields so saving also works without JavaScript. */
 use App\Support\HtmlHelper;
-
-$currentFileUrl = $book['file_url'] ?? '';
-$currentAudioUrl = $book['audio_url'] ?? '';
+$book = $book ?? [];
+$attachments = \App\Support\DigitalAttachments::fromBook($book, true);
+$attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Recensione o documento correlato'), 'audio' => __('Audiobook')];
 ?>
-
-<div class="mt-6 bg-gradient-to-br from-blue-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-6">
-    <h3 class="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-        <i class="fas fa-file-audio text-blue-600"></i>
-        <?= __("Contenuti Digitali") ?>
-    </h3>
-    <p class="text-sm text-blue-700 mb-4">
-        <i class="fas fa-info-circle mr-1"></i>
-        <?= __("Carica o collega eBook (PDF/ePub) e audiobook (MP3/M4A) per renderli disponibili agli utenti.") ?>
-    </p>
-
-    <!-- eBook Section -->
-    <div class="mb-6">
-        <label for="file_url" class="form-label flex items-center gap-2">
-            <i class="fas fa-file-pdf text-red-600"></i>
-            <?= __("eBook (PDF/ePub)") ?>
-        </label>
-
-        <?php if (!empty($currentFileUrl)): ?>
-        <div class="mb-3 p-3 bg-white border border-gray-200 rounded-lg flex items-center justify-between">
-            <div class="flex items-center gap-2 text-sm">
-                <i class="fas fa-check-circle text-green-500"></i>
-                <span class="font-medium text-gray-700"><?= __("File attuale") ?>:</span>
-                <a href="<?= HtmlHelper::e($currentFileUrl) ?>" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate max-w-xs">
-                    <?= HtmlHelper::e(basename($currentFileUrl)) ?>
-                </a>
-            </div>
-            <button type="button"
-                    onclick="document.getElementById('file_url').value=''; this.parentElement.remove();"
-                    class="text-xs text-red-600 hover:text-red-800 flex items-center gap-1">
-                <i class="fas fa-times"></i>
-                <?= __("Rimuovi") ?>
-            </button>
+<section class="digital-attachments-editor" aria-labelledby="digital-attachments-title">
+    <h3 id="digital-attachments-title" class="form-section-title"><?= __('Contenuti Digitali') ?></h3>
+    <p><?= __('Aggiungi più edizioni, recensioni, articoli correlati o file audio alla stessa scheda. Gli allegati saranno disponibili nella scheda pubblica.') ?></p>
+    <input type="hidden" name="digital_attachments_present" value="1">
+    <input type="hidden" id="file_url" name="file_url" value="<?= HtmlHelper::e($book['file_url'] ?? '') ?>">
+    <input type="hidden" id="audio_url" name="audio_url" value="<?= HtmlHelper::e($book['audio_url'] ?? '') ?>">
+    <div id="digital-attachment-rows">
+        <?php foreach ($attachments as $index => $attachment): ?>
+        <div class="digital-attachment-row" data-attachment-row>
+            <label><?= __('Titolo allegato') ?><input class="form-input" name="digital_attachments[<?= $index ?>][label]" maxlength="255" value="<?= HtmlHelper::e($attachment['label']) ?>"></label>
+            <label><?= __('Tipo di allegato') ?><select class="form-input" name="digital_attachments[<?= $index ?>][kind]">
+                <?php foreach ($attachmentKinds as $kind => $label): ?><option value="<?= $kind ?>" <?= $attachment['kind'] === $kind ? 'selected' : '' ?>><?= HtmlHelper::e($label) ?></option><?php endforeach; ?>
+            </select></label>
+            <label><?= __('URL del file') ?><input class="form-input" name="digital_attachments[<?= $index ?>][url]" maxlength="2048" value="<?= HtmlHelper::e($attachment['url']) ?>"></label>
+            <button type="button" class="ui-button btn-outline" data-remove-attachment><?= __('Rimuovi') ?></button>
+            <?php if (!empty($attachment['invalid'])): ?>
+            <p class="digital-attachment-invalid" role="alert"><?= __('Questo link salvato non è valido: correggilo o rimuovilo prima di salvare.') ?></p>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
-
-        <div class="flex flex-col md:flex-row gap-2">
-            <input type="text"
-                   id="file_url_display"
-                   class="form-input w-full md:flex-1"
-                   placeholder="<?= __('URL del file o carica usando il pulsante') ?>"
-                   value="<?= HtmlHelper::e($currentFileUrl) ?>"
-                   onchange="document.getElementById('file_url').value = this.value">
-            <button type="button"
-                    id="upload-ebook-btn"
-                    class="ui-button btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
-                <i class="fas fa-upload"></i>
-                <?= __("Carica") ?>
-            </button>
-        </div>
-
-        <div id="ebook-uploader" class="mt-3 hidden"></div>
-        <div id="ebook-progress" class="mt-2 hidden"></div>
-        <div id="ebook-upload-result" class="mt-3 hidden"></div>
-
-        <p class="text-xs text-gray-600 mt-2">
-            <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Formati supportati: PDF, ePub • Dimensione massima: 100 MB") ?>
-        </p>
+        <?php endforeach; ?>
     </div>
-
-    <!-- Audiobook Section -->
-    <div>
-        <label for="audio_url" class="form-label flex items-center gap-2">
-            <i class="fas fa-headphones text-green-600"></i>
-            <?= __("Audiobook (MP3/M4A/OGG)") ?>
-        </label>
-
-        <?php if (!empty($currentAudioUrl)): ?>
-        <div class="mb-3 p-3 bg-white border border-gray-200 rounded-lg flex items-center justify-between">
-            <div class="flex items-center gap-2 text-sm">
-                <i class="fas fa-check-circle text-green-500"></i>
-                <span class="font-medium text-gray-700"><?= __("File attuale") ?>:</span>
-                <a href="<?= HtmlHelper::e($currentAudioUrl) ?>" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate max-w-xs">
-                    <?= HtmlHelper::e(basename($currentAudioUrl)) ?>
-                </a>
-            </div>
-            <button type="button"
-                    onclick="document.getElementById('audio_url').value=''; this.parentElement.remove();"
-                    class="text-xs text-red-600 hover:text-red-800 flex items-center gap-1">
-                <i class="fas fa-times"></i>
-                <?= __("Rimuovi") ?>
-            </button>
+    <button type="button" class="ui-button btn-outline" id="add-digital-attachment"><?= __('Aggiungi allegato') ?></button>
+    <p><?= __('Per rimuovere un allegato, elimina la riga o svuota il suo URL. Il file originale rimane disponibile agli altri record che lo usano.') ?></p>
+    <div class="digital-attachment-uploaders">
+        <div>
+            <button type="button" id="upload-ebook-btn" class="ui-button btn-primary"><?= __('Carica PDF o ePub') ?></button>
+            <div id="ebook-uploader" class="mt-3 hidden"></div>
+            <div id="ebook-progress" class="mt-2 hidden"></div>
+            <div id="ebook-upload-result" class="mt-3 hidden"></div>
+            <p><?= __('Formati supportati: PDF, ePub • Dimensione massima: 100 MB') ?></p>
         </div>
-        <?php endif; ?>
-
-        <div class="flex flex-col md:flex-row gap-2">
-            <input type="text"
-                   id="audio_url_display"
-                   class="form-input w-full md:flex-1"
-                   placeholder="<?= __('URL del file o carica usando il pulsante') ?>"
-                   value="<?= HtmlHelper::e($currentAudioUrl) ?>"
-                   onchange="document.getElementById('audio_url').value = this.value">
-            <button type="button"
-                    id="upload-audio-btn"
-                    class="ui-button btn-primary flex items-center justify-center gap-2 w-full md:w-auto">
-                <i class="fas fa-upload"></i>
-                <?= __("Carica") ?>
-            </button>
+        <div>
+            <button type="button" id="upload-audio-btn" class="ui-button btn-primary"><?= __('Carica file audio') ?></button>
+            <div id="audio-uploader" class="mt-3 hidden"></div>
+            <div id="audio-progress" class="mt-2 hidden"></div>
+            <div id="audio-upload-result" class="mt-3 hidden"></div>
+            <p><?= __('Formati supportati: MP3, M4A, OGG • Dimensione massima: 500 MB') ?></p>
         </div>
-
-        <div id="audio-uploader" class="mt-3 hidden"></div>
-        <div id="audio-progress" class="mt-2 hidden"></div>
-        <div id="audio-upload-result" class="mt-3 hidden"></div>
-
-        <p class="text-xs text-gray-600 mt-2">
-            <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Formati supportati: MP3, M4A, OGG • Dimensione massima: 500 MB") ?>
-        </p>
     </div>
-</div>
+</section>
 
 <script>
 /**
@@ -135,6 +58,44 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
         document.querySelector('input[name="csrf_token"]')?.value ||
         '';
+
+    const attachmentRows = document.getElementById('digital-attachment-rows');
+    let nextAttachment = <?= count($attachments) ?>;
+    const attachmentLabels = <?= json_encode(['label'=>__('Titolo allegato'), 'kind'=>__('Tipo di allegato'), 'url'=>__('URL del file'), 'remove'=>__('Rimuovi')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const attachmentKinds = <?= json_encode($attachmentKinds, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const addAttachment = (url = '', label = '', kind = 'ebook') => {
+        const index = nextAttachment++;
+        const row = document.createElement('div');
+        row.className = 'digital-attachment-row';
+        row.dataset.attachmentRow = '';
+        for (const field of ['label', 'kind', 'url']) {
+            const wrap = document.createElement('label');
+            wrap.appendChild(document.createTextNode(attachmentLabels[field]));
+            const input = document.createElement(field === 'kind' ? 'select' : 'input');
+            input.className = 'form-input';
+            input.name = `digital_attachments[${index}][${field}]`;
+            if (field === 'kind') {
+                for (const [value, text] of Object.entries(attachmentKinds)) {
+                    const option = document.createElement('option');
+                    option.value = value; option.textContent = text; input.appendChild(option);
+                }
+            } else { input.maxLength = field === 'url' ? 2048 : 255; }
+            input.value = field === 'url' ? url : field === 'label' ? label : kind;
+            wrap.appendChild(input); row.appendChild(wrap);
+        }
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'ui-button btn-outline';
+        remove.dataset.removeAttachment = ''; remove.textContent = attachmentLabels.remove;
+        row.appendChild(remove); attachmentRows.appendChild(row);
+        return row;
+    };
+    document.getElementById('add-digital-attachment').addEventListener('click', () => {
+        addAttachment().querySelector('input').focus();
+    });
+    attachmentRows.addEventListener('click', event => {
+        const button = event.target.closest('[data-remove-attachment]');
+        if (button) button.closest('[data-attachment-row]').remove();
+    });
 
     const digitalUploaders = {
         ebook: null,
@@ -174,20 +135,16 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const bindUploadEvents = (uppyInstance, type) => {
-        const inputId = type === 'audio' ? 'audio_url' : 'file_url';
-        const displayId = type === 'audio' ? 'audio_url_display' : 'file_url_display';
         const resultId = type === 'audio' ? 'audio-upload-result' : 'ebook-upload-result';
         const resultEl = document.getElementById(resultId);
 
         uppyInstance.on('upload-success', (file, response) => {
             const body = response?.body || {};
-            const storedUrl = body.uploadURL || `/uploads/digital/${encodeURIComponent(file.name)}`;
+            if (!body.success || !body.uploadURL) { return; }
+            const storedUrl = body.uploadURL;
             const displayLinkUrl = body.uploadURL || (window.BASE_PATH || '') + `/uploads/digital/${encodeURIComponent(file.name)}`;
-            const hiddenInput = document.getElementById(inputId);
-            const displayInput = document.getElementById(displayId);
 
-            if (hiddenInput) hiddenInput.value = storedUrl;
-            if (displayInput) displayInput.value = storedUrl;
+            addAttachment(storedUrl, file.name, type === 'audio' ? 'audio' : 'ebook');
 
             if (resultEl) {
                 resultEl.classList.remove('hidden');
@@ -261,12 +218,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const restrictionConfig = isAudio
             ? {
                 maxFileSize: 500 * 1024 * 1024,
-                maxNumberOfFiles: 1,
                 allowedFileTypes: ['.mp3', '.m4a', '.ogg', 'audio/mpeg', 'audio/mp4', 'audio/ogg']
             }
             : {
                 maxFileSize: 100 * 1024 * 1024,
-                maxNumberOfFiles: 1,
                 allowedFileTypes: ['.pdf', '.epub', 'application/pdf', 'application/epub+zip']
             };
 

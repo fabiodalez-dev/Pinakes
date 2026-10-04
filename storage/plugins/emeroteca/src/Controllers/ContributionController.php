@@ -11,6 +11,7 @@ require_once __DIR__ . '/../Services/ContributionCsv.php';
 // required by hand, or the class is missing only at the moment the route runs.
 require_once __DIR__ . '/../Support/CitationFormatter.php';
 require_once __DIR__ . '/../Support/ArticleMarcXml.php';
+require_once __DIR__ . '/../Support/CodeLists.php';
 use App\Plugins\Emeroteca\Services\ContributionService;
 use App\Plugins\Emeroteca\Services\ContributionCsv;
 use App\Plugins\Emeroteca\Support\CitationFormatter;
@@ -93,7 +94,53 @@ final class ContributionController extends AbstractAdminController
         if ($row === null) {
             return $rs->withStatus(404);
         }
-        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null]);
+        // The masthead record this article is linked to, if any: the form says
+        // so, because "Publication" (typed here) and the linked record are
+        // two different things and the list shows both side by side.
+        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostTitle' => $this->hostTitle($row),'hostOptions' => $this->hostOptions((int) ($row['testata_id'] ?? 0))]);
+    }
+    /**
+     * The catalogued mastheads the form can link an article to (#412: pick the
+     * journal on the record, as in an ILS 773 search). The masthead the
+     * article is already linked to is always among them, even past the list
+     * limit: a plain save must not unlink it. null when the lookup fails: the
+     * form then leaves the link alone instead of offering an empty picker.
+     *
+     * @return list<array{id:int,titolo:string,issn:string}>|null
+     */
+    private function hostOptions(int $currentId = 0): ?array
+    {
+        try {
+            $rows = $this->service()->rows('SELECT id, titolo, issn FROM emeroteca_testate ORDER BY titolo, id LIMIT 5000', []);
+            if ($currentId > 0 && !in_array($currentId, array_map(static fn(array $r): int => (int) $r['id'], $rows), true)) {
+                $rows = array_merge($this->service()->rows('SELECT id, titolo, issn FROM emeroteca_testate WHERE id=?', [$currentId]), $rows);
+            }
+            return array_map(static fn(array $r): array => ['id' => (int) $r['id'], 'titolo' => (string) $r['titolo'], 'issn' => (string) ($r['issn'] ?? '')], $rows);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] masthead options: '.$e->getMessage());
+            return null;
+        }
+    }
+    /**
+     * Title of the masthead record a stored article is linked to, or '' when
+     * it is not linked. The form's error re-render asks too, and it runs after
+     * a failure that may be the database's own: a lookup that fails there
+     * shows "not linked" rather than replacing the operator's error.
+     *
+     * @param array<string,mixed>|null $row
+     */
+    private function hostTitle(?array $row): string
+    {
+        if (empty($row['testata_id'])) {
+            return '';
+        }
+        try {
+            $host = $this->service()->rows('SELECT titolo FROM emeroteca_testate WHERE id=?', [(int) $row['testata_id']]);
+            return (string) ($host[0]['titolo'] ?? '');
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] masthead title lookup: '.$e->getMessage());
+            return '';
+        }
     }
     /**
      * Create or update a contribution, including an optional PDF upload (validated by magic
@@ -220,7 +267,7 @@ final class ContributionController extends AbstractAdminController
             foreach (['pubblico','pdf_pubblico','risorsa_pubblica','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
-            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.')]);
+            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostTitle' => $this->hostTitle($old),'hostOptions' => $this->hostOptions((int) (($old ?? [])['testata_id'] ?? 0))]);
         }
     }
     /**
@@ -413,7 +460,14 @@ final class ContributionController extends AbstractAdminController
                 return $this->renderView($rs, 'article-import', ['preview' => null,'report' => $csv->commit($pending['rows'])]);
             }
             $file = $rq->getUploadedFiles()['csv'] ?? null;
-            if (!$file || $file->getError() !== UPLOAD_ERR_OK || $file->getSize() > ContributionCsv::MAX_BYTES) {
+            // Each failure says what went wrong: no file is not a file too large.
+            if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+                throw new \InvalidArgumentException(__('Nessun file caricato.'));
+            }
+            if (in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file->getSize() > ContributionCsv::MAX_BYTES) {
+                throw new \InvalidArgumentException(__('Il CSV supera 5 MB.'));
+            }
+            if ($file->getError() !== UPLOAD_ERR_OK) {
                 throw new \InvalidArgumentException(__('Carica un CSV fino a 5 MB.'));
             }
             $preview = $csv->preview((string)$file->getStream());

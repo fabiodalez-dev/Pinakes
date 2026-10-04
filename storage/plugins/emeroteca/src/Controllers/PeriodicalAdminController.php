@@ -6,6 +6,7 @@ namespace App\Plugins\Emeroteca\Controllers;
 
 require_once __DIR__ . '/AbstractAdminController.php';
 require_once __DIR__ . '/../Support/IssnHelper.php';
+require_once __DIR__ . '/../Support/CodeLists.php';
 
 use App\Plugins\Emeroteca\Support\IssnHelper;
 use App\Support\ActivityLog;
@@ -1811,7 +1812,9 @@ class PeriodicalAdminController extends AbstractAdminController
             'prestabile'              => $str('prestabile', 20) ?? 'consultazione',
             'editore_id'            => $intOrNull('editore_id'),
             'luogo_pubblicazione'   => $str('luogo_pubblicazione', 255),
-            'lingua'                => $str('lingua', 10),
+            // Stored as the picker stores it: an "it" typed by hand or posted
+            // by an old form becomes "ita", so mastheads do not mix both.
+            'lingua'                => ($lingua = $str('lingua', 10)) === null ? null : \App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($lingua),
             'periodicita'           => $str('periodicita', 20),
             'tipo'                  => $str('tipo', 20) ?? 'rivista',
             'anno_inizio'           => $intOrNull('anno_inizio'),

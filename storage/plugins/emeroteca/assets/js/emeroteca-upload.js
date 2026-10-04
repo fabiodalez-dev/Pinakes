@@ -67,6 +67,9 @@
         var isImage = kind === 'image';
         var previewImage = isImage ? document.getElementById(mount.dataset.previewImage || '') : null;
         var originalPreview = previewImage ? previewImage.getAttribute('src') || '' : '';
+        // A mount may lower the default size cap (an article PDF is capped
+        // at 25 MB, an issue PDF at 100 MB); the server enforces it anyway.
+        var maxBytes = parseInt(mount.dataset.maxBytes || '', 10);
 
         if (typeof window.Uppy === 'undefined' || typeof window.UppyDragDrop === 'undefined') {
             if (attempts > 0) {
@@ -82,13 +85,19 @@
         try {
             var uppy = new window.Uppy({
                 restrictions: isImage ? {
-                    maxFileSize: 5 * 1024 * 1024,
+                    maxFileSize: maxBytes > 0 ? maxBytes : 5 * 1024 * 1024,
                     maxNumberOfFiles: 1,
                     allowedFileTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-                } : {
-                    maxFileSize: 100 * 1024 * 1024,
+                } : kind === 'pdf' ? {
+                    maxFileSize: maxBytes > 0 ? maxBytes : 100 * 1024 * 1024,
                     maxNumberOfFiles: 1,
                     allowedFileTypes: ['.pdf', 'application/pdf']
+                } : {
+                    // Any other file (the article CSV): the mount names the
+                    // accepted types in data-types, comma separated.
+                    maxFileSize: maxBytes > 0 ? maxBytes : 10 * 1024 * 1024,
+                    maxNumberOfFiles: 1,
+                    allowedFileTypes: (mount.dataset.types || '').split(',').filter(Boolean).length ? (mount.dataset.types || '').split(',').filter(Boolean) : null
                 },
                 autoProceed: false
             });

@@ -75,7 +75,7 @@ $totalLines = $data['total_lines'] ?? 0;
               <i class="fas fa-envelope mr-1 text-gray-500"></i>
               <?= __("Email utente") ?>
             </label>
-            <input id="filter-email" type="text" placeholder="<?= __("Cerca email...") ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="filter-email" type="text" placeholder="<?= htmlspecialchars(__("Cerca email..."), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
 
           <div>
@@ -83,7 +83,7 @@ $totalLines = $data['total_lines'] ?? 0;
               <i class="fas fa-network-wired mr-1 text-gray-500"></i>
               <?= __("IP Address") ?>
             </label>
-            <input id="filter-ip" type="text" placeholder="<?= __("Cerca IP...") ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
+            <input id="filter-ip" type="text" placeholder="<?= htmlspecialchars(__("Cerca IP..."), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full" />
           </div>
         </div>
       </div>

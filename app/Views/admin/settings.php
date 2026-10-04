@@ -350,7 +350,7 @@ php cron/automatic-notifications.php
 
               <div class="mb-4">
                 <label class="form-label"><?= __("Soggetto Email") ?></label>
-                <input type="text" id="template-subject" name="subject" class="form-input" placeholder="<?= __("Oggetto dell'email") ?>">
+                <input type="text" id="template-subject" name="subject" class="form-input" placeholder="<?= htmlspecialchars(__("Oggetto dell'email"), ENT_QUOTES, 'UTF-8') ?>">
               </div>
 
               <div class="mb-4">

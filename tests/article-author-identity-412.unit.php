@@ -183,6 +183,20 @@ $referenceKey=(string)$row['reference_key'];
     $typed=$service->save(['titolo'=>'Typed inverted','credits_present'=>1,'credits'=>[['nome_credito'=>'Kierkegaard, Søren','create'=>'1','ruolo'=>'principale']]]);
     $typedRow=$service->get($typed);
     verifyIdentity($typedRow['autori']==='Kierkegaard, Søren' && $db->query("SELECT autori FROM emeroteca_contributi WHERE id=$typed")->fetch_row()[0]==='Kierkegaard, Søren','created author keeps the typed inverted credit at rest');
+    // Picking an existing person while typing the credit in citation form keeps
+    // that form: "van Gogh, Vincent", not the last-token guess "Gogh, Vincent van".
+    $particle=$authors->create(['nome'=>'Vincent van Gogh']);
+    $picked=$service->get($service->save(['titolo'=>'Picked inverted','credits_present'=>1,'credits'=>[['nome_credito'=>'van Gogh, Vincent','autore_id'=>(string)$particle,'ruolo'=>'principale']]]));
+    verifyIdentity($picked['autori']==='van Gogh, Vincent' && $picked['author_credits'][0]['autore_id']===$particle,'a linked pick keeps the typed inverted credit');
+    $guessed=$service->get($service->save(['titolo'=>'Picked by label','credits_present'=>1,'credits'=>[['nome_credito'=>'Someone Else, X','autore_id'=>(string)$particle,'ruolo'=>'principale']]]));
+    verifyIdentity($guessed['autori']!=='Someone Else, X','a typed credit naming someone else falls back to the citation form');
+    // Over the limits the error says which limit, not "invalid value".
+    $tooMany=[];
+    for($n=0;$n<21;$n++){$tooMany[]=['nome_credito'=>'Author '.$n,'ruolo'=>$n===0?'principale':'co-autore'];}
+    try{$service->save(['titolo'=>'Too many','credits_present'=>1,'credits'=>$tooMany]);verifyIdentity(false,'21 credits are refused');}
+    catch(InvalidArgumentException $e){verifyIdentity(str_contains($e->getMessage(),'20'),'21 credits are refused, naming the limit of 20');}
+    try{$service->save(['titolo'=>'Too long','credits_present'=>1,'credits'=>[['nome_credito'=>str_repeat('a',256),'ruolo'=>'principale']]]);verifyIdentity(false,'a 256-character credit is refused');}
+    catch(InvalidArgumentException $e){verifyIdentity(str_contains($e->getMessage(),'255'),'a 256-character credit is refused, naming the limit of 255');}
     $single=$authors->create(['nome'=>'Plato']);
     $singleRow=$service->get($service->save(['titolo'=>'Single name','credits_present'=>1,'credits'=>[$credit($single)]]));
     $singleXml=new DOMDocument();$singleXml->loadXML(ArticleMarcXml::format($singleRow));$singlePath=new DOMXPath($singleXml);$singlePath->registerNamespace('m','http://www.loc.gov/MARC21/slim');

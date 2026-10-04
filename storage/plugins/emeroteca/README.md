@@ -24,9 +24,9 @@ Under **Electronic resource** the form carries the danMARC2/MARC 21 **856** trip
 
 ## Citing an article
 
-The public page renders the citation in **APA 7** and **Harvard**, each with a copy button, and offers the record as **RIS** for EndNote, Mendeley and Zotero at `/emeroteca/articolo/{id}/citazione.ris`. The same file is available in the admin form for an article that is not published, at `/admin/periodicals/articles/{id}/citation.ris`.
+The public page renders the citation in **APA 7**, **Harvard**, **MLA**, **Chicago** and **Oxford (Umeå)** through the shared Cite dialog, each with a copy button, and offers the record as **RIS** for EndNote, Mendeley and Zotero at `/emeroteca/articolo/{id}/citazione.ris`. The same file is available in the admin form for an article that is not published, at `/admin/periodicals/articles/{id}/citation.ris`.
 
-The citation is assembled from the record rather than retyped, so a corrected volume number corrects the bibliography too. A name written inverted (`Petersen, Hans Uwe`) is reduced to initials; a name with no comma is treated as corporate and used verbatim, because guessing which word of `Marc J. Schweissinger` is the surname is wrong often enough, and invisibly enough, not to guess. With no author the title takes the author slot, as both styles prescribe; with no year the citation says `n.d.` rather than inventing one, though a year written only in a free-text date (`June 2019`) is still found.
+The citation is assembled from the record rather than retyped, so a corrected volume number corrects the bibliography too. A name written inverted (`Petersen, Hans Uwe`) is reduced to initials; a name with no comma is treated as corporate and used verbatim, because guessing which word of `Marc J. Schweissinger` is the surname is wrong often enough, and invisibly enough, not to guess. With no author the title takes the author slot, as the selected style prescribes; with no year the citation says `n.d.` rather than inventing one, though a year written only in a free-text date (`June 2019`) is still found.
 
 RIS lines end CR LF and no value may contain a line break — an abstract pasted out of a PDF is collapsed to one line, because in RIS a break starts a new tag and would truncate the record at its first paragraph.
 
@@ -40,7 +40,19 @@ Author links on article pages and lists open the shared catalogue author filter.
 
 The OpenURL resolver accepts both the main title and the complete `title : subtitle` exported by COinS. Host title, ISSN, volume and issue disambiguate title matches; an ambiguous match falls back to the external resolver. Disabled Emeroteca content is excluded from both the shared catalogue and the resolver.
 
-Each article can carry its own image, uploaded on the article form (JPG, PNG or WebP, up to 5 MB) and stored under `public/uploads/emeroteca` like the issue and masthead images. Articles without one show the same placeholder the catalogue uses for a book without a cover. Replacing or removing the image deletes the previous file once no other record refers to it, and never before the new row has been saved.
+Each article can carry its own image, uploaded on the article form (JPG, PNG or WebP, up to 5 MB) and stored under `public/uploads/emeroteca` like the issue and masthead images. An article without one shows the cover of the issue it was placed in, then the masthead's logo, and only when there is neither the placeholder the catalogue uses for a book without a cover. Replacing or removing the image deletes the previous file once no other record refers to it, and never before the new row has been saved.
+
+## Public pages
+
+The public section is built from the same pieces as the catalogue and the book page (`app/Views/frontend/partials`, `public/assets/catalog-pages.css`, `public/assets/book-detail.css`), so it follows the active layout like the rest of the site.
+
+- `/emeroteca` — the mastheads, with filters for type, publisher, subject and initial letter, 20 per page, then the latest articles (or, while searching, the articles matching the search).
+- `/emeroteca/{id}` — a masthead: its years in the sidebar, the selected year's issues, and its articles, searchable and 20 per page.
+- `/emeroteca/fascicolo/{id}` — an issue: the published articles placed in it, in page order, then its printed table of contents; previous and next issue of the same year.
+- `/emeroteca/articolo/{id}` — an article: breadcrumb Home › Emeroteca › masthead › issue, where it was published, previous and next article of the same issue, details, citations, and related articles of the same masthead and the same linked author.
+- `/emeroteca/articoli` — the article search, with `?testata=`, `?fascicolo=`, `?autore=`, `?pubblicazione=` and `?keyword=`.
+
+Filtered or searched listings are served `noindex,follow`; later pages of a listing canonicalise to themselves.
 
 ## Create the publication later
 
@@ -59,7 +71,7 @@ Use **Import articles** in Emeroteca or the link from the book import page. Down
 The supported columns are:
 
 ```text
-record_type,reference_key,titolo,autori,tipo_contributo,contenitore_tipo,contenitore_titolo,issn,data_pubblicazione_testo,anno_pubblicazione,volume,numero,pagine,doi,supporto,keywords,abstract,collocazione,note_private,pubblico
+record_type,reference_key,titolo,sottotitolo,autori,tipo_contributo,contenitore_tipo,contenitore_titolo,issn,data_pubblicazione_testo,anno_pubblicazione,volume,numero,pagine,doi,supporto,keywords,abstract,lingua,paese,classificazione_schema,classificazione,nota_possesso,risorsa_url,risorsa_testo,risorsa_accesso,risorsa_pubblica,collocazione,note_private,pubblico,contenitore_curatori,contenitore_editore,contenitore_luogo,isbn
 ```
 
 A filled row, for reference:
@@ -69,11 +81,13 @@ record_type,titolo,autori,contenitore_titolo,anno_pubblicazione,volume,numero,pa
 journal_article,Intertextuality in Daniel Kehlmann's Novel Tyll,"Schweissinger, Marc J.",International Journal of Language and Literature,2019,7,1,138-148
 ```
 
-`journal_article` and `newspaper_article` also set the publication type, so `contenitore_tipo` can be left out. Columns you omit keep whatever the record already holds; an empty cell clears it.
+`journal_article`, `newspaper_article` and `book_chapter` also set the publication type, so `contenitore_tipo` can be left out.
+
+A `book_chapter` row is a chapter of an anthology (`contenitore_tipo` `antologia`): `contenitore_titolo` holds the title of the volume, and four columns describe that volume — `contenitore_curatori` (its editors, separated by a semicolon like `autori`), `contenitore_editore` (publisher), `contenitore_luogo` (place of publication) and `isbn` (the volume's ISBN-10 or ISBN-13). These four are kept only for chapters: on any other publication type they are cleared on save. Columns you omit keep whatever the record already holds; an empty cell clears it.
 
 `autori` (alias `authors`) is free text and is stored exactly as supplied. Several authors are separated by a semicolon; the comma belongs to the name, which is why the row above quotes `"Schweissinger, Marc J."` as one author.
 
-Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, or `newspaper_article`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last two also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
+Accepted aliases include `title`, `authors`, `container_title`, `journal_title`, `date`, `year`, `issue`, and `pages`. Header case and separators do not matter. `record_type` (alias `media_type`) accepts `article`, `articolo`, `journal_article`, `newspaper_article`, or `book_chapter`; it leads the template and the export because it is also what lets the book importer refuse a file of articles — omit it and that guard has nothing to read. The last three also identify the publication type. Unknown types or columns are reported instead of discarded. Article records sent to the book importer are explicitly rejected with directions to Emeroteca.
 
 Exports exceeding 500 rows or 5 MB download as a ZIP of numbered CSV files. Extract and import each CSV separately; every part includes its header and fits the same import limits. Duplicate citations and DOI values are checked within the batch and again at commit, with imports serialized per database. Citation matching includes the publication year and textual date, so recurring columns in different issues remain distinct; a matching DOI still identifies a duplicate. Exported data cells escape spreadsheet formula prefixes and leading apostrophes with an additional apostrophe, which the article importer removes on reimport to preserve the original text.
 
@@ -109,7 +123,7 @@ Choosing **Publication only** for an already associated article removes its issu
 
 The book management page offers **Add article** beside **New book** (desktop and mobile) when Emeroteca is active. The existing article form captures authors, title/subtitle, pagination and host metadata without requiring an owned journal. Existing articles can be associated with a local masthead from the Articles list.
 
-Article pages and the admin edit form now offer a MARCXML download. It exports a monographic component (`Leader/07=a`, as defined by the Library of Congress for an individual article), 100/700 (the credit in citation form, `Surname, Forename`), 245, 300 and 773 `$t/$x/$g`; an associated masthead adds `$w=periodical:{id}`, matching the 001 of its record in the local SRU export. Variable fields are written in ascending tag order. 008 carries the date entered on file, a known year (or "no dates") and the MARC language; 041 repeats the language. The country is exported as its ISO 3166 code in 044 `$c`, while 008/15-17 remains unspecified, because ISO 3166 country codes are not MARC country codes. It also carries classification (see above), keywords, abstract and DOI. The holdings note is exported in 852 `$z`; the shelf mark (852 `$c`) appears only in the admin export. The catalogue page is an 856 with second indicator 2 (related resource, `$y Catalogue record`); the electronic resource is an 856 with second indicator 0 only when it is published **and** is an `http`/`https` address — a share, a `file:` URI or an archive identifier is never exported. Private notes and uploaded file paths are excluded; public downloads require publication and are not cached. This is a per-record export, not an extension of the OAI/SRU article harvesting sets. Linked authors open the shared author archive by identity. Legacy credits retain name-based discovery, with no automatic authority merges or fabricated GND identifiers.
+Article pages and the admin edit form now offer a MARCXML download. It exports a monographic component (`Leader/07=a`, as defined by the Library of Congress for an individual article), 100/700 (the credit in citation form, `Surname, Forename`), 245, 300 and 773 `$t/$x/$g`; an associated masthead adds `$w=periodical:{id}`, matching the 001 of its record in the local SRU export. A chapter in an anthology (publication type *Anthology*, 1.9.0) has a book as its host: 773 carries the volume's imprint in `$d` (`Place : Publisher, Year`) and its ISBN in `$z` instead of an ISSN in `$x`; its citations use the chapter forms of APA 7 and Harvard, RIS exports it as `CHAP` with the editors as `A2`, and its COinS is an OpenURL book item. Variable fields are written in ascending tag order. 008 carries the date entered on file, a known year (or "no dates") and the MARC language; 041 repeats the language. The country is exported as its ISO 3166 code in 044 `$c`, while 008/15-17 remains unspecified, because ISO 3166 country codes are not MARC country codes. It also carries classification (see above), keywords, abstract and DOI. The holdings note is exported in 852 `$z`; the shelf mark (852 `$c`) appears only in the admin export. The catalogue page is an 856 with second indicator 2 (related resource, `$y Catalogue record`); the electronic resource is an 856 with second indicator 0 only when it is published **and** is an `http`/`https` address — a share, a `file:` URI or an archive identifier is never exported. Private notes and uploaded file paths are excluded; public downloads require publication and are not cached. This is a per-record export, not an extension of the OAI/SRU article harvesting sets. Linked authors open the shared author archive by identity. Legacy credits retain name-based discovery, with no automatic authority merges or fabricated GND identifiers.
 
 ### Shared authors (v1.8.0)
 
