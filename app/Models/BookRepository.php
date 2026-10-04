@@ -1651,6 +1651,13 @@ class BookRepository
                     $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
                     $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
+                } elseif ($c === 'luogo_pubblicazione') {
+                    // Same rule as create()/update(): trimmed, and a blank
+                    // value is not written (it would overwrite their NULL).
+                    $place = self::nullIfBlank($data[$c]);
+                    if ($place !== null) {
+                        $cols[$c] = $place;
+                    }
                 } else {
                     $cols[$c] = $data[$c];
                 }

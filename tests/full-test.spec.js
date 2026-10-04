@@ -4165,3 +4165,321 @@ test.describe.serial('Phase 23: Multi-publisher & Multi-author', () => {
     expect(serverErrors, `5xx responses seen:\n${serverErrors.join('\n')}`).toEqual([]);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phase 24: Place of publication, book RIS, event image layouts — 25 tests
+// #412: a book records where it was published (core migration 0.7.89), the
+// place reaches the Chicago and Harvard citations, and the book page offers
+// its citation as a RIS file. #137: the event image presets that rendered
+// alike were merged, and the resource-hero cover is held to 350px.
+// Self-contained: seeds its own rows and restores the settings it touches.
+// ════════════════════════════════════════════════════════════════════════════
+test.describe.serial('Phase 24: Place of publication, RIS and event layouts', () => {
+  /** @type {import('@playwright/test').BrowserContext} */
+  let context;
+  /** @type {import('@playwright/test').Page} */
+  let page;
+
+  const TAG = `PL${RUN_ID}`;
+  const BOOK = `${TAG} Reaching a state of hope`;
+  const PUBLISHER = `${TAG} Lunds universitet`;
+  const EVENT_SLUG = `${TAG.toLowerCase()}-event`;
+  let bookId = 0;
+  let risBookId = 0;
+  let publisherId = 0;
+  let eventPrefix = '/eventi';
+  /** Settings this phase changes, restored in afterAll ('' = row absent). */
+  let savedLayout = '';
+  let savedEventsEnabled = '';
+
+  const setting = (key) => dbQuery(`SELECT COALESCE(MAX(setting_value),'') FROM system_settings WHERE category='cms' AND setting_key='${key}'`);
+  const putSetting = (key, value) => dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('cms','${key}','${value}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+  const restoreSetting = (key, value) => (value === ''
+    ? dbQuery(`DELETE FROM system_settings WHERE category='cms' AND setting_key='${key}'`)
+    : putSetting(key, value));
+  const risUrl = (id) => `${BASE}/books/${id}/citation.ris`;
+  async function ris(id) {
+    const res = await page.request.get(risUrl(id));
+    expect(res.status(), `GET ${risUrl(id)}`).toBe(200);
+    return res.text();
+  }
+  /** The plain-text citation of one style, as the Cite dialog offers it. */
+  async function citation(id, style) {
+    await page.goto(`${BASE}/libro/${id}`);
+    return page.locator(`#cite-list li[data-cite-style="${style}"] [data-cite-copy]`).getAttribute('data-cite-text');
+  }
+  async function saveEditForm(id) {
+    await submitBookFormAndNavigate(page, new RegExp(`/admin/books/${id}$`), '/edit/');
+  }
+  async function openEvent() {
+    const res = await page.goto(`${BASE}${eventPrefix}/${EVENT_SLUG}`);
+    expect(res && res.status(), 'event page').toBeLessThan(400);
+  }
+
+  test.beforeAll(async ({ browser }) => {
+    clearRateLimits();
+    if (!appReady) return;
+    context = await browser.newContext();
+    page = await context.newPage();
+    attachServerErrorGuard(page);
+    await loginAsAdmin(page);
+    savedLayout = setting('event_image_layout');
+    savedEventsEnabled = setting('events_page_enabled');
+    putSetting('events_page_enabled', '1');
+    const locale = dbQuery("SELECT COALESCE(MAX(code),'it_IT') FROM languages WHERE is_default=1");
+    eventPrefix = locale === 'it_IT' ? '/eventi' : '/events';
+    dbQuery(`INSERT INTO editori (nome) VALUES ('${PUBLISHER}')`);
+    publisherId = Number(dbQuery(`SELECT id FROM editori WHERE nome='${PUBLISHER}' ORDER BY id DESC LIMIT 1`));
+  });
+
+  test.afterAll(async () => {
+    try { restoreSetting('event_image_layout', savedLayout); } catch {}
+    try { restoreSetting('events_page_enabled', savedEventsEnabled); } catch {}
+    try { dbQuery(`DELETE FROM events WHERE slug='${EVENT_SLUG}'`); } catch {}
+    try { dbQuery(`DELETE FROM libri_autori WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM copie WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM libri WHERE titolo LIKE '${TAG}%'`); } catch {}
+    try { dbQuery(`DELETE FROM autori WHERE nome LIKE '${TAG}%'`); } catch {}
+    try { dbQuery(`DELETE FROM editori WHERE nome='${PUBLISHER}'`); } catch {}
+    await context?.close();
+  });
+
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
+
+  // ── Place of publication ────────────────────────────────────────────────
+  test('24.1 libri.luogo_pubblicazione is a nullable VARCHAR(255) in the table collation', async () => {
+    const row = dbQuery(`SELECT CONCAT_WS('|', COLUMN_TYPE, IS_NULLABLE, COLLATION_NAME) FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='libri' AND COLUMN_NAME='luogo_pubblicazione'`);
+    expect(row).toBe('varchar(255)|YES|utf8mb4_unicode_ci');
+  });
+
+  test('24.2 The place sits right after the edition, as in schema.sql', async () => {
+    const order = dbQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='libri' ORDER BY ORDINAL_POSITION`).split('\n');
+    expect(order.indexOf('luogo_pubblicazione')).toBe(order.indexOf('edizione') + 1);
+  });
+
+  test('24.3 A book created in the admin form keeps the place typed in', async () => {
+    await page.goto(`${BASE}/admin/books/create`);
+    await page.fill('#titolo', BOOK);
+    await page.fill('#luogo_pubblicazione', 'Lund');
+    await submitBookFormAndNavigate(page, /admin\/books(?!.*create)/, '/create');
+    bookId = Number(dbQuery(`SELECT COALESCE(MAX(id),0) FROM libri WHERE titolo='${BOOK}' AND deleted_at IS NULL`));
+    expect(bookId).toBeGreaterThan(0);
+    expect(dbQuery(`SELECT luogo_pubblicazione FROM libri WHERE id=${bookId}`)).toBe('Lund');
+  });
+
+  test('24.4 The edit form shows the stored place', async () => {
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await expect(page.locator('#luogo_pubblicazione')).toHaveValue('Lund');
+    await expect(page.locator('#luogo_pubblicazione')).toHaveAttribute('maxlength', '255');
+  });
+
+  test('24.5 Surrounding spaces are trimmed on save', async () => {
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await page.fill('#luogo_pubblicazione', '   Malmö   ');
+    await saveEditForm(bookId);
+    await expect.poll(() => dbQuery(`SELECT luogo_pubblicazione FROM libri WHERE id=${bookId}`)).toBe('Malmö');
+  });
+
+  test('24.6 Emptying the field stores NULL, not an empty string', async () => {
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await page.fill('#luogo_pubblicazione', '   ');
+    await saveEditForm(bookId);
+    await expect.poll(() => dbQuery(`SELECT IFNULL(luogo_pubblicazione,'NULL') FROM libri WHERE id=${bookId}`)).toBe('NULL');
+  });
+
+  test('24.7 Non-ASCII and quotes round-trip through the form', async () => {
+    const place = "København & 's-Hertogenbosch";
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await page.fill('#luogo_pubblicazione', place);
+    await saveEditForm(bookId);
+    await expect.poll(() => dbQuery(`SELECT luogo_pubblicazione FROM libri WHERE id=${bookId}`)).toBe(place);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
+    await expect(page.locator('#luogo_pubblicazione')).toHaveValue(place);
+  });
+
+  test('24.8 The public page lists the place as its own metadata row', async () => {
+    dbQuery(`UPDATE libri SET luogo_pubblicazione='Lund', editore_id=${publisherId}, anno_pubblicazione=2013 WHERE id=${bookId}`);
+    await flushCache();
+    await page.goto(`${BASE}/libro/${bookId}`);
+    const row = page.locator('.meta-item', { has: page.locator('.meta-label', { hasText: 'Luogo di pubblicazione' }) });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.meta-value')).toHaveText('Lund');
+  });
+
+  test('24.9 Markup in the place is shown as text, never rendered', async () => {
+    dbQuery(`UPDATE libri SET luogo_pubblicazione='<b id="pl-xss">Lund</b>' WHERE id=${bookId}`);
+    await flushCache();
+    await page.goto(`${BASE}/libro/${bookId}`);
+    await expect(page.locator('#pl-xss')).toHaveCount(0);
+    await expect(page.locator('.meta-value', { hasText: '<b id="pl-xss">Lund</b>' })).toHaveCount(1);
+    dbQuery(`UPDATE libri SET luogo_pubblicazione='Lund' WHERE id=${bookId}`);
+    await flushCache();
+  });
+
+  test('24.10 Chicago cites the imprint as "Place: Publisher"', async () => {
+    expect(await citation(bookId, 'chicago')).toContain(`Lund: ${PUBLISHER}`);
+  });
+
+  test('24.11 Harvard cites the imprint as "Place: Publisher"', async () => {
+    expect(await citation(bookId, 'harvard')).toContain(`Lund: ${PUBLISHER}`);
+  });
+
+  test('24.12 APA 7 leaves the place out, as the style prescribes', async () => {
+    const apa = await citation(bookId, 'apa');
+    expect(apa).toContain(PUBLISHER);
+    expect(apa, 'the place (not the publisher, which contains "Lunds")').not.toMatch(/\bLund\b/);
+  });
+
+  test('24.13 Without a place the imprint is the publisher alone, with no stray colon', async () => {
+    dbQuery(`UPDATE libri SET luogo_pubblicazione=NULL WHERE id=${bookId}`);
+    await flushCache();
+    const chicago = await citation(bookId, 'chicago');
+    expect(chicago).toContain(PUBLISHER);
+    expect(chicago).not.toMatch(new RegExp(`:\\s*${PUBLISHER}`));
+    dbQuery(`UPDATE libri SET luogo_pubblicazione='Lund' WHERE id=${bookId}`);
+    await flushCache();
+  });
+
+  // ── RIS download ────────────────────────────────────────────────────────
+  test('24.14 The Cite card links the RIS file of this book', async () => {
+    await page.goto(`${BASE}/libro/${bookId}`);
+    const link = page.locator('#book-cite-card a', { hasText: 'RIS' });
+    await expect(link).toHaveCount(1);
+    expect(await link.getAttribute('href')).toMatch(new RegExp(`/books/${bookId}/citation\\.ris$`));
+  });
+
+  test('24.15 The RIS response is a downloadable research-info-systems file', async () => {
+    const res = await page.request.get(risUrl(bookId));
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toContain('application/x-research-info-systems');
+    expect(res.headers()['content-disposition']).toBe(`attachment; filename="book-${bookId}.ris"`);
+    expect(res.headers()['x-content-type-options']).toBe('nosniff');
+  });
+
+  test('24.16 The record opens with TY BOOK, closes with ER and uses CRLF', async () => {
+    const body = await ris(bookId);
+    expect(body.startsWith('TY  - BOOK\r\n')).toBe(true);
+    expect(body.endsWith('ER  - \r\n')).toBe(true);
+    expect(body.replace(/\r\n/g, '')).not.toMatch(/[\r\n]/);
+    for (const line of body.split('\r\n').filter(Boolean)) expect(line).toMatch(/^[A-Z][A-Z0-9]  - /);
+  });
+
+  test('24.17 It carries title, year, publisher and place', async () => {
+    const body = await ris(bookId);
+    expect(body).toContain(`TI  - ${BOOK}\r\n`);
+    expect(body).toContain('PY  - 2013\r\n');
+    expect(body).toContain(`PB  - ${PUBLISHER}\r\n`);
+    expect(body).toContain('CY  - Lund\r\n');
+  });
+
+  test('24.18 Authors are AU, editors A2, translators left out', async () => {
+    const people = { principale: 'Marie Curie', 'co-autore': 'Pierre Curie', curatore: 'Ève Denis', traduttore: 'Paul Langevin' };
+    let order = 1;
+    for (const [role, name] of Object.entries(people)) {
+      dbQuery(`INSERT INTO autori (nome) VALUES ('${TAG} ${name}')`);
+      const id = dbQuery(`SELECT MAX(id) FROM autori WHERE nome='${TAG} ${name}'`);
+      dbQuery(`INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (${bookId}, ${id}, '${role}', ${order++})`);
+    }
+    await flushCache();
+    const body = await ris(bookId);
+    expect(body).toContain(`AU  - Curie, ${TAG} Marie\r\n`);
+    expect(body).toContain(`AU  - Curie, ${TAG} Pierre\r\n`);
+    expect(body).toContain(`A2  - Denis, ${TAG} Ève\r\n`);
+    expect(body).not.toContain('Langevin');
+  });
+
+  test('24.19 Subtitle, edition, series and language reach their tags', async () => {
+    dbQuery(`UPDATE libri SET sottotitolo='Essays', edizione='2nd ed.', collana='${TAG} Series', lingua='English' WHERE id=${bookId}`);
+    await flushCache();
+    const body = await ris(bookId);
+    expect(body).toContain(`TI  - ${BOOK} : Essays\r\n`);
+    expect(body).toContain('ET  - 2nd ed.\r\n');
+    expect(body).toContain(`T2  - ${TAG} Series\r\n`);
+    expect(body).toContain('LA  - English\r\n');
+  });
+
+  test('24.20 SN prefers the ISBN-13 and falls back to the ISBN-10', async () => {
+    dbQuery(`UPDATE libri SET isbn13='9789171734778', isbn10='9171734772' WHERE id=${bookId}`);
+    await flushCache();
+    expect(await ris(bookId)).toContain('SN  - 9789171734778\r\n');
+    dbQuery(`UPDATE libri SET isbn13=NULL WHERE id=${bookId}`);
+    await flushCache();
+    const body = await ris(bookId);
+    expect(body).toContain('SN  - 9171734772\r\n');
+    dbQuery(`UPDATE libri SET isbn10=NULL WHERE id=${bookId}`);
+    await flushCache();
+  });
+
+  test('24.21 Keywords split on commas and semicolons, one KW each', async () => {
+    dbQuery(`UPDATE libri SET parole_chiave='hope, memory;  exile ,' WHERE id=${bookId}`);
+    await flushCache();
+    const kws = (await ris(bookId)).split('\r\n').filter((l) => l.startsWith('KW  - '));
+    expect(kws).toEqual(['KW  - hope', 'KW  - memory', 'KW  - exile']);
+  });
+
+  test('24.22 A line break in a value cannot start a new RIS tag', async () => {
+    dbQuery(`INSERT INTO libri (titolo, anno_pubblicazione) VALUES ('${TAG} Tom &amp; Jerry\\nTY  - JOUR', 1999)`);
+    risBookId = Number(dbQuery(`SELECT MAX(id) FROM libri WHERE titolo LIKE '${TAG} Tom%'`));
+    await flushCache();
+    const body = await ris(risBookId);
+    expect(body.match(/^TY {2}- /gm)).toHaveLength(1);
+    expect(body).toContain(`TI  - ${TAG} Tom & Jerry TY - JOUR\r\n`);
+  });
+
+  test('24.23 UR is the absolute address of the book page, and the file is public', async () => {
+    const anon = await context.browser().newContext();
+    try {
+      const res = await anon.request.get(risUrl(bookId));
+      expect(res.status(), 'no login needed for a public record').toBe(200);
+      const ur = ((await res.text()).match(/^UR {2}- (.*)\r$/m) || [])[1] || '';
+      expect(ur).toMatch(/^https?:\/\//);
+      const page2 = await anon.newPage();
+      const res2 = await page2.goto(ur);
+      expect(res2 && res2.status()).toBe(200);
+      await expect(page2.locator('#book-title')).toContainText(BOOK);
+    } finally { await anon.close(); }
+  });
+
+  test('24.24 A deleted or missing book has no citation file', async () => {
+    dbQuery(`UPDATE libri SET deleted_at=NOW() WHERE id=${risBookId}`);
+    await flushCache();
+    expect((await page.request.get(risUrl(risBookId))).status()).toBe(404);
+    const missing = Number(dbQuery('SELECT COALESCE(MAX(id),0)+1000 FROM libri'));
+    expect((await page.request.get(risUrl(missing))).status()).toBe(404);
+  });
+
+  // ── Event image layouts ────────────────────────────────────────────────
+  test('24.25 Event presets: three choices, a legacy thumb saves as contained, the cover stops at 350px', async () => {
+    putSetting('event_image_layout', 'thumb');
+    await page.goto(`${BASE}/admin/settings?tab=cms`);
+    const select = page.locator('select#event_image_layout');
+    expect(await select.locator('option').evaluateAll((o) => o.map((x) => x.value))).toEqual(['contained', 'banner', 'full']);
+    await expect(select).toHaveValue('contained');
+
+    // A crafted POST of the retired value, or of an unknown one, stores 'contained'.
+    const csrf = await getCsrfToken(page);
+    for (const value of ['thumb', 'huge']) {
+      putSetting('event_image_layout', 'banner');
+      await page.request.post(`${BASE}/admin/settings/events`, { form: { csrf_token: csrf, event_image_layout: value }, maxRedirects: 0 });
+      expect(setting('event_image_layout'), `POST ${value}`).toBe('contained');
+    }
+
+    dbQuery(`INSERT INTO events (title, slug, content, event_date, featured_image, is_active)
+      VALUES ('${TAG} Event', '${EVENT_SLUG}', '<p>${'Body text. '.repeat(60)}</p>', '${futureISO(30)}', '/assets/books.jpg', 1)`);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    for (const stored of ['contained', 'thumb']) {
+      putSetting('event_image_layout', stored);
+      await openEvent();
+      const cover = page.locator('.resource-hero .book-cover-large');
+      await expect(cover).toBeVisible();
+      await expect(page.locator('figure.event-cover')).toHaveCount(0);
+      const box = await cover.boundingBox();
+      expect(box && box.width, `${stored}: hero cover width`).toBeLessThanOrEqual(350.5);
+    }
+    putSetting('event_image_layout', 'full');
+    await openEvent();
+    await expect(page.locator('.resource-hero .book-cover-large')).toHaveCount(0);
+    await expect(page.locator('figure.event-cover.event-cover--full')).toHaveCount(1);
+  });
+});
