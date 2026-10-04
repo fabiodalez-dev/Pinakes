@@ -125,6 +125,27 @@ test.describe.serial('Uwe #412 follow-up', () => {
     db(`UPDATE emeroteca_contributi SET reference_key='${RUN}-linked' WHERE titolo='${RUN} Linked'`);
   });
 
+  test('saving an article whose masthead sorts past the picker limit keeps the link', async ({ page }) => {
+    // 5000 mastheads sorted before the linked one push it out of the picker's list.
+    db(`SET SESSION cte_max_recursion_depth=6000;
+        INSERT INTO emeroteca_testate (titolo)
+        WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<5000)
+        SELECT CONCAT('${RUN}-filler ', LPAD(i,4,'0')) FROM n`);
+    db(`UPDATE emeroteca_contributi SET testata_id=${mastheadId} WHERE id=${articleId}`);
+    db(`UPDATE emeroteca_testate SET titolo='zzz ${MASTHEAD}' WHERE id=${mastheadId}`);
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+      await expect(page.locator('#article-testata_id')).toHaveValue(String(mastheadId));
+      await page.locator('form button[type=submit]').first().click();
+      await page.waitForLoadState('domcontentloaded');
+      expect(db(`SELECT COALESCE(testata_id,0) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe(String(mastheadId));
+    } finally {
+      db(`DELETE FROM emeroteca_testate WHERE titolo LIKE '${RUN}-filler %'`);
+      db(`UPDATE emeroteca_testate SET titolo='${MASTHEAD}' WHERE id=${mastheadId}`);
+    }
+  });
+
   test('the MARCXML export carries the MARC country and the public PDF', async ({ page }) => {
     const response = await page.request.get(`${BASE}/emeroteca/articolo/${articleId}/marc.xml`);
     expect(response.status()).toBe(200);

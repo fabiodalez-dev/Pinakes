@@ -8018,5 +8018,6 @@
   "Questo link salvato non è valido: correggilo o rimuovilo prima di salvare.": "This saved link is not valid: fix or remove it before saving.",
   "Il titolo dell’allegato non può superare 255 caratteri.": "The attachment title cannot exceed 255 characters.",
   "Allegato digitale": "Digital attachment",
-  "Oxford (Umeå)": "Oxford (Umeå)"
+  "Oxford (Umeå)": "Oxford (Umeå)",
+  "Elenco delle testate non disponibile: il collegamento attuale non viene modificato.": "The masthead list is unavailable: the current link is left unchanged."
 }
