@@ -40,7 +40,7 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
             <!-- Green Audio Player -->
             <div class="player-digital-library player-accessible">
                 <audio preload="metadata">
-                    <source src="<?= $audioUrl ?>" type="audio/mpeg">
+                    <source src="<?= $audioUrl ?>">
                     <?= __("Il tuo browser non supporta la riproduzione audio.") ?>
                 </audio>
             </div>

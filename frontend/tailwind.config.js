@@ -5,6 +5,7 @@ module.exports = {
   content: [
     path.join(__dirname, '../app/Views/**/*.php'),  // Absolute path for correct resolution
     path.join(__dirname, '../storage/plugins/**/views/**/*.php'), // plugin UIs (settings + feature pages)
+    path.join(__dirname, '../storage/plugins/**/Views/**/*.php'), // plugins that keep views under src/Views (Emeroteca)
     path.join(__dirname, '../public/**/*.html')
   ],
   // Safelist classes that are dynamically used or defined in @layer utilities

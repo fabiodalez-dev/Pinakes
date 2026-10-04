@@ -881,6 +881,13 @@ class LibriController
                 $fields[$k] = $data[$k];
         }
 
+        try {
+            $fields = \App\Support\DigitalAttachments::applySubmission($fields, $data);
+        } catch (\InvalidArgumentException $e) {
+            $response->getBody()->write(json_encode(['error' => 'validation', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
         // Normalize text fields to remove MARC-8 control characters and collapse whitespace
         $fields['titolo'] = $this->normalizeText($fields['titolo']);
         $fields['sottotitolo'] = $this->normalizeText($fields['sottotitolo']);
@@ -1301,6 +1308,7 @@ class LibriController
             }
 
             $fields = \App\Support\Hooks::apply('book.form.save', $fields, [$data, null]);
+            $fields = \App\Support\DigitalAttachments::applySubmission($fields, $data);
 
             // Plugin hook: Before book save
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
@@ -1567,6 +1575,13 @@ class LibriController
         foreach ($fields as $k => $v) {
             if (array_key_exists($k, $data))
                 $fields[$k] = $data[$k];
+        }
+
+        try {
+            $fields = \App\Support\DigitalAttachments::applySubmission($fields, $data);
+        } catch (\InvalidArgumentException $e) {
+            $response->getBody()->write(json_encode(['error' => 'validation', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
         // Normalize text fields to remove MARC-8 control characters and collapse whitespace
@@ -1993,6 +2008,7 @@ class LibriController
             }
 
             $fields = \App\Support\Hooks::apply('book.form.save', $fields, [$data, $id]);
+            $fields = \App\Support\DigitalAttachments::applySubmission($fields, $data);
 
             // Plugin hook: Before book save (update)
             \App\Support\Hooks::do('book.save.before', [$fields, $id]);

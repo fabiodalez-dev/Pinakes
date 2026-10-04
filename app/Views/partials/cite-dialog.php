@@ -6,7 +6,7 @@
  * A reader who wants a reference asks for it, and then chooses a style: the
  * page shows one small button, and the dialog lists every style with a copy
  * button, filterable to one. This is the pattern of the Swedish union
- * catalogue (LIBRIS) that a librarian pointed to, and it keeps four long
+ * catalogue (LIBRIS) that a librarian pointed to, and it keeps five long
  * citations out of a page that is about the record.
  *
  * Copying puts the citation on the clipboard twice: as HTML, so a word

@@ -368,7 +368,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await expect(page.locator('#emeroteca-articolo[data-articolo-id]')).toContainText('Petersen, H. U. (1988).');
     // One "Cite" button; the dialog holds every style (#412).
     await expect(page.locator('#cite-open')).toBeVisible();
-    await expect(page.locator('#cite-list [data-cite-copy]')).toHaveCount(4);
+    await expect(page.locator('#cite-list [data-cite-copy]')).toHaveCount(5);
   });
 
   test('exactly one primary action, and it is never a link a browser cannot follow', async ({ page }) => {
@@ -460,7 +460,10 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.locator('#cite-open').click();
     const dialog = page.locator('#cite-dialog');
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('[data-cite-style]')).toHaveCount(4);
+    await expect(dialog.locator('[data-cite-style]')).toHaveCount(5);
+    await page.locator('#cite-style').selectOption('oxford');
+    await expect(dialog.locator('[data-cite-style=oxford]')).toBeVisible();
+    await expect(dialog.locator('[data-cite-style=oxford] [data-cite-copy]')).toHaveAttribute('data-cite-text', /Petersen/);
     // Titles the style italicises are italic in the HTML a word processor receives.
     await expect(dialog.locator('[data-cite-style="apa"] [data-cite-html] i').first()).toHaveText('Arbejderhistorie');
     await dialog.locator('#cite-style').selectOption('mla');
@@ -472,14 +475,20 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
   });
 
   test('a book page offers the same Cite dialog', async ({ page }) => {
-    const bookPath = db(`SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1`);
-    test.skip(!bookPath, 'no book in the catalogue');
-    await page.goto(`${BASE}/catalogo`);
-    await page.locator('a[href*="/libro"], .book-card a').first().click();
-    await page.locator('#cite-open').click();
-    await expect(page.locator('#cite-dialog [data-cite-style]')).toHaveCount(4);
-    const apa = await page.locator('#cite-dialog [data-cite-style="apa"] [data-cite-copy]').getAttribute('data-cite-text');
-    expect(apa, 'a book citation is never empty').toBeTruthy();
+    const bookTitle = `${marker}-citation-book`;
+    db(`INSERT INTO libri (titolo) VALUES ('${bookTitle}')`);
+    const bookId = Number(db(`SELECT id FROM libri WHERE titolo='${bookTitle}'`));
+    try {
+      await page.goto(`${BASE}/libro/${bookId}`);
+      await page.locator('#cite-open').click();
+      await expect(page.locator('#cite-dialog [data-cite-style]')).toHaveCount(5);
+      await page.locator('#cite-style').selectOption('oxford');
+      await expect(page.locator('#cite-dialog [data-cite-style=oxford]')).toBeVisible();
+      const citation = await page.locator('#cite-dialog [data-cite-style=oxford] [data-cite-copy]').getAttribute('data-cite-text');
+      expect(citation).toContain(bookTitle);
+    } finally {
+      db(`DELETE FROM libri WHERE id=${bookId}`);
+    }
   });
 
   test('RIS downloads as a file a reference manager accepts', async ({ page }) => {

@@ -24,9 +24,9 @@ Under **Electronic resource** the form carries the danMARC2/MARC 21 **856** trip
 
 ## Citing an article
 
-The public page renders the citation in **APA 7** and **Harvard**, each with a copy button, and offers the record as **RIS** for EndNote, Mendeley and Zotero at `/emeroteca/articolo/{id}/citazione.ris`. The same file is available in the admin form for an article that is not published, at `/admin/periodicals/articles/{id}/citation.ris`.
+The public page renders the citation in **APA 7**, **Harvard**, **MLA**, **Chicago** and **Oxford (Umeå)** through the shared Cite dialog, each with a copy button, and offers the record as **RIS** for EndNote, Mendeley and Zotero at `/emeroteca/articolo/{id}/citazione.ris`. The same file is available in the admin form for an article that is not published, at `/admin/periodicals/articles/{id}/citation.ris`.
 
-The citation is assembled from the record rather than retyped, so a corrected volume number corrects the bibliography too. A name written inverted (`Petersen, Hans Uwe`) is reduced to initials; a name with no comma is treated as corporate and used verbatim, because guessing which word of `Marc J. Schweissinger` is the surname is wrong often enough, and invisibly enough, not to guess. With no author the title takes the author slot, as both styles prescribe; with no year the citation says `n.d.` rather than inventing one, though a year written only in a free-text date (`June 2019`) is still found.
+The citation is assembled from the record rather than retyped, so a corrected volume number corrects the bibliography too. A name written inverted (`Petersen, Hans Uwe`) is reduced to initials; a name with no comma is treated as corporate and used verbatim, because guessing which word of `Marc J. Schweissinger` is the surname is wrong often enough, and invisibly enough, not to guess. With no author the title takes the author slot, as the selected style prescribes; with no year the citation says `n.d.` rather than inventing one, though a year written only in a free-text date (`June 2019`) is still found.
 
 RIS lines end CR LF and no value may contain a line break — an abstract pasted out of a PDF is collapsed to one line, because in RIS a break starts a new tag and would truncate the record at its first paragraph.
 

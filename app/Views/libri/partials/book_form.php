@@ -603,6 +603,8 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <!-- placeholder retained for old DOM selectors -->
           </div>
 
+          <?php ob_start(); do_action('book.form.digital_fields', $book); $digitalFields = (string) ob_get_clean(); ?>
+          <?php if (trim($digitalFields) === ''): ?>
           <div class="form-grid-2">
             <div>
               <label for="file_url" class="form-label"><?= __("File URL") ?></label>
@@ -614,10 +616,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             </div>
           </div>
 
-          <?php
-          // Hook: Allow plugins to add digital content upload fields (e.g., Uppy uploaders)
-          do_action('book.form.digital_fields', $book);
-          ?>
+          <?php else: echo $digitalFields; endif; ?>
 
           <!-- Notes -->
           <div>
@@ -3236,12 +3235,12 @@ function initializeFormValidation() {
                         window.location.href = window.BASE_PATH + '/admin/books';
                     }
                 } else {
-                    // Other error
-                    Swal.fire({
-                        icon: 'error',
-                        title: __('Errore'),
-                        text: __('Si è verificato un errore durante il salvataggio.')
-                    });
+                    let message = __('Si è verificato un errore durante il salvataggio.');
+                    if (response.status === 400 && response.headers.get('Content-Type')?.includes('application/json')) {
+                        const error = await response.json();
+                        if (error.error === 'validation' && typeof error.message === 'string') message = error.message;
+                    }
+                    Swal.fire({ icon: 'error', title: __('Errore'), text: message });
                 }
             } catch (error) {
                 console.error('Form submission error:', error);

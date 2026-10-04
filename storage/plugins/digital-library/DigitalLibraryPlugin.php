@@ -15,7 +15,7 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.3.2
+ * @version 1.4.0
  */
 class DigitalLibraryPlugin
 {
@@ -170,6 +170,7 @@ class DigitalLibraryPlugin
         return [
             'file_url'  => "ALTER TABLE libri ADD COLUMN file_url VARCHAR(255) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie",
             'audio_url' => "ALTER TABLE libri ADD COLUMN audio_url VARCHAR(255) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url",
+            'digital_attachments' => "ALTER TABLE libri ADD COLUMN digital_attachments LONGTEXT DEFAULT NULL AFTER audio_url",
         ];
     }
 
@@ -490,12 +491,32 @@ class DigitalLibraryPlugin
         include __DIR__ . '/views/admin-form-fields.php';
     }
 
+    /** Use validated attachments for the legacy one-file players too. */
+    private function withPrimaryAttachment(array $book, array $attachments): array
+    {
+        $book['file_url'] = '';
+        $book['audio_url'] = '';
+        foreach ($attachments as $attachment) {
+            $field = $attachment['kind'] === 'audio' ? 'audio_url' : 'file_url';
+            if ($attachment['kind'] !== 'supplement' && $book[$field] === '') {
+                $book[$field] = $attachment['url'];
+            }
+        }
+        return $book;
+    }
+
     /**
      * Render frontend download buttons
      * Hook: book.detail.digital_buttons
      */
     public function renderFrontendButtons(array $book): void
     {
+        $attachments = \App\Support\DigitalAttachments::fromBook($book);
+        if (count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement') {
+            include __DIR__ . '/views/frontend-attachments.php';
+            return;
+        }
+        $book = $this->withPrimaryAttachment($book, $attachments);
         include __DIR__ . '/views/frontend-buttons.php';
     }
 
@@ -505,6 +526,9 @@ class DigitalLibraryPlugin
      */
     public function renderAudioPlayer(array $book): void
     {
+        $attachments = \App\Support\DigitalAttachments::fromBook($book);
+        if (count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement') { return; }
+        $book = $this->withPrimaryAttachment($book, $attachments);
         if (!empty($book['audio_url'])) {
             $this->enqueueAudioPlayerAssets();
             include __DIR__ . '/views/frontend-player.php';
@@ -517,6 +541,9 @@ class DigitalLibraryPlugin
      */
     public function renderPdfViewer(array $book): void
     {
+        $attachments = \App\Support\DigitalAttachments::fromBook($book);
+        if (count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement') { return; }
+        $book = $this->withPrimaryAttachment($book, $attachments);
         $fileUrl = (string) ($book['file_url'] ?? '');
         $filePath = (string) (parse_url($fileUrl, PHP_URL_PATH) ?? '');
         if ($filePath !== '' && strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) === 'pdf') {
@@ -547,7 +574,7 @@ class DigitalLibraryPlugin
         // requests (Lighthouse: render-blocking resources).
         $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
-            echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css'), ENT_QUOTES, 'UTF-8') . '">' . "\n";
+            echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css?v=1.4.0'), ENT_QUOTES, 'UTF-8') . '">' . "\n";
         }
     }
 
