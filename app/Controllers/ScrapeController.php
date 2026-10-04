@@ -176,7 +176,7 @@ class ScrapeController
                 if ($first === null) {
                     unset($data[$role]);
                 } else {
-                    $data[$role] = $first;
+                    $data[$role] = $this->normalizeText($first);
                 }
             }
         }

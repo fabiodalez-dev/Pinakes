@@ -407,7 +407,12 @@ class SruClient
         if ($edition) {
             $book['edition'] = trim((string) preg_replace('/[\s\/:;=,]+$/u', '', $edition));
         }
-        $place = \App\Support\PublicationPlace::clean($getSubfield('260', 'a') ?? $getSubfield('264', 'a'));
+        // 260 or 264: the first that names a place, not one that only says
+        // the place is unknown ("[S.l.]")
+        $place = \App\Support\PublicationPlace::clean($getSubfield('260', 'a'));
+        if ($place === '') {
+            $place = \App\Support\PublicationPlace::clean($getSubfield('264', 'a'));
+        }
         if ($place !== '') {
             $book['place'] = $place;
         }
@@ -728,7 +733,10 @@ class SruClient
         if ($edition !== null && trim($edition) !== '') {
             $book['edition'] = $clean(rtrim($edition, ' /:;=,'));
         }
-        $place = \App\Support\PublicationPlace::clean($clean((string) ($getSub('214', 'a') ?? $getSub('210', 'a'))));
+        $place = \App\Support\PublicationPlace::clean($clean((string) $getSub('214', 'a')));
+        if ($place === '') {
+            $place = \App\Support\PublicationPlace::clean($clean((string) $getSub('210', 'a')));
+        }
         if ($place !== '') {
             $book['place'] = $place;
         }

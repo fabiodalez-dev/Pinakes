@@ -136,6 +136,10 @@ check(PublicationPlace::clean('[Torino] :') === 'Torino' && PublicationPlace::fr
     'a bracketed place keeps its name; a list keeps each place once and drops the unknown');
 $sl = xpathOf('<record xmlns="http://www.loc.gov/MARC21/slim"><datafield tag="245" ind1="1" ind2="0"><subfield code="a">X</subfield></datafield><datafield tag="264" ind1=" " ind2="1"><subfield code="a">[Place of publication not identified] :</subfield><subfield code="b">Y,</subfield></datafield></record>');
 check(!isset(call($sru, 'parseMarcXml', $sl)['place']), 'MARC 21: an RDA "place not identified" is not a place');
+$both = xpathOf('<record xmlns="http://www.loc.gov/MARC21/slim"><datafield tag="245" ind1="1" ind2="0"><subfield code="a">X</subfield></datafield><datafield tag="260" ind1=" " ind2=" "><subfield code="a">[S.l.] :</subfield></datafield><datafield tag="264" ind1=" " ind2="1"><subfield code="a">Torino :</subfield></datafield></record>');
+check((call($sru, 'parseMarcXml', $both)['place'] ?? null) === 'Torino', 'MARC 21: an unknown 260 place falls back to the place in 264');
+$uniBoth = xpathOf('<record xmlns="info:lc/xmlns/marcxchange-v2"><datafield tag="200" ind1="1" ind2=" "><subfield code="a">X</subfield></datafield><datafield tag="214" ind1=" " ind2="0"><subfield code="a">[S.l.]</subfield></datafield><datafield tag="210" ind1=" " ind2=" "><subfield code="a">Milano</subfield></datafield></record>');
+check((call($sru, 'parseMarcxchangeXml', $uniBoth)['place'] ?? null) === 'Milano', 'UNIMARC: an unknown 214 place falls back to the place in 210');
 
 // ── Open Library ────────────────────────────────────────────────────────────
 $ol = new App\Plugins\OpenLibrary\OpenLibraryPlugin(null, null);
@@ -159,9 +163,9 @@ check(($mapped['edition'] ?? null) === '2' && ($mapped['translator'] ?? null) ==
 
 // ── What the controller hands the form ──────────────────────────────────────
 $ctl = (new ReflectionClass(App\Controllers\ScrapeController::class))->newInstanceWithoutConstructor();
-$norm = call($ctl, 'normalizeScrapedData', ['title' => 'T', 'editor' => ['Anna Bianchi', 7, ['x'], ' '], 'translator' => ['Mario Rossi'], 'illustrator' => [5]]);
+$norm = call($ctl, 'normalizeScrapedData', ['title' => 'T', 'editor' => ['Anna Bianchi', 7, ['x'], ' '], 'translator' => ["Mario \t  Rossi"], 'illustrator' => [5]]);
 check($norm['editor'] === ['Anna Bianchi'] && $norm['translator'] === 'Mario Rossi' && !array_key_exists('illustrator', $norm),
-    'normalizeScrapedData: only names survive; a list of translators becomes one name');
+    'normalizeScrapedData: only names survive; a list of translators becomes one name, spaces normalised');
 $norm = call($ctl, 'normalizeScrapedData', ['title' => 'T', 'editor' => 42]);
 check(!array_key_exists('editor', $norm), 'normalizeScrapedData: an editor that is not a name is dropped');
 
