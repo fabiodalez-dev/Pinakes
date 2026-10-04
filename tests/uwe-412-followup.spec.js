@@ -137,8 +137,11 @@ test.describe.serial('Uwe #412 follow-up', () => {
       await login(page);
       await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
       await expect(page.locator('#article-testata_id')).toHaveValue(String(mastheadId));
+      // The save posts to /save and redirects back here, so wait for the POST itself:
+      // reading the row before it is handled would pass whatever the save did.
+      const saved = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes("/admin/periodicals/articles/save"));
       await page.locator('form button[type=submit]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+      expect((await saved).status(), 'the save is accepted').toBeLessThan(400);
       expect(db(`SELECT COALESCE(testata_id,0) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe(String(mastheadId));
     } finally {
       db(`DELETE FROM emeroteca_testate WHERE titolo LIKE '${RUN}-filler %'`);
