@@ -4354,7 +4354,11 @@ test.describe.serial('Phase 24: Place of publication, RIS and event layouts', ()
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('application/x-research-info-systems');
     expect(res.headers()['content-disposition']).toBe(`attachment; filename="book-${bookId}.ris"`);
-    expect(res.headers()['x-content-type-options']).toBe('nosniff');
+    // Under Apache the .htaccess `Header always set` and the app both send it,
+    // so it can arrive as "nosniff, nosniff": every value must be nosniff.
+    const sniff = (res.headers()['x-content-type-options'] || '').split(',').map((v) => v.trim());
+    expect(sniff.length).toBeGreaterThan(0);
+    expect(sniff.every((v) => v === 'nosniff'), `x-content-type-options: ${sniff.join(', ')}`).toBe(true);
   });
 
   test('24.16 The record opens with TY BOOK, closes with ER and uses CRLF', async () => {
