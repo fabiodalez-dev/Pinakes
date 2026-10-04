@@ -173,22 +173,27 @@ test.describe('[U-SWAL] PR #141 popup unification', () => {
 // ═══════════════════════════════════════════════════════════════════
 test.describe('[U-EVT] PR #139 configurable event image layout', () => {
 
-    // E1 — 4-preset enum is the source of truth in settings/index.php
-    test('U-EVT-S1: settings/index.php declares all 4 layout presets', async () => {
+    // E1 — the 3-preset enum is the source of truth in settings/index.php
+    // ('thumb' rendered like 'contained' and was merged into it)
+    test('U-EVT-S1: settings/index.php declares the 3 layout presets', async () => {
         const src = readRepoFile('app/Views/settings/index.php');
         expect(src).toMatch(/\$eventImageLayoutChoices\s*=\s*\[/);
-        for (const preset of ['full', 'banner', 'contained', 'thumb']) {
+        for (const preset of ['full', 'banner', 'contained']) {
             expect(src).toMatch(new RegExp(`['"]${preset}['"]\\s*=>`));
         }
+        expect(src).not.toMatch(/['"]thumb['"]\s*=>/);
     });
 
-    // E2 — frontend/event-detail.php emits event-cover--<preset> classes
+    // E2 — frontend/event-detail.php names the body figure after the preset
+    // (full, banner) and shows 'contained' as the hero cover. Comments are
+    // stripped: a class name that only appears in prose proves nothing.
     test('U-EVT-S2: event-detail.php renders distinct CSS class per preset', async () => {
-        const src = readRepoFile('app/Views/frontend/event-detail.php');
-        for (const preset of ['full', 'banner', 'contained', 'thumb']) {
-            expect(src).toMatch(new RegExp(`event-cover--${preset}`));
-        }
-        expect(src).toMatch(/event-card--thumb-layout/);
+        const src = readRepoFile('app/Views/frontend/event-detail.php')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*\/\/.*$/gm, '');
+        expect(src).toMatch(/event-cover--<\?= htmlspecialchars\(\$coverLayout/);
+        expect(src).toMatch(/event-cover--banner/);
+        expect(src).toMatch(/resource-hero\.php/);
     });
 
     // E3 — SettingsController validates layout against an allow-list
@@ -230,7 +235,7 @@ test.describe('[U-EVT] PR #139 configurable event image layout', () => {
         const src = readRepoFile('app/Views/frontend/event-detail.php');
         expect(src).toMatch(/@media[^{]*max-width[^{]*\)\s*\{/);
         const mediaBlocks = src.match(/@media[\s\S]*?\}\s*\}/g) || [];
-        const hasThumbResponsive = mediaBlocks.some(b => b.includes('thumb-layout') || b.includes('event-cover--thumb'));
+        const hasThumbResponsive = mediaBlocks.some(b => b.includes('event-cover--banner'));
         expect(hasThumbResponsive).toBe(true);
     });
 
@@ -256,7 +261,7 @@ test.describe('[U-EVT] PR #139 configurable event image layout', () => {
                 const sel = page.locator('select[name*="event_image_layout"], select[name*="image_layout"]');
                 expect(await sel.count()).toBeGreaterThan(0);
             } else {
-                expect(n).toBeGreaterThanOrEqual(4);
+                expect(n).toBeGreaterThanOrEqual(3);
             }
         });
 

@@ -1,6 +1,12 @@
 <?php
 /**
- * Public detail — single archival_unit with book-detail-style hero.
+ * Public detail of one archival_unit, on the book page's surface.
+ *
+ * Hero from the core partial resource-hero.php (breadcrumb Home › Archivio ›
+ * fondo/serie… › title, kicker with the level), then the book page's body:
+ * description and details on 2/3, the identifiers card on 1/3
+ * (public/assets/book-detail.css). One primary action at most: the download
+ * of the first document.
  *
  * @var array<string, mixed>                                 $row
  * @var list<array<string, mixed>>                           $children
@@ -10,6 +16,7 @@
 declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+$corePartials = dirname(__DIR__, 5) . '/app/Views/frontend/partials';
 
 $levelLabel = [
     'fonds'  => __('Fondo'),
@@ -22,12 +29,6 @@ $levelIcon = [
     'series' => 'fa-folder-open',
     'file'   => 'fa-folder',
     'item'   => 'fa-file-alt',
-];
-$levelBadgeClass = [
-    'fonds'  => 'bg-[var(--primary-color)] text-white',
-    'series' => 'bg-sky-100 text-sky-800',
-    'file'   => 'bg-emerald-100 text-emerald-800',
-    'item'   => 'bg-slate-100 text-slate-700',
 ];
 $typeLabel = [
     'person'    => __('Persona'),
@@ -60,16 +61,22 @@ $roleLabel = [
 ];
 
 $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
+$unitUrl = static fn(int $id, string $title): string => url($archiveBase . '/' . slugify_text($title) . '-' . $id);
 $level = (string) $row['level'];
 $icon = $levelIcon[$level] ?? 'fa-archive';
-$badge = $levelBadgeClass[$level] ?? 'bg-slate-100 text-slate-700';
-$dateRange = '';
-if (!empty($row['date_start'])) {
-    $dateRange = (string) $row['date_start'];
-    if (!empty($row['date_end']) && $row['date_end'] !== $row['date_start']) {
-        $dateRange .= '–' . (string) $row['date_end'];
+$dateLabel = static function (array $r): string {
+    if (empty($r['date_start'])) {
+        return '';
     }
-}
+    $label = (string) $r['date_start'];
+    if (!empty($r['date_end']) && $r['date_end'] !== $r['date_start']) {
+        $label .= '–' . (string) $r['date_end'];
+    }
+    return $label;
+};
+$dateRange = $dateLabel($row);
+$title = (string) $row['constructed_title'];
+$refCode = (string) ($row['reference_code'] ?? '');
 
 // Optional per-document assets.
 $coverUrl   = !empty($row['cover_image_path']) ? url((string) $row['cover_image_path']) : '';
@@ -81,16 +88,98 @@ $docPath    = $firstFile !== null ? (string) $firstFile['file_path'] : (string) 
 $docMime    = $firstFile !== null ? (string) $firstFile['file_mime'] : (string) ($row['document_mime'] ?? '');
 $docName    = $firstFile !== null ? (string) $firstFile['original_filename'] : (string) ($row['document_filename'] ?? '');
 $docUrl     = $docPath !== '' ? url($docPath) : '';
-$hasAudio   = (function () use ($unit_files, $docMime): bool {
-    foreach ($unit_files as $uf) {
-        if (str_starts_with((string) $uf['file_mime'], 'audio/')) {
-            return true;
+$docIsAudio = $docMime !== '' && str_starts_with($docMime, 'audio/');
+$specific   = (string) ($row['specific_material'] ?? '');
+
+/** The reader's word for a file: "PDF", "JPEG", "MP3" — never a MIME type. */
+$fileKind = static function (string $mime, string $name): string {
+    $known = [
+        'application/pdf' => 'PDF', 'image/jpeg' => 'JPEG', 'image/png' => 'PNG', 'image/tiff' => 'TIFF',
+        'image/gif' => 'GIF', 'image/webp' => 'WebP', 'audio/mpeg' => 'MP3', 'audio/wav' => 'WAV',
+        'audio/x-wav' => 'WAV', 'audio/ogg' => 'OGG', 'audio/flac' => 'FLAC', 'video/mp4' => 'MP4',
+        'application/zip' => 'ZIP', 'text/plain' => 'TXT', 'application/xml' => 'XML', 'text/xml' => 'XML',
+    ];
+    if (isset($known[strtolower($mime)])) {
+        return $known[strtolower($mime)];
+    }
+    $ext = strtoupper((string) pathinfo($name, PATHINFO_EXTENSION));
+    if ($ext !== '' && strlen($ext) <= 5) {
+        return $ext;
+    }
+    return $mime !== '' && str_contains($mime, '/') ? strtoupper(substr($mime, strpos($mime, '/') + 1)) : '';
+};
+$bytesStr = static function (int $bytes): string {
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $i = 0;
+    $val = (float) $bytes;
+    while ($val >= 1024 && $i < count($units) - 1) {
+        $val /= 1024;
+        $i++;
+    }
+    return ($i === 0 ? (string) $bytes : number_format($val, 1)) . ' ' . $units[$i];
+};
+
+// Every downloadable document in one shape: the multi-file table first, the
+// legacy single document_path column as a fallback.
+$downloads = [];
+$fileSources = $unit_files !== []
+    ? $unit_files
+    : ($docPath !== '' ? [['file_path' => $docPath, 'file_mime' => $docMime, 'original_filename' => $docName]] : []);
+foreach ($fileSources as $uf) {
+    $ufPath = (string) $uf['file_path'];
+    $ufMime = (string) $uf['file_mime'];
+    // Sanitize basename fallback to prevent leaking unexpected path
+    // characters into the download="" attribute (defence-in-depth).
+    $ufBaseFallback = preg_replace('/[^a-zA-Z0-9._-]/', '', basename($ufPath));
+    if ($ufBaseFallback === null || $ufBaseFallback === '') {
+        $ufBaseFallback = __('file');
+    }
+    $ufName = (string) $uf['original_filename'] !== '' ? (string) $uf['original_filename'] : $ufBaseFallback;
+    // file_size may be missing from the schema: fall back to the file on
+    // disk; @filesize() is guarded against missing files.
+    $ufSize = '';
+    if (isset($uf['file_size']) && (int) $uf['file_size'] > 0) {
+        $ufSize = $bytesStr((int) $uf['file_size']);
+    } elseif ($ufPath !== '' && !str_contains($ufPath, '..')) {
+        $ufBytes = @filesize(dirname(__DIR__, 5) . '/public' . $ufPath);
+        if ($ufBytes !== false && $ufBytes > 0) {
+            $ufSize = $bytesStr((int) $ufBytes);
         }
     }
-    return $docMime !== '' && str_starts_with($docMime, 'audio/');
-})();
-$docIsAudio = $docMime !== '' && str_starts_with($docMime, 'audio/');
-$specific  = (string) ($row['specific_material'] ?? '');
+    $downloads[] = [
+        'url'   => url($ufPath),
+        'name'  => $ufName,
+        'audio' => str_starts_with($ufMime, 'audio/'),
+        'facts' => implode(' · ', array_filter([$fileKind($ufMime, $ufName), $ufSize], static fn(string $v): bool => $v !== '')),
+    ];
+}
+$hasAudio = array_filter($downloads, static fn(array $d): bool => $d['audio']) !== [];
+/** The one primary action: the first document that is not a recording. */
+$primaryDownload = null;
+foreach ($downloads as $d) {
+    if (!$d['audio']) {
+        $primaryDownload = $d;
+        break;
+    }
+}
+
+/** Stored ISO 639 codes ("ita;eng") in the reader's language. */
+$languageLabel = static function (string $codes): string {
+    $parts = array_values(array_filter(array_map('trim', preg_split('/[;,\s]+/', $codes) ?: []), static fn(string $c): bool => $c !== ''));
+    if (class_exists(\Locale::class)) {
+        $locale = \App\Support\I18n::getLocale();
+        $parts = array_map(static function (string $c) use ($locale): string {
+            $label = \Locale::getDisplayLanguage($c, $locale);
+            return (!is_string($label) || $label === $c) ? $c : $label;
+        }, $parts);
+    }
+    return implode(', ', $parts);
+};
+/** The material label without its MARC code: "Fotografia", not "Fotografia (hf)". */
+$materialText = static fn(string $key): string => (string) preg_replace('/\s*\([a-z]{2}\)$/', '', $materialLabels[$key] ?? $key);
+
+$catalogPageStyles = true;
+$bookDetailStyles = true;
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/archives/assets/css/archives-public.css')) ?>">
 <?php if ($hasAudio): ?>
@@ -163,307 +252,150 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
 ?>
 <script type="application/ld+json"><?= $archiveSchema ?: '{}' ?></script>
 
-<section class="archive-hero">
-    <div class="container hero-content">
-        <div class="flex flex-wrap -mx-3 items-center">
-            <div class="w-full lg:w-1/3 px-3 mb-4 mb-lg-0 flex justify-center items-center">
-                <?php if ($coverUrl !== ''): ?>
-                    <img class="archive-cover-large"
-                         src="<?= $e($coverUrl) ?>"
-                         alt="<?= $e((string) $row['constructed_title']) ?>">
-                <?php else: ?>
-                    <div class="icon-box">
-                        <i class="fas <?= $e($icon) ?>"></i>
-                    </div>
-                <?php endif; ?>
-            </div>
-            <div class="w-full lg:w-2/3 px-3">
-                <div class="hero-text">
-                    <div class="flex flex-wrap items-center gap-2 mb-3">
-                        <span class="status-badge <?= $e($badge) ?> text-base px-3 py-2">
-                            <i class="fas <?= $e($icon) ?> mr-1"></i><?= $e($levelLabel[$level] ?? $level) ?>
-                        </span>
-                        <span class="ref-pill"><?= $e((string) $row['reference_code']) ?></span>
-                        <?php if ($specific !== '' && $specific !== 'text'): ?>
-                            <span class="status-badge bg-gray-100 text-gray-800 border">
-                                <?= $e($materialLabels[$specific] ?? $specific) ?>
-                            </span>
-                        <?php endif; ?>
-                    </div>
-                    <h1><?= $e((string) $row['constructed_title']) ?></h1>
-                    <?php if (!empty($row['formal_title']) && $row['formal_title'] !== $row['constructed_title']): ?>
-                        <p class="meta-line italic"><?= $e((string) $row['formal_title']) ?></p>
-                    <?php endif; ?>
-                    <?php if ($dateRange !== ''): ?>
-                        <p class="meta-line">
-                            <i class="far fa-calendar-alt mr-2"></i><?= $e($dateRange) ?>
-                        </p>
-                    <?php endif; ?>
-                    <?php if (!empty($row['extent'])): ?>
-                        <p class="meta-line">
-                            <i class="fas fa-box-open mr-2"></i><?= $e((string) $row['extent']) ?>
-                        </p>
-                    <?php endif; ?>
+<?php
+// ── Hero: the same "scheda" as a book ──────────────────────────────────────
+$kicker = '<span class="book-media-type"><i class="fas ' . $e($icon) . ' mr-1" aria-hidden="true"></i>' . $e($levelLabel[$level] ?? $level) . '</span>';
+if ($specific !== '' && $specific !== 'text') {
+    $kicker .= '<span class="book-kicker-separator" aria-hidden="true">·</span><span>' . $e($materialText($specific)) . '</span>';
+}
+$byline = '';
+foreach ($authorities as $auth) {
+    if ((string) $auth['role'] === 'creator') {
+        $byline .= '<span class="author-item">' . $e((string) $auth['authorised_form']) . '</span>';
+    }
+}
+$facts = array_values(array_filter([$refCode, $dateRange, (string) ($row['extent'] ?? '')], static fn(string $v): bool => $v !== ''));
 
-                    <?php if (!empty($unit_files)): ?>
-                        <?php
-                        // Inline byte formatter (no global helper exists outside Updater).
-                        $bytesStr = static function (int $bytes): string {
-                            if ($bytes < 0) {
-                                return '';
-                            }
-                            $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-                            $i = 0;
-                            $val = (float) $bytes;
-                            while ($val >= 1024 && $i < count($units) - 1) {
-                                $val /= 1024;
-                                $i++;
-                            }
-                            return ($i === 0 ? (string) $bytes : number_format($val, 1)) . ' ' . $units[$i];
-                        };
-                        ?>
-                        <div class="archive-actions" style="justify-content:flex-start;flex-direction:column;gap:.5rem;">
-                            <?php foreach ($unit_files as $uf): ?>
-                                <?php
-                                $ufPath  = (string) $uf['file_path'];
-                                $ufMime  = (string) $uf['file_mime'];
-                                // Sanitize basename fallback to prevent leaking unexpected path
-                                // characters into the download="" attribute (defence-in-depth).
-                                $ufBaseFallback = preg_replace('/[^a-zA-Z0-9._-]/', '', basename($ufPath));
-                                if ($ufBaseFallback === null || $ufBaseFallback === '') {
-                                    $ufBaseFallback = __('file');
-                                }
-                                $ufName  = (string) ($uf['original_filename'] ?: $ufBaseFallback);
-                                $ufUrl   = url($ufPath);
-                                $ufAudio = str_starts_with($ufMime, 'audio/');
-                                // Compute file size on the fly. file_size column may not be
-                                // present in schema yet; @filesize() is guarded against
-                                // missing files and traversal-blocked paths.
-                                $ufSizeStr = '';
-                                if (isset($uf['file_size']) && (int) $uf['file_size'] > 0) {
-                                    $ufSizeStr = $bytesStr((int) $uf['file_size']);
-                                } elseif ($ufPath !== '') {
-                                    $ufAbsPath = __DIR__ . '/../../../../../public' . $ufPath;
-                                    $ufSizeBytes = @filesize($ufAbsPath);
-                                    if ($ufSizeBytes !== false && $ufSizeBytes > 0) {
-                                        $ufSizeStr = $bytesStr((int) $ufSizeBytes);
-                                    }
-                                }
-                                ?>
-                                <div class="flex items-center gap-2 w-full">
-                                    <?php if ($ufAudio): ?>
-                                        <div class="archive-player-wrap w-full">
-                                            <audio class="green-audio-player" controls preload="metadata"
-                                                   src="<?= $e($ufUrl) ?>"></audio>
-                                        </div>
-                                    <?php else: ?>
-                                        <a class="ui-button btn-primary px-3 py-2 text-xs" href="<?= $e($ufUrl) ?>"
-                                           download="<?= $e($ufName) ?>">
-                                            <i class="fas fa-download mr-1"></i><?= $e($ufName) ?>
-                                        </a>
-                                    <?php endif; ?>
-                                    <?php if ($ufMime !== ''): ?>
-                                        <span class="text-gray-500 text-sm ref-mono"><?= $e($ufMime) ?></span>
-                                    <?php endif; ?>
-                                    <?php if ($ufSizeStr !== ''): ?>
-                                        <span class="text-gray-500 text-sm"><?= $e($ufSizeStr) ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php elseif ($docUrl !== ''): ?>
-                        <!-- legacy fallback: document_path column -->
-                        <div class="archive-actions" style="justify-content:flex-start;">
-                            <?php if ($docIsAudio): ?>
-                                <div class="archive-player-wrap w-full">
-                                    <audio class="green-audio-player" controls preload="metadata"
-                                           src="<?= $e($docUrl) ?>"></audio>
-                                </div>
-                            <?php else: ?>
-                                <a class="ui-button btn-primary" href="<?= $e($docUrl) ?>"
-                                   <?php if ($docName !== ''): ?>download="<?= $e($docName) ?>"<?php else: ?>download<?php endif; ?>>
-                                    <i class="fas fa-download mr-2"></i><?= __("Scarica documento") ?>
-                                </a>
-                            <?php endif; ?>
-                            <?php if ($docMime !== ''): ?>
-                                <span class="text-gray-500 text-sm align-self-center ref-mono"><?= $e($docMime) ?></span>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
+$resourceCover = $coverUrl;
+$resourceCoverKind = 'cover';
+$resourceCoverAlt = '';
+$resourceKickerHtml = $kicker;
+$resourceTitle = $title;
+$resourceSubtitle = !empty($row['formal_title']) && $row['formal_title'] !== $row['constructed_title'] ? (string) $row['formal_title'] : '';
+$resourceBylineHtml = $byline;
+$resourceExtraHtml = $facts !== [] ? '<p class="resource-placement">' . $e(implode(' · ', $facts)) . '</p>' : '';
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __('Archivio'), 'href' => url($archiveBase)]];
+foreach ($breadcrumb as $crumb) {
+    $breadcrumbItems[] = ['label' => (string) $crumb['title'], 'href' => $unitUrl((int) $crumb['id'], (string) $crumb['title'])];
+}
+$breadcrumbItems[] = ['label' => $title];
+include $corePartials . '/resource-hero.php';
 
-                    <nav aria-label="breadcrumb" class="mt-4">
-                        <ol class="breadcrumb flex flex-wrap items-center gap-2 bg-transparent p-0 mb-0">
-                            <li class="breadcrumb-item">
-                                <a href="<?= $e(url('/')) ?>"><?= __("Home") ?></a>
-                            </li>
-                            <li class="breadcrumb-item">
-                                <a href="<?= $e(url($archiveBase)) ?>"><?= __("Archivio") ?></a>
-                            </li>
-                            <?php foreach ($breadcrumb as $crumb): ?>
-                                <li class="breadcrumb-item">
-                                    <a href="<?= $e(url($archiveBase . '/' . slugify_text($crumb['title']) . '-' . (int) $crumb['id'])) ?>">
-                                        <?= $e($crumb['title']) ?>
-                                    </a>
-                                </li>
-                            <?php endforeach; ?>
-                            <li class="breadcrumb-item active" aria-current="page">
-                                <?= $e((string) $row['constructed_title']) ?>
-                            </li>
-                        </ol>
-                    </nav>
+$parent = $breadcrumb !== [] ? $breadcrumb[count($breadcrumb) - 1] : null;
+?>
+
+<div id="archive-unit" class="container archive-public">
+    <div class="flex flex-wrap -mx-3">
+        <div class="w-full lg:w-2/3 px-3">
+            <?php if (count($downloads) === 1): $d = $downloads[0]; ?>
+                <div class="action-buttons resource-action-buttons archive-download">
+                    <?php if ($d['audio']): ?>
+                        <div class="archive-player">
+                            <audio class="green-audio-player" controls preload="metadata" src="<?= $e($d['url']) ?>"></audio>
+                        </div>
+                    <?php else: ?>
+                        <a class="ui-button btn-primary" href="<?= $e($d['url']) ?>" download="<?= $e($d['name']) ?>"><i class="fas fa-download" aria-hidden="true"></i> <?= __('Scarica documento') ?></a>
+                    <?php endif; ?>
+                    <p class="archive-file-note"><?= $e($d['name']) ?><?php if ($d['facts'] !== ''): ?> · <?= $e($d['facts']) ?><?php endif; ?></p>
                 </div>
-            </div>
-        </div>
-    </div>
-</section>
+            <?php elseif ($primaryDownload !== null): ?>
+                <div class="action-buttons resource-action-buttons">
+                    <a class="ui-button btn-primary" href="<?= $e($primaryDownload['url']) ?>" download="<?= $e($primaryDownload['name']) ?>"><i class="fas fa-download" aria-hidden="true"></i> <?= __('Scarica documento') ?></a>
+                </div>
+            <?php endif; ?>
 
-<section class="archive-body">
-    <div class="container">
-        <div class="flex flex-wrap -mx-3 gap-y-4">
-            <div class="w-full lg:w-2/3 px-3">
-                <div class="card rounded-md mb-4">
-                    <div class="card-body p-4 p-lg-5">
-                        <h2 class="h5 mb-4 uppercase text-gray-500" style="letter-spacing:.05em;">
-                            <i class="fas fa-info-circle mr-2"></i><?= __("Descrizione archivistica") ?>
-                        </h2>
-                        <dl class="isad mb-0">
-                            <?php if (!empty($row['scope_content'])): ?>
-                                <dt><?= __("Ambito e contenuto") ?></dt>
-                                <dd class="pre-wrap"><?= $e((string) $row['scope_content']) ?></dd>
-                            <?php endif; ?>
-                            <?php if (!empty($row['archival_history'])): ?>
-                                <dt><?= __("Storia archivistica") ?></dt>
-                                <dd class="pre-wrap"><?= $e((string) $row['archival_history']) ?></dd>
-                            <?php endif; ?>
-                            <div class="flex flex-wrap -mx-3">
-                                <?php if (!empty($row['extent'])): ?>
-                                    <div class="w-full sm:w-1/2 px-3">
-                                        <dt><?= __("Estensione e supporto") ?></dt>
-                                        <dd><?= $e((string) $row['extent']) ?></dd>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($row['photographer'])): ?>
-                                    <div class="w-full sm:w-1/2 px-3">
-                                        <dt><?= __("Fotografo / autore primario") ?></dt>
-                                        <dd><?= $e((string) $row['photographer']) ?></dd>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($row['language_codes'])): ?>
-                                    <div class="w-full sm:w-1/2 px-3">
-                                        <dt><?= __("Lingua") ?></dt>
-                                        <dd class="ref-mono"><?= $e((string) $row['language_codes']) ?></dd>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($row['access_conditions'])): ?>
-                                    <div class="w-full px-3">
-                                        <dt><?= __("Condizioni di accesso") ?></dt>
-                                        <dd><?= $e((string) $row['access_conditions']) ?></dd>
-                                    </div>
-                                <?php endif; ?>
+            <?php if (!empty($row['scope_content'])): ?>
+                <div class="book-description-section">
+                    <h2 class="section-title"><i class="fas fa-align-left" aria-hidden="true"></i> <?= __('Ambito e contenuto') ?></h2>
+                    <div class="description-content"><p class="whitespace-pre-line"><?= $e((string) $row['scope_content']) ?></p></div>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($row['archival_history'])): ?>
+                <div class="book-description-section">
+                    <h2 class="section-title"><i class="fas fa-history" aria-hidden="true"></i> <?= __('Storia archivistica') ?></h2>
+                    <div class="description-content"><p class="whitespace-pre-line"><?= $e((string) $row['archival_history']) ?></p></div>
+                </div>
+            <?php endif; ?>
+
+            <div class="book-details-section">
+                <h2 class="section-title"><i class="fas fa-list-ul" aria-hidden="true"></i> <?= __('Descrizione archivistica') ?></h2>
+                <div class="details-grid">
+                    <div class="details-column">
+                        <div class="meta-item"><div class="meta-label"><?= __('Livello') ?></div><div class="meta-value"><?= $e($levelLabel[$level] ?? $level) ?></div></div>
+                        <?php if ($dateRange !== ''): ?><div class="meta-item"><div class="meta-label"><?= __('Datazione') ?></div><div class="meta-value"><?= $e($dateRange) ?></div></div><?php endif; ?>
+                        <?php if (!empty($row['extent'])): ?><div class="meta-item"><div class="meta-label"><?= __('Estensione e supporto') ?></div><div class="meta-value"><?= $e((string) $row['extent']) ?></div></div><?php endif; ?>
+                        <?php if ($specific !== ''): ?><div class="meta-item"><div class="meta-label"><?= __('Tipo di materiale') ?></div><div class="meta-value"><?= $e($materialText($specific)) ?></div></div><?php endif; ?>
+                    </div>
+                    <div class="details-column">
+                        <?php if (!empty($row['photographer'])): ?><div class="meta-item"><div class="meta-label"><?= __('Fotografo / autore primario') ?></div><div class="meta-value"><?= $e((string) $row['photographer']) ?></div></div><?php endif; ?>
+                        <?php if (!empty($row['language_codes'])): ?><div class="meta-item"><div class="meta-label"><?= __('Lingua') ?></div><div class="meta-value"><?= $e($languageLabel((string) $row['language_codes'])) ?></div></div><?php endif; ?>
+                        <?php if (!empty($row['access_conditions'])): ?><div class="meta-item"><div class="meta-label"><?= __('Condizioni di accesso') ?></div><div class="meta-value"><?= $e((string) $row['access_conditions']) ?></div></div><?php endif; ?>
+                        <?php foreach ($authorities as $auth): ?>
+                            <div class="meta-item">
+                                <div class="meta-label"><?= $e($roleLabel[(string) $auth['role']] ?? (string) $auth['role']) ?></div>
+                                <div class="meta-value"><?= $e((string) $auth['authorised_form']) ?><span class="archive-authority-facts"><?= $e($typeLabel[(string) $auth['type']] ?? (string) $auth['type']) ?><?php if (!empty($auth['dates_of_existence'])): ?> · <?= $e((string) $auth['dates_of_existence']) ?><?php endif; ?></span></div>
                             </div>
-                        </dl>
+                        <?php endforeach; ?>
                     </div>
                 </div>
+            </div>
 
-                <?php if (!empty($children)): ?>
-                    <div class="card rounded-md">
-                        <div class="card-header">
-                            <h2 class="mb-0 text-base font-semibold">
-                                <i class="fas fa-sitemap mr-2"></i>
-                                <?= sprintf(__("Unità discendenti (%d)"), count($children)) ?>
-                            </h2>
-                        </div>
-                        <ul class="divide-y divide-gray-200">
-                            <?php foreach ($children as $child):
-                                $cLevel = (string) $child['level'];
-                                $cBadge = $levelBadgeClass[$cLevel] ?? 'bg-slate-100 text-slate-700';
-                                $cIcon = $levelIcon[$cLevel] ?? 'fa-archive';
-                                $cDate = '';
-                                if (!empty($child['date_start'])) {
-                                    $cDate = (string) $child['date_start'];
-                                    if (!empty($child['date_end']) && $child['date_end'] !== $child['date_start']) {
-                                        $cDate .= '–' . (string) $child['date_end'];
-                                    }
-                                }
-                            ?>
-                                <li class="py-3 child-item flex items-center gap-2">
-                                    <span class="status-badge <?= $e($cBadge) ?>">
-                                        <i class="fas <?= $e($cIcon) ?> mr-1"></i><?= $e($levelLabel[$cLevel] ?? $cLevel) ?>
-                                    </span>
-                                    <a class="flex-fill font-medium" href="<?= $e(url($archiveBase . '/' . slugify_text((string) $child['constructed_title']) . '-' . (int) $child['id'])) ?>">
-                                        <?= $e((string) $child['constructed_title']) ?>
-                                    </a>
-                                    <span class="ref-mono text-sm hidden md:inline"><?= $e((string) $child['reference_code']) ?></span>
-                                    <?php if ($cDate !== ''): ?>
-                                        <span class="text-gray-500 text-sm"><?= $e($cDate) ?></span>
+            <?php if (count($downloads) > 1): ?>
+                <section class="listing-section archive-section" aria-labelledby="archive-documents-title">
+                    <h2 class="listing-section-title" id="archive-documents-title"><span><?= __('Documenti scaricabili') ?></span></h2>
+                    <ul class="resource-toc">
+                        <?php foreach ($downloads as $d): ?>
+                            <li>
+                                <span class="resource-toc-main">
+                                    <?php if ($d['audio']): ?>
+                                        <span class="resource-toc-title"><?= $e($d['name']) ?></span>
+                                        <span class="archive-player"><audio class="green-audio-player" controls preload="metadata" src="<?= $e($d['url']) ?>"></audio></span>
+                                    <?php else: ?>
+                                        <a class="resource-toc-title" href="<?= $e($d['url']) ?>" download="<?= $e($d['name']) ?>"><i class="fas fa-download mr-2" aria-hidden="true"></i><?= $e($d['name']) ?></a>
                                     <?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
-                <?php endif; ?>
-            </div>
+                                </span>
+                                <?php if ($d['facts'] !== ''): ?><span class="resource-toc-pages"><?= $e($d['facts']) ?></span><?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </section>
+            <?php endif; ?>
 
-            <div class="w-full lg:w-1/3 px-3">
-                <?php if (!empty($authorities)): ?>
-                    <div class="card rounded-md mb-4">
-                        <div class="card-header">
-                            <h2 class="mb-0 text-base font-semibold">
-                                <i class="fas fa-user-friends mr-2"></i><?= __("Soggetti produttori e associati") ?>
-                            </h2>
-                        </div>
-                        <div>
-                            <?php foreach ($authorities as $auth): ?>
-                                <div class="authority-item">
-                                    <div class="flex justify-between items-start gap-2">
-                                        <div class="flex-fill">
-                                            <div class="font-semibold"><?= $e((string) $auth['authorised_form']) ?></div>
-                                            <div class="text-sm text-gray-500">
-                                                <?= $e($typeLabel[(string) $auth['type']] ?? (string) $auth['type']) ?>
-                                                <?php if (!empty($auth['dates_of_existence'])): ?>
-                                                    · <?= $e((string) $auth['dates_of_existence']) ?>
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
-                                        <span class="status-badge bg-gray-100 text-gray-800 uppercase text-sm">
-                                            <?= $e($roleLabel[(string) $auth['role']] ?? (string) $auth['role']) ?>
-                                        </span>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
+            <?php if (!empty($children)): ?>
+                <section class="listing-section archive-section" aria-labelledby="archive-children-title">
+                    <h2 class="listing-section-title" id="archive-children-title"><span><?= $e(sprintf(__('Unità discendenti (%d)'), count($children))) ?></span></h2>
+                    <ol class="resource-toc">
+                        <?php foreach ($children as $child): $cDate = $dateLabel($child); ?>
+                            <li>
+                                <span class="resource-toc-main">
+                                    <span class="resource-toc-kind"><?= $e($levelLabel[(string) $child['level']] ?? (string) $child['level']) ?></span>
+                                    <a class="resource-toc-title" href="<?= $e($unitUrl((int) $child['id'], (string) $child['constructed_title'])) ?>"><?= $e((string) $child['constructed_title']) ?></a>
+                                    <span class="resource-toc-authors"><?= $e((string) $child['reference_code']) ?></span>
+                                </span>
+                                <?php if ($cDate !== ''): ?><span class="resource-toc-pages"><?= $e($cDate) ?></span><?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ol>
+                </section>
+            <?php endif; ?>
+        </div>
 
-                <div class="card rounded-md">
-                    <div class="card-header">
-                        <h2 class="mb-0 text-base font-semibold">
-                            <i class="fas fa-fingerprint mr-2"></i><?= __("Identificativi") ?>
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        <dl class="isad mb-0 text-sm">
-                            <dt><?= __("Reference Code") ?></dt>
-                            <dd class="ref-mono"><?= $e((string) $row['reference_code']) ?></dd>
-                            <?php if (!empty($row['institution_code'])): ?>
-                                <dt><?= __("Istituzione") ?></dt>
-                                <dd class="ref-mono"><?= $e((string) $row['institution_code']) ?></dd>
-                            <?php endif; ?>
-                            <?php if (!empty($row['local_classification'])): ?>
-                                <dt><?= __("Classificazione locale") ?></dt>
-                                <dd class="ref-mono"><?= $e((string) $row['local_classification']) ?></dd>
-                            <?php endif; ?>
-                            <?php if (!empty($row['collection_name'])): ?>
-                                <dt><?= __("Collezione") ?></dt>
-                                <dd><?= $e((string) $row['collection_name']) ?></dd>
-                            <?php endif; ?>
-                        </dl>
-                    </div>
+        <aside class="w-full lg:w-1/3 px-3" aria-label="<?= $e(__('Identificativi')) ?>">
+            <div class="card mb-4 resource-info-card">
+                <div class="card-header"><h2 class="mb-0 resource-info-title"><i class="fas fa-fingerprint mr-2" aria-hidden="true"></i><?= __('Identificativi') ?></h2></div>
+                <div class="card-body">
+                    <div class="meta-item"><div class="meta-label"><?= __('Reference Code') ?></div><div class="meta-value"><?= $e($refCode) ?></div></div>
+                    <?php if (!empty($row['institution_code'])): ?><div class="meta-item"><div class="meta-label"><?= __('Istituzione') ?></div><div class="meta-value"><?= $e((string) $row['institution_code']) ?></div></div><?php endif; ?>
+                    <?php if (!empty($row['local_classification'])): ?><div class="meta-item"><div class="meta-label"><?= __('Classificazione locale') ?></div><div class="meta-value"><?= $e((string) $row['local_classification']) ?></div></div><?php endif; ?>
+                    <?php if (!empty($row['collection_name'])): ?><div class="meta-item"><div class="meta-label"><?= __('Collezione') ?></div><div class="meta-value"><?= $e((string) $row['collection_name']) ?></div></div><?php endif; ?>
+                    <?php if ($parent !== null): ?><div class="meta-item"><div class="meta-label"><?= __('Fa parte di') ?></div><div class="meta-value"><a href="<?= $e($unitUrl((int) $parent['id'], (string) $parent['title'])) ?>"><?= $e((string) $parent['title']) ?></a></div></div><?php endif; ?>
+                    <a class="ui-button btn-outline resource-back" href="<?= $e($parent !== null ? $unitUrl((int) $parent['id'], (string) $parent['title']) : url($archiveBase)) ?>"><i class="fas fa-arrow-left" aria-hidden="true"></i> <?= $e($parent !== null ? sprintf(__('Torna a %s'), (string) $parent['title']) : __("Torna all'archivio")) ?></a>
                 </div>
             </div>
-        </div>
+        </aside>
     </div>
-</section>
+</div>
 
 <?php if ($hasAudio): ?>
 <script src="<?= $e(url('/assets/vendor/green-audio-player/js/green-audio-player.min.js')) ?>"></script>

@@ -2,54 +2,40 @@
 /** @var string $title */
 /** @var string $privacyText */
 
-$additional_css = "
-<style>
-    main {
-        padding-top: 90px;
-    }
+// Intestazione condivisa (catalog-hero.php): ne serve il foglio di stile.
+$catalogPageStyles = true;
 
-    .contact-page {
-        padding: 4rem 0;
+$additional_css = "
+    .static-page {
+        padding: 3rem 0 4rem;
         background: var(--white);
     }
 
-    .contact-header {
-        text-align: center;
-        margin-bottom: 3rem;
-    }
-
-    .contact-title {
-        font-family: var(--serif);
-        font-size: clamp(2rem, 4vw, 2.75rem);
-        font-weight: 420;
-        color: var(--text-color);
-        margin-bottom: 1rem;
-        letter-spacing: -0.03em;
-    }
-
-    .contact-divider {
-        width: 48px;
-        height: 1px;
-        background: var(--primary-color);
-        margin: 0 auto 1.5rem;
-        border-radius: 0;
-    }
-
-    .contact-content {
+    .static-content {
         font-size: 1.0625rem;
         line-height: 1.8;
         color: var(--text-color);
-        text-align: center;
-        max-width: 700px;
-        margin: 0 auto;
+        max-width: 72ch;
+        margin: 0 0 2.5rem;
+    }
+
+    .static-content > :last-child {
+        margin-bottom: 0;
     }
 
     .contact-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 3rem;
-        max-width: 1200px;
-        margin: 0 auto;
+    }
+
+    /* Senza email, telefono né mappa resta solo il modulo: una colonna. */
+    .contact-grid--single {
+        grid-template-columns: minmax(0, 72ch);
+    }
+
+    .contact-map-spaced {
+        margin-top: 2rem;
     }
 
     @media (max-width: 968px) {
@@ -59,7 +45,7 @@ $additional_css = "
         }
     }
 
-    .contact-info-section {
+    .contact-aside {
         background: none;
         border-radius: 0;
         padding: 2rem 0 0;
@@ -123,7 +109,7 @@ $additional_css = "
     }
 
     .contact-map {
-        border-radius: 3px;
+        border-radius: 2px;
         overflow: hidden;
         border: 1px solid var(--border-color);
         height: 400px;
@@ -187,7 +173,8 @@ $additional_css = "
         font-size: 0.9375rem;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s;
+        min-height: 44px;
+        transition: background-color 0.2s;
     }
 
     /* The button is hidden until a consent manager exists to answer it, and
@@ -201,8 +188,6 @@ $additional_css = "
 
     .map-blocked-button:hover {
         background: var(--primary-color);
-        transform: translateY(-1px);
-        box-shadow: none;
     }
 
     .external-content-wrapper[data-consent-required='analytics'] iframe {
@@ -217,7 +202,7 @@ $additional_css = "
         display: none;
     }
 
-    .contact-form-section {
+    .contact-form-box {
         background: none;
         border-radius: 0;
         padding: 2rem 0 0;
@@ -259,19 +244,18 @@ $additional_css = "
     .form-textarea {
         width: 100%;
         padding: 0.875rem 1rem;
+        min-height: 44px;
         border: 1px solid var(--border-color);
         border-radius: 2px;
         font-size: 1rem;
         color: var(--text-color);
-        transition: all 0.2s;
+        transition: border-color 0.2s;
         font-family: inherit;
     }
 
     .form-input:focus,
     .form-textarea:focus {
-        outline: none;
         border-color: var(--primary-color);
-        box-shadow: none;
     }
 
     .form-textarea {
@@ -287,9 +271,9 @@ $additional_css = "
     }
 
     .checkbox-field input[type=\"checkbox\"] {
-        width: 20px;
-        height: 20px;
-        margin-top: 0.125rem;
+        width: 24px;
+        height: 24px;
+        margin-top: 0;
         cursor: pointer;
         flex-shrink: 0;
     }
@@ -305,6 +289,7 @@ $additional_css = "
     .btn-submit {
         width: 100%;
         padding: 1rem 2rem;
+        min-height: 44px;
         background: var(--button-color, #d70262);
         color: var(--button-text-color, white);
         border: none;
@@ -312,7 +297,7 @@ $additional_css = "
         font-size: 1.0625rem;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: background-color 0.2s;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -321,14 +306,11 @@ $additional_css = "
 
     .btn-submit:hover {
         background: var(--primary-dark, #b6014f);
-        transform: translateY(-2px);
-        box-shadow: none;
     }
 
     .btn-submit:disabled {
         opacity: 0.6;
         cursor: not-allowed;
-        transform: none;
     }
 
     .alert {
@@ -355,34 +337,24 @@ $additional_css = "
     .alert i {
         font-size: 1.25rem;
     }
-
-    @media (max-width: 768px) {
-        .contact-page {
-            padding: 2rem 0;
-        }
-
-        .contact-form-section,
-        .contact-info-section {
-            padding: 1.5rem;
-        }
-    }
-</style>
 ";
 
 ob_start();
 ?>
 
-<section class="contact-page">
+<?php
+$heroTitle = (string) $title;
+$breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => $heroTitle]];
+include __DIR__ . '/partials/catalog-hero.php';
+?>
+
+<section class="static-page">
     <div class="container">
-        <div class="contact-header">
-            <h1 class="contact-title"><?= htmlspecialchars($title) ?></h1>
-            <div class="contact-divider"></div>
-            <?php if (!empty($content)): ?>
-                <div class="contact-content">
-                    <?= $content ?>
-                </div>
-            <?php endif; ?>
-        </div>
+        <?php if (!empty($content)): ?>
+            <div class="static-content">
+                <?= $content ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (isset($_GET['success'])): ?>
             <div class="alert alert-success">
@@ -411,11 +383,13 @@ ob_start();
             </div>
         <?php endif; ?>
 
-        <div class="contact-grid">
+        <?php $contactHasAside = !empty($contactEmail) || !empty($contactPhone) || !empty($googleMapsEmbed); ?>
+        <div class="contact-grid<?= $contactHasAside ? '' : ' contact-grid--single' ?>">
             <!-- Informazioni e Mappa -->
+            <?php if ($contactHasAside): ?>
             <div>
                 <?php if (!empty($contactEmail) || !empty($contactPhone)): ?>
-                <div class="contact-info-section">
+                <div class="contact-aside">
                     <h2 class="contact-info-title"><?= __("Informazioni di contatto") ?></h2>
 
                     <?php if (!empty($contactEmail)): ?>
@@ -445,7 +419,7 @@ ob_start();
                 <?php endif; ?>
 
                 <?php if (!empty($googleMapsEmbed)): ?>
-                <div class="contact-map external-content-wrapper" data-consent-required="analytics" style="margin-top: 2rem;">
+                <div class="contact-map external-content-wrapper<?= (!empty($contactEmail) || !empty($contactPhone)) ? ' contact-map-spaced' : '' ?>" data-consent-required="analytics">
                     <!-- Map Blocked Placeholder -->
                     <div class="map-blocked-placeholder">
                         <div class="map-blocked-icon">
@@ -469,9 +443,10 @@ ob_start();
                 </div>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
 
             <!-- Form -->
-            <div class="contact-form-section">
+            <div class="contact-form-box">
                 <h2 class="contact-info-title"><?= __("Inviaci un messaggio") ?></h2>
 
                 <form method="post" action="<?= htmlspecialchars(route_path('contact_submit'), ENT_QUOTES, 'UTF-8') ?>" id="contact-form">

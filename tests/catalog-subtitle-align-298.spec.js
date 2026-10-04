@@ -125,11 +125,9 @@ test('#298: subtitle space is reserved per row so cards stay aligned', async ({ 
   expect(r.spacers, 'a spacer was reserved on the plain cards of subtitle rows').toBeGreaterThan(0);
 });
 
-test('#298: single-column (mobile) layout injects no spurious placeholder', async ({ page }) => {
-  // At a narrow viewport the auto-fill grid collapses to one column, so each
-  // visual row holds exactly one card. A subtitled card alone must keep its own
-  // subtitle (no placeholder), a plain card alone must get nothing, and no title
-  // may collapse to zero height (#302 review — this path was previously untested).
+test('#298: two-column mobile layout reserves subtitle space only where needed', async ({ page }) => {
+  // The compact mobile grid has two columns. Plain rows stay compact, while
+  // rows containing a subtitle reserve its space on their neighbouring card.
   await page.setViewportSize({ width: 375, height: 1600 });
   await page.goto(`${BASE}/catalogo`);
   await page.waitForFunction(() => document.querySelectorAll('.books-grid .book-card').length > 0, null, { timeout: 15000 });
@@ -139,15 +137,29 @@ test('#298: single-column (mobile) layout injects no spurious placeholder', asyn
     const grid = document.querySelector('.books-grid');
     const cards = Array.from(grid.querySelectorAll('.book-card'));
     const cols = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().left))).size;
-    const placeholders = grid.querySelectorAll('.subtitle-ph').length;
+    const rows = new Map();
+    cards.forEach(card => {
+      const top = Math.round(card.getBoundingClientRect().top);
+      if (!rows.has(top)) rows.set(top, []);
+      rows.get(top).push(card);
+    });
+    const badSpacerRows = Array.from(rows.values()).filter(row =>
+      !row.some(card => card.querySelector('.book-subtitle:not(.subtitle-ph)')) &&
+      row.some(card => card.querySelector('.subtitle-ph'))).length;
+    const misalignedRows = Array.from(rows.values()).filter(row => {
+      const tops = row.map(card => card.querySelector('.book-author')).filter(Boolean)
+        .map(author => author.getBoundingClientRect().top);
+      return tops.length > 1 && Math.max(...tops) - Math.min(...tops) > 3;
+    }).length;
     const zeroHeightTitles = cards.map((c) => c.querySelector('.book-title'))
       .filter(Boolean).filter((t) => t.offsetHeight === 0).length;
-    return { cards: cards.length, cols, placeholders, zeroHeightTitles };
+    return { cards: cards.length, cols, badSpacerRows, misalignedRows, zeroHeightTitles };
   });
 
   expect(r.cards, 'catalogue rendered cards').toBeGreaterThan(0);
-  expect(r.cols, 'layout collapses to a single column at 375px').toBe(1);
-  expect(r.placeholders, 'no spurious subtitle placeholder in single-column layout').toBe(0);
+  expect(r.cols, 'the mobile catalogue has two columns at 375px').toBe(2);
+  expect(r.badSpacerRows, 'plain rows get no subtitle placeholder').toBe(0);
+  expect(r.misalignedRows, 'authors stay aligned within each mobile row').toBe(0);
   expect(r.zeroHeightTitles, 'no title collapsed to zero height').toBe(0);
 });
 

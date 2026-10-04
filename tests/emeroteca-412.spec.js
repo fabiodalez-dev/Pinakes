@@ -203,7 +203,12 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     // type: with the plugin active, that list now says where an article goes.
     await page.goto(BASE+'/admin/books/create');
     await expect(page.getByText('Per un articolo di rivista o di giornale usa l’Emeroteca.')).toBeVisible();
-    await expect(page.locator('a[href$="/admin/periodicals/articles/create"]')).toBeVisible();
+    await expect(page.getByRole('link',{name:'Aggiungi articolo'})).toBeVisible();
+    // The sidebar quick actions offer "Nuovo articolo" under "Nuovo Libro" on
+    // every admin page, where a reader told "beside New book" looks first.
+    await expect(page.locator('#sidebar-new-article')).toHaveAttribute('href',/\/admin\/periodicals\/articles\/create$/);
+    await page.goto(BASE+'/admin/dashboard');
+    await expect(page.locator('#sidebar-new-article')).toBeVisible();
     expect(errors).toEqual([]);await anonymous.close();
   });
 });

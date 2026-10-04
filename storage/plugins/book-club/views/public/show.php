@@ -46,69 +46,75 @@ $icsUrl = url('/book-club/' . $slug . '/calendar.ics') . '?token=' . $club['ics_
 $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybrid' => __('Ibrido')];
 ?>
 <style>
-  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
   .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
-  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
-  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
-  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
-  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:2px;font-size:.75rem;font-weight:600}
   .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
   .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
   .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
   .bc-muted{color:var(--text-light);font-size:.85rem}
-  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
-  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
-  .bc-hero p{opacity:.9;margin:0}
-  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
-  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:2px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:2px;background:var(--primary-color)}
   .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
   .bc-list-item:first-child{border-top:none}
-  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
-  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:3px}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <style>
   /* Page-local helpers (club page only; partials rely on the kit above). */
-  .bc-hero-club{position:relative;overflow:hidden}
-  .bc-hero-accent{position:absolute;top:0;left:0;right:0;height:6px}
-  .bc-hero-meta{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin-top:.75rem;font-size:.9rem;opacity:.85}
-  .bc-hero-meta a{color:#fff;text-decoration:underline}
   .bc-preline{white-space:pre-line}
   .bc-row{padding:.9rem 0;border-top:1px solid var(--border-color)}
   .bc-cancelled{opacity:.5}
   .bc-link{color:var(--primary-color);font-weight:600;text-decoration:none}
   .bc-link:hover{text-decoration:underline}
   .bc-state-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-light);margin:0}
-  .bc-card-flagged{border-left:4px solid var(--warning-color)}
+  .bc-card-flagged{border-color:var(--warning-color)}
   .bc-summary{color:var(--primary-color);font-weight:600;font-size:.9rem;cursor:pointer}
-  .bc-scrollbox{max-height:12rem;overflow-y:auto;border:1px solid var(--border-color);border-radius:12px;padding:.75rem}
-  .bc-autocomplete{position:absolute;z-index:10;left:0;right:0;margin-top:.25rem;background:var(--white);border:1px solid var(--border-color);border-radius:12px;box-shadow:var(--card-shadow);max-height:15rem;overflow-y:auto}
+  .bc-scrollbox{max-height:12rem;overflow-y:auto;border:1px solid var(--border-color);border-radius:2px;padding:.75rem}
+  .bc-autocomplete{position:absolute;z-index:10;left:0;right:0;margin-top:.25rem;background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;max-height:15rem;overflow-y:auto}
   .bc-autocomplete.hidden{display:none}
   .bc-autocomplete-item{padding:.5rem .75rem;font-size:.9rem;cursor:pointer}
   .bc-autocomplete-item:hover{background:var(--accent-color)}
+  /* Members line and join/leave actions under the shared single-resource hero. */
+  .bc-hero-extra{display:flex;flex-direction:column;gap:1rem;margin-top:1rem}
+  .bc-hero-meta{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;font-size:.9rem;color:var(--text-light)}
+  .bc-hero-meta a{color:var(--primary-color);font-weight:600;text-decoration:none}
+  .bc-hero-meta a:hover{text-decoration:underline}
+  .bc-hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
+  .bc-hero-actions form{margin:0}
 </style>
-<div class="container py-4">
-
-  <!-- Header -->
-  <div class="bc-hero bc-hero-club">
-    <div class="bc-hero-accent" style="background: <?= $e($club['color']) ?>"></div>
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1><?= $e($club['name']) ?></h1>
-        <p class="bc-preline"><?= $e($club['description'] ?? '') ?></p>
-        <div class="bc-hero-meta">
+<?php
+// Hero: same single-resource header as the book / emeroteca pages.
+$corePartials = dirname(__DIR__, 5) . '/app/Views/frontend/partials';
+$bookDetailStyles = true;
+$breadcrumbItems = [
+    ['label' => __('Home'), 'href' => url('/')],
+    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
+    ['label' => (string) $club['name']],
+];
+$resourceCover = '';
+$resourceKickerHtml = '<span class="bc-chip" style="background: ' . $e($club['color']) . '"></span> ' . $e(__('Club di lettura'));
+$resourceTitle = (string) $club['name'];
+$resourceSubtitle = (string) ($club['description'] ?? '');
+ob_start();
+?>
+<div class="bc-hero-extra">
+  <div class="bc-hero-meta">
           <span><i class="fas fa-users mr-1"></i><?= (int) $memberCount ?> <?= $e(__('membri')) ?><?= $club['max_members'] !== null ? ' / ' . (int) $club['max_members'] : '' ?></span>
           <?php if ($isMember || $canManage): ?>
             <a href="<?= htmlspecialchars($icsUrl, ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-calendar-alt mr-1"></i><?= $e(__('Calendario iCal')) ?></a>
           <?php endif; ?>
         </div>
-      </div>
-      <div class="flex items-center gap-3">
+  <div class="bc-hero-actions">
         <?php if (!$loggedIn): ?>
           <a href="<?= $e(\App\Support\RouteTranslator::route('login')) ?>" class="bc-btn"><?= $e(__('Accedi per partecipare')) ?></a>
         <?php elseif ($membership === null || !in_array($membership['status'], ['active', 'pending'], true)): ?>
@@ -132,8 +138,12 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           </form>
         <?php endif; ?>
       </div>
-    </div>
-  </div>
+</div>
+<?php
+$resourceExtraHtml = (string) ob_get_clean();
+include $corePartials . '/resource-hero.php';
+?>
+<div class="container py-4">
 
   <?php if (!empty($flash)): ?>
     <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : ($flash['type'] === 'warning' ? 'warning' : 'danger') ?>">
@@ -465,7 +475,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 <div class="bc-scrollbox mb-3">
                   <?php foreach ($eligible as $book): ?>
                     <div class="flex items-center gap-2">
-                      <input type="checkbox" name="options[]" value="<?= (int) $book['id'] ?>" class="h-4 w-4 rounded border-gray-300" id="bc-poll-opt-<?= (int) $book['id'] ?>">
+                      <input type="checkbox" name="options[]" value="<?= (int) $book['id'] ?>" class="h-4 w-4 border-gray-300" id="bc-poll-opt-<?= (int) $book['id'] ?>">
                       <label class="text-sm text-gray-700" for="bc-poll-opt-<?= (int) $book['id'] ?>">
                         <?= $e($book['titolo']) ?><?php if (!empty($book['autori'])): ?><span class="bc-muted"> — <?= $e($book['autori']) ?></span><?php endif; ?>
                       </label>

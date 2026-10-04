@@ -3217,7 +3217,8 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // corrupted DB values.
         $eventImageLayoutAllowed = ['full', 'banner', 'contained', 'thumb'];
         $eventImageLayout = strtolower((string) $repository->get('cms', 'event_image_layout', 'contained'));
-        if (!in_array($eventImageLayout, $eventImageLayoutAllowed, true)) {
+        if (!in_array($eventImageLayout, $eventImageLayoutAllowed, true) || $eventImageLayout === 'thumb') {
+            // A 'thumb' saved before the presets were merged shows the hero cover, as 'contained'.
             $eventImageLayout = 'contained';
         }
 
