@@ -623,10 +623,10 @@ class UpdateController
 
             if ($result['success']) {
                 // Store path in session to avoid leaking filesystem paths to client
-                $_SESSION['manual_update_path'] = $result['path'];
                 return $this->jsonResponse($response, [
                     'success' => true,
-                    'message' => __('Pacchetto caricato con successo')
+                    'message' => __('Pacchetto caricato con successo'),
+                    'package' => $this->holdPendingPackage($updater, (string) $result['path'], null),
                 ]);
             }
 
@@ -694,11 +694,35 @@ class UpdateController
         }
 
         // The path stays on the server, as for an uploaded package
-        $_SESSION['manual_update_path'] = $result['path'];
         return $this->jsonResponse($response, [
             'success' => true,
-            'message' => __('Pacchetto scaricato e verificato')
+            'message' => __('Pacchetto scaricato e verificato'),
+            'package' => $this->holdPendingPackage($updater, $result['path'], $result['sha256']),
         ]);
+    }
+
+    /**
+     * Keep a downloaded or uploaded package for the install request, under an
+     * opaque id the page sends back. The install request then installs this
+     * package and no other: a download in one tab and an upload in another
+     * share the session, and without the id the second would take the first's
+     * place unnoticed. A package that is replaced is deleted.
+     */
+    private function holdPendingPackage(Updater $updater, string $path, ?string $sha256): string
+    {
+        $previous = (string) ($_SESSION['manual_update_path'] ?? '');
+        if ($previous !== '' && $previous !== $path) {
+            $updater->discardPendingPackage($previous);
+        }
+        $id = bin2hex(random_bytes(16));
+        $_SESSION['manual_update_path'] = $path;
+        $_SESSION['manual_update_id'] = $id;
+        if ($sha256 !== null) {
+            $_SESSION['manual_update_sha256'] = $sha256;
+        } else {
+            unset($_SESSION['manual_update_sha256']);
+        }
+        return $id;
     }
 
     /**
@@ -748,9 +772,22 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
         }
 
+        // The page names the package it downloaded or uploaded. When another tab
+        // has replaced it since, refuse without touching the other one, which
+        // its own install request can still take.
+        $pendingId = (string) ($_SESSION['manual_update_id'] ?? '');
+        $requestedId = (string) ($data['package'] ?? '');
+        if (($pendingId !== '' || $requestedId !== '') && !hash_equals($pendingId, $requestedId)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Il pacchetto in attesa è cambiato in un\'altra scheda: ripeti l\'aggiornamento'),
+            ], 409);
+        }
+
         // Retrieve path from session (not from client) to prevent path manipulation
         $tempPath = $_SESSION['manual_update_path'] ?? '';
-        unset($_SESSION['manual_update_path']);
+        $expectedSha256 = (string) ($_SESSION['manual_update_sha256'] ?? '');
+        unset($_SESSION['manual_update_path'], $_SESSION['manual_update_id'], $_SESSION['manual_update_sha256']);
 
         if (empty($tempPath)) {
             return $this->jsonResponse($response, ['error' => __('Path pacchetto non specificato')], 400);
@@ -762,11 +799,23 @@ class UpdateController
         $realTempPath = realpath($tempPath);
         $realStorageTmp = realpath($storageTmp);
 
-        if (!$realTempPath || !$realStorageTmp || !str_starts_with($realTempPath, $realStorageTmp)) {
+        if (!$realTempPath || !$realStorageTmp || !str_starts_with($realTempPath, $realStorageTmp . DIRECTORY_SEPARATOR)) {
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Path pacchetto non valido')
             ], 400);
+        }
+
+        // A downloaded package is checked again against the digest it was
+        // verified with, right before it is installed
+        if ($expectedSha256 !== '') {
+            $actualSha256 = (string) @hash_file('sha256', $realTempPath . '/update.zip');
+            if (!hash_equals($expectedSha256, $actualSha256)) {
+                return $this->jsonResponse($response, [
+                    'success' => false,
+                    'error' => __('Verifica di integrità fallita: l\'archivio scaricato non corrisponde al checksum atteso.'),
+                ], 400);
+            }
         }
 
         try {

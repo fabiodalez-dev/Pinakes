@@ -789,7 +789,7 @@ async function startUpdate(version) {
         const response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}`
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(downloadData.package || '')}`
         });
 
         // Check for maintenance mode before parsing response
@@ -1552,7 +1552,7 @@ async function submitManualUpdate() {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Accept': 'application/json',
             },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}`
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(uploadData.package || '')}`
         });
 
         const installData = await readUpdateJson(installResponse);

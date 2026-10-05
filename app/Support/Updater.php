@@ -1510,7 +1510,7 @@ class Updater
      * 30 MB package in memory, next to the backup the same request had just
      * written, is what an account with a fixed memory limit could not afford.
      */
-    private function fetchVerifiedPackage(string $url, string $assetName, ?string $digest, string $zipPath): void
+    private function fetchVerifiedPackage(string $url, string $assetName, ?string $digest, string $zipPath): string
     {
         $expectedHash = null;
         if (is_string($digest) && stripos($digest, 'sha256:') === 0) {
@@ -1556,6 +1556,7 @@ class Updater
             throw new Exception(__('Impossibile salvare il file di aggiornamento') . ' — ' . $cause);
         }
         $this->debugLog('INFO', 'Integrità pacchetto verificata (sha256)', ['sha256' => $actualHash, 'path' => $zipPath]);
+        return $actualHash;
     }
 
     /**
@@ -1638,7 +1639,7 @@ class Updater
      * one request that took the backup, the download and the install together
      * could outlast a proxy or FastCGI timeout on shared hosting (issue #450).
      *
-     * @return array{success: bool, path: string|null, error: string|null}
+     * @return array{success: bool, path: string|null, sha256: string|null, error: string|null}
      */
     public function downloadPackageForInstall(string $version): array
     {
@@ -1662,15 +1663,33 @@ class Updater
             if (!@mkdir($dir, 0755, true) && !is_dir($dir)) {
                 throw new Exception(__('Impossibile creare directory temporanea') . ' — ' . $this->describeWriteFailure($dir));
             }
-            $this->fetchVerifiedPackage($url, $assetName, $digest, $dir . '/update.zip');
-            return ['success' => true, 'path' => $dir, 'error' => null];
+            $sha256 = $this->fetchVerifiedPackage($url, $assetName, $digest, $dir . '/update.zip');
+            return ['success' => true, 'path' => $dir, 'sha256' => $sha256, 'error' => null];
         } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Download pacchetto fallito', ['error' => $e->getMessage()]);
             if (is_dir($dir)) {
                 $this->deleteDirectory($dir);
             }
-            return ['success' => false, 'path' => null, 'error' => $e->getMessage()];
+            return ['success' => false, 'path' => null, 'sha256' => null, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Delete a package waiting for its install request, once another download
+     * or upload has taken its place. Only a manual_update_* folder directly
+     * under storage/tmp is removed.
+     */
+    public function discardPendingPackage(string $path): void
+    {
+        $expectedRoot = realpath($this->rootPath . '/storage/tmp');
+        $realPath = realpath($path);
+        if ($expectedRoot === false || $realPath === false || !is_dir($realPath)
+            || dirname($realPath) !== $expectedRoot
+            || !str_starts_with(basename($realPath), 'manual_update_')) {
+            return;
+        }
+        $this->debugLog('INFO', 'Pacchetto in attesa sostituito, rimosso', ['path' => $realPath]);
+        $this->deleteDirectory($realPath);
     }
 
     /**

@@ -8044,5 +8044,6 @@
   "almeno %s": "au moins %s",
   "Pacchetto scaricato e verificato": "Paquet téléchargé et vérifié",
   "trasferimento interrotto": "transfert interrompu",
+  "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "Le paquet en attente a été remplacé dans un autre onglet : relancez la mise à jour",
   "Errore fatale PHP durante l'aggiornamento": "Erreur fatale PHP pendant la mise à jour"
 }

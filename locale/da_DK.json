@@ -8044,5 +8044,6 @@
   "almeno %s": "mindst %s",
   "Pacchetto scaricato e verificato": "Pakke downloadet og kontrolleret",
   "trasferimento interrotto": "overførslen blev afbrudt",
+  "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "Den ventende pakke blev erstattet i en anden fane: start opdateringen igen",
   "Errore fatale PHP durante l'aggiornamento": "Fatal PHP-fejl under opdateringen"
 }
