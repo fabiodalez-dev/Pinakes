@@ -2,6 +2,16 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.92]
+
+### Fixed
+- **The automatic update no longer fails with "The server returned an invalid response"** ([#450](https://github.com/fabiodalez-dev/Pinakes/issues/450)). It ran the backup, the download from GitHub, the file copy and the migrations in one long request, holding the 30 MB package in memory; on hosting that cuts long requests off behind a proxy, or will not raise PHP's memory limit, the request ended with an error page instead of an answer, while uploading the same package by hand worked. The automatic update now runs as two requests, like a manual one: the server downloads the release and verifies its sha256, then installs it through the same request a manual update ends with. The package is written to disk as it arrives instead of being held in memory, by the single-request update too.
+- **A failed update says why.** A PHP fatal error during an update (memory, a time limit the host enforces) now comes back as a message with PHP's own reason, and an answer that is not JSON at all, such as a proxy's timeout page, is shown with its HTTP status and the start of its text. Before, both read only "invalid response". The update requests also ask for JSON, so an expired session answers in words the page can show.
+- **A download that breaks off is reported as one.** On a slow link the package download can stop partway, for instance on a timeout; the partial file then reached the checksum, and the update failed with "the archive does not match the expected checksum", which reads like a tampered release. It now fails as a download, with the transport's reason. Packages downloaded or uploaded for an install that never ran (a closed tab, a session that expired in between) are also removed after an hour, with the other temporary update folders, instead of staying in storage/tmp.
+- **The install request installs the package its own page prepared.** A download and an upload, in two tabs of the same session, shared one waiting package, and the install request took whichever came last. The page now sends back the id of the package it downloaded or uploaded; a package replaced in another tab is refused, not installed, and the replaced one is deleted. A downloaded package is checked against its sha256 again right before it is installed.
+
+This fix runs from the update after 0.7.92: an installation older than 0.7.92 still updates with its own, older updater. If the automatic update fails there, upload the 0.7.92 package under Admin → Updates → Manual update.
+
 ## [0.7.91]
 
 ### Added

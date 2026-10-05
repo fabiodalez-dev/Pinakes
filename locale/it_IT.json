@@ -8041,5 +8041,9 @@
   "Questa è l'immagine Docker ufficiale di Pinakes: l'aggiornamento dall'applicazione è disattivato di proposito. Il codice verrebbe riscritto solo nel layer del container e andrebbe perso alla prima ricreazione, mentre le migrazioni del database resterebbero applicate — lasciando codice vecchio su uno schema nuovo. Aggiorna spostando il container sulla nuova immagine: \"docker compose pull && docker compose up -d\".": "Questa è l'immagine Docker ufficiale di Pinakes: l'aggiornamento dall'applicazione è disattivato di proposito. Il codice verrebbe riscritto solo nel layer del container e andrebbe perso alla prima ricreazione, mentre le migrazioni del database resterebbero applicate — lasciando codice vecchio su uno schema nuovo. Aggiorna spostando il container sulla nuova immagine: \"docker compose pull && docker compose up -d\".",
   "Impossibile verificare lo spazio disponibile in %s. Controlla la configurazione del filesystem e riprova.": "Impossibile verificare lo spazio disponibile in %s. Controlla la configurazione del filesystem e riprova.",
   "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.",
-  "almeno %s": "almeno %s"
+  "almeno %s": "almeno %s",
+  "Pacchetto scaricato e verificato": "Pacchetto scaricato e verificato",
+  "trasferimento interrotto": "trasferimento interrotto",
+  "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento",
+  "Errore fatale PHP durante l'aggiornamento": "Errore fatale PHP durante l'aggiornamento"
 }

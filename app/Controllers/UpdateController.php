@@ -151,6 +151,7 @@ class UpdateController
         }
 
         // Perform the update
+        $this->answerJsonOnFatal();
         $result = $updater->performUpdate($targetVersion);
 
         if ($result['success']) {
@@ -622,10 +623,10 @@ class UpdateController
 
             if ($result['success']) {
                 // Store path in session to avoid leaking filesystem paths to client
-                $_SESSION['manual_update_path'] = $result['path'];
                 return $this->jsonResponse($response, [
                     'success' => true,
-                    'message' => __('Pacchetto caricato con successo')
+                    'message' => __('Pacchetto caricato con successo'),
+                    'package' => $this->holdPendingPackage($updater, (string) $result['path'], null),
                 ]);
             }
 
@@ -641,6 +642,115 @@ class UpdateController
                 'error' => __('Errore durante il caricamento del pacchetto')
             ], 500);
         }
+    }
+
+    /**
+     * API: Download the release package for an automatic update.
+     *
+     * First of the two requests of an automatic update: the server fetches the
+     * release from GitHub, verifies its sha256 and keeps it under storage/tmp;
+     * the page then installs it through install-manual, the same request a
+     * manual update ends with. Splitting them keeps each request short enough
+     * for hosting that cuts long requests off behind a proxy (issue #450).
+     */
+    public function downloadUpdatePackage(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
+        $data = (array) $request->getParsedBody();
+        if (!Csrf::validate($data['csrf_token'] ?? '')) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $version = trim((string) ($data['version'] ?? ''));
+        if ($version === '' || preg_match('/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/', $version) !== 1) {
+            return $this->jsonResponse($response, ['error' => __('Versione non specificata')], 400);
+        }
+
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'downloadUpdatePackage'),
+            ], 503);
+        }
+
+        $requirements = $updater->checkRequirements();
+        if (!$requirements['met']) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Requisiti di sistema non soddisfatti'),
+                'requirements' => $requirements['requirements']
+            ], 400);
+        }
+
+        $this->answerJsonOnFatal();
+        $result = $updater->downloadPackageForInstall($version);
+        if (!$result['success'] || $result['path'] === null) {
+            return $this->jsonResponse($response, ['success' => false, 'error' => $result['error']], 500);
+        }
+
+        // The path stays on the server, as for an uploaded package
+        return $this->jsonResponse($response, [
+            'success' => true,
+            'message' => __('Pacchetto scaricato e verificato'),
+            'package' => $this->holdPendingPackage($updater, $result['path'], $result['sha256']),
+        ]);
+    }
+
+    /**
+     * Keep a downloaded or uploaded package for the install request, under an
+     * opaque id the page sends back. The install request then installs this
+     * package and no other: a download in one tab and an upload in another
+     * share the session, and without the id the second would take the first's
+     * place unnoticed. A package that is replaced is deleted.
+     */
+    private function holdPendingPackage(Updater $updater, string $path, ?string $sha256): string
+    {
+        $previous = (string) ($_SESSION['manual_update_path'] ?? '');
+        if ($previous !== '' && $previous !== $path) {
+            $updater->discardPendingPackage($previous);
+        }
+        $id = bin2hex(random_bytes(16));
+        $_SESSION['manual_update_path'] = $path;
+        $_SESSION['manual_update_id'] = $id;
+        if ($sha256 !== null) {
+            $_SESSION['manual_update_sha256'] = $sha256;
+        } else {
+            unset($_SESSION['manual_update_sha256']);
+        }
+        return $id;
+    }
+
+    /**
+     * A fatal error during an update (memory, a time limit the host enforces)
+     * would end the request with an HTML error page or nothing at all, and the
+     * page could only say "invalid response". Answer it as JSON with PHP's own
+     * message instead, whenever nothing has been sent yet.
+     */
+    private function answerJsonOnFatal(): void
+    {
+        register_shutdown_function(static function (): void {
+            $error = error_get_last();
+            if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                return;
+            }
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            if (headers_sent()) {
+                return;
+            }
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error' => __('Errore fatale PHP durante l\'aggiornamento') . ': ' . $error['message'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        });
     }
 
     /**
@@ -662,9 +772,22 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
         }
 
+        // The page names the package it downloaded or uploaded. When another tab
+        // has replaced it since, refuse without touching the other one, which
+        // its own install request can still take.
+        $pendingId = (string) ($_SESSION['manual_update_id'] ?? '');
+        $requestedId = (string) ($data['package'] ?? '');
+        if (($pendingId !== '' || $requestedId !== '') && !hash_equals($pendingId, $requestedId)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Il pacchetto in attesa è cambiato in un\'altra scheda: ripeti l\'aggiornamento'),
+            ], 409);
+        }
+
         // Retrieve path from session (not from client) to prevent path manipulation
         $tempPath = $_SESSION['manual_update_path'] ?? '';
-        unset($_SESSION['manual_update_path']);
+        $expectedSha256 = (string) ($_SESSION['manual_update_sha256'] ?? '');
+        unset($_SESSION['manual_update_path'], $_SESSION['manual_update_id'], $_SESSION['manual_update_sha256']);
 
         if (empty($tempPath)) {
             return $this->jsonResponse($response, ['error' => __('Path pacchetto non specificato')], 400);
@@ -676,11 +799,23 @@ class UpdateController
         $realTempPath = realpath($tempPath);
         $realStorageTmp = realpath($storageTmp);
 
-        if (!$realTempPath || !$realStorageTmp || !str_starts_with($realTempPath, $realStorageTmp)) {
+        if (!$realTempPath || !$realStorageTmp || !str_starts_with($realTempPath, $realStorageTmp . DIRECTORY_SEPARATOR)) {
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Path pacchetto non valido')
             ], 400);
+        }
+
+        // A downloaded package is checked again against the digest it was
+        // verified with, right before it is installed
+        if ($expectedSha256 !== '') {
+            $actualSha256 = (string) @hash_file('sha256', $realTempPath . '/update.zip');
+            if (!hash_equals($expectedSha256, $actualSha256)) {
+                return $this->jsonResponse($response, [
+                    'success' => false,
+                    'error' => __('Verifica di integrità fallita: l\'archivio scaricato non corrisponde al checksum atteso.'),
+                ], 400);
+            }
         }
 
         try {
@@ -703,6 +838,7 @@ class UpdateController
         }
 
         // Perform the update from uploaded file (use resolved path to prevent TOCTOU)
+        $this->answerJsonOnFatal();
         $result = $updater->performUpdateFromFile($realTempPath);
 
         if ($result['success']) {

@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.91 — latest
+### v0.7.92 — latest
+
+**The automatic update works where it used to answer "invalid response"** ([#450](https://github.com/fabiodalez-dev/Pinakes/issues/450)). It now downloads and verifies the release in one request and installs it in a second, exactly as a manual update does, and writes the package to disk instead of holding it in memory; a failure shows its real cause (a PHP error, or a proxy's HTTP status and page). An installation older than 0.7.92 updates with its own updater: if the automatic update fails there, upload the 0.7.92 package once under Admin → Updates → Manual update. No migration.
+
+### v0.7.91
 
 **danMARC2, the Danish format, can be imported.** A new DBC preset in Plugins → Z39.50/SRU searches the Danish union catalogue, and any SRU server that answers in danMARC2 works too; before, a danMARC2 record could not be read at all. **Who did what is read from more records:** a translator or editor the record names without a role is found in the title-page statement ("translated by…"), roles are understood in German, French, Spanish, the Scandinavian languages, Dutch and Polish, and a colorist goes to the Colorist picker. Places and editions lose their ISBD brackets ("London [u.a.]" is "London"), and the form gets the ISBN that was searched for. No migration.
 

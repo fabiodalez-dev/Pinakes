@@ -172,7 +172,10 @@ $check(strpos($src, "\$downloadUrl = \$release['zipball_url']") === false,
     'no unverifiable zipball_url download fallback');
 
 // 8. The package download is token-scoped via isApiUrl($downloadUrl).
-$check(strpos($src, "getGitHubHeaders('application/octet-stream', \$this->isApiUrl(\$downloadUrl))") !== false,
+// The download streams to disk (0.7.92, #450): the auth flag is decided by
+// isApiUrl() on the package URL and is the only thing that sends the token.
+$check(strpos($src, "streamToFile(\$url, \$partPath, \$this->isApiUrl(\$url))") !== false
+    && strpos($src, "getGitHubHeaders('application/octet-stream', \$withAuth)") !== false,
     'package download header scoped by isApiUrl()');
 
 // 9. fetchVerifiedReleaseAsset uses hash_equals (timing-safe).
