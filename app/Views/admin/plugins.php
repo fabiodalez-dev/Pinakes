@@ -676,6 +676,9 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                 <option value="bne">BNE - Biblioteca Nacional de España</option>
                                 <option value="rebiun">REBIUN - Red de Bibliotecas Universitarias</option>
                             </optgroup>
+                            <optgroup label="[DK] Danmark">
+                                <option value="dbc">* DBC - Danish union catalogue (danMARC2)</option>
+                            </optgroup>
                             <optgroup label="[...] Altri Paesi">
                                 <option value="kb">KB - Koninklijke Bibliotheek (NL)</option>
                                 <option value="ndl">NDL - National Diet Library (JP)</option>
@@ -1004,6 +1007,17 @@ $pluginHasSettings = $pluginHasSettings ?? [];
             db: '',
             syntax: 'marcxml',
             indexes: { isbn: 'isbn' }
+        },
+        // [DK] The Danish union catalogue through DBC OpenSearch: danMARC2
+        // records in MARCXchange. agency and profile are DBC's public test
+        // pair; a Danish library puts its own in the URL.
+        dbc: {
+            name: '[DK] DBC - Danish union catalogue (danMARC2)',
+            url: 'https://opensearch.addi.dk/b3.5_5.2/?agency=100200&profile=test',
+            db: '',
+            version: '1.2',
+            syntax: 'dbc-opensearch',
+            indexes: { isbn: 'term.isbn' }
         }
     };
 
@@ -1134,6 +1148,8 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                     <option value="marcxml" ${safeSyntax === 'marcxml' ? 'selected' : ''}>MARCXML</option>
                     <option value="unimarcxchange" ${safeSyntax === 'unimarcxchange' ? 'selected' : ''}>UNIMARC/MARCXchange</option>
                     <option value="unimarc" ${safeSyntax === 'unimarc' ? 'selected' : ''}>UNIMARC</option>
+                    <option value="danmarc2" ${safeSyntax === 'danmarc2' ? 'selected' : ''}>danMARC2 (MARCXchange)</option>
+                    <option value="dbc-opensearch" ${safeSyntax === 'dbc-opensearch' ? 'selected' : ''}>danMARC2 - DBC OpenSearch</option>
                     <option value="mods" ${safeSyntax === 'mods' ? 'selected' : ''}>MODS</option>
                     <option value="dc" ${safeSyntax === 'dc' ? 'selected' : ''}>Dublin Core</option>
                 </select>

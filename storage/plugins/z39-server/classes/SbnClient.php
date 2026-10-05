@@ -439,7 +439,7 @@ class SbnClient
 
         // Edition statement, when the record carries one
         if (is_string($record['edizione'] ?? null) && trim($record['edizione']) !== '') {
-            $book['edition'] = trim((string) preg_replace('/[\s\/:;=,]+$/u', '', $this->stripMarcControlChars($record['edizione'])));
+            $book['edition'] = \App\Support\EditionStatement::clean($this->stripMarcControlChars($record['edizione']));
         }
 
         // Publisher and publication info

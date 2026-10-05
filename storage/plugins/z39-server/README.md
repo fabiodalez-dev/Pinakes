@@ -326,6 +326,29 @@ Database: catalog
 Formato preferito: MARCXML o Dublin Core
 ```
 
+## Importare da cataloghi esterni (Copy Cataloging)
+
+Quando il client è attivo, l'import da ISBN interroga i server configurati in **Plugin → Z39.50/SRU** e legge i record in tre formati MARC, più Dublin Core:
+
+| Sintassi | Formato | Esempi |
+| --- | --- | --- |
+| `marcxml` | MARC 21 | K10plus, DNB, LIBRIS, Library of Congress |
+| `unimarcxchange`, `unimarc` | UNIMARC in MARCXchange | BnF, SUDOC |
+| `danmarc2` | danMARC2 in MARCXchange, via SRU | cataloghi danesi con un endpoint SRU |
+| `dbc-opensearch` | danMARC2, via DBC OpenSearch | catalogo collettivo danese (preset **DBC**) |
+| `dc` | Dublin Core | NDL |
+
+Un record MARCXchange che si dichiara `format="danMARC2"` viene letto come danMARC2 anche con la sintassi `marcxchange`.
+
+**DBC.** Il preset usa la coppia pubblica di prova di DBC (`agency=100200&profile=test`); una biblioteca danese mette nell'URL la propria agency e il proprio profilo.
+
+**Chi ha fatto cosa.** Curatori, traduttori, illustratori e coloristi vanno ai loro campi, non fra gli autori. Il ruolo si legge, in quest'ordine:
+- dal codice di funzione (`$4`/`*4`: elenco Library of Congress, codici danesi dell'appendice J di danMARC2, codici IFLA numerici in UNIMARC);
+- dalla dicitura (`$e`, danMARC2 `*b`/`*f`), in italiano, inglese, tedesco, francese, spagnolo, lingue scandinave, olandese e polacco;
+- infine dalla formula di responsabilità del frontespizio, quando il record nomina la persona senza dirne il ruolo («translated … by David McDuff»).
+
+Un ruolo non riconosciuto con certezza lascia il nome fra gli autori. Dublin Core non distingue i ruoli: i `dc:creator` restano autori.
+
 ## Sicurezza
 
 Il plugin implementa le seguenti misure di sicurezza secondo le best practice OWASP:

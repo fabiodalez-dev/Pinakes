@@ -2,6 +2,19 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.91]
+
+### Added
+- **danMARC2 records can be imported**, from the Danish union catalogue (the new **DBC** preset, through DBC OpenSearch) or from any SRU server that returns danMARC2 in MARCXchange (syntax "danMARC2"). Title, authors, translator and other contributors (100, 700 and the free-form 720), edition, place, publisher, year, ISBN, pages, language, series, summary and subject terms are read as danMARC2 defines them. Before, a danMARC2 record could not be read at all: as MARCXML it was not found, as MARCXchange it was read as UNIMARC and came back without a title. A MARCXchange record that declares itself danMARC2 is now read as danMARC2 whatever syntax is set. Z39.50/SRU is now 1.4.0.
+- **A colorist is imported as a colorist**, into the book's Colorist picker, from MARC 21 and danMARC2 records.
+
+### Fixed
+- **A translator or an editor the record names without a role is no longer imported as an author.** Many catalogues (Library of Congress, LIBRIS) name the translator only in an added entry with no relator, and say "translated by" on the title page; the statement of responsibility is now read for that name. 0.7.90 sorted names only when the record gave the role as a code or an English or Italian term.
+- **Roles in other languages and neutral codes.** Terms are read in German, French, Spanish, Danish, Norwegian, Swedish, Dutch and Polish as well ("Übers.", "Hrsg.", "traducteur", "oversætter", "redigeret af"…). A neutral code ("oth", "ctb", danMARC2's "led") no longer hides the term next to it: K10plus's "$e Übers. $4 oth" is a translator. The reader of an audiobook and the writer of a teaching note are no longer authors.
+- **Place and edition without ISBD brackets.** "London [u.a.]" is "London" (0.7.90 cut it to "London [u.a."), "[Kbh.]" is "Kbh.", "[New ed.]" is "New ed."; this now applies to every source, the plugins included.
+- **The ISBN searched for is the one the form receives.** A MARC record listing several ISBNs (hardback, paperback) handed over the first of them, which could be a different edition's.
+- **Page counts from UNIMARC.** "1 vol. (308 p.)" is 308 pages, not 1.
+
 ## [0.7.90]
 
 ### Added
