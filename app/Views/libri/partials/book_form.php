@@ -4094,6 +4094,12 @@ function initializeIsbnImport() {
                         window.__contributorPickers.illustratori.addName(normalized, true);
                     }
                 }
+                if (typeof data.colorist === 'string' && data.colorist.trim() !== '') {
+                    const normalized = normalizeAuthorName(data.colorist);
+                    if (normalized && window.__contributorPickers && window.__contributorPickers.coloristi) {
+                        window.__contributorPickers.coloristi.addName(normalized, true);
+                    }
+                }
             } catch (err) {
             }
 
@@ -4179,6 +4185,7 @@ function initializeIsbnImport() {
             if (data.place) fieldsPopulated.push('place');
             if (data.editor && (!Array.isArray(data.editor) || data.editor.length)) fieldsPopulated.push('editor');
             if (data.illustrator) fieldsPopulated.push('illustrator');
+            if (data.colorist) fieldsPopulated.push('colorist');
 
             // Show source information panel
             displayScrapeSourceInfo(data);

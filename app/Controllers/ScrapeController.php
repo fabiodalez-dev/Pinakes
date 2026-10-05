@@ -141,6 +141,7 @@ class ScrapeController
             'author',  // Single author string
             'translator',
             'illustrator',
+            'colorist',
             'source', 'notes',
             'edition', 'format',
             'place', 'country',  // Publication place
@@ -148,6 +149,20 @@ class ScrapeController
         foreach ($textFields as $field) {
             if (isset($data[$field]) && is_string($data[$field])) {
                 $data[$field] = $this->normalizeText($data[$field]);
+            }
+        }
+
+        // Edition and place as a reader writes them, whichever source sent
+        // them: no ISBD brackets, no "[S.l.]" standing in for a place.
+        if (isset($data['edition']) && is_string($data['edition'])) {
+            $data['edition'] = \App\Support\EditionStatement::clean($data['edition']);
+        }
+        if (isset($data['place']) && is_string($data['place'])) {
+            $data['place'] = \App\Support\PublicationPlace::clean($data['place']);
+        }
+        foreach (['edition', 'place'] as $field) {
+            if (($data[$field] ?? null) === '') {
+                unset($data[$field]);
             }
         }
 
@@ -170,7 +185,7 @@ class ScrapeController
             }
         }
         // Translator and illustrator: the form takes one name each
-        foreach (['translator', 'illustrator'] as $role) {
+        foreach (['translator', 'illustrator', 'colorist'] as $role) {
             if (array_key_exists($role, $data) && is_array($data[$role])) {
                 $first = array_values(array_filter($data[$role], static fn($n): bool => is_string($n) && trim($n) !== ''))[0] ?? null;
                 if ($first === null) {

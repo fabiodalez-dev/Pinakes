@@ -466,6 +466,7 @@ tests/fixtures/*
 !tests/fixtures/*.wav
 !tests/fixtures/*.csv
 !tests/fixtures/*.tsv
+!tests/fixtures/sru/
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php

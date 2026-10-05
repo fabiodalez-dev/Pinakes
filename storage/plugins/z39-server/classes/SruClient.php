@@ -6,6 +6,9 @@ namespace Plugins\Z39Server\Classes;
 use DOMDocument;
 use DOMXPath;
 
+require_once __DIR__ . '/RelatorRoles.php';
+require_once __DIR__ . '/Danmarc2Parser.php';
+
 /**
  * SRU Client Implementation
  *
@@ -234,6 +237,24 @@ class SruClient
             'maximumRecords' => 1
         ];
 
+        // danMARC2 over SRU travels as MARCXchange records
+        if ($recordSchema === 'danmarc2') {
+            $params['recordSchema'] = 'marcxchange';
+        }
+        // DBC OpenSearch (opensearch.addi.dk), the Danish union catalogue: not
+        // SRU, but the same CQL query and danMARC2 records in MARCXchange. The
+        // library's agency and profile travel in the configured URL.
+        if ($recordSchema === 'dbc-opensearch') {
+            $params = [
+                'action' => 'search',
+                'query' => ($cqlIndex === 'isbn' ? 'term.isbn' : $cqlIndex) . '=' . $quotedTerm,
+                'outputType' => 'xml',
+                'objectFormat' => 'marcxchange',
+                'start' => 1,
+                'stepValue' => 10,
+            ];
+        }
+
         $finalUrl = $url . (strpos($url, '?') === false ? '?' : '&') . http_build_query($params);
 
         // Fetch content with proper error handling
@@ -273,13 +294,35 @@ class SruClient
             return null;
         }
 
+        // An OpenSearch error comes back as <error> in a 200 response
+        $opensearchError = $xpath->query("/*[local-name()='searchResponse']/*[local-name()='error']")->item(0);
+        if ($opensearchError !== null) {
+            throw new \RuntimeException('OpenSearch error from ' . $url . ': ' . trim((string) $opensearchError->nodeValue));
+        }
+
+        $isbn = $index === 'isbn' ? $term : '';
+
         // Extract record data based on schema
-        return match ($recordSchema) {
+        $book = match ($recordSchema) {
             'marcxml' => $this->parseMarcXml($xpath),
-            'unimarcxchange', 'marcxchange', 'unimarc' => $this->parseMarcxchangeXml($xpath),
+            'danmarc2', 'dbc-opensearch' => $this->parseDanmarc2($xpath, $isbn),
+            'unimarcxchange', 'marcxchange', 'unimarc' => $this->parseMarcxchangeXml($xpath, $isbn),
             'dc', 'oai_dc' => $this->parseDublinCore($xpath),
             default => $this->parseMarcXml($xpath),
         };
+
+        // The record was found by this ISBN, so it is this record's ISBN. A
+        // record that lists several (the hardback, the paperback, a box set)
+        // used to hand the form the first of them, which may be another one.
+        if ($book !== null && $isbn !== '') {
+            $searched = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn));
+            if (strlen($searched) === 13) {
+                $book['isbn13'] = $searched;
+            } elseif (strlen($searched) === 10) {
+                $book['isbn10'] = $searched;
+            }
+        }
+        return $book;
     }
 
     /**
@@ -290,7 +333,7 @@ class SruClient
      * endpoint URLs are admin-configured, so they must go through the guarded
      * client rather than hitting arbitrary hosts directly.
      */
-    private function fetchUrl(string $url): ?string
+    protected function fetchUrl(string $url): ?string
     {
         $res = \App\Support\HttpClient::get($url, [], [
             'timeout'         => $this->timeout,
@@ -377,35 +420,32 @@ class SruClient
             $book['authors'][] = trim(preg_replace('/,$/', '', $author));
         }
 
-        // Added entries (700), sorted by their relator ($4 code, else $e term):
+        // Added entries (700), sorted by their relator ($4 code, else $e term,
+        // else what the 245 $c statement of responsibility says of the name):
         // an editor, translator or illustrator is not an author of the book.
-        // An entry with no relator stays an author, as it always has.
+        // An entry whose role is not recognised stays an author.
         $addedEntries = $xpath->query(".//marc:datafield[@tag='700']", $record);
         if ($addedEntries->length === 0) {
             $addedEntries = $xpath->query(".//datafield[@tag='700']", $record);
         }
-        $contributors = ['editor' => [], 'translator' => [], 'illustrator' => []];
+        $contributors = ['editor' => [], 'translator' => [], 'illustrator' => [], 'colorist' => []];
+        $statement = $getSubfield('245', 'c');
         foreach ($addedEntries as $entry) {
             $subs = $this->subfields($entry);
             $name = trim((string) preg_replace('/[,.]$/', '', $subs['a'][0] ?? ''));
             if ($name === '') {
                 continue;
             }
-            $role = self::contributorRole($subs['4'][0] ?? null, $subs['e'][0] ?? null, 'marc21');
-            if ($role === 'author') {
-                if (!in_array($name, $book['authors'], true)) {
-                    $book['authors'][] = $name;
-                }
-            } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
-                $contributors[$role][] = $name;
-            }
+            $term = isset($subs['e']) ? implode(' ', $subs['e']) : null;
+            $role = RelatorRoles::resolve($subs['4'] ?? [], $term, $statement, $name, 'marc21');
+            self::sortContributor($book, $contributors, $name, $role);
         }
-        $this->applyContributors($book, $contributors);
+        self::applyContributors($book, $contributors);
 
         // Edition statement (250 $a) and place of publication (260/264 $a)
         $edition = $getSubfield('250', 'a');
         if ($edition) {
-            $book['edition'] = trim((string) preg_replace('/[\s\/:;=,]+$/u', '', $edition));
+            $book['edition'] = \App\Support\EditionStatement::clean($edition);
         }
         // 260 or 264: the first that names a place, not one that only says
         // the place is unknown ("[S.l.]")
@@ -447,10 +487,7 @@ class SruClient
         }
 
         // Pages (300 $a)
-        $pages = $getSubfield('300', 'a');
-        if ($pages && preg_match('/(\d+)/', $pages, $matches)) {
-            $book['pages'] = $matches[1];
-        }
+        $book['pages'] = self::pagesOf((string) $getSubfield('300', 'a'));
 
         // Language (041 $a, fallback to 008 positions 35-37)
         $lang = $getSubfield('041', 'a');
@@ -496,46 +533,6 @@ class SruClient
         }
         if (!empty($subjects)) {
             $book['keywords'] = implode(', ', $subjects);
-        }
-
-        // Translator and Illustrator (700 $a with relator $e or $4)
-        $field700Nodes = $xpath->query(".//marc:datafield[@tag='700']", $record);
-        if ($field700Nodes->length === 0) {
-            $field700Nodes = $xpath->query(".//datafield[@tag='700']", $record);
-        }
-        foreach ($field700Nodes as $f700) {
-            $relatorE = '';
-            $relator4 = '';
-            $nameA = '';
-            foreach ($f700->childNodes as $sub) {
-                if ($sub->nodeType !== XML_ELEMENT_NODE) {
-                    continue;
-                }
-                /** @var \DOMElement $sub */
-                $code = $sub->getAttribute('code');
-                if ($code === 'a') {
-                    $nameA = trim($sub->nodeValue);
-                } elseif ($code === 'e') {
-                    $relatorE = strtolower(trim($sub->nodeValue));
-                } elseif ($code === '4') {
-                    $relator4 = strtolower(trim($sub->nodeValue));
-                }
-            }
-            if ($nameA === '') {
-                continue;
-            }
-            $cleanName = rtrim($nameA, ' ,.');
-            // Translator: $4=trl or $e contains translator/traduttore/översättare/oversetter
-            if (empty($book['translator']) && ($relator4 === 'trl' || strpos($relatorE, 'translat') !== false
-                || strpos($relatorE, 'tradut') !== false || strpos($relatorE, 'övers') !== false
-                || strpos($relatorE, 'oversett') !== false)) {
-                $book['translator'] = $cleanName;
-            }
-            // Illustrator: $4=ill or $e contains illustrat/ilustra
-            if (empty($book['illustrator']) && ($relator4 === 'ill' || strpos($relatorE, 'illustrat') !== false
-                || strpos($relatorE, 'ilustra') !== false)) {
-                $book['illustrator'] = $cleanName;
-            }
         }
 
         // Dewey Classification (082 $a)
@@ -609,6 +606,19 @@ class SruClient
     }
 
     /**
+     * The danMARC2 record that carries the ISBN searched for, read by
+     * Danmarc2Parser; null when the response has none.
+     */
+    private function parseDanmarc2(DOMXPath $xpath, string $isbn): ?array
+    {
+        $record = Danmarc2Parser::selectRecord($xpath, $isbn);
+        if ($record === null) {
+            return null;
+        }
+        return Danmarc2Parser::parse($xpath, $record, fn(string $code): string => $this->marcLanguageToName($code));
+    }
+
+    /**
      * Parse MARCXchange/UNIMARC response (used by BNF and other French libraries)
      *
      * UNIMARC field mapping (differs completely from MARC21):
@@ -623,8 +633,14 @@ class SruClient
      *   330 $a = abstract/description
      *   600-608 $a = subject headings
      */
-    private function parseMarcxchangeXml(DOMXPath $xpath): ?array
+    private function parseMarcxchangeXml(DOMXPath $xpath, string $isbn = ''): ?array
     {
+        // MARCXchange carries more than UNIMARC: a record that declares itself
+        // danMARC2 (format="danMARC2") is read as danMARC2.
+        if (Danmarc2Parser::selectRecord($xpath, $isbn) !== null) {
+            return $this->parseDanmarc2($xpath, $isbn);
+        }
+
         // FIX F091: try the MARCXchange namespace first, then fall back to records nested
         // INSIDE <recordData> so we don't accidentally pick up the outer SRU <record> envelope
         // (SRU response wraps each bibliographic record in <sru:record><sru:recordData>...).
@@ -690,9 +706,12 @@ class SruClient
 
         // Authors: UNIMARC 700 (first author), 701 (other authors), 702 (contributor)
         // Subfields: $a = surname, $b = forename — combine as "Surname, Forename".
-        // The $4 relator (IFLA codes) sorts editors (340), translators (730) and
-        // illustrators (440) out of the authors; no relator keeps the author.
-        $contributors = ['editor' => [], 'translator' => [], 'illustrator' => []];
+        // 700 is the primary responsibility. For 701 and 702 the $4 relator
+        // (IFLA codes) or, without one, the statement of responsibility in
+        // 200 $f/$g sorts editors, translators and illustrators out of the
+        // authors (RelatorRoles).
+        $contributors = ['editor' => [], 'translator' => [], 'illustrator' => [], 'colorist' => []];
+        $statement = implode(' ; ', array_merge($getAllSub('200', 'f'), $getAllSub('200', 'g')));
         foreach (['700', '701', '702'] as $tag) {
             $nameNodes = $xpath->query(".//*[local-name()='datafield'][@tag='$tag']", $record);
             foreach ($nameNodes as $nameNode) {
@@ -715,23 +734,19 @@ class SruClient
                 if ($name === '') {
                     continue;
                 }
-                $relator = $this->subfields($nameNode)['4'][0] ?? null;
-                $role = self::contributorRole($relator, null, 'unimarc');
-                if ($role === 'author') {
-                    if (!in_array($name, $book['authors'], true)) {
-                        $book['authors'][] = $name;
-                    }
-                } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
-                    $contributors[$role][] = $name;
-                }
+                // UNIMARC 700 is the primary responsibility: always an author
+                $role = $tag === '700'
+                    ? 'author'
+                    : RelatorRoles::resolve($this->subfields($nameNode)['4'] ?? [], null, $statement !== '' ? $statement : null, $name, 'unimarc');
+                self::sortContributor($book, $contributors, $name, $role);
             }
         }
-        $this->applyContributors($book, $contributors);
+        self::applyContributors($book, $contributors);
 
         // Edition (205 $a) and place of publication (214 $a, fallback 210 $a)
         $edition = $getSub('205', 'a');
         if ($edition !== null && trim($edition) !== '') {
-            $book['edition'] = $clean(rtrim($edition, ' /:;=,'));
+            $book['edition'] = \App\Support\EditionStatement::clean($clean($edition));
         }
         $place = \App\Support\PublicationPlace::clean($clean((string) $getSub('214', 'a')));
         if ($place === '') {
@@ -773,10 +788,7 @@ class SruClient
         }
 
         // Pages (215 $a) — e.g. "324 p." or "324 pages"
-        $extent = $getSub('215', 'a');
-        if ($extent !== null && preg_match('/(\d+)/', $extent, $m)) {
-            $book['pages'] = $m[1];
-        }
+        $book['pages'] = self::pagesOf((string) $getSub('215', 'a'));
 
         // Language (101 $a) — ISO 639-2/B code
         $lang = $getSub('101', 'a');
@@ -850,56 +862,64 @@ class SruClient
     }
 
     /**
-     * The part an added entry played: 'editor', 'translator', 'illustrator',
-     * 'other' for a contribution to part of the book (an introduction, a
-     * preface, a commentary) or for the publisher, and 'author' otherwise.
-     *
-     * Only roles positively recognised leave the authors: a joint author, a
-     * compiler, a composer or a relator this list does not know stays an
-     * author, as every added entry was before roles were read. The relator
-     * code wins over the term; a code given as a URI
-     * (http://id.loc.gov/vocabulary/relators/edt) is read by its last segment.
-     *
-     * MARC 21 codes: edt/edc, trl, ill; aui, aft, win, wpr, wfw, wac, wst, wat,
-     * pbl for the others. UNIMARC (IFLA) codes: 340, 730, 440; 080, 075, 650
-     * for the others. Terms are matched in English and Italian.
+     * The part an added entry played, from one relator code and one term:
+     * see RelatorRoles::resolve(), which the parsers call with every code of
+     * the field and the record's statement of responsibility.
      */
     public static function contributorRole(?string $code, ?string $term, string $scheme): string
     {
-        $code = strtolower(trim((string) preg_replace('#^.*/#', '', trim((string) $code)), " .\t"));
-        if ($code !== '') {
-            $map = $scheme === 'unimarc'
-                ? ['340' => 'editor', '730' => 'translator', '440' => 'illustrator',
-                    '080' => 'other', '075' => 'other', '650' => 'other']
-                : ['edt' => 'editor', 'edc' => 'editor', 'trl' => 'translator', 'ill' => 'illustrator',
-                    'aui' => 'other', 'aft' => 'other', 'win' => 'other', 'wpr' => 'other', 'wfw' => 'other',
-                    'wac' => 'other', 'wst' => 'other', 'wat' => 'other', 'pbl' => 'other'];
-            return $map[$code] ?? 'author';
-        }
-        $term = mb_strtolower(trim((string) $term, " .,;\t"));
-        return match (true) {
-            $term === '' => 'author',
-            (bool) preg_match('/\b(editor|ed|curatore|curatrice|a cura)\b/u', $term) => 'editor',
-            (bool) preg_match('/\b(translator|trad|traduttore|traduttrice)\b/u', $term) => 'translator',
-            (bool) preg_match('/\b(illustrator|ill|illustratore|illustratrice)\b/u', $term) => 'illustrator',
-            (bool) preg_match('/\b(introduction|preface|foreword|afterword|postface|commentary|supplementary|notes|publisher|introduzione|prefazione|postfazione|commento|note|editore)\b/u', $term) => 'other',
-            default => 'author',
-        };
+        return RelatorRoles::resolve($code === null ? [] : [$code], $term, null, '', $scheme);
     }
 
     /**
-     * Editors as a list, translator and illustrator as the first name: the
-     * shape the book form reads (`editor`, `translator`, `illustrator`).
+     * The page count of an extent statement: the number before "p.", "pages",
+     * "S.", "sider" ("1 vol. (308 p.)" is 308, not 1). Without such a word,
+     * the first number when $anyNumber, as this reader always took; danMARC2
+     * passes false, because its 300 *a also holds an audiobook's minutes.
+     */
+    public static function pagesOf(string $extent, bool $anyNumber = true): string
+    {
+        if (preg_match('/(\d+)\s*(?:p|pp|pages?|pagine|pag|s|sider|sidor|seiten|sivua|str|stron)(?![\p{L}])/iu', $extent, $m) === 1) {
+            return $m[1];
+        }
+        if ($anyNumber && preg_match('/(\d+)/', $extent, $m) === 1) {
+            return $m[1];
+        }
+        return '';
+    }
+
+    /**
+     * File a name under the authors or under its contributor role. A role the
+     * form has no field for ("other": the writer of a preface, the publisher)
+     * is left out.
      *
      * @param array<string, mixed> $book
-     * @param array{editor: list<string>, translator: list<string>, illustrator: list<string>} $contributors
+     * @param array<string, list<string>> $contributors
      */
-    private function applyContributors(array &$book, array $contributors): void
+    public static function sortContributor(array &$book, array &$contributors, string $name, string $role): void
+    {
+        if ($role === 'author') {
+            if (!in_array($name, $book['authors'], true)) {
+                $book['authors'][] = $name;
+            }
+        } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
+            $contributors[$role][] = $name;
+        }
+    }
+
+    /**
+     * Editors as a list, translator, illustrator and colorist as the first
+     * name: the shape the book form reads.
+     *
+     * @param array<string, mixed> $book
+     * @param array{editor: list<string>, translator: list<string>, illustrator: list<string>, colorist: list<string>} $contributors
+     */
+    public static function applyContributors(array &$book, array $contributors): void
     {
         if ($contributors['editor'] !== []) {
             $book['editor'] = $contributors['editor'];
         }
-        foreach (['translator', 'illustrator'] as $role) {
+        foreach (['translator', 'illustrator', 'colorist'] as $role) {
             if ($contributors[$role] !== []) {
                 $book[$role] = $contributors[$role][0];
             }
