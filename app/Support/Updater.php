@@ -1607,29 +1607,54 @@ class Updater
                 ftruncate($out, 0);
                 rewind($out);
             }
-            $context = stream_context_create(['http' => [
-                'method' => 'GET',
-                'header' => $headers,
-                'timeout' => 300,
-                'follow_location' => true,
-                'ignore_errors' => true,
-            ]]);
-            $in = @fopen($url, 'rb', false, $context);
-            if ($in === false) {
-                return 0;
-            }
-            $meta = stream_get_meta_data($in);
-            $copied = stream_copy_to_stream($in, $out);
-            $timedOut = stream_get_meta_data($in)['timed_out'];
-            fclose($in);
-            $status = $this->extractFinalHttpStatus((array) ($meta['wrapper_data'] ?? []));
-            if ($status >= 200 && $status < 300 && ($copied === false || $timedOut)) {
-                throw new Exception(__('Download fallito') . ': ' . __('trasferimento interrotto'));
-            }
-            return $status;
+            return $this->streamWithPhp($url, $headers, $out);
         } finally {
             fclose($out);
         }
+    }
+
+    /**
+     * The PHP-stream half of streamToFile(), for hosts without cURL. A 2xx
+     * body that ends before its Content-Length (the server closed the
+     * connection), a failed copy or a timeout is a broken-off download.
+     *
+     * @param list<string> $headers
+     * @param resource $out
+     */
+    private function streamWithPhp(string $url, array $headers, $out): int
+    {
+        $context = stream_context_create(['http' => [
+            'method' => 'GET',
+            'header' => $headers,
+            'timeout' => 300,
+            'follow_location' => true,
+            'ignore_errors' => true,
+        ]]);
+        $in = @fopen($url, 'rb', false, $context);
+        if ($in === false) {
+            return 0;
+        }
+        $meta = stream_get_meta_data($in);
+        $copied = stream_copy_to_stream($in, $out);
+        $timedOut = stream_get_meta_data($in)['timed_out'];
+        fclose($in);
+
+        $wrapper = (array) ($meta['wrapper_data'] ?? []);
+        $status = $this->extractFinalHttpStatus($wrapper);
+        // Content-Length of the last response block: a redirect's own headers come first
+        $length = null;
+        foreach ($wrapper as $line) {
+            if (preg_match('#^HTTP/#i', (string) $line) === 1) {
+                $length = null;
+            } elseif (preg_match('/^Content-Length:\s*(\d+)\s*$/i', (string) $line, $m) === 1) {
+                $length = (int) $m[1];
+            }
+        }
+        if ($status >= 200 && $status < 300
+            && ($copied === false || $timedOut || ($length !== null && $copied < $length))) {
+            throw new Exception(__('Download fallito') . ': ' . __('trasferimento interrotto'));
+        }
+        return $status;
     }
 
     /**
