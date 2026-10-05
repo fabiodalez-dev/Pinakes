@@ -524,17 +524,17 @@ $hasGithubToken ??= false;
 
                 <div id="updateProgress" class="mt-6">
                     <div class="space-y-3">
-                        <div class="flex items-center gap-3 update-step" data-step="backup">
-                            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-                                <i class="fas fa-circle text-gray-400 text-xs"></i>
-                            </div>
-                            <span class="text-sm text-gray-600"><?= __("Creazione backup database") ?></span>
-                        </div>
                         <div class="flex items-center gap-3 update-step" data-step="download">
                             <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
                                 <i class="fas fa-circle text-gray-400 text-xs"></i>
                             </div>
                             <span class="text-sm text-gray-600"><?= __("Download aggiornamento") ?></span>
+                        </div>
+                        <div class="flex items-center gap-3 update-step" data-step="backup">
+                            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                <i class="fas fa-circle text-gray-400 text-xs"></i>
+                            </div>
+                            <span class="text-sm text-gray-600"><?= __("Creazione backup database") ?></span>
                         </div>
                         <div class="flex items-center gap-3 update-step" data-step="install">
                             <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
@@ -577,14 +577,7 @@ async function postTokenRequest(tokenValue) {
         body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=${encodeURIComponent(tokenValue)}`
     });
 
-    const ct = response.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-        const text = await response.text();
-        console.error('Server returned non-JSON response:', text.substring(0, 500));
-        throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
-    }
-
-    return response.json();
+    return readUpdateJson(response);
 }
 
 let tokenRequestInFlight = false;
@@ -774,21 +767,29 @@ async function startUpdate(version) {
 
     // Show progress modal
     document.getElementById('updateModal').classList.remove('hidden');
-    setStepActive('backup');
 
+    // Two requests, as a manual update: the server downloads and verifies the
+    // package, then installs it (backup, files, migrations). One request doing
+    // all of it could outlast the timeout of a proxy in front of the site.
+    let failedStep = 'download';
     try {
-        // Simulate step progress (actual update is single request)
-        await sleep(500);
-        setStepComplete('backup');
         setStepActive('download');
-
-        // Perform the actual update
-        const response = await fetch(window.BASE_PATH + '/admin/updates/perform', {
+        const downloadData = await readUpdateJson(await fetch(window.BASE_PATH + '/admin/updates/download', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
             body: `csrf_token=${encodeURIComponent(csrfToken)}&version=${encodeURIComponent(version)}`
+        }));
+        if (!downloadData.success) {
+            throw new Error(downloadData.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?>);
+        }
+        setStepComplete('download');
+
+        failedStep = 'backup';
+        setStepActive('backup');
+        const response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}`
         });
 
         // Check for maintenance mode before parsing response
@@ -796,20 +797,10 @@ async function startUpdate(version) {
             throw new Error(<?= json_encode(__("Server in manutenzione. Attendi il completamento dell'aggiornamento."), JSON_HEX_TAG) ?>);
         }
 
-        // Check response before parsing JSON
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-            // Server returned HTML (error page or maintenance page)
-            const text = await response.text();
-            console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
-        }
-
-        const data = await response.json();
+        const data = await readUpdateJson(response);
 
         if (data.success) {
-            // Mark steps complete only on success
-            setStepComplete('download');
+            setStepComplete('backup');
             setStepActive('install');
             await sleep(300);
             setStepComplete('install');
@@ -822,8 +813,7 @@ async function startUpdate(version) {
             document.getElementById('updateTitle').textContent = <?= json_encode(__("Aggiornamento completato!"), JSON_HEX_TAG) ?>;
             document.getElementById('updateMessage').textContent = <?= json_encode(__("Pinakes è stato aggiornato con successo."), JSON_HEX_TAG) ?>;
         } else {
-            // Mark failed step with error indicator
-            setStepFailed('download');
+            setStepFailed('backup');
             document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
             document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
             document.getElementById('updateTitle').textContent = <?= json_encode(__("Aggiornamento fallito"), JSON_HEX_TAG) ?>;
@@ -833,6 +823,7 @@ async function startUpdate(version) {
         document.getElementById('updateActions').classList.remove('hidden');
 
     } catch (error) {
+        setStepFailed(failedStep);
         document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
         document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
         document.getElementById('updateTitle').textContent = <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>;
@@ -841,6 +832,22 @@ async function startUpdate(version) {
             '<i class="fas fa-unlock mr-1"><\/i>' + <?= json_encode(__("Disattiva modalità manutenzione"), JSON_HEX_TAG) ?> + '</button>';
         document.getElementById('updateActions').classList.remove('hidden');
     }
+}
+
+/**
+ * The JSON of an update request, or an error that says what came back instead:
+ * the HTTP status and the start of the text (a proxy's timeout page, a PHP
+ * fatal error), so the cause is on screen and not only in the console.
+ */
+async function readUpdateJson(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        return response.json();
+    }
+    const text = await response.text();
+    console.error('Server returned non-JSON response:', text.substring(0, 500));
+    const excerpt = text.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 240);
+    throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?> + ` (HTTP ${response.status}${excerpt ? ': ' + excerpt : ''})`);
 }
 
 function setStepActive(step) {
@@ -1499,14 +1506,7 @@ async function submitManualUpdate() {
             body: formData
         });
 
-        const uploadContentType = uploadResponse.headers.get('content-type') || '';
-        if (!uploadContentType.includes('application/json')) {
-            const text = await uploadResponse.text();
-            console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
-        }
-
-        const uploadData = await uploadResponse.json();
+        const uploadData = await readUpdateJson(uploadResponse);
 
         if (!uploadData.success) {
             throw new Error(uploadData.error || <?= json_encode(__("Errore durante il caricamento"), JSON_HEX_TAG) ?>);
@@ -1553,14 +1553,7 @@ async function submitManualUpdate() {
             body: `csrf_token=${encodeURIComponent(csrfToken)}`
         });
 
-        const installContentType = installResponse.headers.get('content-type') || '';
-        if (!installContentType.includes('application/json')) {
-            const text = await installResponse.text();
-            console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
-        }
-
-        const installData = await installResponse.json();
+        const installData = await readUpdateJson(installResponse);
 
         if (installData.success) {
             Swal.fire({

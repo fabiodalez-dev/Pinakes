@@ -3593,6 +3593,13 @@ return function (App $app): void {
         return $controller->uploadUpdate($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Automatic update, first request: download and verify the release package
+    $app->post('/admin/updates/download', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->downloadUpdatePackage($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Manual update - Install uploaded package
     $app->post('/admin/updates/install-manual', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');

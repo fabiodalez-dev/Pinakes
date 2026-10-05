@@ -1228,43 +1228,7 @@ class Updater
                 'assets' => array_map(fn($a) => $a['name'], $release['assets'] ?? [])
             ]);
 
-            // SECURITY: only the packaged "pinakes-*.zip" release asset is
-            // installable — it is the artifact create-release.sh builds and which
-            // GitHub serves with an API "digest" (sha256, computed server-side).
-            // The git zipball_url is deliberately NOT used as a fallback: it has
-            // no digest, so its integrity cannot be verified, and it lacks vendor/.
-            // We refuse rather than install an unverifiable package.
-            $downloadUrl = null;
-            $selectedAssetName = null;
-            $expectedDigest = null;
-
-            foreach ($release['assets'] ?? [] as $asset) {
-                $this->debugLog('DEBUG', 'Controllo asset', [
-                    'name' => $asset['name'] ?? 'N/A',
-                    'size' => $asset['size'] ?? 0,
-                    'download_url' => $asset['browser_download_url'] ?? 'N/A'
-                ]);
-
-                if (isset($asset['name']) && preg_match('/pinakes.*\.zip$/i', (string) $asset['name'])) {
-                    $downloadUrl = $asset['browser_download_url'] ?? null;
-                    $selectedAssetName = (string) $asset['name'];
-                    $expectedDigest = isset($asset['digest']) && is_string($asset['digest']) ? $asset['digest'] : null;
-                    $this->debugLog('INFO', 'Trovato asset personalizzato', [
-                        'name' => $selectedAssetName,
-                        'url' => $downloadUrl,
-                        'digest' => $expectedDigest ?? 'N/A'
-                    ]);
-                    break;
-                }
-            }
-
-            if (!$downloadUrl || $selectedAssetName === null) {
-                $this->debugLog('ERROR', 'Nessun asset pacchetto verificabile (pinakes-*.zip) nella release', [
-                    'release' => $release['tag_name'] ?? 'N/A',
-                    'assets'  => array_map(static fn($a) => $a['name'] ?? '?', $release['assets'] ?? [])
-                ]);
-                throw new Exception(__('La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.'));
-            }
+            [$downloadUrl, $selectedAssetName, $expectedDigest] = $this->releasePackageAsset($release);
 
             $this->debugLog('INFO', 'URL download selezionato', ['url' => $downloadUrl]);
 
@@ -1286,219 +1250,7 @@ class Updater
             $zipPath = $this->tempPath . '/update.zip';
             $this->debugLog('DEBUG', 'Path file ZIP', ['path' => $zipPath]);
 
-            // Download the file - try cURL first (more reliable), fallback to file_get_contents
-            $this->debugLog('INFO', 'Inizio download file...', ['url' => $downloadUrl]);
-
-            $startTime = microtime(true);
-            $fileContent = false;
-
-            // Try cURL first (more reliable on shared hosting)
-            if (extension_loaded('curl')) {
-                $this->debugLog('DEBUG', 'Tentativo download con cURL');
-
-                $ch = curl_init($downloadUrl);
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_FOLLOWLOCATION => true,
-                    CURLOPT_MAXREDIRS => 10,
-                    CURLOPT_TIMEOUT => 300,
-                    CURLOPT_CONNECTTIMEOUT => 30,
-                    CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
-                    CURLOPT_SSL_VERIFYPEER => true,
-                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
-                    CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
-                ]);
-
-                $fileContent = curl_exec($ch);
-                $curlInfo = curl_getinfo($ch);
-                $curlError = curl_error($ch);
-                $curlErrno = curl_errno($ch);
-                /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
-
-                $httpCode = is_array($curlInfo) ? $curlInfo['http_code'] : 0;
-                $this->debugLog('DEBUG', 'Risultato cURL', [
-                    'http_code' => $httpCode,
-                    'size_download' => is_array($curlInfo) ? $curlInfo['size_download'] : 0,
-                    'total_time' => is_array($curlInfo) ? $curlInfo['total_time'] : 0,
-                    'error' => $curlError ?: 'none',
-                    'errno' => $curlErrno
-                ]);
-
-                if ($curlErrno !== 0 || $httpCode >= 400) {
-                    // Treat HTTP error responses as failures (don't keep error body as valid content)
-                    $fileContent = false;
-
-                    // Retry without token on auth failure before falling back
-                    if (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
-                        $this->debugLog('WARNING', 'Download auth fallito, retry senza token', ['http_code' => $httpCode]);
-                        $retryHeaders = $this->getGitHubHeaders('application/octet-stream', false);
-                        $ch2 = curl_init($downloadUrl);
-                        curl_setopt_array($ch2, [
-                            CURLOPT_RETURNTRANSFER => true,
-                            CURLOPT_FOLLOWLOCATION => true,
-                            CURLOPT_MAXREDIRS => 10,
-                            CURLOPT_TIMEOUT => 300,
-                            CURLOPT_CONNECTTIMEOUT => 30,
-                            CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                            CURLOPT_HTTPHEADER => $retryHeaders,
-                            CURLOPT_SSL_VERIFYPEER => true,
-                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
-                        ]);
-                        $retryContent = curl_exec($ch2);
-                        $retryCode = (int)(curl_getinfo($ch2, CURLINFO_HTTP_CODE));
-                        /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
-                        if ($retryContent !== false && $retryCode >= 200 && $retryCode < 400) {
-                            $fileContent = $retryContent;
-                        }
-                    }
-
-                    if ($fileContent === false) {
-                        $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
-                            'error' => $curlError,
-                            'http_code' => $httpCode
-                        ]);
-                    }
-                }
-            }
-
-            // Fallback to file_get_contents
-            if ($fileContent === false) {
-                $this->debugLog('DEBUG', 'Tentativo download con file_get_contents');
-
-                $context = stream_context_create([
-                    'http' => [
-                        'method' => 'GET',
-                        'header' => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
-                        'timeout' => 300,
-                        'follow_location' => true,
-                        'ignore_errors' => true
-                    ]
-                ]);
-
-                [$fileContent, $responseHeaders] = $this->httpGetWithHeaders($downloadUrl, $context);
-
-                if (!empty($responseHeaders)) {
-                    $this->debugLog('DEBUG', 'Response headers download', [
-                        'headers' => $responseHeaders
-                    ]);
-                }
-
-                // Retry without token on auth failure
-                $dlStatus = $this->extractFinalHttpStatus($responseHeaders);
-                if (in_array($dlStatus, [401, 403], true) && $this->githubToken !== '') {
-                    $savedToken = $this->githubToken;
-                    $this->githubToken = '';
-                    try {
-                        $context = stream_context_create([
-                            'http' => [
-                                'method' => 'GET',
-                                'header' => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
-                                'timeout' => 300,
-                                'follow_location' => true,
-                                'ignore_errors' => true
-                            ]
-                        ]);
-                        [$retryContent, $retryHeaders] = $this->httpGetWithHeaders($downloadUrl, $context);
-                        $retryStatus = $this->extractFinalHttpStatus($retryHeaders);
-                        $fileContent = ($retryContent !== false && $retryStatus >= 200 && $retryStatus < 400)
-                            ? $retryContent
-                            : false;
-                    } finally {
-                        $this->githubToken = $savedToken;
-                    }
-                } elseif ($dlStatus >= 400) {
-                    $this->debugLog('ERROR', 'Download HTTP error', ['status' => $dlStatus]);
-                    $fileContent = false;
-                }
-            }
-
-            $downloadTime = round(microtime(true) - $startTime, 2);
-
-            if ($fileContent === false) {
-                $error = error_get_last();
-                $this->debugLog('ERROR', 'Download fallito con entrambi i metodi', [
-                    'url' => $downloadUrl,
-                    'error' => $error,
-                    'download_time' => $downloadTime,
-                    'curl_available' => extension_loaded('curl')
-                ]);
-                throw new Exception(__('Download fallito') . ': ' . ($error['message'] ?? 'Impossibile scaricare il file'));
-            }
-
-            $fileSize = strlen($fileContent);
-            $this->debugLog('INFO', 'Download completato', [
-                'size_bytes' => $fileSize,
-                'size_mb' => round($fileSize / 1024 / 1024, 2),
-                'time_seconds' => $downloadTime
-            ]);
-
-            if ($fileSize < 1000) {
-                $this->debugLog('ERROR', 'File scaricato troppo piccolo - probabilmente errore', [
-                    'content_preview' => substr($fileContent, 0, 500)
-                ]);
-                throw new Exception(__('File di aggiornamento non valido (troppo piccolo)'));
-            }
-
-            // SECURITY: integrity verification is MANDATORY before the package is
-            // ever written to disk and extracted. The downloaded bytes must match
-            // the GitHub asset "digest" ("sha256:<hex>", served over TLS by
-            // api.github.com) — the supply-chain guard that TLS-transport alone does
-            // not provide against a tampered release artifact. The ".sha256" sidecar
-            // fallback was removed: payload + sidecar share the same CDN, so a CDN/
-            // MITM attacker could forge both. Every GitHub asset carries an API
-            // digest; if it is missing or malformed, refuse the update (fail-closed).
-            $expectedHash = null;
-            if (is_string($expectedDigest) && stripos($expectedDigest, 'sha256:') === 0) {
-                $candidate = strtolower(substr($expectedDigest, 7));
-                // Reject a malformed digest rather than carry it into hash_equals.
-                if ($this->isValidSha256($candidate)) {
-                    $expectedHash = $candidate;
-                    $this->debugLog('INFO', 'Verifica integrità via digest asset GitHub');
-                }
-            }
-
-            if ($expectedHash === null) {
-                $this->debugLog('ERROR', 'Nessun digest API valido per il pacchetto, rifiutato', [
-                    'asset' => $selectedAssetName
-                ]);
-                throw new Exception(__('Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.'));
-            }
-
-            $actualHash = hash('sha256', $fileContent);
-            if (!hash_equals($expectedHash, $actualHash)) {
-                $this->debugLog('ERROR', 'Digest del pacchetto non corrispondente', [
-                    'expected' => $expectedHash,
-                    'actual'   => $actualHash
-                ]);
-                throw new Exception(__('Verifica di integrità fallita: l\'archivio scaricato non corrisponde al checksum atteso.'));
-            }
-            $this->debugLog('INFO', 'Integrità pacchetto verificata (sha256)', ['sha256' => $actualHash]);
-
-            // Save file
-            $this->debugLog('DEBUG', 'Salvataggio file ZIP', ['path' => $zipPath]);
-            $bytesWritten = file_put_contents($zipPath, $fileContent);
-
-            if ($bytesWritten === false) {
-                // Describe first: debugLog() writes to disk and would replace
-                // the file_put_contents() error that error_get_last() has to
-                // report. Name the cause because on a full account this is the
-                // FIRST write to fail, and "Download fallito" alone sends the
-                // operator looking for a corrupt release instead of free space.
-                $cause = $this->describeWriteFailure($zipPath);
-                $this->debugLog('ERROR', 'Impossibile salvare file', [
-                    'path' => $zipPath,
-                    'error' => $cause
-                ]);
-                throw new Exception(
-                    __('Impossibile salvare il file di aggiornamento') . ' — ' . $cause
-                );
-            }
-
-            $this->debugLog('INFO', 'File salvato', [
-                'path' => $zipPath,
-                'bytes_written' => $bytesWritten
-            ]);
+            $this->fetchVerifiedPackage($downloadUrl, $selectedAssetName, $expectedDigest, $zipPath);
 
             // Verify it's a valid zip
             $this->debugLog('DEBUG', 'Verifica integrità ZIP');
@@ -1721,6 +1473,200 @@ class Updater
                 'path' => null,
                 'error' => $e->getMessage()
             ];
+        }
+    }
+
+    /**
+     * The installable package of a release: the "pinakes-*.zip" asset, its
+     * download URL and the sha256 digest GitHub computed for it.
+     *
+     * SECURITY: only that asset is installable. It is the artifact the release
+     * workflow builds and that GitHub serves with an API "digest". The git
+     * zipball is deliberately NOT a fallback: it has no digest, so its
+     * integrity cannot be verified, and it lacks vendor/.
+     *
+     * @param array<string, mixed> $release
+     * @return array{0: string, 1: string, 2: string|null}
+     */
+    private function releasePackageAsset(array $release): array
+    {
+        foreach ((array) ($release['assets'] ?? []) as $asset) {
+            if (!is_array($asset) || !isset($asset['name']) || !preg_match('/pinakes.*\.zip$/i', (string) $asset['name'])) {
+                continue;
+            }
+            $url = (string) ($asset['browser_download_url'] ?? '');
+            if ($url === '') {
+                continue;
+            }
+            $digest = isset($asset['digest']) && is_string($asset['digest']) ? $asset['digest'] : null;
+            $this->debugLog('INFO', 'Trovato asset personalizzato', ['name' => $asset['name'], 'url' => $url, 'digest' => $digest ?? 'N/A']);
+            return [$url, (string) $asset['name'], $digest];
+        }
+        $this->debugLog('ERROR', 'Nessun asset pacchetto verificabile (pinakes-*.zip) nella release', [
+            'release' => $release['tag_name'] ?? 'N/A',
+            'assets' => array_map(static fn($a) => is_array($a) ? ($a['name'] ?? '?') : '?', (array) ($release['assets'] ?? [])),
+        ]);
+        throw new Exception(__('La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.'));
+    }
+
+    /**
+     * Download a release package straight to $zipPath and prove it is the one
+     * GitHub published: its sha256 must equal the asset's API digest
+     * ("sha256:<hex>", served over TLS by api.github.com). Fail-closed: no
+     * valid digest, no install.
+     *
+     * The bytes go to disk as they arrive, never into a PHP string. Holding the
+     * 30 MB package in memory, next to the backup the same request had just
+     * written, is what an account with a fixed memory limit could not afford.
+     */
+    private function fetchVerifiedPackage(string $url, string $assetName, ?string $digest, string $zipPath): void
+    {
+        $expectedHash = null;
+        if (is_string($digest) && stripos($digest, 'sha256:') === 0) {
+            $candidate = strtolower(substr($digest, 7));
+            if ($this->isValidSha256($candidate)) {
+                $expectedHash = $candidate;
+            }
+        }
+        if ($expectedHash === null) {
+            $this->debugLog('ERROR', 'Nessun digest API valido per il pacchetto, rifiutato', ['asset' => $assetName]);
+            throw new Exception(__('Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.'));
+        }
+
+        $partPath = $zipPath . '.part';
+        $startTime = microtime(true);
+        $this->debugLog('INFO', 'Inizio download file...', ['url' => $url]);
+
+        $status = $this->streamToFile($url, $partPath, $this->isApiUrl($url));
+        if (in_array($status, [401, 403], true) && $this->githubToken !== '') {
+            $this->debugLog('WARNING', 'Download auth fallito, retry senza token', ['http_code' => $status]);
+            $status = $this->streamToFile($url, $partPath, false);
+        }
+        $size = is_file($partPath) ? (int) filesize($partPath) : 0;
+        $this->debugLog('INFO', 'Download terminato', [
+            'http_code' => $status,
+            'size_mb' => round($size / 1048576, 2),
+            'time_seconds' => round(microtime(true) - $startTime, 2),
+        ]);
+        if ($status < 200 || $status >= 400 || $size < 1000) {
+            @unlink($partPath);
+            throw new Exception(__('Download fallito') . ': HTTP ' . $status . ($size < 1000 ? ' — ' . __('File di aggiornamento non valido (troppo piccolo)') : ''));
+        }
+
+        $actualHash = (string) hash_file('sha256', $partPath);
+        if (!hash_equals($expectedHash, $actualHash)) {
+            @unlink($partPath);
+            $this->debugLog('ERROR', 'Digest del pacchetto non corrispondente', ['expected' => $expectedHash, 'actual' => $actualHash]);
+            throw new Exception(__('Verifica di integrità fallita: l\'archivio scaricato non corrisponde al checksum atteso.'));
+        }
+        if (!@rename($partPath, $zipPath)) {
+            $cause = $this->describeWriteFailure($zipPath);
+            @unlink($partPath);
+            throw new Exception(__('Impossibile salvare il file di aggiornamento') . ' — ' . $cause);
+        }
+        $this->debugLog('INFO', 'Integrità pacchetto verificata (sha256)', ['sha256' => $actualHash, 'path' => $zipPath]);
+    }
+
+    /**
+     * GET $url into $path, following redirects, writing as the bytes arrive.
+     * Returns the final HTTP status (0 when no connection was made). cURL when
+     * available, else a PHP stream.
+     */
+    private function streamToFile(string $url, string $path, bool $withAuth): int
+    {
+        $headers = $this->getGitHubHeaders('application/octet-stream', $withAuth);
+        $out = @fopen($path, 'wb');
+        if ($out === false) {
+            throw new Exception(__('Impossibile salvare il file di aggiornamento') . ' — ' . $this->describeWriteFailure($path));
+        }
+        try {
+            if (extension_loaded('curl')) {
+                $ch = curl_init($url);
+                curl_setopt_array($ch, [
+                    CURLOPT_FILE => $out,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_MAXREDIRS => 10,
+                    CURLOPT_TIMEOUT => 300,
+                    CURLOPT_CONNECTTIMEOUT => 30,
+                    CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                    CURLOPT_HTTPHEADER => $headers,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
+                    CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
+                    CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+                ]);
+                $ok = curl_exec($ch);
+                $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                if ($ok !== false) {
+                    return $status;
+                }
+                $this->debugLog('WARNING', 'cURL fallito, tentativo con stream PHP', ['error' => curl_error($ch), 'errno' => curl_errno($ch)]);
+                if ($status > 0 || !filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+                    return $status;
+                }
+                // No connection at all: start the file over and try PHP's own stream
+                ftruncate($out, 0);
+                rewind($out);
+            }
+            $context = stream_context_create(['http' => [
+                'method' => 'GET',
+                'header' => $headers,
+                'timeout' => 300,
+                'follow_location' => true,
+                'ignore_errors' => true,
+            ]]);
+            $in = @fopen($url, 'rb', false, $context);
+            if ($in === false) {
+                return 0;
+            }
+            $meta = stream_get_meta_data($in);
+            stream_copy_to_stream($in, $out);
+            fclose($in);
+            return $this->extractFinalHttpStatus((array) ($meta['wrapper_data'] ?? []));
+        } finally {
+            fclose($out);
+        }
+    }
+
+    /**
+     * Download the package of $version into a fresh directory under
+     * storage/tmp, verified, ready for performUpdateFromFile(). The automatic
+     * update runs in two requests, download then install, like a manual one:
+     * one request that took the backup, the download and the install together
+     * could outlast a proxy or FastCGI timeout on shared hosting (issue #450).
+     *
+     * @return array{success: bool, path: string|null, error: string|null}
+     */
+    public function downloadPackageForInstall(string $version): array
+    {
+        $this->debugLog('INFO', '=== DOWNLOAD PACCHETTO PER INSTALLAZIONE ===', ['target_version' => $version]);
+        $dir = $this->rootPath . '/storage/tmp/manual_update_' . bin2hex(random_bytes(16));
+        try {
+            $imageBlock = $this->officialImageUpdateBlock();
+            if ($imageBlock !== null) {
+                throw new Exception($imageBlock);
+            }
+            $release = $this->getReleaseByVersion($version);
+            if ($release === null) {
+                throw new Exception(__('Versione non trovata'));
+            }
+            $packageBytes = $this->releaseAssetBytes($version);
+            $spaceError = $this->checkFreeSpaceForUpdate($packageBytes > 0 ? $packageBytes * 4 : 0, null, true);
+            if ($spaceError !== null) {
+                throw new Exception($spaceError);
+            }
+            [$url, $assetName, $digest] = $this->releasePackageAsset($release);
+            if (!@mkdir($dir, 0755, true) && !is_dir($dir)) {
+                throw new Exception(__('Impossibile creare directory temporanea') . ' — ' . $this->describeWriteFailure($dir));
+            }
+            $this->fetchVerifiedPackage($url, $assetName, $digest, $dir . '/update.zip');
+            return ['success' => true, 'path' => $dir, 'error' => null];
+        } catch (\Throwable $e) {
+            $this->debugLog('ERROR', 'Download pacchetto fallito', ['error' => $e->getMessage()]);
+            if (is_dir($dir)) {
+                $this->deleteDirectory($dir);
+            }
+            return ['success' => false, 'path' => null, 'error' => $e->getMessage()];
         }
     }
 

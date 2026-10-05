@@ -151,6 +151,7 @@ class UpdateController
         }
 
         // Perform the update
+        $this->answerJsonOnFatal();
         $result = $updater->performUpdate($targetVersion);
 
         if ($result['success']) {
@@ -644,6 +645,91 @@ class UpdateController
     }
 
     /**
+     * API: Download the release package for an automatic update.
+     *
+     * First of the two requests of an automatic update: the server fetches the
+     * release from GitHub, verifies its sha256 and keeps it under storage/tmp;
+     * the page then installs it through install-manual, the same request a
+     * manual update ends with. Splitting them keeps each request short enough
+     * for hosting that cuts long requests off behind a proxy (issue #450).
+     */
+    public function downloadUpdatePackage(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
+        $data = (array) $request->getParsedBody();
+        if (!Csrf::validate($data['csrf_token'] ?? '')) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $version = trim((string) ($data['version'] ?? ''));
+        if ($version === '' || preg_match('/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/', $version) !== 1) {
+            return $this->jsonResponse($response, ['error' => __('Versione non specificata')], 400);
+        }
+
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'downloadUpdatePackage'),
+            ], 503);
+        }
+
+        $requirements = $updater->checkRequirements();
+        if (!$requirements['met']) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Requisiti di sistema non soddisfatti'),
+                'requirements' => $requirements['requirements']
+            ], 400);
+        }
+
+        $this->answerJsonOnFatal();
+        $result = $updater->downloadPackageForInstall($version);
+        if (!$result['success'] || $result['path'] === null) {
+            return $this->jsonResponse($response, ['success' => false, 'error' => $result['error']], 500);
+        }
+
+        // The path stays on the server, as for an uploaded package
+        $_SESSION['manual_update_path'] = $result['path'];
+        return $this->jsonResponse($response, [
+            'success' => true,
+            'message' => __('Pacchetto scaricato e verificato')
+        ]);
+    }
+
+    /**
+     * A fatal error during an update (memory, a time limit the host enforces)
+     * would end the request with an HTML error page or nothing at all, and the
+     * page could only say "invalid response". Answer it as JSON with PHP's own
+     * message instead, whenever nothing has been sent yet.
+     */
+    private function answerJsonOnFatal(): void
+    {
+        register_shutdown_function(static function (): void {
+            $error = error_get_last();
+            if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                return;
+            }
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            if (headers_sent()) {
+                return;
+            }
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error' => __('Errore fatale PHP durante l\'aggiornamento') . ': ' . $error['message'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        });
+    }
+
+    /**
      * API: Install manually uploaded update package
      */
     public function installManualUpdate(Request $request, Response $response, mysqli $db): Response
@@ -703,6 +789,7 @@ class UpdateController
         }
 
         // Perform the update from uploaded file (use resolved path to prevent TOCTOU)
+        $this->answerJsonOnFatal();
         $result = $updater->performUpdateFromFile($realTempPath);
 
         if ($result['success']) {
