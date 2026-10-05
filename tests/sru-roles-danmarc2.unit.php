@@ -37,6 +37,7 @@ function check(bool $ok, string $label): void
 final class FixtureSruClient extends SruClient
 {
     public string $lastUrl = '';
+    /** @param string $fixture a file in tests/fixtures/sru, or the XML itself */
     public function __construct(array $servers, private string $fixture)
     {
         parent::__construct($servers);
@@ -44,8 +45,14 @@ final class FixtureSruClient extends SruClient
     protected function fetchUrl(string $url): ?string
     {
         $this->lastUrl = $url;
-        return (string) file_get_contents(__DIR__ . '/fixtures/sru/' . $this->fixture);
+        return str_starts_with(ltrim($this->fixture), '<')
+            ? $this->fixture
+            : (string) file_get_contents(__DIR__ . '/fixtures/sru/' . $this->fixture);
     }
+}
+function fixture(string $name): string
+{
+    return (string) file_get_contents(__DIR__ . '/fixtures/sru/' . $name);
 }
 function import(string $syntax, string $fixture, string $isbn, string $url = 'https://example.org/sru', string $index = 'isbn'): array
 {
@@ -75,6 +82,12 @@ check(RelatorRoles::roleInStatement('edited by Anna Rossi, with illustrations by
 check(RelatorRoles::roleInStatement('aus dem Englischen übersetzt von Klaus Fritz', 'Fritz, Klaus') === 'translator'
     && RelatorRoles::roleInStatement('a cura di Antonio Gagliardi', 'Antonio Gagliardi') === 'editor', 'German and Italian statements, inverted or direct names');
 check(RelatorRoles::roleInStatement('Marianne Juhl, interview med Hanna Lützen', 'Lützen, Hanna') === null, 'an interview is not one of the roles: the name stays an author');
+check(RelatorRoles::roleInStatement('Paolo Rossi ed Enrico Bianchi', 'Bianchi, Enrico') === null
+    && RelatorRoles::roleInStatement('ed. by John Smith', 'Smith, John') === 'editor' && RelatorRoles::roleInStatement('tr. by Jane Doe', 'Doe, Jane') === 'translator',
+    'in a statement the Italian "ed" ("and") is not an editor; "ed." and "tr." with their period are');
+check(RelatorRoles::resolve(['aut', 'trl'], null, null, 'X', 'marc21') === 'author' && RelatorRoles::resolve(['xyz', 'trl'], null, null, 'X', 'marc21') === 'translator'
+    && RelatorRoles::resolve(['xyz'], 'translator', null, 'X', 'marc21') === 'author',
+    'the first known code decides; an unknown code does not hide a known one, and alone keeps the author');
 
 // ── MARC 21: the same book from two catalogues ─────────────────────────────
 $loc = import('marcxml', 'loc-marcxml-9780140449136.xml', '9780140449136');
@@ -106,12 +119,19 @@ $auto = import('marcxchange', 'dbc-opensearch-9788702272451.xml', '9788702272451
 check(($auto['source'] ?? '') === 'Z39.50/SRU (danMARC2)' && ($auto['translator'] ?? null) === 'Hanna Lützen', 'a MARCXchange record that declares danMARC2 is read as danMARC2, not as UNIMARC');
 
 // ── The searched ISBN, edition and place cleaners ──────────────────────────
-$other = import('marcxml', 'k10plus-marcxml-9780140449136.xml', '9780140449136');
-check($other['isbn13'] === '9780140449136', 'the record is reported under the ISBN it was found by');
+// The same record listing another edition's ISBNs first, as many do (hardback, paperback)
+$twoEditions = str_replace('<datafield tag="020" ind1=" " ind2=" ">', '<datafield tag="020" ind1=" " ind2=" "><subfield code="a">9780140444179</subfield></datafield><datafield tag="020" ind1=" " ind2=" ">', fixture('k10plus-marcxml-9780140449136.xml'));
+$found = import('marcxml', $twoEditions, '9780140449136');
+check($found['isbn13'] === '9780140449136' && $found['isbn10'] === '0140449132', 'the ISBN searched for wins over another edition listed first, with its ISBN-10');
+$byTen = import('marcxml', $twoEditions, '0140449132');
+check($byTen['isbn10'] === '0140449132' && $byTen['isbn13'] === '9780140449136', 'searched as ISBN-10, the ISBN-13 is its own, not the other edition\'s');
+$absent = import('marcxml', $twoEditions, '9788807900389');
+check($absent['isbn13'] === '9780140444179', 'a record that does not carry the searched ISBN keeps its own identifiers');
 check(SruClient::pagesOf('1 vol. (308 p.)') === '308' && SruClient::pagesOf('671 p.') === '671' && SruClient::pagesOf('62 min.', false) === '',
     'pages: the number before "p.", not the volume count; no minutes');
 check(EditionStatement::clean('[New ed.]') === 'New ed.' && EditionStatement::clean('2. ed. /') === '2. ed.', 'edition: brackets go, the period of "ed." stays');
-check(PublicationPlace::clean('London [u.a.]') === 'London' && PublicationPlace::clean('[Kbh.]') === 'Kbh.' && PublicationPlace::clean('[London?]') === 'London',
+check(PublicationPlace::clean('London [u.a.]') === 'London' && PublicationPlace::clean('[Kbh.]') === 'Kbh.' && PublicationPlace::clean('[London?]') === 'London'
+    && PublicationPlace::clean('London [u.a.') === 'London' && PublicationPlace::clean('[Kbh.') === 'Kbh.',
     'place: "[u.a.]" and enclosing brackets go, a half bracket is never left');
 
 echo "SUCCESS $checks checks\n";

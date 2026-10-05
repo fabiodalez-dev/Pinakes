@@ -311,15 +311,21 @@ class SruClient
             default => $this->parseMarcXml($xpath),
         };
 
-        // The record was found by this ISBN, so it is this record's ISBN. A
-        // record that lists several (the hardback, the paperback, a box set)
-        // used to hand the form the first of them, which may be another one.
-        if ($book !== null && $isbn !== '') {
-            $searched = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn));
-            if (strlen($searched) === 13) {
-                $book['isbn13'] = $searched;
-            } elseif (strlen($searched) === 10) {
-                $book['isbn10'] = $searched;
+        if ($book === null) {
+            return null;
+        }
+        // A record that lists several ISBNs (the hardback, the paperback, a
+        // box set) used to hand the form the first of them, which may be
+        // another edition's. When the record carries the ISBN searched for,
+        // that one and its other form (10 or 13 digits) are the record's; a
+        // record that does not carry it keeps its own.
+        $inRecord = array_values(array_filter(array_map('strval', (array) ($book['_isbns'] ?? []))));
+        unset($book['_isbns']);
+        if ($isbn !== '') {
+            $variants = \App\Support\IsbnFormatter::getAllVariants($isbn);
+            if ($variants !== [] && array_intersect(array_values($variants), $inRecord) !== []) {
+                $book['isbn13'] = $variants['isbn13'] ?? '';
+                $book['isbn10'] = $variants['isbn10'] ?? '';
             }
         }
         return $book;
@@ -479,6 +485,7 @@ class SruClient
         }
         foreach ($isbnNodes as $isbnNode) {
             $isbn = preg_replace('/^([0-9X]+).*$/i', '$1', $isbnNode->nodeValue);
+            $book['_isbns'][] = strtoupper($isbn);
             if (strlen($isbn) === 13 && empty($book['isbn13'])) {
                 $book['isbn13'] = $isbn;
             } elseif (strlen($isbn) === 10 && empty($book['isbn10'])) {
@@ -771,6 +778,7 @@ class SruClient
         $isbnValues = $getAllSub('010', 'a');
         foreach ($isbnValues as $raw) {
             $isbn = preg_replace('/[^0-9X]/i', '', $raw);
+            $book['_isbns'][] = strtoupper($isbn);
             if (strlen($isbn) === 13 && $book['isbn13'] === '') {
                 $book['isbn13'] = $isbn;
             } elseif (strlen($isbn) === 10 && $book['isbn10'] === '') {
@@ -780,6 +788,9 @@ class SruClient
 
         // EAN (073 $a)
         $ean = $getSub('073', 'a');
+        if ($ean !== null) {
+            $book['_isbns'][] = (string) preg_replace('/[^0-9]/', '', $ean);
+        }
         if ($ean !== null && $book['isbn13'] === '') {
             $eanClean = preg_replace('/[^0-9]/', '', $ean);
             if (strlen($eanClean) === 13) {
@@ -1021,6 +1032,7 @@ class SruClient
         foreach ($identifiers as $identifier) {
             if (preg_match('/isbn[:\s]*([0-9X-]+)/i', $identifier, $matches)) {
                 $isbn = preg_replace('/[^0-9X]/i', '', $matches[1]);
+                $book['_isbns'][] = strtoupper($isbn);
                 if (strlen($isbn) === 13) {
                     $book['isbn13'] = $isbn;
                 } elseif (strlen($isbn) === 10) {
@@ -1028,6 +1040,7 @@ class SruClient
                 }
             } elseif (preg_match('/^[0-9X-]{10,17}$/i', $identifier)) {
                 $isbn = preg_replace('/[^0-9X]/i', '', $identifier);
+                $book['_isbns'][] = strtoupper($isbn);
                 if (strlen($isbn) === 13) {
                     $book['isbn13'] = $isbn;
                 } elseif (strlen($isbn) === 10) {

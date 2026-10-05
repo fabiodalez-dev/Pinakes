@@ -38,6 +38,7 @@ final class RelatorRoles
 
     /** MARC 21 / danMARC2 codes. */
     private const LETTER_CODES = [
+        'aut' => 'author', 'cre' => 'author',
         'edt' => 'editor', 'edc' => 'editor', 'dkmdt' => 'editor',
         'trl' => 'translator',
         'ill' => 'illustrator',
@@ -53,6 +54,7 @@ final class RelatorRoles
 
     /** UNIMARC (IFLA) codes. */
     private const NUMERIC_CODES = [
+        '070' => 'author',
         '340' => 'editor',
         '730' => 'translator',
         '440' => 'illustrator',
@@ -83,6 +85,11 @@ final class RelatorRoles
      */
     public static function resolve(array $codes, ?string $term, ?string $statement, string $name, string $scheme): string
     {
+        // The first code this list knows decides ("aut" before "trl" keeps a
+        // self-translating author an author); a code it does not know still
+        // says the name has a part, which keeps it an author when nothing
+        // else is recognised.
+        $unknownCode = false;
         foreach ($codes as $code) {
             $code = self::normaliseCode($code);
             if ($code === '' || in_array($code, self::NEUTRAL_CODES, true)) {
@@ -91,7 +98,13 @@ final class RelatorRoles
             if ($scheme === 'unimarc' && isset(self::NUMERIC_CODES[$code])) {
                 return self::NUMERIC_CODES[$code];
             }
-            return self::LETTER_CODES[$code] ?? 'author';
+            if (isset(self::LETTER_CODES[$code])) {
+                return self::LETTER_CODES[$code];
+            }
+            $unknownCode = true;
+        }
+        if ($unknownCode) {
+            return 'author';
         }
         $term = self::normaliseText((string) $term);
         if ($term !== '') {
@@ -116,13 +129,35 @@ final class RelatorRoles
         if (mb_strlen($surname) < 2) {
             return null;
         }
-        $text = self::normaliseText($statement, false);
+        $text = self::normaliseText(self::expandAbbreviations($statement), false);
         if (preg_match('/(?<![\p{L}\p{N}])' . preg_quote(mb_strtolower($surname), '/') . '(?![\p{L}\p{N}])/u', $text, $m, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
         $before = substr($text, 0, $m[0][1]);
         $segment = (string) preg_replace('/^.*[;,:\/=]/su', '', $before);
+        // A short form without its period is a word of the sentence, not an
+        // abbreviation: the Italian "ed" is "and", "red" may be a colour.
+        $segment = (string) preg_replace('/(?<![\p{L}\p{N}])(ed|eds|edit|tr|trans|red|ill|illus)(?![\p{L}\p{N}])/u', ' ', $segment);
         return self::roleOfText($segment);
+    }
+
+    /**
+     * In a statement of responsibility an abbreviation carries its period
+     * ("ed. by", "tr. by", "red. af", "ill. by"): spelled out here before the
+     * periods go, so the bare word ("Rossi ed Bianchi") is never one.
+     */
+    private static function expandAbbreviations(string $statement): string
+    {
+        return (string) preg_replace_callback(
+            '/(?<![\p{L}\p{N}])(eds?|edit|tr|trans|red|ill|illus)\./iu',
+            static fn(array $m): string => match (mb_strtolower($m[1])) {
+                'ed', 'eds', 'edit' => 'edited ',
+                'tr', 'trans' => 'translated ',
+                'red' => 'redigeret ',
+                default => 'illustrated ',
+            },
+            $statement
+        );
     }
 
     /** A relator code as the lists above spell it: "edt" from "Edt." or from a relator URI. */

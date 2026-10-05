@@ -132,6 +132,11 @@ final class Danmarc2Parser
             $book['pubDate'] = $m[0] . '-01-01';
         }
 
+        // Every ISBN of the record, for the client to tell whether the one
+        // searched for is among them
+        foreach (array_merge(self::all($xpath, $record, '021', 'e'), self::all($xpath, $record, '021', 'a')) as $value) {
+            $book['_isbns'][] = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $value));
+        }
         foreach (self::all($xpath, $record, '021', 'e') as $value) {
             $value = (string) preg_replace('/[^0-9Xx]/', '', $value);
             if (strlen($value) === 13) {

@@ -27,8 +27,10 @@ final class PublicationPlace
         $place = trim((string) preg_replace('/[\s:;,\/=]+$/u', '', $place));
         // "London [u.a.]", "Paris [etc.]": the other places are not named
         $place = trim((string) preg_replace('/\s*\[(u\.\s*a\.?|etc\.?|et al\.?|usw\.?|m\.\s*fl\.?|o\.\s*a\.?|ecc\.?|e altri|a\.\s*o\.?)\]$/iu', '', $place));
+        // A source that cut the value short: "London [u.a." loses the open group
+        $place = trim((string) preg_replace('/(?<=\S)\s+\[[^\]]*$/u', '', $place));
         // "[Kbh.]", "[London?]": supplied by the cataloguer; brackets only
-        // when they enclose the whole place, so "London [u.a." is never made
+        // when they enclose the whole place
         if (preg_match('/^\[([^\[\]]*)\]$/u', $place, $m) === 1) {
             $place = trim($m[1]);
         } elseif (substr_count($place, '[') !== substr_count($place, ']')) {
