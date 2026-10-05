@@ -8043,5 +8043,6 @@
   "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Das Aktualisierungssystem ist nicht verfügbar. Die Einzelheiten stehen im Anwendungsprotokoll.",
   "almeno %s": "mindestens %s",
   "Pacchetto scaricato e verificato": "Paket heruntergeladen und geprüft",
+  "trasferimento interrotto": "Übertragung abgebrochen",
   "Errore fatale PHP durante l'aggiornamento": "Schwerwiegender PHP-Fehler während der Aktualisierung"
 }

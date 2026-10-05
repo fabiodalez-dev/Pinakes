@@ -8043,5 +8043,6 @@
   "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Opdateringssystemet er ikke tilgængeligt. Detaljerne står i applikationsloggen.",
   "almeno %s": "mindst %s",
   "Pacchetto scaricato e verificato": "Pakke downloadet og kontrolleret",
+  "trasferimento interrotto": "overførslen blev afbrudt",
   "Errore fatale PHP durante l'aggiornamento": "Fatal PHP-fejl under opdateringen"
 }

@@ -8043,5 +8043,6 @@
   "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Le système de mise à jour est indisponible. Le détail figure dans le journal de l'application.",
   "almeno %s": "au moins %s",
   "Pacchetto scaricato e verificato": "Paquet téléchargé et vérifié",
+  "trasferimento interrotto": "transfert interrompu",
   "Errore fatale PHP durante l'aggiornamento": "Erreur fatale PHP pendant la mise à jour"
 }

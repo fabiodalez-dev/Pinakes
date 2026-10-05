@@ -234,29 +234,20 @@ class Updater
             return;
         }
 
-        $dirs = @glob($tmpDir . '/pinakes_update_*', GLOB_ONLYDIR);
-        if ($dirs === false) {
-            return;
-        }
-
         $now = time();
         $maxAge = 3600; // 1 hour
 
-        foreach ($dirs as $dir) {
-            $mtime = @filemtime($dir);
-            if ($mtime !== false && ($now - $mtime) > $maxAge) {
-                $this->debugLog('DEBUG', 'Pulizia vecchia directory temporanea', ['path' => $dir]);
-                $this->deleteDirectory($dir);
+        // Update work dirs, pre-update app backups, and downloaded or uploaded
+        // packages whose install request never came (tab closed, early return)
+        foreach (['pinakes_update_*', 'pinakes_app_backup_*', 'manual_update_*'] as $pattern) {
+            $dirs = @glob($tmpDir . '/' . $pattern, GLOB_ONLYDIR);
+            if ($dirs === false) {
+                continue;
             }
-        }
-
-        // Also clean up old app backup directories
-        $appBackups = @glob($tmpDir . '/pinakes_app_backup_*', GLOB_ONLYDIR);
-        if ($appBackups !== false) {
-            foreach ($appBackups as $dir) {
+            foreach ($dirs as $dir) {
                 $mtime = @filemtime($dir);
                 if ($mtime !== false && ($now - $mtime) > $maxAge) {
-                    $this->debugLog('DEBUG', 'Pulizia vecchio backup app', ['path' => $dir]);
+                    $this->debugLog('DEBUG', 'Pulizia vecchia directory temporanea', ['path' => $dir]);
                     $this->deleteDirectory($dir);
                 }
             }
@@ -1600,9 +1591,16 @@ class Updater
                 if ($ok !== false) {
                     return $status;
                 }
-                $this->debugLog('WARNING', 'cURL fallito, tentativo con stream PHP', ['error' => curl_error($ch), 'errno' => curl_errno($ch)]);
-                if ($status > 0 || !filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
-                    return $status;
+                $curlError = curl_error($ch);
+                $this->debugLog('WARNING', 'cURL fallito', ['error' => $curlError, 'errno' => curl_errno($ch), 'http_code' => $status]);
+                if ($status > 0) {
+                    // The server answered and the transfer broke off (a timeout on a
+                    // slow link, a dropped connection): say so, rather than let the
+                    // partial file fail the checksum as if it had been tampered with
+                    throw new Exception(__('Download fallito') . ': ' . $curlError);
+                }
+                if (!filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+                    return 0;
                 }
                 // No connection at all: start the file over and try PHP's own stream
                 ftruncate($out, 0);
@@ -1620,9 +1618,14 @@ class Updater
                 return 0;
             }
             $meta = stream_get_meta_data($in);
-            stream_copy_to_stream($in, $out);
+            $copied = stream_copy_to_stream($in, $out);
+            $timedOut = stream_get_meta_data($in)['timed_out'];
             fclose($in);
-            return $this->extractFinalHttpStatus((array) ($meta['wrapper_data'] ?? []));
+            $status = $this->extractFinalHttpStatus((array) ($meta['wrapper_data'] ?? []));
+            if ($status >= 200 && $status < 300 && ($copied === false || $timedOut)) {
+                throw new Exception(__('Download fallito') . ': ' . __('trasferimento interrotto'));
+            }
+            return $status;
         } finally {
             fclose($out);
         }
