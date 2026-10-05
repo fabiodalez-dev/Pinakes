@@ -8041,5 +8041,7 @@
   "Questa è l'immagine Docker ufficiale di Pinakes: l'aggiornamento dall'applicazione è disattivato di proposito. Il codice verrebbe riscritto solo nel layer del container e andrebbe perso alla prima ricreazione, mentre le migrazioni del database resterebbero applicate — lasciando codice vecchio su uno schema nuovo. Aggiorna spostando il container sulla nuova immagine: \"docker compose pull && docker compose up -d\".": "Dette er det officielle Pinakes-Docker-image: opdatering inde fra applikationen er deaktiveret med vilje. Den nye kode ville kun blive skrevet til containerlaget og gå tabt, næste gang containeren genskabes, mens databasemigreringerne ville forblive anvendt — hvilket efterlader gammel kode på et nyt skema. Opdater i stedet ved at flytte containeren til det nye image: \"docker compose pull && docker compose up -d\".",
   "Impossibile verificare lo spazio disponibile in %s. Controlla la configurazione del filesystem e riprova.": "Den ledige plads i %s kunne ikke kontrolleres. Kontrollér filsystemets konfiguration, og prøv igen.",
   "Il sistema di aggiornamento non è disponibile. Il dettaglio è nel registro dell'applicazione.": "Opdateringssystemet er ikke tilgængeligt. Detaljerne står i applikationsloggen.",
-  "almeno %s": "mindst %s"
+  "almeno %s": "mindst %s",
+  "Pacchetto scaricato e verificato": "Pakke downloadet og kontrolleret",
+  "Errore fatale PHP durante l'aggiornamento": "Fatal PHP-fejl under opdateringen"
 }

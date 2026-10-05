@@ -601,6 +601,7 @@ pinakes-v*-local.zip.sha256
 # Reinstall / upgrade regression runbook (local-only, not committed)
 reinstall_test.md
 tests/manual-upgrade-real.spec.js
+tests/auto-upgrade-real.spec.js
 docs/reference/start-server.md
 docs/reference/security-audit-report.md
 docs/reference/routes-to-add.md

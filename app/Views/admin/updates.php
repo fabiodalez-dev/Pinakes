@@ -1503,6 +1503,7 @@ async function submitManualUpdate() {
 
         const uploadResponse = await fetch(window.BASE_PATH + '/admin/updates/upload', {
             method: 'POST',
+            headers: { 'Accept': 'application/json' },
             body: formData
         });
 
@@ -1549,6 +1550,7 @@ async function submitManualUpdate() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
             },
             body: `csrf_token=${encodeURIComponent(csrfToken)}`
         });
