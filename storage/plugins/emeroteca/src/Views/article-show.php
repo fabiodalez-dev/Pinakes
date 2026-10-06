@@ -279,7 +279,7 @@ $details = array_filter($details, static fn(string $v): bool => $v !== '');
           </span>
           <?php endif; ?>
           <?php if ($resource !== null && $resource['access'] !== ''): ?>
-          <p class="w-full text-xs text-gray-500"><?= $e(__('Condizioni di accesso')) ?>: <?= $e($resource['access']) ?></p>
+          <p class="w-full text-xs text-gray-500" data-testid="article-resource-access"><?= $e(__('Condizioni di accesso')) ?>: <?= $e($resource['access']) ?></p>
           <?php endif; ?>
           <a href="<?= $e(url('/admin/periodicals/articles/' . $id . '/citation.ris')) ?>" class="<?= $btnGhost ?> justify-center">
             <i class="fas fa-download"></i>

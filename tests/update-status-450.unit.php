@@ -133,6 +133,15 @@ try {
     $check(($outcome['success'] ?? null) === true && (float) $outcome['at'] > $first, 'a later run replaces it, with a later time');
     $check(($outcome['version'] ?? '') === $updater->getCurrentVersion(), 'it names the version installed when it ended');
     $check(glob($outcomeFile . '.*.tmp') === [], 'the write leaves no temp file behind');
+    $check(($outcome['attempt'] ?? null) === '', 'a run started without an identifier records none');
+    $attempt = bin2hex(random_bytes(16));
+    $updater->setAttemptId($attempt);
+    $record->invoke($updater, ['success' => true, 'error' => null]);
+    $check(($updater->lastUpdateOutcome()['attempt'] ?? '') === $attempt, 'the outcome carries the identifier the page sent');
+    $updater->setAttemptId('../../etc/passwd');
+    $record->invoke($updater, ['success' => true, 'error' => null]);
+    $check(($updater->lastUpdateOutcome()['attempt'] ?? null) === '', 'an identifier that is not 32 hex characters is dropped');
+    $updater->setAttemptId('');
     file_put_contents($outcomeFile, 'not json');
     $check($updater->lastUpdateOutcome() === null, 'an unreadable file reads as no outcome');
     // Written before the lock is released, inside performUpdateFromFile().

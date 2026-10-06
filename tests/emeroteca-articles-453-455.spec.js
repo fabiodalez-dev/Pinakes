@@ -214,7 +214,7 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
       await admin.reload();
       await expect(admin.getByTestId('article-resource')).toContainText('arkiv/1988/petersen.pdf');
       await expect(admin.locator('a[href*="arkiv/1988"]')).toHaveCount(0);
-      await expect(page).toContainText('Kun på læsesalen');
+      await expect(admin.getByTestId('article-resource-access')).toContainText('Kun på læsesalen');
     } finally {
       db(`UPDATE emeroteca_contributi SET risorsa_url=NULL, risorsa_accesso=NULL WHERE id=${articleId}`);
     }

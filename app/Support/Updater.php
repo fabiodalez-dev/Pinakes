@@ -4416,6 +4416,21 @@ class Updater
         }
     }
 
+    /** The page's identifier for the install it started (see setAttemptId()), or ''. */
+    private string $attemptId = '';
+
+    /**
+     * Name the install about to run, so its outcome can be told apart from
+     * another one. The update page makes the identifier before it sends the
+     * request, and finds its own outcome by it when a proxy dropped the
+     * request (#450): timestamps cannot tell two administrators' runs apart.
+     * Anything but 32 hex characters is ignored.
+     */
+    public function setAttemptId(string $attemptId): void
+    {
+        $this->attemptId = preg_match('/^[a-f0-9]{32}$/', $attemptId) === 1 ? $attemptId : '';
+    }
+
     /**
      * Write how the update this request ran ended, for the status endpoint.
      * Atomic (temp file + rename); a write that fails is logged and skipped:
@@ -4428,6 +4443,7 @@ class Updater
         $file = $this->rootPath . '/storage/cache/update-outcome.json';
         $payload = json_encode([
             'at' => microtime(true),
+            'attempt' => $this->attemptId,
             'success' => !empty($result['success']),
             'error' => (string) ($result['error'] ?? ''),
             'version' => $this->getCurrentVersion(),
@@ -4442,7 +4458,7 @@ class Updater
     /**
      * How the latest update run ended (see recordUpdateOutcome()), or null.
      *
-     * @return array{at:float,success:bool,error:string,version:string}|null
+     * @return array{at:float,attempt:string,success:bool,error:string,version:string}|null
      */
     public function lastUpdateOutcome(): ?array
     {
@@ -4453,6 +4469,7 @@ class Updater
         }
         return [
             'at' => (float) $data['at'],
+            'attempt' => (string) ($data['attempt'] ?? ''),
             'success' => !empty($data['success']),
             'error' => (string) ($data['error'] ?? ''),
             'version' => (string) ($data['version'] ?? ''),

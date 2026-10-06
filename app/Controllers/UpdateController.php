@@ -847,6 +847,10 @@ class UpdateController
             session_write_close();
         }
 
+        // The page's own name for this install: it finds the outcome by it
+        // when a proxy drops this request (#450). Validated by the Updater.
+        $updater->setAttemptId((string) ($data['attempt'] ?? ''));
+
         // Perform the update from uploaded file (use resolved path to prevent TOCTOU)
         $this->answerJsonOnFatal();
         $result = $updater->performUpdateFromFile($realTempPath);

@@ -852,24 +852,34 @@ async function readUpdateJson(response) {
  * connection, while PHP carries on to the end. In those cases the outcome is
  * read from /admin/updates/status instead of being reported as a failure.
  * `onWait` is told once that the page is now waiting for the server.
+ * The request carries an identifier the server writes next to the outcome,
+ * so the page recognises its own outcome and not another administrator's.
  */
 async function runInstallRequest(body, targetVersion, onWait) {
+    const attempt = newAttemptId();
     const before = await fetchUpdateStatus();
     let response;
     try {
         response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-            body
+            body: body + '&attempt=' + attempt
         });
     } catch (networkError) {
-        return waitForUpdateOutcome(before, targetVersion, onWait);
+        return waitForUpdateOutcome(before, targetVersion, onWait, attempt);
     }
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json') && [502, 503, 504, 520, 522, 524].includes(response.status)) {
-        return waitForUpdateOutcome(before, targetVersion, onWait);
+        return waitForUpdateOutcome(before, targetVersion, onWait, attempt);
     }
     return readUpdateJson(response);
+}
+
+/** 32 random hex characters naming one install request. */
+function newAttemptId() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** The update status, or null when it cannot be read right now. */
@@ -893,18 +903,18 @@ async function fetchUpdateStatus() {
 /**
  * Poll until the server is done with the update, then answer as the install
  * request would have: {success, message} or {success: false, error}.
- * Done means the update lock is free. The attempt logged after `before`
- * decides; without one, the installed version does.
+ * Done means the update lock is free. The outcome written for `attempt`
+ * decides; when there is none (the write failed), the attempt logged after
+ * `before`, then the installed version.
  */
-async function waitForUpdateOutcome(before, targetVersion, onWait) {
+async function waitForUpdateOutcome(before, targetVersion, onWait, attempt) {
     if (typeof onWait === 'function') {
         onWait();
     }
-    // Without a reading from before the request, an older attempt could pass
-    // for this one: then only the installed version decides.
+    // The log has no attempt identifier: without a reading from before the
+    // request, an older row could pass for this one, so it is not trusted.
     const trustLog = before !== null;
     const beforeId = before && before.last ? before.last.id : 0;
-    const beforeOutcomeAt = before && before.outcome ? before.outcome.at : 0;
     const deadline = Date.now() + 30 * 60 * 1000;
     let idlePolls = 0;
     while (Date.now() < deadline) {
@@ -916,7 +926,7 @@ async function waitForUpdateOutcome(before, targetVersion, onWait) {
         }
         // The run's own outcome covers every failure, including those before
         // the install step that leave no log row (space, backup, package).
-        const outcome = trustLog && status.outcome && status.outcome.at > beforeOutcomeAt ? status.outcome : null;
+        const outcome = attempt && status.outcome && status.outcome.attempt === attempt ? status.outcome : null;
         if (outcome) {
             return outcome.success
                 ? { success: true, message: <?= json_encode(__("Aggiornamento completato con successo"), JSON_HEX_TAG) ?> }
