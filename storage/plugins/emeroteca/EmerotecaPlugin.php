@@ -2785,16 +2785,10 @@ class EmerotecaPlugin
             }
             $needle = mb_substr($needle, 0, 200);
             $admin = $context === 'admin';
-            if ($admin) {
-                foreach ($this->emerotecaTestataHits($needle)['items'] as $item) {
-                    $results[] = [
-                        'type'       => 'periodical',
-                        'label'      => $item['label'],
-                        'identifier' => $item['meta'],
-                        'url'        => $this->emerotecaPath('/admin/periodicals/' . $item['id'] . '/issues'),
-                    ];
-                }
-            }
+            // Articles first: the caller keeps at most 15 core results and
+            // cuts the list at 20, so whatever comes after the articles is
+            // what a busy catalogue drops. Losing a periodical costs less
+            // than losing the articles #453 asked for.
             foreach ($this->emerotecaArticleHits($needle, $admin)['items'] as $item) {
                 $results[] = [
                     'type'       => 'article',
@@ -2805,6 +2799,16 @@ class EmerotecaPlugin
                         ? $this->emerotecaPath('/admin/periodicals/articles/' . $item['id'])
                         : $item['url'],
                 ];
+            }
+            if ($admin) {
+                foreach ($this->emerotecaTestataHits($needle)['items'] as $item) {
+                    $results[] = [
+                        'type'       => 'periodical',
+                        'label'      => $item['label'],
+                        'identifier' => $item['meta'],
+                        'url'        => $this->emerotecaPath('/admin/periodicals/' . $item['id'] . '/issues'),
+                    ];
+                }
             }
         } catch (\Throwable $e) {
             SecureLogger::error('[Emeroteca] search.unified.sources listener error: ' . $e->getMessage());

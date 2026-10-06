@@ -127,6 +127,13 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     // The linked author, in citation form, and where it was published.
     await expect(article).toContainText(`Petersen, ${RUN}`);
     await expect(article).toContainText(MASTHEAD);
+    // Articles come before periodicals: the list is cut at 20, and what comes
+    // last is what a busy catalogue drops.
+    const unified = await (await admin.request.get(`${BASE}/api/search/unified?q=${encodeURIComponent(RUN)}`)).json();
+    const articleAt = unified.findIndex(r => r.type === 'article');
+    const periodicalAt = unified.findIndex(r => r.type === 'periodical');
+    expect(articleAt, 'the article is listed').toBeGreaterThanOrEqual(0);
+    expect(periodicalAt, 'after it, the periodical').toBeGreaterThan(articleAt);
     await article.click();
     await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
     await expect(admin.locator('#article-titolo')).toHaveValue(ARTICLE);
