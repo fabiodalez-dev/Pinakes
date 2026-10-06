@@ -138,8 +138,9 @@ final class UnifiedCatalogService
     {
         $family = [$genreId => true];
         $level = [$genreId];
-        // A depth cap and the "already seen" set stop a parent_id cycle.
-        for ($depth = 0; $level !== [] && $depth < 20; $depth++) {
+        // Each genre enters the set once, so a parent_id cycle cannot loop:
+        // the walk ends when a level brings nothing new.
+        while ($level !== []) {
             $marks = implode(',', array_fill(0, count($level), '?'));
             $children = $this->rows("SELECT id FROM generi WHERE parent_id IN ($marks)", str_repeat('i', count($level)), $level);
             $level = [];

@@ -103,6 +103,10 @@ try {
     $db->query("INSERT INTO generi(id,nome,parent_id) VALUES (14,'Sindacati',12)");
     $db->query("UPDATE emeroteca_contributi SET genere_id=14 WHERE id=5");
     check(($page(['genere_id'=>10])['articles'] ?? 0)===1, 'an article four levels down is found under the root');
+    // A corrupted tree whose parent links loop back still ends the walk.
+    $db->query("INSERT INTO generi(id,nome,parent_id) VALUES (20,'Loop A',21),(21,'Loop B',20)");
+    $db->query("UPDATE emeroteca_contributi SET genere_id=21 WHERE id=5");
+    check(($page(['genere_id'=>20])['articles'] ?? 0)===1, 'a genre cycle neither hangs the filter nor hides the article');
     $db->query("UPDATE emeroteca_contributi SET genere_id=NULL WHERE id=5");
     $db->query("UPDATE libri SET anno_pubblicazione=2020 WHERE id=2");
     $chronology = array_merge($page(['search'=>'Probe','sort'=>'publication_desc'])['rows'], $page(['search'=>'Probe','sort'=>'publication_desc'],12)['rows']);
