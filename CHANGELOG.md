@@ -11,7 +11,7 @@ Full version-by-version history for Pinakes. The README shows only the latest re
 - **An Edit button on the public article page** for admin and staff ([#455](https://github.com/fabiodalez-dev/Pinakes/issues/455)). The page is never cached, so a visitor never sees it.
 
 ### Changed
-- **A genre filter in the catalogue reaches every level below it.** It matched a book filed under the genre, a child or a grandchild of it; on a deeper tree, books further down were missing. Books and articles now follow the same rule, at any depth.
+- **A genre filter in the catalogue reaches every level below it.** It matched a book filed under the genre, a child or a grandchild of it; on a deeper tree, books further down were missing. Books and articles now follow the same rule, at any depth. The genre counts in the catalogue sidebar follow it too, and a genre on the fourth level or deeper can be opened there like any other.
 - **On an author's page the articles are cards like the books** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453)): image (the article's, else its issue's cover, else the periodical's logo), title, publication, date and pages, and the Details and Edit buttons. They were a plain list of links.
 - **"Other works by" on the article page** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453)) lists the author's books next to their other articles, with a link to all of them on the author's page. It listed only articles.
 - **Keywords and genre are in the advanced description of the article form** ([#455](https://github.com/fabiodalez-dev/Pinakes/issues/455)), together with language, country and classification. The section opens by itself when any of them is filled in.

@@ -1848,58 +1848,30 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
     $paramsGen = $whereGen['params'];
     $typesGen = $whereGen['types'];
 
-    // Query to get all genres with books, including parent/grandparent hierarchy
-    // Count books for each genre including descendant genres
-    $whereClauseGen = '';
-    if (!empty($conditionsGen)) {
-        $whereClauseGen = ' AND ' . implode(' AND ', $conditionsGen);
-    }
-
-    $queryGeneri = "
-        SELECT DISTINCT
-               g.id, g.nome, g.parent_id,
-               (
-                   SELECT COUNT(DISTINCT l.id)
-                   FROM libri l
-                   LEFT JOIN editori e ON l.editore_id = e.id
-                   LEFT JOIN generi gf ON l.genere_id = gf.id
-                   LEFT JOIN generi gfp ON gf.parent_id = gfp.id
-                   LEFT JOIN generi gfpp ON gfp.parent_id = gfpp.id
-                   LEFT JOIN generi sg ON l.sottogenere_id = sg.id
-                   WHERE l.deleted_at IS NULL AND " . $visibility . "
-                   AND (
-                       l.genere_id = g.id
-                       OR l.sottogenere_id = g.id
-                       OR l.genere_id IN (SELECT id FROM generi WHERE parent_id = g.id)
-                       OR l.sottogenere_id IN (SELECT id FROM generi WHERE parent_id = g.id)
-                       OR l.genere_id IN (SELECT gc.id FROM generi gc JOIN generi gp ON gc.parent_id = gp.id WHERE gp.parent_id = g.id)
-                       OR l.sottogenere_id IN (SELECT gc.id FROM generi gc JOIN generi gp ON gc.parent_id = gp.id WHERE gp.parent_id = g.id)
-                   )
-                   {$whereClauseGen}
-               ) AS cnt
-        FROM (
-            -- Select all genres that have books via genere_id or sottogenere_id
-            SELECT DISTINCT g.id FROM generi g
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . $visibility . "
-            UNION
-            SELECT DISTINCT gp.id FROM generi g
-            JOIN generi gp ON g.parent_id = gp.id
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . $visibility . "
-            UNION
-            SELECT DISTINCT gpp.id FROM generi g
-            JOIN generi gp ON g.parent_id = gp.id
-            JOIN generi gpp ON gp.parent_id = gpp.id
-            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL AND " . $visibility . "
-        ) as genre_ids
-        JOIN generi g ON genre_ids.id = g.id
-        ORDER BY g.parent_id, g.nome
+    // A genre counts the books filed under it or under any genre below it, at
+    // any depth: the rule the genre filter applies (GenreTree). The books are
+    // grouped by their (genre, subgenre) pair in SQL, then each pair's count
+    // is rolled up its ancestors in PHP. A book has one pair, and the pair's
+    // ancestors are a set, so a book whose genre and subgenre share an
+    // ancestor is counted once there. A genre is listed when a visible book
+    // sits under it; the other filters only change its count.
+    $countExpr = !empty($conditionsGen)
+        ? 'SUM(CASE WHEN ' . implode(' AND ', $conditionsGen) . ' THEN 1 ELSE 0 END)'
+        : 'COUNT(*)';
+    $queryPairs = "
+        SELECT l.genere_id, l.sottogenere_id, {$countExpr} AS cnt
+        FROM libri l
+        LEFT JOIN editori e ON l.editore_id = e.id
+        WHERE l.deleted_at IS NULL AND " . $visibility . "
+          AND (l.genere_id IS NOT NULL OR l.sottogenere_id IS NOT NULL)
+        GROUP BY l.genere_id, l.sottogenere_id
     ";
 
     // The complete facets payload is already cached by getFilterOptions() for
     // bounded filter states. A second per-query cache here would recreate the
     // unbounded file-key problem for free-text searches.
-    $loadGenres = function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
-        $stmt = $db->prepare($queryGeneri);
+    $loadGenres = function() use ($db, $queryPairs, $typesGen, $paramsGen) {
+        $stmt = $db->prepare($queryPairs);
         if ($stmt === false) {
             \App\Support\SecureLogger::error('FrontendController::getFilterOptions prepare failed', ['db_error' => $db->error]);
             return [];
@@ -1909,9 +1881,20 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         }
         $stmt->execute();
         $result = $stmt->get_result();
-        $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $pairs = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
-        return $rows;
+        if ($pairs === []) {
+            return [];
+        }
+        $genres = [];
+        $res = $db->query('SELECT id, nome, parent_id FROM generi');
+        if ($res instanceof \mysqli_result) {
+            foreach ($res->fetch_all(MYSQLI_ASSOC) as $g) {
+                $genres[(int) $g['id']] = $g;
+            }
+            $res->free();
+        }
+        return self::rollUpGenreCounts($genres, $pairs);
     };
     $generi_flat = $loadGenres();
     $options['generi'] = $this->buildGenreHierarchy($generi_flat);
@@ -2573,6 +2556,46 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return book_url($book);
     }
 
+    /**
+     * Roll per-(genre, subgenre) book counts up the genre tree. Every genre on
+     * the way to the root gets the pair's count once, so a book filed under a
+     * genre and a subgenre of the same branch is not counted twice. A seen-set
+     * ends the walk on a parent_id cycle.
+     *
+     * @param array<int, array<string, mixed>> $genres id => {id, nome, parent_id}
+     * @param list<array<string, mixed>> $pairs {genere_id, sottogenere_id, cnt}
+     * @return list<array{id:int, nome:string, parent_id:int|null, cnt:int}>
+     */
+    private static function rollUpGenreCounts(array $genres, array $pairs): array
+    {
+        $counts = [];
+        foreach ($pairs as $pair) {
+            $branch = [];
+            foreach ([(int) ($pair['genere_id'] ?? 0), (int) ($pair['sottogenere_id'] ?? 0)] as $next) {
+                while ($next > 0 && isset($genres[$next]) && !isset($branch[$next])) {
+                    $branch[$next] = true;
+                    $next = (int) ($genres[$next]['parent_id'] ?? 0);
+                }
+            }
+            foreach (array_keys($branch) as $id) {
+                $counts[$id] = ($counts[$id] ?? 0) + (int) $pair['cnt'];
+            }
+        }
+        $rows = [];
+        foreach ($counts as $id => $cnt) {
+            $parent = (int) ($genres[$id]['parent_id'] ?? 0);
+            $rows[] = [
+                'id' => $id,
+                'nome' => (string) $genres[$id]['nome'],
+                'parent_id' => $parent > 0 ? $parent : null,
+                'cnt' => $cnt,
+            ];
+        }
+        usort($rows, static fn(array $a, array $b): int =>
+            [(int) $a['parent_id'], mb_strtolower($a['nome'])] <=> [(int) $b['parent_id'], mb_strtolower($b['nome'])]);
+        return $rows;
+    }
+
     private function buildGenreHierarchy(array $generi_flat): array
     {
         $generi = [];
@@ -2874,6 +2897,30 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
      * @param int $selectedGenreId Currently selected genre ID (0 = none)
      * @return array ['genres' => display genres, 'level' => current level, 'parent' => parent genre for back button]
      */
+    /**
+     * The genre with this id in the facet tree, and its parent (null for a
+     * root). Depth-first; buildGenreHierarchy() keeps a genre in one place
+     * only, so the walk cannot revisit a node.
+     *
+     * @param array<int, array<string, mixed>> $genres
+     * @return array{0: array<string, mixed>|null, 1: array<string, mixed>|null}
+     */
+    private static function findGenreInTree(array $genres, int $genreId, ?array $parent = null): array
+    {
+        foreach ($genres as $genre) {
+            if ((int) $genre['id'] === $genreId) {
+                return [$genre, $parent];
+            }
+            if (!empty($genre['children'])) {
+                $found = self::findGenreInTree($genre['children'], $genreId, $genre);
+                if ($found[0] !== null) {
+                    return $found;
+                }
+            }
+        }
+        return [null, null];
+    }
+
     private function getDisplayGenres(array $allGenres, int $selectedGenreId): array
     {
         if ($selectedGenreId === 0) {
@@ -2885,37 +2932,9 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             ];
         }
 
-        // Find the selected genre in the hierarchy by ID
-        $selectedGenreData = null;
-        $parentGenre = null;
-
-        // Search in root genres
-        foreach ($allGenres as $genre) {
-            if ((int) $genre['id'] === $selectedGenreId) {
-                $selectedGenreData = $genre;
-                break;
-            }
-            // Search in children
-            if (!empty($genre['children'])) {
-                foreach ($genre['children'] as $child) {
-                    if ((int) $child['id'] === $selectedGenreId) {
-                        $selectedGenreData = $child;
-                        $parentGenre = $genre;
-                        break;
-                    }
-                    // Search in grandchildren
-                    if (!empty($child['children'])) {
-                        foreach ($child['children'] as $grandchild) {
-                            if ((int) $grandchild['id'] === $selectedGenreId) {
-                                $selectedGenreData = $grandchild;
-                                $parentGenre = $child;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // Find the selected genre in the hierarchy by ID, at any depth: the
+        // genre facet now lists every level, and so does the filter.
+        [$selectedGenreData, $parentGenre] = self::findGenreInTree($allGenres, $selectedGenreId);
 
         if (!$selectedGenreData) {
             return [

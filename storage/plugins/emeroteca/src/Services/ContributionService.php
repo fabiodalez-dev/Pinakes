@@ -515,9 +515,10 @@ SQL;
             return [];
         }
         $byId = [];
-        // Three levels is the depth of the books' genre tree; the walk stops
-        // at the root or at a row it has already seen.
-        for ($next = $genreId, $i = 0; $next > 0 && $i < 10 && !isset($byId[$next]); $i++) {
+        // The walk stops at the root or at a row it has already seen, so a
+        // parent_id cycle cannot loop and a deep tree is walked to its root.
+        $next = $genreId;
+        while ($next > 0 && !isset($byId[$next])) {
             $row = $this->rows('SELECT id, nome, parent_id FROM generi WHERE id=?', [$next])[0] ?? null;
             if ($row === null) {
                 break;

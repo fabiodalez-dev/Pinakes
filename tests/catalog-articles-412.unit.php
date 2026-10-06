@@ -157,6 +157,26 @@ try {
     check($isbnOf->invoke($resolver,['rft_id'=>'urn:isbn:978-0-306-40615-7'])==='9780306406157', 'an ISBN URI in rft_id is');
     check($isbnOf->invoke($resolver,['rft.isbn'=>'9780306406158'])==='', 'a wrong check digit is not an ISBN');
     check((int)$find->invoke($resolver,['rft.atitle'=>'Probe 04 Article : subtitle','rft_id'=>'info:doi/10.1000/1234'],'chapter')['id']===4, 'so a DOI does not hide a chapter whose volume has an ISBN');
+    // The sidebar genre counts follow the filter's rule: a book counts under
+    // every genre above its genre or subgenre, at any depth, once per genre.
+    $rollUp = new ReflectionMethod(\App\Controllers\FrontendController::class, 'rollUpGenreCounts');
+    $tree = [
+        1 => ['id' => 1, 'nome' => 'Root', 'parent_id' => null],
+        2 => ['id' => 2, 'nome' => 'Child', 'parent_id' => 1],
+        3 => ['id' => 3, 'nome' => 'Grandchild', 'parent_id' => 2],
+        4 => ['id' => 4, 'nome' => 'Leaf', 'parent_id' => 3],
+        5 => ['id' => 5, 'nome' => 'Loop A', 'parent_id' => 6],
+        6 => ['id' => 6, 'nome' => 'Loop B', 'parent_id' => 5],
+    ];
+    $facet = array_column($rollUp->invoke(null, $tree, [
+        ['genere_id' => 4, 'sottogenere_id' => null, 'cnt' => 2],
+        ['genere_id' => 2, 'sottogenere_id' => 3, 'cnt' => 1],
+        ['genere_id' => 5, 'sottogenere_id' => null, 'cnt' => 1],
+    ]), 'cnt', 'id');
+    check(($facet[1] ?? 0) === 3, 'a root genre counts the books four levels below it');
+    check(($facet[4] ?? 0) === 2 && ($facet[3] ?? 0) === 3, 'each level counts what sits under it');
+    check(($facet[2] ?? 0) === 3, 'a book whose genre and subgenre share a branch is counted once');
+    check(($facet[5] ?? 0) === 1 && ($facet[6] ?? 0) === 1, 'a genre cycle neither hangs the count nor counts twice');
     $db->query("UPDATE plugins SET is_active=0");
     check($page(['search'=>'Probe'])===null, 'disabled plugin is absent from catalogue');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'],'journal')===null, 'disabled plugin is absent from resolver');
