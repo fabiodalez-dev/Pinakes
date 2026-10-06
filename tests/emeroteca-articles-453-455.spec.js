@@ -41,6 +41,26 @@ async function login(page) {
   }
 }
 
+// Through the real UI, so onActivate() registers the hooks; checked against the
+// database because the activation POST and its dialog race.
+async function setEmerotecaActive(page, wanted) {
+  const id = Number(db("SELECT id FROM plugins WHERE name='emeroteca'") || '0');
+  expect(id, 'emeroteca must be registered as a bundled plugin').toBeGreaterThan(0);
+  const active = () => db(`SELECT is_active FROM plugins WHERE id=${id}`) === '1';
+  const label = wanted ? 'Attiva plugin' : 'Disattiva';
+  for (let attempt = 0; attempt < 3 && active() !== wanted; attempt++) {
+    await page.goto(BASE + '/admin/plugins');
+    const button = page.locator(`[data-plugin-id="${id}"]`).first().locator(`button:has-text("${label}")`);
+    if (!await button.isVisible({ timeout: 3000 }).catch(() => false)) continue;
+    await button.click();
+    const confirm = page.locator('.swal2-confirm:visible');
+    if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
+    await expect.poll(() => active() === wanted, { timeout: 30_000 }).toBe(true).catch(() => {});
+  }
+  expect(active(), `emeroteca could not be ${wanted ? 'activated' : 'deactivated'}`).toBe(wanted);
+}
+
+let wasActive = false;
 let authorId = 0;
 let bookId = 0;
 let articleId = 0;
@@ -54,7 +74,10 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
 
   test.beforeAll(async ({ browser }) => {
     if (!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
-    expect(db("SELECT is_active FROM plugins WHERE name='emeroteca'"), 'the emeroteca must be active').toBe('1');
+    wasActive = db("SELECT COALESCE(MAX(is_active),0) FROM plugins WHERE name='emeroteca'") === '1';
+    admin = await browser.newPage();
+    await login(admin);
+    if (!wasActive) await setEmerotecaActive(admin, true);
     db(`INSERT INTO autori (nome) VALUES ('${AUTHOR}')`);
     authorId = Number(db(`SELECT id FROM autori WHERE nome='${AUTHOR}'`));
     db(`INSERT INTO libri (titolo, anno_pubblicazione) VALUES ('${BOOK}', 1988)`);
@@ -70,16 +93,15 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     childGenre = Number(genre[0]);
     parentGenre = Number(genre[1]);
     expect(childGenre, 'the installation has a child genre').toBeGreaterThan(0);
-    admin = await browser.newPage();
-    await login(admin);
   });
 
   test.afterAll(async () => {
-    await admin?.close();
     if (articleId) db(`DELETE FROM emeroteca_contributi_autori WHERE contributo_id=${articleId}; DELETE FROM emeroteca_contributi WHERE id=${articleId}`);
     if (mastheadId) db(`DELETE FROM emeroteca_testate WHERE id=${mastheadId}`);
     if (bookId) db(`DELETE FROM libri_autori WHERE libro_id=${bookId}; DELETE FROM libri WHERE id=${bookId}`);
     if (authorId) db(`DELETE FROM autori WHERE id=${authorId}`);
+    if (!wasActive && admin) await setEmerotecaActive(admin, false);
+    await admin?.close();
   });
 
   test('1 The admin sidebar has an Articles entry that lists the articles (#454)', async () => {
