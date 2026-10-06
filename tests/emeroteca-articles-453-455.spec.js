@@ -208,6 +208,16 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}/edit$`));
     await admin.getByRole('link', { name: 'Annulla' }).click();
     await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
+    // A resource that is a local path is named, not linked, with its access terms.
+    db(`UPDATE emeroteca_contributi SET risorsa_url='arkiv/1988/petersen.pdf', risorsa_accesso='Kun på læsesalen' WHERE id=${articleId}`);
+    try {
+      await admin.reload();
+      await expect(admin.getByTestId('article-resource')).toContainText('arkiv/1988/petersen.pdf');
+      await expect(admin.locator('a[href*="arkiv/1988"]')).toHaveCount(0);
+      await expect(page).toContainText('Kun på læsesalen');
+    } finally {
+      db(`UPDATE emeroteca_contributi SET risorsa_url=NULL, risorsa_accesso=NULL WHERE id=${articleId}`);
+    }
   });
 
   test('5 The public article page offers staff an Edit button, shows the genre and the author\'s other works, books included (#453, #455)', async () => {

@@ -870,11 +870,15 @@ class UpdateController
      * cut short (#450). The update itself carries on in PHP after the proxy
      * gives up, so the page asks here until it ends: the installed version,
      * whether the update lock is still held, and the latest attempt logged.
-     * Reachable during maintenance (index.php allows /admin/updates) and
-     * read-only, so AdminAuthMiddleware is enough.
+     * Reachable during maintenance (index.php allows /admin/updates). Admin
+     * only, like the update it reports on: AdminAuthMiddleware also lets staff
+     * through, so the role is checked here.
      */
     public function status(Request $request, Response $response, mysqli $db): Response
     {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
         try {
             $updater = new Updater($db);
         } catch (\Throwable $e) {
@@ -888,6 +892,7 @@ class UpdateController
             'version' => $updater->getCurrentVersion(),
             'running' => $updater->isUpdateRunning(),
             'last' => $updater->lastUpdateAttempt(),
+            'outcome' => $updater->lastUpdateOutcome(),
         ])->withHeader('Cache-Control', 'no-store');
     }
 

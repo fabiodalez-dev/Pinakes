@@ -117,6 +117,38 @@ try {
     }
 }
 
+echo "B2. the outcome of the latest run\n";
+$outcomeFile = $root . '/storage/cache/update-outcome.json';
+$saved = is_file($outcomeFile) ? file_get_contents($outcomeFile) : null;
+try {
+    $record = new ReflectionMethod(Updater::class, 'recordUpdateOutcome');
+    $record->setAccessible(true);
+    $record->invoke($updater, ['success' => false, 'error' => 'no space ' . $marker]);
+    $outcome = $updater->lastUpdateOutcome();
+    $check(($outcome['success'] ?? null) === false && ($outcome['error'] ?? '') === 'no space ' . $marker, 'a failed run is read back with its error');
+    $first = (float) ($outcome['at'] ?? 0);
+    usleep(10000);
+    $record->invoke($updater, ['success' => true, 'error' => null]);
+    $outcome = $updater->lastUpdateOutcome();
+    $check(($outcome['success'] ?? null) === true && (float) $outcome['at'] > $first, 'a later run replaces it, with a later time');
+    $check(($outcome['version'] ?? '') === $updater->getCurrentVersion(), 'it names the version installed when it ended');
+    $check(glob($outcomeFile . '.*.tmp') === [], 'the write leaves no temp file behind');
+    file_put_contents($outcomeFile, 'not json');
+    $check($updater->lastUpdateOutcome() === null, 'an unreadable file reads as no outcome');
+    // Written before the lock is released, inside performUpdateFromFile().
+    $src = (string) file_get_contents($root . '/app/Support/Updater.php');
+    $body = substr($src, (int) strpos($src, 'public function performUpdateFromFile'));
+    $recordAt = strpos($body, '$this->recordUpdateOutcome(');
+    $unlockAt = strpos($body, 'flock($lockHandle, LOCK_UN)');
+    $check($recordAt !== false && $unlockAt !== false && $recordAt < $unlockAt, 'the outcome is written while the lock is still held');
+} finally {
+    if ($saved !== null) {
+        file_put_contents($outcomeFile, $saved);
+    } else {
+        @unlink($outcomeFile);
+    }
+}
+
 echo "C. the install request lets the status polls through\n";
 // The polls come from the same browser session, and PHP keeps a session
 // locked until the request that opened it closes it.

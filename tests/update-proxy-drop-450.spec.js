@@ -125,6 +125,35 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento completato!', { timeout: 30_000 });
   });
 
+  test('6 A failure before the install step, which logs no attempt, still shows its own error', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/updates`);
+    await routeDownload(page);
+    await page.route('**/admin/updates/install-manual', route => route.fulfill(PROXY_502));
+    // The run's outcome file is the only trace: no new update_logs row.
+    await routeStatus(page, [
+      { success: true, version: '0.7.93', running: false, last: { id: 70, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 1000, success: true, error: '', version: '0.7.93' } },
+      { success: true, version: '0.7.93', running: false, last: { id: 70, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 2000, success: false, error: 'Spazio insufficiente probe450', version: '0.7.93' } },
+    ]);
+    await startUpdate(page);
+    await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 30_000 });
+    await expect(page.locator('#updateMessage')).toContainText('Spazio insufficiente probe450');
+  });
+
+  test('7 An attempt the server left half-way is reported as interrupted', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/updates`);
+    await routeDownload(page);
+    await page.route('**/admin/updates/install-manual', route => route.fulfill(PROXY_502));
+    await routeStatus(page, [
+      { success: true, version: '0.7.93', running: false, last: { id: 80, to_version: '0.7.93', status: 'completed', error: '' }, outcome: null },
+      { success: true, version: '0.7.93', running: false, last: { id: 81, to_version: TARGET, status: 'started', error: '' }, outcome: null },
+    ]);
+    await startUpdate(page);
+    await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 30_000 });
+    await expect(page.locator('#updateMessage')).toContainText('interrotto sul server');
+  });
+
   test('5 An older completed update in the log is not taken for this one', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/admin/updates`);

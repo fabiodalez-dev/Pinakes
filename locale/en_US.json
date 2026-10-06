@@ -8056,5 +8056,6 @@
   "File e citazione": "Files and citation",
   "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "The connection dropped, but the update is still running on the server. Waiting for it to finish…",
   "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "The update does not appear to have completed. Check the logs for details.",
-  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "The update is still running on the server after 30 minutes. Reload the page later to see the installed version."
+  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "The update is still running on the server after 30 minutes. Reload the page later to see the installed version.",
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "The update stopped on the server before it finished. Check the logs for details."
 }

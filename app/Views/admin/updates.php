@@ -904,6 +904,7 @@ async function waitForUpdateOutcome(before, targetVersion, onWait) {
     // for this one: then only the installed version decides.
     const trustLog = before !== null;
     const beforeId = before && before.last ? before.last.id : 0;
+    const beforeOutcomeAt = before && before.outcome ? before.outcome.at : 0;
     const deadline = Date.now() + 30 * 60 * 1000;
     let idlePolls = 0;
     while (Date.now() < deadline) {
@@ -913,12 +914,25 @@ async function waitForUpdateOutcome(before, targetVersion, onWait) {
             idlePolls = 0;
             continue;
         }
+        // The run's own outcome covers every failure, including those before
+        // the install step that leave no log row (space, backup, package).
+        const outcome = trustLog && status.outcome && status.outcome.at > beforeOutcomeAt ? status.outcome : null;
+        if (outcome) {
+            return outcome.success
+                ? { success: true, message: <?= json_encode(__("Aggiornamento completato con successo"), JSON_HEX_TAG) ?> }
+                : { success: false, error: outcome.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?> };
+        }
         const last = trustLog && status.last && status.last.id > beforeId ? status.last : null;
         if ((last && last.status === 'completed') || (targetVersion && status.version === targetVersion)) {
             return { success: true, message: <?= json_encode(__("Aggiornamento completato con successo"), JSON_HEX_TAG) ?> };
         }
         if (last && (last.status === 'failed' || last.status === 'rolled_back')) {
             return { success: false, error: last.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?> };
+        }
+        // Started, never finished, and the lock is free: the server process
+        // ended mid-update (a fatal error, memory, a killed worker).
+        if (last && last.status === 'started') {
+            return { success: false, error: <?= json_encode(__("L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli."), JSON_HEX_TAG) ?> };
         }
         // Not running and nothing settled: give the update a moment to take
         // the lock or write its log, then call it.

@@ -8056,5 +8056,6 @@
   "File e citazione": "File e citazione",
   "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…",
   "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "L'aggiornamento non risulta completato. Controlla i log per i dettagli.",
-  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata."
+  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.",
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli."
 }

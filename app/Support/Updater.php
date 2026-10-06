@@ -2141,6 +2141,13 @@ class Updater
         } finally {
             $this->cleanup();
 
+            // The outcome is written while the lock is still held, so a page
+            // whose request a proxy dropped (#450) reads a final answer as
+            // soon as it sees the lock free, failures before installUpdate()
+            // (space, backup, extraction, package checks) included: those
+            // leave no update_logs row of their own.
+            $this->recordUpdateOutcome($result ?? ['success' => false, 'error' => null]);
+
             // Normal cleanup is complete while this request still owns the
             // lock. Disarm the shutdown fallback before releasing it: once
             // another request acquires the lock, this request must never remove
@@ -4407,6 +4414,49 @@ class Updater
         } finally {
             fclose($handle);
         }
+    }
+
+    /**
+     * Write how the update this request ran ended, for the status endpoint.
+     * Atomic (temp file + rename); a write that fails is logged and skipped:
+     * the status then falls back to update_logs and the installed version.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function recordUpdateOutcome(array $result): void
+    {
+        $file = $this->rootPath . '/storage/cache/update-outcome.json';
+        $payload = json_encode([
+            'at' => microtime(true),
+            'success' => !empty($result['success']),
+            'error' => (string) ($result['error'] ?? ''),
+            'version' => $this->getCurrentVersion(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if ($payload === false || @file_put_contents($tmp, $payload) === false || !@rename($tmp, $file)) {
+            @unlink($tmp);
+            $this->debugLog('WARNING', 'Esito aggiornamento non registrato', ['file' => $file]);
+        }
+    }
+
+    /**
+     * How the latest update run ended (see recordUpdateOutcome()), or null.
+     *
+     * @return array{at:float,success:bool,error:string,version:string}|null
+     */
+    public function lastUpdateOutcome(): ?array
+    {
+        $raw = @file_get_contents($this->rootPath . '/storage/cache/update-outcome.json');
+        $data = is_string($raw) ? json_decode($raw, true) : null;
+        if (!is_array($data) || !isset($data['at'])) {
+            return null;
+        }
+        return [
+            'at' => (float) $data['at'],
+            'success' => !empty($data['success']),
+            'error' => (string) ($data['error'] ?? ''),
+            'version' => (string) ($data['version'] ?? ''),
+        ];
     }
 
     /**

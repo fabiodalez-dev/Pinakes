@@ -8056,5 +8056,6 @@
   "File e citazione": "Fichiers et citation",
   "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "La connexion a été interrompue, mais la mise à jour se poursuit sur le serveur. Attente de la fin…",
   "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "La mise à jour ne semble pas terminée. Consultez les journaux pour plus de détails.",
-  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "La mise à jour est toujours en cours sur le serveur après 30 minutes. Rechargez la page plus tard pour voir la version installée."
+  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "La mise à jour est toujours en cours sur le serveur après 30 minutes. Rechargez la page plus tard pour voir la version installée.",
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "La mise à jour s'est interrompue sur le serveur avant la fin. Consultez les journaux pour plus de détails."
 }

@@ -271,6 +271,15 @@ $details = array_filter($details, static fn(string $v): bool => $v !== '');
             <i class="fas fa-external-link-alt"></i>
             <?= $e($resource['text'] !== '' ? $resource['text'] : $resource['url']) ?>
           </a>
+          <?php elseif ($resource !== null): ?>
+          <!-- A local path or an identifier: there is nothing to open, but the record names it. -->
+          <span class="inline-flex items-center gap-2 text-sm text-gray-700" data-testid="article-resource">
+            <i class="fas fa-link text-gray-400"></i>
+            <?= $e($resource['text'] !== '' ? $resource['text'] . ' — ' . $resource['url'] : $resource['url']) ?>
+          </span>
+          <?php endif; ?>
+          <?php if ($resource !== null && $resource['access'] !== ''): ?>
+          <p class="w-full text-xs text-gray-500"><?= $e(__('Condizioni di accesso')) ?>: <?= $e($resource['access']) ?></p>
           <?php endif; ?>
           <a href="<?= $e(url('/admin/periodicals/articles/' . $id . '/citation.ris')) ?>" class="<?= $btnGhost ?> justify-center">
             <i class="fas fa-download"></i>
