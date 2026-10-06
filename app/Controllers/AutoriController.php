@@ -48,7 +48,16 @@ class AutoriController
         try {
             if ($articleAuthors->available() && \App\Support\PeriodicalArticlesHint::state($db) === \App\Support\PeriodicalArticlesHint::ACTIVE) {
                 $publishedOnly = $isStaff ? '' : ' AND c.pubblico = 1';
-                $stmt = $db->prepare('SELECT c.id,c.titolo,c.pubblico FROM emeroteca_contributi c JOIN emeroteca_contributi_autori ca ON ca.contributo_id=c.id WHERE ca.autore_id=?' . $publishedOnly . ' ORDER BY c.anno_pubblicazione DESC,c.titolo LIMIT 100');
+                // Shown as cards like the books (#453): the image follows the
+                // emeroteca's own order (ContributionService::coverUrl()) — the
+                // article's, else its issue's cover, else the masthead's logo.
+                $stmt = $db->prepare("SELECT c.id,c.titolo,c.sottotitolo,c.pubblico,c.contenitore_titolo,c.data_pubblicazione_testo,c.pagine,
+                        COALESCE(NULLIF(c.copertina_url,''),NULLIF(f.copertina_url,''),NULLIF(t.logo_url,'')) AS cover_url
+                    FROM emeroteca_contributi c
+                    JOIN emeroteca_contributi_autori ca ON ca.contributo_id=c.id
+                    LEFT JOIN emeroteca_fascicoli f ON f.id=c.fascicolo_id
+                    LEFT JOIN emeroteca_testate t ON t.id=c.testata_id
+                    WHERE ca.autore_id=?" . $publishedOnly . ' ORDER BY c.anno_pubblicazione DESC,c.titolo LIMIT 100');
                 $stmt->bind_param('i', $id); $stmt->execute();
                 $articoli = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
             }

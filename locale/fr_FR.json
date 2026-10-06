@@ -8045,5 +8045,12 @@
   "Pacchetto scaricato e verificato": "Paquet téléchargé et vérifié",
   "trasferimento interrotto": "transfert interrompu",
   "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "Le paquet en attente a été remplacé dans un autre onglet : relancez la mise à jour",
-  "Errore fatale PHP durante l'aggiornamento": "Erreur fatale PHP pendant la mise à jour"
+  "Errore fatale PHP durante l'aggiornamento": "Erreur fatale PHP pendant la mise à jour",
+  "Articoli e saggi": "Articles et essais",
+  "Aggiungi nuovo articolo": "Ajouter un nouvel article",
+  "Immagine di «%s»": "Image de « %s »",
+  "Pubblicazione: %s": "Publication : %s",
+  "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "Les mêmes genres que pour les livres : l’article apparaît dans le catalogue filtré par ce genre.",
+  "Altre opere di %s": "Autres œuvres de %s",
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Rechercher livres, articles, périodiques, auteurs, éditeurs, utilisateurs..."
 }

@@ -306,18 +306,93 @@ $btnDanger  = 'btn-danger inline-flex items-center gap-2';
         <?php endif; ?>
       </div>
     </div>
+
+    <?php if (!empty($articoli)): ?>
+    <!-- Articles (Emeroteca): the same cards as the books (#453) -->
+    <?php
+      $showUnpublishedArticles = !empty($isStaff);
+      $articleCount = count(array_filter($articoli, static fn(array $a): bool => $showUnpublishedArticles || !empty($a['pubblico'])));
+    ?>
+    <div class="card mt-6">
+      <div>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-file-alt text-gray-600"></i>
+            <?= __("Articoli") ?>
+            <span class="status-badge bg-gray-100 text-gray-700">
+              <?= sprintf($articleCount === 1 ? __("%d articolo") : __("%d articoli"), $articleCount) ?>
+            </span>
+          </h2>
+          <?php if (!empty($isStaff)): ?>
+          <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>"
+             class="<?php echo $btnPrimary; ?> justify-center">
+            <i class="fas fa-plus"></i>
+            <?= __("Aggiungi nuovo articolo") ?>
+          </a>
+          <?php endif; ?>
+        </div>
+
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <?php foreach ($articoli as $articolo): ?>
+            <?php
+              if (empty($isStaff) && empty($articolo['pubblico'])) { continue; }
+              $articleId = (int) $articolo['id'];
+              $articlePublicUrl = url('/emeroteca/articolo/' . $articleId);
+              $articleEditUrl = url('/admin/periodicals/articles/' . $articleId);
+              // An unpublished article has no public page: its details are the form.
+              $articleDetailsUrl = !empty($articolo['pubblico']) ? $articlePublicUrl : $articleEditUrl;
+              $cover = (string) ($articolo['cover_url'] ?? '');
+              if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
+              if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
+              $cover = preg_match('#^https?://#', $cover) ? $cover : url($cover);
+              $articleSource = implode(' · ', array_filter([
+                  trim((string) ($articolo['data_pubblicazione_testo'] ?? '')),
+                  trim((string) ($articolo['pagine'] ?? '')),
+              ], static fn(string $part): bool => $part !== ''));
+            ?>
+            <article class="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-200" data-article-id="<?= $articleId ?>">
+              <div class="relative h-52 bg-gray-100 overflow-hidden">
+                <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
+                     alt="<?= htmlspecialchars(sprintf(__('Immagine di «%s»'), (string) ($articolo['titolo'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                     onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+              </div>
+              <div class="p-5 space-y-3">
+                <div>
+                  <h3 class="text-base font-semibold text-gray-900 line-clamp-2 group-hover:text-gray-600 transition-colors">
+                    <a href="<?= htmlspecialchars($articleDetailsUrl, ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($articolo['titolo'] ?? ''); ?></a>
+                  </h3>
+                  <?php if (!empty($articolo['contenitore_titolo'])): ?>
+                    <p class="text-sm text-gray-500 mt-1"><?= sprintf(__("Pubblicazione: %s"), HtmlHelper::e($articolo['contenitore_titolo'])) ?></p>
+                  <?php endif; ?>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs uppercase tracking-wide text-gray-500">
+                  <span><?php echo HtmlHelper::e($articleSource); ?></span>
+                  <?php if (!empty($isStaff)): ?>
+                    <span class="whitespace-nowrap"><?= !empty($articolo['pubblico']) ? __('Pubblico') : __('Privato') ?></span>
+                  <?php endif; ?>
+                </div>
+                <div class="flex gap-2 pt-3 items-center">
+                  <a href="<?= htmlspecialchars($articleDetailsUrl, ENT_QUOTES, 'UTF-8') ?>"
+                     class="btn-primary inline-flex items-center justify-center gap-2 text-sm whitespace-nowrap">
+                    <i class="fas fa-eye"></i><?= __("Dettagli") ?>
+                  </a>
+                  <?php if (!empty($isStaff)): ?>
+                  <a href="<?= htmlspecialchars($articleEditUrl, ENT_QUOTES, 'UTF-8') ?>"
+                     class="btn-secondary flex-1 inline-flex items-center justify-center gap-2 text-sm"
+                     title="<?= htmlspecialchars(__("Modifica"), ENT_QUOTES, 'UTF-8') ?>">
+                    <i class="fas fa-edit"></i>
+                    <?= __("Modifica") ?>
+                  </a>
+                  <?php endif; ?>
+                </div>
+              </div>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
   </div>
 </section>
 
-<?php if (!empty($articoli)): ?>
-<section class="max-w-7xl mx-auto px-4 py-6">
-  <h2 class="text-xl font-semibold mb-4"><?= __('Articoli') ?></h2>
-  <ul class="space-y-2"><?php foreach ($articoli as $articolo): ?>
-    <?php if (!empty($isStaff)): ?>
-    <li><a class="underline" href="<?= htmlspecialchars(url('/admin/periodicals/articles/'.(int)$articolo['id']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string)$articolo['titolo'], ENT_QUOTES, 'UTF-8') ?></a> · <?= $articolo['pubblico'] ? __('Pubblico') : __('Privato') ?></li>
-    <?php elseif (!empty($articolo['pubblico'])): ?>
-    <li><a class="underline" href="<?= htmlspecialchars(url('/emeroteca/articolo/'.(int)$articolo['id']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string)$articolo['titolo'], ENT_QUOTES, 'UTF-8') ?></a></li>
-    <?php endif; ?>
-  <?php endforeach; ?></ul>
-</section>
-<?php endif; ?>

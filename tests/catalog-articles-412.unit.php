@@ -47,7 +47,7 @@ try {
         'libri' => 'id INT PRIMARY KEY, titolo VARCHAR(500), created_at DATETIME, anno_pubblicazione INT NULL, test_author VARCHAR(255), editore_id INT NULL, genere_id INT NULL, deleted_at DATETIME NULL',
         'autori' => 'id INT PRIMARY KEY, nome VARCHAR(255), pseudonimo VARCHAR(255)',
         'editori' => 'id INT PRIMARY KEY, nome VARCHAR(255)',
-        'generi' => 'id INT PRIMARY KEY, nome VARCHAR(255)',
+        'generi' => 'id INT PRIMARY KEY, nome VARCHAR(255), parent_id INT NULL',
         'emeroteca_testate' => 'id INT PRIMARY KEY, titolo VARCHAR(255) NULL, logo_url VARCHAR(500)',
         'emeroteca_contributi' => implode(', ', array_map(static fn($key, $definition) => "$key $definition", array_keys(ContributionService::COLUMN_DEFINITIONS), ContributionService::COLUMN_DEFINITIONS)),
     ];
@@ -90,6 +90,16 @@ try {
     foreach (['genere_id'=>1,'editore'=>'Publisher','disponibilita'=>'disponibile','tipo_media'=>'libro','_books_only'=>true] as $key=>$value) {
         check($page([$key=>$value])===null, "$key does not leak unfiltered articles");
     }
+    // #455: an article filed under a genre is found under it, and under its
+    // parent and grandparent, as a book is; under a sibling it is not.
+    $db->query("INSERT INTO generi(id,nome,parent_id) VALUES (10,'Storia',NULL),(11,'Storia sociale',10),(12,'Movimento operaio',11),(13,'Letteratura',NULL)");
+    $db->query("UPDATE emeroteca_contributi SET genere_id=12 WHERE id=5");
+    foreach ([12=>'its own genre', 11=>'its parent', 10=>'its grandparent'] as $genreId=>$label) {
+        $genrePage = $page(['genere_id'=>$genreId]);
+        check(($genrePage['articles'] ?? 0)===1 && in_array('Probe 05 Article', array_column($genrePage['rows'], 'titolo'), true), "an article is found under $label");
+    }
+    check($page(['genere_id'=>13])===null, 'and not under an unrelated genre');
+    $db->query("UPDATE emeroteca_contributi SET genere_id=NULL WHERE id=5");
     $db->query("UPDATE libri SET anno_pubblicazione=2020 WHERE id=2");
     $chronology = array_merge($page(['search'=>'Probe','sort'=>'publication_desc'])['rows'], $page(['search'=>'Probe','sort'=>'publication_desc'],12)['rows']);
     check($chronology[0]['titolo']==='Probe 99 Book' && $chronology[16]['titolo']==='Probe 00 Book', 'publication order spans pages with undated records last');

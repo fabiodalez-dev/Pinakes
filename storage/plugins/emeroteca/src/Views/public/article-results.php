@@ -20,8 +20,11 @@
  * @var array{rows: array<int, array<string, mixed>>} $articleResults
  * @var array{title?: string, text?: string, ctaHref?: string, ctaLabel?: string}|null $articleEmpty
  *      what to say when there are no rows; null renders nothing at all
+ * @var bool $articleGridWrap false when the caller has opened the grid itself,
+ *      to put other cards in it (the books of the same author, #453)
  */
 $articleResults = $articleResults ?? ['rows' => []];
+$articleGridWrap = array_key_exists('articleGridWrap', get_defined_vars()) ? $articleGridWrap !== false : true;
 $articleEmpty = array_key_exists('articleEmpty', get_defined_vars()) ? $articleEmpty : [];
 // Plugin classes have no autoloader scope and a view must not depend on the
 // controller having loaded them: require the service before reading it.
@@ -48,7 +51,7 @@ $articleAuthorHref = static fn(array $an): string => $an['id'] !== null
         include $articleCorePartials . '/empty-state.php';
     endif; ?>
 <?php else: ?>
-<div class="books-grid emeroteca-articles-grid">
+<?php if ($articleGridWrap): ?><div class="books-grid emeroteca-articles-grid"><?php endif; ?>
 <?php foreach ($articleResults['rows'] as $a):
     $articleLinks = \App\Plugins\Emeroteca\Services\ContributionService::authorLinks($a);
     $articleMeta = [];
@@ -87,5 +90,5 @@ $articleAuthorHref = static fn(array $an): string => $an['id'] !== null
     ];
     include $articleCorePartials . '/article-card.php';
 endforeach; ?>
-</div>
+<?php if ($articleGridWrap): ?></div><?php endif; ?>
 <?php endif; ?>

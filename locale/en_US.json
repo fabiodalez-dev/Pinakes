@@ -8045,5 +8045,12 @@
   "Pacchetto scaricato e verificato": "Package downloaded and verified",
   "trasferimento interrotto": "transfer interrupted",
   "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "The waiting package was replaced in another tab: start the update again",
-  "Errore fatale PHP durante l'aggiornamento": "PHP fatal error during the update"
+  "Errore fatale PHP durante l'aggiornamento": "PHP fatal error during the update",
+  "Articoli e saggi": "Articles and essays",
+  "Aggiungi nuovo articolo": "Add new article",
+  "Immagine di «%s»": "Image of “%s”",
+  "Pubblicazione: %s": "Publication: %s",
+  "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "The same genres as the books: the article appears in the catalogue filtered by that genre.",
+  "Altre opere di %s": "Other works by %s",
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Search books, articles, periodicals, authors, publishers, users..."
 }

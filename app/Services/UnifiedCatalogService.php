@@ -126,6 +126,17 @@ final class UnifiedCatalogService
         return ['rows' => $rows, 'total' => $bookTotal + $articleTotal, 'articles' => $articleTotal];
     }
 
+    private ?bool $articlesHaveGenre = null;
+
+    private function articlesHaveGenre(): bool
+    {
+        if ($this->articlesHaveGenre === null) {
+            $result = $this->db->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME='genere_id'");
+            $this->articlesHaveGenre = $result !== false && $result->num_rows > 0;
+        }
+        return $this->articlesHaveGenre;
+    }
+
     /** @param array<string,mixed> $filters */
     public function countArticles(array $filters): int
     {
@@ -141,12 +152,21 @@ final class UnifiedCatalogService
         if (!empty($filters['_books_only']) || !$this->enabled()) { return null; }
         // These facets describe books/loanable copies, not articles. Do not
         // silently mix unfiltered articles into a explicitly filtered result.
-        foreach (['genere_id', 'editore', 'disponibilita', 'tipo_media'] as $facet) {
+        foreach (['editore', 'disponibilita', 'tipo_media'] as $facet) {
             if (!empty($filters[$facet])) { return null; }
         }
         $linkedAuthors = (new ArticleAuthorService($this->db))->available();
         $where = ['c.pubblico = 1'];
         $params = [];
+        // Articles carry a genre from emeroteca 1.12.0 (#455). The same match
+        // as the books': the genre itself, or a child or grandchild of it. An
+        // older plugin without the column keeps articles out of a genre filter.
+        if (!empty($filters['genere_id'])) {
+            if (!$this->articlesHaveGenre()) { return null; }
+            $genreId = (string) (int) $filters['genere_id'];
+            $where[] = 'c.genere_id IN (SELECT gx.id FROM generi gx LEFT JOIN generi gxp ON gxp.id = gx.parent_id WHERE gx.id = ? OR gx.parent_id = ? OR gxp.parent_id = ?)';
+            array_push($params, $genreId, $genreId, $genreId);
+        }
         $term = trim((string) ($filters['search'] ?? ''));
         if ($term !== '') {
             // Same word-wise semantics as the book index; punctuation in an

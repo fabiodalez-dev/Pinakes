@@ -775,15 +775,69 @@ class PublicController
         foreach (\App\Plugins\Emeroteca\Services\ContributionService::authorLinks($row) as $credit) {
             if ($credit['id']!==null) { $firstAuthor=(int)$credit['id']; $firstAuthorName=$credit['name']; break; }
         }
+        // Staff open the record from here (#455). The page is never cached
+        // (private, no-store below), so the button cannot reach a visitor.
+        $canEdit = in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true);
+        try {
+            $genreTrail = $service->genreTrail((int)($row['genere_id'] ?? 0));
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] article genre: '.$e->getMessage());
+            $genreTrail = [];
+        }
         return $this->renderPublic($response,'article.php',[
             'article'=>$row,
             'neighbours'=>$neighbours,
             'relatedTestata'=>$service->relatedInTestata((int)($row['testata_id']??0),$id,4),
             'relatedAuthor'=>$firstAuthor>0 ? $service->relatedByAuthor($firstAuthor,$id,4) : [],
             'relatedAuthorName'=>$firstAuthorName??'',
+            // The author's works whatever their format (#453): the books
+            // beside the articles, as the author's own page lists them.
+            'relatedAuthorBooks'=>$firstAuthor>0 ? $this->booksByAuthor($firstAuthor,4) : [],
+            'relatedAuthorId'=>$firstAuthor,
+            'canEdit'=>$canEdit,
+            'genreTrail'=>$genreTrail,
             'seoTitle'=>$row['titolo'],
             'seoCanonical'=>$this->baseUrl().'/emeroteca/articolo/'.$id,
         ])->withHeader('Cache-Control','private, no-store');
+    }
+
+    /**
+     * The catalogue's books credited to an author, newest first, in the row
+     * shape app/Views/frontend/catalog-grid.php draws: the same query as the
+     * public author page, with the catalogue's visibility rule.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function booksByAuthor(int $authorId, int $limit): array
+    {
+        try {
+            $sql = "SELECT DISTINCT l.*,
+                       (SELECT " . \App\Support\AuthorName::displaySql('a2') . " FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
+                        WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore,
+                       (SELECT a2.nome FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
+                        WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore_principale_nome,
+                       e.nome AS editore,
+                       g.nome AS genere
+                FROM libri l
+                JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN editori e ON l.editore_id = e.id
+                LEFT JOIN generi g ON l.genere_id = g.id
+                WHERE la.autore_id = ? AND l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . "
+                ORDER BY l.anno_pubblicazione DESC, l.titolo ASC
+                LIMIT ?";
+            $stmt = $this->db->prepare($sql);
+            if ($stmt === false) {
+                return [];
+            }
+            $stmt->bind_param('ii', $authorId, $limit);
+            $stmt->execute();
+            $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            return $rows;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] author books: '.$e->getMessage());
+            return [];
+        }
     }
 
     /**

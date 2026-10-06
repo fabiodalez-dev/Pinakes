@@ -11,6 +11,10 @@
  * Input $relatedTestata: list<array<string,mixed>>
  * Input $relatedAuthor: list<array<string,mixed>>
  * Input $relatedAuthorName: string
+ * Input $relatedAuthorBooks: list<array<string,mixed>> the same author's books, catalogue rows
+ * Input $relatedAuthorId: int the linked author the two lists above belong to
+ * Input $canEdit: bool an admin or staff session: the page offers the edit form
+ * Input $genreTrail: list<array{id:int,nome:string}> the genre, root first
  */
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 require_once dirname(__DIR__, 2) . '/Support/CodeLists.php';
@@ -49,6 +53,10 @@ $articleCodeLabel=static function(string $code,bool $region):string{
 $neighbours=$neighbours??['prev'=>null,'next'=>null];
 $relatedTestata=$relatedTestata??[];
 $relatedAuthor=$relatedAuthor??[];
+$relatedAuthorBooks=$relatedAuthorBooks??[];
+$relatedAuthorId=(int)($relatedAuthorId??0);
+$canEdit=!empty($canEdit);
+$genreTrail=$genreTrail??[];
 $corePartials=dirname(__DIR__, 6).'/app/Views/frontend/partials';
 $catalogPageStyles=true;
 $bookDetailStyles=true;
@@ -137,10 +145,12 @@ include $corePartials.'/resource-pager.php';
          otherwise sits beside it as an ordinary one. The access conditions
          follow the link in both positions, because that is where a reader
          needs to be told "for internal use only". */ ?>
-<?php if($articleHasPdf || ($articleResource!==null && $articleResource['linkable'])): ?>
+<?php if($articleHasPdf || ($articleResource!==null && $articleResource['linkable']) || $canEdit): ?>
 <div class="action-buttons resource-action-buttons">
 <?php if($articleHasPdf): ?><a class="btn-primary ui-button" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/pdf')) ?>"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Leggi PDF') ?></a><?php endif; ?>
 <?php if($articleResource!==null && $articleResource['linkable']): ?><a class="<?= $articleResourceIsPrimary?'btn-primary ui-button':'ui-button btn-outline' ?>" href="<?= $e($articleResource['url']) ?>" rel="noopener nofollow" target="_blank"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i> <?= $e($articleResource['text']!==''?$articleResource['text']:__('Risorsa online')) ?></a><?php endif; ?>
+<?php /* Staff only (#455): the record opens in the back office. */ ?>
+<?php if($canEdit): ?><a class="ui-button btn-outline" href="<?= $e(url('/admin/periodicals/articles/'.(int)$article['id'])) ?>"><i class="fas fa-edit" aria-hidden="true"></i> <?= __('Modifica') ?></a><?php endif; ?>
 <?php if($articleResource!==null && $articleResource['linkable'] && $articleResource['access']!==''): ?><p class="resource-access-note"><?= $e($articleResource['access']) ?></p><?php endif; ?>
 </div>
 <?php endif; ?>
@@ -161,6 +171,7 @@ include $corePartials.'/resource-pager.php';
 <?php foreach(['contenitore_titolo'=>__('Pubblicazione'),'contenitore_curatori'=>__('Curatori del volume'),'contenitore_editore'=>__('Editore'),'contenitore_luogo'=>__('Luogo di pubblicazione'),'isbn'=>'ISBN','data_pubblicazione_testo'=>__('Data di pubblicazione'),'anno_pubblicazione'=>__('Anno'),'volume'=>__('Volume'),'numero'=>__('Numero'),'pagine'=>__('Pagine'),'issn'=>'ISSN','doi'=>'DOI'] as $key=>$label): if(empty($article[$key]))continue; if(in_array($key,['contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'],true) && ($article['contenitore_tipo']??'')!=='antologia')continue; ?><div class="meta-item"><div class="meta-label"><?= $e($label) ?></div><div class="meta-value"><?php if($key==='contenitore_titolo'): ?><a href="<?= $e($articleFilterUrl('pubblicazione',(string)$article[$key])) ?>"><?= $e($article[$key]) ?></a><?php else: ?><?= $e($article[$key]) ?><?php endif; ?></div></div><?php endforeach; ?>
 </div><div class="details-column">
 <?php if($articleKeywords): ?><div class="meta-item"><div class="meta-label"><?= __('Parole chiave') ?></div><div class="meta-value"><?php foreach($articleKeywords as $i=>$kw): ?><?= $i?', ':'' ?><a href="<?= $e($articleFilterUrl('keyword',$kw)) ?>"><?= $e($kw) ?></a><?php endforeach; ?></div></div><?php endif; ?>
+<?php if($genreTrail): ?><div class="meta-item"><div class="meta-label"><?= __('Genere') ?></div><div class="meta-value"><?php $genreHierarchy=array_column($genreTrail,'nome'); $genreHierarchyIds=array_column($genreTrail,'id'); $catalogRoute=route_path('catalog'); $genreSeparator=' › '; include dirname(__DIR__, 6).'/app/Views/frontend/partials/genre-breadcrumb.php'; ?></div></div><?php endif; ?>
 <?php if(!empty($article['lingua'])): ?><div class="meta-item"><div class="meta-label"><?= __('Lingua') ?></div><div class="meta-value"><?= $e($articleCodeLabel((string)$article['lingua'],false)) ?></div></div><?php endif; ?>
 <?php if(!empty($article['paese'])): ?><div class="meta-item"><div class="meta-label"><?= __('Paese di pubblicazione') ?></div><div class="meta-value"><?= $e($articleCodeLabel((string)$article['paese'],true)) ?></div></div><?php endif; ?>
 <?php if(!empty($article['classificazione'])): ?><div class="meta-item"><div class="meta-label"><?= __('Classificazione') ?></div><div class="meta-value"><?= $e(trim(((string)($article['classificazione_schema']??'')!==''?$article['classificazione_schema'].': ':'').$article['classificazione'])) ?></div></div><?php endif; ?>
@@ -210,7 +221,7 @@ include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
 </div>
 </div>
 
-<?php if($relatedTestata!==[] || $relatedAuthor!==[]): ?>
+<?php if($relatedTestata!==[] || $relatedAuthor!==[] || $relatedAuthorBooks!==[]): ?>
 <section class="resource-related">
 <div class="container">
 <?php if($relatedTestata!==[]): ?>
@@ -219,10 +230,16 @@ include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
 <?php $articleResults=['rows'=>$relatedTestata]; $articleEmpty=null; require __DIR__.'/article-results.php'; ?>
 </div>
 <?php endif; ?>
-<?php if($relatedAuthor!==[]): ?>
+<?php /* The author's other works whatever their format (#453): the books
+         first, drawn by the catalogue's own card, then the articles, in one
+         grid; the author's page lists them all. */ ?>
+<?php if($relatedAuthor!==[] || $relatedAuthorBooks!==[]): ?>
 <div class="listing-section">
-<h2 class="listing-section-title"><span><?= $e(sprintf(__('Altri articoli di %s'), (string)($relatedAuthorName??''))) ?></span></h2>
-<?php $articleResults=['rows'=>$relatedAuthor]; $articleEmpty=null; require __DIR__.'/article-results.php'; ?>
+<h2 class="listing-section-title"><span><?= $e(sprintf(__('Altre opere di %s'), (string)($relatedAuthorName??''))) ?></span><?php if($relatedAuthorId>0): ?><a href="<?= $e(route_path('author').'/'.$relatedAuthorId) ?>"><?= __('Tutte') ?> →</a><?php endif; ?></h2>
+<div class="books-grid emeroteca-articles-grid">
+<?php if($relatedAuthorBooks!==[]) { (static function (array $books): void { include dirname(__DIR__, 6).'/app/Views/frontend/catalog-grid.php'; })($relatedAuthorBooks); } ?>
+<?php $articleResults=['rows'=>$relatedAuthor]; $articleEmpty=null; $articleGridWrap=false; require __DIR__.'/article-results.php'; $articleGridWrap=true; ?>
+</div>
 </div>
 <?php endif; ?>
 </div>

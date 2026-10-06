@@ -66,6 +66,16 @@ async function pickCode(page, field, query, expected) {
   await expect(box.locator('.choices__list--single .choices__item')).toHaveText(expected);
 }
 
+/**
+ * Open a folded form section unless it is open already: since #455 the
+ * advanced description opens by itself on a record that has something in it,
+ * and clicking its summary then would close it.
+ */
+async function openFold(details) {
+  if (!await details.evaluate(el => el.open)) await details.locator(':scope > summary').click();
+  await expect.poll(() => details.evaluate(el => el.open)).toBe(true);
+}
+
 test.describe.serial('Emeroteca analytic record (#412)', () => {
   let articleId = 0;
 
@@ -93,15 +103,6 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     expect(await advanced.evaluate(el => el.open), 'the advanced section starts folded away').toBe(false);
     expect(await resource.evaluate(el => el.open), 'and so does the electronic resource').toBe(false);
 
-    // The authors field asks for a semicolon; keywords split on a comma
-    // everywhere in the plugin. Without saying so, a cataloguer who read the
-    // instruction two fields above types a semicolon here and silently gets one
-    // keyword with a semicolon inside it — in the page, the JSON-LD and the RIS.
-    await expect(
-      page.locator('main, form').getByText(/Separa le parole chiave con una virgola|Separate keywords with a comma/),
-      'the keywords field states its separator',
-    ).toBeVisible();
-
     await page.locator('#article-titolo').fill(`${marker} On the trail`);
     await page.locator('#article-sottotitolo').fill('a subtitle that carries half the meaning');
     // Picked as on the book form: type the name, Enter adds it (#412).
@@ -115,7 +116,17 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.locator('#article-numero').fill('31');
     await page.locator('#article-pagine').fill('18-38');
 
-    await advanced.locator(':scope > summary').click();
+    await openFold(advanced);
+    // Keywords and genre live in here since #455. The authors field asks for a
+    // semicolon; keywords split on a comma everywhere in the plugin. Without
+    // saying so, a cataloguer who read the authors instruction types a
+    // semicolon here and silently gets one keyword with a semicolon inside it —
+    // in the page, the JSON-LD and the RIS.
+    await expect(
+      advanced.getByText(/Separa le parole chiave con una virgola|Separate keywords with a comma/),
+      'the keywords field states its separator',
+    ).toBeVisible();
+    await expect(advanced.locator('#article-genere_id'), 'and the genre sits beside it').toBeVisible();
     // Language and country are picked from searchable lists of names, and
     // the code is what gets stored (#412): nobody has to know "dan" by heart.
     await pickCode(page, 'lingua', 'danese', /^Danese \(dan\)$/);
@@ -157,7 +168,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await login(page);
     await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
     const advanced = page.locator('details', { hasText: /Descrizione bibliografica avanzata|Advanced bibliographic/ }).first();
-    await advanced.locator(':scope > summary').click();
+    await openFold(advanced);
     // A stored code comes back selected, shown by name.
     await expect(page.locator('#article-lingua').locator('xpath=ancestor::div[contains(concat(" ",normalize-space(@class)," ")," choices ")][1]').locator('.choices__list--single .choices__item')).toHaveText(/^Danese \(dan\)$/);
 
@@ -204,7 +215,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
 
     // A scheme outside the list is named, and stored under that name.
-    await advanced.locator(':scope > summary').click();
+    await openFold(advanced);
     await page.locator('#article-classificazione_schema').selectOption('__altro');
     await expect(page.locator('#article-scheme-other')).toBeVisible();
     await page.locator('#article-classificazione_schema_altro').fill('SAB');
@@ -222,7 +233,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
     await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
     // Removed, it can be typed back: the picker accepts every depth it shows.
-    await advanced.locator(':scope > summary').click();
+    await openFold(advanced);
     await page.locator('#dewey_chip_remove').click();
     await expect(page.locator('#classificazione_dewey')).toHaveValue('');
     await page.locator('#dewey_manual_input').fill('823.91409');
@@ -243,7 +254,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     // A stored notation the picker cannot show stays in the text box, not behind an empty picker.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
     await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
-    await advanced.locator(':scope > summary').click();
+    await openFold(advanced);
     await expect(page.locator('#article-classificazione')).toBeVisible();
     await expect(page.locator('#article-classificazione')).toHaveValue('823.914 BRO');
     await expect(page.locator('#article-class-dewey')).toBeHidden();
@@ -269,7 +280,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     // through the scheme select: DDC -> UDC -> DDC, then save.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
     await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
-    await advanced.locator(':scope > summary').click();
+    await openFold(advanced);
     await page.locator('#article-classificazione_schema').selectOption('UDC');
     await page.locator('#article-classificazione_schema').selectOption('DDC');
     await expect(page.locator('#article-classificazione')).toBeVisible();

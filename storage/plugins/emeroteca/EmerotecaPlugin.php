@@ -613,7 +613,7 @@ class EmerotecaPlugin
     }
 
     /**
-     * Add the two emeroteca_contributi FK constraints (testata_id, fascicolo_id) idempotently,
+     * Add the emeroteca_contributi FK constraints (testata_id, fascicolo_id, genere_id) idempotently,
      * probing information_schema.KEY_COLUMN_USAGE first so a constraint already present is
      * never re-added. Both are ON DELETE SET NULL: deleting a masthead or an issue detaches
      * the article instead of deleting it.
@@ -622,7 +622,9 @@ class EmerotecaPlugin
      */
     private function ensureContributionForeignKeys(): bool
     {
-        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {
+        // genere_id (1.12.0) points at the core genre tree: deleting a genre
+        // leaves the article without one, as it does a book.
+        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli'], 'genere_id'=>['fk_contributo_genere','generi']] as $column=>[$name,$table]) {
             $rows=$this->contributionService()->rows("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME=? AND REFERENCED_TABLE_NAME=?",[$column,$table]);
             if ($rows===[]) {
                 if (!$this->db->query("ALTER TABLE emeroteca_contributi ADD CONSTRAINT $name FOREIGN KEY ($column) REFERENCES $table(id) ON DELETE SET NULL")) { return false; }
@@ -2242,13 +2244,11 @@ class EmerotecaPlugin
      */
     public function onGenreMerging(int $targetId, $sourceIds): void
     {
-        $this->repointReference(
-            'emeroteca_testate',
-            'genere_id',
-            $targetId,
-            is_array($sourceIds) ? $sourceIds : [$sourceIds],
-            'genre.merging'
-        );
+        $sources = is_array($sourceIds) ? $sourceIds : [$sourceIds];
+        $this->repointReference('emeroteca_testate', 'genere_id', $targetId, $sources, 'genre.merging');
+        // Articles carry a genre too (1.12.0): without this, merging two
+        // genres would leave the articles of the merged one with none.
+        $this->repointReference('emeroteca_contributi', 'genere_id', $targetId, $sources, 'genre.merging');
     }
 
     /**
@@ -2685,11 +2685,12 @@ class EmerotecaPlugin
      *
      * Only `pubblico = 1` rows, exactly as the public article page requires —
      * an unpublished article must not become visible through a catalogue
-     * search that cannot open it.
+     * search that cannot open it. $includeUnpublished is for the back-office
+     * quick search alone, whose results open the article's edit form.
      *
-     * @return array{items: array<int, array{label: string, url: string, meta: string, authors: string, source: string}>, total: int}
+     * @return array{items: array<int, array{id: int, label: string, url: string, meta: string, authors: string, source: string}>, total: int}
      */
-    private function emerotecaArticleHits(string $term): array
+    private function emerotecaArticleHits(string $term, bool $includeUnpublished = false): array
     {
         $empty = ['items' => [], 'total' => 0];
         if (!$this->emerotecaTableExists('emeroteca_contributi')) {
@@ -2705,7 +2706,7 @@ class EmerotecaPlugin
         $authors = new \App\Services\ArticleAuthorService($this->db);
         $extraAuthors = $authors->available()
             ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '\\\\' OR a.pseudonimo LIKE ? ESCAPE '\\\\'))" : '';
-        $where = "c.pubblico = 1
+        $where = ($includeUnpublished ? '1=1' : 'c.pubblico = 1') . "
                   AND (c.titolo LIKE ? ESCAPE '\\\\'
                        OR c.sottotitolo LIKE ? ESCAPE '\\\\'
                        OR c.autori LIKE ? ESCAPE '\\\\'
@@ -2736,6 +2737,7 @@ class EmerotecaPlugin
         $items = [];
         foreach ($rows as $row) {
             $items[] = [
+                'id'    => (int) $row['id'],
                 'label' => (string) $row['titolo'],
                 'url'   => $this->emerotecaPath('/emeroteca/articolo/' . (int) $row['id']),
                 'meta'  => implode(' · ', array_filter([
@@ -2756,15 +2758,21 @@ class EmerotecaPlugin
 
     /**
      * Listener for the `search.unified.sources` FILTER: the header search's
-     * live suggestions (and the admin quick search) list published articles
-     * beside books, authors and archive units (#412). Same matching rule as
-     * the catalogue suggestion, so what the dropdown shows is what /emeroteca/
-     * articoli?q= lists.
+     * live suggestions and the admin quick search list articles beside books,
+     * authors and archive units (#412). Same matching rule as the catalogue
+     * suggestion, so what the dropdown shows is what /emeroteca/articoli?q=
+     * lists.
+     *
+     * $context is 'admin' only for the back-office quick search of an
+     * operator (SearchController decides it from the refreshed session role).
+     * There an article opens its edit form and unpublished ones are listed
+     * too, and the mastheads join in, opening their issues (#453); every
+     * other caller gets published articles and their public pages.
      *
      * @param mixed $results the results collected so far
      * @return mixed append-only; a non-array input is passed through untouched
      */
-    public function addArticleSources($results, string $q = ''): mixed
+    public function addArticleSources($results, string $q = '', string $context = 'public'): mixed
     {
         if (!is_array($results)) {
             return $results;
@@ -2774,13 +2782,27 @@ class EmerotecaPlugin
             if (mb_strlen($needle) < 2) {
                 return $results;
             }
-            foreach ($this->emerotecaArticleHits(mb_substr($needle, 0, 200))['items'] as $item) {
+            $needle = mb_substr($needle, 0, 200);
+            $admin = $context === 'admin';
+            if ($admin) {
+                foreach ($this->emerotecaTestataHits($needle)['items'] as $item) {
+                    $results[] = [
+                        'type'       => 'periodical',
+                        'label'      => $item['label'],
+                        'identifier' => $item['meta'],
+                        'url'        => $this->emerotecaPath('/admin/periodicals/' . $item['id'] . '/issues'),
+                    ];
+                }
+            }
+            foreach ($this->emerotecaArticleHits($needle, $admin)['items'] as $item) {
                 $results[] = [
                     'type'       => 'article',
                     'label'      => $item['label'],
                     'author'     => $item['authors'],
                     'identifier' => $item['source'],
-                    'url'        => $item['url'],
+                    'url'        => $admin
+                        ? $this->emerotecaPath('/admin/periodicals/articles/' . $item['id'])
+                        : $item['url'],
                 ];
             }
         } catch (\Throwable $e) {
@@ -2802,7 +2824,7 @@ class EmerotecaPlugin
      * emeroteca_articoli / _fascicoli / _annate: narrow but answering beats a
      * prepare() that fails and silently zeroes every masthead hint.
      *
-     * @return array{items: array<int, array{label: string, url: string, meta: string}>, total: int}
+     * @return array{items: array<int, array{id: int, label: string, url: string, meta: string}>, total: int}
      */
     private function emerotecaTestataHits(string $term): array
     {
@@ -2836,6 +2858,7 @@ class EmerotecaPlugin
         $items = [];
         foreach ($rows as $row) {
             $items[] = [
+                'id'    => (int) $row['id'],
                 'label' => (string) $row['titolo'],
                 'url'   => $this->emerotecaPath('/emeroteca/' . (int) $row['id']),
                 'meta'  => implode(' · ', array_filter([
@@ -3228,6 +3251,12 @@ class EmerotecaPlugin
         $href = htmlspecialchars(url('/admin/periodicals'), ENT_QUOTES, 'UTF-8');
         $title = function_exists('__') ? __('Emeroteca') : 'Emeroteca';
         $subtitle = function_exists('__') ? __('Riviste e periodici') : 'Riviste e periodici';
+        // The articles get their own entry (#454): they are catalogued and
+        // searched like books, and reaching them through the periodicals list
+        // hid them from anyone who does not keep a run of journals.
+        $articlesHref = htmlspecialchars(url('/admin/periodicals/articles'), ENT_QUOTES, 'UTF-8');
+        $articlesTitle = function_exists('__') ? __('Articoli') : 'Articoli';
+        $articlesSubtitle = function_exists('__') ? __('Articoli e saggi') : 'Articoli e saggi';
         echo <<<HTML
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
@@ -3238,6 +3267,17 @@ class EmerotecaPlugin
             <div class="ml-3">
               <div class="font-medium">$title</div>
               <div class="text-xs text-gray-500">$subtitle</div>
+            </div>
+          </a>
+
+          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            href="$articlesHref">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+              <i class="fas fa-file-alt text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium">$articlesTitle</div>
+              <div class="text-xs text-gray-500">$articlesSubtitle</div>
             </div>
           </a>
 

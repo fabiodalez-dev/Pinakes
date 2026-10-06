@@ -2,6 +2,21 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.93]
+
+### Added
+- **An Articles entry in the admin menu** ([#454](https://github.com/fabiodalez-dev/Pinakes/issues/454)). The articles were reachable only through the periodicals list, which someone who catalogues single articles without keeping a run of journals had no reason to open.
+- **The admin quick search finds articles and periodicals** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453)). An article shows its authors and where it was published and opens its edit form, unpublished ones included; a periodical opens its issues. Its label now says so. The public header search keeps suggesting published articles only, with their public page.
+- **Articles have a genre** ([#455](https://github.com/fabiodalez-dev/Pinakes/issues/455)), from the same tree as the books. The article page shows it with its path, and the catalogue filtered by a genre, or by one of its parents, lists the articles filed there next to the books. Merging two genres moves the articles too.
+- **An Edit button on the public article page** for admin and staff ([#455](https://github.com/fabiodalez-dev/Pinakes/issues/455)). The page is never cached, so a visitor never sees it.
+
+### Changed
+- **On an author's page the articles are cards like the books** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453)): image (the article's, else its issue's cover, else the periodical's logo), title, publication, date and pages, and the Details and Edit buttons. They were a plain list of links.
+- **"Other works by" on the article page** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453)) lists the author's books next to their other articles, with a link to all of them on the author's page. It listed only articles.
+- **Keywords and genre are in the advanced description of the article form** ([#455](https://github.com/fabiodalez-dev/Pinakes/issues/455)), together with language, country and classification. The section opens by itself when any of them is filled in.
+
+The Emeroteca plugin goes to 1.12.0. Its migration adds `emeroteca_contributi.genere_id`, with a foreign key to `generi`, and runs by itself when the plugin updates; it is additive and can run again safely.
+
 ## [0.7.92]
 
 ### Fixed

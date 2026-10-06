@@ -8045,5 +8045,12 @@
   "Pacchetto scaricato e verificato": "Pacchetto scaricato e verificato",
   "trasferimento interrotto": "trasferimento interrotto",
   "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento",
-  "Errore fatale PHP durante l'aggiornamento": "Errore fatale PHP durante l'aggiornamento"
+  "Errore fatale PHP durante l'aggiornamento": "Errore fatale PHP durante l'aggiornamento",
+  "Articoli e saggi": "Articoli e saggi",
+  "Aggiungi nuovo articolo": "Aggiungi nuovo articolo",
+  "Immagine di «%s»": "Immagine di «%s»",
+  "Pubblicazione: %s": "Pubblicazione: %s",
+  "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.",
+  "Altre opere di %s": "Altre opere di %s",
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Cerca libri, articoli, periodici, autori, editori, utenti..."
 }

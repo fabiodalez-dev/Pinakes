@@ -130,6 +130,8 @@ const ANALYTIC_COLUMNS = ['sottotitolo','lingua','paese','classificazione_schema
 
 /** The four columns 1.10.0 adds for a chapter's host volume, after the ten above. */
 const HOST_COLUMNS = ['contenitore_curatori','contenitore_editore','contenitore_luogo','isbn'];
+/** 1.12.0 (#455): the article's genre, from the books' genre tree. */
+const GENRE_COLUMNS = ['genere_id'];
 
 /** Uwe's own article, as the Royal Danish Library records it. */
 const UWE = [
@@ -180,11 +182,14 @@ try {
     $check($db->query(ContributionService::ddl()) !== false,
         'and the DDL is still executable a second time');
 
-    foreach ([...ANALYTIC_COLUMNS, ...HOST_COLUMNS] as $column) {
+    // The genre column carries a foreign key to the core genre table, which
+    // has to go before the column can.
+    $db->query('ALTER TABLE emeroteca_contributi DROP FOREIGN KEY fk_contributo_genere');
+    foreach ([...ANALYTIC_COLUMNS, ...HOST_COLUMNS, ...GENRE_COLUMNS] as $column) {
         $db->query("ALTER TABLE emeroteca_contributi DROP COLUMN {$column}");
     }
     $legacy = $columns();
-    $check($legacy === array_values(array_diff($legacy, [...ANALYTIC_COLUMNS, ...HOST_COLUMNS])) && end($legacy) === 'updated_at',
+    $check($legacy === array_values(array_diff($legacy, [...ANALYTIC_COLUMNS, ...HOST_COLUMNS, ...GENRE_COLUMNS])) && end($legacy) === 'updated_at',
         'the table is back to the 1.6.0 shape, ending at updated_at');
     $db->query("INSERT INTO emeroteca_contributi (reference_key, titolo, autori) VALUES ('legacy-1', 'Un articolo del 1.6', 'Rossi, Mario')");
 
@@ -193,8 +198,14 @@ try {
     $check($upgrade['failed'] === [], 'the real upgrade reports no failed table');
 
     $after = $columns();
-    $check(array_slice($after, -count(ANALYTIC_COLUMNS) - count(HOST_COLUMNS)) === [...ANALYTIC_COLUMNS, ...HOST_COLUMNS],
-        'the ten analytic columns and the four host-volume columns are appended, in order, after updated_at');
+    $check(array_slice($after, -count(ANALYTIC_COLUMNS) - count(HOST_COLUMNS) - count(GENRE_COLUMNS)) === [...ANALYTIC_COLUMNS, ...HOST_COLUMNS, ...GENRE_COLUMNS],
+        'the ten analytic columns, the four host-volume columns and the genre are appended, in order, after updated_at');
+    $genreFk = $svc->rows(
+        "SELECT REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE
+          WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='{$db->prefix}emeroteca_contributi' AND COLUMN_NAME='genere_id' AND REFERENCED_TABLE_NAME IS NOT NULL"
+    );
+    $check(array_column($genreFk, 'REFERENCED_TABLE_NAME') === ['generi'],
+        'the upgrade links genere_id to the genres the books use');
 
     $types = [];
     foreach ($inventory() as $row) {
@@ -261,13 +272,14 @@ try {
     // Without the sentinel a half-applied upgrade stays half-applied for ever.
     $expectedColumns = (new ReflectionMethod(EmerotecaPlugin::class, 'expectedColumns'))->invoke($plugin);
     $sentinels = array_column(array_filter($expectedColumns, static fn ($e) => $e['table'] === 'emeroteca_contributi'), 'column');
-    $check(array_diff([...ANALYTIC_COLUMNS, ...HOST_COLUMNS], $sentinels) === [],
+    $check(array_diff([...ANALYTIC_COLUMNS, ...HOST_COLUMNS, ...GENRE_COLUMNS], $sentinels) === [],
         'each new column is a boot-time self-heal sentinel');
 
-    // 1.8.0 -> 1.10.0: an installation that already has the analytic record
-    // gains only the host-volume columns, after risorsa_pubblica, and keeps
-    // what it had catalogued.
-    foreach (HOST_COLUMNS as $column) {
+    // 1.8.0 -> 1.12.0: an installation that already has the analytic record
+    // gains only the host-volume columns, after risorsa_pubblica, then the
+    // genre, and keeps what it had catalogued.
+    $db->query('ALTER TABLE emeroteca_contributi DROP FOREIGN KEY fk_contributo_genere');
+    foreach ([...HOST_COLUMNS, ...GENRE_COLUMNS] as $column) {
         $db->query("ALTER TABLE emeroteca_contributi DROP COLUMN {$column}");
     }
     $shape18 = $columns();
@@ -275,10 +287,10 @@ try {
     $db->query("UPDATE emeroteca_contributi SET lingua='dan' WHERE reference_key='legacy-1'");
     $upgrade110 = (new EmerotecaPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
     $check($upgrade110['failed'] === [], 'the 1.10.0 upgrade reports no failed table');
-    $check(array_slice($columns(), -count(HOST_COLUMNS) - 1) === ['risorsa_pubblica', ...HOST_COLUMNS],
-        'the host-volume columns are appended after risorsa_pubblica, in order');
+    $check(array_slice($columns(), -count(HOST_COLUMNS) - count(GENRE_COLUMNS) - 1) === ['risorsa_pubblica', ...HOST_COLUMNS, ...GENRE_COLUMNS],
+        'the host-volume columns and the genre are appended after risorsa_pubblica, in order');
     $row18 = $svc->rows("SELECT * FROM emeroteca_contributi WHERE reference_key='legacy-1'")[0];
-    $check($row18['lingua'] === 'dan' && $row18['contenitore_curatori'] === null && $row18['isbn'] === null,
+    $check($row18['lingua'] === 'dan' && $row18['contenitore_curatori'] === null && $row18['isbn'] === null && $row18['genere_id'] === null,
         'the row catalogued under 1.8.0 keeps its data, and the new fields are NULL');
     $check($inventory() === $snapshot, 'and the upgraded table is identical to a fresh one');
 
@@ -827,6 +839,50 @@ try {
     // arrives with APP_TRUSTED_HOSTS.
     $check($origin([], 'evil.example') === 'http://evil.example/emeroteca/articolo/7',
         'with no host configuration at all the helper still echoes the request Host');
+
+    // -----------------------------------------------------------------------
+    echo "\nM. The genre, from the books' tree (#455)\n";
+    // Two genres the installation already has, one with a parent: the core
+    // genre table is read, never written.
+    $genreRows = $svc->rows('SELECT g.id, g.parent_id FROM generi g WHERE g.parent_id IS NOT NULL ORDER BY g.id LIMIT 1');
+    $otherGenre = $svc->rows('SELECT id FROM generi WHERE parent_id IS NULL ORDER BY id LIMIT 1');
+    $check($genreRows !== [] && $otherGenre !== [], 'the installation has genres to file an article under');
+    $childGenre = (int) $genreRows[0]['id'];
+    $parentGenre = (int) $genreRows[0]['parent_id'];
+    $rootGenre = (int) $otherGenre[0]['id'];
+
+    $genreArticle = $svc->save(['titolo' => 'Genre probe', 'genre_present' => '1', 'genere_id' => (string) $childGenre]);
+    $genreRow = $svc->get($genreArticle);
+    $check((int) $genreRow['genere_id'] === $childGenre, 'the form files an article under a genre');
+    $trail = $svc->genreTrail($childGenre);
+    $trailIds = array_column($trail, 'id');
+    $check(count($trailIds) >= 2 && $trailIds[count($trailIds) - 1] === $childGenre && $trailIds[count($trailIds) - 2] === $parentGenre,
+        'the page shows its path, root first, ending at the genre itself');
+    $options = $svc->genreOptions();
+    $childLabel = '';
+    foreach ($options ?? [] as $option) { if ($option['id'] === $childGenre) { $childLabel = $option['label']; } }
+    $check(str_contains($childLabel, ' › '), 'the form lists a child genre with its whole path');
+
+    $threw = false;
+    try {
+        $svc->save(['titolo' => 'Genre probe', 'genre_present' => '1', 'genere_id' => '999999999'], $genreArticle, (int) $genreRow['revision']);
+    } catch (InvalidArgumentException $e) {
+        $threw = true;
+    }
+    $check($threw && (int) $svc->get($genreArticle)['genere_id'] === $childGenre, 'a genre that does not exist is refused, and the stored one stays');
+
+    $genreRow = $svc->get($genreArticle);
+    $svc->save(['titolo' => 'Genre probe, renamed'], $genreArticle, (int) $genreRow['revision']);
+    $check((int) $svc->get($genreArticle)['genere_id'] === $childGenre, 'an import, which sends no genre picker, leaves the genre alone');
+
+    $genreRow = $svc->get($genreArticle);
+    $svc->save(['titolo' => 'Genre probe, renamed', 'genre_present' => '1', 'genere_id' => ''], $genreArticle, (int) $genreRow['revision']);
+    $check($svc->get($genreArticle)['genere_id'] === null, 'choosing no genre clears it');
+
+    $genreRow = $svc->get($genreArticle);
+    $svc->save(['titolo' => 'Genre probe, renamed', 'genre_present' => '1', 'genere_id' => (string) $childGenre], $genreArticle, (int) $genreRow['revision']);
+    $plugin->onGenreMerging($rootGenre, [$childGenre]);
+    $check((int) $svc->get($genreArticle)['genere_id'] === $rootGenre, 'merging two genres moves the articles of the merged one too');
 
     foreach ($envKeys as $k) {
         unset($_ENV[$k]);
