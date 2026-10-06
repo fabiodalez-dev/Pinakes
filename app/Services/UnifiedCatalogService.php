@@ -128,33 +128,6 @@ final class UnifiedCatalogService
 
     private ?bool $articlesHaveGenre = null;
 
-    /**
-     * The genre and every genre below it, at any depth. Walked level by level
-     * in PHP rather than with WITH RECURSIVE, which MySQL 5.7 does not have.
-     *
-     * @return non-empty-list<int>
-     */
-    private function genreWithDescendants(int $genreId): array
-    {
-        $family = [$genreId => true];
-        $level = [$genreId];
-        // Each genre enters the set once, so a parent_id cycle cannot loop:
-        // the walk ends when a level brings nothing new.
-        while ($level !== []) {
-            $marks = implode(',', array_fill(0, count($level), '?'));
-            $children = $this->rows("SELECT id FROM generi WHERE parent_id IN ($marks)", str_repeat('i', count($level)), $level);
-            $level = [];
-            foreach ($children as $child) {
-                $childId = (int) $child['id'];
-                if (!isset($family[$childId])) {
-                    $family[$childId] = true;
-                    $level[] = $childId;
-                }
-            }
-        }
-        return array_keys($family);
-    }
-
     private function articlesHaveGenre(): bool
     {
         if ($this->articlesHaveGenre === null) {
@@ -186,11 +159,12 @@ final class UnifiedCatalogService
         $where = ['c.pubblico = 1'];
         $params = [];
         // Articles carry a genre from emeroteca 1.12.0 (#455): an article is
-        // found under its genre and under every ancestor of it. An older
-        // plugin without the column keeps articles out of a genre filter.
+        // found under its genre and under every ancestor of it, by the same
+        // rule as the books (GenreTree). An older plugin without the column
+        // keeps articles out of a genre filter.
         if (!empty($filters['genere_id'])) {
             if (!$this->articlesHaveGenre()) { return null; }
-            $family = $this->genreWithDescendants((int) $filters['genere_id']);
+            $family = \App\Support\GenreTree::withDescendants($this->db, (int) $filters['genere_id']);
             $where[] = 'c.genere_id IN (' . implode(',', array_fill(0, count($family), '?')) . ')';
             foreach ($family as $genreId) { $params[] = (string) $genreId; }
         }

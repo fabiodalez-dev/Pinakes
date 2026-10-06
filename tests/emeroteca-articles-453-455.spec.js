@@ -61,6 +61,7 @@ async function setEmerotecaActive(page, wanted) {
 }
 
 let wasActive = false;
+let deepGenres = [];
 let authorId = 0;
 let bookId = 0;
 let articleId = 0;
@@ -100,6 +101,7 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     if (mastheadId) db(`DELETE FROM emeroteca_testate WHERE id=${mastheadId}`);
     if (bookId) db(`DELETE FROM libri_autori WHERE libro_id=${bookId}; DELETE FROM libri WHERE id=${bookId}`);
     if (authorId) db(`DELETE FROM autori WHERE id=${authorId}`);
+    for (const id of [...deepGenres].reverse()) db(`DELETE FROM generi WHERE id=${id}`);
     if (!wasActive && admin) await setEmerotecaActive(admin, false);
     await admin?.close();
   });
@@ -200,6 +202,29 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
       await expect(dropdown.locator('a.article-result', { hasText: ARTICLE })).toBeVisible({ timeout: 10_000 });
     } finally {
       await visitor.context().close();
+    }
+  });
+
+  test('8 Books and articles follow one genre rule, at any depth (#455)', async ({ browser }) => {
+    // A tree of its own, four levels deep, so the root lists only these two.
+    let parent = 'NULL';
+    for (const level of [1, 2, 3, 4]) {
+      db(`INSERT INTO generi (nome, parent_id) VALUES ('${RUN} Level ${level}', ${parent})`);
+      deepGenres.push(Number(db(`SELECT id FROM generi WHERE nome='${RUN} Level ${level}'`)));
+      parent = String(deepGenres[deepGenres.length - 1]);
+    }
+    const [root, , , leaf] = deepGenres;
+    db(`UPDATE emeroteca_contributi SET genere_id=${leaf} WHERE id=${articleId}`);
+    db(`UPDATE libri SET genere_id=${leaf} WHERE id=${bookId}`);
+    const visitor = await (await browser.newContext()).newPage();
+    try {
+      await visitor.goto(`${BASE}/catalogo?genere_id=${root}`);
+      await expect(visitor.locator(`[data-article-id="${articleId}"]`), 'the article').toBeVisible();
+      await expect(visitor.locator('.book-card', { hasText: BOOK }), 'and the book').toBeVisible();
+    } finally {
+      await visitor.context().close();
+      db(`UPDATE libri SET genere_id=NULL WHERE id=${bookId}`);
+      db(`UPDATE emeroteca_contributi SET genere_id=${childGenre} WHERE id=${articleId}`);
     }
   });
 

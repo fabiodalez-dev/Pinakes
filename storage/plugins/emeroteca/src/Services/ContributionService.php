@@ -76,7 +76,7 @@ final class ContributionService
         // 1.12.0 — the genre, from the same tree as the books' (#455), so an
         // article is found under a genre in the catalogue next to the books
         // filed there. NULL is the norm; the FK (ON DELETE SET NULL) is added
-        // by EmerotecaPlugin::ensureContributionForeignKeys().
+        // by EmerotecaPlugin::ensureCoreForeignKeys() (coreForeignKeyDefs()).
         'genere_id' => "INT NULL",
     ];
     /**

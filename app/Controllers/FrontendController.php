@@ -1573,14 +1573,17 @@ class FrontendController
         }
 
         if (!empty($filters['genere_id'])) {
-            $genreId = (int) $filters['genere_id'];
-            // Match genre ID at any level of the hierarchy
-            $conditions[] = "(l.genere_id = ? OR g.parent_id = ? OR gp.parent_id = ? OR l.sottogenere_id = ?)";
-            $params[] = $genreId;
-            $params[] = $genreId;
-            $params[] = $genreId;
-            $params[] = $genreId;
-            $types .= 'iiii';
+            // The genre and every genre below it, at any depth: the same rule
+            // the articles on this page follow (UnifiedCatalogService).
+            $family = \App\Support\GenreTree::withDescendants($db, (int) $filters['genere_id']);
+            $marks = implode(',', array_fill(0, count($family), '?'));
+            $conditions[] = "(l.genere_id IN ($marks) OR l.sottogenere_id IN ($marks))";
+            foreach ([$family, $family] as $ids) {
+                foreach ($ids as $id) {
+                    $params[] = $id;
+                }
+            }
+            $types .= str_repeat('i', 2 * count($family));
         }
 
         if (!empty($filters['editore'])) {
