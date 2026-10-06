@@ -128,6 +128,32 @@ final class UnifiedCatalogService
 
     private ?bool $articlesHaveGenre = null;
 
+    /**
+     * The genre and every genre below it, at any depth. Walked level by level
+     * in PHP rather than with WITH RECURSIVE, which MySQL 5.7 does not have.
+     *
+     * @return non-empty-list<int>
+     */
+    private function genreWithDescendants(int $genreId): array
+    {
+        $family = [$genreId => true];
+        $level = [$genreId];
+        // A depth cap and the "already seen" set stop a parent_id cycle.
+        for ($depth = 0; $level !== [] && $depth < 20; $depth++) {
+            $marks = implode(',', array_fill(0, count($level), '?'));
+            $children = $this->rows("SELECT id FROM generi WHERE parent_id IN ($marks)", str_repeat('i', count($level)), $level);
+            $level = [];
+            foreach ($children as $child) {
+                $childId = (int) $child['id'];
+                if (!isset($family[$childId])) {
+                    $family[$childId] = true;
+                    $level[] = $childId;
+                }
+            }
+        }
+        return array_keys($family);
+    }
+
     private function articlesHaveGenre(): bool
     {
         if ($this->articlesHaveGenre === null) {
@@ -158,14 +184,14 @@ final class UnifiedCatalogService
         $linkedAuthors = (new ArticleAuthorService($this->db))->available();
         $where = ['c.pubblico = 1'];
         $params = [];
-        // Articles carry a genre from emeroteca 1.12.0 (#455). The same match
-        // as the books': the genre itself, or a child or grandchild of it. An
-        // older plugin without the column keeps articles out of a genre filter.
+        // Articles carry a genre from emeroteca 1.12.0 (#455): an article is
+        // found under its genre and under every ancestor of it. An older
+        // plugin without the column keeps articles out of a genre filter.
         if (!empty($filters['genere_id'])) {
             if (!$this->articlesHaveGenre()) { return null; }
-            $genreId = (string) (int) $filters['genere_id'];
-            $where[] = 'c.genere_id IN (SELECT gx.id FROM generi gx LEFT JOIN generi gxp ON gxp.id = gx.parent_id WHERE gx.id = ? OR gx.parent_id = ? OR gxp.parent_id = ?)';
-            array_push($params, $genreId, $genreId, $genreId);
+            $family = $this->genreWithDescendants((int) $filters['genere_id']);
+            $where[] = 'c.genere_id IN (' . implode(',', array_fill(0, count($family), '?')) . ')';
+            foreach ($family as $genreId) { $params[] = (string) $genreId; }
         }
         $term = trim((string) ($filters['search'] ?? ''));
         if ($term !== '') {

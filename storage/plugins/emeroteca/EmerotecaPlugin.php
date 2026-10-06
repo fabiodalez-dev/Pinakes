@@ -579,7 +579,7 @@ class EmerotecaPlugin
         // operator looking for a problem on a table that is perfectly fine.
         $runListStep(
             'core foreign key',
-            ['emeroteca_testate', 'emeroteca_annate', 'emeroteca_fascicoli'],
+            ['emeroteca_testate', 'emeroteca_annate', 'emeroteca_fascicoli', 'emeroteca_contributi', 'emeroteca_contributi_autori'],
             fn(): array => $this->ensureCoreForeignKeys()
         );
         $runStep('emeroteca_fascicoli', 'issue-number index', fn(): bool => $this->ensureIssueNumberIndex());
@@ -613,7 +613,7 @@ class EmerotecaPlugin
     }
 
     /**
-     * Add the emeroteca_contributi FK constraints (testata_id, fascicolo_id, genere_id) idempotently,
+     * Add the two emeroteca_contributi FK constraints (testata_id, fascicolo_id) idempotently,
      * probing information_schema.KEY_COLUMN_USAGE first so a constraint already present is
      * never re-added. Both are ON DELETE SET NULL: deleting a masthead or an issue detaches
      * the article instead of deleting it.
@@ -622,9 +622,7 @@ class EmerotecaPlugin
      */
     private function ensureContributionForeignKeys(): bool
     {
-        // genere_id (1.12.0) points at the core genre tree: deleting a genre
-        // leaves the article without one, as it does a book.
-        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli'], 'genere_id'=>['fk_contributo_genere','generi']] as $column=>[$name,$table]) {
+        foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {
             $rows=$this->contributionService()->rows("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME=? AND REFERENCED_TABLE_NAME=?",[$column,$table]);
             if ($rows===[]) {
                 if (!$this->db->query("ALTER TABLE emeroteca_contributi ADD CONSTRAINT $name FOREIGN KEY ($column) REFERENCES $table(id) ON DELETE SET NULL")) { return false; }
@@ -1288,6 +1286,9 @@ class EmerotecaPlugin
             ['table' => 'emeroteca_contributi_autori', 'column' => 'autore_id', 'ref_table' => 'autori', 'ref_col' => 'id', 'name' => 'fk_contributo_autori_identity'],
             ['table' => 'emeroteca_testate', 'column' => 'editore_id', 'ref_table' => 'editori', 'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_editore'],
             ['table' => 'emeroteca_testate', 'column' => 'genere_id',  'ref_table' => 'generi',  'ref_col' => 'id', 'name' => 'fk_emeroteca_testata_genere'],
+            // 1.12.0 — the article's genre (#455). Deleting a genre leaves the
+            // article without one, as it does a book.
+            ['table' => 'emeroteca_contributi', 'column' => 'genere_id', 'ref_table' => 'generi', 'ref_col' => 'id', 'name' => 'fk_contributo_genere'],
             ['table' => 'emeroteca_fascicoli', 'column' => 'collocazione_id', 'ref_table' => 'mensole', 'ref_col' => 'id', 'name' => 'fk_emeroteca_fascicolo_mensola'],
             // 1.4.0 — shelf location at annata level (bound volumes).
             ['table' => 'emeroteca_annate', 'column' => 'collocazione_id', 'ref_table' => 'mensole', 'ref_col' => 'id', 'name' => 'fk_emeroteca_annata_mensola'],
@@ -3042,8 +3043,8 @@ class EmerotecaPlugin
             return;
         }
         try {
-            // $table/$column are literals from the two call sites above; only
-            // the ids are bound, and they are cast to int first.
+            // $table/$column are literals from the call sites above; only the
+            // ids are bound, and they are cast to int first.
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             $stmt = $this->db->prepare(
                 "UPDATE {$table} SET {$column} = ? WHERE {$column} IN ({$placeholders})"
