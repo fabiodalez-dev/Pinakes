@@ -199,8 +199,9 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     const other = 'b'.repeat(32);
     await routeStatus(page, [
       { success: true, version: '0.7.93', running: false, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: null },
-      // A second run ended first, with an error that is not this page's.
-      { success: true, version: '0.7.93', running: true, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 3000, attempt: other, success: false, error: 'not mine probe450', version: '0.7.93' } },
+      // A second run ended first, with an error that is not this page's, and
+      // the lock is free: a timestamp check would take this outcome.
+      { success: true, version: '0.7.93', running: false, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 3000, attempt: other, success: false, error: 'not mine probe450', version: '0.7.93' } },
       attempt => ({ success: true, version: '0.7.93', running: false, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 4000, attempt, success: true, error: '', version: '0.7.93' } }),
     ]);
     await startUpdate(page);
