@@ -137,7 +137,7 @@ test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ pa
         await page.goto(BASE + '/admin/periodicals/articles/create');
         await page.locator('[name=titolo]').fill('Upgraded412 article');
         await page.getByRole('button', { name: 'Salva articolo', exact: true }).click();
-        await expect(page.getByRole('heading', { name: 'Modifica articolo' })).toBeVisible();
+        await expect(page.locator('section[data-article-id]')).toBeVisible();
         expect(db("SELECT COUNT(*) FROM emeroteca_contributi WHERE titolo='Upgraded412 article'")).toBe('1');
         const id = db("SELECT id FROM plugins WHERE name='emeroteca'");
         await page.goto(BASE + `/admin/plugins/${id}/settings`);

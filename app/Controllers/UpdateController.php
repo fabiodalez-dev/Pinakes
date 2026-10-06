@@ -837,6 +837,16 @@ class UpdateController
             ], 400);
         }
 
+        // Release the session before the long part. PHP holds the session
+        // file locked for the whole request, so the page's status polls
+        // (status(), same session) would wait for the install to end: and
+        // when a proxy has dropped this request (#450) they are how the page
+        // learns the outcome. The package keys removed above are written now;
+        // nothing below writes to the session.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         // Perform the update from uploaded file (use resolved path to prevent TOCTOU)
         $this->answerJsonOnFatal();
         $result = $updater->performUpdateFromFile($realTempPath);
@@ -853,6 +863,32 @@ class UpdateController
             'success' => false,
             'error' => $result['error']
         ], 500);
+    }
+
+    /**
+     * API: where an update stands, for the page whose install request a proxy
+     * cut short (#450). The update itself carries on in PHP after the proxy
+     * gives up, so the page asks here until it ends: the installed version,
+     * whether the update lock is still held, and the latest attempt logged.
+     * Reachable during maintenance (index.php allows /admin/updates) and
+     * read-only, so AdminAuthMiddleware is enough.
+     */
+    public function status(Request $request, Response $response, mysqli $db): Response
+    {
+        try {
+            $updater = new Updater($db);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => $this->updaterUnavailable($e, 'status'),
+            ], 503);
+        }
+        return $this->jsonResponse($response, [
+            'success' => true,
+            'version' => $updater->getCurrentVersion(),
+            'running' => $updater->isUpdateRunning(),
+            'last' => $updater->lastUpdateAttempt(),
+        ])->withHeader('Cache-Control', 'no-store');
     }
 
     /**

@@ -1805,12 +1805,25 @@ $htmlLang = substr($currentLocale, 0, 2);
       const basePath = window.BASE_PATH || '';
       const navLinks = document.querySelectorAll('.nav-link');
 
+      // Only the most specific entry lights up: on /admin/periodicals/articles
+      // both "Emeroteca" (/admin/periodicals) and "Articoli" match as prefixes,
+      // and the page belongs to the longer one. Entries sharing that href (the
+      // same page linked twice) all light up.
+      let bestLength = 0;
+      const matches = [];
       navLinks.forEach(link => {
         const href = link.getAttribute('href');
-        if (currentPath.startsWith(href) && href !== '/' && href !== basePath && href !== basePath + '/') {
-          link.classList.add('bg-rose-50', 'text-rose-700', 'border-r-2', 'border-rose-700');
-          link.classList.remove('text-gray-700');
+        if (href && currentPath.startsWith(href) && href !== '/' && href !== basePath && href !== basePath + '/') {
+          matches.push(link);
+          bestLength = Math.max(bestLength, href.length);
         }
+      });
+      matches.forEach(link => {
+        if (link.getAttribute('href').length !== bestLength) {
+          return;
+        }
+        link.classList.add('bg-rose-50', 'text-rose-700', 'border-r-2', 'border-rose-700');
+        link.classList.remove('text-gray-700');
       });
     }
   </script>

@@ -786,18 +786,13 @@ async function startUpdate(version) {
 
         failedStep = 'backup';
         setStepActive('backup');
-        const response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(downloadData.package || '')}`
-        });
-
-        // Check for maintenance mode before parsing response
-        if (response.status === 503) {
-            throw new Error(<?= json_encode(__("Server in manutenzione. Attendi il completamento dell'aggiornamento."), JSON_HEX_TAG) ?>);
-        }
-
-        const data = await readUpdateJson(response);
+        const data = await runInstallRequest(
+            `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(downloadData.package || '')}`,
+            version,
+            () => {
+                document.getElementById('updateMessage').textContent = <?= json_encode(__("La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…"), JSON_HEX_TAG) ?>;
+            }
+        );
 
         if (data.success) {
             setStepComplete('backup');
@@ -848,6 +843,90 @@ async function readUpdateJson(response) {
     console.error('Server returned non-JSON response:', text.substring(0, 500));
     const excerpt = text.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 240);
     throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?> + ` (HTTP ${response.status}${excerpt ? ': ' + excerpt : ''})`);
+}
+
+/**
+ * The install request (#450). It runs backup, files and migrations in one go,
+ * and a proxy in front of the site (Apache mod_proxy, a NAS's remote access,
+ * Cloudflare) may give up on it after a minute with a 502 or 504, or drop the
+ * connection, while PHP carries on to the end. In those cases the outcome is
+ * read from /admin/updates/status instead of being reported as a failure.
+ * `onWait` is told once that the page is now waiting for the server.
+ */
+async function runInstallRequest(body, targetVersion, onWait) {
+    const before = await fetchUpdateStatus();
+    let response;
+    try {
+        response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+            body
+        });
+    } catch (networkError) {
+        return waitForUpdateOutcome(before, targetVersion, onWait);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json') && [502, 503, 504, 520, 522, 524].includes(response.status)) {
+        return waitForUpdateOutcome(before, targetVersion, onWait);
+    }
+    return readUpdateJson(response);
+}
+
+/** The update status, or null when it cannot be read right now. */
+async function fetchUpdateStatus() {
+    try {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/status', {
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            return null;
+        }
+        const data = await response.json();
+        return data && data.success ? data : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Poll until the server is done with the update, then answer as the install
+ * request would have: {success, message} or {success: false, error}.
+ * Done means the update lock is free. The attempt logged after `before`
+ * decides; without one, the installed version does.
+ */
+async function waitForUpdateOutcome(before, targetVersion, onWait) {
+    if (typeof onWait === 'function') {
+        onWait();
+    }
+    // Without a reading from before the request, an older attempt could pass
+    // for this one: then only the installed version decides.
+    const trustLog = before !== null;
+    const beforeId = before && before.last ? before.last.id : 0;
+    const deadline = Date.now() + 30 * 60 * 1000;
+    let idlePolls = 0;
+    while (Date.now() < deadline) {
+        await sleep(5000);
+        const status = await fetchUpdateStatus();
+        if (!status || status.running) {
+            idlePolls = 0;
+            continue;
+        }
+        const last = trustLog && status.last && status.last.id > beforeId ? status.last : null;
+        if ((last && last.status === 'completed') || (targetVersion && status.version === targetVersion)) {
+            return { success: true, message: <?= json_encode(__("Aggiornamento completato con successo"), JSON_HEX_TAG) ?> };
+        }
+        if (last && (last.status === 'failed' || last.status === 'rolled_back')) {
+            return { success: false, error: last.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?> };
+        }
+        // Not running and nothing settled: give the update a moment to take
+        // the lock or write its log, then call it.
+        if (++idlePolls >= 3) {
+            return { success: false, error: <?= json_encode(__("L'aggiornamento non risulta completato. Controlla i log per i dettagli."), JSON_HEX_TAG) ?> };
+        }
+    }
+    return { success: false, error: <?= json_encode(__("L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata."), JSON_HEX_TAG) ?> };
 }
 
 function setStepActive(step) {
@@ -1546,16 +1625,17 @@ async function submitManualUpdate() {
             didOpen: () => Swal.showLoading()
         });
 
-        const installResponse = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-            },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(uploadData.package || '')}`
-        });
-
-        const installData = await readUpdateJson(installResponse);
+        const installData = await runInstallRequest(
+            `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(uploadData.package || '')}`,
+            '',
+            () => {
+                Swal.update({
+                    title: <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>,
+                    html: `<p class="text-sm text-gray-600">${<?= json_encode(__("La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…"), JSON_HEX_TAG) ?>}</p>`
+                });
+                Swal.showLoading();
+            }
+        );
 
         if (installData.success) {
             Swal.fire({

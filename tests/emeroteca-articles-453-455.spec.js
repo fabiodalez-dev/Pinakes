@@ -113,9 +113,20 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     await entry.click();
     await expect(admin).toHaveURL(/\/admin\/periodicals\/articles$/);
     await expect(admin.getByText(ARTICLE).first()).toBeVisible();
+    // Only the Articles entry is highlighted, not Periodicals above it, whose
+    // address is a prefix of this one.
+    await expect(entry).toHaveClass(/bg-rose-50/);
+    await expect(admin.locator('a.nav-link[href$="/admin/periodicals"]')).not.toHaveClass(/bg-rose-50/);
+    // The title opens the article's page, not its form; Edit is its own icon.
+    const row = admin.locator('tr', { hasText: ARTICLE });
+    await expect(row.locator(`a[href$="/admin/periodicals/articles/${articleId}/edit"]`)).toHaveCount(1);
+    await row.getByRole('link', { name: ARTICLE }).click();
+    await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
+    await expect(admin.locator(`section[data-article-id="${articleId}"]`)).toBeVisible();
+    await expect(admin.locator('#article-titolo')).toHaveCount(0);
   });
 
-  test('2 The admin quick search finds the article and the periodical; the article opens its form (#453)', async () => {
+  test('2 The admin quick search finds the article and the periodical; the article opens its page (#453)', async () => {
     await admin.goto(BASE + '/admin/dashboard');
     await expect(admin.locator('#global-search')).toHaveAttribute('aria-label', /articoli, periodici/);
     await admin.locator('#global-search').fill(RUN);
@@ -138,7 +149,8 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     expect(periodicalAt, 'after it, the periodical').toBeGreaterThan(articleAt);
     await article.click();
     await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
-    await expect(admin.locator('#article-titolo')).toHaveValue(ARTICLE);
+    await expect(admin.locator('h1', { hasText: ARTICLE })).toBeVisible();
+    await expect(admin.locator('#article-titolo')).toHaveCount(0);
   });
 
   test('3 The author page shows the article as a card with an image, Details and Edit (#453)', async () => {
@@ -148,14 +160,15 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     await expect(card.locator('img')).toHaveCount(1);
     await expect(card.locator('h3')).toContainText(ARTICLE);
     await expect(card).toContainText(MASTHEAD);
-    await expect(card.locator(`a.btn-primary[href$="/emeroteca/articolo/${articleId}"]`)).toBeVisible();
-    await expect(card.locator(`a.btn-secondary[href$="/admin/periodicals/articles/${articleId}"]`)).toBeVisible();
+    // Details opens the article's admin page, as a book's opens the book's.
+    await expect(card.locator(`a.btn-primary[href$="/admin/periodicals/articles/${articleId}"]`)).toBeVisible();
+    await expect(card.locator(`a.btn-secondary[href$="/admin/periodicals/articles/${articleId}/edit"]`)).toBeVisible();
     // The plain list of links it replaces is gone.
     await expect(admin.locator('ul.space-y-2 a.underline', { hasText: ARTICLE })).toHaveCount(0);
   });
 
   test('4 The article form has keywords and genre in the advanced section; the genre is saved (#455)', async () => {
-    await admin.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await admin.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     const advanced = admin.locator('details.article-fold', { hasText: 'Descrizione bibliografica avanzata' });
     // Open by itself: the article already has keywords, now kept in here.
     await expect(advanced).toHaveAttribute('open', '');
@@ -166,13 +179,40 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     expect(label, 'a child genre is listed with its path').toContain('›');
     await genre.selectOption(String(childGenre));
     await admin.locator('form button[type=submit]', { hasText: /Salva/ }).first().click();
+    // Saving brings the operator back to the article's page, which shows it.
+    await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
+    await expect(admin.getByText('Articolo salvato.')).toBeVisible();
+    // The genre with its path, root first, as the book page shows it.
+    const genreLine = admin.getByTestId('genre-display');
+    await expect(genreLine).toContainText(db(`SELECT nome FROM generi WHERE id=${parentGenre}`));
+    await expect(genreLine).toContainText(db(`SELECT nome FROM generi WHERE id=${childGenre}`));
     await expect.poll(() => db(`SELECT COALESCE(genere_id,0) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe(String(childGenre));
     expect(db(`SELECT keywords FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('fagbevægelsen, nazisme');
   });
 
+  test('4b The admin article page reads like the book page: the record, then Edit, Delete and the exports (#453, #454)', async () => {
+    await admin.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    const page = admin.locator(`section[data-article-id="${articleId}"]`);
+    await expect(page.locator('h1', { hasText: ARTICLE })).toBeVisible();
+    await expect(page.locator(`a[href$="/admin/authors/${authorId}"]`)).toContainText(AUTHOR.split(' ')[0]);
+    await expect(page.locator(`a[href$="/admin/periodicals/${mastheadId}/issues"]`)).toContainText(MASTHEAD);
+    await expect(page.locator('dd', { hasText: 'fagbevægelsen' })).toBeVisible();
+    await expect(page.locator('dd', { hasText: '18-38' })).toBeVisible();
+    await expect(page.locator(`a[href$="/emeroteca/articolo/${articleId}"]`, { hasText: 'Vedi pagina pubblica' })).toBeVisible();
+    await expect(page.locator(`a[href$="/admin/periodicals/articles/${articleId}/citation.ris"]`)).toBeVisible();
+    await expect(page.locator(`form[action$="/admin/periodicals/articles/${articleId}/delete"]`)).toHaveCount(1);
+    // Nothing on it is an input: the record is changed in the form.
+    await expect(page.locator('input:not([type=hidden]), textarea, select')).toHaveCount(0);
+    // Edit and Cancel make the round trip without saving anything.
+    await page.getByTestId('article-edit').click();
+    await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}/edit$`));
+    await admin.getByRole('link', { name: 'Annulla' }).click();
+    await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
+  });
+
   test('5 The public article page offers staff an Edit button, shows the genre and the author\'s other works, books included (#453, #455)', async () => {
     await admin.goto(`${BASE}/emeroteca/articolo/${articleId}`);
-    const edit = admin.locator(`a[href$="/admin/periodicals/articles/${articleId}"]`, { hasText: 'Modifica' });
+    const edit = admin.locator(`a[href$="/admin/periodicals/articles/${articleId}/edit"]`, { hasText: 'Modifica' });
     await expect(edit).toBeVisible();
     await expect(admin.locator(`.meta-item a[href*="genere_id=${childGenre}"]`)).toBeVisible();
     await expect(admin.locator(`.meta-item a[href*="genere_id=${parentGenre}"]`)).toBeVisible();
@@ -181,7 +221,8 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     await expect(others.locator('.book-card', { hasText: BOOK })).toBeVisible();
     await expect(others.locator(`a[href$="/${authorId}"]`, { hasText: 'Tutte' })).toBeVisible();
     await edit.click();
-    await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
+    await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}/edit$`));
+    await expect(admin.locator('#article-titolo')).toHaveValue(ARTICLE);
   });
 
   test('6 A visitor sees no Edit button, and the header search suggests the article (#453, #455)', async ({ browser }) => {

@@ -4382,6 +4382,65 @@ class Updater
     }
 
     /**
+     * Whether an update is running right now: some request holds the update
+     * lock. The page asks when the proxy in front of the site dropped its
+     * install request (#450) while PHP, with ignore_user_abort, carried on.
+     * A shared, non-blocking probe: it never waits and never takes the lock
+     * from the update; a lock it cannot even open counts as not running.
+     */
+    public function isUpdateRunning(): bool
+    {
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        if (!is_file($lockFile)) {
+            return false;
+        }
+        $handle = @fopen($lockFile, 'r');
+        if ($handle === false) {
+            return false;
+        }
+        try {
+            if (flock($handle, LOCK_SH | LOCK_NB)) {
+                flock($handle, LOCK_UN);
+                return false;
+            }
+            return true;
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /**
+     * The latest update attempt in update_logs (backups excluded), or null
+     * when there is none or the table is missing.
+     *
+     * @return array{id:int,to_version:string,status:string,error:string}|null
+     */
+    public function lastUpdateAttempt(): ?array
+    {
+        try {
+            $tableCheck = $this->db->query("SHOW TABLES LIKE 'update_logs'");
+            if ($tableCheck === false || $tableCheck->num_rows === 0) {
+                return null;
+            }
+            $tableCheck->free();
+            $result = $this->db->query("SELECT id, to_version, status, error_message FROM update_logs WHERE to_version <> 'backup' ORDER BY id DESC LIMIT 1");
+            $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+            if (!is_array($row)) {
+                return null;
+            }
+            return [
+                'id' => (int) $row['id'],
+                'to_version' => (string) $row['to_version'],
+                'status' => (string) $row['status'],
+                'error' => (string) ($row['error_message'] ?? ''),
+            ];
+        } catch (\Throwable $e) {
+            $this->debugLog('WARNING', 'Lettura ultimo aggiornamento fallita', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
      * Get update history
      * @return array<array>
      */

@@ -3573,6 +3573,14 @@ return function (App $app): void {
         return $controller->clearMaintenance($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Where an update stands: polled by the page when a proxy dropped its
+    // install request while the server carried on (#450)
+    $app->get('/admin/updates/status', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->status($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
     // View updater logs (for debugging)
     $app->get('/admin/updates/logs', function ($request, $response) {
         $controller = new \App\Controllers\UpdateController();

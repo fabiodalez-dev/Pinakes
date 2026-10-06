@@ -135,7 +135,7 @@ test.describe.serial('Uwe #412 follow-up', () => {
     db(`UPDATE emeroteca_testate SET titolo='zzz ${MASTHEAD}' WHERE id=${mastheadId}`);
     try {
       await login(page);
-      await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+      await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
       await expect(page.locator('#article-testata_id')).toHaveValue(String(mastheadId));
       // The save posts to /save and redirects back here, so wait for the POST itself:
       // reading the row before it is handled would pass whatever the save did.
