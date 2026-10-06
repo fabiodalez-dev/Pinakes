@@ -34,7 +34,7 @@ class FrontendController
         // events) clear the 'home_' prefix via ContentCache — which also
         // covers the home_api_count_* keys below — while the TTL covers
         // loan-driven availability drift.
-        $homeData = \App\Support\QueryCache::remember('home_page_data_v1', function () use ($db) {
+        $homeData = \App\Support\QueryCache::remember('home_page_data_v2', function () use ($db) {
             return $this->buildHomePageData($db);
         }, 300);
 
@@ -57,6 +57,7 @@ class FrontendController
         }
         $homeEvents = $homeData['homeEvents'];
         $heroTotalBooks = $homeData['totalBooks'];
+        $heroCovers = $homeData['heroCovers'] ?? [];
         $heroAvailableBooks = $homeData['availableBooks'];
 
         $homeEventsEnabled = $homeData['eventsFeatureEnabled'] && !empty($homeEvents);
@@ -2667,6 +2668,80 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
      *               latestBooksTotal: int, genres_with_books: array, genreCarouselEnabled: bool,
      *               eventsFeatureEnabled: bool, homeEvents: array, totalBooks: int, availableBooks: int}
      */
+    /**
+     * The hero's cover settings, stored as JSON in home_content.content of the
+     * 'hero' row: {"cover_mode": "latest"|"selected", "cover_books": [ids]}.
+     * Anything else reads as the default, the latest covers.
+     *
+     * @return array{mode: string, books: list<int>}
+     */
+    public static function heroCoverConfig(?string $raw): array
+    {
+        $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+        $mode = is_array($data) && ($data['cover_mode'] ?? '') === 'selected' ? 'selected' : 'latest';
+        $books = [];
+        foreach ((array) (is_array($data) ? ($data['cover_books'] ?? []) : []) as $id) {
+            $id = (int) $id;
+            if ($id > 0 && !in_array($id, $books, true)) {
+                $books[] = $id;
+            }
+        }
+        return ['mode' => $mode, 'books' => array_slice($books, 0, 4)];
+    }
+
+    /**
+     * Up to four books with a cover for the home hero: the ones the CMS picked,
+     * in the order it picked them, or the latest catalogued covers. A picked
+     * book that lost its cover, was deleted or left the catalogue is skipped;
+     * when none is left the hero falls back to the latest covers.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function heroCovers(mysqli $db, ?string $raw): array
+    {
+        $config = self::heroCoverConfig($raw);
+        $select = "SELECT l.id, l.titolo, l.copertina_url,
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
+                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome
+            FROM libri l
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+              AND l.copertina_url IS NOT NULL AND l.copertina_url <> '' AND l.copertina_url NOT LIKE '%placeholder%'";
+        $rows = [];
+        try {
+            if ($config['mode'] === 'selected' && $config['books'] !== []) {
+                $marks = implode(',', array_fill(0, count($config['books']), '?'));
+                $stmt = $db->prepare($select . " AND l.id IN ($marks)");
+                if ($stmt !== false) {
+                    $stmt->bind_param(str_repeat('i', count($config['books'])), ...$config['books']);
+                    $stmt->execute();
+                    $byId = [];
+                    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+                        $byId[(int) $row['id']] = $row;
+                    }
+                    $stmt->close();
+                    foreach ($config['books'] as $id) {
+                        if (isset($byId[$id])) {
+                            $rows[] = $byId[$id];
+                        }
+                    }
+                }
+            }
+            if ($rows === []) {
+                $result = $db->query($select . ' ORDER BY l.created_at DESC, l.id DESC LIMIT 4');
+                if ($result instanceof \mysqli_result) {
+                    $rows = $result->fetch_all(MYSQLI_ASSOC);
+                    $result->free();
+                }
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Home] hero covers: ' . $e->getMessage());
+            return [];
+        }
+        return $rows;
+    }
+
     private function buildHomePageData(mysqli $db): array
     {
         // Carica i contenuti CMS della home (inclusi campi SEO completi)
@@ -2849,7 +2924,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             }
         }
 
-        // This payload is stored in the SHARED home cache (home_page_data_v1).
+        // This payload is stored in the SHARED home cache (home_page_data_v2).
         // Strip live availability (copie_*/stato — a stale count is a
         // double-loan risk) AND the private/non-shareable columns (l.* pulled
         // private_comment, lending_patron, search_index, …). Availability is
@@ -2862,6 +2937,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return [
             'homeContent' => $homeContent,
             'sectionsOrdered' => $sectionsOrdered,
+            'heroCovers' => $this->heroCovers($db, $homeContent['hero']['content'] ?? null),
             'latest_books' => $latest_books,
             'latestBooksTotal' => $totalBooks,
             'genres_with_books' => $genres_with_books,

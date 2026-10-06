@@ -17,7 +17,8 @@ $checks = [
     'global muted text token meets AA on white' => str_contains($layout, '--text-muted: #64748b;'),
     'mobile search control has a 44px target' => preg_match('/\.mobile-search-toggle\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/s', $layout) === 1,
     'mobile menu control has a 44px target' => preg_match('/\.mobile-menu-toggle\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/s', $layout) === 1,
-    'hero search button has a 44px target' => preg_match('/\.hero-search-button\s*\{[^}]*min-height:\s*44px;/s', $home) === 1,
+    // The hero search button is styled by the 2026 design system (.pk-search button).
+    'hero search button has a 44px target' => preg_match('/\.pk-search button\s*\{[^}]*min-height:\s*44px;/s', (string) file_get_contents($root . '/public/assets/pinakes-2026.css')) === 1,
     'scroll-to-top control has a 44px target' => str_contains($scroll, 'width:44px;height:44px'),
     'profile password form exposes its username to password managers' => str_contains($profile, 'name="username"') && str_contains($profile, 'autocomplete="username"'),
     'admin user email fields identify the login username' => str_contains($createUser, 'name="email" autocomplete="username"') && str_contains($editUser, 'name="email" autocomplete="username"'),

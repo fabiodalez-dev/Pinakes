@@ -208,10 +208,12 @@ $check(str_contains($liveJs, 'offset += 100'), 'availability hydration batches p
 $check(!str_contains($frontendLayout, '[data-live-pending="1"]{visibility:hidden'), 'pending live fragments remain visible as neutral fallbacks');
 $check(str_contains($bookDetail, "__('Verifica disponibilità')"), 'book detail exposes a neutral pending label');
 $check(!str_contains($bookDetail, 'data-live-role="action" data-live-pending="1" disabled'), 'loan action remains usable if hydration fails');
-$check(str_contains($catalogGrid, 'book-status-badge availability-pending'), 'catalog cards use a neutral pending badge');
-$check(str_contains($homeGrid, 'book-status-badge availability-pending'), 'home cards use a neutral pending badge');
+// Both grids render the one shared card, which carries the pending badge.
+$pkBookCard = (string) file_get_contents(dirname(__DIR__) . '/app/Views/frontend/partials/pk-book-card.php');
+$check(str_contains($pkBookCard, 'book-status-badge availability-pending') && str_contains($catalogGrid, 'partials/pk-book-card.php'), 'catalog cards use a neutral pending badge');
+$check(str_contains($pkBookCard, 'book-status-badge availability-pending') && str_contains($homeGrid, 'partials/pk-book-card.php'), 'home cards use a neutral pending badge');
 $check(str_contains($homeHero, '$heroStatsServerRendered && !$edgeCacheEnabled'), 'edge availability stat is not marked server-rendered');
-$check(substr_count($homeHero, 'animate-spin') >= 3, 'edge availability stat renders the loading indicator');
+$check(str_contains($homeHero, 'animate-spin') && str_contains($homeHero, '$edgeCacheEnabled || !$heroStatsServerRendered ? $spinner'), 'edge availability stat renders the loading indicator');
 $check(preg_match("/QueryCache::remember\\(\\s*'home_edge_availability_stats'/", $frontendController) === 1, 'edge home aggregate is cached briefly');
 $check(str_contains($homeView, "grid.dispatchEvent(new Event('pinakes:catalog-grid-updated'"), 'dynamically loaded home cards are hydrated live');
 $check(str_contains($homeView, 'if (availableBooksEl.dataset.liveStat) return;'), 'home avoids racing the dedicated edge stats hydrator');

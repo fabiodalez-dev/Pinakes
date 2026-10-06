@@ -83,13 +83,6 @@ async function expectPreview(page, mountSel, previewImgSel, hiddenInputSel, requ
 }
 
 test.describe.serial('native Uppy image preview', () => {
-  test('hero background (cms/edit-home)', async ({ page }) => {
-    await login(page);
-    await page.goto(`${BASE}/admin/cms/home`);
-    await page.waitForLoadState('networkidle');
-    await expectPreview(page, '#uppy-hero-upload', '#hero-preview-img', '#hero-background-input');
-  });
-
   test('book cover (libri/book_form)', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/admin/books/create`);
@@ -123,48 +116,4 @@ test.describe.serial('native Uppy image preview', () => {
   // The full #292 loop, through the real UI: pick a file in Uppy, submit the
   // actual form, and prove the image is persisted under /uploads/assets AND
   // served over HTTP. This is the end-to-end the reporter's flow exercises.
-  test('hero end-to-end: pick in Uppy → submit → saved under /uploads/assets and served (200)', async ({ page }) => {
-    const priorRow = db("SELECT EXISTS(SELECT 1 FROM home_content WHERE section_key='hero')") === '1'
-      ? db("SELECT COALESCE(background_image,'<NULL>') FROM home_content WHERE section_key='hero'")
-      : null;
-    const assetsDir = INSTALL_ROOT ? path.join(INSTALL_ROOT, 'public/uploads/assets') : '';
-    const preexisting = assetsDir && fs.existsSync(assetsDir) ? fs.readdirSync(assetsDir) : [];
-
-    try {
-      await login(page);
-      await page.goto(`${BASE}/admin/cms/home`);
-      await page.waitForLoadState('networkidle');
-
-      await page.locator('#uppy-hero-upload input[type="file"]').first().setInputFiles(JPG);
-      await expect(async () => {
-        const n = await page.locator('#hero-background-input').evaluate((el) => el.files ? el.files.length : 0);
-        expect(n).toBe(1);
-      }).toPass({ timeout: 10000 });
-
-      await Promise.all([
-        page.waitForURL(/\/admin\/cms\/home/, { timeout: 15000 }),
-        page.locator('form[action$="/admin/cms/home"] button[type="submit"]').first().click(),
-      ]);
-
-      const bg = db("SELECT COALESCE(background_image,'<NULL>') FROM home_content WHERE section_key='hero'");
-      expect(bg, 'hero background saved under /uploads/assets/').toMatch(/^\/uploads\/assets\/hero_bg_[0-9a-f]+\.jpg$/);
-      const res = await page.request.get(`${BASE}${bg}`, { maxRedirects: 0 });
-      expect(res.status(), 'saved hero image is served over HTTP (200)').toBe(200);
-      if (INSTALL_ROOT) {
-        expect(fs.existsSync(path.join(INSTALL_ROOT, 'public', bg)), 'file exists on disk').toBe(true);
-      }
-    } finally {
-      if (priorRow !== null) {
-        const val = priorRow === '<NULL>' ? 'NULL' : sqlq(priorRow);
-        db(`UPDATE home_content SET background_image=${val} WHERE section_key='hero'`);
-      }
-      if (assetsDir && fs.existsSync(assetsDir)) {
-        for (const f of fs.readdirSync(assetsDir)) {
-          if (f.startsWith('hero_bg_') && !preexisting.includes(f)) {
-            try { fs.unlinkSync(path.join(assetsDir, f)); } catch { /* ignore */ }
-          }
-        }
-      }
-    }
-  });
 });

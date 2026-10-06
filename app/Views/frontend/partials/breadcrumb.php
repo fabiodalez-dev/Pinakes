@@ -17,10 +17,11 @@ $bcEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUO
 $bcLast = count($breadcrumbItems) - 1;
 ?>
 <?php if ($breadcrumbItems !== []): ?>
-<?php if ($breadcrumbVariant === 'book'): ?>
-<nav class="book-breadcrumb" aria-label="<?= $bcEscape(__('Percorso di navigazione')) ?>">
-    <ol class="breadcrumb">
+<?php // 2026 design: the same "Home / Catalogue / Title" line on every page. ?>
+<nav class="<?= $breadcrumbVariant === 'book' ? 'book-breadcrumb' : 'pk-breadcrumb' ?>" aria-label="<?= $bcEscape(__('Percorso di navigazione')) ?>">
+    <ol class="breadcrumb pk-crumbs">
         <?php foreach ($breadcrumbItems as $bcIndex => $bcItem): ?>
+            <?php if ($bcIndex > 0): ?><li class="pk-crumbs__sep" aria-hidden="true">/</li><?php endif; ?>
             <?php if ($bcIndex === $bcLast || ($bcItem['href'] ?? '') === ''): ?>
                 <li class="breadcrumb-item active"<?= $bcIndex === $bcLast ? ' aria-current="page"' : '' ?>><?= $bcEscape($bcItem['label']) ?></li>
             <?php else: ?>
@@ -29,17 +30,4 @@ $bcLast = count($breadcrumbItems) - 1;
         <?php endforeach; ?>
     </ol>
 </nav>
-<?php else: ?>
-<nav aria-label="<?= $bcEscape(__('Percorso di navigazione')) ?>">
-    <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
-        <?php foreach ($breadcrumbItems as $bcIndex => $bcItem): ?>
-            <?php if ($bcIndex === $bcLast || ($bcItem['href'] ?? '') === ''): ?>
-                <li class="breadcrumb-item text-white active"<?= $bcIndex === $bcLast ? ' aria-current="page"' : '' ?>><?= $bcEscape($bcItem['label']) ?></li>
-            <?php else: ?>
-                <li class="breadcrumb-item"><a href="<?= $bcEscape($bcItem['href']) ?>" class="text-white opacity-75"><?= $bcEscape($bcItem['label']) ?></a></li>
-            <?php endif; ?>
-        <?php endforeach; ?>
-    </ol>
-</nav>
-<?php endif; ?>
 <?php endif; ?>

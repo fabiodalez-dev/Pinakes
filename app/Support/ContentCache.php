@@ -18,7 +18,7 @@ final class ContentCache
 
     /**
      * Book metadata or taxonomy changed: invalidate catalog counts/facets,
-     * every home entry (home_page_data_v1 and home_api_count_*), the cached
+     * every home entry (home_page_data_v2 and home_api_count_*), the cached
      * genre tree and static detail DTOs. Availability-only writes use the
      * narrower availabilityChanged() path below.
      */

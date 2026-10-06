@@ -12,23 +12,15 @@ $ctaButtonLink = isset($ctaData['button_link']) && $ctaData['button_link'] !== '
 ?>
 
 <!-- Call to Action Section -->
-<section class="cta-section" data-section="cta">
-    <div class="container">
-        <div class="cta-content">
+<section class="cta-section pk-cta-wrap" data-section="cta">
+    <div class="cta-content pk-cta">
+        <div class="pk-cta__text">
             <h2 class="cta-title"><?php echo htmlspecialchars($ctaData['title'] ?? __("Inizia la Tua Avventura Letteraria"), ENT_QUOTES, 'UTF-8'); ?></h2>
-            <p class="cta-subtitle">
-                <?php echo htmlspecialchars($ctaData['subtitle'] ?? __("Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna."), ENT_QUOTES, 'UTF-8'); ?>
-            </p>
-            <div class="flex justify-center gap-3 flex-wrap">
-                <a href="<?php echo htmlspecialchars($ctaButtonLink, ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta">
-                    <i class="fas fa-user-plus"></i>
-                    <?php echo htmlspecialchars($ctaData['button_text'] ?? __("Registrati Ora"), ENT_QUOTES, 'UTF-8'); ?>
-                </a>
-                <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="btn-cta">
-                    <i class="fas fa-envelope"></i>
-                    <?= __("Contattaci") ?>
-                </a>
-            </div>
+            <p class="cta-subtitle"><?php echo htmlspecialchars($ctaData['subtitle'] ?? __("Unisciti alla nostra community di lettori e scopri il piacere della lettura con la nostra piattaforma moderna."), ENT_QUOTES, 'UTF-8'); ?></p>
+        </div>
+        <div class="pk-cta__actions">
+            <a href="<?php echo htmlspecialchars($ctaButtonLink, ENT_QUOTES, 'UTF-8'); ?>" class="btn-cta pk-cta__btn pk-cta__btn--solid"><i class="fas fa-user-plus" aria-hidden="true"></i> <?php echo htmlspecialchars($ctaData['button_text'] ?? __("Registrati Ora"), ENT_QUOTES, 'UTF-8'); ?></a>
+            <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" class="btn-cta pk-cta__btn pk-cta__btn--line"><i class="fas fa-envelope" aria-hidden="true"></i> <?= __("Contattaci") ?></a>
         </div>
     </div>
 </section>

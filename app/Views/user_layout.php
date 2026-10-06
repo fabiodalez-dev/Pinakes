@@ -98,8 +98,9 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     <!-- Assets -->
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('frontend-layouts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendLayoutsVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <?php // frontend-layouts.css is superseded by the 2026 design (pinakes-2026.css). ?>
     <link href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($accountPagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('pinakes-2026.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars((string) (@filemtime($assetRoot . '/pinakes-2026.css') ?: 1), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
@@ -897,7 +898,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     </script>
 </head>
 
-<body class="layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
+<body class="pk pk-account layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
     <!-- Minimalist Header -->
     <div class="header-container">
         <div class="header-main">
@@ -1098,18 +1099,28 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     </main>
 
     <!-- Footer -->
+    <?php
+    $userFooterSocials = [
+        ['href' => $socialFacebook, 'icon' => 'fab fa-facebook', 'label' => 'Facebook'],
+        ['href' => $socialTwitter, 'icon' => 'fab fa-twitter', 'label' => 'X'],
+        ['href' => $socialInstagram, 'icon' => 'fab fa-instagram', 'label' => 'Instagram'],
+        ['href' => $socialLinkedin, 'icon' => 'fab fa-linkedin', 'label' => 'LinkedIn'],
+        ['href' => $socialBluesky, 'icon' => 'fa-brands fa-bluesky', 'label' => 'Bluesky'],
+        ['href' => $socialTelegram, 'icon' => 'fa-brands fa-telegram', 'label' => 'Telegram'],
+    ];
+    ?>
     <footer class="footer">
-        <div class="container">
-            <div class="flex flex-wrap -mx-3">
-                <div class="w-full lg:w-1/4 px-3">
+        <div class="pk-footer">
+            <div class="pk-footer__cols">
+                <div class="pk-footer__brand">
                     <?php if ($appLogo !== ''): ?>
                         <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
                     <?php else: ?>
-                        <h5><i class="fas fa-book-open mr-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <h5><i class="fas fa-book-open mr-2" aria-hidden="true"></i><?= HtmlHelper::e($appName) ?></h5>
                     <?php endif; ?>
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>
-                <div class="w-full lg:w-1/4 px-3">
+                <div class="pk-footer__col">
                     <h5><?= __('Menu') ?></h5>
                     <ul class="list-unstyled">
                         <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a></li>
@@ -1118,7 +1129,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         <li><a href="<?= htmlspecialchars(route_path('privacy'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Privacy Policy") ?></a></li>
                     </ul>
                 </div>
-                <div class="w-full lg:w-1/4 px-3">
+                <div class="pk-footer__col">
                     <h5><?= __('Account') ?></h5>
                     <ul class="list-unstyled">
                         <li><a href="<?= htmlspecialchars(route_path('user_dashboard'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Dashboard") ?></a></li>
@@ -1129,39 +1140,18 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         <?php endif; ?>
                     </ul>
                 </div>
-                <div class="w-full lg:w-1/4 px-3">
+                <div class="pk-footer__col">
                     <h5><?= __("Seguici") ?></h5>
-                    <div class="flex gap-3 social-links">
-                        <?php if ($socialFacebook !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialFacebook, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-facebook"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialTwitter !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialTwitter, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-twitter"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialInstagram !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialInstagram, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-instagram"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialLinkedin !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialLinkedin, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-linkedin"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialBluesky !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialBluesky, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fa-brands fa-bluesky"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialTelegram !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialTelegram, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fa-brands fa-telegram"></i></a>
-                        <?php endif; ?>
-                    </div>
+                    <ul class="social-links">
+                        <?php foreach ($userFooterSocials as $social): ?>
+                            <?php if ($social['href'] === '') { continue; } ?>
+                            <li><a href="<?= htmlspecialchars($social['href'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="<?= htmlspecialchars($social['icon'], ENT_QUOTES, 'UTF-8') ?> mr-2" aria-hidden="true"></i><?= htmlspecialchars($social['label'], ENT_QUOTES, 'UTF-8') ?></a></li>
+                        <?php endforeach; ?>
+                    </ul>
                 </div>
             </div>
-            <hr class="my-4">
-            <div class="text-center">
-                <p>&copy; <?= date('Y') ?> <?= HtmlHelper::e($appName) ?>. Tutti i diritti riservati.</p>
+            <div class="pk-footer__bottom">
+                <span>&copy; <?= date('Y') ?> <?= HtmlHelper::e($appName) ?>. Tutti i diritti riservati.</span>
             </div>
         </div>
     </footer>

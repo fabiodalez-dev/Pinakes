@@ -124,15 +124,22 @@ $callCatalog = static function (array $params) use ($controller, $requestFactory
     return is_array($decoded) ? $decoded : [];
 };
 
-/** The status-badge marker inside the card whose <img alt> carries $title. */
+/**
+ * The status-badge marker inside the card whose title link carries $title.
+ * Anchored on the card root, not on the cover: a book without a cover has no
+ * <img> (the card draws a blank book), so an alt attribute is not reliable.
+ */
 $badgeNearTitle = static function (string $html, string $title): string {
-    $needle = 'alt="' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '"';
-    $pos = strpos($html, $needle);
-    if ($pos === false) {
+    $titlePos = strpos($html, '>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</a>');
+    if ($titlePos === false) {
         return '';
     }
-    $window = substr($html, $pos, 600);
-    if (preg_match('/book-status-badge (status-[a-z]+)/', $window, $m)) {
+    $cardStart = strrpos(substr($html, 0, $titlePos), 'class="book-card');
+    if ($cardStart === false) {
+        return '';
+    }
+    $card = substr($html, $cardStart, $titlePos - $cardStart);
+    if (preg_match('/book-status-badge (status-[a-z]+)/', $card, $m)) {
         return $m[1];
     }
     return '';

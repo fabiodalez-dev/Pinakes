@@ -180,6 +180,27 @@ class CmsController
 
         // Include the specific view first
         ob_start();
+        // The hero's picked cover books, with their titles for the picker.
+        $heroCoverConfig = \App\Controllers\FrontendController::heroCoverConfig($sections['hero']['content'] ?? null);
+        $heroCoverBooks = [];
+        if ($heroCoverConfig['books'] !== []) {
+            $marks = implode(',', array_fill(0, count($heroCoverConfig['books']), '?'));
+            $coverStmt = $db->prepare("SELECT id, titolo, copertina_url FROM libri WHERE deleted_at IS NULL AND id IN ($marks)");
+            if ($coverStmt !== false) {
+                $coverStmt->bind_param(str_repeat('i', count($heroCoverConfig['books'])), ...$heroCoverConfig['books']);
+                $coverStmt->execute();
+                $coverRows = [];
+                foreach ($coverStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $coverRow) {
+                    $coverRows[(int) $coverRow['id']] = $coverRow;
+                }
+                $coverStmt->close();
+                foreach ($heroCoverConfig['books'] as $coverId) {
+                    if (isset($coverRows[$coverId])) {
+                        $heroCoverBooks[] = $coverRows[$coverId];
+                    }
+                }
+            }
+        }
         include __DIR__ . '/../Views/cms/edit-home.php';
         $content = ob_get_clean();
 
@@ -442,6 +463,29 @@ class CmsController
                 );
                 $stmt->execute();
                 $stmt->close();
+
+                // Hero covers (2026 design): the latest catalogued covers, or up
+                // to four books picked here, in the order picked. Stored as JSON
+                // in the hero row's `content`, read by FrontendController::heroCovers().
+                if (isset($heroData['cover_mode'])) {
+                    $coverIds = [];
+                    foreach ((array) ($heroData['cover_books'] ?? []) as $coverId) {
+                        $coverId = (int) $coverId;
+                        if ($coverId > 0 && !in_array($coverId, $coverIds, true) && count($coverIds) < 4) {
+                            $coverIds[] = $coverId;
+                        }
+                    }
+                    $coverConfig = json_encode([
+                        'cover_mode' => $heroData['cover_mode'] === 'selected' ? 'selected' : 'latest',
+                        'cover_books' => $coverIds,
+                    ]);
+                    $coverStmt = $db->prepare("UPDATE home_content SET content = ? WHERE section_key = 'hero'");
+                    if ($coverStmt !== false && $coverConfig !== false) {
+                        $coverStmt->bind_param('s', $coverConfig);
+                        $coverStmt->execute();
+                        $coverStmt->close();
+                    }
+                }
             }
         }
 

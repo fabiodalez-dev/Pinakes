@@ -98,31 +98,30 @@ ob_start();
 ?>
 
 <!-- Catalog Header -->
-<section class="catalog-header">
-    <div class="container">
-        <div class="catalog-header-content text-center">
-            <h1 class="catalog-title"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
-            <p class="catalog-subtitle"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
-                    <li class="breadcrumb-item">
-                        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
-                    </li>
-                    <li class="breadcrumb-item text-white active" aria-current="page">
-                        <?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?>
-                    </li>
-                </ol>
-            </nav>
+<section class="catalog-header pk-catalog-head">
+    <div class="pk-wrap">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb pk-crumbs">
+                <li class="breadcrumb-item"><a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a></li>
+                <li class="pk-crumbs__sep" aria-hidden="true">/</li>
+                <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></li>
+            </ol>
+        </nav>
+        <div class="catalog-header-content pk-page-head">
+            <div class="pk-page-head__text">
+                <h1 class="catalog-title pk-h1"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
+                <p class="catalog-subtitle pk-lead"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
+            </div>
         </div>
     </div>
 </section>
 
 <!-- Main Content -->
-<section class="py-5">
-    <div class="container">
-        <div class="flex flex-wrap -mx-3">
+<section class="pk-catalog">
+    <div class="pk-wrap">
+        <div class="pk-catalog__layout">
             <!-- Enhanced Filters Sidebar -->
-            <div class="catalog-filters-column w-full lg:w-1/3 px-3 xl:w-1/4 mb-4">
+            <aside class="catalog-filters-column pk-filters" aria-label="<?= htmlspecialchars(__("Filtri"), ENT_QUOTES, 'UTF-8') ?>">
                 <div class="filters-panel">
                     <div class="filters-header">
                         <h5 class="filters-title">
@@ -140,113 +139,6 @@ ob_start();
                     </div>
 
                     <div class="filters-content" id="catalog-filters-content">
-                        <!-- Search -->
-                        <div class="filter-section">
-                        <div class="filter-title">
-                            <i class="fas fa-search"></i>
-                            <?= __("Ricerca") ?>
-                        </div>
-                        <div class="search-box">
-                            <input type="text"
-                                   id="search-input"
-                                   placeholder="<?= htmlspecialchars(__("Cerca titoli, autori, ISBN..."), ENT_QUOTES, 'UTF-8') ?>"
-                                   value="<?= htmlspecialchars($filters['search'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                   onkeyup="debounceSearch(this.value)">
-                            <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true">
-                                <path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path>
-                            </svg>
-                        </div>
-                    </div>
-
-                    <!-- Authors -->
-                    <div class="filter-section" id="author-filter-section"<?= $hideAutoreSection ? ' style="display:none"' : '' ?>>
-                        <div class="filter-title">
-                            <i class="fas fa-feather"></i>
-                            <?= __("Autori") ?>
-                        </div>
-                        <div class="filter-options" id="authors-filter">
-                            <?php foreach($facetAutori as $autore): ?>
-                                <a href="#"
-                                   class="filter-option count <?= $selectedAutoreId === (int)$autore['id'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('autore_id', <?= (int)$autore['id'] ?>); return false;"
-                                   title="<?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?>">
-                                    <span><?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?></span>
-                                    <span class="count-badge"><?= (int)$autore['cnt'] ?></span>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Genres -->
-                    <div class="filter-section" id="genre-filter-section"<?= !empty($facetSuppress['genere']) && empty($filters['genere_id']) ? ' style="display:none;"' : '' ?>>
-                        <div class="filter-title">
-                            <i class="fas fa-tags"></i>
-                            <?= __("Generi") ?>
-                        </div>
-                        <div class="filter-options" id="genres-filter">
-                            <?php if($genre_display['level'] > 0): ?>
-                            <div class="filter-back-container">
-                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere_id', <?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>); return false;" title="<?= htmlspecialchars(__("Torna alla categoria superiore"), ENT_QUOTES, 'UTF-8') ?>">
-                                    <i class="fas fa-arrow-left"></i>
-                                    <span><?= __("Torna alla categoria superiore") ?></span>
-                                </a>
-                            </div>
-                            <?php endif; ?>
-                            <?php if($genre_display['level'] === 0): ?>
-                                <!-- Display Level 1 Genres (Radici) -->
-                                <?php foreach($genre_display['genres'] as $genere): ?>
-                                    <?php if (($genere['cnt'] ?? 0) > 0): ?>
-                                    <a href="#"
-                                       class="filter-option count"
-                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
-                                       title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
-                                        <span><?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?></span>
-                                        <span class="count-badge"><?= $genere['cnt'] ?></span>
-                                    </a>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <!-- Display Level 2 or 3 Genres (children of selected parent) -->
-                                <?php foreach($genre_display['genres'] as $genere): ?>
-                                    <?php if (($genere['cnt'] ?? 0) > 0): ?>
-                                    <?php
-                                        $displayName = $genere['nome'];
-                                        if (strpos($genere['nome'], ' - ') !== false) {
-                                            $parts = explode(' - ', $genere['nome']);
-                                            $displayName = end($parts);
-                                        }
-                                    ?>
-                                    <a href="#"
-                                       class="filter-option count"
-                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
-                                       title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
-                                        <span><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?></span>
-                                        <span class="count-badge"><?= $genere['cnt'] ?></span>
-                                    </a>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- Publishers -->
-                    <div class="filter-section" id="publisher-filter-section"<?= $hideEditoreSection ? ' style="display:none"' : '' ?>>
-                        <div class="filter-title">
-                            <i class="fas fa-building"></i>
-                            <?= __("Editori") ?>
-                        </div>
-                        <div class="filter-options" id="publishers-filter">
-                            <?php foreach($filter_options['editori'] as $editore): ?>
-                                <a href="#"
-                                   class="filter-option count <?= ($filters['editore'] ?? '') == $editore['nome'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;">
-                                    <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
-                                    <span class="count-badge"><?= $editore['cnt'] ?></span>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
                     <!-- Availability -->
                     <div class="filter-section">
                         <div class="filter-title">
@@ -313,6 +205,118 @@ ob_start();
                                     <?= number_format($filter_options['availability_stats']['borrowed'] ?? 0) ?>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Search -->
+                        <div class="filter-section">
+                        <div class="filter-title">
+                            <i class="fas fa-search"></i>
+                            <?= __("Ricerca") ?>
+                        </div>
+                        <div class="search-box">
+                            <input type="text"
+                                   id="search-input"
+                                   placeholder="<?= htmlspecialchars(__("Cerca titoli, autori, ISBN..."), ENT_QUOTES, 'UTF-8') ?>"
+                                   value="<?= htmlspecialchars($filters['search'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                   onkeyup="debounceSearch(this.value)">
+                            <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true">
+                                <path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Authors -->
+                    <div class="filter-section" id="author-filter-section"<?= $hideAutoreSection ? ' style="display:none"' : '' ?>>
+                        <div class="filter-title">
+                            <i class="fas fa-feather"></i>
+                            <?= __("Autori") ?>
+                        </div>
+                        <div class="pk-filter-search">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+                            <input type="search" data-pk-filter-list="authors-filter" placeholder="<?= htmlspecialchars(__("Cerca autore…"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Cerca autore…"), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+                        <div class="filter-options" id="authors-filter">
+                            <?php foreach($facetAutori as $autore): ?>
+                                <a href="#"
+                                   class="filter-option count <?= $selectedAutoreId === (int)$autore['id'] ? 'active' : '' ?>"
+                                   onclick="updateFilter('autore_id', <?= (int)$autore['id'] ?>); return false;"
+                                   title="<?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <span><?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="count-badge"><?= (int)$autore['cnt'] ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="pk-filter-total" data-pk-count-of="authors-filter" data-pk-count-label="<?= htmlspecialchars(__('%d autori'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(sprintf(__('%d autori'), count($facetAutori)), ENT_QUOTES, 'UTF-8') ?></div>
+                    </div>
+
+                    <!-- Publishers -->
+                    <div class="filter-section" id="publisher-filter-section"<?= $hideEditoreSection ? ' style="display:none"' : '' ?>>
+                        <div class="filter-title">
+                            <i class="fas fa-building"></i>
+                            <?= __("Editori") ?>
+                        </div>
+                        <div class="filter-options" id="publishers-filter">
+                            <?php foreach($filter_options['editori'] as $editore): ?>
+                                <a href="#"
+                                   class="filter-option count <?= ($filters['editore'] ?? '') == $editore['nome'] ? 'active' : '' ?>"
+                                   onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;">
+                                    <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
+                                    <span class="count-badge"><?= $editore['cnt'] ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <!-- Genres -->
+                    <div class="filter-section" id="genre-filter-section"<?= !empty($facetSuppress['genere']) && empty($filters['genere_id']) ? ' style="display:none;"' : '' ?>>
+                        <div class="filter-title">
+                            <i class="fas fa-tags"></i>
+                            <?= __("Generi") ?>
+                        </div>
+                        <div class="filter-options" id="genres-filter">
+                            <?php if($genre_display['level'] > 0): ?>
+                            <div class="filter-back-container">
+                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere_id', <?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>); return false;" title="<?= htmlspecialchars(__("Torna alla categoria superiore"), ENT_QUOTES, 'UTF-8') ?>">
+                                    <i class="fas fa-arrow-left"></i>
+                                    <span><?= __("Torna alla categoria superiore") ?></span>
+                                </a>
+                            </div>
+                            <?php endif; ?>
+                            <?php if($genre_display['level'] === 0): ?>
+                                <!-- Display Level 1 Genres (Radici) -->
+                                <?php foreach($genre_display['genres'] as $genere): ?>
+                                    <?php if (($genere['cnt'] ?? 0) > 0): ?>
+                                    <a href="#"
+                                       class="filter-option count"
+                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
+                                       title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <span><?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?></span>
+                                        <span class="count-badge"><?= $genere['cnt'] ?></span>
+                                    </a>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <!-- Display Level 2 or 3 Genres (children of selected parent) -->
+                                <?php foreach($genre_display['genres'] as $genere): ?>
+                                    <?php if (($genere['cnt'] ?? 0) > 0): ?>
+                                    <?php
+                                        $displayName = $genere['nome'];
+                                        if (strpos($genere['nome'], ' - ') !== false) {
+                                            $parts = explode(' - ', $genere['nome']);
+                                            $displayName = end($parts);
+                                        }
+                                    ?>
+                                    <a href="#"
+                                       class="filter-option count"
+                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
+                                       title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <span><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?></span>
+                                        <span class="count-badge"><?= $genere['cnt'] ?></span>
+                                    </a>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -397,10 +401,10 @@ ob_start();
                     </div>
                     </div><!-- /filters-content -->
                 </div>
-            </div>
+            </aside>
 
             <!-- Main Content -->
-            <div class="catalog-results-column w-full lg:w-2/3 px-3 xl:w-3/4">
+            <div class="catalog-results-column pk-results">
                 <!-- Active Filters Display -->
                 <div id="active-filters" class="active-filters" style="display: none;">
                     <div class="active-filters-title"><?= __("Filtri attivi:") ?></div>
@@ -413,7 +417,7 @@ ob_start();
                         <strong id="total-count"><?= number_format($total_books) ?></strong>
                         <span id="results-text"><?= ($total_articles ?? 0) > 0 ? __('Risultati') : ($total_books == 1 ? __('libro trovato') : __('libri trovati')) ?></span>
                     </div>
-                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <div class="pk-results__tools">
                         <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= htmlspecialchars(__("Rimuovi tutti i filtri"), ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fas fa-filter-circle-xmark"></i>
                             <span class="clear-filters-text"><?= __("Pulisci filtri") ?></span>
@@ -427,6 +431,10 @@ ob_start();
                             <option value="author_asc" <?= ($filters['sort'] ?? 'newest') === 'author_asc' ? 'selected' : '' ?>><?= __("Autore A-Z") ?></option>
                             <option value="author_desc" <?= ($filters['sort'] ?? 'newest') === 'author_desc' ? 'selected' : '' ?>><?= __("Autore Z-A") ?></option>
                         </select>
+                        <div class="pk-view" role="group" aria-label="<?= htmlspecialchars(__("Visualizzazione"), ENT_QUOTES, 'UTF-8') ?>">
+                            <button type="button" class="pk-view__btn is-active" data-pk-view="grid" aria-pressed="true"><?= __("Griglia") ?></button>
+                            <button type="button" class="pk-view__btn" data-pk-view="list" aria-pressed="false"><?= __("Lista") ?></button>
+                        </div>
                     </div>
                 </div>
 
@@ -435,7 +443,7 @@ ob_start();
 
                 <!-- Books Grid -->
                 <div id="books-container">
-                    <div class="books-grid" id="books-grid">
+                    <div class="books-grid pk-grid pk-grid--catalog" id="books-grid">
                         <?php include 'catalog-grid.php'; ?>
                     </div>
 
