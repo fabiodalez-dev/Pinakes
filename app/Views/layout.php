@@ -199,7 +199,15 @@ $htmlLang = substr($currentLocale, 0, 2);
                 $layoutHintDb = $db;
             }
             ?>
-            <?php if (\App\Support\PeriodicalArticlesHint::stateForLayout($layoutHintDb) === \App\Support\PeriodicalArticlesHint::ACTIVE): ?>
+            <?php
+            $layoutArticlesActive = \App\Support\PeriodicalArticlesHint::stateForLayout($layoutHintDb) === \App\Support\PeriodicalArticlesHint::ACTIVE;
+            // The quick search finds articles and periodicals too when the
+            // emeroteca is active (#453): its label says so.
+            $adminSearchLabel = $layoutArticlesActive
+                ? __('Cerca libri, articoli, periodici, autori, editori, utenti...')
+                : __('Cerca libri, autori, editori, utenti...');
+            ?>
+            <?php if ($layoutArticlesActive): ?>
             <a href="<?= htmlspecialchars(url('/admin/periodicals/articles/create'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-new-article"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
@@ -578,10 +586,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                   <div class="flex items-center space-x-2">
                     <i class="fas fa-search text-gray-400 group-focus-within:text-gray-600 transition-colors"></i>
                     <span
-                      class="hidden sm:inline text-xs text-gray-600 transition-colors"><?= __("Cerca libri, autori, editori, utenti...") ?></span>
+                      class="hidden sm:inline text-xs text-gray-600 transition-colors"><?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?></span>
                   </div>
                 </div>
-                <input type="text" id="global-search" aria-label="<?= htmlspecialchars(__('Cerca libri, autori, editori, utenti...'), ENT_QUOTES, 'UTF-8') ?>"
+                <input type="text" id="global-search" aria-label="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>"
                   class="w-full pl-12 pr-4 py-3 lg:py-3.5 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl shadow-sm hover:shadow-md focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all duration-200 placeholder:text-gray-400"
                   autocomplete="off">
 
@@ -762,9 +770,9 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <i class="fas fa-search text-gray-400"></i>
               </div>
-              <input type="text" id="mobile-global-search" aria-label="<?= htmlspecialchars(__('Cerca libri, autori, editori, utenti...'), ENT_QUOTES, 'UTF-8') ?>"
+              <input type="text" id="mobile-global-search" aria-label="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>"
                 class="w-full pl-14 pr-12 py-3 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all"
-                placeholder="<?= htmlspecialchars(__('Cerca libri, autori, editori, utenti...'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
+                placeholder="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
               <button id="mobile-search-close" class="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <i class="fas fa-times text-gray-400 hover:text-gray-600"></i>
               </button>
@@ -995,6 +1003,24 @@ $htmlLang = substr($currentLocale, 0, 2);
                       iconColor = 'text-green-600';
                       if (item.identifier) {
                         identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
+                      }
+                      break;
+                    case 'article':
+                      // Emeroteca (#453): the authors and where it was published
+                      iconClass = 'fas fa-file-alt';
+                      iconColor = 'text-gray-600';
+                      if (item.author) {
+                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.author))}</div>`;
+                      }
+                      if (item.identifier) {
+                        identifierHtml += `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
+                      }
+                      break;
+                    case 'periodical':
+                      iconClass = 'fas fa-newspaper';
+                      iconColor = 'text-gray-600';
+                      if (item.identifier) {
+                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
                       }
                       break;
                     case 'user':
@@ -1269,6 +1295,23 @@ $htmlLang = substr($currentLocale, 0, 2);
                       iconColor = 'text-green-600';
                       if (item.identifier) {
                         identifierHtml = `<div class="text-xs text-gray-500 font-mono mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
+                      }
+                      break;
+                    case 'article':
+                      iconClass = 'fas fa-file-alt';
+                      iconColor = 'text-gray-600';
+                      if (item.author) {
+                        identifierHtml = `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.author))}</div>`;
+                      }
+                      if (item.identifier) {
+                        identifierHtml += `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
+                      }
+                      break;
+                    case 'periodical':
+                      iconClass = 'fas fa-newspaper';
+                      iconColor = 'text-gray-600';
+                      if (item.identifier) {
+                        identifierHtml = `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
                       }
                       break;
                     case 'user':

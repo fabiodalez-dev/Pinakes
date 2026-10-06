@@ -131,11 +131,12 @@ try {
     $svc->setMode('simple');
     $db->query(ContributionService::ddl()); $db->query(ContributionService::ddl());
     // Still derived from TEXT_FIELDS, still asserting ORDER: the 1.7 analytic
-    // fields, then risorsa_pubblica, then the 1.10 host-volume fields (#412);
+    // fields, then risorsa_pubblica, then the 1.10 host-volume fields (#412),
+    // then the 1.12 genre (#455);
     // fields are appended after updated_at, which is the only order an ALTER
     // without AFTER can produce on an upgraded install — so a fresh install
     // that disagreed with it would mean CREATE TABLE and ALTER had drifted.
-    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7,9),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at',...array_slice(array_keys(ContributionService::TEXT_FIELDS),16,9),'risorsa_pubblica',...array_slice(array_keys(ContributionService::TEXT_FIELDS),25)], 'fresh and repeated schema DDL');
+    check412(array_column($svc->rows('SHOW COLUMNS FROM emeroteca_contributi'), 'Field') === ['id','reference_key',...array_slice(array_keys(ContributionService::TEXT_FIELDS),0,7),'anno_pubblicazione',...array_slice(array_keys(ContributionService::TEXT_FIELDS),7,9),'testata_id','fascicolo_id','pubblico','pdf_path','pdf_nome_originale','pdf_dimensione','pdf_pubblico','copertina_url','revision','created_at','updated_at',...array_slice(array_keys(ContributionService::TEXT_FIELDS),16,9),'risorsa_pubblica',...array_slice(array_keys(ContributionService::TEXT_FIELDS),25),'genere_id'], 'fresh and repeated schema DDL');
     // The fragments in COLUMN_DEFINITIONS are interpolated into CREATE TABLE
     // by ddl() AND into ALTER TABLE by ensureAdditiveColumns(). AFTER is legal
     // in the second and a syntax error in the first, so one copied fragment

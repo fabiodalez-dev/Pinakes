@@ -8045,5 +8045,12 @@
   "Pacchetto scaricato e verificato": "Paket heruntergeladen und geprüft",
   "trasferimento interrotto": "Übertragung abgebrochen",
   "Il pacchetto in attesa è cambiato in un'altra scheda: ripeti l'aggiornamento": "Das wartende Paket wurde in einem anderen Tab ersetzt: Starte das Update erneut",
-  "Errore fatale PHP durante l'aggiornamento": "Schwerwiegender PHP-Fehler während der Aktualisierung"
+  "Errore fatale PHP durante l'aggiornamento": "Schwerwiegender PHP-Fehler während der Aktualisierung",
+  "Articoli e saggi": "Artikel und Aufsätze",
+  "Aggiungi nuovo articolo": "Neuen Artikel hinzufügen",
+  "Immagine di «%s»": "Bild von „%s“",
+  "Pubblicazione: %s": "Publikation: %s",
+  "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "Dieselben Genres wie bei den Büchern: Der Artikel erscheint im nach diesem Genre gefilterten Katalog.",
+  "Altre opere di %s": "Weitere Werke von %s",
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Bücher, Artikel, Zeitschriften, Autoren, Verlage, Benutzer suchen..."
 }

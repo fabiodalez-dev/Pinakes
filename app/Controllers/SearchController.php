@@ -247,7 +247,8 @@ class SearchController
             // The quick-search box links to url('/admin/books/{id}'), so an
             // operator must be able to find a title they have just recorded as
             // wanted; everyone else gets the public catalogue.
-            $bookResults = $this->searchBooks($db, $q, $this->isOperatorSession($request));
+            $isOperator = $this->isOperatorSession($request);
+            $bookResults = $this->searchBooks($db, $q, $isOperator);
             $results = array_merge($results, $bookResults);
 
             // Search authors
@@ -260,7 +261,11 @@ class SearchController
 
             // Cap core results to leave headroom for plugin sources.
             $results = array_slice($results, 0, 15);
-            $results = \App\Support\Hooks::apply('search.unified.sources', $results, [$q]);
+            // The context tells a source whether its results will open in the
+            // back office (an operator's quick search) or anywhere else: the
+            // emeroteca then links articles to their edit form and adds the
+            // periodicals (#453). Same role gate as the wanted titles above.
+            $results = \App\Support\Hooks::apply('search.unified.sources', $results, [$q, $isOperator ? 'admin' : 'public']);
 
             // Note: User search is excluded from frontend unified search to keep admin data separate.
         }

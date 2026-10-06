@@ -96,7 +96,7 @@ final class ContributionController extends AbstractAdminController
         }
         // The masthead picker lists the catalogued mastheads, with this
         // article's own link always among them (see hostOptions()).
-        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostOptions' => $this->hostOptions((int) ($row['testata_id'] ?? 0))]);
+        return $this->renderView($rs, 'article-form', ['row' => $row,'error' => null,'hostOptions' => $this->hostOptions((int) ($row['testata_id'] ?? 0)),'genreOptions' => $this->service()->genreOptions()]);
     }
     /**
      * The catalogued mastheads the form can link an article to (#412: pick the
@@ -245,7 +245,7 @@ final class ContributionController extends AbstractAdminController
             foreach (['pubblico','pdf_pubblico','risorsa_pubblica','remove_pdf','remove_copertina'] as $flag) {
                 $flags[$flag] = empty($body[$flag]) ? 0 : 1;
             }
-            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostOptions' => $this->hostOptions((int) (($old ?? [])['testata_id'] ?? 0))]);
+            return $this->renderView($rs->withStatus(422), 'article-form', ['row' => array_replace($old ?? [], $body, $flags),'error' => $e instanceof \InvalidArgumentException ? $e->getMessage() : __('Salvataggio non riuscito.'),'hostOptions' => $this->hostOptions((int) (($old ?? [])['testata_id'] ?? 0)),'genreOptions' => $this->service()->genreOptions()]);
         }
     }
     /**

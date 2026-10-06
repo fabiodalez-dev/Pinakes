@@ -73,6 +73,11 @@ final class ContributionService
         'contenitore_editore' => "VARCHAR(255) NULL",
         'contenitore_luogo' => "VARCHAR(255) NULL",
         'isbn' => "VARCHAR(17) NULL",
+        // 1.12.0 — the genre, from the same tree as the books' (#455), so an
+        // article is found under a genre in the catalogue next to the books
+        // filed there. NULL is the norm; the FK (ON DELETE SET NULL) is added
+        // by EmerotecaPlugin::ensureCoreForeignKeys() (coreForeignKeyDefs()).
+        'genere_id' => "INT NULL",
     ];
     /**
      * The article form's "Other scheme" choice: the scheme's name is then
@@ -419,6 +424,19 @@ SQL;
                     }
                 }
             }
+            // The genre picker (#455) is sent by the form only: imports and
+            // older clients leave the stored genre alone.
+            if (array_key_exists('genre_present', $data)) {
+                $rawGenre = $data['genere_id'] ?? '';
+                if (!is_scalar($rawGenre) || ($rawGenre !== '' && !ctype_digit((string) $rawGenre))) {
+                    throw new \InvalidArgumentException(__('Genere non trovato.'));
+                }
+                $genreId = (int) $rawGenre;
+                if ($genreId > 0 && $this->rows('SELECT id FROM generi WHERE id=?', [$genreId]) === []) {
+                    throw new \InvalidArgumentException(__('Genere non trovato.'));
+                }
+                $values['genere_id'] = $genreId > 0 ? $genreId : null;
+            }
             foreach (['pdf_path','pdf_nome_originale','pdf_dimensione','copertina_url'] as $field) {
                 if (array_key_exists($field, $files)) {
                     $values[$field] = $files[$field];
@@ -456,6 +474,75 @@ SQL;
             }
             throw $e;
         }
+    }
+
+    /**
+     * Every genre as a choice for the article form, labelled with its whole
+     * path ("Storia › Storia sociale"), so any level of the books' genre tree
+     * can be picked. null when the lookup fails: the form then leaves the
+     * stored genre alone instead of offering an empty picker.
+     *
+     * @return list<array{id:int,label:string}>|null
+     */
+    public function genreOptions(): ?array
+    {
+        try {
+            $rows = $this->rows('SELECT id, nome, parent_id FROM generi', []);
+        } catch (\Throwable $e) {
+            return null;
+        }
+        $byId = [];
+        foreach ($rows as $row) {
+            $byId[(int) $row['id']] = $row;
+        }
+        $options = [];
+        foreach ($byId as $id => $row) {
+            $options[] = ['id' => $id, 'label' => implode(' › ', array_column(self::genrePath($byId, $id), 'nome'))];
+        }
+        usort($options, static fn(array $a, array $b): int => strnatcasecmp($a['label'], $b['label']));
+        return $options;
+    }
+
+    /**
+     * The genre and its ancestors, root first, as the catalogue's genre
+     * breadcrumb shows them for a book.
+     *
+     * @return list<array{id:int,nome:string}>
+     */
+    public function genreTrail(int $genreId): array
+    {
+        if ($genreId <= 0) {
+            return [];
+        }
+        $byId = [];
+        // The walk stops at the root or at a row it has already seen, so a
+        // parent_id cycle cannot loop and a deep tree is walked to its root.
+        $next = $genreId;
+        while ($next > 0 && !isset($byId[$next])) {
+            $row = $this->rows('SELECT id, nome, parent_id FROM generi WHERE id=?', [$next])[0] ?? null;
+            if ($row === null) {
+                break;
+            }
+            $byId[$next] = $row;
+            $next = (int) ($row['parent_id'] ?? 0);
+        }
+        return isset($byId[$genreId]) ? self::genrePath($byId, $genreId) : [];
+    }
+
+    /**
+     * @param array<int, array<string,mixed>> $byId
+     * @return list<array{id:int,nome:string}>
+     */
+    private static function genrePath(array $byId, int $id): array
+    {
+        $path = [];
+        $seen = [];
+        while (isset($byId[$id]) && !isset($seen[$id])) {
+            $seen[$id] = true;
+            array_unshift($path, ['id' => $id, 'nome' => (string) $byId[$id]['nome']]);
+            $id = (int) ($byId[$id]['parent_id'] ?? 0);
+        }
+        return $path;
     }
 
     /** @param array<string,mixed> $row @return list<array{name:string,id:?int}> */

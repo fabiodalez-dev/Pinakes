@@ -131,7 +131,9 @@ test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ pa
         // repair had drifted apart.
         // 1.10.0 appends the host volume of an anthology chapter after them.
         expect(db("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME IN ('contenitore_curatori','contenitore_editore','contenitore_luogo','isbn')")).toBe('4');
-        expect(db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' ORDER BY ORDINAL_POSITION DESC LIMIT 1")).toBe('isbn');
+        // 1.12.0 appends the genre (#455), linked to the books' genre tree.
+        expect(db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' ORDER BY ORDINAL_POSITION DESC LIMIT 2")).toBe('genere_id\nisbn');
+        expect(db("SELECT REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME='genere_id' AND REFERENCED_TABLE_NAME IS NOT NULL")).toBe('generi');
         await page.goto(BASE + '/admin/periodicals/articles/create');
         await page.locator('[name=titolo]').fill('Upgraded412 article');
         await page.getByRole('button', { name: 'Salva articolo', exact: true }).click();

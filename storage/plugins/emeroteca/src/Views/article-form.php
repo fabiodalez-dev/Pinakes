@@ -60,11 +60,6 @@ $cardTitle=static function(string $icon,string $title,string $subtitle='',bool $
             <?php $field('titolo','',true,true); ?>
             <?php $field('sottotitolo','',true); ?>
             <?php include __DIR__ . '/article-authors.php'; ?>
-            <?php /* The authors field asks for a semicolon, so a cataloguer who read
-                     that instruction reaches this one and uses a semicolon here too.
-                     Keywords split on a COMMA everywhere in the plugin (public page,
-                     JSON-LD, RIS), so a semicolon silently yields one keyword. */ ?>
-            <?php $field('keywords',__('Separa le parole chiave con una virgola, non con un punto e virgola come gli autori.')); ?>
             <?php $select('tipo_contributo',__('Tipo di contributo'),\EmerotecaPlugin::TIPI_ARTICOLO,'articolo'); ?>
           </div>
         </div>
@@ -172,7 +167,13 @@ $cardTitle=static function(string $icon,string $title,string $subtitle='',bool $
                citation never opens this; a librarian cataloguing an offprint finds
                the whole of danMARC2/MARC 21 008, 084 and the holdings note in one
                place. Every field here is optional. */ ?>
-      <details class="card article-fold">
+      <?php /* Opens by itself when it holds something: the keywords moved here
+               (#455), and a cataloguer must not think they were lost. */
+      $advancedFilled = false;
+      foreach (['keywords','genere_id','lingua','paese','classificazione_schema','classificazione','nota_possesso'] as $advancedKey) {
+          if (trim((string) ($row[$advancedKey] ?? '')) !== '') { $advancedFilled = true; break; }
+      } ?>
+      <details class="card article-fold"<?= $advancedFilled ? ' open' : '' ?>>
         <summary class="card-header cursor-pointer"><?php $cardTitle('fa-tags',__('Descrizione bibliografica avanzata (facoltativa)'),__('Serve a chi cataloga secondo uno standard bibliografico. Lasciando tutto vuoto la scheda resta valida.'),true); ?></summary>
         <div class="card-body form-section">
           <div class="form-grid-2">
@@ -187,6 +188,25 @@ $schemes=['DDC'=>__('DDC — Classificazione decimale Dewey'),'DK5'=>__('DK5 —
 $scheme=trim((string)($row['classificazione_schema']??''));$schemeOther=trim((string)($row['classificazione_schema_altro']??''));
 if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])){$scheme=strtoupper($scheme);}else{$schemeOther=$scheme;$scheme=$otherScheme;}}
 ?>
+            <?php /* Subject access first (#455): keywords and genre, as for a book.
+                     The authors field asks for a semicolon, so a cataloguer who read
+                     that instruction reaches this one and uses a semicolon here too.
+                     Keywords split on a COMMA everywhere in the plugin (public page,
+                     JSON-LD, RIS), so a semicolon silently yields one keyword. */ ?>
+            <?php $field('keywords',__('Separa le parole chiave con una virgola, non con un punto e virgola come gli autori.')); ?>
+            <?php if (is_array($genreOptions ?? null)): ?>
+            <div>
+              <input type="hidden" name="genre_present" value="1">
+              <label for="article-genere_id" class="form-label"><?= __("Genere") ?></label>
+              <select name="genere_id" id="article-genere_id" class="form-input">
+                <option value="">— <?= __("Nessun genere") ?> —</option>
+                <?php foreach ($genreOptions as $genreOption): ?>
+                  <option value="<?= (int) $genreOption['id'] ?>" <?= ((int) ($row['genere_id'] ?? 0)) === (int) $genreOption['id'] ? 'selected' : '' ?>><?= $e($genreOption['label']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p class="text-xs text-gray-500 mt-1"><?= __('Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.') ?></p>
+            </div>
+            <?php endif; ?>
             <?php foreach(['lingua'=>['language',__('Scrivi il nome o il codice, per esempio «danese» o «dan».'),__('Codice ISO 639, per esempio dan, ita, eng.')],'paese'=>['country',__('Scrivi il nome o il codice, per esempio «Danimarca» o «DK».'),__('Codice ISO 3166, per esempio DK, IT.')]] as $key=>[$kind,$hint,$codeHint]): ?>
             <?php $pickerId='article-'.$key; $pickerName=$key; $pickerLabel=$labels[$key]; $pickerKind=$kind; $pickerCurrent=(string)($row[$key]??''); $pickerHint=$hint; $pickerCodeHint=$codeHint; $pickerMax=\App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key]; $pickerError=''; $pickerEmpty=true; include __DIR__.'/code-picker.php'; ?>
             <?php endforeach; ?>
