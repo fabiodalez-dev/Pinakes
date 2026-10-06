@@ -897,6 +897,8 @@ class UpdateController
             'running' => $updater->isUpdateRunning(),
             'last' => $updater->lastUpdateAttempt(),
             'outcome' => $updater->lastUpdateOutcome(),
+            // This page's own install, by the identifier it sent with it.
+            'attempt' => $updater->attemptStatus((string) ($request->getQueryParams()['attempt'] ?? '')),
         ])->withHeader('Cache-Control', 'no-store');
     }
 

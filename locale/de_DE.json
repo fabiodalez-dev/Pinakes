@@ -8057,5 +8057,7 @@
   "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "Die Verbindung wurde unterbrochen, aber das Update läuft auf dem Server weiter. Es wird gewartet, bis es abgeschlossen ist…",
   "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "Das Update scheint nicht abgeschlossen zu sein. Prüfen Sie die Protokolle für Details.",
   "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "Das Update läuft nach 30 Minuten noch auf dem Server. Laden Sie die Seite später neu, um die installierte Version zu sehen.",
-  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "Das Update wurde auf dem Server vor dem Abschluss unterbrochen. Prüfen Sie die Protokolle für Details."
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "Das Update wurde auf dem Server vor dem Abschluss unterbrochen. Prüfen Sie die Protokolle für Details.",
+  "Esito da verificare": "Ergebnis prüfen",
+  "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Ich kann nicht feststellen, wie dieses Update geendet hat. Die installierte Version ist jetzt %s: Prüfen Sie den Update-Verlauf."
 }

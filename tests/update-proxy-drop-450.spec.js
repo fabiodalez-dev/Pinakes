@@ -5,9 +5,11 @@
  * to its end. The page reported an error for an update that had succeeded.
  *
  * The page now reads the outcome from /admin/updates/status when the install
- * request comes back as a gateway error or a dropped connection. The proxy is
- * simulated by answering the browser's install request ourselves; the status
- * replies play the server finishing (or failing) behind it. No update runs.
+ * request comes back as a gateway error or a dropped connection. It sends an
+ * attempt identifier with the install request and only trusts what the server
+ * filed under it (`attempt: {log, outcome}`). The proxy is simulated by
+ * answering the browser's install request ourselves; the status replies play
+ * the server finishing (or failing) behind it. No update runs.
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -31,13 +33,31 @@ let sentAttempt = '';
  * Play the proxy on the install request, keeping the attempt identifier the
  * page sent with it (the server would write it next to the outcome).
  * @param {import('@playwright/test').Page} page
- * @param {'502'|'reset'} how
+ * @param {'502'|'502-empty-json'|'reset'} how
  */
 async function routeInstall(page, how) {
   sentAttempt = '';
   await page.route('**/admin/updates/install-manual', route => {
     sentAttempt = new URLSearchParams(route.request().postData() || '').get('attempt') || '';
-    return how === 'reset' ? route.abort('connectionreset') : route.fulfill(PROXY_502);
+    if (how === 'reset') return route.abort('connectionreset');
+    if (how === '502-empty-json') return route.fulfill({ status: 502, contentType: 'application/json', body: '' });
+    return route.fulfill(PROXY_502);
+  });
+}
+
+/**
+ * A status reply, with what the server filed under the page's attempt.
+ * @param {{version?: string, running?: boolean, last?: object|null, outcome?: object|null, mine?: object|null}} o
+ */
+function status(o) {
+  return (/** @type {string} */ attempt) => ({
+    success: true,
+    version: o.version || '0.7.93',
+    running: !!o.running,
+    last: o.last === undefined ? null : o.last,
+    outcome: o.outcome === undefined ? null : o.outcome,
+    attempt: o.mine ? { log: null, outcome: null, ...o.mine } : null,
+    _for: attempt,
   });
 }
 
@@ -50,7 +70,7 @@ async function routeInstall(page, how) {
  */
 async function routeStatus(page, replies) {
   let call = 0;
-  await page.route('**/admin/updates/status', route => {
+  await page.route(url => url.pathname.endsWith('/admin/updates/status'), route => {
     const reply = replies[Math.min(call, replies.length - 1)];
     call++;
     if (reply === null) {
@@ -87,7 +107,7 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
 
   test('1 The status endpoint answers with the installed version and no update running', async ({ page }) => {
     await login(page);
-    const res = await page.request.get(`${BASE}/admin/updates/status`);
+    const res = await page.request.get(`${BASE}/admin/updates/status?attempt=${'c'.repeat(32)}`);
     expect(res.status()).toBe(200);
     expect(res.headers()['cache-control']).toContain('no-store');
     const data = await res.json();
@@ -95,6 +115,7 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     expect(data.success).toBe(true);
     expect(data.version).toBe(installed);
     expect(data.running).toBe(false);
+    expect(data.attempt, 'an attempt the server never saw has nothing filed').toBeNull();
     // A visitor gets nothing from it.
     const anonymous = await page.context().browser().newContext();
     try {
@@ -111,14 +132,14 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     await routeDownload(page);
     await routeInstall(page, '502');
     await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: { id: 40, to_version: '0.7.93', status: 'completed', error: '' } },
-      { success: true, version: '0.7.93', running: true, last: { id: 41, to_version: TARGET, status: 'started', error: '' } },
-      { success: true, version: TARGET, running: false, last: { id: 41, to_version: TARGET, status: 'completed', error: '' } },
+      status({ running: true, mine: { log: { id: 41, to_version: TARGET, status: 'started', error: '' } } }),
+      status({ version: TARGET, mine: { log: { id: 41, to_version: TARGET, status: 'completed', error: '' } } }),
     ]);
     await startUpdate(page);
     await expect(page.locator('#updateMessage'), 'the page says it is waiting, not that it failed').toContainText('continua sul server', { timeout: 10_000 });
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento completato!', { timeout: 30_000 });
     await expect(page.locator('[data-step="migrate"]')).not.toContainText('Errore');
+    expect(sentAttempt, 'the install request carried an identifier').toMatch(/^[a-f0-9]{32}$/);
   });
 
   test('3 A 502 from the proxy, then the update fails on the server: the page shows its error', async ({ page }) => {
@@ -127,22 +148,21 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     await routeDownload(page);
     await routeInstall(page, '502');
     await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: { id: 50, to_version: '0.7.93', status: 'completed', error: '' } },
-      { success: true, version: '0.7.93', running: false, last: { id: 51, to_version: TARGET, status: 'failed', error: 'Errore nella copia del file: probe450' } },
+      status({ mine: { log: { id: 51, to_version: TARGET, status: 'failed', error: 'Errore nella copia del file: probe450' } } }),
     ]);
     await startUpdate(page);
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 30_000 });
     await expect(page.locator('#updateMessage')).toContainText('probe450');
   });
 
-  test('4 A dropped connection with no log entry: the installed version decides', async ({ page }) => {
+  test('4 A dropped connection: the run\'s own outcome decides', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/admin/updates`);
     await routeDownload(page);
     await routeInstall(page, 'reset');
     await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: null },
-      { success: true, version: TARGET, running: false, last: null },
+      status({ running: true }),
+      status({ version: TARGET, mine: { outcome: { success: true, error: '', version: TARGET } } }),
     ]);
     await startUpdate(page);
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento completato!', { timeout: 30_000 });
@@ -153,10 +173,9 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     await page.goto(`${BASE}/admin/updates`);
     await routeDownload(page);
     await routeInstall(page, '502');
-    // The run's outcome file is the only trace: no new update_logs row.
+    // The run's outcome is the only trace: no update_logs row of its own.
     await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: { id: 70, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 1000, attempt: 'a'.repeat(32), success: true, error: '', version: '0.7.93' } },
-      attempt => ({ success: true, version: '0.7.93', running: false, last: { id: 70, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 2000, attempt, success: false, error: 'Spazio insufficiente probe450', version: '0.7.93' } }),
+      status({ mine: { log: null, outcome: { success: false, error: 'Spazio insufficiente probe450', version: '0.7.93' } } }),
     ]);
     await startUpdate(page);
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 30_000 });
@@ -169,48 +188,34 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     await routeDownload(page);
     await routeInstall(page, '502');
     await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: { id: 80, to_version: '0.7.93', status: 'completed', error: '' }, outcome: null },
-      { success: true, version: '0.7.93', running: false, last: { id: 81, to_version: TARGET, status: 'started', error: '' }, outcome: null },
+      status({ mine: { log: { id: 81, to_version: TARGET, status: 'started', error: '' }, outcome: null } }),
     ]);
     await startUpdate(page);
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 30_000 });
     await expect(page.locator('#updateMessage')).toContainText('interrotto sul server');
   });
 
-  test('5 An older completed update in the log is not taken for this one', async ({ page }) => {
+  test('8 Another administrator\'s run, newer and finished, is not taken for this one', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/admin/updates`);
     await routeDownload(page);
     await routeInstall(page, '502');
-    // Nothing new is ever logged and the version never moves.
+    const foreignLog = { id: 91, to_version: TARGET, status: 'completed', error: '' };
+    const foreignOutcome = { at: 3000, attempt: 'b'.repeat(32), success: false, error: 'not mine probe450', version: '0.7.93' };
     await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: { id: 60, to_version: '0.7.93', status: 'completed', error: '' } },
+      // The other run ended first, with the lock free: its log row and its
+      // outcome are the latest, and neither is filed under this attempt.
+      status({ last: foreignLog, outcome: foreignOutcome }),
+      status({ last: foreignLog, outcome: foreignOutcome, running: true }),
+      status({ last: foreignLog, outcome: foreignOutcome, mine: { outcome: { success: false, error: 'mine probe450', version: '0.7.93' } } }),
     ]);
     await startUpdate(page);
-    await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 40_000 });
-    await expect(page.locator('#updateMessage')).toContainText('non risulta completato');
-  });
-
-  test('8 Another administrator\'s outcome is not taken for this one, even if newer', async ({ page }) => {
-    await login(page);
-    await page.goto(`${BASE}/admin/updates`);
-    await routeDownload(page);
-    await routeInstall(page, '502');
-    const other = 'b'.repeat(32);
-    await routeStatus(page, [
-      { success: true, version: '0.7.93', running: false, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: null },
-      // A second run ended first, with an error that is not this page's, and
-      // the lock is free: a timestamp check would take this outcome.
-      { success: true, version: '0.7.93', running: false, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 3000, attempt: other, success: false, error: 'not mine probe450', version: '0.7.93' } },
-      attempt => ({ success: true, version: '0.7.93', running: false, last: { id: 90, to_version: '0.7.93', status: 'completed', error: '' }, outcome: { at: 4000, attempt, success: true, error: '', version: '0.7.93' } }),
-    ]);
-    await startUpdate(page);
-    await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento completato!', { timeout: 30_000 });
+    await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento fallito', { timeout: 30_000 });
+    await expect(page.locator('#updateMessage')).toContainText('mine probe450');
     await expect(page.locator('#updateMessage')).not.toContainText('not mine');
-    expect(sentAttempt, 'the install request carried an identifier').toMatch(/^[a-f0-9]{32}$/);
   });
 
-  test('9 A status that cannot be read before the request does not hide this run\'s success', async ({ page }) => {
+  test('9 A status that cannot be read at first does not hide this run\'s success', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/admin/updates`);
     await routeDownload(page);
@@ -218,9 +223,36 @@ test.describe.serial('Update survives a proxy that drops the install request (#4
     // The version never reaches the target: only the outcome can tell.
     await routeStatus(page, [
       null,
-      attempt => ({ success: true, version: '0.7.93', running: false, last: null, outcome: { at: 5000, attempt, success: true, error: '', version: '0.7.93' } }),
+      status({ mine: { outcome: { success: true, error: '', version: '0.7.93' } } }),
     ]);
     await startUpdate(page);
     await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento completato!', { timeout: 30_000 });
+  });
+
+  test('10 A gateway error with an empty JSON body is waited out, not reported', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/updates`);
+    await routeDownload(page);
+    await routeInstall(page, '502-empty-json');
+    await routeStatus(page, [
+      status({ version: TARGET, mine: { outcome: { success: true, error: '', version: TARGET } } }),
+    ]);
+    await startUpdate(page);
+    await expect(page.locator('#updateTitle')).toHaveText('Aggiornamento completato!', { timeout: 30_000 });
+  });
+
+  test('5 Nothing filed under this attempt: the page says the outcome is to check, never a success', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/updates`);
+    await routeDownload(page);
+    await routeInstall(page, '502');
+    // The installed version even reached the target, and the latest log row
+    // completed: neither is this run's, so neither may pass for its success.
+    await routeStatus(page, [
+      status({ version: TARGET, last: { id: 60, to_version: TARGET, status: 'completed', error: '' } }),
+    ]);
+    await startUpdate(page);
+    await expect(page.locator('#updateTitle')).toHaveText('Esito da verificare', { timeout: 40_000 });
+    await expect(page.locator('#updateMessage')).toContainText(TARGET);
   });
 });

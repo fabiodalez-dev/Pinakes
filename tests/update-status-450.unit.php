@@ -158,6 +158,77 @@ try {
     }
 }
 
+echo "B3. each install attempt, by the identifier the page sent\n";
+$attemptsFile = $root . '/storage/cache/update-attempts.json';
+$savedAttempts = is_file($attemptsFile) ? file_get_contents($attemptsFile) : null;
+$savedOutcome = is_file($outcomeFile) ? file_get_contents($outcomeFile) : null;
+$attemptLogIds = [];
+try {
+    @unlink($attemptsFile);
+    $logStart = new ReflectionMethod(Updater::class, 'logUpdateStart');
+    $logStart->setAccessible(true);
+    $record = new ReflectionMethod(Updater::class, 'recordUpdateOutcome');
+    $record->setAccessible(true);
+    $mine = bin2hex(random_bytes(16));
+    $other = bin2hex(random_bytes(16));
+
+    $updater->setAttemptId($mine);
+    $attemptLogIds[] = $myLog = (int) $logStart->invoke($updater, '0.0.1', '9.9.9', null);
+    $status = $updater->attemptStatus($mine);
+    $check(($status['log']['id'] ?? 0) === $myLog && $status['log']['status'] === 'started' && $status['outcome'] === null,
+        'the run\'s log row is filed under its attempt as soon as it opens');
+    // A backup shares the table but is not the install the page waits for.
+    $attemptLogIds[] = (int) $logStart->invoke($updater, '0.0.1', 'backup', '/tmp/x');
+    $check(($updater->attemptStatus($mine)['log']['id'] ?? 0) === $myLog, 'a backup row does not replace the run\'s row');
+    $record->invoke($updater, ['success' => false, 'error' => 'disk full ' . $marker]);
+    $status = $updater->attemptStatus($mine);
+    $check(($status['outcome']['success'] ?? null) === false && ($status['outcome']['error'] ?? '') === 'disk full ' . $marker,
+        'the run\'s outcome is filed next to its log row');
+
+    // Another administrator's run, later: it has its own entry, and the latest
+    // outcome is now theirs, but this attempt still reads its own.
+    $updater->setAttemptId($other);
+    $attemptLogIds[] = (int) $logStart->invoke($updater, '0.0.1', '9.9.9', null);
+    $record->invoke($updater, ['success' => true, 'error' => null]);
+    $check(($updater->lastUpdateOutcome()['attempt'] ?? '') === $other, 'the latest outcome is the other run\'s');
+    $check(($updater->attemptStatus($mine)['outcome']['error'] ?? '') === 'disk full ' . $marker
+        && ($updater->attemptStatus($mine)['log']['id'] ?? 0) === $myLog, 'this attempt still reads its own row and outcome');
+    $check(($updater->attemptStatus($other)['outcome']['success'] ?? null) === true, 'the other attempt reads its own');
+
+    $check($updater->attemptStatus(bin2hex(random_bytes(16))) === null, 'an attempt the server never saw has nothing filed');
+    $check($updater->attemptStatus('../../etc/passwd') === null, 'a malformed identifier reads nothing');
+
+    // Only the most recent attempts are kept.
+    for ($i = 0; $i < 12; $i++) {
+        $updater->setAttemptId(bin2hex(random_bytes(16)));
+        $record->invoke($updater, ['success' => true, 'error' => null]);
+    }
+    $kept = json_decode((string) file_get_contents($attemptsFile), true);
+    $check(is_array($kept) && count($kept) === 10, 'the file keeps the 10 most recent attempts');
+    $check($updater->attemptStatus($mine) === null, 'older attempts drop off');
+    $check(glob($attemptsFile . '.*.tmp') === [], 'the writes leave no temp file behind');
+
+    // Without an identifier nothing is filed.
+    $updater->setAttemptId('');
+    $before = (string) file_get_contents($attemptsFile);
+    $record->invoke($updater, ['success' => true, 'error' => null]);
+    $check((string) file_get_contents($attemptsFile) === $before, 'a run without an identifier files nothing');
+} finally {
+    $updater->setAttemptId('');
+    foreach ($attemptLogIds as $id) {
+        if ($id > 0) {
+            $db->query('DELETE FROM update_logs WHERE id = ' . (int) $id);
+        }
+    }
+    foreach ([[$attemptsFile, $savedAttempts], [$outcomeFile, $savedOutcome]] as [$file, $content]) {
+        if ($content !== null) {
+            file_put_contents($file, $content);
+        } else {
+            @unlink($file);
+        }
+    }
+}
+
 echo "C. the install request lets the status polls through\n";
 // The polls come from the same browser session, and PHP keeps a session
 // locked until the request that opened it closes it.
@@ -167,6 +238,8 @@ $install = substr($install, 0, (int) strpos($install, "\n    }\n") + 6);
 $closeAt = strpos($install, 'session_write_close()');
 $runAt = strpos($install, '->performUpdateFromFile(');
 $check($closeAt !== false && $runAt !== false && $closeAt < $runAt, 'the session is released before the update runs');
+$attemptAt = strpos($install, '->setAttemptId(');
+$check($attemptAt !== false && $attemptAt < $runAt, 'the page\'s attempt identifier is handed over before the update runs');
 $check(strpos($install, "unset(\$_SESSION['manual_update_path']") < $closeAt, 'after the pending package is cleared, so the clearing is saved');
 
 echo "\nPassed: {$passed}   Failed: {$failed}\n";
