@@ -28,6 +28,8 @@ namespace App\Support {
             return ['met' => true, 'requirements' => []];
         }
 
+        public function setAttemptId(string $attemptId): void {}
+
         public function performUpdateFromFile(string $path): array
         {
             self::$installed[] = $path;

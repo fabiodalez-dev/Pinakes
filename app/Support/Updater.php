@@ -2141,6 +2141,13 @@ class Updater
         } finally {
             $this->cleanup();
 
+            // The outcome is written while the lock is still held, so a page
+            // whose request a proxy dropped (#450) reads a final answer as
+            // soon as it sees the lock free, failures before installUpdate()
+            // (space, backup, extraction, package checks) included: those
+            // leave no update_logs row of their own.
+            $this->recordUpdateOutcome($result ?? ['success' => false, 'error' => null]);
+
             // Normal cleanup is complete while this request still owns the
             // lock. Disarm the shutdown fallback before releasing it: once
             // another request acquires the lock, this request must never remove
@@ -4348,6 +4355,12 @@ class Updater
             $id = $this->db->insert_id;
             $stmt->close();
 
+            // The page that started this install finds its log row by its
+            // attempt identifier (#450). Backups share the table, not the role.
+            if ($toVersion !== 'backup' && $id > 0) {
+                $this->rememberAttempt(['log_id' => (int) $id]);
+            }
+
             return $id;
         } catch (\Throwable $e) {
             $this->debugLog('WARNING', 'Log update start fallito', ['error' => $e->getMessage()]);
@@ -4378,6 +4391,226 @@ class Updater
             }
         } catch (\Throwable $e) {
             $this->debugLog('WARNING', 'Log update complete fallito', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Whether an update is running right now: some request holds the update
+     * lock. The page asks when the proxy in front of the site dropped its
+     * install request (#450) while PHP, with ignore_user_abort, carried on.
+     * A shared, non-blocking probe: it never waits and never takes the lock
+     * from the update; a lock it cannot even open counts as not running.
+     */
+    public function isUpdateRunning(): bool
+    {
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        if (!is_file($lockFile)) {
+            return false;
+        }
+        $handle = @fopen($lockFile, 'r');
+        if ($handle === false) {
+            return false;
+        }
+        try {
+            if (flock($handle, LOCK_SH | LOCK_NB)) {
+                flock($handle, LOCK_UN);
+                return false;
+            }
+            return true;
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /** The page's identifier for the install it started (see setAttemptId()), or ''. */
+    private string $attemptId = '';
+
+    /**
+     * Name the install about to run, so its outcome can be told apart from
+     * another one. The update page makes the identifier before it sends the
+     * request, and finds its own outcome by it when a proxy dropped the
+     * request (#450): timestamps cannot tell two administrators' runs apart.
+     * Anything but 32 hex characters is ignored.
+     */
+    public function setAttemptId(string $attemptId): void
+    {
+        $this->attemptId = preg_match('/^[a-f0-9]{32}$/', $attemptId) === 1 ? $attemptId : '';
+    }
+
+    /**
+     * Write how the update this request ran ended, for the status endpoint.
+     * Atomic (temp file + rename); a write that fails is logged and skipped:
+     * the status then falls back to update_logs and the installed version.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function recordUpdateOutcome(array $result): void
+    {
+        $file = $this->rootPath . '/storage/cache/update-outcome.json';
+        $payload = json_encode([
+            'at' => microtime(true),
+            'attempt' => $this->attemptId,
+            'success' => !empty($result['success']),
+            'error' => (string) ($result['error'] ?? ''),
+            'version' => $this->getCurrentVersion(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if ($payload === false || @file_put_contents($tmp, $payload) === false || !@rename($tmp, $file)) {
+            @unlink($tmp);
+            $this->debugLog('WARNING', 'Esito aggiornamento non registrato', ['file' => $file]);
+        }
+        $this->rememberAttempt(['outcome' => [
+            'success' => !empty($result['success']),
+            'error' => (string) ($result['error'] ?? ''),
+            'version' => $this->getCurrentVersion(),
+        ]]);
+    }
+
+    /** Most recent attempts kept in update-attempts.json; older ones drop off. */
+    private const ATTEMPTS_KEPT = 10;
+
+    /**
+     * Merge $fields into this run's entry of storage/cache/update-attempts.json,
+     * the per-attempt record the update page reads (#450): its update_logs row
+     * and its outcome, under the identifier the page sent. A single "latest"
+     * record cannot tell two administrators' runs apart. Called while the
+     * update lock is held, so writers never overlap. Without an identifier
+     * there is nothing to file it under; a failed write is logged and skipped.
+     *
+     * @param array<string, mixed> $fields
+     */
+    private function rememberAttempt(array $fields): void
+    {
+        if ($this->attemptId === '') {
+            return;
+        }
+        $file = $this->rootPath . '/storage/cache/update-attempts.json';
+        $raw = is_file($file) ? @file_get_contents($file) : '';
+        $attempts = is_string($raw) && $raw !== '' ? json_decode($raw, true) : [];
+        $attempts = is_array($attempts) ? $attempts : [];
+        $entry = is_array($attempts[$this->attemptId] ?? null) ? $attempts[$this->attemptId] : [];
+        unset($attempts[$this->attemptId]);
+        $attempts[$this->attemptId] = array_merge($entry, $fields, ['at' => microtime(true)]);
+        $attempts = array_slice($attempts, -self::ATTEMPTS_KEPT, null, true);
+        $payload = json_encode($attempts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if ($payload === false || @file_put_contents($tmp, $payload) === false || !@rename($tmp, $file)) {
+            @unlink($tmp);
+            $this->debugLog('WARNING', 'Tentativo di aggiornamento non registrato', ['file' => $file]);
+        }
+    }
+
+    /**
+     * What is known of one install attempt (see rememberAttempt()): its
+     * update_logs row and its outcome, each null until written. Null when the
+     * identifier is malformed or unknown.
+     *
+     * @return array{log:array{id:int,to_version:string,status:string,error:string}|null,outcome:array{success:bool,error:string,version:string}|null}|null
+     */
+    public function attemptStatus(string $attemptId): ?array
+    {
+        if (preg_match('/^[a-f0-9]{32}$/', $attemptId) !== 1) {
+            return null;
+        }
+        $raw = @file_get_contents($this->rootPath . '/storage/cache/update-attempts.json');
+        $attempts = is_string($raw) ? json_decode($raw, true) : null;
+        $entry = is_array($attempts) && is_array($attempts[$attemptId] ?? null) ? $attempts[$attemptId] : null;
+        if ($entry === null) {
+            return null;
+        }
+        $outcome = is_array($entry['outcome'] ?? null) ? [
+            'success' => !empty($entry['outcome']['success']),
+            'error' => (string) ($entry['outcome']['error'] ?? ''),
+            'version' => (string) ($entry['outcome']['version'] ?? ''),
+        ] : null;
+        $log = isset($entry['log_id']) ? $this->updateLogRow((int) $entry['log_id']) : null;
+        return ['log' => $log, 'outcome' => $outcome];
+    }
+
+    /**
+     * One update_logs row by id, or null when it is missing or unreadable.
+     *
+     * @return array{id:int,to_version:string,status:string,error:string}|null
+     */
+    private function updateLogRow(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+        try {
+            $stmt = $this->db->prepare('SELECT id, to_version, status, error_message FROM update_logs WHERE id = ?');
+            if ($stmt === false) {
+                return null;
+            }
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+            $stmt->close();
+            if (!is_array($row)) {
+                return null;
+            }
+            return [
+                'id' => (int) $row['id'],
+                'to_version' => (string) $row['to_version'],
+                'status' => (string) $row['status'],
+                'error' => (string) ($row['error_message'] ?? ''),
+            ];
+        } catch (\Throwable $e) {
+            $this->debugLog('WARNING', 'Lettura riga aggiornamento fallita', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * How the latest update run ended (see recordUpdateOutcome()), or null.
+     *
+     * @return array{at:float,attempt:string,success:bool,error:string,version:string}|null
+     */
+    public function lastUpdateOutcome(): ?array
+    {
+        $raw = @file_get_contents($this->rootPath . '/storage/cache/update-outcome.json');
+        $data = is_string($raw) ? json_decode($raw, true) : null;
+        if (!is_array($data) || !isset($data['at'])) {
+            return null;
+        }
+        return [
+            'at' => (float) $data['at'],
+            'attempt' => (string) ($data['attempt'] ?? ''),
+            'success' => !empty($data['success']),
+            'error' => (string) ($data['error'] ?? ''),
+            'version' => (string) ($data['version'] ?? ''),
+        ];
+    }
+
+    /**
+     * The latest update attempt in update_logs (backups excluded), or null
+     * when there is none or the table is missing.
+     *
+     * @return array{id:int,to_version:string,status:string,error:string}|null
+     */
+    public function lastUpdateAttempt(): ?array
+    {
+        try {
+            $tableCheck = $this->db->query("SHOW TABLES LIKE 'update_logs'");
+            if ($tableCheck === false || $tableCheck->num_rows === 0) {
+                return null;
+            }
+            $tableCheck->free();
+            $result = $this->db->query("SELECT id, to_version, status, error_message FROM update_logs WHERE to_version <> 'backup' ORDER BY id DESC LIMIT 1");
+            $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+            if (!is_array($row)) {
+                return null;
+            }
+            return [
+                'id' => (int) $row['id'],
+                'to_version' => (string) $row['to_version'],
+                'status' => (string) $row['status'],
+                'error' => (string) ($row['error_message'] ?? ''),
+            ];
+        } catch (\Throwable $e) {
+            $this->debugLog('WARNING', 'Lettura ultimo aggiornamento fallita', ['error' => $e->getMessage()]);
+            return null;
         }
     }
 

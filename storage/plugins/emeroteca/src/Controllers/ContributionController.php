@@ -84,6 +84,25 @@ final class ContributionController extends AbstractAdminController
             ->withHeader('X-Content-Type-Options', 'nosniff');
     }
     /**
+     * The article's own admin page (#453, #454): what the record says, with
+     * Edit, Delete, the public page and the exports as buttons, as the admin
+     * book page does for a book. 404 if the article does not exist.
+     */
+    public function show(Request $rq, Response $rs, array $args = []): Response
+    {
+        $row = $this->service()->get((int)($args['id'] ?? 0));
+        if ($row === null) {
+            return $rs->withStatus(404);
+        }
+        try {
+            $genreTrail = $this->service()->genreTrail((int)($row['genere_id'] ?? 0));
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Emeroteca] article genre: '.$e->getMessage());
+            $genreTrail = [];
+        }
+        return $this->renderView($rs, 'article-show', ['row' => $row,'genreTrail' => $genreTrail,'isAdmin' => ($_SESSION['user']['tipo_utente'] ?? '') === 'admin']);
+    }
+    /**
      * Render the create/edit form. With an id, 404s if the article does not exist
      * (soft-deleted or never existed); without one, renders a blank form.
      */

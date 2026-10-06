@@ -8052,5 +8052,12 @@
   "Pubblicazione: %s": "Publication : %s",
   "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "Les mêmes genres que pour les livres : l’article apparaît dans le catalogue filtré par ce genre.",
   "Altre opere di %s": "Autres œuvres de %s",
-  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Rechercher livres, articles, périodiques, auteurs, éditeurs, utilisateurs..."
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Rechercher livres, articles, périodiques, auteurs, éditeurs, utilisateurs...",
+  "File e citazione": "Fichiers et citation",
+  "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "La connexion a été interrompue, mais la mise à jour se poursuit sur le serveur. Attente de la fin…",
+  "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "La mise à jour ne semble pas terminée. Consultez les journaux pour plus de détails.",
+  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "La mise à jour est toujours en cours sur le serveur après 30 minutes. Rechargez la page plus tard pour voir la version installée.",
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "La mise à jour s'est interrompue sur le serveur avant la fin. Consultez les journaux pour plus de détails.",
+  "Esito da verificare": "Résultat à vérifier",
+  "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Je ne peux pas déterminer comment cette mise à jour s'est terminée. La version installée est maintenant %s : consultez l'historique des mises à jour."
 }

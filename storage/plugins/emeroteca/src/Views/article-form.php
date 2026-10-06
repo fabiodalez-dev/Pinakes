@@ -37,6 +37,10 @@ $cardTitle=static function(string $icon,string $title,string $subtitle='',bool $
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
         <li><a href="<?= $e(url('/admin/periodicals/articles')) ?>" class="text-gray-500 hover:text-gray-700 transition-colors"><?= __('Articoli') ?></a></li>
         <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
+        <?php if($isEdit): ?>
+        <li><a href="<?= $e(url('/admin/periodicals/articles/'.(int)$row['id'])) ?>" class="text-gray-500 hover:text-gray-700 transition-colors"><?= $e(mb_strimwidth((string)($row['titolo']??''),0,60,'…')) ?></a></li>
+        <li><i class="fas fa-chevron-right text-gray-400 text-xs"></i></li>
+        <?php endif; ?>
         <li class="text-gray-900 font-medium"><?= $isEdit?__('Modifica'):__('Nuovo') ?></li>
       </ol>
     </nav>
@@ -357,7 +361,7 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
       </div>
 
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
-        <a href="<?= $e(url('/admin/periodicals/articles')) ?>" class="btn-secondary order-2 sm:order-1"><i class="fas fa-times mr-2"></i><?= __('Annulla') ?></a>
+        <a href="<?= $e(url($isEdit?'/admin/periodicals/articles/'.(int)$row['id']:'/admin/periodicals/articles')) ?>" class="btn-secondary order-2 sm:order-1"><i class="fas fa-times mr-2"></i><?= __('Annulla') ?></a>
         <button type="submit" class="btn-primary order-1 sm:order-2"><i class="fas fa-save mr-2"></i><?= __('Salva articolo') ?></button>
       </div>
     </form>

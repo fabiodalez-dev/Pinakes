@@ -8052,5 +8052,12 @@
   "Pubblicazione: %s": "Publikation: %s",
   "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "De samme genrer som bøgerne: artiklen vises i kataloget filtreret efter den genre.",
   "Altre opere di %s": "Andre værker af %s",
-  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Søg i bøger, artikler, tidsskrifter, forfattere, forlag, brugere..."
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Søg i bøger, artikler, tidsskrifter, forfattere, forlag, brugere...",
+  "File e citazione": "Filer og citation",
+  "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "Forbindelsen blev afbrudt, men opdateringen fortsætter på serveren. Venter på, at den bliver færdig…",
+  "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "Opdateringen ser ikke ud til at være fuldført. Se loggene for detaljer.",
+  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "Opdateringen kører stadig på serveren efter 30 minutter. Genindlæs siden senere for at se den installerede version.",
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "Opdateringen stoppede på serveren, før den blev færdig. Se loggene for detaljer.",
+  "Esito da verificare": "Resultatet skal kontrolleres",
+  "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Jeg kan ikke afgøre, hvordan denne opdatering endte. Den installerede version er nu %s: tjek opdateringshistorikken."
 }

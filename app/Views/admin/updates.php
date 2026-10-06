@@ -786,18 +786,12 @@ async function startUpdate(version) {
 
         failedStep = 'backup';
         setStepActive('backup');
-        const response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(downloadData.package || '')}`
-        });
-
-        // Check for maintenance mode before parsing response
-        if (response.status === 503) {
-            throw new Error(<?= json_encode(__("Server in manutenzione. Attendi il completamento dell'aggiornamento."), JSON_HEX_TAG) ?>);
-        }
-
-        const data = await readUpdateJson(response);
+        const data = await runInstallRequest(
+            `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(downloadData.package || '')}`,
+            () => {
+                document.getElementById('updateMessage').textContent = <?= json_encode(__("La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…"), JSON_HEX_TAG) ?>;
+            }
+        );
 
         if (data.success) {
             setStepComplete('backup');
@@ -812,6 +806,13 @@ async function startUpdate(version) {
             document.getElementById('updateIcon').className = 'w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4';
             document.getElementById('updateTitle').textContent = <?= json_encode(__("Aggiornamento completato!"), JSON_HEX_TAG) ?>;
             document.getElementById('updateMessage').textContent = <?= json_encode(__("Pinakes è stato aggiornato con successo."), JSON_HEX_TAG) ?>;
+        } else if (data.indeterminate) {
+            // The page lost the connection and the server left nothing it can
+            // tie to this run: say what is known, not that it failed.
+            document.getElementById('updateIcon').innerHTML = '<i class="fas fa-question-circle text-amber-600 text-3xl"></i>';
+            document.getElementById('updateIcon').className = 'w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4';
+            document.getElementById('updateTitle').textContent = <?= json_encode(__("Esito da verificare"), JSON_HEX_TAG) ?>;
+            document.getElementById('updateMessage').textContent = data.error;
         } else {
             setStepFailed('backup');
             document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
@@ -848,6 +849,124 @@ async function readUpdateJson(response) {
     console.error('Server returned non-JSON response:', text.substring(0, 500));
     const excerpt = text.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 240);
     throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?> + ` (HTTP ${response.status}${excerpt ? ': ' + excerpt : ''})`);
+}
+
+/**
+ * The install request (#450). It runs backup, files and migrations in one go,
+ * and a proxy in front of the site (Apache mod_proxy, a NAS's remote access,
+ * Cloudflare) may give up on it after a minute with a 502 or 504, or drop the
+ * connection, while PHP carries on to the end. In those cases the outcome is
+ * read from /admin/updates/status instead of being reported as a failure.
+ * `onWait` is told once that the page is now waiting for the server.
+ * The request carries an identifier the server files its log row and outcome
+ * under, so the page reads its own run and never another administrator's.
+ */
+async function runInstallRequest(body, onWait) {
+    const attempt = newAttemptId();
+    let response;
+    try {
+        response = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+            body: body + '&attempt=' + attempt
+        });
+    } catch (networkError) {
+        return waitForUpdateOutcome(attempt, onWait);
+    }
+    if ([502, 503, 504, 520, 522, 524].includes(response.status)) {
+        // A gateway answer: only a readable JSON body from the app itself
+        // counts. A proxy's page, or JSON cut short or empty, means the
+        // request was dropped on the way while the update may carry on.
+        const text = await response.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            data = null;
+        }
+        return data && typeof data === 'object' && 'success' in data ? data : waitForUpdateOutcome(attempt, onWait);
+    }
+    return readUpdateJson(response);
+}
+
+/** 32 random hex characters naming one install request. */
+function newAttemptId() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The update status for `attempt`, or null when it cannot be read right now. */
+async function fetchUpdateStatus(attempt) {
+    try {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/status?attempt=' + encodeURIComponent(attempt), {
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
+        });
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            return null;
+        }
+        const data = await response.json();
+        return data && data.success ? data : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Poll until the server is done with the update, then answer as the install
+ * request would have: {success, message} or {success: false, error}.
+ * Done means the update lock is free. Only what the server filed under
+ * `attempt` decides: the run's outcome, else its update_logs row. With
+ * neither, the result cannot be told (another administrator's run, or a run
+ * that never reached its log), and the page says so with the installed
+ * version instead of guessing: {success: false, indeterminate: true, error}.
+ */
+async function waitForUpdateOutcome(attempt, onWait) {
+    if (typeof onWait === 'function') {
+        onWait();
+    }
+    const deadline = Date.now() + 30 * 60 * 1000;
+    let idlePolls = 0;
+    while (Date.now() < deadline) {
+        await sleep(5000);
+        const status = await fetchUpdateStatus(attempt);
+        if (!status || status.running) {
+            idlePolls = 0;
+            continue;
+        }
+        const mine = status.attempt || null;
+        // The run's own outcome covers every failure, including those before
+        // the install step that leave no log row (space, backup, package).
+        if (mine && mine.outcome) {
+            return mine.outcome.success
+                ? { success: true, message: <?= json_encode(__("Aggiornamento completato con successo"), JSON_HEX_TAG) ?> }
+                : { success: false, error: mine.outcome.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?> };
+        }
+        const log = mine && mine.log ? mine.log : null;
+        if (log && log.status === 'completed') {
+            return { success: true, message: <?= json_encode(__("Aggiornamento completato con successo"), JSON_HEX_TAG) ?> };
+        }
+        if (log && (log.status === 'failed' || log.status === 'rolled_back')) {
+            return { success: false, error: log.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?> };
+        }
+        // Started, never finished, and the lock is free: the server process
+        // ended mid-update (a fatal error, memory, a killed worker).
+        if (log && log.status === 'started') {
+            return { success: false, error: <?= json_encode(__("L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli."), JSON_HEX_TAG) ?> };
+        }
+        // Not running and nothing filed under this attempt: give the update a
+        // moment to take the lock or write its record, then say what is known.
+        if (++idlePolls >= 3) {
+            return {
+                success: false,
+                indeterminate: true,
+                error: <?= json_encode(__("Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti."), JSON_HEX_TAG) ?>.replace('%s', status.version || '?')
+            };
+        }
+    }
+    return { success: false, error: <?= json_encode(__("L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata."), JSON_HEX_TAG) ?> };
 }
 
 function setStepActive(step) {
@@ -1546,16 +1665,16 @@ async function submitManualUpdate() {
             didOpen: () => Swal.showLoading()
         });
 
-        const installResponse = await fetch(window.BASE_PATH + '/admin/updates/install-manual', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-            },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(uploadData.package || '')}`
-        });
-
-        const installData = await readUpdateJson(installResponse);
+        const installData = await runInstallRequest(
+            `csrf_token=${encodeURIComponent(csrfToken)}&package=${encodeURIComponent(uploadData.package || '')}`,
+            () => {
+                Swal.update({
+                    title: <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>,
+                    html: `<p class="text-sm text-gray-600">${<?= json_encode(__("La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…"), JSON_HEX_TAG) ?>}</p>`
+                });
+                Swal.showLoading();
+            }
+        );
 
         if (installData.success) {
             Swal.fire({
@@ -1571,6 +1690,14 @@ async function submitManualUpdate() {
             // Reset uppy
             uppyManualUpdate.cancelAll();
             uploadedFile = null;
+        } else if (installData.indeterminate) {
+            Swal.fire({
+                icon: 'warning',
+                title: <?= json_encode(__("Esito da verificare"), JSON_HEX_TAG) ?>,
+                text: installData.error
+            });
+            btnText.textContent = originalText;
+            submitBtn.disabled = false;
         } else {
             throw new Error(installData.error || <?= json_encode(__("Errore durante l'installazione"), JSON_HEX_TAG) ?>);
         }

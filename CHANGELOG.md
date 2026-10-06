@@ -2,6 +2,18 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.7.94]
+
+### Added
+- **An admin page for each article** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453), [#454](https://github.com/fabiodalez-dev/Pinakes/issues/454)), laid out like the admin book page. It shows the cover, authors, publication, masthead and issue, genre with its path, keywords and the rest of the record, the PDF and the RIS and MARCXML exports, with Edit, Delete and the public page as buttons. `/admin/periodicals/articles/{id}` is now this page and the form moved to `/admin/periodicals/articles/{id}/edit`. The quick search, the Articles list (which gains View and Edit icons) and the Details button on the author page open it, and saving the form returns to it. Before, every link opened the form, so saving looked as if nothing had happened.
+- **`GET /admin/updates/status`** ([#450](https://github.com/fabiodalez-dev/Pinakes/issues/450)): the installed version, whether the update lock is held, the latest update attempt and the outcome of the latest run, and, with `?attempt=`, the update log row and outcome of that one install attempt. Admin only (staff get 403), never cached, reachable during maintenance.
+
+### Fixed
+- **An update behind a reverse proxy is no longer reported as failed when it succeeded** ([#450](https://github.com/fabiodalez-dev/Pinakes/issues/450)). The install request runs the backup, the files and the migrations in one go. A proxy in front of the site (Apache `mod_proxy`, a NAS's remote access, Cloudflare) can give up on it after a minute with a 502 or 504 while PHP, which ignores the aborted connection, finishes the update. The page treated that as a failure. On a gateway error or a dropped connection it now polls the status endpoint until the update lock is free, and reports how the run ended: success, or the error it stopped on. The page sends an identifier with its install request, and the run files its update log row and its outcome under it, so the page reads its own result and never another administrator's update. When nothing is filed under its attempt, the page says the outcome is to check and shows the installed version, instead of guessing. A gateway error whose body is empty or cut short is waited out like the others. The run writes its outcome before it releases the lock, so a failure before the install step (space, backup, extraction, package checks) is reported with its own message too, and an attempt the server left half-way is reported as interrupted. The install request releases the PHP session before the update runs, so those polls are not held behind it.
+- **Only the most specific admin menu entry is highlighted.** On an article page both Periodicals and Articles lit up, because the address of one starts with the other's.
+
+The Emeroteca plugin goes to 1.12.1. No migration.
+
 ## [0.7.93]
 
 ### Added

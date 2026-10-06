@@ -8052,5 +8052,12 @@
   "Pubblicazione: %s": "Pubblicazione: %s",
   "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.": "Gli stessi generi dei libri: l’articolo compare nel catalogo filtrato per quel genere.",
   "Altre opere di %s": "Altre opere di %s",
-  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Cerca libri, articoli, periodici, autori, editori, utenti..."
+  "Cerca libri, articoli, periodici, autori, editori, utenti...": "Cerca libri, articoli, periodici, autori, editori, utenti...",
+  "File e citazione": "File e citazione",
+  "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…": "La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…",
+  "L'aggiornamento non risulta completato. Controlla i log per i dettagli.": "L'aggiornamento non risulta completato. Controlla i log per i dettagli.",
+  "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.": "L'aggiornamento è ancora in corso sul server dopo 30 minuti. Ricarica la pagina più tardi per vedere la versione installata.",
+  "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.": "L'aggiornamento si è interrotto sul server prima di finire. Controlla i log per i dettagli.",
+  "Esito da verificare": "Esito da verificare",
+  "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti."
 }
