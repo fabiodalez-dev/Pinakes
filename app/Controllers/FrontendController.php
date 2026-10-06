@@ -2887,17 +2887,6 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
     }
 
     /**
-     * Get the appropriate genres to display based on current filter selection
-     * Implements hierarchical navigation:
-     * - Level 0: Show all root genres (parent_id = null)
-     * - Level 1: Show children of selected root genre
-     * - Level 2: Show children of selected second-level genre
-     *
-     * @param array $allGenres Full genre hierarchy from buildGenreHierarchy
-     * @param int $selectedGenreId Currently selected genre ID (0 = none)
-     * @return array ['genres' => display genres, 'level' => current level, 'parent' => parent genre for back button]
-     */
-    /**
      * The genre with this id in the facet tree, and its parent (null for a
      * root). Depth-first; buildGenreHierarchy() keeps a genre in one place
      * only, so the walk cannot revisit a node.
@@ -2921,6 +2910,18 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return [null, null];
     }
 
+    /**
+     * Get the appropriate genres to display based on current filter selection
+     * Implements hierarchical navigation:
+     * - Level 0: Show all root genres (parent_id = null)
+     * - Level 1: Show children of the selected root genre
+     * - Level 2: Show children of a selected genre whose parent is a root
+     * - Level 3: Show children of a selected genre at any deeper level
+     *
+     * @param array $allGenres Full genre hierarchy from buildGenreHierarchy
+     * @param int $selectedGenreId Currently selected genre ID (0 = none)
+     * @return array ['genres' => display genres, 'level' => current level, 'parent' => parent genre for back button]
+     */
     private function getDisplayGenres(array $allGenres, int $selectedGenreId): array
     {
         if ($selectedGenreId === 0) {

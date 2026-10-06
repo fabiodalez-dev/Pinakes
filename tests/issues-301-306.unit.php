@@ -28,9 +28,11 @@ $check(
     'author list and bulk export count only non-deleted books'
 );
 $check(
-    str_contains($frontend, 'SELECT COUNT(DISTINCT l.id)')
-        && str_contains($frontend, 'WHERE l.deleted_at IS NULL')
-        && str_contains($frontend, 'OR l.sottogenere_id = g.id'),
+    // The facet groups the visible books by (genre, subgenre) and rolls the
+    // counts up the tree in PHP; the soft-delete guard sits on that query.
+    preg_match('/\$queryPairs = "(.*?)";/s', $frontend, $pairsQuery) === 1
+        && str_contains($pairsQuery[1], 'WHERE l.deleted_at IS NULL')
+        && str_contains($pairsQuery[1], 'GROUP BY l.genere_id, l.sottogenere_id'),
     'genre facet count excludes soft-deleted books'
 );
 $check(
