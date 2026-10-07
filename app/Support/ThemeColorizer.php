@@ -258,6 +258,33 @@ class ThemeColorizer
             'primary_dark' => $this->darken($primary, 15),
             'secondary_hover' => $this->darken($secondary, 10),
             'button_hover' => $this->darken($button, 10),
+            'primary_text' => $this->readableOnTint($primary),
         ];
+    }
+
+    /**
+     * The accent as a text colour: the same hue, darkened only as far as it
+     * takes to read at WCAG AA (4.5:1) on the accent's own soft tint, the
+     * lightest surface the public site sets accent text on
+     * (--pk-accent-soft: 9% accent over white). A dark accent comes back
+     * unchanged; a light one (orange, teal, coral) gets just deep enough.
+     */
+    public function readableOnTint(string $hex): string
+    {
+        $hex = $this->normalizeHex($hex);
+        $rgb = $this->hexToRgb($hex);
+        $tint = $this->rgbToHex(
+            (int) round($rgb['r'] * 0.09 + 255 * 0.91),
+            (int) round($rgb['g'] * 0.09 + 255 * 0.91),
+            (int) round($rgb['b'] * 0.09 + 255 * 0.91)
+        );
+        for ($percent = 0; $percent <= 60; $percent += 2) {
+            $candidate = $this->darken($hex, $percent);
+            // A little over 4.5 so rounding in the browser cannot tip it under.
+            if ($this->getContrastRatio($candidate, $tint) >= 4.6) {
+                return $candidate;
+            }
+        }
+        return $this->darken($hex, 60);
     }
 }

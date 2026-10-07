@@ -59,7 +59,7 @@ body[class*="layout-"] .loans-container {
 
 .account-page-heading__eyebrow {
   margin: 0 0 .55rem;
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   font-size: .72rem;
   font-weight: 750;
   letter-spacing: .12em;
@@ -115,7 +115,7 @@ body.layout-editorial .account-page-heading h1 {
 .account-page-link:hover {
   border-color: var(--primary-color);
   background: var(--white);
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   text-decoration: none;
 }
 
@@ -225,7 +225,7 @@ body[class*="layout-"] .item-title {
 }
 
 body[class*="layout-"] .item-title a:hover {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 body[class*="layout-"] :where(.badge, .status-badge),
@@ -444,7 +444,7 @@ body[class*="layout-"] .wishlist-stat:last-child {
 }
 
 body[class*="layout-"] .wishlist-stat i {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   font-size: .75rem;
 }
 
@@ -471,7 +471,7 @@ body[class*="layout-"] .wishlist-actions .btn-outline {
 body[class*="layout-"] .wishlist-actions .btn-outline:hover {
   border-color: var(--primary-color);
   background: var(--white);
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   box-shadow: none;
 }
 

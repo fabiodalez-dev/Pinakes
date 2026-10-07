@@ -222,7 +222,7 @@
 
 .section-title i {
     font-size: 1.25rem;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .details-grid {
@@ -525,7 +525,7 @@ body[class*='layout-'] .availability-badge.wanted {
 }
 
 .description-content a {
-    color: var(--primary-color, #3b82f6);
+    color: var(--primary-text, var(--primary-color, #3b82f6));
     text-decoration: underline;
 }
 
@@ -555,14 +555,14 @@ body[class*='layout-'] .availability-badge.wanted {
 }
 
 .nav-tabs .nav-link:hover {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     border-bottom-color: rgba(0,0,0,0.2);
     background: var(--light-bg);
     border-radius: 2px 2px 0 0;
 }
 
 .nav-tabs .nav-link.active {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     border-bottom-color: var(--primary-color);
     background: var(--light-bg);
     font-weight: 700;
@@ -770,7 +770,7 @@ body[class*='layout-'] .availability-badge.wanted {
 }
 
 .card-header h6 i {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .card-body {
@@ -1422,7 +1422,7 @@ body[class*='layout-'] .availability-badge.wanted {
     width: auto;
     gap: 0.4rem;
     background: none !important;
-    color: var(--primary-color) !important;
+    color: var(--primary-text, var(--primary-color)) !important;
     font-size: 0.82rem;
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -1431,7 +1431,7 @@ body[class*='layout-'] .availability-badge.wanted {
 .related-book-card .book-actions .btn-cta:hover,
 .related-book-card .book-actions .btn-cta:focus-visible {
     background: none !important;
-    color: var(--primary-color) !important;
+    color: var(--primary-text, var(--primary-color)) !important;
     transform: none;
 }
 
@@ -1495,7 +1495,7 @@ background-color: transparent;
 
 .resource-placement a:hover,
 .resource-placement a:focus-visible {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: underline;
 }
 
@@ -1541,7 +1541,7 @@ background-color: transparent;
 }
 
 .card-header .resource-info-title i {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 /* Scoped to the resource pages: the book page's own card (genre path, review
@@ -1555,7 +1555,7 @@ background-color: transparent;
 
 .resource-info-card .meta-value a:hover,
 .resource-info-card .meta-value a:focus-visible {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration-color: currentColor;
 }
 
@@ -1655,7 +1655,7 @@ background-color: transparent;
 
 .resource-pager a:hover,
 .resource-pager a:focus-visible {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .resource-pager-up {
@@ -1733,7 +1733,7 @@ background-color: transparent;
 .resource-back:hover,
 .resource-back:focus-visible {
     border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .resource-back {
@@ -1783,7 +1783,7 @@ background-color: transparent;
 }
 
 .book-series-title i {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .book-series-chip {
@@ -1805,7 +1805,7 @@ background-color: transparent;
 .book-series-chip:hover,
 .book-series-chip:focus-visible {
     border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .book-series-number {

@@ -94,7 +94,7 @@ $additional_css = "
         gap: 0.4rem;
         font-size: 0.95rem;
         font-weight: 600;
-        color: var(--primary-color);
+        color: var(--primary-text, var(--primary-color));
         text-decoration: none;
         transition: opacity 0.2s ease;
     }
@@ -422,7 +422,7 @@ $additional_css = "
     }
 
     .home-events-grid .event-card__title a:hover {
-        color: var(--primary-color, #d70161);
+        color: var(--primary-text, var(--primary-color, #d70161));
     }
 
     .home-events-grid .event-card__meta {

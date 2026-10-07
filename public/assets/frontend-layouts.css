@@ -85,7 +85,7 @@ body[class*="layout-"] .book-breadcrumb a {
 }
 
 body[class*="layout-"] .book-breadcrumb a:hover {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -117,7 +117,7 @@ body[class*="layout-"] .book-kicker a {
 }
 
 body[class*="layout-"] .book-kicker a:hover {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -163,7 +163,7 @@ body[class*="layout-"] .author-item {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   font-size: .95rem;
   font-weight: 650;
 }
@@ -200,7 +200,7 @@ body[class*="layout-"] .genre-tag:hover {
   transform: none;
   background: transparent;
   box-shadow: none;
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -693,7 +693,7 @@ body.layout-workspace :where(.book-description-section, .book-details-section) .
 }
 
 body.layout-workspace :where(.book-description-section, .book-details-section) .section-title i {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   font-size: .9rem;
 }
 
@@ -803,7 +803,7 @@ body.layout-workspace :is(#book-info-card, .resource-info-card) .card-header :is
 }
 
 body.layout-workspace :is(#book-info-card, .resource-info-card) .card-header :is(h6, .resource-info-title) i {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 body.layout-workspace :is(#book-info-card, .resource-info-card) .card-body {
@@ -1915,7 +1915,7 @@ body[class*="layout-"] .plugin-source-search__heading {
 }
 
 body[class*="layout-"] .plugin-source-search__heading i {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 body[class*="layout-"] .plugin-source-search--frontend .plugin-source-search__links {
@@ -1945,7 +1945,7 @@ body[class*="layout-"] #book-action-buttons .plugin-source-link:hover,
 body[class*="layout-"] #book-action-buttons .plugin-source-link:focus-visible {
   border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
   background: color-mix(in srgb, var(--primary-color) 8%, var(--white));
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   box-shadow: none;
   transform: translateY(-1px);
 }
@@ -2035,7 +2035,7 @@ body[class*="layout-"] :is(.bc-btn-outline, .archive-page .btn-outline, .frbr-op
 body[class*="layout-"] :is(.bc-btn-outline, .archive-page .btn-outline, .frbr-opera-page .btn-outline):hover {
   border-color: color-mix(in srgb, var(--primary-color) 48%, transparent);
   background: color-mix(in srgb, var(--primary-color) 7%, var(--white));
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 body[class*="layout-"] .bc-btn-danger {

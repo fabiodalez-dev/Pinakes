@@ -48,12 +48,12 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
 <style>
   .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
-  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
   .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
   .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-text, var(--primary-color));background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
   .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
@@ -74,11 +74,11 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
   .bc-preline{white-space:pre-line}
   .bc-row{padding:.9rem 0;border-top:1px solid var(--border-color)}
   .bc-cancelled{opacity:.5}
-  .bc-link{color:var(--primary-color);font-weight:600;text-decoration:none}
+  .bc-link{color:var(--primary-text, var(--primary-color));font-weight:600;text-decoration:none}
   .bc-link:hover{text-decoration:underline}
   .bc-state-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-light);margin:0}
   .bc-card-flagged{border-color:var(--warning-color)}
-  .bc-summary{color:var(--primary-color);font-weight:600;font-size:.9rem;cursor:pointer}
+  .bc-summary{color:var(--primary-text, var(--primary-color));font-weight:600;font-size:.9rem;cursor:pointer}
   .bc-scrollbox{max-height:12rem;overflow-y:auto;border:1px solid var(--border-color);border-radius:2px;padding:.75rem}
   .bc-autocomplete{position:absolute;z-index:10;left:0;right:0;margin-top:.25rem;background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;max-height:15rem;overflow-y:auto}
   .bc-autocomplete.hidden{display:none}
@@ -87,7 +87,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
   /* Members line and join/leave actions under the shared single-resource hero. */
   .bc-hero-extra{display:flex;flex-direction:column;gap:1rem;margin-top:1rem}
   .bc-hero-meta{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;font-size:.9rem;color:var(--text-light)}
-  .bc-hero-meta a{color:var(--primary-color);font-weight:600;text-decoration:none}
+  .bc-hero-meta a{color:var(--primary-text, var(--primary-color));font-weight:600;text-decoration:none}
   .bc-hero-meta a:hover{text-decoration:underline}
   .bc-hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
   .bc-hero-actions form{margin:0}

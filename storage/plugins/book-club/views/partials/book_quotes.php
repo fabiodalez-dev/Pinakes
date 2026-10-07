@@ -16,7 +16,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 <style>
   #book-club-quotes{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   #book-club-quotes .bcq-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
-  #book-club-quotes .bcq-header i{color:var(--primary-color);font-size:1.15rem}
+  #book-club-quotes .bcq-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}
   #book-club-quotes .bcq-header h6{font-size:1.15rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
   #book-club-quotes .bcq-item{padding:.9rem 0;border-top:1px solid var(--border-color)}
   #book-club-quotes .bcq-item:first-child{padding-top:0;border-top:none}

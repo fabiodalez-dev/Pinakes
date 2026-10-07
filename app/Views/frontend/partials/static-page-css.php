@@ -55,7 +55,7 @@ return <<<'CSS'
 }
 
 .static-content a:hover {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     border-color: var(--primary-color);
 }
 

@@ -1345,7 +1345,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
       cells.forEach(function (c) {
         c.removeAttribute('inert');
         c.removeAttribute('aria-hidden');
-        Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+        Array.prototype.forEach.call(c.querySelectorAll('a:not(.pk-card__link)'), function (a) {
           a.removeAttribute('tabindex');
         });
       });
@@ -1362,7 +1362,8 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
         c.removeAttribute('aria-hidden');
       }
       // Fallback for browsers without `inert`: keep the links off the tab order.
-      Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+      // The card's cover link is aria-hidden and always out of it (tabindex=-1).
+      Array.prototype.forEach.call(c.querySelectorAll('a:not(.pk-card__link)'), function (a) {
         if (clipped) { a.setAttribute('tabindex', '-1'); }
         else { a.removeAttribute('tabindex'); }
       });

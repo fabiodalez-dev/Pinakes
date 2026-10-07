@@ -108,6 +108,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         :root {
             --primary-color: <?= htmlspecialchars($themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
             --primary-dark: <?= htmlspecialchars($themePalette['primary_dark'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
+            --primary-text: <?= htmlspecialchars($themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>;
             --secondary-color: <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>;
             --button-color: <?= htmlspecialchars($themePalette['button'], ENT_QUOTES, 'UTF-8') ?>;
             --button-text-color: <?= htmlspecialchars($themePalette['button_text'], ENT_QUOTES, 'UTF-8') ?>;
@@ -165,7 +166,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         .header-brand {
             font-size: 1.5rem;
             font-weight: 800;
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             text-decoration: none;
             display: flex;
             align-items: center;
@@ -220,7 +221,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             font-weight: 600;
         }
 
@@ -303,7 +304,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
 
         .btn-outline-header:hover {
             border-color: var(--primary-color);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             background: rgba(0, 0, 0, 0.02);
             transform: translateY(-1px);
         }
@@ -367,7 +368,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
 
         .user-dropdown-menu a:hover {
             background: var(--light-bg);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             padding-left: 1.5rem;
         }
 
@@ -423,7 +424,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         .page-title {
             font-size: 2rem;
             font-weight: 800;
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             letter-spacing: -0.02em;
             margin-bottom: 0.5rem;
         }
@@ -628,7 +629,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         }
 
         .mobile-menu-toggle:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-menu-overlay {
@@ -700,7 +701,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         }
 
         .mobile-menu-close:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-nav {
@@ -720,12 +721,12 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
 
         .mobile-nav-link:hover {
             background: rgba(0, 0, 0, 0.05);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-nav-link.active {
             background: rgba(59, 130, 246, 0.1);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             border-left: 3px solid var(--primary-color);
         }
 

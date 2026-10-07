@@ -45,7 +45,7 @@
   overflow: hidden;
   border-radius: 3px;
   background: color-mix(in srgb, var(--primary-color) 10%, var(--white));
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   font-size: 1.55rem;
 }
 
@@ -57,7 +57,7 @@
 
 .archive-kicker {
   margin: 0 0 .5rem;
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   font-size: .75rem;
   font-weight: 700;
   letter-spacing: .1em;
@@ -88,7 +88,7 @@
 }
 
 .archive-count i {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 .archive-content {
@@ -138,14 +138,14 @@
 .archive-links a:focus-visible,
 .publisher-details a:hover,
 .publisher-details a:focus-visible {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .archive-links i,
 .publisher-details i {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 .archive-section-header {
@@ -177,7 +177,7 @@
 
 .archive-catalog-link:hover,
 .archive-catalog-link:focus-visible {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
 }
 
 /* Same card as /catalogo; only the column count is fixed so a short list
@@ -198,7 +198,7 @@
 .archive-books-grid .book-author a:focus-visible,
 .archive-books-grid .book-meta a:hover,
 .archive-books-grid .book-meta a:focus-visible {
-  color: var(--primary-color);
+  color: var(--primary-text, var(--primary-color));
   text-decoration: underline;
 }
 

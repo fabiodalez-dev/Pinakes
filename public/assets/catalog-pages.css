@@ -93,7 +93,7 @@
 .filters-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-transform: uppercase;
     letter-spacing: 0.14em;
     display: flex;
@@ -120,7 +120,7 @@
 .filter-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 1rem;
@@ -259,7 +259,7 @@
 
 .filter-option:hover {
     background: color-mix(in srgb, var(--primary-color) 7%, transparent);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     transform: translateX(2px);
 }
 
@@ -442,7 +442,7 @@
 
 .availability-option .availability-icon {
     background: var(--bg-secondary);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     transition: var(--transition);
 }
 
@@ -561,7 +561,7 @@
 .custom-range-toggle:hover,
 .custom-range-toggle.active {
     border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     background: var(--bg-primary);
 }
 
@@ -661,7 +661,7 @@
 }
 
 .results-info strong {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     font-weight: 700;
 }
 
@@ -724,7 +724,7 @@
 .active-filters-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 0.5rem;
@@ -898,7 +898,7 @@
 }
 
 .book-author a:hover {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .book-meta {
@@ -1240,7 +1240,7 @@
     align-self: flex-start;
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: none;
     cursor: pointer;
     transition: var(--transition);
@@ -1426,7 +1426,7 @@
     width: auto;
     justify-content: flex-start;
     background: none !important;
-    color: var(--primary-color) !important;
+    color: var(--primary-text, var(--primary-color)) !important;
     border: none !important;
     padding: 0 !important;
     font-size: 0.82rem;
@@ -1437,7 +1437,7 @@
 }
 .book-actions .btn-cta:hover {
     background: none !important;
-    color: var(--primary-color) !important;
+    color: var(--primary-text, var(--primary-color)) !important;
     transform: none;
     gap: 0.6rem;
     transition: gap .3s cubic-bezier(.22,1,.36,1);
@@ -1555,7 +1555,7 @@
 
 .book-card .book-meta a:hover,
 .book-card .book-meta a:focus-visible {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: underline;
 }
 
@@ -1612,7 +1612,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     letter-spacing: 0;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: none;
 }
 

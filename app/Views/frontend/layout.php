@@ -94,6 +94,7 @@ if (isset($container)) {
         'primary_focus' => '#b70152',
         'secondary_hover' => '#0f1623',
         'button_hover' => '#c20258',
+        'primary_text' => '#ce015d',
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
@@ -363,6 +364,10 @@ $htmlLang = substr($currentLocale, 0, 2);
             --primary-dark:
                 <?= htmlspecialchars($themePalette['primary_dark'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
             ;
+            /* The accent as text: darkened only as far as AA contrast needs. */
+            --primary-text:
+                <?= htmlspecialchars($themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
             --secondary-color:
                 <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
             ;
@@ -442,7 +447,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         .header-brand {
             font-size: 1.5rem;
             font-weight: 800;
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             text-decoration: none;
             display: flex;
             align-items: center;
@@ -502,7 +507,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             font-weight: 600;
         }
 
@@ -575,7 +580,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-search-toggle:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         /* Mobile search container animation */
@@ -798,7 +803,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         .btn-outline-header:hover {
             border-color: var(--primary-color);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             background: rgba(0, 0, 0, 0.02);
             transform: translateY(-1px);
         }
@@ -983,7 +988,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-menu-toggle:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .header-content {
@@ -1119,7 +1124,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             font-weight: 700;
             line-height: 1.4;
             margin-bottom: 0.75rem;
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             letter-spacing: -0.01em;
         }
 
@@ -1439,7 +1444,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-menu-close:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-nav {
@@ -1459,12 +1464,12 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         .mobile-nav-link:hover {
             background: rgba(0, 0, 0, 0.05);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-nav-link.active {
             background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             border-left: 3px solid var(--primary-color);
         }
 
@@ -2154,7 +2159,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
                             '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: var(--text-color); text-align: left;">' + bookTitle + '</div>' +
-                            (book.wanted ? '<div class="search-book-wanted" style="font-size: 0.7rem; font-weight: 600; color: var(--primary-color); text-align: left;">' + WANTED_LABEL + '</div>' : '') +
+                            (book.wanted ? '<div class="search-book-wanted" style="font-size: 0.7rem; font-weight: 600; color: var(--primary-text, var(--primary-color)); text-align: left;">' + WANTED_LABEL + '</div>' : '') +
                             (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
                             (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
                             (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: var(--text-muted); text-align: left;">' + bookYear + '</div>' : '') +

@@ -19,6 +19,7 @@ $authPalette = [
     'button' => '#d70262',
     'button_text' => '#ffffff',
     'button_hover' => '#c20258',
+    'primary_text' => '#ce015d',
 ];
 try {
     $authDb = $db ?? \App\Support\ConfigStore::sharedConnection();
@@ -39,6 +40,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
         :root {
             --primary-color: <?= $authColor('primary') ?>;
             --primary-dark: <?= $authColor('primary_dark') ?>;
+            --primary-text: <?= $authColor('primary_text') ?>;
             --button-color: <?= $authColor('button') ?>;
             --button-text-color: <?= $authColor('button_text') ?>;
             --button-hover: <?= $authColor('button_hover') ?>;
@@ -62,7 +64,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
         .auth-brand-logo { display: block; height: 56px; width: auto; max-width: 100%; margin: 0 auto 8px; object-fit: contain; }
         .auth-brand-tile { width: 56px; height: 56px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--primary-color); color: var(--button-text-color); font-size: 1.5rem; }
         .auth-brand-name { margin: 0; font-size: .9375rem; font-weight: 600; color: var(--text-color); }
-        .auth-card { background: #fff; border: 1px solid var(--border-color); border-radius: 20px; box-shadow: 0 16px 40px -28px rgba(80,20,50,.35); padding: 36px; }
+        .auth-card { background: #fff; border: 1px solid var(--border-color); border-radius: 20px; box-shadow: 0 16px 40px -28px color-mix(in srgb, color-mix(in srgb, var(--primary-color) 25%, #1b1720) 35%, transparent); padding: 36px; }
         .auth-title { margin: 0 0 8px; font-family: var(--serif); font-size: 2.5rem; line-height: 1.05; font-weight: 500; letter-spacing: -.025em; color: var(--text-color); }
         .auth-subtitle { margin: 0 0 24px; color: var(--text-light); font-size: .9375rem; }
         .auth-form > * + * { margin-top: 20px; }
@@ -84,7 +86,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
         .auth-btn:hover { background: var(--button-hover); border-color: var(--button-hover); color: var(--button-text-color); }
         .auth-btn:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 2px; }
         .auth-btn:disabled { opacity: .7; cursor: not-allowed; }
-        .auth-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-color); font-weight: 500; text-decoration: none; }
+        .auth-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-text, var(--primary-color)); font-weight: 500; text-decoration: none; }
         .auth-link:hover { color: var(--primary-dark); text-decoration: underline; text-underline-offset: 2px; }
         .auth-link:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 1px; }
         .auth-switch { margin: 16px 0 0; text-align: center; font-size: .875rem; color: var(--text-light); }
