@@ -8062,6 +8062,7 @@
   "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.",
   "%1$d copia disponibile su %2$d": "%1$d copia disponibile su %2$d",
   "%d autori": "%d autori",
+  "%d autore": "%d autore",
   "%s titoli in catalogo": "%s titoli in catalogo",
   "Aggiungi ai preferiti": "Aggiungi ai preferiti",
   "Cerca autore…": "Cerca autore…",
@@ -8101,5 +8102,6 @@
   "Visibile nel menu del sito": "Visibile nel menu del sito",
   "Nascosta dal menu del sito": "Nascosta dal menu del sito",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.",
-  "Nascosta": "Nascosta"
+  "Nascosta": "Nascosta",
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Copia non riuscita: il testo è selezionato, copialo manualmente"
 }

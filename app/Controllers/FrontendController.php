@@ -58,7 +58,20 @@ class FrontendController
         $homeEvents = $homeData['homeEvents'];
         $heroTotalBooks = $homeData['totalBooks'];
         $heroCovers = $homeData['heroCovers'] ?? [];
+        // The centred hero style shows no cover fan: drop the covers so the
+        // page neither downloads them nor preloads the first one. Read per
+        // request: the style belongs to the active theme, not to the shared
+        // home cache.
+        try {
+            $heroStyle = (new \App\Support\ThemeManager($db))->getPublicStyle()['hero_style'];
+            if ($heroStyle === 'centered') {
+                $heroCovers = [];
+            }
+        } catch (\Throwable $e) {
+            // Keep the covers: the fan is hidden by CSS anyway.
+        }
         $heroAvailableBooks = $homeData['availableBooks'];
+        $heroTotalGenres = $homeData['totalGenres'] ?? null;
 
         $homeEventsEnabled = $homeData['eventsFeatureEnabled'] && !empty($homeEvents);
 
@@ -2656,17 +2669,6 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
     }
 
     /**
-     * Build the cacheable, visitor-independent home page dataset.
-     *
-     * One home_content read serves both the active-sections map (with full SEO
-     * fields) and the ordered-sections list, plus the latest-books sort and the
-     * genre-carousel visibility flag — previously four separate queries.
-     *
-     * @return array{homeContent: array, sectionsOrdered: array, latest_books: array,
-     *               latestBooksTotal: int, genres_with_books: array, genreCarouselEnabled: bool,
-     *               eventsFeatureEnabled: bool, homeEvents: array, totalBooks: int, availableBooks: int}
-     */
-    /**
      * The hero's cover settings, stored as JSON in home_content.content of the
      * 'hero' row: {"cover_mode": "latest"|"selected", "cover_books": [ids]}.
      * Anything else reads as the default, the latest covers.
@@ -2695,8 +2697,10 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
      *
      * @return list<array<string, mixed>>
      */
-    private function heroCovers(mysqli $db, ?string $raw): array
+    private function heroCovers(mysqli $db, ?string $raw, string $latestSort = 'created_at'): array
     {
+        // "Latest" follows the same order as the home's latest-arrivals section.
+        $latestSort = in_array($latestSort, ['created_at', 'updated_at'], true) ? $latestSort : 'created_at';
         $config = self::heroCoverConfig($raw);
         $select = "SELECT l.id, l.titolo, l.copertina_url,
                    (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -2727,7 +2731,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
                 }
             }
             if ($rows === []) {
-                $result = $db->query($select . ' ORDER BY l.created_at DESC, l.id DESC LIMIT 4');
+                $result = $db->query($select . " ORDER BY l.{$latestSort} DESC, l.id DESC LIMIT 4");
                 if ($result instanceof \mysqli_result) {
                     $rows = $result->fetch_all(MYSQLI_ASSOC);
                     $result->free();
@@ -2740,6 +2744,18 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return $rows;
     }
 
+    /**
+     * Build the cacheable, visitor-independent home page dataset.
+     *
+     * One home_content read serves both the active-sections map (with full SEO
+     * fields) and the ordered-sections list, plus the latest-books sort and the
+     * genre-carousel visibility flag — previously four separate queries.
+     *
+     * @return array{homeContent: array, sectionsOrdered: array, latest_books: array,
+     *               latestBooksTotal: int, genres_with_books: array, genreCarouselEnabled: bool,
+     *               eventsFeatureEnabled: bool, homeEvents: array, totalBooks: int, availableBooks: int,
+     *               totalGenres: int, heroCovers: list<array<string, mixed>>}
+     */
     private function buildHomePageData(mysqli $db): array
     {
         // Carica i contenuti CMS della home (inclusi campi SEO completi)
@@ -2935,7 +2951,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return [
             'homeContent' => $homeContent,
             'sectionsOrdered' => $sectionsOrdered,
-            'heroCovers' => $this->heroCovers($db, $homeContent['hero']['content'] ?? null),
+            'heroCovers' => $this->heroCovers($db, $homeContent['hero']['content'] ?? null, $latestBooksSort),
             'latest_books' => $latest_books,
             'latestBooksTotal' => $totalBooks,
             'genres_with_books' => $genres_with_books,
@@ -2944,6 +2960,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             'homeEvents' => $homeEvents,
             'totalBooks' => $totalBooks,
             'availableBooks' => $availableBooks,
+            'totalGenres' => count(array_filter($allGenres, static fn (array $g): bool => $g['parent_id'] === null)),
         ];
     }
 

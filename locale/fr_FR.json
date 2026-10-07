@@ -8062,6 +8062,7 @@
   "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Je ne peux pas déterminer comment cette mise à jour s'est terminée. La version installée est maintenant %s : consultez l'historique des mises à jour.",
   "%1$d copia disponibile su %2$d": "%1$d exemplaire disponible sur %2$d",
   "%d autori": "%d auteurs",
+  "%d autore": "%d auteur",
   "%s titoli in catalogo": "%s titres au catalogue",
   "Aggiungi ai preferiti": "Ajouter aux favoris",
   "Cerca autore…": "Rechercher un auteur…",
@@ -8101,5 +8102,6 @@
   "Visibile nel menu del sito": "Visible dans le menu du site",
   "Nascosta dal menu del sito": "Masquée dans le menu du site",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Masquée, l'entrée disparaît du menu du site public. Les pages restent accessibles depuis les résultats du catalogue et de la recherche.",
-  "Nascosta": "Masquée"
+  "Nascosta": "Masquée",
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Échec de la copie : le texte est sélectionné, copiez-le manuellement"
 }

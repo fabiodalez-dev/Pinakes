@@ -5,7 +5,6 @@
  *
  * @var array{hero_style:string,card_style:string} $publicStyle
  */
-use App\Support\HtmlHelper;
 
 $publicStyleGroups = [
     'hero_style' => [
@@ -44,8 +43,8 @@ $publicStyleGroups = [
 ?>
 <?php foreach ($publicStyleGroups as $field => $group): ?>
 <fieldset>
-    <legend class="sr-only"><?= HtmlHelper::e($group['title']) ?></legend>
-    <p class="px-6 pt-5 pb-3 text-xs font-semibold uppercase tracking-wide text-gray-500" aria-hidden="true"><?= HtmlHelper::e($group['title']) ?></p>
+    <legend class="sr-only"><?= htmlspecialchars($group['title'], ENT_QUOTES, 'UTF-8') ?></legend>
+    <p class="px-6 pt-5 pb-3 text-xs font-semibold uppercase tracking-wide text-gray-500" aria-hidden="true"><?= htmlspecialchars($group['title'], ENT_QUOTES, 'UTF-8') ?></p>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-200">
         <?php foreach ($group['options'] as $value => $option): ?>
             <?php $isSelected = ($publicStyle[$field] === $value); ?>
@@ -62,12 +61,12 @@ $publicStyleGroups = [
                 </span>
                 <span class="absolute inset-x-0 top-0 h-1 <?= $isSelected ? 'bg-gray-900' : 'bg-transparent' ?>" aria-hidden="true"></span>
                 <span class="mt-4 flex items-center gap-2">
-                    <strong class="text-sm text-gray-900"><?= HtmlHelper::e($option['name']) ?></strong>
+                    <strong class="text-sm text-gray-900"><?= htmlspecialchars($option['name'], ENT_QUOTES, 'UTF-8') ?></strong>
                     <?php if (!empty($option['default'])): ?>
                         <span class="rounded-full bg-pink-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-pink-700"><?= __('Default') ?></span>
                     <?php endif; ?>
                 </span>
-                <span class="mt-2 block text-xs leading-5 text-gray-600"><?= HtmlHelper::e($option['description']) ?></span>
+                <span class="mt-2 block text-xs leading-5 text-gray-600"><?= htmlspecialchars($option['description'], ENT_QUOTES, 'UTF-8') ?></span>
             </label>
         <?php endforeach; ?>
     </div>

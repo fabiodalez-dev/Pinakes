@@ -30,13 +30,21 @@ $heroTitleHtml = count($heroWords) > 1
 // values are missing (data-server-rendered absent).
 $heroStatsServerRendered = isset($heroTotalBooks, $heroAvailableBooks);
 $edgeCacheEnabled = \App\Support\LiteSpeedCache::enabled();
+// Thousands grouped as the visitor's language writes them (1.234 / 1,234 / 1 234).
+$heroLocale = strtolower(substr(\App\Support\I18n::getLocale(), 0, 2));
+$heroThousands = match ($heroLocale) {
+    'en' => ',',
+    'fr' => "\u{202F}",
+    default => '.',
+};
+$heroNumber = static fn (int $n): string => number_format($n, 0, ',', $heroThousands);
 $spinner = '<span class="inline-block animate-spin rounded-full border-2 border-current border-r-transparent" role="status" style="width:1.6rem;height:1.6rem;"><span class="sr-only">' . $e(__("Caricamento...")) . '</span></span>';
 ?>
 <section class="hero-section pk-hero" data-section="hero">
     <div class="pk-hero__inner hero-content">
         <div class="pk-hero__text">
             <?php if ($heroStatsServerRendered): ?>
-            <div class="pk-hero__badge"><?= $e(sprintf(__('%s titoli in catalogo'), number_format((int) $heroTotalBooks, 0, ',', '.'))) ?></div>
+            <div class="pk-hero__badge"><?= $e(sprintf(__('%s titoli in catalogo'), $heroNumber((int) $heroTotalBooks))) ?></div>
             <?php endif; ?>
             <h1 class="hero-title pk-hero__title"><?= $heroTitleHtml ?></h1>
             <p class="hero-subtitle pk-hero__subtitle"><?= $e($heroSubtitle) ?></p>
@@ -60,7 +68,7 @@ $spinner = '<span class="inline-block animate-spin rounded-full border-2 border-
         </div>
 
         <?php if ($heroCovers !== []): ?>
-        <div class="pk-fan" aria-label="<?= $e(__('Copertine in evidenza')) ?>">
+        <div class="pk-fan" role="group" aria-label="<?= $e(__('Copertine in evidenza')) ?>">
             <?php foreach (array_slice($heroCovers, 0, 4) as $cover): ?>
                 <?php $coverTitle = html_entity_decode((string) ($cover['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                 <a class="pk-fan__book" href="<?= $e(book_url($cover)) ?>" title="<?= $e($coverTitle) ?>">
@@ -84,10 +92,12 @@ $spinner = '<span class="inline-block animate-spin rounded-full border-2 border-
             <span class="pk-stat__n pk-stat__n--accent hero-stat-number" id="available-books"<?= $heroStatsServerRendered && !$edgeCacheEnabled ? ' data-server-rendered="1"' : '' ?><?= $edgeCacheEnabled ? ' data-live-stat="available_books" data-live-pending="1"' : '' ?>><?= $edgeCacheEnabled || !$heroStatsServerRendered ? $spinner : (int) $heroAvailableBooks ?></span>
             <span class="pk-stat__l hero-stat-label"><?= __("Disponibili") ?></span>
         </div>
+        <?php if (isset($heroTotalGenres)): ?>
         <div class="pk-stat hero-stat">
-            <span class="pk-stat__n hero-stat-number">12</span>
+            <span class="pk-stat__n hero-stat-number"><?= (int) $heroTotalGenres ?></span>
             <span class="pk-stat__l hero-stat-label"><?= __("Categorie") ?></span>
         </div>
+        <?php endif; ?>
         <div class="pk-stat hero-stat">
             <span class="pk-stat__n hero-stat-number">24/7</span>
             <span class="pk-stat__l hero-stat-label"><?= __("Sempre Online") ?></span>

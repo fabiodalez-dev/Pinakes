@@ -153,66 +153,70 @@ ob_start();
                             <i class="fas fa-bookmark"></i>
                             <?= __("Disponibilità") ?>
                         </div>
-                        <div class="availability-options">
-                        <div class="availability-option <?= empty($filters['disponibilita']) ? 'active' : '' ?>"
+                        <div class="availability-options" role="group" aria-label="<?= htmlspecialchars(__("Disponibilità"), ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="button" class="availability-option <?= empty($filters['disponibilita']) ? 'active' : '' ?>"
                              data-filter-value=""
+                             aria-pressed="<?= empty($filters['disponibilita']) ? 'true' : 'false' ?>"
                              onclick="updateFilter('disponibilita', '')">
-                                <div class="availability-icon">
+                                <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-th-large"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("Tutti") ?></div>
-                                    <div class="availability-desc"><?= __("Tutto il catalogo") ?></div>
-                                </div>
-                                <div class="availability-count" id="total-books-count">
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("Tutti") ?></span>
+                                    <span class="availability-desc"><?= __("Tutto il catalogo") ?></span>
+                                </span>
+                                <span class="availability-count" id="total-books-count">
                                     <?= number_format($filter_options['availability_stats']['total'] ?? $total_books) ?>
-                                </div>
-                            </div>
+                                </span>
+                            </button>
 
-                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'active' : '' ?>"
+                        <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'active' : '' ?>"
                              data-filter-value="disponibile"
+                             aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'true' : 'false' ?>"
                              onclick="updateFilter('disponibilita', 'disponibile')">
-                                <div class="availability-icon">
+                                <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-check-circle"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("Disponibili") ?></div>
-                                    <div class="availability-desc"><?= __("Pronti per il prestito") ?></div>
-                                </div>
-                                <div class="availability-count" id="available-books-count">
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("Disponibili") ?></span>
+                                    <span class="availability-desc"><?= __("Pronti per il prestito") ?></span>
+                                </span>
+                                <span class="availability-count" id="available-books-count">
                                     <?= number_format($filter_options['availability_stats']['available'] ?? 0) ?>
-                                </div>
-                            </div>
+                                </span>
+                            </button>
 
-                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'active' : '' ?>"
+                        <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'active' : '' ?>"
                              data-filter-value="prenotato"
+                             aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'true' : 'false' ?>"
                              onclick="updateFilter('disponibilita', 'prenotato')">
-                                <div class="availability-icon">
+                                <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-bookmark"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("Prenotati") ?></div>
-                                    <div class="availability-desc"><?= __("Attualmente riservati") ?></div>
-                                </div>
-                                <div class="availability-count" id="reserved-books-count">
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("Prenotati") ?></span>
+                                    <span class="availability-desc"><?= __("Attualmente riservati") ?></span>
+                                </span>
+                                <span class="availability-count" id="reserved-books-count">
                                     <?= number_format($filter_options['availability_stats']['reserved'] ?? 0) ?>
-                                </div>
-                            </div>
+                                </span>
+                            </button>
 
-                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'active' : '' ?>"
+                        <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'active' : '' ?>"
                              data-filter-value="prestato"
+                             aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'true' : 'false' ?>"
                              onclick="updateFilter('disponibilita', 'prestato')">
-                                <div class="availability-icon">
+                                <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-clock"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("In prestito") ?></div>
-                                    <div class="availability-desc"><?= __("Attualmente prestati") ?></div>
-                                </div>
-                                <div class="availability-count" id="borrowed-books-count">
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("In prestito") ?></span>
+                                    <span class="availability-desc"><?= __("Attualmente prestati") ?></span>
+                                </span>
+                                <span class="availability-count" id="borrowed-books-count">
                                     <?= number_format($filter_options['availability_stats']['borrowed'] ?? 0) ?>
-                                </div>
-                            </div>
+                                </span>
+                            </button>
                         </div>
                     </div>
 
@@ -255,7 +259,7 @@ ob_start();
                                 </a>
                             <?php endforeach; ?>
                         </div>
-                        <div class="pk-filter-total" data-pk-count-of="authors-filter" data-pk-count-label="<?= htmlspecialchars(__('%d autori'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(sprintf(__('%d autori'), count($facetAutori)), ENT_QUOTES, 'UTF-8') ?></div>
+                        <div class="pk-filter-total" data-pk-count-of="authors-filter" data-pk-count-label="<?= htmlspecialchars(__('%d autori'), ENT_QUOTES, 'UTF-8') ?>" data-pk-count-label-one="<?= htmlspecialchars(__('%d autore'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(__n('%d autore', '%d autori', count($facetAutori)), ENT_QUOTES, 'UTF-8') ?></div>
                     </div>
 
                     <!-- Publishers -->
@@ -740,11 +744,9 @@ function syncAvailabilityActiveState() {
     const options = document.querySelectorAll('.availability-option');
     options.forEach(option => {
         const targetValue = option.dataset.filterValue || '';
-        if (targetValue === currentValue) {
-            option.classList.add('active');
-        } else {
-            option.classList.remove('active');
-        }
+        const isActive = targetValue === currentValue;
+        option.classList.toggle('active', isActive);
+        option.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 }
 
