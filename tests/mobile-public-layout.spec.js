@@ -95,6 +95,24 @@ test.describe('Public site on a phone', () => {
   });
 });
 
+test.describe('Form fields follow the theme', () => {
+  test('a field takes a soft fill and a rule mixed from the theme accent', async ({ page }) => {
+    await page.goto(BASE + '/contatti', { waitUntil: 'networkidle' });
+    const field = page.locator('main input.form-input').first();
+    test.skip(await field.count() === 0, 'no contact form');
+    const look = () => field.evaluate(el => { const cs = getComputedStyle(el); return { bg: cs.backgroundColor, border: cs.borderTopColor, width: cs.borderTopWidth }; });
+    const before = await look();
+    expect(before.width).toBe('1px');
+    expect(before.bg).not.toBe('rgb(255, 255, 255)');
+    // Another theme's accent: the same field must recolour, with no other change.
+    // (Through the CSSOM: the site's CSP rightly refuses an injected <style>.)
+    await page.evaluate(() => document.documentElement.style.setProperty('--primary-color', '#059669', 'important'));
+    const after = await look();
+    expect(after.bg).not.toBe(before.bg);
+    expect(after.border).not.toBe(before.border);
+  });
+});
+
 test.describe('Wanted books (desiderata) covers', () => {
   async function covers(page) {
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });

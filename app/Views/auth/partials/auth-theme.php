@@ -46,7 +46,10 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
             --text-color: #1b1720;
             --text-light: #6b6470;
             --border-color: #ece8ea;
-            --auth-field-border: #cfc7cc;
+            /* Form fields as in pinakes-2026.css (--pk-field-*): tinted by the theme accent. */
+            --auth-field-bg: color-mix(in srgb, var(--primary-color) 4%, #f5f3f4);
+            --auth-field-border: color-mix(in srgb, var(--primary-color) 12%, #e2dee0);
+            --auth-field-border-hover: color-mix(in srgb, var(--primary-color) 30%, #d6d1d4);
             --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
             --sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             color-scheme: light;
@@ -64,9 +67,10 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
         .auth-subtitle { margin: 0 0 24px; color: var(--text-light); font-size: .9375rem; }
         .auth-form > * + * { margin-top: 20px; }
         .auth-label { display: block; margin-bottom: 6px; font-size: .875rem; font-weight: 600; color: var(--text-color); }
-        .auth-input { display: block; width: 100%; min-height: 44px; padding: 10px 12px; box-sizing: border-box; font: inherit; font-size: 1rem; color: var(--text-color); background: #fff; border: 1px solid var(--auth-field-border); border-radius: 10px; }
+        .auth-input { display: block; width: 100%; min-height: 44px; padding: 10px 12px; box-sizing: border-box; font: inherit; font-size: 1rem; color: var(--text-color); background-color: var(--auth-field-bg); border: 1px solid var(--auth-field-border); border-radius: 10px; }
+        .auth-input:hover { border-color: var(--auth-field-border-hover); }
         textarea.auth-input { min-height: 88px; }
-        .auth-input:focus-visible { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent); }
+        .auth-input:focus-visible { outline: none; border-color: var(--primary-color); background-color: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent); }
         .auth-check input:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 1px; }
         .auth-help { margin: 6px 0 0; font-size: .8125rem; color: var(--text-light); }
         .auth-field-error { display: block; margin-top: 4px; font-size: .875rem; color: #b91c1c; }

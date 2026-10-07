@@ -42,6 +42,10 @@
     --pk-line-2: #e2dce0;
     --pk-line-3: #f3eff1;
     --pk-cover-blank: #2a2230;
+    /* Form fields, tinted by the theme accent. */
+    --pk-field-bg: color-mix(in srgb, var(--pk-accent) 4%, #f5f3f4);
+    --pk-field-line: color-mix(in srgb, var(--pk-accent) 12%, #e2dee0);
+    --pk-field-line-hover: color-mix(in srgb, var(--pk-accent) 30%, #d6d1d4);
 
     --pk-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --pk-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
@@ -1131,16 +1135,15 @@ body.pk main .card { border-radius: 20px; border: 1px solid var(--pk-line); box-
 body.pk main .card-header { background: none; border-bottom: 1px solid var(--pk-line); }
 body.pk main .section-title { font-family: var(--pk-serif); font-weight: 500; letter-spacing: -.02em; color: var(--pk-ink); }
 body.pk main .btn-cta:not(.pk-card__details) { border-radius: 999px; }
-body.pk main input[type=text], body.pk main input[type=email], body.pk main input[type=tel], body.pk main input[type=password], body.pk main input[type=search]:not(.search-input), body.pk main input[type=date], body.pk main select, body.pk main textarea {
-    border-radius: 10px; border: 0; background: var(--pk-surface); color: var(--pk-ink); box-shadow: none;
+/* Form fields: one look everywhere in the public pages, a soft fill and a
+   thin rule, both mixed from the theme accent so every theme tints them. */
+body.pk main :is(input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search]:not(.search-input), input[type=date], input[type=number], input[type=url], select, textarea) {
+    border-radius: 10px; border: 1px solid var(--pk-field-line); background-color: var(--pk-field-bg); color: var(--pk-ink); box-shadow: none;
 }
-/* No border: on a white card a white field would vanish, so there the field
-   takes the soft fill. box-sizing keeps width:100% + padding inside the card. */
-body.pk main :is(.card, .wishlist-filter-card) :is(input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search], input[type=date], input[type=number], input[type=url], select, textarea) {
-    background: var(--pk-soft);
-}
+body.pk main :is(input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search]:not(.search-input), input[type=date], input[type=number], input[type=url], select, textarea):hover { border-color: var(--pk-field-line-hover); }
+body.pk main :is(input[type=checkbox], input[type=radio]) { accent-color: var(--pk-accent); }
 body.pk main :is(input, select, textarea) { box-sizing: border-box; max-width: 100%; }
-body.pk main input:focus, body.pk main select:focus, body.pk main textarea:focus { border-color: var(--pk-accent); outline: none; box-shadow: 0 0 0 3px var(--pk-accent-line); }
+body.pk main input:focus, body.pk main select:focus, body.pk main textarea:focus { border-color: var(--pk-accent); background-color: var(--pk-surface); outline: none; box-shadow: 0 0 0 3px var(--pk-accent-line); }
 
 /* A short page still ends at the viewport's bottom (was in frontend-layouts.css). */
 body.pk { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
