@@ -41,7 +41,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.93 — latest
+### v0.7.94 — latest
+
+**An article has its own page in the admin** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453), [#454](https://github.com/fabiodalez-dev/Pinakes/issues/454)). Like a book, it opens on a page that shows the record (cover, authors, publication, genre, keywords, PDF and exports) with Edit and Delete as buttons, instead of opening straight into its form. The quick search, the Articles list and the author page lead there, and saving the form brings you back to it.
+
+**An update behind a proxy reports what really happened** ([#450](https://github.com/fabiodalez-dev/Pinakes/issues/450)). A reverse proxy, such as a NAS's remote access, can give up on the install request after a minute while the server carries the update to its end. The update page then waits for the server and shows the real outcome, instead of an error for an update that succeeded. No migration.
+
+### v0.7.93
 
 **Articles are found, listed and edited the way books are** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453), [#454](https://github.com/fabiodalez-dev/Pinakes/issues/454), [#455](https://github.com/fabiodalez-dev/Pinakes/issues/455)). The admin menu has an Articles entry, and the quick search at the top of the admin finds articles (opening their form) and periodicals. On an author's page the articles are cards with an image, Details and Edit, like the books. The public article page has an Edit button for staff, shows the genre, and lists the author's other works, books included. In the article form, keywords and genre sit in the advanced description, and the genre puts the article in the catalogue filtered by that genre. The Emeroteca plugin 1.12.0 adds the genre column to articles, applied on its own when the plugin updates.
 

@@ -166,7 +166,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
   test('Dewey notation comes from the book form picker; other schemes are named', async ({ page }) => {
     expect(articleId).toBeGreaterThan(0);
     await login(page);
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     const advanced = page.locator('details', { hasText: /Descrizione bibliografica avanzata|Advanced bibliographic/ }).first();
     await openFold(advanced);
     // A stored code comes back selected, shown by name.
@@ -211,7 +211,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('DDC|305.8');
 
     // Reopened, the Dewey picker shows the stored code.
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await expect(page.locator('#dewey_chip_code')).toContainText('305.8');
 
     // A scheme outside the list is named, and stored under that name.
@@ -223,13 +223,13 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.locator('button[type=submit]:has-text("Salva")').first().click();
     await page.waitForURL(/\/admin\/periodicals\/articles\/\d+(\?|$)/);
     expect(db(`SELECT CONCAT_WS('|', classificazione_schema, classificazione) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('SAB|Kbb');
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await expect(page.locator('#article-classificazione_schema')).toHaveValue('__altro');
     await expect(page.locator('#article-classificazione_schema_altro')).toHaveValue('SAB');
 
     // A Dewey code deeper than the list comes back in the picker as it is.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.91409' WHERE id=${articleId}`);
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await expect(page.locator('#dewey_chip_code')).toContainText('823.91409');
     await expect(page.locator('#classificazione_dewey')).toHaveValue('823.91409');
     // Removed, it can be typed back: the picker accepts every depth it shows.
@@ -253,7 +253,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     await page.unroute('**/api/dewey/autocomplete**');
     // A stored notation the picker cannot show stays in the text box, not behind an empty picker.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await openFold(advanced);
     await expect(page.locator('#article-classificazione')).toBeVisible();
     await expect(page.locator('#article-classificazione')).toHaveValue('823.914 BRO');
@@ -279,7 +279,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     // A stored Dewey notation the picker cannot show survives a round trip
     // through the scheme select: DDC -> UDC -> DDC, then save.
     db(`UPDATE emeroteca_contributi SET classificazione_schema='DDC', classificazione='823.914 BRO' WHERE id=${articleId}`);
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await openFold(advanced);
     await page.locator('#article-classificazione_schema').selectOption('UDC');
     await page.locator('#article-classificazione_schema').selectOption('DDC');
@@ -290,7 +290,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
 
     // Host-volume fields typed under "Anthology" and left behind after
     // switching to a journal neither block the save nor get stored.
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await page.locator('#article-contenitore_tipo').selectOption('antologia');
     await page.locator('#article-isbn').fill('978-0-306-40615-8');
     await page.locator('#article-contenitore_editore').fill('Leftover Press');
@@ -304,7 +304,7 @@ test.describe.serial('Emeroteca analytic record (#412)', () => {
     const many = Array.from({ length: 21 }, (_, i) => `Author ${i + 1}`).join('; ');
     db(`DELETE FROM emeroteca_contributi_autori WHERE contributo_id=${articleId}`);
     db(`UPDATE emeroteca_contributi SET autori='${many}' WHERE id=${articleId}`);
-    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}`);
+    await page.goto(`${BASE}/admin/periodicals/articles/${articleId}/edit`);
     await expect(page.locator('#article-authors-text-only')).toBeVisible();
     await expect(page.locator('#article-autori')).toBeEnabled();
     await expect(page.locator('#article-authors-picker')).toBeHidden();

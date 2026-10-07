@@ -111,7 +111,8 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.locator('[name=note_private]').fill('SECRET412');
     await page.locator('[name=pdf]').setInputFiles({name:'tyll.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n')});
     await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
-    await expect(page.getByRole('heading',{name:'Modifica articolo'})).toBeVisible();
+    // A saved article lands on its own page (#453), with Edit one click away.
+    await expect(page.locator('section[data-article-id]')).toBeVisible();
     articleId=Number(page.url().split('/').pop());
     expect(articleId).toBeGreaterThan(0);
     expect(db(`SELECT CONCAT(COALESCE(testata_id,0),':',COALESCE(fascicolo_id,0)) FROM emeroteca_contributi WHERE id=${articleId}`)).toBe('0:0');
@@ -120,16 +121,18 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await expect(publicPage.getByRole('heading',{name:marker+' Tyll'})).toBeVisible();
     await expect(publicPage.locator('body')).not.toContainText('SECRET412');
     expect((await publicPage.request.get(BASE+`/emeroteca/articolo/${articleId}/pdf`)).status()).toBe(404);
+    await page.getByTestId('article-edit').click();
     await page.getByText('Descrizione, note e PDF',{exact:true}).click();
     await page.locator('[name=pdf_pubblico]').check();await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
     const pdf=await publicPage.request.get(BASE+`/emeroteca/articolo/${articleId}/pdf`);expect(pdf.status()).toBe(200);expect(pdf.headers()['cache-control']).toContain('no-store');
     const originalPdf=db(`SELECT pdf_path FROM emeroteca_contributi WHERE id=${articleId}`);
+    await page.goto(BASE+`/admin/periodicals/articles/${articleId}/edit`);
     await page.getByText('Descrizione, note e PDF',{exact:true}).click();
     await page.locator('[name=pdf]').setInputFiles({name:'invalid.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a PDF')});
     await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
     await expect(page.getByRole('alert')).toContainText('PDF');
     expect(db(`SELECT pdf_path FROM emeroteca_contributi WHERE id=${articleId}`)).toBe(originalPdf);
-    await page.goto(BASE+`/admin/periodicals/articles/${articleId}`);
+    await page.goto(BASE+`/admin/periodicals/articles/${articleId}/edit`);
     await page.getByText('Descrizione, note e PDF',{exact:true}).click();
     await page.locator('[name=pdf]').setInputFiles({name:'replacement.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n')});
     await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
@@ -186,7 +189,7 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     expect(Number(db(`SELECT testata_id FROM emeroteca_contributi WHERE id=${articleId}`)),'the masthead survives the detach').toBe(testataId);
     // The form names the linked masthead, and a rejected save must not turn
     // that into "not linked": the 422 re-render looks the record up too.
-    await page.goto(BASE+`/admin/periodicals/articles/${articleId}`);
+    await page.goto(BASE+`/admin/periodicals/articles/${articleId}/edit`);
     await expect(page.locator('#article-host-record')).toContainText(marker+' Journal');
     await page.getByText('Identificativi e collocazione',{exact:true}).click();
     await page.locator('#article-doi').fill('not-a-doi');
@@ -215,7 +218,7 @@ test.describe.serial('Emeroteca 412 complete workflow',()=>{
     await page.getByRole('button',{name:'Mostra anteprima'}).click();await expect(page.getByText('Anteprima: destinazione Emeroteca')).toBeVisible();
     await page.getByRole('button',{name:'Importa le righe valide'}).click();await expect(page.getByText('Risultato importazione')).toBeVisible();
     expect(db(`SELECT pagine FROM emeroteca_contributi WHERE titolo='${marker} Imported'`)).toBe('iv–x');
-    await page.goto(BASE+`/admin/periodicals/articles/${articleId}`);
+    await page.goto(BASE+`/admin/periodicals/articles/${articleId}/edit`);
     await page.locator('[name=pubblico]').uncheck();await page.getByRole('button',{name:'Salva articolo',exact:true}).click();
     expect((await publicPage.request.get(BASE+`/emeroteca/articolo/${articleId}`)).status()).toBe(404);
     expect((await publicPage.request.get(BASE+`/emeroteca/articolo/${articleId}/pdf`)).status()).toBe(404);

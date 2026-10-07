@@ -150,7 +150,7 @@ include $corePartials.'/resource-pager.php';
 <?php if($articleHasPdf): ?><a class="btn-primary ui-button" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/pdf')) ?>"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Leggi PDF') ?></a><?php endif; ?>
 <?php if($articleResource!==null && $articleResource['linkable']): ?><a class="<?= $articleResourceIsPrimary?'btn-primary ui-button':'ui-button btn-outline' ?>" href="<?= $e($articleResource['url']) ?>" rel="noopener nofollow" target="_blank"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i> <?= $e($articleResource['text']!==''?$articleResource['text']:__('Risorsa online')) ?></a><?php endif; ?>
 <?php /* Staff only (#455): the record opens in the back office. */ ?>
-<?php if($canEdit): ?><a class="ui-button btn-outline" href="<?= $e(url('/admin/periodicals/articles/'.(int)$article['id'])) ?>"><i class="fas fa-edit" aria-hidden="true"></i> <?= __('Modifica') ?></a><?php endif; ?>
+<?php if($canEdit): ?><a class="ui-button btn-outline" href="<?= $e(url('/admin/periodicals/articles/'.(int)$article['id'].'/edit')) ?>"><i class="fas fa-edit" aria-hidden="true"></i> <?= __('Modifica') ?></a><?php endif; ?>
 <?php if($articleResource!==null && $articleResource['linkable'] && $articleResource['access']!==''): ?><p class="resource-access-note"><?= $e($articleResource['access']) ?></p><?php endif; ?>
 </div>
 <?php endif; ?>

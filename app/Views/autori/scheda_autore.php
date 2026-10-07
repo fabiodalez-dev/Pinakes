@@ -338,9 +338,10 @@ $btnDanger  = 'btn-danger inline-flex items-center gap-2';
               if (empty($isStaff) && empty($articolo['pubblico'])) { continue; }
               $articleId = (int) $articolo['id'];
               $articlePublicUrl = url('/emeroteca/articolo/' . $articleId);
-              $articleEditUrl = url('/admin/periodicals/articles/' . $articleId);
-              // An unpublished article has no public page: its details are the form.
-              $articleDetailsUrl = !empty($articolo['pubblico']) ? $articlePublicUrl : $articleEditUrl;
+              $articleEditUrl = url('/admin/periodicals/articles/' . $articleId . '/edit');
+              // Staff read the article on its admin page, as they do a book;
+              // anyone else only ever sees a published one, on its public page.
+              $articleDetailsUrl = !empty($isStaff) ? url('/admin/periodicals/articles/' . $articleId) : $articlePublicUrl;
               $cover = (string) ($articolo['cover_url'] ?? '');
               if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
               if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }

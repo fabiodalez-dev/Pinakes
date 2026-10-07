@@ -67,6 +67,7 @@ $th='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wi
               <th scope="col" class="<?= $th ?>"><?= __('Pubblicazione') ?></th>
               <th scope="col" class="<?= $th ?>"><?= __('Testata associata') ?></th>
               <th scope="col" class="<?= $th ?>"><?= __('Visibilità') ?></th>
+              <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase"><?= __('Azioni') ?></th>
             </tr></thead>
             <tbody class="bg-white divide-y divide-gray-200">
             <?php foreach($rows as $r): ?>
@@ -76,10 +77,22 @@ $th='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wi
                 <td class="px-6 py-4 text-sm text-gray-900"><?= $e($r['contenitore_titolo']) ?><p class="text-xs text-gray-500 mt-1"><?= $e(implode(' · ',array_filter([$r['data_pubblicazione_testo'],$r['volume'],$r['numero'],$r['pagine']]))) ?></p></td>
                 <td class="px-6 py-4 text-sm text-gray-700"><?= $e($r['testata_titolo']??__('Non associato')) ?></td>
                 <td class="px-6 py-4 text-sm"><span class="status-badge <?= $r['pubblico']?'bg-green-100 text-green-800':'bg-gray-100 text-gray-700' ?>"><?= $r['pubblico']?__('Pubblico'):__('Privato') ?></span></td>
+                <td class="px-6 py-4 text-right">
+                  <?php if($source==='autonomo'): ?>
+                  <div class="flex items-center justify-end gap-0.5">
+                    <a href="<?= $e(url('/admin/periodicals/articles/'.(int)$r['id'])) ?>" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= $e(__('Visualizza')) ?>" aria-label="<?= $e(__('Visualizza')) ?>">
+                      <i class="fas fa-eye text-xs" aria-hidden="true"></i>
+                    </a>
+                    <a href="<?= $e(url('/admin/periodicals/articles/'.(int)$r['id'].'/edit')) ?>" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= $e(__('Modifica')) ?>" aria-label="<?= $e(__('Modifica')) ?>">
+                      <i class="fas fa-edit text-xs" aria-hidden="true"></i>
+                    </a>
+                  </div>
+                  <?php endif; ?>
+                </td>
               </tr>
             <?php endforeach; ?>
             <?php if(!$rows): ?>
-              <tr><td colspan="5" class="px-6 py-12 text-center"><div class="flex flex-col items-center"><i class="fas fa-inbox text-gray-300 text-5xl mb-3"></i><p class="text-gray-500 text-sm"><?= __('Nessun articolo. Aggiungi il primo o importa un CSV.') ?></p></div></td></tr>
+              <tr><td colspan="6" class="px-6 py-12 text-center"><div class="flex flex-col items-center"><i class="fas fa-inbox text-gray-300 text-5xl mb-3"></i><p class="text-gray-500 text-sm"><?= __('Nessun articolo. Aggiungi il primo o importa un CSV.') ?></p></div></td></tr>
             <?php endif; ?>
             </tbody>
           </table>
