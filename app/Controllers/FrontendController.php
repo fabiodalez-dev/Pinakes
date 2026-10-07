@@ -112,12 +112,12 @@ class FrontendController
         // OG URL (priority: custom og_url > canonical URL)
         $ogUrl = !empty($hero['og_url']) ? $hero['og_url'] : $seoCanonical;
 
-        // OG Image (priority: custom og_image > hero background > app logo > default cover)
+        // OG Image (priority: custom og_image > app logo > default cover).
+        // The retired hero background photo is no longer a fallback: it is
+        // not shown on the page and the admin can no longer change it.
         $ogImage = $defaultSocialImage;
         if (!empty($hero['og_image'])) {
             $ogImage = HtmlHelper::absoluteUrl($hero['og_image']);
-        } elseif (!empty($hero['background_image'])) {
-            $ogImage = HtmlHelper::absoluteUrl($hero['background_image']);
         } elseif ($brandLogoUrl !== '') {
             $ogImage = $brandLogoUrl;
         }
@@ -143,14 +143,12 @@ class FrontendController
                              (!empty($hero['subtitle']) ? $hero['subtitle'] :
                               ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture')))));
 
-        // Twitter Image (priority: custom twitter_image > og_image > hero background > app logo > default cover)
+        // Twitter Image (priority: custom twitter_image > og_image > app logo > default cover)
         $twitterImage = $defaultSocialImage;
         if (!empty($hero['twitter_image'])) {
             $twitterImage = HtmlHelper::absoluteUrl($hero['twitter_image']);
         } elseif (!empty($hero['og_image'])) {
             $twitterImage = HtmlHelper::absoluteUrl($hero['og_image']);
-        } elseif (!empty($hero['background_image'])) {
-            $twitterImage = HtmlHelper::absoluteUrl($hero['background_image']);
         } elseif ($brandLogoUrl !== '') {
             $twitterImage = $brandLogoUrl;
         }
