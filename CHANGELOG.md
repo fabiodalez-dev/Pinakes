@@ -2,6 +2,31 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.8.0-rc.1]
+
+A release candidate for the 2026 design of the public site and the reader's account pages. Every element the pages had is still there; what changes is how they look.
+
+### Changed
+- **The public site and the account pages move to the 2026 design**: one stylesheet (`public/assets/pinakes-2026.css`) for the home, the catalogue, the book page and every other public page, with colours taken from the active theme. The home has a hero with a fan of covers next to the title, the counters, the "Πίνακες" band, latest arrivals, genre carousels and the call to action. The catalogue uses the new book cards, and its List view is a real list, one row per book. The book page has a hero tinted by the theme accent, quick facts, the digital files as cards (read the PDF inline, play the audiobook, download) and labelled share buttons. Dashboard, profile, wishlist and loans share one page head and one kind of card. The footer is a grid, with a "Follow us" column when a social profile is set. The display serif is Fraunces, self-hosted like the other fonts.
+- **Form fields look the same everywhere**, the login and registration pages included: a white field with a thin rule tinted by the theme accent. A search box draws one border, with no second field inside it.
+- **Two theme options replace the four layout variants** (editorial, workspace, command, soft) in Admin → Themes: the hero style (covers or centred) and the card style (classic or tinted). A theme that never saved them gets covers and classic. The homepage editor can pick up to four covers for the hero, or show the latest ones.
+- **The accent stays readable as text on every theme.** On Ocean, Forest, Sunset, Teal and Coral the accent did not reach WCAG AA as text. The theme palette now carries `primary_text`, the accent darkened only as far as AA needs, used wherever the accent is text; backgrounds, borders and buttons keep the theme's colour. An axe sweep of every public and account page, on the ten bundled themes and at phone and desktop width, closed the remaining contrast, label and target-size findings.
+- The fade-in animation on cards is gone.
+
+### Added
+- **Emeroteca and Archive can leave the public menu**, like Events: a card in their admin pages takes the entry out of the desktop, mobile and account menus, while the pages stay reachable from the catalogue and search. The account menu gains the Archive entry the public menu already had.
+- **The home's events section** has a title, subtitle and on/off switch in the homepage editor.
+- **The header search suggestions show an article's image** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453)): its own cover, else its issue's, else the masthead's logo, sized like a book cover.
+
+### Fixed
+- **The account pages, login and registration** now load the theme's and the site's custom CSS, run the custom scripts and show the cookie banner, through the same partials as the public layout.
+- **Analytics and marketing scripts run after consent.** The nonce-based CSP refused the script the loader injects; it now carries the loader's nonce.
+- **The catalogue List view kept its rows after paging.** Moving to another page turned it into a grid of narrow cards.
+- After login a reader on an Italian install landed on `/user/dashboard` instead of `/utente/bacheca`, and the header menus linked there; the empty wishlist linked to `/dashboard`, a 404. Wishlist links to books were missing the author slug.
+- On phones the profile's fields overflowed their card and the closed mobile menu widened the page; archive units with a missing cover file showed a broken image, and the archive year filter overflowed its column.
+
+No migration: the new theme options live in the theme's settings JSON.
+
 ## [0.7.94]
 
 ### Added
