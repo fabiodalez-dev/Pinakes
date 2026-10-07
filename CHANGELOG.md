@@ -24,6 +24,8 @@ A release candidate for the 2026 design of the public site and the reader's acco
 - **The catalogue List view kept its rows after paging.** Moving to another page turned it into a grid of narrow cards.
 - After login a reader on an Italian install landed on `/user/dashboard` instead of `/utente/bacheca`, and the header menus linked there; the empty wishlist linked to `/dashboard`, a 404. Wishlist links to books were missing the author slug.
 - On phones the profile's fields overflowed their card and the closed mobile menu widened the page; archive units with a missing cover file showed a broken image, and the archive year filter overflowed its column.
+- **A page that does not exist no longer writes an error.** In production every unmatched path, from bots or stale links, wrote `[ERROR]` and a full stack trace to the server's error log, which grew to hundreds of MB and buried the real errors. Only real errors are logged now. Saving a plugin's settings no longer writes trace lines on every save.
+- **Saving the Open Library Google Books key reports a failed write.** It said the key was saved even when it was not.
 
 No migration: the new theme options live in the theme's settings JSON.
 
