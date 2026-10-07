@@ -2,8 +2,8 @@
 
 /**
  * The active theme's "CSS Personalizzato" (settings.advanced.custom_css, saved
- * by ThemeController), shared by every public layout: the frontend layout, the
- * reader's account pages (user_layout.php) and the standalone auth pages.
+ * by ThemeController), shared by the frontend layout (which also renders the
+ * reader's account pages) and the standalone auth pages.
  * Include it after the page's own stylesheets and before custom-css.php, so the
  * site-wide custom CSS still has the last word.
  *

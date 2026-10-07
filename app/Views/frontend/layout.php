@@ -37,8 +37,6 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 $versionFile = __DIR__ . '/../../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
-$frontendLayoutsMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/frontend-layouts.css');
-$frontendLayoutsVersion = $frontendLayoutsMtime !== false ? (string)$frontendLayoutsMtime : $appVersion;
 $frontendMainMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.css');
 $frontendMainVersion = $frontendMainMtime !== false ? (string)$frontendMainMtime : $appVersion;
 $frontendVendorMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/vendor.css');
@@ -317,8 +315,6 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($flatpickrCustomVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendMainVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <?php // frontend-layouts.css (the four layout variants) is superseded by the 2026
-          // design (pinakes-2026.css): its !important rules would override it. ?>
     <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($swalThemeVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php if (!empty($archivePageStyles)): ?>
         <link href="<?= htmlspecialchars(assetUrl('/archive-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($archivePagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
@@ -1830,7 +1826,10 @@ $htmlLang = substr($currentLocale, 0, 2);
         'logged' => $pkLogged,
         'wish' => $pkWish,
         'login' => absoluteUrl($loginRoute),
-        'csrf' => \App\Support\Csrf::ensureToken(),
+        // Only a signed-in reader toggles the heart, and they always have a
+        // session: reuse the meta token so an anonymous render stays
+        // token-free and cacheable (issue #387).
+        'csrf' => $pkLogged ? $csrfMetaToken : '',
         'wishOn' => __('Nei preferiti'),
         'wishOff' => __('Aggiungi ai preferiti'),
         'wishError' => __("Errore nell'aggiornare i preferiti."),

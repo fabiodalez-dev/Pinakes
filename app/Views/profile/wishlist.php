@@ -17,7 +17,6 @@ $reservationsRoute = route_path('reservations');
 ?>
 <meta name="csrf-token" content="<?= $csrfToken ?>">
 
-<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
 
 <?php // 2026 design: the account page head, a summary with the three counters, the quick search, then the same book cards as the catalogue. Styles in pinakes-2026.css (.pk-wishlist). ?>
 <div class="loans-container pk-wishlist">

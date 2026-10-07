@@ -1223,6 +1223,9 @@ body.pk :is(.wishlist-info-card, .dashboard-section, .loans-section, .section-ca
     background: var(--pk-surface); border: 1px solid var(--pk-line); border-radius: 20px; box-shadow: none;
 }
 body.pk :is(.dashboard-section, .loans-section) h2, body.pk .section-header h2 { font-family: var(--pk-serif); font-weight: 500; letter-spacing: -.015em; color: var(--pk-ink); }
+/* The reservations pages' coloured icon squares (inline backgrounds) are not
+   part of the 2026 design: the section titles stand on their own. */
+body.pk .section-icon, body.pk .section-icon[style] { display: none; }
 body.pk main .wishlist-hero > .container, body.pk main .dashboard-hero > .container { padding-left: var(--pk-gutter); padding-right: var(--pk-gutter); }
 /* Wishlist (profile/wishlist.php): the account head, a summary card with
    the three counters, the quick search, then the catalogue's book cards. */

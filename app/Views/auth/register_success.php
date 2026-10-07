@@ -24,7 +24,6 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
     <?php require __DIR__ . '/partials/auth-theme.php'; ?>
     <?php require __DIR__ . '/partials/theme-custom-css.php'; ?>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
-    <?php require __DIR__ . '/../partials/custom-js.php'; ?>
 </head>
 <body class="auth-body">
 
