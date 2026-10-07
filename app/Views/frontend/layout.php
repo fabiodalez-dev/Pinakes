@@ -56,8 +56,10 @@ $catalogPagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/catalog-pa
 $catalogPagesVersion = $catalogPagesMtime !== false ? (string)$catalogPagesMtime : $appVersion;
 $bookDetailMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/book-detail.css');
 $bookDetailVersion = $bookDetailMtime !== false ? (string)$bookDetailMtime : $appVersion;
-$pinakes2026Mtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/pinakes-2026.css');
-$pinakes2026Version = $pinakes2026Mtime !== false ? (string)$pinakes2026Mtime : $appVersion;
+// The stylesheet and the script share one version: whichever changed last, so
+// an edit to the script alone still reaches browsers that cached the old one.
+$pinakes2026Mtime = max((int) @filemtime(dirname(__DIR__, 3) . '/public/assets/pinakes-2026.css'), (int) @filemtime(dirname(__DIR__, 3) . '/public/assets/pinakes-2026.js'));
+$pinakes2026Version = $pinakes2026Mtime > 0 ? (string)$pinakes2026Mtime : $appVersion;
 
 // Load theme colors
 if (isset($container)) {

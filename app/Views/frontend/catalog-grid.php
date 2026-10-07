@@ -52,6 +52,9 @@ use App\Support\HtmlHelper;
       var s = c.querySelector('.book-subtitle:not(.subtitle-ph)'); if (s) s.style.height = '';
       var ph = c.querySelector('.subtitle-ph'); if (ph) ph.parentNode.removeChild(ph);
     });
+    // The list view has one card per row: nothing to line up, and heights
+    // measured there would clip the titles once the grid comes back.
+    if (grid.classList.contains('is-list')) return;
     // 2) READ (measurements only): batch every getBoundingClientRect/offsetHeight
     //    read here so the WRITE phase can't interleave reads and force repeated
     //    synchronous reflows (#302 review, layout-thrashing fix).
@@ -112,5 +115,7 @@ use App\Support\HtmlHelper;
   // pagination. Scripts inserted through innerHTML do not execute, so the page
   // explicitly emits this event once the replacement cards are in the DOM.
   document.addEventListener('pinakes:catalog-grid-updated', align);
+  // Switching between grid and list changes which cards share a row.
+  document.addEventListener('pinakes:catalog-view-changed', align);
 })();
 </script>

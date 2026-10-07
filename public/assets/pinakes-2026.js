@@ -129,6 +129,7 @@
       b.classList.toggle('is-active', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    grid.dispatchEvent(new Event('pinakes:catalog-view-changed', { bubbles: true }));
   }
   document.addEventListener('click', function (ev) {
     var b = ev.target.closest && ev.target.closest('[data-pk-view]');

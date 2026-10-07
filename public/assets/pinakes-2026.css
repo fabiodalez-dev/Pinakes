@@ -706,34 +706,77 @@ body.pk .book-card.pk-card { height: 100%; }
 body.pk .pk-card .book-content.pk-card__body { flex: 1 1 auto; }
 body.pk .pk-card .book-actions.pk-card__actions { margin-top: auto; padding-top: 6px; }
 
-/* List view: the same cards as rows. */
-body.pk .books-grid.pk-grid.is-list { display: flex; flex-direction: column; gap: 10px; }
+/* List view: the same cards as rows. The cover panel dissolves (display:
+   contents) so its children (book, status, media type, heart) become cells of
+   one grid with the text: cover | title, author · publisher, Details | status
+   with the digital editions spelled out | heart. Nothing is hidden. */
+body.pk .books-grid.pk-grid.is-list { display: flex; flex-direction: column; gap: 8px; }
 body.pk .is-list .book-card.pk-card {
-    flex-direction: row; align-items: center; gap: 18px; padding: 14px; border-radius: 16px; background: var(--pk-surface);
-    border: 1px solid var(--pk-line); height: auto; transition: border-color .2s, box-shadow .2s;
+    position: relative; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto;
+    grid-template-areas: "cover body status heart" "cover body media heart";
+    align-items: center; column-gap: 18px; row-gap: 6px; padding: 12px 16px; height: auto;
+    border-radius: 14px; background: var(--pk-surface); border: 1px solid var(--pk-line); transition: border-color .2s, box-shadow .2s;
 }
 body.pk .is-list .book-card.pk-card:hover { border-color: var(--pk-accent-hover-line); box-shadow: 0 10px 28px -18px color-mix(in srgb, var(--pk-accent) 50%, transparent); }
-body.pk .is-list .pk-card .book-image-container.pk-card__panel { width: 64px; flex: none; padding: 0; background: none; border-radius: 0; }
-body.pk .is-list .pk-card:hover .book-image-container.pk-card__panel { transform: none; }
-body.pk .is-list .pk-card .pk-book__pages, body.pk .is-list .pk-card .pk-heart, body.pk .is-list .pk-card .pk-card__media { display: none; }
+body.pk .is-list .pk-card .book-image-container.pk-card__panel { display: contents; }
+body.pk .is-list .pk-card .pk-card__link { border-radius: 14px; }
+body.pk .is-list .pk-card .pk-book { grid-area: cover; width: 52px; align-self: center; }
+body.pk .is-list .pk-card .pk-book__pages { display: none; }
 body.pk .is-list .pk-card:hover .pk-book__cover { transform: none; }
-body.pk .is-list .pk-card .pk-book__blank { padding: 6px; }
-body.pk .is-list .pk-card .pk-book__blank-title { font-size: 9px; }
+body.pk .is-list .pk-card .pk-book__blank { padding: 5px; }
+body.pk .is-list .pk-card .pk-book__blank-title { font-size: 8px; line-height: 1.15; }
 body.pk .is-list .pk-card .pk-book__blank-foot { display: none; }
-body.pk .is-list .book-card.pk-card { position: relative; padding-right: 170px; }
-body.pk .is-list .pk-card .book-image-container.pk-card__panel { position: static; }
-body.pk .is-list .pk-card .pk-book { position: relative; }
+body.pk .is-list .pk-card .book-content.pk-card__body {
+    grid-area: body; min-width: 0; flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0; row-gap: 3px;
+}
+body.pk .is-list .pk-card .book-content.pk-card__body > * { flex: 0 0 100%; }
+body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 18px; -webkit-line-clamp: 1; height: auto !important; }
+body.pk .is-list .pk-card .book-subtitle.pk-card__subtitle { height: auto !important; }
+/* The grid's row-alignment placeholders mean nothing in a list. */
+body.pk .is-list .pk-card .subtitle-ph, body.pk .is-list .pk-card .book-meta-empty { display: none; }
+body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__author, body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__meta { flex: 0 1 auto; max-width: 100%; font-size: 13px; }
+body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__meta:not(.book-meta-empty)::before { content: '\00b7'; margin: 0 8px; color: var(--pk-faint); }
+body.pk .is-list .pk-card .book-actions.pk-card__actions { margin: 2px 0 0; padding: 0; }
 body.pk .is-list .pk-card .book-status-badge.pk-card__status {
-    left: auto; right: 16px; top: 50%; transform: translateY(-50%); background: none; box-shadow: none; padding: 0;
-    font-size: 13px; font-weight: 500; white-space: nowrap; max-width: 150px;
+    grid-area: status; position: static; transform: none; justify-self: end; align-self: end; max-width: none;
+    background: none; box-shadow: none; padding: 0; font-size: 13px; font-weight: 500; white-space: nowrap; flex-wrap: wrap; justify-content: flex-end;
 }
+/* An article's badge is the record kind on the dark ink: it keeps its pill. */
+body.pk .is-list .pk-card .book-status-badge.pk-card__status.status-article { background: var(--pk-dark); color: #fff; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+/* Without a media-type badge the status sits level with the text. */
+body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) { grid-template-areas: "cover body status heart"; }
+body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) .pk-card__status { align-self: center; }
+/* Digital editions: the plugin's icons get their own name in a list. */
+body.pk .is-list .pk-card .pk-card__status .digital-badge-icon {
+    display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; padding: 3px 9px; border-radius: 999px;
+    background: var(--pk-soft); font-size: 12px !important; opacity: 1 !important; line-height: 1.2;
+    width: auto !important; height: auto !important; flex: none; overflow: visible;
+}
+body.pk .is-list .pk-card .pk-card__status .digital-badge-icon::after {
+    content: attr(title); font-family: var(--pk-sans); font-weight: 500; color: var(--pk-ink);
+}
+body.pk .is-list .pk-card .book-media-badge.pk-card__media {
+    grid-area: media; position: static; justify-self: end; align-self: start; width: auto; height: auto;
+    display: inline-flex; gap: 6px; padding: 3px 9px; border-radius: 999px; background: var(--pk-soft); box-shadow: none; font-size: 12px;
+}
+body.pk .is-list .pk-card .book-media-badge.pk-card__media::after { content: attr(title); font-family: var(--pk-sans); font-weight: 500; }
+body.pk .is-list .pk-card .pk-heart { grid-area: heart; position: relative; top: auto; right: auto; box-shadow: none; background: var(--pk-soft); }
 @media (max-width: 640px) {
-    body.pk .is-list .book-card.pk-card { padding-right: 14px; }
-    body.pk .is-list .pk-card .book-status-badge.pk-card__status { position: static; transform: none; }
+    body.pk .is-list .book-card.pk-card {
+        grid-template-columns: 44px minmax(0, 1fr) auto; column-gap: 12px; padding: 12px;
+        grid-template-areas: "cover body heart" "cover status status" "cover media media";
+    }
+    body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) { grid-template-areas: "cover body heart" "cover status status"; }
+    body.pk .is-list .pk-card .pk-book { width: 44px; align-self: start; }
+    body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 16px; -webkit-line-clamp: 2; }
+    body.pk .is-list .pk-card .book-status-badge.pk-card__status,
+    body.pk .is-list .pk-card .book-media-badge.pk-card__media { justify-self: start; justify-content: flex-start; }
+    body.pk .is-list .pk-card .pk-heart { align-self: start; }
+    /* Too narrow for "author · publisher": one line each, no dot. */
+    body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__author,
+    body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__meta { flex-basis: 100%; }
+    body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__meta:not(.book-meta-empty)::before { content: none; }
 }
-body.pk .is-list .pk-card .book-content.pk-card__body { flex: 1; min-width: 0; }
-body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 19px; }
-body.pk .is-list .pk-card .book-actions.pk-card__actions { margin-top: 4px; }
 
 /* Article card: the badge is the record kind, on the dark ink. */
 body.pk .pk-card .book-status-badge.status-article { background: var(--pk-dark); color: #fff; }
