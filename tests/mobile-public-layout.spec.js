@@ -4,8 +4,8 @@
  * check alone misses:
  *  - nothing reaches past the right edge, not even the closed mobile menu
  *    parked off-screen (a full-page capture measures the page as a phone does);
- *  - fields stay visible without a border: on a white card they take the soft
- *    fill instead of vanishing white on white;
+ *  - fields stay visible on a white card: a white field keeps a rule tinted
+ *    by the theme accent, so it never vanishes white on white;
  *  - the folded catalogue filters leave no empty room under their bar;
  *  - the home hero stacks with the books above the title (beside it on desktop).
  */
@@ -96,14 +96,14 @@ test.describe('Public site on a phone', () => {
 });
 
 test.describe('Form fields follow the theme', () => {
-  test('a field takes a soft fill and a rule mixed from the theme accent', async ({ page }) => {
+  test('a field is white with a rule mixed from the theme accent', async ({ page }) => {
     await page.goto(BASE + '/contatti', { waitUntil: 'networkidle' });
     const field = page.locator('main input.form-input').first();
     test.skip(await field.count() === 0, 'no contact form');
     const look = () => field.evaluate(el => { const cs = getComputedStyle(el); return { bg: cs.backgroundColor, border: cs.borderTopColor, width: cs.borderTopWidth }; });
     const before = await look();
     expect(before.width).toBe('1px');
-    expect(before.bg).not.toBe('rgb(255, 255, 255)');
+    expect(before.bg).toBe('rgb(255, 255, 255)');
     // Another theme's accent: the same field must recolour, with no other change.
     // (Through the CSSOM: the site's CSP rightly refuses an injected <style>.)
     // A theme sets both the accent and its text shade (--primary-text, which
@@ -113,9 +113,27 @@ test.describe('Form fields follow the theme', () => {
       document.documentElement.style.setProperty('--primary-text', '#047b56', 'important');
     });
     const after = await look();
-    expect(after.bg).not.toBe(before.bg);
+    expect(after.bg).toBe(before.bg);
     expect(after.border).not.toBe(before.border);
   });
+});
+
+test.describe('Search boxes draw one border', () => {
+  // The box carries the rule and the fill; the input inside it draws neither,
+  // or the page shows a field inside a field.
+  for (const path of ['/catalogo', '/emeroteca', '/archivio']) {
+    test(`${path}: the input inside a search box has no border of its own`, async ({ page }) => {
+      const res = await page.goto(BASE + path, { waitUntil: 'networkidle' });
+      test.skip(!res || res.status() !== 200, `${path} not served`);
+      const inputs = await page.$$eval('main :is(.search-box, .pk-filter-search) input', els => els
+        .filter(el => el.getBoundingClientRect().width > 0)
+        .map(el => { const cs = getComputedStyle(el); return { name: el.name || el.placeholder, border: cs.borderTopWidth, bg: cs.backgroundColor, shadow: cs.boxShadow }; }));
+      test.skip(inputs.length === 0, 'no search box on this page');
+      for (const i of inputs) {
+        expect(i, `${i.name}`).toEqual({ name: i.name, border: '0px', bg: 'rgba(0, 0, 0, 0)', shadow: 'none' });
+      }
+    });
+  }
 });
 
 test.describe('Footer "Seguici" column', () => {
