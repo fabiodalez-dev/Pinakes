@@ -1690,6 +1690,16 @@ class EmerotecaPlugin
         $export = 'App\\Plugins\\Emeroteca\\Controllers\\ExportAdminController';
         $public = 'App\\Plugins\\Emeroteca\\Controllers\\PublicController';
 
+        // POST /admin/periodicals/menu-visibility — show or hide the section's entry in the public menu
+        $app->post('/admin/periodicals/menu-visibility', function (
+            \Psr\Http\Message\ServerRequestInterface $request,
+            \Psr\Http\Message\ResponseInterface $response
+        ): \Psr\Http\Message\ResponseInterface {
+            $body = $request->getParsedBody();
+            \App\Support\ConfigStore::set('cms.emeroteca_in_menu', is_array($body) && isset($body['in_menu']) ? '1' : '0');
+            return $response->withHeader('Location', url('/admin/periodicals'))->withStatus(302);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
         $articles = 'App\\Plugins\\Emeroteca\\Controllers\\ContributionController';
         foreach (['' => 'index', '/create' => 'form', '/{id:[0-9]+}' => 'show', '/{id:[0-9]+}/edit' => 'form', '/import' => 'importForm', '/export' => 'export', '/issues' => 'issueOptions', '/{id:[0-9]+}/pdf' => 'pdf', '/{id:[0-9]+}/citation.ris' => 'ris', '/{id:[0-9]+}/marc.xml' => 'marcXml'] as $path => $method) {
             $app->get('/admin/periodicals/articles' . $path, function ($rq, $rs, $args) use ($plugin, $articles, $method) {

@@ -646,6 +646,16 @@ class ArchivesPlugin
             return $plugin->indexAction($request, $response);
         })->add($adminMiddleware);
 
+        // POST /admin/archives/menu-visibility — show or hide the section's entry in the public menu
+        $app->post('/admin/archives/menu-visibility', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ): ResponseInterface {
+            $body = $request->getParsedBody();
+            \App\Support\ConfigStore::set('cms.archives_in_menu', is_array($body) && isset($body['in_menu']) ? '1' : '0');
+            return $response->withHeader('Location', url('/admin/archives'))->withStatus(302);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
         // GET /admin/archives/new — blank create form
         $app->get('/admin/archives/new', function (
             ServerRequestInterface $request,

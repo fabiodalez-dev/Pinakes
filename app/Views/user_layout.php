@@ -67,6 +67,23 @@ try {
 } catch (\Throwable $e) {
     $emerotecaAvailable = false;
 }
+$emerotecaAvailable = $emerotecaAvailable && ConfigStore::isInPublicMenu('emeroteca');
+// Archive (archives plugin): as in the public layout, listed when the plugin
+// is active, at least one unit is published, and the menu entry is on.
+$archivesAvailable = false;
+$archivesRoute = '/archive';
+try {
+    if (isset($container, $db) && $db instanceof \mysqli && $container->has('pluginManager')
+        && $container->get('pluginManager')->isActive('archives')
+        && ConfigStore::isInPublicMenu('archives')) {
+        $unitCheck = $db->query('SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1');
+        $archivesAvailable = $unitCheck instanceof \mysqli_result && $unitCheck->num_rows === 1;
+        if ($unitCheck instanceof \mysqli_result) { $unitCheck->free(); }
+        $archivesRoute = \App\Support\RouteTranslator::route('archives') ?: '/archive';
+    }
+} catch (\Throwable $e) {
+    $archivesAvailable = false;
+}
 if (isset($db)) {
     try {
         $settingsRepository = new \App\Models\SettingsRepository($db);
@@ -928,6 +945,11 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"
                                 class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __("Catalogo") ?></a>
                         </li>
+                        <?php if ($archivesAvailable): ?>
+                            <li><a href="<?= htmlspecialchars(url($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
+                                    class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>"><?= __("Archivio") ?></a>
+                            </li>
+                        <?php endif; ?>
                         <?php if ($emerotecaAvailable): ?>
                             <li><a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>"><?= __("Emeroteca") ?></a>
@@ -1034,6 +1056,12 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
                         class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book mr-2"></i><?= __("Catalogo") ?>
                     </a>
+                    <?php if ($archivesAvailable): ?>
+                        <a href="<?= htmlspecialchars(url($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>">
+                            <i class="fas fa-archive mr-2"></i><?= __("Archivio") ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($emerotecaAvailable): ?>
                         <a href="<?= htmlspecialchars(url('/emeroteca'), ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/emeroteca') !== false ? 'active' : '' ?>">

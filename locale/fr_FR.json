@@ -8095,5 +8095,11 @@
   "Tinta": "Teinté",
   "Il libro su un pannello colorato con la tinta della sua copertina.": "Le livre sur un panneau teinté de la couleur de sa couverture.",
   "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Choisissez l'apparence du hero de la page d'accueil et des couvertures sur le site public. Les couleurs et les contenus restent ceux du thème.",
-  "Titolo e descrizione mostrati sopra gli eventi in programma": "Titre et description affichés au-dessus des événements à venir"
+  "Titolo e descrizione mostrati sopra gli eventi in programma": "Titre et description affichés au-dessus des événements à venir",
+  "Voce Emeroteca nel menu": "Entrée Périodiques dans le menu",
+  "Voce Archivio nel menu": "Entrée Archives dans le menu",
+  "Visibile nel menu del sito": "Visible dans le menu du site",
+  "Nascosta dal menu del sito": "Masquée dans le menu du site",
+  "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Masquée, l'entrée disparaît du menu du site public. Les pages restent accessibles depuis les résultats du catalogue et de la recherche.",
+  "Nascosta": "Masquée"
 }

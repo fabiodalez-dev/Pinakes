@@ -123,6 +123,11 @@ $isFiltered = $f_tipo !== '' || $f_editore > 0 || $f_stato !== '';
       <?php $mode=$mode??'complete'; $modeReturnTo='/admin/periodicals?view=titles'; require __DIR__.'/article-mode.php'; ?>
     </div>
 
+    <?php
+    $menuToggle = ['action' => url('/admin/periodicals/menu-visibility'), 'enabled' => \App\Support\ConfigStore::isInPublicMenu('emeroteca'), 'title' => __("Voce Emeroteca nel menu")];
+    require dirname(__DIR__, 5) . '/app/Views/admin/partials/menu-visibility-toggle.php';
+    ?>
+
     <div class="card periodicals-list-card">
       <!-- Filters Bar -->
       <form method="GET" action="<?= $e(url('/admin/periodicals')) ?>" class="p-4 border-b border-gray-100">

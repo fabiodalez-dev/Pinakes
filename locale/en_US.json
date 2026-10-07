@@ -8095,5 +8095,11 @@
   "Tinta": "Tinted",
   "Il libro su un pannello colorato con la tinta della sua copertina.": "The book on a panel tinted with its cover's colour.",
   "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Choose how the home page hero and the book covers look on the public site. Colours and content stay those of the theme.",
-  "Titolo e descrizione mostrati sopra gli eventi in programma": "Title and description shown above the upcoming events"
+  "Titolo e descrizione mostrati sopra gli eventi in programma": "Title and description shown above the upcoming events",
+  "Voce Emeroteca nel menu": "Periodicals entry in the menu",
+  "Voce Archivio nel menu": "Archive entry in the menu",
+  "Visibile nel menu del sito": "Shown in the site menu",
+  "Nascosta dal menu del sito": "Hidden from the site menu",
+  "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "When hidden, the entry disappears from the public site's menu. The pages stay reachable from catalogue and search results.",
+  "Nascosta": "Hidden"
 }

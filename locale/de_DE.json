@@ -8095,5 +8095,11 @@
   "Tinta": "Getönt",
   "Il libro su un pannello colorato con la tinta della sua copertina.": "Das Buch auf einer Fläche in der Farbe seines Covers.",
   "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Wählen Sie, wie der Hero der Startseite und die Buchcover auf der öffentlichen Website aussehen. Farben und Inhalte bleiben die des Themes.",
-  "Titolo e descrizione mostrati sopra gli eventi in programma": "Titel und Beschreibung über den kommenden Veranstaltungen"
+  "Titolo e descrizione mostrati sopra gli eventi in programma": "Titel und Beschreibung über den kommenden Veranstaltungen",
+  "Voce Emeroteca nel menu": "Menüeintrag Zeitschriften",
+  "Voce Archivio nel menu": "Menüeintrag Archiv",
+  "Visibile nel menu del sito": "Im Menü der Website sichtbar",
+  "Nascosta dal menu del sito": "Im Menü der Website ausgeblendet",
+  "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Ausgeblendet verschwindet der Eintrag aus dem Menü der öffentlichen Website. Die Seiten bleiben über Katalog- und Suchergebnisse erreichbar.",
+  "Nascosta": "Ausgeblendet"
 }

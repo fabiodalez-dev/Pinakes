@@ -132,6 +132,10 @@ final class ConfigStore
             ],
             'cms' => [
                 'events_page_enabled' => '1', // Default to enabled
+                // Plugin sections listed in the public menu (the pages stay
+                // reachable: catalogue and search results link to them).
+                'emeroteca_in_menu' => '1',
+                'archives_in_menu' => '1',
             ],
             'sharing' => [
                 'enabled_providers' => 'facebook,x,whatsapp,email',
@@ -323,6 +327,15 @@ final class ConfigStore
     public static function isCatalogueMode(): bool
     {
         return (bool) self::get('system.catalogue_mode', false);
+    }
+
+    /**
+     * Whether a plugin section ('emeroteca', 'archives') has its entry in the
+     * public menu. Only the menu entry: the section's pages stay reachable.
+     */
+    public static function isInPublicMenu(string $section): bool
+    {
+        return (string) self::get("cms.{$section}_in_menu", '1') === '1';
     }
 
     private static function mergeRecursiveDistinct(array $base, array $replacements): array

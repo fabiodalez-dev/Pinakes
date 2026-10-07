@@ -8095,5 +8095,11 @@
   "Tinta": "Tinta",
   "Il libro su un pannello colorato con la tinta della sua copertina.": "Il libro su un pannello colorato con la tinta della sua copertina.",
   "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.",
-  "Titolo e descrizione mostrati sopra gli eventi in programma": "Titolo e descrizione mostrati sopra gli eventi in programma"
+  "Titolo e descrizione mostrati sopra gli eventi in programma": "Titolo e descrizione mostrati sopra gli eventi in programma",
+  "Voce Emeroteca nel menu": "Voce Emeroteca nel menu",
+  "Voce Archivio nel menu": "Voce Archivio nel menu",
+  "Visibile nel menu del sito": "Visibile nel menu del sito",
+  "Nascosta dal menu del sito": "Nascosta dal menu del sito",
+  "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.",
+  "Nascosta": "Nascosta"
 }

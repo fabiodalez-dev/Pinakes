@@ -1555,10 +1555,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   $publicNavItems = [
       ['href' => $catalogRoute, 'label' => __('Catalogo'), 'icon' => 'fa-book', 'active' => $navPathActive((string) $catalogRoute)],
   ];
-  if ($archivesAvailable) {
+  if ($archivesAvailable && ConfigStore::isInPublicMenu('archives')) {
       $publicNavItems[] = ['href' => $archivesRoute, 'label' => __('Archivio'), 'icon' => 'fa-archive', 'active' => $navPathActive((string) $archivesRoute)];
   }
-  if ($emerotecaAvailable) {
+  if ($emerotecaAvailable && ConfigStore::isInPublicMenu('emeroteca')) {
       $publicNavItems[] = ['href' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive('/emeroteca')];
   }
   if ($eventsEnabled) {

@@ -185,6 +185,11 @@ $rootRows = $byParent[0] ?? [];
         </div>
     </header>
 
+    <?php
+    $menuToggle = ['action' => url('/admin/archives/menu-visibility'), 'enabled' => \App\Support\ConfigStore::isInPublicMenu('archives'), 'title' => __("Voce Archivio nel menu")];
+    require dirname(__DIR__, 4) . '/app/Views/admin/partials/menu-visibility-toggle.php';
+    ?>
+
     <form method="GET" action="<?= $e(url('/admin/archives')) ?>"
           class="card archive-filter-form mb-6">
         <div>
