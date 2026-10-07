@@ -2699,7 +2699,7 @@ class EmerotecaPlugin
      * search that cannot open it. $includeUnpublished is for the back-office
      * quick search alone, whose results open the article's edit form.
      *
-     * @return array{items: array<int, array{id: int, label: string, url: string, meta: string, authors: string, source: string}>, total: int}
+     * @return array{items: array<int, array{id: int, label: string, url: string, meta: string, authors: string, source: string, cover: string}>, total: int}
      */
     private function emerotecaArticleHits(string $term, bool $includeUnpublished = false): array
     {
@@ -2732,9 +2732,14 @@ class EmerotecaPlugin
         // runs on every catalogue search. An aggregate over a leading-wildcard
         // LIKE chain walks every published row to learn a number the fetch was
         // about to hand over for free.
+        // The placement joins give the issue's cover and the masthead's logo,
+        // so a suggestion carries the same image as the article's page (#453).
+        require_once __DIR__ . '/src/Services/ContributionService.php';
         $rows = $this->emerotecaRows(
-            "SELECT id, titolo, autori, contenitore_titolo, data_pubblicazione_testo, pagine
-             FROM emeroteca_contributi c WHERE $where ORDER BY id DESC LIMIT 6",
+            "SELECT c.id, c.titolo, c.autori, c.contenitore_titolo, c.data_pubblicazione_testo, c.pagine, c.copertina_url,
+                    " . \App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_COLUMNS . "
+             FROM emeroteca_contributi c" . \App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_JOINS . "
+             WHERE $where ORDER BY c.id DESC LIMIT 6",
             str_repeat('s', count($params)),
             $params
         );
@@ -2762,6 +2767,8 @@ class EmerotecaPlugin
                     (string) ($row['contenitore_titolo'] ?? ''),
                     (string) ($row['data_pubblicazione_testo'] ?? ''),
                 ], static fn (string $part): bool => trim($part) !== '')),
+                // Its own cover, else the issue's, else the masthead's logo.
+                'cover' => \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($row),
             ];
         }
         return ['items' => $items, 'total' => $total];
@@ -2805,6 +2812,7 @@ class EmerotecaPlugin
                     'label'      => $item['label'],
                     'author'     => $item['authors'],
                     'identifier' => $item['source'],
+                    'cover'      => $item['cover'] !== '' ? url($item['cover']) : '',
                     'url'        => $admin
                         ? $this->emerotecaPath('/admin/periodicals/articles/' . $item['id'])
                         : $item['url'],
