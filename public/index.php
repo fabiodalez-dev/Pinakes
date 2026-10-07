@@ -576,8 +576,15 @@ if (!$displayErrorDetails) {
         bool $logErrors,
         bool $logErrorDetails
     ) use ($app): \Psr\Http\Message\ResponseInterface {
-        // Log error for debugging
-        if ($logErrors) {
+        // Check if it's a 404 error
+        $is404 = $exception instanceof \Slim\Exception\HttpNotFoundException
+            || $exception instanceof \Slim\Exception\HttpMethodNotAllowedException
+            || $exception->getCode() === 404;
+
+        // Log real errors only. A path that matches no route is what any bot or
+        // stale link asks for: a stack trace for each filled the error log of a
+        // public site and buried the errors worth reading.
+        if ($logErrors && !$is404) {
             error_log(sprintf(
                 "[ERROR] %s in %s:%d\nStack trace:\n%s",
                 $exception->getMessage(),
@@ -586,11 +593,6 @@ if (!$displayErrorDetails) {
                 $exception->getTraceAsString()
             ));
         }
-
-        // Check if it's a 404 error
-        $is404 = $exception instanceof \Slim\Exception\HttpNotFoundException
-            || $exception instanceof \Slim\Exception\HttpMethodNotAllowedException
-            || $exception->getCode() === 404;
 
         // Create response
         $response = $app->getResponseFactory()->createResponse();
