@@ -113,6 +113,22 @@ test.describe('Form fields follow the theme', () => {
   });
 });
 
+test.describe('Footer "Seguici" column', () => {
+  test('social links read like the other footer columns', async ({ page }) => {
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+    const social = page.locator('footer .pk-footer .social-links a');
+    test.skip(await social.count() === 0, 'no social profile set in Settings');
+    const menu = await page.locator('footer .pk-footer__col').first().locator('li a').first().evaluate(a => a.getBoundingClientRect().height);
+    const links = await social.evaluateAll(as => as.map(a => { const cs = getComputedStyle(a); return { h: a.getBoundingClientRect().height, bg: cs.backgroundColor, text: a.textContent.trim(), icon: !!a.querySelector('i') }; }));
+    for (const l of links) {
+      expect(l.bg).toBe('rgba(0, 0, 0, 0)');
+      expect(Math.abs(l.h - menu)).toBeLessThanOrEqual(2);
+      expect(l.text).not.toBe('');
+      expect(l.icon).toBe(true);
+    }
+  });
+});
+
 test.describe('Wanted books (desiderata) covers', () => {
   async function covers(page) {
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });

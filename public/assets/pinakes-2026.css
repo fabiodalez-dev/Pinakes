@@ -198,15 +198,37 @@ body.pk .mobile-nav-link.active { background: var(--pk-accent-soft); color: var(
 /* ---------- Footer -------------------------------------------------------- */
 body.pk .footer { background: var(--pk-surface); border-top: 1px solid var(--pk-line); color: var(--pk-muted); padding: 0; margin: 0; }
 body.pk .pk-footer { max-width: var(--pk-wrap); margin: 0 auto; padding: 56px var(--pk-gutter) 28px; display: flex; flex-direction: column; gap: 40px; }
-body.pk .pk-footer__cols { display: flex; flex-wrap: wrap; gap: 40px 80px; }
-body.pk .pk-footer__brand { flex: 1 1 280px; display: flex; flex-direction: column; gap: 14px; max-width: 360px; }
+/* A real grid: the brand takes the widest track, the link columns share the
+   rest of the width. Tablet: brand on its own row, the columns below.
+   Phone: Menu and Account side by side, brand and "Seguici" full width. */
+body.pk .pk-footer__cols { display: grid; grid-template-columns: minmax(240px, 1.6fr) repeat(2, minmax(140px, 1fr)); gap: 40px 48px; }
+body.pk .pk-footer__cols:has(.social-links) { grid-template-columns: minmax(240px, 1.5fr) repeat(2, minmax(140px, 1fr)) minmax(240px, 1.4fr); }
+body.pk .pk-footer__brand { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+body.pk .pk-footer__brand p { max-width: 360px; }
+@media (max-width: 1024px) {
+    body.pk .pk-footer__cols, body.pk .pk-footer__cols:has(.social-links) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    body.pk .pk-footer__cols:has(.social-links) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    body.pk .pk-footer__brand { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+    body.pk .pk-footer__cols, body.pk .pk-footer__cols:has(.social-links) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 24px; }
+    body.pk .pk-footer__col:has(.social-links) { grid-column: 1 / -1; }
+}
 body.pk .pk-footer__brand .footer-logo { height: 32px; max-height: 32px; width: auto; max-width: 100%; display: block; margin: 0; object-fit: contain; object-position: left center; }
 body.pk .pk-footer__brand p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--pk-muted); }
 body.pk .pk-footer__brand h5 { margin: 0; font-family: var(--pk-serif); font-size: 22px; color: var(--pk-ink); }
-body.pk .pk-footer__col { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+body.pk .pk-footer__col { min-width: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+body.pk .pk-footer__col ul.social-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
+
 body.pk .pk-footer__col h5 { margin: 0 0 4px; font: 600 12px/1.2 var(--pk-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--pk-faint); }
 body.pk .pk-footer__col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 body.pk .pk-footer__col a { color: var(--pk-ink); text-decoration: none; font-weight: 400; }
+/* "Seguici" (shown once a social profile is set in Settings): plain links like
+   the other columns, the brand icon in front, not the legacy grey tiles. */
+body.pk .pk-footer .social-links a { width: auto; height: auto; padding: 0; border-radius: 0; background: none; justify-content: flex-start; gap: 8px; color: var(--pk-ink); }
+body.pk .pk-footer .social-links a:hover { background: none; color: var(--pk-accent); }
+body.pk .pk-footer .social-links a i { width: 16px; margin: 0; text-align: center; color: var(--pk-faint); }
+body.pk .pk-footer .social-links a:hover i { color: var(--pk-accent); }
 /* 24px targets (WCAG 2.2 AA) instead of the old 44px rows: the list keeps the
    design's 10px rhythm. */
 body.pk .footer .pk-footer__col ul li a { min-height: 24px; display: inline-flex; align-items: center; }

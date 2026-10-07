@@ -1106,7 +1106,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     <?php
     $userFooterSocials = [
         ['href' => $socialFacebook, 'icon' => 'fab fa-facebook', 'label' => 'Facebook'],
-        ['href' => $socialTwitter, 'icon' => 'fab fa-twitter', 'label' => 'X'],
+        ['href' => $socialTwitter, 'icon' => 'fa-brands fa-x-twitter', 'label' => 'X'],
         ['href' => $socialInstagram, 'icon' => 'fab fa-instagram', 'label' => 'Instagram'],
         ['href' => $socialLinkedin, 'icon' => 'fab fa-linkedin', 'label' => 'LinkedIn'],
         ['href' => $socialBluesky, 'icon' => 'fa-brands fa-bluesky', 'label' => 'Bluesky'],

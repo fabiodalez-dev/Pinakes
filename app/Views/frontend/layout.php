@@ -1854,7 +1854,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     $footerLink = static fn (string $key): string => htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route($key)), ENT_QUOTES, 'UTF-8');
     $footerSocials = array_filter([
         ['href' => $socialFacebook, 'icon' => 'fab fa-facebook', 'label' => 'Facebook'],
-        ['href' => $socialTwitter, 'icon' => 'fab fa-twitter', 'label' => 'X'],
+        ['href' => $socialTwitter, 'icon' => 'fa-brands fa-x-twitter', 'label' => 'X'],
         ['href' => $socialInstagram, 'icon' => 'fab fa-instagram', 'label' => 'Instagram'],
         ['href' => $socialLinkedin, 'icon' => 'fab fa-linkedin', 'label' => 'LinkedIn'],
         ['href' => $socialBluesky, 'icon' => 'fa-brands fa-bluesky', 'label' => 'Bluesky'],
