@@ -1269,6 +1269,43 @@ body.pk .pk-wishlist__empty h2 { margin: 0 0 8px; font-family: var(--pk-serif); 
 body.pk .pk-wishlist__empty p { margin: 0 auto 24px; max-width: 460px; color: var(--pk-muted); font-size: 15px; line-height: 1.55; }
 body.pk .pk-wishlist__empty .wishlist-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 
+/* Loans and reservations (user_dashboard/prenotazioni.php, profile/reservations.php):
+   the items as account cards, the cover as a book, status and dates as quiet
+   pills (only lateness speaks up), and the actions as compact pills. */
+body.pk .loans-container .items-grid { grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 16px; }
+body.pk .loans-container .item-card { background: var(--pk-surface); border: 1px solid var(--pk-line); border-radius: 20px; padding: 20px; box-shadow: none; }
+body.pk .loans-container .item-card:hover { border-color: var(--pk-accent-hover-line); box-shadow: none; }
+body.pk .loans-container .item-inner { gap: 20px; align-items: flex-start; }
+body.pk .loans-container .item-cover {
+    width: 76px; height: auto; aspect-ratio: 2 / 3; border-radius: 3px 6px 6px 3px; background: var(--pk-cover-blank); position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,.08), 0 16px 26px -14px rgba(60,10,35,.45); transform: none;
+}
+body.pk .loans-container .item-cover:hover { transform: translateY(-2px); }
+/* No cover: the placeholder image gives way to the blank book. */
+body.pk .loans-container .item-cover img[src$="placeholder.jpg"] { opacity: 0; }
+body.pk .loans-container .item-cover:has(img[src$="placeholder.jpg"])::after { content: ''; position: absolute; left: 10px; bottom: 14px; width: 18px; height: 2px; background: var(--pk-accent); }
+body.pk .loans-container .item-title { margin: 0 0 12px; font-family: var(--pk-serif); font-weight: 500; font-size: 20px; line-height: 1.2; letter-spacing: -.01em; }
+body.pk .loans-container .item-title a { color: var(--pk-ink); }
+body.pk .loans-container .item-title a:hover { color: var(--pk-accent); }
+body.pk .loans-container .item-badges { gap: 6px; }
+body.pk .loans-container .status-badge { gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--pk-soft); color: var(--pk-ink-3); font-size: 13px; font-weight: 500; }
+body.pk .loans-container .status-badge::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--pk-dot, var(--pk-faint)); }
+body.pk .loans-container .status-badge.badge-date::before { display: none; }
+body.pk .loans-container .badge-active { --pk-dot: #16a34a; }
+body.pk .loans-container .badge-pending, body.pk .loans-container .badge-scheduled { --pk-dot: #f59e0b; }
+body.pk .loans-container .badge-position { --pk-dot: var(--pk-accent); }
+body.pk .loans-container .badge-overdue { --pk-dot: #b42318; background: #fdecec; color: #8a1c13; }
+body.pk .loans-container :is(.btn-review, .btn-cancel) {
+    display: inline-flex; width: auto; margin: 16px 8px 0 0; padding: 9px 16px; border-radius: 999px; font: 600 13px/1.2 var(--pk-sans); box-shadow: none;
+}
+body.pk .loans-container .btn-review { background: var(--pk-button); color: var(--pk-button-text); border: 1px solid transparent; }
+body.pk .loans-container .btn-review:hover { background: var(--pk-button-hover); }
+body.pk .loans-container .btn-review:disabled { background: var(--pk-soft); color: var(--pk-muted); opacity: 1; }
+body.pk .loans-container .btn-cancel { background: var(--pk-surface); color: #b42318; border: 1px solid #f1c8c4; }
+body.pk .loans-container .btn-cancel:hover { background: #fdecec; border-color: #b42318; color: #8a1c13; }
+body.pk .loans-container .empty-state { border-radius: 20px; border: 1px solid var(--pk-line); background: var(--pk-surface); }
+body.pk .loans-container .section-divider { background: var(--pk-line); }
+
 /* A facet folded to its selection pill keeps no box, rule or scroll fade. */
 body.pk :is(.pk-filters, .filters-panel) :is(#authors-filter, #genres-filter, #publishers-filter, #media-types-filter, .filter-options).facet-is-collapsed {
     border: 0; background: none; padding: 0; max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none;
