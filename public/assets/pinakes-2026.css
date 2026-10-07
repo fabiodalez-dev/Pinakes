@@ -1197,6 +1197,52 @@ body.pk :is(.wishlist-info-card, .dashboard-section, .loans-section, .section-ca
 }
 body.pk :is(.dashboard-section, .loans-section) h2, body.pk .section-header h2 { font-family: var(--pk-serif); font-weight: 500; letter-spacing: -.015em; color: var(--pk-ink); }
 body.pk main .wishlist-hero > .container, body.pk main .dashboard-hero > .container { padding-left: var(--pk-gutter); padding-right: var(--pk-gutter); }
+/* Wishlist (profile/wishlist.php): the account head, a summary card with
+   the three counters, the quick search, then the catalogue's book cards. */
+body.pk .account-page-heading { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; margin: 0 0 28px; padding: 0; border: 0; }
+body.pk .account-page-heading__eyebrow { margin: 0 0 10px; color: var(--pk-accent); font: 600 12px/1.2 var(--pk-sans); letter-spacing: .1em; text-transform: uppercase; }
+body.pk .account-page-heading h1 { margin: 0 0 8px; font-family: var(--pk-serif); font-weight: 500; font-size: 56px; line-height: 1; letter-spacing: -.025em; color: var(--pk-ink); }
+body.pk .account-page-heading__subtitle { margin: 0; color: var(--pk-muted); font-size: 16px; }
+body.pk .account-page-heading__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+body.pk .account-page-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--pk-line-2); background: var(--pk-surface); color: var(--pk-ink); font: 500 14px/1.2 var(--pk-sans); text-decoration: none; }
+body.pk .account-page-link:hover { border-color: var(--pk-ink); color: var(--pk-ink); }
+body.pk .account-page-link i { color: var(--pk-accent); font-size: 13px; }
+@media (max-width: 640px) { body.pk .account-page-heading h1 { font-size: 42px; } }
+
+body.pk .pk-wishlist .pk-wishlist__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 32px; padding: 24px 28px; margin: 0 0 20px; }
+body.pk .pk-wishlist__intro { flex: 1 1 320px; min-width: 0; }
+body.pk .pk-wishlist__intro h2 { margin: 0 0 6px; font-family: var(--pk-serif); font-weight: 500; font-size: 24px; letter-spacing: -.015em; color: var(--pk-ink); }
+body.pk .pk-wishlist__intro p { margin: 0; color: var(--pk-muted); font-size: 15px; line-height: 1.55; }
+body.pk .pk-wishlist__stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+body.pk .pk-wishlist__stats .wishlist-stat { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: var(--pk-accent-soft); color: var(--pk-accent-strong); font-size: 14px; font-weight: 500; }
+body.pk .pk-wishlist__stats .wishlist-stat strong { font-family: var(--pk-serif); font-size: 20px; font-weight: 500; line-height: 1; color: var(--pk-ink); }
+body.pk .pk-wishlist__stats .wishlist-stat i { font-size: 12px; color: var(--pk-accent); }
+
+body.pk .pk-wishlist .pk-wishlist__tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; margin: 0 0 32px; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+body.pk .pk-wishlist__tools .wishlist-filter-field { flex: 1 1 320px; max-width: 520px; display: flex; flex-direction: column; gap: 8px; }
+body.pk .pk-wishlist__tools label { margin: 0; color: var(--pk-muted); font: 600 12px/1.2 var(--pk-sans); letter-spacing: .08em; text-transform: uppercase; }
+body.pk .pk-wishlist__tools input[type=search] { width: 100%; padding: 11px 14px; font-size: 15px; }
+body.pk .pk-wishlist__tools #clear-search { display: inline-flex; align-items: center; gap: 8px; padding: 11px 6px; border: 0; background: none; color: var(--pk-accent); font: 500 14px/1.2 var(--pk-sans); letter-spacing: normal; text-transform: none; cursor: pointer; }
+body.pk .pk-wishlist__tools #clear-search:hover { color: var(--pk-accent-strong); }
+
+body.pk .pk-wishlist #wishlist-no-results { margin: 0 0 20px; padding: 14px 18px; border-radius: 14px; background: var(--pk-accent-soft); color: var(--pk-accent-strong); font-weight: 500; }
+body.pk .pk-wishlist #wishlist-no-results[hidden] { display: none; }
+body.pk .pk-wishlist #wishlist-no-results i { margin-right: 8px; }
+body.pk .pk-wishlist .wishlist-card[hidden] { display: none; }
+body.pk .pk-wishlist .wishlist-card { transform: none; box-shadow: none; background: none; border-radius: 0; }
+body.pk .pk-wishlist .pk-card .book-actions.pk-card__actions.wishlist-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+body.pk .pk-wishlist .remove-fav-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 999px; border: 1px solid var(--pk-line-2); background: var(--pk-surface); color: var(--pk-muted); cursor: pointer; position: relative; z-index: 2; }
+body.pk .pk-wishlist .remove-fav-btn:hover { border-color: #b42318; color: #b42318; }
+body.pk .pk-wishlist .remove-fav-btn i { font-size: 13px; }
+body.pk .pk-wishlist .pk-card__meta i { margin-right: 4px; color: var(--pk-faint); }
+
+body.pk .pk-wishlist .pk-wishlist__empty { padding: 56px 28px; border-radius: 20px; border: 1px solid var(--pk-line); background: var(--pk-surface); box-shadow: none; text-align: center; }
+body.pk .pk-wishlist__empty .wishlist-empty-icon { width: 72px; height: 72px; margin: 0 auto 20px; border-radius: 50%; display: grid; place-items: center; background: var(--pk-accent-soft); color: var(--pk-accent); }
+body.pk .pk-wishlist__empty .account-line-icon { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+body.pk .pk-wishlist__empty h2 { margin: 0 0 8px; font-family: var(--pk-serif); font-weight: 500; font-size: 28px; color: var(--pk-ink); }
+body.pk .pk-wishlist__empty p { margin: 0 auto 24px; max-width: 460px; color: var(--pk-muted); font-size: 15px; line-height: 1.55; }
+body.pk .pk-wishlist__empty .wishlist-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
 /* A facet folded to its selection pill keeps no box, rule or scroll fade. */
 body.pk :is(.pk-filters, .filters-panel) :is(#authors-filter, #genres-filter, #publishers-filter, #media-types-filter, .filter-options).facet-is-collapsed {
     border: 0; background: none; padding: 0; max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none;
