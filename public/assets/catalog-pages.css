@@ -567,7 +567,9 @@
 
 .custom-pages-inputs {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    /* minmax(0, 1fr): a number field's intrinsic width (about 190px) would
+       otherwise push each column past the filter sidebar. */
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     gap: 0.5rem;
     align-items: center;
     margin-top: 0.5rem;
@@ -578,6 +580,9 @@
 }
 
 .pages-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0.5rem;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);

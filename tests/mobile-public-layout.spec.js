@@ -95,6 +95,72 @@ test.describe('Public site on a phone', () => {
   });
 });
 
+test.describe('Wanted books (desiderata) covers', () => {
+  async function covers(page) {
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+    const rows = page.locator('#desiderata-results li');
+    test.skip(await rows.count() === 0, 'no wanted books on the home');
+    // Every row carries its cover in the frame: the blank-book fallback needs it.
+    await expect(page.locator('#desiderata-results li .dw-cover-frame')).toHaveCount(await rows.count());
+    return page.locator('#desiderata-results .dw-cover-frame');
+  }
+
+  test.describe('on a phone', () => {
+    test.use(PHONE);
+    test('a cover fills the row, as a book', async ({ page }) => {
+      const frames = await covers(page);
+      const r = await frames.first().evaluate(f => { const b = f.getBoundingClientRect(); const li = f.closest('li').getBoundingClientRect(); return { w: b.width, h: b.height, row: li.width }; });
+      expect(r.w).toBeGreaterThanOrEqual(r.row - 1);
+      expect(Math.abs(r.h / r.w - 1.5)).toBeLessThan(0.02);
+    });
+  });
+
+  test.describe('on a desktop', () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
+    test('a cover is a readable thumbnail, and a missing one shows the title', async ({ page }) => {
+      const frames = await covers(page);
+      const sizes = await frames.evaluateAll(fs => fs.map(f => Math.round(f.getBoundingClientRect().width)));
+      for (const w of sizes) expect(w).toBeGreaterThanOrEqual(90);
+      const blank = page.locator('#desiderata-results .dw-cover-frame.is-blank').first();
+      if (await blank.count()) {
+        const label = await blank.evaluate(f => getComputedStyle(f, '::after').content);
+        expect(label).not.toBe('none');
+        expect(label.replace(/^"|"$/g, '')).toBe(await blank.getAttribute('data-title'));
+      }
+    });
+  });
+});
+
+test.describe('Genre carousel and archive filters', () => {
+  for (const width of [390, 768, 1280]) {
+    test(`at ${width}px the genre heading lines up with its books`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+      const section = page.locator('.genre-carousel-section').first();
+      test.skip(await section.count() === 0, 'no genre carousel');
+      const delta = await section.evaluate(s => Math.abs(s.querySelector('.genre-carousel-title').getBoundingClientRect().left - s.querySelector('.carousel-book-card').getBoundingClientRect().left));
+      expect(delta).toBeLessThanOrEqual(1);
+    });
+
+    test(`at ${width}px the archive year fields fit the filter column`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const res = await page.goto(BASE + '/archivio', { waitUntil: 'networkidle' });
+      test.skip(!res || res.status() >= 400, 'no archive');
+      const toggle = page.locator('.filters-mobile-toggle').first();
+      if (await toggle.count() && await toggle.isVisible()) await toggle.click();
+      const inputs = page.locator('.custom-pages-inputs .pages-input');
+      test.skip(await inputs.count() === 0, 'no year range');
+      const fits = await inputs.evaluateAll(els => els.every(el => {
+        const box = el.getBoundingClientRect();
+        let p = el.parentElement;
+        while (p && !/(hidden|clip)/.test(getComputedStyle(p).overflowX)) p = p.parentElement;
+        return !p || box.right <= p.getBoundingClientRect().right + 1;
+      }));
+      expect(fits).toBe(true);
+    });
+  }
+});
+
 test.describe('Home hero on a desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 

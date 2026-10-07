@@ -44,7 +44,10 @@ $placeholderJson = json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HE
         <?php // alt="" on purpose: the title sits right next to it, so a screen reader would read the same thing twice.
               // The cover link is hidden from assistive technology and skipped by the keyboard for the same reason:
               // it leads exactly where the title link beside it leads, and two identical stops is one stop too many. ?>
-        <li><?php if ($href !== ''): ?><a class="dw-cover-link" href="<?= $e($href) ?>" tabindex="-1" aria-hidden="true"><?php endif; ?><img class="dw-cover" src="<?= $e($b['cover'] ?? url(DesiderataPlugin::PLACEHOLDER_COVER)) ?>" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=<?= $e($placeholderJson) ?>"><?php if ($href !== ''): ?></a><?php endif; ?>
+        <?php // No cover (or one that fails to load): the frame turns into a blank book carrying the title, as the catalogue's cards do.
+              $coverSrc = (string) ($b['cover'] ?? url(DesiderataPlugin::PLACEHOLDER_COVER));
+              $coverBlank = str_ends_with($coverSrc, DesiderataPlugin::PLACEHOLDER_COVER); ?>
+        <li><?php if ($href !== ''): ?><a class="dw-cover-link" href="<?= $e($href) ?>" tabindex="-1" aria-hidden="true"><?php endif; ?><span class="dw-cover-frame<?= $coverBlank ? ' is-blank' : '' ?>" data-title="<?= $e($b['titolo']) ?>"><img class="dw-cover" src="<?= $e($coverSrc) ?>" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=<?= $e($placeholderJson) ?>;this.parentNode.classList.add('is-blank')"></span><?php if ($href !== ''): ?></a><?php endif; ?>
         <div><strong><?php if ($href !== ''): ?><a class="dw-title-link" href="<?= $e($href) ?>"><?= $e($b['titolo']) ?></a><?php else: ?><?= $e($b['titolo']) ?><?php endif; ?></strong><p class="dw-muted"><?= $e(implode(' · ', array_filter([$b['autore'], $b['editore'], $b['isbn13'] ?: $b['isbn10']]))) ?></p></div>
         <button type="button" class="btn btn-outline-primary dw-select" data-book="<?= $e(json_encode($b, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)) ?>"><?= __('Ce l’ho, posso donarlo') ?></button></li>
         <?php endforeach; ?>

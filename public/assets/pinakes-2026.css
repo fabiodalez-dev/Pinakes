@@ -1207,6 +1207,13 @@ body.pk .carousel-book-card { flex: 0 0 calc((100% - 4 * 22px) / 5); min-width: 
 body.pk .carousel-book-cover { height: auto; }
 @media (max-width: 1024px) { body.pk .carousel-book-card { flex-basis: calc((100% - 2 * 22px) / 3); } }
 @media (max-width: 640px) { body.pk .carousel-book-card { flex-basis: calc((100% - 22px) / 2); } }
+/* At 768px and below home.php moves the arrows under the track and centres a
+   single card; the 2026 rows hold two or three, so the cards start at the
+   left edge, and the heading drops the indent kept for side arrows. */
+@media (max-width: 768px) {
+    body.pk .genre-carousel-header { margin-left: 0; margin-right: 0; }
+    body.pk .carousel-book-card { margin: 0; max-width: none; }
+}
 body.pk .carousel-book-card { overflow: visible; background: transparent; border: 0; box-shadow: none; border-radius: 0; padding: 0; transform: none; }
 body.pk .carousel-book-card:hover { transform: none; box-shadow: none; }
 body.pk .carousel-book-cover {
