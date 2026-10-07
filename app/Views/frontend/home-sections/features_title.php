@@ -34,7 +34,7 @@ $featuresData = $section ?? [];
         ?>
         <div class="feature-card pk-feature">
             <div class="feature-heading pk-feature__top">
-                <span class="pk-feature__n"><?= sprintf('%02d', $n + 1) ?></span>
+                <span class="pk-feature__n" aria-hidden="true"><?= sprintf('%02d', $n + 1) ?></span>
                 <span class="feature-icon pk-feature__icon"><i class="<?php echo htmlspecialchars($icon, ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"></i></span>
             </div>
             <h3 class="feature-title pk-feature__title"><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></h3>

@@ -202,54 +202,6 @@
   text-decoration: underline;
 }
 
-/* ── Layout variants ─────────────────────────────────────────────────── */
-body.layout-workspace .archive-title,
-body.layout-command .archive-title,
-body.layout-soft .archive-title,
-body.layout-workspace .archive-section-header h2,
-body.layout-command .archive-section-header h2,
-body.layout-soft .archive-section-header h2 {
-  font-family: var(--sans, Inter, sans-serif) !important;
-  font-weight: 760;
-}
-
-body.layout-workspace .archive-hero {
-  background: var(--light-bg);
-  padding-block: 4rem 3.5rem;
-}
-
-body.layout-command .archive-hero {
-  background: var(--secondary-color);
-  color: var(--white);
-}
-
-body.layout-command .archive-hero .archive-title,
-body.layout-command .archive-hero .archive-count,
-body.layout-command .archive-hero .book-breadcrumb .breadcrumb-item,
-body.layout-command .archive-hero .book-breadcrumb a,
-body.layout-command .archive-hero .book-breadcrumb .active {
-  color: var(--white);
-}
-
-body.layout-command .archive-kicker,
-body.layout-command .archive-count i {
-  color: color-mix(in srgb, var(--primary-color) 65%, var(--white));
-}
-
-body.layout-command .archive-avatar {
-  background: color-mix(in srgb, var(--white) 12%, transparent);
-  color: var(--white);
-}
-
-body.layout-soft .archive-hero {
-  margin: 0 1rem;
-  border-radius: 24px;
-}
-
-body.layout-soft .archive-avatar {
-  background: var(--white);
-}
-
 @media (max-width: 62rem) {
   .archive-page .archive-books-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -261,7 +213,6 @@ body.layout-soft .archive-avatar {
   .archive-title { font-size: 2rem; }
   .archive-section-header { align-items: start; flex-direction: column; gap: 0; }
   .archive-page .archive-books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-  body.layout-soft .archive-hero { margin: 0 .65rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

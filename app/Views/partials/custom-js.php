@@ -3,8 +3,10 @@
 /**
  * Custom JavaScript from Settings > Advanced, granular by cookie category:
  * the essential script always runs; analytics and marketing are injected only
- * once the visitor has consented to that category (cookie banner). Shared by
- * the public layout and the reader's account pages.
+ * once the visitor has consented to that category (cookie banner). Used by
+ * the public layout only: the login, registration and password-reset pages
+ * never run site scripts, so a third-party snippet cannot read what is typed
+ * there or the reset token in the URL.
  */
 
 use App\Support\ConfigStore;

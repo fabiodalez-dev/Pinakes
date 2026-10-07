@@ -4,8 +4,8 @@
  * Extracted from the inline $additional_css of app/Views/frontend/book-detail.php
  * so any public "scheda" (a book, a periodical, an issue, an article) can wear
  * the same hero: blurred-cover band (.book-hero), cover + identity columns,
- * breadcrumb, kicker, title, metadata and related sections. The per-layout
- * overrides in frontend-layouts.css apply unchanged.
+ * breadcrumb, kicker, title, metadata and related sections. The 2026 design
+ * (pinakes-2026.css) is linked after it and has the last word.
  *
  * Opt in with `$bookDetailStyles = true;` before the frontend layout renders;
  * the layout links this file right after its own <style>, where the inline
@@ -361,11 +361,6 @@
     background: #6b7280;
     transform: translateY(-2px);
     box-shadow: none;
-}
-
-body[class*='layout-'] .availability-badge.wanted {
-    background: color-mix(in srgb, #6b7280 11%, var(--white));
-    color: color-mix(in srgb, #6b7280 72%, #1a1a1a);
 }
 
 .book-status-inline.is-wanted::before {
@@ -1412,7 +1407,7 @@ body[class*='layout-'] .availability-badge.wanted {
 }
 
 /* "Dettagli" is the catalogue card action (.book-actions .btn-cta.btn-cta-sm):
-   the shared frame comes from frontend-layouts.css; these lines repeat the
+   these lines repeat the
    catalogue's quiet fill so the two cards read the same. */
 .related-book-card .book-actions {
     padding-top: 0.75rem;
@@ -1515,8 +1510,7 @@ background-color: transparent;
 
 /* main.css gives every img `max-width: 100% !important`, which beats the caps
    above: on a resource page the cover filled its column (375px at 1280px).
-   Re-assert them for the shared hero only; the book page keeps its own sizing,
-   and body.layout-command's 300px (more specific) still wins. */
+   Re-assert them for the shared hero only; the book page keeps its own sizing. */
 .resource-hero .book-cover-large {
     max-width: min(100%, 350px) !important;
 }

@@ -37,8 +37,6 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 $versionFile = __DIR__ . '/../../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
-$frontendLayoutsMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/frontend-layouts.css');
-$frontendLayoutsVersion = $frontendLayoutsMtime !== false ? (string)$frontendLayoutsMtime : $appVersion;
 $frontendMainMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.css');
 $frontendMainVersion = $frontendMainMtime !== false ? (string)$frontendMainMtime : $appVersion;
 $frontendVendorMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/vendor.css');
@@ -95,6 +93,9 @@ if (isset($container)) {
         'secondary_hover' => '#0f1623',
         'button_hover' => '#c20258',
         'primary_text' => '#ce015d',
+        'button_surface' => '#d70262',
+        'secondary_surface' => '#111827',
+        'primary_on_dark' => '#e2488d',
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
@@ -317,12 +318,13 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($flatpickrCustomVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendMainVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <?php // frontend-layouts.css (the four layout variants) is superseded by the 2026
-          // design (pinakes-2026.css): its !important rules would override it. ?>
     <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($swalThemeVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php if (!empty($archivePageStyles)): ?>
         <link href="<?= htmlspecialchars(assetUrl('/archive-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($archivePagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php endif; ?>
+    <?php // The 2026 design's two faces (Latin subset), fetched with the CSS rather than after it. ?>
+    <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Geist-normal-latin.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Newsreader-normal-latin.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
@@ -367,6 +369,17 @@ $htmlLang = substr($currentLocale, 0, 2);
             /* The accent as text: darkened only as far as AA contrast needs. */
             --primary-text:
                 <?= htmlspecialchars($themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            /* Filled surfaces kept at AA with their text, and the accent as
+               text on the dark surface (ThemeColorizer::readableSurface()). */
+            --button-surface:
+                <?= htmlspecialchars($themePalette['button_surface'] ?? $themePalette['button'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --secondary-surface:
+                <?= htmlspecialchars($themePalette['secondary_surface'] ?? $themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --primary-on-dark:
+                <?= htmlspecialchars($themePalette['primary_on_dark'] ?? '#ffffff', ENT_QUOTES, 'UTF-8') ?>
             ;
             --secondary-color:
                 <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
@@ -1830,7 +1843,10 @@ $htmlLang = substr($currentLocale, 0, 2);
         'logged' => $pkLogged,
         'wish' => $pkWish,
         'login' => absoluteUrl($loginRoute),
-        'csrf' => \App\Support\Csrf::ensureToken(),
+        // Only a signed-in reader toggles the heart, and they always have a
+        // session: reuse the meta token so an anonymous render stays
+        // token-free and cacheable (issue #387).
+        'csrf' => $pkLogged ? $csrfMetaToken : '',
         'wishOn' => __('Nei preferiti'),
         'wishOff' => __('Aggiungi ai preferiti'),
         'wishError' => __("Errore nell'aggiornare i preferiti."),

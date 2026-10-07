@@ -470,7 +470,6 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
   }
 </style>
 
-<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
 
 <div class="loans-container">
   <header class="account-page-heading">

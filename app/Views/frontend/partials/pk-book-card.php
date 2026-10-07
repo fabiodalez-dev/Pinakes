@@ -32,6 +32,14 @@ $pkTitleTag = in_array($pkCardTitleTag ?? 'h3', ['h2', 'h3', 'h4'], true) ? ($pk
 $pkEdgeCache = \App\Support\LiteSpeedCache::enabled() && \App\Support\LiteSpeedCache::serverDetected();
 $pkE = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
 $pkId = (int) ($pkBook['id'] ?? 0);
+// Same resolution as the book page: a legacy record with no tipo_media is
+// typed from its formato, so a disc reads as a disc on the card too.
+$pkTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
+    isset($pkBook['formato']) ? (string) $pkBook['formato'] : null,
+    isset($pkBook['tipo_media']) ? (string) $pkBook['tipo_media'] : null
+);
+// The blank cover carries the library's name, as the header does.
+$pkBrand = (string) \App\Support\ConfigStore::get('app.name', 'Pinakes');
 ?>
 <div class="book-card pk-card<?= ($pkCardClass ?? '') !== '' ? ' ' . $pkE((string) $pkCardClass) : '' ?>" data-book-id="<?= $pkId ?>">
     <div class="book-image-container pk-card__panel">
@@ -41,7 +49,7 @@ $pkId = (int) ($pkBook['id'] ?? 0);
             <div class="pk-book__cover">
                 <div class="pk-book__blank" aria-hidden="true">
                     <div class="pk-book__blank-title"><?= $pkE($pkTitle) ?></div>
-                    <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand">Pinakes</div></div>
+                    <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand"><?= $pkE($pkBrand) ?></div></div>
                 </div>
                 <?php if ($pkCover !== ''): ?>
                 <img class="book-image pk-book__img" data-pk-tone
@@ -80,9 +88,9 @@ $pkId = (int) ($pkBook['id'] ?? 0);
             ?>
             <span class="book-status-badge <?= $pkClass ?> pk-card__status"><span data-live-label><?= $pkE($pkLabel) ?></span><?php do_action('book.badge.digital_icons', $pkBook); ?></span>
         <?php endif; ?>
-        <?php if (($pkBook['tipo_media'] ?? 'libro') !== 'libro' && !empty($pkBook['tipo_media'])): ?>
-            <?php $pkMedia = \App\Support\MediaLabels::tipoMediaDisplayName((string) $pkBook['tipo_media']); ?>
-            <span class="book-media-badge pk-card__media" title="<?= $pkE($pkMedia) ?>" aria-label="<?= $pkE($pkMedia) ?>"><i class="fas <?= $pkE(\App\Support\MediaLabels::icon((string) $pkBook['tipo_media'])) ?>" aria-hidden="true"></i></span>
+        <?php if ($pkTipoMedia !== 'libro'): ?>
+            <?php $pkMedia = \App\Support\MediaLabels::tipoMediaDisplayName($pkTipoMedia); ?>
+            <span class="book-media-badge pk-card__media" title="<?= $pkE($pkMedia) ?>" aria-label="<?= $pkE($pkMedia) ?>"><i class="fas <?= $pkE(\App\Support\MediaLabels::icon($pkTipoMedia)) ?>" aria-hidden="true"></i></span>
         <?php endif; ?>
         <?php if (!\App\Support\ConfigStore::isCatalogueMode() && empty($pkBook['is_desiderata'])): ?>
         <button type="button" class="pk-heart" data-pk-wish="<?= $pkId ?>" aria-pressed="false" aria-label="<?= htmlspecialchars(__('Aggiungi ai preferiti'), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__('Aggiungi ai preferiti'), ENT_QUOTES, 'UTF-8') ?>">
@@ -99,7 +107,7 @@ $pkId = (int) ($pkBook['id'] ?? 0);
             <p class="book-author pk-card__author"><?= $pkE($pkAuthor) ?></p>
         <?php else: ?>
             <?php // Not .book-author: that class means a real credited author (the catalogue's author sort reads it). ?>
-            <p class="pk-card__author pk-card__author--unknown"><?= $pkE(__('Autore sconosciuto')) ?></p>
+            <p class="pk-card__author pk-card__author--unknown"><?= $pkE($pkTipoMedia === 'disco' ? __('Artista sconosciuto') : __('Autore sconosciuto')) ?></p>
         <?php endif; ?>
         <?php if ($pkShowMeta): ?>
             <?php if ($pkPublisher !== ''): ?>

@@ -3,13 +3,13 @@
  * Shared breadcrumb.
  *
  * One markup for every public page, so the separator, the current-page marker
- * and the accessible name are the same everywhere (the per-layout styling in
- * public/assets/frontend-layouts.css targets `.breadcrumb`).
+ * and the accessible name are the same everywhere (styled by `.breadcrumb`
+ * in public/assets/pinakes-2026.css).
  *
  * Input $breadcrumbItems: list<array{label: string, href?: string|null}>
  *      In order from Home; the LAST item is the current page and is never a link.
- * Input $breadcrumbVariant: string 'hero' — white, centred under a coloured
- *      .catalog-header; 'book' — the .book-breadcrumb of a single-resource hero.
+ * Input $breadcrumbVariant: string 'hero' — the breadcrumb of a page head
+ *      (.catalog-header); 'book' — the .book-breadcrumb of a single-resource hero.
  */
 $breadcrumbItems = $breadcrumbItems ?? [];
 $breadcrumbVariant = $breadcrumbVariant ?? 'hero';

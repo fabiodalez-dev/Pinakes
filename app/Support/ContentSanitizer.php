@@ -55,11 +55,17 @@ final class ContentSanitizer
 
         // Rimuove ogni apertura/chiusura di <style>/<script>: sequenze che
         // non compaiono mai in CSS legittimo ma che consentirebbero di
-        // rompere il contesto raw-text ed eseguire JavaScript.
-        $css = preg_replace('#<\s*/?\s*(?:style|script)\b[^>]*>?#i', '', $css) ?? $css;
+        // rompere il contesto raw-text ed eseguire JavaScript. Come difesa
+        // aggiuntiva annulla anche i marcatori di commento HTML.
+        // Si ripete finché il testo non cambia più: una sola passata lascia
+        // ricomporre un tag da pezzi annidati (`</sty<style>le>` → `</style>`,
+        // `<scr<!---->ipt>` → `<script>`).
+        do {
+            $previous = $css;
+            $css = preg_replace('#<\s*/?\s*(?:style|script)\b[^>]*>?#i', '', $css) ?? $css;
+            $css = str_ireplace(['<!--', '-->', '<![cdata[', ']]>'], '', $css);
+        } while ($css !== $previous);
 
-        // Difesa aggiuntiva: annulla i marcatori di commento HTML che
-        // potrebbero mascherare un tag in scenari di parsing anomali.
-        return str_ireplace(['<!--', '-->', '<![cdata[', ']]>'], '', $css);
+        return $css;
     }
 }

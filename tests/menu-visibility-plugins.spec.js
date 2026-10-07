@@ -53,15 +53,18 @@ test.describe('Plugin sections in the public menu', () => {
       await admin.goto(BASE + section.admin);
       test.skip(await admin.locator('#menuVisibilityForm').count() === 0, `${section.name} plugin not active`);
 
-      const visitor = await browser.newPage();
-      // Where the section is listed at all (an archive with no published
-      // unit has no entry), the switch must take it out and put it back.
-      await setInMenu(admin, section.admin, true);
-      const listed = await menuLinks(visitor, '/catalogo', section.href);
-      test.skip(listed === 0, `${section.name} has nothing to list`);
-      const accountListed = await menuLinks(admin, '/utente/bacheca', section.href);
+      // Remember the admin's own setting so the test leaves it as it found it.
+      const initiallyInMenu = await admin.locator('#menuVisibilityForm input[name="in_menu"]').isChecked();
 
+      const visitor = await browser.newPage();
       try {
+        // Where the section is listed at all (an archive with no published
+        // unit has no entry), the switch must take it out and put it back.
+        await setInMenu(admin, section.admin, true);
+        const listed = await menuLinks(visitor, '/catalogo', section.href);
+        test.skip(listed === 0, `${section.name} has nothing to list`);
+        const accountListed = await menuLinks(admin, '/utente/bacheca', section.href);
+
         await setInMenu(admin, section.admin, false);
         expect(await menuLinks(visitor, '/catalogo', section.href), 'public menus').toBe(0);
         expect(await menuLinks(visitor, '/', section.href), 'home menus').toBe(0);
@@ -69,11 +72,13 @@ test.describe('Plugin sections in the public menu', () => {
         // Only the menu entry goes: the section itself is still served.
         const res = await visitor.goto(BASE + section.page);
         expect(res && res.status()).toBe(200);
-      } finally {
+
         await setInMenu(admin, section.admin, true);
+        expect(await menuLinks(visitor, '/catalogo', section.href)).toBe(listed);
+        expect(await menuLinks(admin, '/utente/bacheca', section.href)).toBe(accountListed);
+      } finally {
+        await setInMenu(admin, section.admin, initiallyInMenu);
       }
-      expect(await menuLinks(visitor, '/catalogo', section.href)).toBe(listed);
-      expect(await menuLinks(admin, '/utente/bacheca', section.href)).toBe(accountListed);
     });
   }
 });

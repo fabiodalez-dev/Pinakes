@@ -8062,6 +8062,7 @@
   "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "I cannot tell how this update ended. The installed version is now %s: check the update history.",
   "%1$d copia disponibile su %2$d": "%1$d copy available out of %2$d",
   "%d autori": "%d authors",
+  "%d autore": "%d author",
   "%s titoli in catalogo": "%s titles in the catalogue",
   "Aggiungi ai preferiti": "Add to favourites",
   "Cerca autore…": "Search author…",
@@ -8101,5 +8102,6 @@
   "Visibile nel menu del sito": "Shown in the site menu",
   "Nascosta dal menu del sito": "Hidden from the site menu",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "When hidden, the entry disappears from the public site's menu. The pages stay reachable from catalogue and search results.",
-  "Nascosta": "Hidden"
+  "Nascosta": "Hidden",
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Copy failed: the text is selected, copy it manually"
 }

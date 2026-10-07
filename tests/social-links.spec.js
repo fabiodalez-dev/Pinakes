@@ -199,10 +199,10 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
     expect(anchorHtml).not.toContain('a=1&b=2');
   });
 
-  // ── 13: the logged-in (user_layout) footer sanitizes too ────────────────────
+  // ── 13: the logged-in footer sanitizes too ──────────────────────────────────
   test('13. the logged-in footer also drops a javascript: social link', async () => {
     await saveSocials({ facebook: 'javascript:alert(1)' });
-    // The admin session renders user_layout on account pages.
+    // A signed-in session renders the same public layout with the account menu.
     await admin.goto(`${BASE}/`);
     const html = await admin.content();
     expect(html).not.toContain('javascript:alert');
@@ -234,24 +234,8 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
     expect(src).not.toMatch(/href="<\?= \$social/);
   });
 
-  test('18. user_layout.php sanitizes all six socials at load', async () => {
-    const src = read('app/Views/user_layout.php');
-    for (const s of SOCIALS) {
-      expect(src).toContain(`sanitizePublicHttpUrl((string) ConfigStore::get('app.social_${s.key}'`);
-    }
-  });
-
-  test('19. user_layout.php escapes social hrefs and drops HtmlHelper::e', async () => {
-    const src = read('app/Views/user_layout.php');
-    expect(src).not.toMatch(/HtmlHelper::e\(\$social/);
-    // Same shape as the public footer: one list, one escaped href in the loop.
-    for (const s of SOCIALS) {
-      const name = s.key.charAt(0).toUpperCase() + s.key.slice(1);
-      expect(src).toMatch(new RegExp(`\\['href' => \\$social${name},`));
-    }
-    expect(src).toContain(`<a href="<?= htmlspecialchars($social['href'], ENT_QUOTES, 'UTF-8') ?>"`);
-    expect(src).not.toMatch(/href="<\?= \$social/);
-  });
+  // 18-19 covered user_layout.php, an account layout no controller ever
+  // rendered; it is gone and the account pages use frontend/layout.php (15-17).
 
   test('20. SettingsController saves all six socials', async () => {
     const src = read('app/Controllers/SettingsController.php');
