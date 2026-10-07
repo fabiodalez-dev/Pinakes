@@ -360,7 +360,7 @@ class DesiderataPlugin
         // judged yet — not accepted ones, which are already being handled.
         $pending = $this->pendingOfferCount();
         $badge = $pending > 0
-            ? '<span class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500 text-white">' . $pending . '</span>'
+            ? '<span class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">' . $pending . '</span>'
             : '';
         echo '<a class="nav-link group flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100" href="' . self::e(url('/admin/desiderata')) . '"><i class="fas fa-hand-holding-heart mr-3" aria-hidden="true"></i>' . self::e(__('Desiderata e donazioni')) . $badge . '</a>';
     }

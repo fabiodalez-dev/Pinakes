@@ -38,7 +38,7 @@ $token = \App\Support\Csrf::ensureToken();
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <span class="bg-purple-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= (int) $wantedTotal ?></span>
+          <span class="bg-purple-600 text-white text-sm font-bold px-3 py-1 rounded-full"><?= (int) $wantedTotal ?></span>
           <a href="<?= $e(url('/admin/desiderata') . '#requested-books') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutte") ?>
@@ -123,7 +123,7 @@ $token = \App\Support\Csrf::ensureToken();
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <span class="bg-blue-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= (int) $pendingTotal ?></span>
+          <span class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full"><?= (int) $pendingTotal ?></span>
           <a href="<?= $e(url('/admin/desiderata') . '#donation-offers') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutte") ?>
@@ -156,7 +156,7 @@ $token = \App\Support\Csrf::ensureToken();
                   <i class="fas fa-clipboard-check mr-2"></i><?= __("Valuta") ?>
                 </a>
               </div>
-              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400 flex items-center">
+              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 flex items-center">
                 <i class="fas fa-clock mr-2"></i>
                 <?= __("Richiesto il") ?> <?= !empty($o['created_at']) ? $e(format_date((string) $o['created_at'], true)) : 'N/D' ?>
               </div>

@@ -78,7 +78,7 @@ $errorInCard = $error !== '' && $errorOfferId > 0
           </h2>
           <p class="text-sm text-gray-600 mt-1"><?= __('Lettori che offrono un libro') ?></p>
         </div>
-        <span class="bg-blue-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($offers) ?></span>
+        <span class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($offers) ?></span>
       </div>
       <div class="p-6 space-y-4">
         <?php if (!$offers): ?><p class="text-sm text-gray-600"><?= $offersPage > 1 ? __('Nessuna altra proposta oltre questa pagina.') : __('Non sono ancora arrivate proposte.') ?></p><?php endif; ?>
@@ -170,7 +170,7 @@ $errorInCard = $error !== '' && $errorOfferId > 0
           </h2>
           <p class="text-sm text-gray-600 mt-1"><?= __('Richieste aperte in attesa di una donazione') ?></p>
         </div>
-        <span class="bg-purple-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($books) ?></span>
+        <span class="bg-purple-600 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($books) ?></span>
       </div>
       <div class="p-6">
         <?php if (!$books): ?><p class="text-sm text-gray-600"><?= $booksPage > 1 ? __('Nessuna altra richiesta oltre questa pagina.') : __('Non ci sono richieste aperte. Crea una scheda libro e seleziona Desiderata prima del numero di copie.') ?></p><?php endif; ?>

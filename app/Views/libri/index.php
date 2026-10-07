@@ -657,7 +657,8 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(_, __, row) {
           if (!row || row.id == null) return '';
           const checked = selectedBooks.has(row.id) ? 'checked' : '';
-          return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${row.id}" ${checked} />`;
+          const label = escapeHtml(window.__('Seleziona') + ': ' + (row.titolo || window.__('Senza titolo')));
+          return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${row.id}" aria-label="${label}" ${checked} />`;
         }
       },
       { // Status with tooltip
@@ -744,7 +745,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           let isbnHtml = '';
           if (row.isbn13 || row.isbn10) {
-            isbnHtml = `<div class="text-xs text-gray-400 mt-0.5 font-mono">${escapeHtml(row.isbn13 || row.isbn10)}</div>`;
+            isbnHtml = `<div class="text-xs text-gray-500 mt-0.5 font-mono">${escapeHtml(row.isbn13 || row.isbn10)}</div>`;
           }
 
           const safeId = parseInt(row.id, 10);
