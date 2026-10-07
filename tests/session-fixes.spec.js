@@ -180,7 +180,10 @@ test.describe.serial('Book detail UI', () => {
       }).length;
       return { width: box.width, parentWidth: parent.getBoundingClientRect().width, shared };
     });
-    test.skip(row === null, 'no "Cerca su" block on this book (GoodLib inactive)');
+    // Test 6 already requires the block on this page, so its absence is a
+    // failure here too, not a reason to skip.
+    expect(row, '"Cerca su" block present on the book page').not.toBeNull();
+    if (row === null) return;
     expect(row.width).toBeGreaterThanOrEqual(row.parentWidth - 1);
     expect(row.shared).toBe(0);
   });

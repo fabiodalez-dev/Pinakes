@@ -4,8 +4,12 @@
  * the hero with the fan of covers and the "classic" book cards, chosen as
  * the defaults in the admin themes page. A theme that never saved the two
  * choices (every theme a fresh install seeds, every theme an upgrade carries
- * over) must read as covers + classic. Run by scripts/reinstall-test.sh on
- * both Test A and Test B, and on its own against a running install.
+ * over) must read as covers + classic. Not listed in
+ * tests/ci-playwright-policy.json, so CI runs it in the Deep Regression Gate
+ * (.github/workflows/ci-deep-regression.yml, via
+ * `node scripts/ci-playwright-policy.js shard`) against a fresh install; run
+ * it on its own against any running install (fresh or upgraded) with
+ * E2E_BASE_URL, E2E_ADMIN_EMAIL and E2E_ADMIN_PASS set.
  */
 const { test, expect } = require('@playwright/test');
 

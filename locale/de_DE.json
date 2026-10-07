@@ -8062,6 +8062,7 @@
   "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Ich kann nicht feststellen, wie dieses Update geendet hat. Die installierte Version ist jetzt %s: Prüfen Sie den Update-Verlauf.",
   "%1$d copia disponibile su %2$d": "%1$d Exemplar von %2$d verfügbar",
   "%d autori": "%d Autoren",
+  "%d autore": "%d Autor",
   "%s titoli in catalogo": "%s Titel im Katalog",
   "Aggiungi ai preferiti": "Zu den Favoriten hinzufügen",
   "Cerca autore…": "Autor suchen…",
@@ -8101,5 +8102,6 @@
   "Visibile nel menu del sito": "Im Menü der Website sichtbar",
   "Nascosta dal menu del sito": "Im Menü der Website ausgeblendet",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Ausgeblendet verschwindet der Eintrag aus dem Menü der öffentlichen Website. Die Seiten bleiben über Katalog- und Suchergebnisse erreichbar.",
-  "Nascosta": "Ausgeblendet"
+  "Nascosta": "Ausgeblendet",
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Kopieren fehlgeschlagen: Der Text ist markiert, bitte manuell kopieren"
 }

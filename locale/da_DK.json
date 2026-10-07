@@ -8062,6 +8062,7 @@
   "Non riesco a stabilire come è finito questo aggiornamento. La versione installata ora è %s: controlla il registro degli aggiornamenti.": "Jeg kan ikke afgøre, hvordan denne opdatering endte. Den installerede version er nu %s: tjek opdateringshistorikken.",
   "%1$d copia disponibile su %2$d": "%1$d eksemplar ledigt af %2$d",
   "%d autori": "%d forfattere",
+  "%d autore": "%d forfatter",
   "%s titoli in catalogo": "%s titler i kataloget",
   "Aggiungi ai preferiti": "Føj til favoritter",
   "Cerca autore…": "Søg forfatter…",
@@ -8101,5 +8102,6 @@
   "Visibile nel menu del sito": "Vist i webstedets menu",
   "Nascosta dal menu del sito": "Skjult i webstedets menu",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Når den er skjult, forsvinder punktet fra det offentlige websteds menu. Siderne kan stadig nås fra katalog- og søgeresultater.",
-  "Nascosta": "Skjult"
+  "Nascosta": "Skjult",
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Kopiering mislykkedes: teksten er markeret, kopiér den manuelt"
 }

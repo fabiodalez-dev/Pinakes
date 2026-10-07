@@ -611,6 +611,7 @@ body.pk :is(.pk-filters, .filters-panel) .availability-options { display: flex; 
 body.pk :is(.pk-filters, .filters-panel) .availability-option {
     display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px;
     border: 1px solid transparent; background: transparent; cursor: pointer; box-shadow: none; margin: 0; transform: none;
+    width: 100%; font: inherit; color: inherit; text-align: left;
 }
 body.pk :is(.pk-filters, .filters-panel) .availability-option:hover { background: var(--pk-surface); }
 body.pk :is(.pk-filters, .filters-panel) .availability-option.active { background: var(--pk-surface); border-color: var(--pk-accent); }
@@ -1397,3 +1398,9 @@ body.pk.pk-hero-centered .hero-search-container, body.pk.pk-hero-centered .pk-he
 body.pk.pk-hero-centered .pk-hero__links { justify-content: center; }
 body.pk.pk-hero-centered .pk-fan { display: none; }
 @media (max-width: 640px) { body.pk.pk-hero-centered .pk-hero .pk-hero__inner.hero-content { padding-top: 56px; padding-bottom: 44px; } }
+
+/* Inline citation: the Copy outcome. Read out by screen readers; shown only
+   when copying failed (success is already on the button). */
+.pk-citebox__status { margin: -8px 0 0; font-size: 13px; color: var(--pk-muted, #6b6470); }
+.pk-citebox__status:empty,
+.pk-citebox__status[data-state="ok"] { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

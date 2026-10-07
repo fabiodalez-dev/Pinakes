@@ -454,9 +454,8 @@ $organizationSchema = [
 ];
 // The page surface lives in public/assets/book-detail.css so other single-
 // resource pages (e.g. the emeroteca article, issue and periodical pages) can
-// reuse it; the layout links it. The blurred band reads --book-hero-cover.
+// reuse it; the layout links it.
 $bookDetailStyles = true;
-$bookHeroCoverCss = "url('" . str_replace(["\\", "'", "\n", "\r"], ["\\\\", "\\'", '', ''], (string) $bookCover) . "')";
 
 ob_start();
 ?>
@@ -470,7 +469,7 @@ $pkPublishedTotal = \App\Support\CopyHoldings::publishedTotal($bookHoldings ?? n
 $pkAvailable = (int) ($book['copie_disponibili'] ?? 0);
 // Quick facts under the availability box, as in the design.
 // A book reads "Anno" and "Pagine" as in the design; other media keep their own labels (tracks, duration…).
-$pkIsBook = ($book['tipo_media'] ?? 'libro') === 'libro';
+$pkIsBook = $resolvedTipoMedia === 'libro';
 $pkQuick = array_values(array_filter([
     [$pkIsBook ? __('Anno') : \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null), $pkYear],
     [$pkIsBook ? __('Pagine') : \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null), trim((string) ($book['numero_pagine'] ?? ''))],
