@@ -11,6 +11,7 @@ $feature3 = $sections['feature_3'] ?? null;
 $feature4 = $sections['feature_4'] ?? null;
 $latestBooksTitle = $sections['latest_books_title'] ?? null;
 $genreCarousel = $sections['genre_carousel'] ?? null;
+$eventsSection = $sections['events'] ?? null;
 $cta = $sections['cta'] ?? null;
 $catalogRoute = route_path('catalog');
 
@@ -414,6 +415,41 @@ function getSectionDisplayName($key) {
             <label for="genre_carousel_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="genre_carousel_subtitle" name="genre_carousel[subtitle]"
                    value="<?php echo HtmlHelper::e($genreCarousel['subtitle'] ?? __('Scopri le nostre radici tematiche e lasciati ispirare dai titoli disponibili.')); ?>"
+                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Events Section -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-calendar-alt text-purple-500"></i>
+            <?= __("Eventi e Incontri") ?>
+          </h2>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Titolo e descrizione mostrati sopra gli eventi in programma") ?></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="events_visible" class="text-sm font-medium text-gray-700"><?= __("Visibile") ?></label>
+          <input type="checkbox" id="events_visible" name="events[is_active]" value="1"
+                 <?php echo (!isset($eventsSection['is_active']) || (int)$eventsSection['is_active'] === 1) ? 'checked' : ''; ?>
+                 class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+        </div>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label for="events_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
+            <input type="text" id="events_title" name="events[title]"
+                   value="<?php echo HtmlHelper::e($eventsSection['title'] ?? __('Gli appuntamenti della biblioteca')); ?>"
+                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+          </div>
+          <div>
+            <label for="events_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
+            <input type="text" id="events_subtitle" name="events[subtitle]"
+                   value="<?php echo HtmlHelper::e($eventsSection['subtitle'] ?? ''); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>

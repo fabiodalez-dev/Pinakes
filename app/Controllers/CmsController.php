@@ -588,6 +588,26 @@ class CmsController
             $stmt->close();
         }
 
+        // Events section (the home's list of upcoming events)
+        if (isset($data['events']) && empty($errors)) {
+            $events = $data['events'];
+            $title = $sanitizeText($events['title'] ?? '');
+            $subtitle = $sanitizeText($events['subtitle'] ?? '');
+            $isActive = isset($events['is_active']) ? 1 : 0;
+
+            $stmt = $db->prepare("
+                INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
+                VALUES ('events', ?, ?, ?, 9)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    subtitle = VALUES(subtitle),
+                    is_active = VALUES(is_active)
+            ");
+            $stmt->bind_param('ssi', $title, $subtitle, $isActive);
+            $stmt->execute();
+            $stmt->close();
+        }
+
         // Text content section
         if (isset($data['text_content']) && empty($errors)) {
             $textContent = $data['text_content'];
