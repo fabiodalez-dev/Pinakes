@@ -35,5 +35,7 @@ foreach ($citeDownloads as $pkDownload) {
         <?php if ($pkCiteRis !== ''): ?>
         <a class="pk-btn pk-btn--ghost pk-btn--sm" href="<?= $pkCiteEsc($pkCiteRis) ?>"><i class="fas fa-download" aria-hidden="true"></i> <?= $pkCiteEsc(__('Scarica RIS')) ?></a>
         <?php endif; ?>
+        <?php // The caller's "Cite" dialog (all styles, partials/cite-dialog.php), when given. ?>
+        <?= $pkCiteDialog ?? '' ?>
     </div>
 </div>

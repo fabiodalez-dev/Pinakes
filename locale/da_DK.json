@@ -8076,5 +8076,16 @@
   "Cerca un libro per titolo, autore o ISBN…": "Søg en bog efter titel, forfatter eller ISBN…",
   "senza copertina: verrà saltato": "uden omslag: springes over",
   "Fino a 4 libri, nell'ordine in cui li scegli. Un libro senza copertina viene saltato; se non ne resta nessuno, compaiono le ultime copertine.": "Op til 4 bøger i den rækkefølge, du vælger dem. En bog uden omslag springes over; er der ingen tilbage, vises de seneste omslag.",
-  "Hai già scelto 4 libri.": "Du har allerede valgt 4 bøger."
+  "Hai già scelto 4 libri.": "Du har allerede valgt 4 bøger.",
+  "Stile hero": "Hero-stil",
+  "Copertine": "Omslag",
+  "Testo a sinistra e un ventaglio di copertine: le ultime arrivate o quelle scelte nella homepage.": "Tekst til venstre og en vifte af omslag: de nyeste tilføjelser eller dem, der er valgt på forsiden.",
+  "Centrato": "Centreret",
+  "Titolo, ricerca e collegamenti al centro, senza copertine.": "Titel, søgning og links i midten, uden omslag.",
+  "Stile card": "Kortstil",
+  "Classica": "Klassisk",
+  "Il libro da solo, con dorso e ombra, sullo sfondo della pagina.": "Bogen alene, med ryg og skygge, på sidens baggrund.",
+  "Tinta": "Tonet",
+  "Il libro su un pannello colorato con la tinta della sua copertina.": "Bogen på et panel i farven fra dens omslag.",
+  "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Vælg, hvordan forsidens hero og bogomslagene ser ud på det offentlige websted. Farver og indhold forbliver temaets."
 }

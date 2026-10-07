@@ -11,14 +11,16 @@ namespace App\Support;
  */
 class ThemeManager
 {
-    public const DEFAULT_LAYOUT_VARIANT = 'editorial';
-
-    public const LAYOUT_VARIANTS = [
-        'editorial',
-        'workspace',
-        'command',
-        'soft',
-    ];
+    /**
+     * Public site style, the two choices of the 2026 design: the home hero
+     * with a fan of covers or centred text, and book cards as the book alone
+     * ("classic") or on a panel tinted from the cover ("tinted"). A theme
+     * without them (a fresh install, an upgrade) gets the defaults.
+     */
+    public const HERO_STYLES = ['covers', 'centered'];
+    public const CARD_STYLES = ['classic', 'tinted'];
+    public const DEFAULT_HERO_STYLE = 'covers';
+    public const DEFAULT_CARD_STYLE = 'classic';
 
     private \mysqli $db;
 
@@ -171,20 +173,20 @@ class ThemeManager
      *
      * @param int $themeId Theme ID
      * @param array $colors Color configuration ['primary' => '#xxx', 'secondary' => '#xxx', ...]
-     * @param string|null $layoutVariant Validated public layout to persist in
-     *        the same JSON update, avoiding an additional admin-save query.
+     * @param array{hero_style:string,card_style:string}|null $publicStyle
+     *        Validated public style to persist in the same JSON update.
      * @param array<string,string>|null $advanced Optional advanced settings to
-     *        persist atomically with colors and layout.
+     *        persist atomically with colors and style.
      * @return bool Success status
      */
     public function updateThemeColors(
         int $themeId,
         array $colors,
-        ?string $layoutVariant = null,
+        ?array $publicStyle = null,
         ?array $advanced = null
     ): bool
     {
-        if ($layoutVariant !== null && !in_array($layoutVariant, self::LAYOUT_VARIANTS, true)) {
+        if ($publicStyle !== null && !self::isValidPublicStyle($publicStyle)) {
             return false;
         }
 
@@ -211,8 +213,9 @@ class ThemeManager
 
         // Update colors
         $settings['colors'] = $colors;
-        if ($layoutVariant !== null) {
-            $settings['layout_variant'] = $layoutVariant;
+        if ($publicStyle !== null) {
+            $settings['hero_style'] = $publicStyle['hero_style'];
+            $settings['card_style'] = $publicStyle['card_style'];
         }
         if ($advanced !== null) {
             $settings['advanced'] = $advanced;
@@ -300,12 +303,22 @@ class ThemeManager
     }
 
     /**
-     * Persist the public layout independently from the color palette.
-     * Every variant keeps the same views, CMS fields and frontend behavior.
+     * @param array<string, mixed> $style
      */
-    public function updateLayoutVariant(int $themeId, string $variant): bool
+    public static function isValidPublicStyle(array $style): bool
     {
-        if (!in_array($variant, self::LAYOUT_VARIANTS, true)) {
+        return in_array($style['hero_style'] ?? null, self::HERO_STYLES, true)
+            && in_array($style['card_style'] ?? null, self::CARD_STYLES, true);
+    }
+
+    /**
+     * Persist the public style (hero, cards) independently from the palette.
+     *
+     * @param array{hero_style:string,card_style:string} $publicStyle
+     */
+    public function updatePublicStyle(int $themeId, array $publicStyle): bool
+    {
+        if (!self::isValidPublicStyle($publicStyle)) {
             return false;
         }
 
@@ -325,7 +338,8 @@ class ThemeManager
         }
 
         $settings = json_decode($theme['settings'], true) ?? [];
-        $settings['layout_variant'] = $variant;
+        $settings['hero_style'] = $publicStyle['hero_style'];
+        $settings['card_style'] = $publicStyle['card_style'];
         $settingsJson = json_encode($settings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($settingsJson === false) {
             return false;
@@ -347,7 +361,12 @@ class ThemeManager
         return $success;
     }
 
-    public function getLayoutVariant(?array $theme = null): string
+    /**
+     * The theme's public style, each value validated, defaults filled in.
+     *
+     * @return array{hero_style:string,card_style:string}
+     */
+    public function getPublicStyle(?array $theme = null): array
     {
         if ($theme === null) {
             $theme = $this->getActiveTheme();
@@ -356,11 +375,30 @@ class ThemeManager
         $settings = $theme && !empty($theme['settings'])
             ? (json_decode($theme['settings'], true) ?? [])
             : [];
-        $variant = (string) ($settings['layout_variant'] ?? self::DEFAULT_LAYOUT_VARIANT);
+        $hero = (string) ($settings['hero_style'] ?? '');
+        $card = (string) ($settings['card_style'] ?? '');
 
-        return in_array($variant, self::LAYOUT_VARIANTS, true)
-            ? $variant
-            : self::DEFAULT_LAYOUT_VARIANT;
+        return [
+            'hero_style' => in_array($hero, self::HERO_STYLES, true) ? $hero : self::DEFAULT_HERO_STYLE,
+            'card_style' => in_array($card, self::CARD_STYLES, true) ? $card : self::DEFAULT_CARD_STYLE,
+        ];
+    }
+
+    /**
+     * The <body> classes that carry the public style to pinakes-2026.css.
+     *
+     * @param array{hero_style:string,card_style:string} $publicStyle
+     */
+    public static function publicStyleClasses(array $publicStyle): string
+    {
+        $classes = [];
+        if ($publicStyle['hero_style'] === 'centered') {
+            $classes[] = 'pk-hero-centered';
+        }
+        if ($publicStyle['card_style'] === 'tinted') {
+            $classes[] = 'pk-cards-tinted';
+        }
+        return implode(' ', $classes);
     }
 
     /**

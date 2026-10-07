@@ -9,14 +9,14 @@ use App\Support\I18n;
 use App\Support\ThemeManager;
 
 // Load theme colors
-$layoutVariant = ThemeManager::DEFAULT_LAYOUT_VARIANT;
+$publicStyle = ['hero_style' => ThemeManager::DEFAULT_HERO_STYLE, 'card_style' => ThemeManager::DEFAULT_CARD_STYLE];
 if (isset($container)) {
     $themeManager = $container->get('themeManager');
     $themeColorizer = $container->get('themeColorizer');
     $activeTheme = $themeManager->getActiveTheme();
     $themeColors = $themeManager->getThemeColors($activeTheme);
     $themePalette = $themeColorizer->generateColorPalette($themeColors);
-    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
+    $publicStyle = $themeManager->getPublicStyle($activeTheme);
 } else {
     // Fallback colors if container not available
     $themePalette = [
@@ -898,7 +898,8 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
     </script>
 </head>
 
-<body class="pk pk-account layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
+<?php $pkStyleClasses = ThemeManager::publicStyleClasses($publicStyle); ?>
+<body class="pk pk-account<?= $pkStyleClasses !== '' ? ' ' . htmlspecialchars($pkStyleClasses, ENT_QUOTES, 'UTF-8') : '' ?>">
     <!-- Minimalist Header -->
     <div class="header-container">
         <div class="header-main">

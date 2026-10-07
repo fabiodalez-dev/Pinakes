@@ -11,7 +11,7 @@
  * Input $filterRange: array{action: string, title: string, icon?: string, from: array{name: string, value?: string, label: string}, to: array{name: string, value?: string, label: string}, hidden?: array<string, string>}|null
  *      An optional typed range (e.g. years) submitted as its own GET form, for
  *      values a fixed list of facet links cannot cover.
- * Input $filterClearHref: string '' hides the "clear all" button
+ * Input $filterClearHref: string '' hides the "clear all" buttons (top and bottom)
  */
 $fsEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $filterSearch = $filterSearch ?? null;
@@ -26,6 +26,12 @@ $filterClearHref = (string) ($filterClearHref ?? '');
             <button type="button" class="filters-mobile-toggle" id="catalog-filters-toggle" aria-controls="catalog-filters-content" aria-expanded="true" aria-label="<?= $fsEscape(__('Filtri')) ?>"><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
         </div>
         <div class="filters-content" id="catalog-filters-content">
+            <?php if ($filterClearHref !== ''): ?>
+            <?php // Also at the top: no scrolling down a long filter column to reset it. ?>
+            <div class="filter-section filter-section--clear-top">
+                <a class="clear-all-btn" href="<?= $fsEscape($filterClearHref) ?>"><i class="fas fa-times" aria-hidden="true"></i> <?= __('Pulisci tutti i filtri') ?></a>
+            </div>
+            <?php endif; ?>
             <?php if ($filterSearch !== null): $fsName = $filterSearch['name'] ?? 'q'; $fsLabel = $filterSearch['label'] ?? __('Cerca'); ?>
             <div class="filter-section">
                 <div class="filter-title"><i class="fas fa-search" aria-hidden="true"></i> <?= __('Ricerca') ?></div>

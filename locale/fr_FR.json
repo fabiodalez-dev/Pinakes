@@ -8076,5 +8076,16 @@
   "Cerca un libro per titolo, autore o ISBN…": "Rechercher un livre par titre, auteur ou ISBN…",
   "senza copertina: verrà saltato": "sans couverture : il sera ignoré",
   "Fino a 4 libri, nell'ordine in cui li scegli. Un libro senza copertina viene saltato; se non ne resta nessuno, compaiono le ultime copertine.": "Jusqu'à 4 livres, dans l'ordre choisi. Un livre sans couverture est ignoré ; s'il n'en reste aucun, les dernières couvertures s'affichent.",
-  "Hai già scelto 4 libri.": "Vous avez déjà choisi 4 livres."
+  "Hai già scelto 4 libri.": "Vous avez déjà choisi 4 livres.",
+  "Stile hero": "Style du hero",
+  "Copertine": "Couvertures",
+  "Testo a sinistra e un ventaglio di copertine: le ultime arrivate o quelle scelte nella homepage.": "Le texte à gauche et un éventail de couvertures : les dernières arrivées ou celles choisies sur la page d'accueil.",
+  "Centrato": "Centré",
+  "Titolo, ricerca e collegamenti al centro, senza copertine.": "Titre, recherche et liens au centre, sans couvertures.",
+  "Stile card": "Style des cartes",
+  "Classica": "Classique",
+  "Il libro da solo, con dorso e ombra, sullo sfondo della pagina.": "Le livre seul, avec son dos et son ombre, sur le fond de la page.",
+  "Tinta": "Teinté",
+  "Il libro su un pannello colorato con la tinta della sua copertina.": "Le livre sur un panneau teinté de la couleur de sa couverture.",
+  "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Choisissez l'apparence du hero de la page d'accueil et des couvertures sur le site public. Les couleurs et les contenus restent ceux du thème."
 }

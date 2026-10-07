@@ -171,8 +171,8 @@ $body = $sliceMethod($themeSource, 'save');
 $check(
     $body !== null
         && str_contains($body, 'if (!is_array($parsedBody))')
-        && str_contains($body, 'updateThemeColors($themeId, $colors, $layoutVariant, $advanced)'),
-    'theme save rejects malformed bodies and persists colors/layout/CSS in one manager write'
+        && str_contains($body, 'updateThemeColors($themeId, $colors, $publicStyle, $advanced)'),
+    'theme save rejects malformed bodies and persists colors/public style/CSS in one manager write'
 );
 $body = $sliceMethod($themeSource, 'checkContrast');
 $check(

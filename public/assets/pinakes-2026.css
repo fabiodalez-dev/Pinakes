@@ -215,14 +215,19 @@ body.pk .pk-footer__bottom a { color: var(--pk-accent); text-decoration: none; }
 body.pk .pk-footer__bottom a.pk-footer__rss { color: var(--pk-faint); }
 
 /* ---------- Book card ------------------------------------------------------
-   The cover sits on a tinted panel (--pk-tone, from the cover's own colour)
-   as a 3D book: spine, page block, gloss. Without a cover the panel holds a
-   blank book with the title set on it. */
+   The cover as a 3D book: spine, page block, gloss. Without a cover it is a
+   blank book with the title set on it.
+   Card style: "Classica" by default (the book alone, no panel). "Tinta" sets
+   the book on a panel tinted from the cover's own colour (--pk-tone): add
+   the class pk-cards-tinted to <body>. */
+:root { --pk-card-panel-bg: transparent; --pk-card-panel-pad: 0; }
+/* Declared on the panel: --pk-tone is set per panel by pinakes-2026.js. */
+body.pk-cards-tinted :is(.pk-card__panel, .book-card .book-image-container) { --pk-card-panel-bg: var(--pk-tone, #eeeaec); --pk-card-panel-pad: 18px 22px 22px; }
 .pk-card { position: relative; display: flex; flex-direction: column; gap: 14px; min-width: 0; color: inherit; }
 .pk-card__link { position: absolute; inset: 0; z-index: 1; border-radius: 16px; }
 .pk-card__link:focus-visible { outline: 2px solid var(--pk-accent); outline-offset: 4px; }
 .pk-card__panel {
-    position: relative; background: var(--pk-tone, #eeeaec); padding: 18px 22px 22px; border-radius: 16px;
+    position: relative; background: var(--pk-card-panel-bg); padding: var(--pk-card-panel-pad); border-radius: 16px;
     transition: transform .3s var(--pk-ease);
 }
 .pk-card:hover .pk-card__panel { transform: translateY(-4px); }
@@ -292,7 +297,7 @@ body.pk .pk-card__title a { color: var(--pk-ink); text-decoration: none; backgro
 .pk-card__author, .pk-card__meta { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pk-card__author { font-size: 13px; color: var(--pk-muted); }
 .pk-card__meta { font-size: 12px; color: var(--pk-faint); }
-.pk-card--classic .pk-card__panel { background: transparent; padding: 0; }
+.pk-card--classic .pk-card__panel { --pk-card-panel-bg: transparent; --pk-card-panel-pad: 0; }
 
 .pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 40px 24px; }
 .pk-grid--catalog { grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 40px 22px; }
@@ -482,7 +487,7 @@ body.pk .book-card.pk-card { background: transparent; border: 0; border-radius: 
 body.pk .book-card.pk-card:hover { transform: none; box-shadow: none; }
 body.pk .pk-card .book-image-container.pk-card__panel {
     aspect-ratio: auto; height: auto; overflow: visible; margin: 0; display: block;
-    background: var(--pk-tone, #eeeaec); padding: 18px 22px 22px; border-radius: 16px; border: 0; box-shadow: none;
+    background: var(--pk-card-panel-bg); padding: var(--pk-card-panel-pad); border-radius: 16px; border: 0; box-shadow: none;
 }
 body.pk .pk-card:hover .book-image-container.pk-card__panel { transform: translateY(-4px); box-shadow: none; }
 body.pk .pk-card .book-image-container::after { display: none; }
@@ -761,7 +766,8 @@ body.pk .pk-footer__brand h5 i { color: var(--pk-accent); }
    ========================================================================== */
 body.pk .book-hero.pk-bookhero {
     position: relative; overflow: visible; min-height: 0; padding: 0; margin: 0; color: var(--pk-ink);
-    background: linear-gradient(180deg, var(--pk-tone, var(--pk-accent-softer)) 0%, var(--pk-bg) 520px);
+    /* The theme's accent, muted: the design's #f3e6ea on the default fuchsia. Follows the active theme. */
+    background: linear-gradient(180deg, color-mix(in srgb, var(--pk-accent) 6%, #f7f1f3) 0%, var(--pk-bg) 520px);
 }
 body.pk .book-hero.pk-bookhero::before, body.pk .book-hero.pk-bookhero::after { display: none; content: none; }
 body.pk .pk-bookhero > .pk-wrap { padding-top: 32px; padding-bottom: 72px; }
@@ -816,13 +822,13 @@ body.pk .pk-bookhero .genre-tag:hover { color: var(--pk-accent); }
 .pk-availbox__status { display: flex; flex-direction: column; gap: 4px; }
 body.pk .pk-availbox .availability-badge {
     display: inline-flex; align-items: center; gap: 8px; padding: 0; background: none; border: 0; box-shadow: none;
-    font-size: 16px; font-weight: 600; color: var(--pk-ink); text-transform: none; letter-spacing: normal;
+    font-size: 16px; font-weight: 600; color: var(--pk-ink); text-transform: none; letter-spacing: normal; margin: 0; line-height: 1.3;
 }
 body.pk .pk-availbox .availability-badge i { display: none; }
 body.pk .pk-availbox .availability-badge::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: #9ca3af; box-shadow: 0 0 0 4px #f1f1f3; flex: none; }
 body.pk .pk-availbox .availability-badge.available::before { background: #16a34a; box-shadow: 0 0 0 4px #dcfce7; }
 body.pk .pk-availbox .availability-badge.wanted::before { background: var(--pk-accent); box-shadow: 0 0 0 4px var(--pk-accent-soft); }
-.pk-availbox__copies { font-size: 14px; color: var(--pk-muted); }
+.pk-availbox__copies { font-size: 14px; line-height: 1.4; color: var(--pk-muted); }
 body.pk .pk-availbox .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; padding: 0; justify-content: flex-end; text-align: left; }
 body.pk .pk-availbox .action-buttons .ui-button {
     display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 12px; font: 600 15px/1.2 var(--pk-sans);
@@ -839,6 +845,8 @@ body.pk .pk-availbox .btn-fav-custom, body.pk .pk-availbox .action-buttons .btn-
     background: var(--pk-surface); color: var(--pk-ink); border: 1px solid var(--pk-line-2); font-weight: 500;
 }
 body.pk .pk-availbox .btn-fav-custom i { color: var(--pk-accent); }
+/* An outlined heart until the book is in the favourites (btn-danger), as in the design. */
+body.pk .pk-availbox .btn-fav-custom:not(.btn-danger) i.fa-heart { font-weight: 400; }
 body.pk .pk-availbox .btn-fav-custom:hover { border-color: var(--pk-accent); background: var(--pk-surface); color: var(--pk-ink); }
 body.pk .pk-availbox .btn-fav-custom.btn-danger { border-color: var(--pk-accent); color: var(--pk-accent-strong); background: var(--pk-accent-soft); }
 
@@ -847,6 +855,26 @@ body.pk .pk-quick__item { padding: 16px 0; display: flex; flex-direction: column
 body.pk .pk-quick dt { font-size: 12px; color: var(--pk-faint); text-transform: uppercase; letter-spacing: .06em; font-weight: 400; }
 body.pk .pk-quick dd { margin: 0; font-size: 15px; font-weight: 600; color: var(--pk-ink); overflow-wrap: anywhere; }
 .pk-digital { display: flex; flex-direction: column; gap: 10px; }
+/* Digital Library with one file: its buttons, as small as the cards' own. */
+body.pk .pk-digital .plugin-book-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
+body.pk .pk-digital .plugin-book-action.ui-button {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; min-height: 0; width: auto; border-radius: 10px; margin: 0;
+    background: var(--pk-surface); color: var(--pk-ink); border: 1px solid var(--pk-line-2); font: 600 13px/1.2 var(--pk-sans); box-shadow: none; text-transform: none; letter-spacing: normal;
+}
+body.pk .pk-digital .plugin-book-action.ui-button:hover { border-color: var(--pk-ink); background: var(--pk-surface); color: var(--pk-ink); }
+body.pk .pk-digital .plugin-book-action.ui-button i { margin: 0; font-size: 12px; }
+/* GoodLib "Cerca su": one line of small chips, after the digital files. */
+body.pk .pk-digital .plugin-source-search { order: 10; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--pk-muted); }
+body.pk .pk-digital .plugin-source-search__heading { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; font-size: 13px; color: var(--pk-muted); }
+body.pk .pk-digital .plugin-source-search__heading i { font-size: 11px; color: var(--pk-faint); }
+body.pk .pk-digital .plugin-source-search__links { display: contents; }
+body.pk .pk-digital .plugin-source-link.ui-button {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; min-height: 0; width: auto; border-radius: 999px; margin: 0;
+    background: transparent; color: var(--pk-ink); border: 1px solid var(--pk-line-2); font: 400 13px/1.3 var(--pk-sans); box-shadow: none; text-transform: none; letter-spacing: normal;
+}
+body.pk .pk-digital .plugin-source-link.ui-button:hover { border-color: var(--pk-accent); color: var(--pk-accent); background: transparent; }
+body.pk .pk-digital .plugin-source-link.ui-button i { font-size: 11px; color: var(--pk-faint); margin: 0; }
+body.pk .pk-digital .plugin-source-link.ui-button:hover i { color: inherit; }
 body.pk .pk-bookhero #book-alerts:empty { display: none; }
 body.pk .pk-bookhero .alert { border-radius: 14px; }
 
@@ -872,7 +900,15 @@ body.pk .pk-bookbody .book-details-section .meta-value { font-weight: 500; text-
 body.pk .pk-bookbody .keyword-chip {
     padding: 8px 14px; border-radius: 999px; background: var(--pk-accent-soft); color: var(--pk-accent-strong); border: 0; font-size: 14px; font-weight: 500; text-decoration: none;
 }
-body.pk .pk-bookbody .keyword-chip i { color: inherit; opacity: .6; }
+body.pk .pk-bookbody .keyword-chip.status-badge { text-transform: none; letter-spacing: normal; line-height: 1.3; display: inline-flex; align-items: center; gap: 6px; }
+body.pk .pk-bookbody .keyword-chip i { color: inherit; opacity: .6; margin: 0; font-size: 12px; }
+/* The "Cite" dialog's button sits in the inline actions row, styled as its neighbours. */
+body.pk .pk-citebox__actions .cite-block { margin: 0; display: contents; }
+body.pk .pk-citebox__actions #cite-open {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--pk-line-2); background: var(--pk-surface);
+    color: var(--pk-ink); font: 500 13px/1.2 var(--pk-sans); box-shadow: none; min-height: 0; width: auto; cursor: pointer;
+}
+body.pk .pk-citebox__actions #cite-open:hover { border-color: var(--pk-ink); }
 body.pk .pk-bookbody .keyword-chip:hover { background: var(--pk-accent-line); }
 body.pk .pk-bookbody__aside .card {
     padding: 22px; border-radius: 20px; background: var(--pk-surface); border: 1px solid var(--pk-line); box-shadow: none; margin: 0; z-index: auto;
@@ -886,11 +922,6 @@ body.pk .pk-bookbody__aside .meta-label { color: var(--pk-muted); font-size: 14p
 body.pk .pk-bookbody__aside .meta-value { font-weight: 500; font-size: 14px; text-align: right; color: var(--pk-ink); }
 body.pk .pk-bookbody__aside .meta-note { flex-basis: 100%; font-size: 12px; color: var(--pk-faint); }
 body.pk .pk-bookbody__aside .book-status-inline { padding: 0; background: none; border: 0; font-weight: 500; color: var(--pk-ink); }
-body.pk #book-share-card .card-body a, body.pk #book-share-card .card-body button {
-    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--pk-line-2);
-    background: var(--pk-surface); color: var(--pk-ink); font-size: 13px; text-decoration: none; box-shadow: none; width: auto; height: auto; min-height: 0;
-}
-body.pk #book-share-card .card-body a:hover, body.pk #book-share-card .card-body button:hover { border-color: var(--pk-accent); color: var(--pk-accent); background: var(--pk-surface); }
 
 /* Cite section */
 .pk-cite { padding: 0 0 80px; }
@@ -927,8 +958,6 @@ body.pk .pk-related .book-card.related-book-card { background: transparent; bord
 body.pk .pk-bookhero__cover.book-cover-column { display: block; }
 body.pk .pk-bookhero .pk-bigcover { width: 100%; }
 body.pk .pk-bookhero .book-hero-content img.book-cover-large { height: 100%; width: 100%; max-height: none; }
-/* The plugins' "search on" links share the availability box's button row. */
-body.pk .pk-availbox .action-buttons > :not(.ui-button) { flex-basis: 100%; text-align: left; }
 
 /* Shared breadcrumb (partials/breadcrumb.php) on every page. */
 body.pk .pk-breadcrumb .breadcrumb.pk-crumbs, body.pk .book-breadcrumb .breadcrumb.pk-crumbs { margin: 0 0 18px; padding: 0; background: none; font-size: 13px; justify-content: flex-start; flex-wrap: wrap; }
@@ -968,7 +997,7 @@ body.pk .filters-panel .filter-options .filter-option.active { font-weight: 600;
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) { background: transparent; border: 0; box-shadow: none; padding: 0; border-radius: 0; display: flex; flex-direction: column; gap: 14px; height: 100%; transform: none; }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)):hover { transform: none; box-shadow: none; }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-container {
-    position: relative; background: var(--pk-tone, #eeeaec); padding: 18px 22px 22px; border-radius: 16px; margin: 0; aspect-ratio: auto; height: auto; overflow: visible;
+    position: relative; background: var(--pk-card-panel-bg); padding: var(--pk-card-panel-pad); border-radius: 16px; margin: 0; aspect-ratio: auto; height: auto; overflow: visible;
     border: 0; box-shadow: none; transition: transform .3s var(--pk-ease);
 }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)):hover .book-image-container { transform: translateY(-4px); }
@@ -1028,7 +1057,7 @@ body.pk main .card-header { background: none; border-bottom: 1px solid var(--pk-
 body.pk main .section-title { font-family: var(--pk-serif); font-weight: 500; letter-spacing: -.02em; color: var(--pk-ink); }
 body.pk main .btn-cta:not(.pk-card__details) { border-radius: 999px; }
 body.pk main input[type=text], body.pk main input[type=email], body.pk main input[type=tel], body.pk main input[type=password], body.pk main input[type=search]:not(.search-input), body.pk main input[type=date], body.pk main select, body.pk main textarea {
-    border-radius: 10px; border: 1px solid var(--pk-line-2); background: var(--pk-surface); color: var(--pk-ink); box-shadow: none;
+    border-radius: 10px; border: 0; background: var(--pk-surface); color: var(--pk-ink); box-shadow: none;
 }
 body.pk main input:focus, body.pk main select:focus, body.pk main textarea:focus { border-color: var(--pk-accent); outline: none; box-shadow: 0 0 0 3px var(--pk-accent-line); }
 
@@ -1140,3 +1169,36 @@ body.pk .home-events-grid .event-card__title { font-family: var(--pk-serif); fon
 body.pk .home-events-grid .event-card__meta { font-size: 13px; color: var(--pk-muted); }
 body.pk .home-events-grid .event-card__button { border-radius: 999px; border-color: var(--pk-line-2); color: var(--pk-ink); }
 body.pk .home-events-grid .event-card__button:hover { background: var(--pk-dark); border-color: var(--pk-dark); color: #fff; }
+
+/* Share buttons as labelled chips (partials/social-sharing.php), as in the design. */
+body.pk #book-share-card .social-share-btn {
+    display: inline-flex; align-items: center; width: auto; height: auto; min-height: 0; padding: 7px 12px; gap: 6px; border-radius: 999px; background: transparent !important; text-decoration: none; box-shadow: none;
+    border: 1px solid var(--pk-line-2); color: var(--pk-ink); font: 400 13px/1.2 var(--pk-sans); transform: none; opacity: 1;
+}
+body.pk #book-share-card .social-share-btn i { font-size: 12px; color: var(--pk-muted); }
+body.pk #book-share-card .social-share-btn:hover { border-color: var(--pk-accent); color: var(--pk-accent); transform: none; opacity: 1; }
+body.pk #book-share-card .social-share-btn:hover i { color: inherit; }
+body.pk #book-share-card .social-share-btn__label { display: inline; }
+body.pk #book-share-card .card-body > div { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+@media (max-width: 1023px) {
+    /* book-detail.css centres the hero on small screens; the design keeps it left-aligned. */
+    body.pk .pk-bookhero__info { text-align: left; }
+    body.pk .pk-bookhero .pk-authors, body.pk .pk-bookhero .genre-tags { justify-content: flex-start; }
+}
+body.pk #book-share-card .card-body { padding: 0 !important; }
+/* "Classica" cards: the status badge sits on the book itself, so a blank book's title starts below it. */
+body:not(.pk-cards-tinted) .pk-card .pk-book__blank { padding-top: 40px; }
+/* No fade-in on cards or sections anywhere: content is there when the page is.
+   (catalog.php still toggles .fade-in on the grid after an AJAX refresh.) */
+body.pk .fade-in, body.pk .reveal { animation: none !important; opacity: 1 !important; transform: none !important; transition: none !important; }
+
+/* Hero style "Centrato" (theme option, body.pk-hero-centered): title, search
+   and links centred in a narrower column, no fan of covers. */
+body.pk.pk-hero-centered .pk-hero .pk-hero__inner.hero-content { max-width: 860px; flex-direction: column; text-align: center; padding-top: 96px; padding-bottom: 72px; }
+body.pk.pk-hero-centered .pk-hero__text { flex: 0 1 auto; width: 100%; align-items: center; }
+body.pk.pk-hero-centered .pk-hero__badge { align-self: center; }
+body.pk.pk-hero-centered .pk-hero__title { font-size: clamp(44px, 7vw, 84px); }
+body.pk.pk-hero-centered .hero-search-container, body.pk.pk-hero-centered .pk-hero__text .pk-search { width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; }
+body.pk.pk-hero-centered .pk-hero__links { justify-content: center; }
+body.pk.pk-hero-centered .pk-fan { display: none; }
+@media (max-width: 640px) { body.pk.pk-hero-centered .pk-hero .pk-hero__inner.hero-content { padding-top: 56px; padding-bottom: 44px; } }

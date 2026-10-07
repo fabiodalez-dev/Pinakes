@@ -163,7 +163,7 @@ test.describe.serial('Emeroteca public article search page', () => {
 
   test('clearing every filter returns to the whole corpus, and an empty search says so', async ({ page }) => {
     await page.goto(articlesUrl({ q: RUN, testata: String(testataId) }));
-    await page.locator('.clear-all-btn').click();
+    await page.locator('.clear-all-btn').first().click();
     await expect(page).toHaveURL(`${BASE}/emeroteca/articoli`);
     await expect(page.locator('.filter-tag')).toHaveCount(0);
     expect(await total(page)).toBeGreaterThanOrEqual(PUBLIC_IN_TESTATA);

@@ -142,7 +142,7 @@ $check($count($html, '//div[contains(@class,"filter-options--grid")]//*[contains
     'and shows no count badge');
 $check($count($html, '//div[@class="filter-options"]//*[contains(@class,"count-badge")]') === 2,
     'list sections do show count badges');
-$check($count($html, '//a[@class="clear-all-btn"][@href="/emeroteca"]') === 1, 'clear-all link is rendered when given');
+$check($count($html, '//a[@class="clear-all-btn"][@href="/emeroteca"]') === 2, 'clear-all link is rendered when given, at the top and at the bottom');
 $noClear = $render('filters-sidebar.php', ['filterSections' => []]);
 $check($count($noClear, '//a[contains(@class,"clear-all-btn")]') === 0 && $count($noClear, '//form') === 0,
     'without clear href and search, neither is rendered');

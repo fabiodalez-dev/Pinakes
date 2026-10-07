@@ -8076,5 +8076,16 @@
   "Cerca un libro per titolo, autore o ISBN…": "Search a book by title, author or ISBN…",
   "senza copertina: verrà saltato": "no cover: it will be skipped",
   "Fino a 4 libri, nell'ordine in cui li scegli. Un libro senza copertina viene saltato; se non ne resta nessuno, compaiono le ultime copertine.": "Up to 4 books, in the order you pick them. A book without a cover is skipped; if none is left, the latest covers are shown.",
-  "Hai già scelto 4 libri.": "You have already picked 4 books."
+  "Hai già scelto 4 libri.": "You have already picked 4 books.",
+  "Stile hero": "Hero style",
+  "Copertine": "Covers",
+  "Testo a sinistra e un ventaglio di copertine: le ultime arrivate o quelle scelte nella homepage.": "Text on the left and a fan of covers: the latest arrivals or the ones chosen on the home page.",
+  "Centrato": "Centred",
+  "Titolo, ricerca e collegamenti al centro, senza copertine.": "Title, search and links in the centre, without covers.",
+  "Stile card": "Card style",
+  "Classica": "Classic",
+  "Il libro da solo, con dorso e ombra, sullo sfondo della pagina.": "The book on its own, with spine and shadow, on the page background.",
+  "Tinta": "Tinted",
+  "Il libro su un pannello colorato con la tinta della sua copertina.": "The book on a panel tinted with its cover's colour.",
+  "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Choose how the home page hero and the book covers look on the public site. Colours and content stay those of the theme."
 }

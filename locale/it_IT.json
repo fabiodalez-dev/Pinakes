@@ -8076,5 +8076,16 @@
   "Cerca un libro per titolo, autore o ISBN…": "Cerca un libro per titolo, autore o ISBN…",
   "senza copertina: verrà saltato": "senza copertina: verrà saltato",
   "Fino a 4 libri, nell'ordine in cui li scegli. Un libro senza copertina viene saltato; se non ne resta nessuno, compaiono le ultime copertine.": "Fino a 4 libri, nell'ordine in cui li scegli. Un libro senza copertina viene saltato; se non ne resta nessuno, compaiono le ultime copertine.",
-  "Hai già scelto 4 libri.": "Hai già scelto 4 libri."
+  "Hai già scelto 4 libri.": "Hai già scelto 4 libri.",
+  "Stile hero": "Stile hero",
+  "Copertine": "Copertine",
+  "Testo a sinistra e un ventaglio di copertine: le ultime arrivate o quelle scelte nella homepage.": "Testo a sinistra e un ventaglio di copertine: le ultime arrivate o quelle scelte nella homepage.",
+  "Centrato": "Centrato",
+  "Titolo, ricerca e collegamenti al centro, senza copertine.": "Titolo, ricerca e collegamenti al centro, senza copertine.",
+  "Stile card": "Stile card",
+  "Classica": "Classica",
+  "Il libro da solo, con dorso e ombra, sullo sfondo della pagina.": "Il libro da solo, con dorso e ombra, sullo sfondo della pagina.",
+  "Tinta": "Tinta",
+  "Il libro su un pannello colorato con la tinta della sua copertina.": "Il libro su un pannello colorato con la tinta della sua copertina.",
+  "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.": "Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema."
 }

@@ -469,17 +469,31 @@ $pkYear = trim((string) ($book['anno_pubblicazione'] ?? ''));
 $pkPublishedTotal = \App\Support\CopyHoldings::publishedTotal($bookHoldings ?? null, (int) ($book['copie_totali'] ?? 0));
 $pkAvailable = (int) ($book['copie_disponibili'] ?? 0);
 // Quick facts under the availability box, as in the design.
+// A book reads "Anno" and "Pagine" as in the design; other media keep their own labels (tracks, duration…).
+$pkIsBook = ($book['tipo_media'] ?? 'libro') === 'libro';
 $pkQuick = array_values(array_filter([
-    [\App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null), $pkYear],
-    [\App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null), trim((string) ($book['numero_pagine'] ?? ''))],
+    [$pkIsBook ? __('Anno') : \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null), $pkYear],
+    [$pkIsBook ? __('Pagine') : \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null), trim((string) ($book['numero_pagine'] ?? ''))],
     [__('Formato'), !empty($book['formato']) ? \App\Support\MediaLabels::formatDisplayName((string) $book['formato']) : ''],
     ['ISBN', trim((string) ($book['isbn13'] ?? '')) !== '' ? (string) $book['isbn13'] : trim((string) ($book['isbn10'] ?? ''))],
 ], static fn (array $f): bool => $f[1] !== ''));
 ob_start();
 do_action('book.detail.digital_player', $book);
 $pkDigitalPlayer = trim((string) ob_get_clean());
+// The plugins' buttons (digital files, "search on" links) go under the quick
+// facts, as in the design, not in the availability box. Same gate as before:
+// nothing for a catalogue-only install or a book the library does not own.
+$pkDigitalButtons = '';
+if (!$isCatalogueMode && empty($book['is_desiderata'])) {
+    ob_start();
+    do_action('book.detail.digital_buttons', $book);
+    $pkDigitalButtons = trim((string) ob_get_clean());
+}
+// "Contenuti digitali" heads the block only when there is a digital file;
+// the "search on" links alone stand without it.
+$pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 'digital-attachments') || str_contains($pkDigitalButtons, 'plugin-book-actions');
 ?>
-<section class="book-hero pk-bookhero" data-pk-tone-target>
+<section class="book-hero pk-bookhero">
     <div class="pk-wrap">
                     <?php
                     // Multi-publisher (issue #143): link every publisher, fallback to primary.
@@ -615,10 +629,6 @@ $pkDigitalPlayer = trim((string) ob_get_clean());
                       </a>
                     <?php endif; ?>
 
-                    <?php
-                    // Hook: Allow plugins to add digital content buttons (e.g., Download eBook, Play Audio)
-                    do_action('book.detail.digital_buttons', $book);
-                    ?>
                 </div>
                 <?php endif; ?>
 
@@ -634,9 +644,11 @@ $pkDigitalPlayer = trim((string) ob_get_clean());
                     </dl>
                     <?php endif; ?>
 
-                    <?php if ($pkDigitalPlayer !== ''): ?>
+                    <?php if ($pkDigitalButtons !== '' || $pkDigitalPlayer !== ''): ?>
                     <div class="pk-digital">
-                        <div class="pk-label"><?= __("Contenuti digitali") ?></div>
+                        <?php if ($pkHasDigitalFiles): ?><div class="pk-label"><?= __("Contenuti digitali") ?></div><?php endif; ?>
+                        <?php // Hook book.detail.digital_buttons: plugins add digital content buttons (eBook, audiobook) and external search links. ?>
+                        <?= $pkDigitalButtons ?>
                         <?= $pkDigitalPlayer ?>
                     </div>
                     <?php endif; ?>
@@ -1241,14 +1253,17 @@ $pkDigitalPlayer = trim((string) ob_get_clean());
                     <h6 class="mb-0"><i class="fas fa-quote-left mr-2"></i><?= htmlspecialchars(__('Cita questo libro'), ENT_QUOTES, 'UTF-8') ?></h6>
                   </div>
                   <div class="card-body py-2 px-3">
-                    <?php include dirname(__DIR__) . '/partials/cite-inline.php'; ?>
                     <?php
                     // The RIS file is already the inline "Download RIS" button: the
                     // dialog keeps its styles and copy buttons, not a second link.
+                    // Its "Cite" button joins the inline actions row (cite-inline.php).
                     $citeDownloadsInline = $citeDownloads;
                     $citeDownloads = [];
+                    ob_start();
                     include dirname(__DIR__) . '/partials/cite-dialog.php';
+                    $pkCiteDialog = (string) ob_get_clean();
                     $citeDownloads = $citeDownloadsInline;
+                    include dirname(__DIR__) . '/partials/cite-inline.php';
                     ?>
                   </div>
                 </div>

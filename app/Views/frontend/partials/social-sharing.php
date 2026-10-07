@@ -36,7 +36,7 @@ $encodedTitle = rawurlencode($shareTitle);
                 title="<?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>"
                 aria-label="<?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>"
                 data-share-copy="<?= htmlspecialchars($shareUrl, ENT_QUOTES, 'UTF-8') ?>">
-          <i class="<?= htmlspecialchars($p['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
+          <i class="<?= htmlspecialchars($p['icon'], ENT_QUOTES, 'UTF-8') ?>"></i><span class="social-share-btn__label" aria-hidden="true"><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></span>
         </button>
       <?php else: ?>
         <?php
@@ -48,7 +48,7 @@ $encodedTitle = rawurlencode($shareTitle);
            title="<?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>"
            aria-label="<?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>"
            <?php if ($slug !== 'email' && $slug !== 'sms'): ?>target="_blank" rel="noopener noreferrer"<?php endif; ?>>
-          <i class="<?= htmlspecialchars($p['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
+          <i class="<?= htmlspecialchars($p['icon'], ENT_QUOTES, 'UTF-8') ?>"></i><span class="social-share-btn__label" aria-hidden="true"><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></span>
         </a>
       <?php endif; ?>
     <?php endforeach; ?>
@@ -63,7 +63,7 @@ $encodedTitle = rawurlencode($shareTitle);
             aria-label="<?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?>"
             data-share-title="<?= htmlspecialchars($shareTitle, ENT_QUOTES, 'UTF-8') ?>"
             data-share-url="<?= htmlspecialchars($shareUrl, ENT_QUOTES, 'UTF-8') ?>">
-      <i class="fas fa-share-nodes"></i>
+      <i class="fas fa-share-nodes"></i><span class="social-share-btn__label" aria-hidden="true"><?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?></span>
     </button>
     </div>
   </div>
@@ -83,6 +83,10 @@ $encodedTitle = rawurlencode($shareTitle);
   cursor: pointer;
   transition: opacity 0.2s, transform 0.2s;
   text-decoration: none;
+}
+/* The name shows where the design lays the buttons out as labelled chips (pinakes-2026.css). */
+.social-share-btn__label {
+  display: none;
 }
 .social-share-btn:hover {
   opacity: 0.85;

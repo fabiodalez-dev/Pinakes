@@ -574,7 +574,7 @@ class DigitalLibraryPlugin
         // requests (Lighthouse: render-blocking resources).
         $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
-            echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css?v=1.4.0'), ENT_QUOTES, 'UTF-8') . '">' . "\n";
+            echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css?v=' . (string) filemtime($pluginCssPath)), ENT_QUOTES, 'UTF-8') . '">' . "\n";
         }
     }
 

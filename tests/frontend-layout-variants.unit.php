@@ -11,7 +11,7 @@ $layout = file_get_contents($root . '/app/Views/frontend/layout.php');
 $userLayout = file_get_contents($root . '/app/Views/user_layout.php');
 $admin = file_get_contents($root . '/app/Views/admin/theme-customize.php');
 $adminThemes = file_get_contents($root . '/app/Views/admin/themes.php');
-$adminLayoutSelector = file_get_contents($root . '/app/Views/admin/partials/layout-variant-selector.php');
+$adminLayoutSelector = file_get_contents($root . '/app/Views/admin/partials/public-style-selector.php');
 $routes = file_get_contents($root . '/app/Routes/web.php');
 $controller = file_get_contents($root . '/app/Controllers/ThemeController.php');
 $frontendController = file_get_contents($root . '/app/Controllers/FrontendController.php');
@@ -102,23 +102,26 @@ foreach ($sourceDirectories as $sourceDirectory) {
 }
 
 $checks = [
-    'editorial is the default layout' => ThemeManager::DEFAULT_LAYOUT_VARIANT === 'editorial',
-    'four layout variants are exposed' => ThemeManager::LAYOUT_VARIANTS === ['editorial', 'workspace', 'command', 'soft'],
-    'missing setting falls back to editorial' => $manager->getLayoutVariant(['settings' => '{}']) === 'editorial',
-    'invalid stored setting falls back to editorial' => $manager->getLayoutVariant(['settings' => '{"layout_variant":"unknown"}']) === 'editorial',
-    'valid stored setting is returned' => $manager->getLayoutVariant(['settings' => '{"layout_variant":"soft"}']) === 'soft',
+    'the public style defaults to the cover hero and classic cards' => ThemeManager::DEFAULT_HERO_STYLE === 'covers' && ThemeManager::DEFAULT_CARD_STYLE === 'classic',
+    'two hero and two card styles are exposed' => ThemeManager::HERO_STYLES === ['covers', 'centered'] && ThemeManager::CARD_STYLES === ['classic', 'tinted'],
+    'a theme without the setting (install, upgrade) gets the defaults' => $manager->getPublicStyle(['settings' => '{"layout_variant":"soft"}']) === ['hero_style' => 'covers', 'card_style' => 'classic'],
+    'invalid stored values fall back to the defaults' => $manager->getPublicStyle(['settings' => '{"hero_style":"x","card_style":"<b>"}']) === ['hero_style' => 'covers', 'card_style' => 'classic'],
+    'valid stored values are returned' => $manager->getPublicStyle(['settings' => '{"hero_style":"centered","card_style":"tinted"}']) === ['hero_style' => 'centered', 'card_style' => 'tinted'],
+    'the defaults add no body class; the alternatives add theirs' => ThemeManager::publicStyleClasses(['hero_style' => 'covers', 'card_style' => 'classic']) === '' && ThemeManager::publicStyleClasses(['hero_style' => 'centered', 'card_style' => 'tinted']) === 'pk-hero-centered pk-cards-tinted',
+    'no installer seed pins a public style' => !preg_match('/hero_style|card_style|layout_variant/', implode('', array_map('file_get_contents', glob($root . '/installer/database/data_*.sql') ?: []))),
+    'the stylesheet styles both alternatives' => str_contains($pk2026, 'body.pk.pk-hero-centered .pk-fan { display: none; }') && str_contains($pk2026, 'body.pk-cards-tinted :is(.pk-card__panel'),
     'public layout links the shared design stylesheet' => str_contains($layout, '/assets/pinakes-2026.css') && str_contains($layout, '$pinakes2026Version'),
     'layout stylesheet cache key follows the file modification time' => str_contains($layout, '$frontendLayoutsMtime') && str_contains($layout, '$frontendLayoutsVersion'),
-    'public body receives the validated layout class' => str_contains($layout, 'layout-<?= htmlspecialchars($layoutVariant'),
+    'public body receives the validated style classes' => str_contains($layout, 'ThemeManager::publicStyleClasses($publicStyle)') && str_contains($layout, '$publicStyle = $themeManager->getPublicStyle($activeTheme);'),
     'standalone public views resolve the active theme from their database handle' => str_contains($layout, 'elseif (isset($db) && $db instanceof mysqli)') && str_contains($layout, 'new \\App\\Support\\ThemeManager($db)'),
-    'account layout receives the validated layout class and shared stylesheets' => str_contains($userLayout, 'ThemeManager::DEFAULT_LAYOUT_VARIANT') && str_contains($userLayout, 'body class="pk pk-account layout-') && str_contains($userLayout, "assetUrl('pinakes-2026.css')") && str_contains($userLayout, "assetUrl('account-pages.css')"),
+    'account layout receives the validated layout class and shared stylesheets' => str_contains($userLayout, 'ThemeManager::DEFAULT_CARD_STYLE') && str_contains($userLayout, 'body class="pk pk-account<?= $pkStyleClasses') && str_contains($userLayout, "assetUrl('pinakes-2026.css')") && str_contains($userLayout, "assetUrl('account-pages.css')"),
     'contact and plugin wrappers forward a theme-capable dependency' => str_contains($contactController, 'mixed $container = null') && str_contains($bookClubBase, '$db = $this->db') && str_contains($frbrPlugin, '$db = $this->db'),
     'normal profiles use the frontend shell while staff retain the admin shell' => str_contains($profileController, '$isAdminOrStaff') && str_contains($profileController, "Views/frontend/layout.php") && str_contains($profileController, "Views/layout.php"),
-    'admin customize form exposes the shared layout radio group' => str_contains($admin, 'layout-variant-selector.php') && str_contains($adminLayoutSelector, 'name="layout_variant"'),
-    'themes overview exposes the shared layout selector' => str_contains($adminThemes, 'layout-variant-selector.php') && str_contains($adminLayoutSelector, 'name="layout_variant"'),
+    'admin customize form exposes the shared style radio groups' => str_contains($admin, 'public-style-selector.php') && str_contains($adminLayoutSelector, "'hero_style' =>") && str_contains($adminLayoutSelector, "'card_style' =>") && str_contains($adminLayoutSelector, 'name="<?= htmlspecialchars($field'),
+    'themes overview exposes the shared style selector' => str_contains($adminThemes, 'public-style-selector.php'),
     'themes overview has a dedicated protected layout route' => str_contains($routes, "post('/admin/themes/{id}/layout'") && str_contains($routes, 'saveLayout($request, $response, $args)'),
-    'controller validates against the allow-list' => str_contains($controller, 'ThemeManager::LAYOUT_VARIANTS'),
-    'full customization saves colors, layout and advanced CSS in one settings update' => str_contains($controller, 'updateThemeColors($themeId, $colors, $layoutVariant, $advanced)'),
+    'controller validates against the allow-list' => str_contains($controller, 'ThemeManager::isValidPublicStyle($style)'),
+    'full customization saves colors, style and advanced CSS in one settings update' => str_contains($controller, 'updateThemeColors($themeId, $colors, $publicStyle, $advanced)'),
     'stylesheet includes editorial rules' => str_contains($css, 'body.layout-editorial'),
     'stylesheet includes workspace rules' => str_contains($css, 'body.layout-workspace'),
     'stylesheet includes command rules' => str_contains($css, 'body.layout-command'),
@@ -168,7 +171,7 @@ $checks = [
     'catalog does not duplicate the active-theme query' => !str_contains($catalog, 'getActiveTheme()'),
     'catalog filter sidebar has a fixed column beside fluid results' => str_contains($catalog, 'catalog-filters-column pk-filters') && str_contains($catalog, 'catalog-results-column pk-results') && str_contains($pk2026, '.pk-catalog__layout {'),
     'catalog filter controls retain touch-safe spacing' => str_contains($catalogCss, 'min-height: 44px;') && str_contains($catalogCss, 'padding: 0.7rem 0.75rem;'),
-    'book detail surface is a shared stylesheet linked by the layout' => str_contains($bookDetail, '$bookDetailStyles = true') && str_contains($bookDetail, 'data-pk-tone-target') && str_contains($layout, '$bookDetailVersion') && !str_contains($bookDetailCss, '<?') && !str_contains($pk2026, '<?'),
+    'book detail surface is a shared stylesheet linked by the layout' => str_contains($bookDetail, '$bookDetailStyles = true') && !str_contains($bookDetail, 'data-pk-tone-target') && str_contains($pk2026, 'background: linear-gradient(180deg, color-mix(in srgb, var(--pk-accent) 6%, #f7f1f3) 0%, var(--pk-bg) 520px);') && str_contains($layout, '$bookDetailVersion') && !str_contains($bookDetailCss, '<?') && !str_contains($pk2026, '<?'),
     'catalog surface is a shared stylesheet linked by the layout' => str_contains($catalog, '$catalogPageStyles = true') && !str_contains($catalog, '<style>') && str_contains($layout, '$catalogPagesVersion') && str_contains($catalogCss, '.books-grid') && !str_contains($catalogCss, ':root {'),
     'catalog filters collapse behind an accessible mobile control' => str_contains($catalog, 'id="catalog-filters-toggle"') && str_contains($catalog, 'aria-controls="catalog-filters-content"') && str_contains($catalog, 'mobileFilters.matches'),
     'catalog pagination emits a syntactically complete active class' => str_contains($catalog, "' + activeClass + '\"><a class=\"page-link\""),

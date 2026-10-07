@@ -66,18 +66,18 @@ if (isset($container)) {
     $activeTheme = $themeManager->getActiveTheme();
     $themeColors = $themeManager->getThemeColors($activeTheme);
     $themePalette = $themeColorizer->generateColorPalette($themeColors);
-    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
+    $publicStyle = $themeManager->getPublicStyle($activeTheme);
 } elseif (isset($db) && $db instanceof mysqli) {
     // Public views rendered by standalone controllers or plugins do not always
     // receive the DI container, but they do share the request's DB handle.
     // Resolve the same active theme from that handle so CMS/contact/plugin
-    // pages never silently fall back to Editoriale.
+    // pages never silently fall back to the default palette and style.
     $themeManager = new \App\Support\ThemeManager($db);
     $themeColorizer = new \App\Support\ThemeColorizer();
     $activeTheme = $themeManager->getActiveTheme();
     $themeColors = $themeManager->getThemeColors($activeTheme);
     $themePalette = $themeColorizer->generateColorPalette($themeColors);
-    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
+    $publicStyle = $themeManager->getPublicStyle($activeTheme);
 } else {
     // Fallback colors when container is not available
     $themePalette = [
@@ -94,7 +94,7 @@ if (isset($container)) {
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
-    $layoutVariant = \App\Support\ThemeManager::DEFAULT_LAYOUT_VARIANT;
+    $publicStyle = ['hero_style' => \App\Support\ThemeManager::DEFAULT_HERO_STYLE, 'card_style' => \App\Support\ThemeManager::DEFAULT_CARD_STYLE];
 }
 
 // Get events page status using ConfigStore (has its own DB connection)
@@ -1473,14 +1473,6 @@ $htmlLang = substr($currentLocale, 0, 2);
             border-top: 1px solid var(--border-color);
         }
 
-        /* ---- Elegant motion: fade-up on scroll (opt-in via .reveal, added by
-           the observer below). Respects reduced-motion. ---- */
-        .reveal{ opacity:0; transform:translateY(18px); }
-        .reveal.is-in{ opacity:1; transform:none; transition:opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
-        @media (prefers-reduced-motion: reduce){
-            .reveal,.reveal.is-in{ opacity:1 !important; transform:none !important; transition:none !important; }
-        }
-
         <?= $additional_css ?? '' ?>
     </style>
     <?php if (!empty($catalogPageStyles)): ?>
@@ -1674,7 +1666,8 @@ $htmlLang = substr($currentLocale, 0, 2);
       $publicNavItems[] = ['href' => $eventsRoute, 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt', 'active' => $navPathActive((string) $eventsRoute) || $navPathActive('/events')];
   }
 ?>
-<body class="pk <?= $isHome ? 'home ' : '' ?>layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
+<?php $pkStyleClasses = \App\Support\ThemeManager::publicStyleClasses($publicStyle); ?>
+<body class="pk<?= $isHome ? ' home' : '' ?><?= $pkStyleClasses !== '' ? ' ' . htmlspecialchars($pkStyleClasses, ENT_QUOTES, 'UTF-8') : '' ?>">
     <!-- Minimalist Header -->
     <div class="header-container">
         <div class="header-main">
@@ -1965,24 +1958,6 @@ $htmlLang = substr($currentLocale, 0, 2);
                     }
                 }
             });
-        });
-
-        // Add fade-in animation to cards on scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('fade-in');
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.book-card').forEach(card => {
-            observer.observe(card);
         });
 
         // Load user reservations count for badge
@@ -2451,30 +2426,6 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
     <?php require __DIR__ . '/../partials/scroll-to-top.php'; ?>
 
-    <script>
-    /* Editorial fade-up on scroll — adds .reveal to sections/cards at runtime
-       (no markup changed) and reveals them as they enter the viewport.
-       Fully skipped when the user prefers reduced motion. */
-    (function () {
-        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        var sel = '.main-content .book-card, .main-content .feature-card, .main-content .event-card, ' +
-                  '.main-content .related-book-card, .main-content .book-details-section, ' +
-                  '.main-content .book-description-section, .main-content .book-reviews-section, ' +
-                  '.main-content .section-title, .main-content .genre-carousel';
-        var els = Array.prototype.slice.call(document.querySelectorAll(sel));
-        if (!els.length || !('IntersectionObserver' in window)) return;
-        var io = new IntersectionObserver(function (entries) {
-            entries.forEach(function (e) {
-                if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
-            });
-        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
-        els.forEach(function (el, i) {
-            el.classList.add('reveal');
-            el.style.transitionDelay = Math.min(i % 6, 5) * 40 + 'ms';
-            io.observe(el);
-        });
-    })();
-    </script>
 </body>
 
 </html>

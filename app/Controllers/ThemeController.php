@@ -34,7 +34,7 @@ class ThemeController
 
         $themes = $this->themeManager->getAllThemes();
         $activeTheme = $this->themeManager->getActiveTheme();
-        $activeLayoutVariant = $this->themeManager->getLayoutVariant($activeTheme);
+        $publicStyle = $this->themeManager->getPublicStyle($activeTheme);
         $pageTitle = __('Gestione Temi');
 
         // Render view
@@ -73,7 +73,7 @@ class ThemeController
         $settings = json_decode($theme['settings'], true) ?? [];
         $colors = $settings['colors'] ?? [];
         $advanced = $settings['advanced'] ?? [];
-        $layoutVariant = $this->themeManager->getLayoutVariant($theme);
+        $publicStyle = $this->themeManager->getPublicStyle($theme);
         $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
 
         // Render view
@@ -149,8 +149,8 @@ class ThemeController
             }
         }
 
-        $layoutVariant = $parsedBody['layout_variant'] ?? ThemeManager::DEFAULT_LAYOUT_VARIANT;
-        if (!is_string($layoutVariant) || !in_array($layoutVariant, ThemeManager::LAYOUT_VARIANTS, true)) {
+        $publicStyle = $this->postedPublicStyle($parsedBody);
+        if ($publicStyle === null) {
             $_SESSION['error'] = __('Stile interfaccia non valido');
             return $response
                 ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
@@ -158,7 +158,7 @@ class ThemeController
         }
 
         // Build the optional advanced block before writing anything. Colors,
-        // layout and CSS are then persisted by ThemeManager in one JSON update,
+        // public style and CSS are then persisted by ThemeManager in one JSON update,
         // so a failure cannot leave a partially-saved customization.
         $advanced = null;
         if (isset($parsedBody['advanced']) && is_array($parsedBody['advanced'])) {
@@ -177,7 +177,7 @@ class ThemeController
             $advanced['custom_css'] = \App\Support\ContentSanitizer::sanitizeCustomCss($advanced['custom_css']);
         }
 
-        $success = $this->themeManager->updateThemeColors($themeId, $colors, $layoutVariant, $advanced);
+        $success = $this->themeManager->updateThemeColors($themeId, $colors, $publicStyle, $advanced);
 
         if ($success) {
             $_SESSION['success'] = __('Tema salvato con successo');
@@ -191,12 +191,12 @@ class ThemeController
     }
 
     /**
-     * Save only the active theme's public layout from the themes overview.
+     * Save only the active theme's public style (hero, cards) from the themes overview.
      */
     public function saveLayout(Request $request, Response $response, array $args): Response
     {
         // Check authorization — AdminAuthMiddleware also admits 'staff', but
-        // changing the site-wide public layout is admin-only (matches index()/customize()).
+        // changing the site-wide public style is admin-only (matches index()/customize()).
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
             return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
         }
@@ -204,15 +204,13 @@ class ThemeController
         $themeId = (int) ($args['id'] ?? 0);
         $theme = $this->themeManager->getThemeById($themeId);
         $parsedBody = $request->getParsedBody();
-        $layoutVariant = is_array($parsedBody) && is_string($parsedBody['layout_variant'] ?? null)
-            ? $parsedBody['layout_variant']
-            : '';
+        $publicStyle = is_array($parsedBody) ? $this->postedPublicStyle($parsedBody) : null;
 
         if (!$theme || empty($theme['active'])) {
             $_SESSION['error'] = __('Tema non trovato');
-        } elseif (!in_array($layoutVariant, ThemeManager::LAYOUT_VARIANTS, true)) {
+        } elseif ($publicStyle === null) {
             $_SESSION['error'] = __('Stile interfaccia non valido');
-        } elseif ($this->themeManager->updateLayoutVariant($themeId, $layoutVariant)) {
+        } elseif ($this->themeManager->updatePublicStyle($themeId, $publicStyle)) {
             $_SESSION['success'] = __('Tema salvato con successo');
         } else {
             $_SESSION['error'] = __('Errore nel salvataggio del tema');
@@ -221,6 +219,22 @@ class ThemeController
         return $response
             ->withHeader('Location', url('/admin/themes'))
             ->withStatus(302);
+    }
+
+    /**
+     * The hero and card styles a form posted, or null when either is not one
+     * of ThemeManager::HERO_STYLES / CARD_STYLES.
+     *
+     * @param array<mixed> $parsedBody
+     * @return array{hero_style:string,card_style:string}|null
+     */
+    private function postedPublicStyle(array $parsedBody): ?array
+    {
+        $style = [
+            'hero_style' => is_string($parsedBody['hero_style'] ?? null) ? $parsedBody['hero_style'] : '',
+            'card_style' => is_string($parsedBody['card_style'] ?? null) ? $parsedBody['card_style'] : '',
+        ];
+        return ThemeManager::isValidPublicStyle($style) ? $style : null;
     }
 
     /**

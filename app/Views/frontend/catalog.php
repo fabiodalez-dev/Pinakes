@@ -139,6 +139,14 @@ ob_start();
                     </div>
 
                     <div class="filters-content" id="catalog-filters-content">
+                    <!-- Clear All, also at the top: no scrolling down a long filter column to reset it -->
+                    <div class="filter-section filter-section--clear-top">
+                        <button class="clear-all-btn" onclick="clearAllFilters()">
+                            <i class="fas fa-times"></i>
+                            <?= __("Pulisci tutti i filtri") ?>
+                        </button>
+                    </div>
+
                     <!-- Availability -->
                     <div class="filter-section">
                         <div class="filter-title">
