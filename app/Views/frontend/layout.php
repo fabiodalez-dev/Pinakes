@@ -324,7 +324,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php endif; ?>
     <?php // The 2026 design's two faces (Latin subset), fetched with the CSS rather than after it. ?>
     <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Geist-normal-latin.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Newsreader-normal-latin.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Fraunces-6.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
