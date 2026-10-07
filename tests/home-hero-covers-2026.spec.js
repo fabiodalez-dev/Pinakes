@@ -12,9 +12,22 @@ const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 
+const e2e = (key) => {
+  const v = process.env[key];
+  return v === undefined || v === 'undefined' ? '' : v;
+};
+
 function db(sql) {
-  const args = ['-S', process.env.E2E_DB_SOCKET || '', '-u', process.env.E2E_DB_USER || '', process.env.E2E_DB_NAME || '', '-N', '-B', '-e', sql];
-  return execFileSync('mysql', args, { encoding: 'utf-8', env: { ...process.env, MYSQL_PWD: process.env.E2E_DB_PASS || '' } }).trim();
+  // TCP when a host is set (CI), the socket otherwise (local dev); the
+  // password goes through MYSQL_PWD, never argv.
+  const args = ['-u', e2e('E2E_DB_USER'), e2e('E2E_DB_NAME'), '-N', '-B', '-e', sql];
+  if (e2e('E2E_DB_HOST')) {
+    args.splice(2, 0, '-h', e2e('E2E_DB_HOST'));
+    if (e2e('E2E_DB_PORT')) args.splice(4, 0, '-P', e2e('E2E_DB_PORT'));
+  } else if (e2e('E2E_DB_SOCKET')) {
+    args.splice(2, 0, '-S', e2e('E2E_DB_SOCKET'));
+  }
+  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: e2e('E2E_DB_PASS') } }).trim();
 }
 
 async function login(page) {
