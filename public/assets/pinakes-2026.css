@@ -218,7 +218,11 @@ body.pk .pk-footer__brand .footer-logo { height: 32px; max-height: 32px; width: 
 body.pk .pk-footer__brand p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--pk-muted); }
 body.pk .pk-footer__brand h5 { margin: 0; font-family: var(--pk-serif); font-size: 22px; color: var(--pk-ink); }
 body.pk .pk-footer__col { min-width: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
-body.pk .pk-footer__col ul.social-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
+/* Four rows, like Menu and Account beside it: the profiles fill the first
+   column top to bottom, then flow into a second one. */
+body.pk .pk-footer__col ul.social-links { display: grid; grid-template-rows: repeat(4, auto); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px 24px; }
+/* A grid cell holding an inline-flex link keeps the baseline gap below it (0.8px a row), which drifted the rows off Menu's. */
+body.pk .pk-footer__col ul.social-links li { display: flex; }
 
 body.pk .pk-footer__col h5 { margin: 0 0 4px; font: 600 12px/1.2 var(--pk-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--pk-faint); }
 body.pk .pk-footer__col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -227,7 +231,7 @@ body.pk .pk-footer__col a { color: var(--pk-ink); text-decoration: none; font-we
    the other columns, the brand icon in front, not the legacy grey tiles. */
 body.pk .pk-footer .social-links a { width: auto; height: auto; padding: 0; border-radius: 0; background: none; justify-content: flex-start; gap: 8px; color: var(--pk-ink); }
 body.pk .pk-footer .social-links a:hover { background: none; color: var(--pk-accent); }
-body.pk .pk-footer .social-links a i { width: 16px; margin: 0; text-align: center; color: var(--pk-faint); }
+body.pk .pk-footer .social-links a i { width: 16px; margin: 0; text-align: center; line-height: 1; color: var(--pk-faint); }
 body.pk .pk-footer .social-links a:hover i { color: var(--pk-accent); }
 /* 24px targets (WCAG 2.2 AA) instead of the old 44px rows: the list keeps the
    design's 10px rhythm. */

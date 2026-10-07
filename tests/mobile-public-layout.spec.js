@@ -127,6 +127,19 @@ test.describe('Footer "Seguici" column', () => {
       expect(l.icon).toBe(true);
     }
   });
+
+  test('on a desktop its rows line up with Menu, four to a column', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+    const social = page.locator('footer .pk-footer .social-links a');
+    test.skip(await social.count() === 0, 'no social profile set in Settings');
+    const r = await page.evaluate(() => {
+      const tops = sel => [...new Set([...document.querySelectorAll(sel)].map(a => Math.round(a.getBoundingClientRect().top)))];
+      return { menu: tops('footer .pk-footer__col:nth-of-type(2) li a'), social: tops('footer .social-links li a') };
+    });
+    expect(r.social.length).toBe(Math.min(4, await social.count()));
+    r.social.forEach((top, i) => expect(Math.abs(top - r.menu[i])).toBeLessThanOrEqual(1));
+  });
 });
 
 test.describe('Wanted books (desiderata) covers', () => {
