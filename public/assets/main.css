@@ -3717,42 +3717,35 @@ input:where([type='file']):focus {
   /* Upload Area */
 
   /* Form Grid */
-  @media (max-width: 640px) {
-    .settings-panel .form-grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem;
-    }
-    .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.form-grid > .p-5 {
-      padding: 1rem;
-    }
-  }
   .form-grid {
   display: grid;
   gap: 1.5rem;
 }
-
-  /* Settings panels: reduce padding on stacked cards for mobile */
   @media (max-width: 640px) {
-    .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem !important;
-    }
-    .settings-panel .\!grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem !important;
-    }
-    .settings-panel .form-grid-2.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem;
-    }
-    .settings-panel .grid.form-grid-2.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem;
-    }
-    .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.form-grid-2 > .p-5 {
-      padding: 1rem;
-    }
+  .settings-panel .form-grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem;
   }
+  .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.form-grid > .p-5 {
+    padding: 1rem;
+  }
+}
 
   .form-grid-2 {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 1.5rem;
+}
+
+  @media (max-width: 640px) {
+  .settings-panel .form-grid-2.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem;
+  }
+  .settings-panel .grid.form-grid-2.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem;
+  }
+  .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.form-grid-2 > .p-5 {
+    padding: 1rem;
+  }
 }
 
   @media (min-width: 768px) {
@@ -3762,22 +3755,22 @@ input:where([type='file']):focus {
   }
 }
 
-  @media (max-width: 640px) {
-    .settings-panel .form-grid-3.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem;
-    }
-    .settings-panel .grid.form-grid-3.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem;
-    }
-    .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.form-grid-3 > .p-5 {
-      padding: 1rem;
-    }
-  }
-
   .form-grid-3 {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 1.5rem;
+}
+
+  @media (max-width: 640px) {
+  .settings-panel .form-grid-3.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem;
+  }
+  .settings-panel .grid.form-grid-3.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem;
+  }
+  .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.form-grid-3 > .p-5 {
+    padding: 1rem;
+  }
 }
 
   @media (min-width: 768px) {
@@ -3852,16 +3845,6 @@ input:where([type='file']):focus {
   background-color: rgb(254 252 232 / var(--tw-bg-opacity, 1));
   --tw-text-opacity: 1;
   color: rgb(133 77 14 / var(--tw-text-opacity, 1));
-}
-
-  .alert-info {
-  border-width: 1px;
-  --tw-border-opacity: 1;
-  border-color: rgb(191 219 254 / var(--tw-border-opacity, 1));
-  --tw-bg-opacity: 1;
-  background-color: rgb(239 246 255 / var(--tw-bg-opacity, 1));
-  --tw-text-opacity: 1;
-  color: rgb(30 64 175 / var(--tw-text-opacity, 1));
 }
 
   .alert-dismiss {
@@ -6584,6 +6567,16 @@ table {
   50% { opacity: 0.8; }
 }
 
+/* Settings panels: reduce padding on stacked cards for mobile. Outside
+   @layer components on purpose: inside it Tailwind copies the rule into every
+   responsive variant of the classes it names (sm:gap-6, md:p-5…), which nests
+   this max-width query inside min-width ones where it can never apply. */
+@media (max-width: 640px) {
+  .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem !important;
+  }
+}
+
 /* Responsive Design Helpers */
 @media (max-width: 640px) {
   .form-grid-2,
@@ -7244,18 +7237,6 @@ table.dataTable thead td {
 
   .sm\:prose :where(.sm\:prose > :last-child):not(:where([class~="not-prose"],[class~="not-prose"] *)) {
     margin-bottom: 0;
-  }
-  @media (max-width: 640px) {
-    .settings-panel .sm\:gap-6.grid.grid-cols-1.lg\:grid-cols-2 > .p-5 {
-      padding: 1rem !important;
-    }
-  }
-}
-@media (min-width: 768px) {
-  @media (max-width: 640px) {
-    .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .md\:p-5 {
-      padding: 1rem !important;
-    }
   }
 }
 .file\:mr-3::file-selector-button {

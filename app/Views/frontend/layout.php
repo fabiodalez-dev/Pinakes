@@ -93,6 +93,9 @@ if (isset($container)) {
         'secondary_hover' => '#0f1623',
         'button_hover' => '#c20258',
         'primary_text' => '#ce015d',
+        'button_surface' => '#d70262',
+        'secondary_surface' => '#111827',
+        'primary_on_dark' => '#e2488d',
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
@@ -363,6 +366,17 @@ $htmlLang = substr($currentLocale, 0, 2);
             /* The accent as text: darkened only as far as AA contrast needs. */
             --primary-text:
                 <?= htmlspecialchars($themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            /* Filled surfaces kept at AA with their text, and the accent as
+               text on the dark surface (ThemeColorizer::readableSurface()). */
+            --button-surface:
+                <?= htmlspecialchars($themePalette['button_surface'] ?? $themePalette['button'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --secondary-surface:
+                <?= htmlspecialchars($themePalette['secondary_surface'] ?? $themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --primary-on-dark:
+                <?= htmlspecialchars($themePalette['primary_on_dark'] ?? '#ffffff', ENT_QUOTES, 'UTF-8') ?>
             ;
             --secondary-color:
                 <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
