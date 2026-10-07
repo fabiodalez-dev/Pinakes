@@ -259,7 +259,50 @@ class ThemeColorizer
             'secondary_hover' => $this->darken($secondary, 10),
             'button_hover' => $this->darken($button, 10),
             'primary_text' => $this->readableOnTint($primary),
+            // 2026 design: filled surfaces that carry text, kept at AA with
+            // that text (see readableSurface()), and the accent as text on
+            // the dark surface.
+            'button_surface' => $this->readableSurface($button, $buttonText),
+            'secondary_surface' => $this->readableSurface($secondary, '#ffffff'),
+            'primary_on_dark' => $this->readableOnDark($primary, $this->readableSurface($secondary, '#ffffff')),
         ];
+    }
+
+    /**
+     * A filled surface that carries $text, moved only as far as WCAG AA
+     * (4.5:1) for normal-size text needs: darkened under light text,
+     * lightened under dark text. A pair that already reads is returned
+     * unchanged, so a theme keeps its colour wherever it can.
+     */
+    public function readableSurface(string $surface, string $text): string
+    {
+        $surface = $this->normalizeHex($surface);
+        $text = $this->normalizeHex($text);
+        $textIsLight = $this->getLuminance($text) > 0.5;
+        for ($percent = 0; $percent <= 80; $percent += 2) {
+            $candidate = $textIsLight ? $this->darken($surface, $percent) : $this->lighten($surface, $percent);
+            if ($this->getContrastRatio($text, $candidate) >= 4.6) {
+                return $candidate;
+            }
+        }
+        return $textIsLight ? '#1b1720' : '#ffffff';
+    }
+
+    /**
+     * The accent as text on the dark surface (the home's story band): the
+     * accent lightened only as far as AA on that surface needs.
+     */
+    public function readableOnDark(string $accent, string $dark): string
+    {
+        $accent = $this->normalizeHex($accent);
+        $dark = $this->normalizeHex($dark);
+        for ($percent = 0; $percent <= 100; $percent += 2) {
+            $candidate = $this->lighten($accent, $percent);
+            if ($this->getContrastRatio($candidate, $dark) >= 4.6) {
+                return $candidate;
+            }
+        }
+        return '#ffffff';
     }
 
     /**

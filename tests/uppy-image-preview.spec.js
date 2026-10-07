@@ -18,22 +18,8 @@ const os = require('os');
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
-const DB_USER = process.env.E2E_DB_USER || '';
-const DB_PASS = process.env.E2E_DB_PASS || '';
-const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
-const DB_NAME = process.env.E2E_DB_NAME || '';
 
-const INSTALL_ROOT = process.env.E2E_INSTALL_ROOT || '';
-
-test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'E2E credentials not configured');
-
-function db(sql) {
-  const args = [];
-  if (DB_SOCKET) args.push('-S', DB_SOCKET);
-  args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
-}
-function sqlq(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'uppyprev-'));
 const JPG = path.join(tmp, 'preview.jpg');
@@ -112,8 +98,4 @@ test.describe.serial('native Uppy image preview', () => {
     // gets its src, so check the src rather than on-screen visibility.
     await expectPreview(page, '#uppy-logo-upload', '#logo-preview-image', '#logo-file-input', false);
   });
-
-  // The full #292 loop, through the real UI: pick a file in Uppy, submit the
-  // actual form, and prove the image is persisted under /uploads/assets AND
-  // served over HTTP. This is the end-to-end the reporter's flow exercises.
 });

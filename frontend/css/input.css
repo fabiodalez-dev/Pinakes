@@ -395,13 +395,6 @@ table {
     @apply grid gap-6;
   }
 
-  /* Settings panels: reduce padding on stacked cards for mobile */
-  @media (max-width: 640px) {
-    .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
-      padding: 1rem !important;
-    }
-  }
-  
   .form-grid-2 {
     @apply grid grid-cols-1 md:grid-cols-2 gap-6;
   }
@@ -704,6 +697,16 @@ table {
 @keyframes pulseSubtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
+}
+
+/* Settings panels: reduce padding on stacked cards for mobile. Outside
+   @layer components on purpose: inside it Tailwind copies the rule into every
+   responsive variant of the classes it names (sm:gap-6, md:p-5…), which nests
+   this max-width query inside min-width ones where it can never apply. */
+@media (max-width: 640px) {
+  .settings-panel .grid.grid-cols-1.lg\:grid-cols-2.gap-6 > .p-5 {
+    padding: 1rem !important;
+  }
 }
 
 /* Responsive Design Helpers */

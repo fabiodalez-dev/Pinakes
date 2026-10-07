@@ -280,8 +280,8 @@ $check(
     str_contains($layoutSource, "\$themePalette['primary_dark']"),
     '--primary-dark is fed from the generated palette'
 );
-// The theme's custom CSS is printed by one shared partial, included by every
-// public layout (frontend, account pages, auth pages).
+// The theme's custom CSS is printed by one shared partial, included by the
+// public layout (which also renders the account pages) and the auth pages.
 $themeCssPartial = (string) file_get_contents($root . '/app/Views/auth/partials/theme-custom-css.php');
 $check(
     str_contains($themeCssPartial, "ContentSanitizer::sanitizeCustomCss(\$themeCssAdvanced['custom_css'])"),
@@ -289,7 +289,6 @@ $check(
 );
 foreach ([
     'app/Views/frontend/layout.php',
-    'app/Views/user_layout.php',
     'app/Views/auth/login.php',
     'app/Views/auth/register.php',
     'app/Views/auth/forgot-password.php',
@@ -299,6 +298,20 @@ foreach ([
     $check(
         str_contains((string) file_get_contents($root . '/' . $view), 'theme-custom-css.php'),
         "{$view} includes the theme's custom CSS"
+    );
+}
+// Site scripts (Settings > Advanced) never run where a password or a reset
+// token is on the page: the auth pages must not include the custom-JS loader.
+foreach ([
+    'app/Views/auth/login.php',
+    'app/Views/auth/register.php',
+    'app/Views/auth/forgot-password.php',
+    'app/Views/auth/reset-password.php',
+    'app/Views/auth/register_success.php',
+] as $view) {
+    $check(
+        !str_contains((string) file_get_contents($root . '/' . $view), 'custom-js.php'),
+        "{$view} runs no custom site scripts"
     );
 }
 

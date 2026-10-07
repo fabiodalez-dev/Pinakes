@@ -184,7 +184,7 @@ function getSectionDisplayName($key) {
               <li class="flex items-center gap-3 p-2 rounded-xl border border-gray-200 bg-gray-50" data-book-id="<?= (int) $coverBook['id'] ?>">
                 <input type="hidden" name="hero[cover_books][]" value="<?= (int) $coverBook['id'] ?>">
                 <i class="fas fa-book text-gray-400" aria-hidden="true"></i>
-                <span class="flex-1 text-sm text-gray-800"><?= HtmlHelper::e((string) $coverBook['titolo']) ?><?php if (trim((string) ($coverBook['copertina_url'] ?? '')) === ''): ?> <span class="text-xs text-amber-700">(<?= __("senza copertina: verrà saltato") ?>)</span><?php endif; ?></span>
+                <span class="flex-1 text-sm text-gray-800"><?= htmlspecialchars((string) $coverBook['titolo'], ENT_QUOTES, 'UTF-8') ?><?php if (trim((string) ($coverBook['copertina_url'] ?? '')) === ''): ?> <span class="text-xs text-amber-700">(<?= __("senza copertina: verrà saltato") ?>)</span><?php endif; ?></span>
                 <button type="button" class="hero-cover-remove text-gray-500 hover:text-red-600 px-2" aria-label="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-times" aria-hidden="true"></i></button>
               </li>
               <?php endforeach; ?>
@@ -443,13 +443,13 @@ function getSectionDisplayName($key) {
           <div>
             <label for="events_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
             <input type="text" id="events_title" name="events[title]"
-                   value="<?php echo HtmlHelper::e($eventsSection['title'] ?? __('Gli appuntamenti della biblioteca')); ?>"
+                   value="<?php echo htmlspecialchars((string) ($eventsSection['title'] ?? __('Gli appuntamenti della biblioteca')), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="events_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="events_subtitle" name="events[subtitle]"
-                   value="<?php echo HtmlHelper::e($eventsSection['subtitle'] ?? ''); ?>"
+                   value="<?php echo htmlspecialchars((string) ($eventsSection['subtitle'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
@@ -798,13 +798,20 @@ document.addEventListener('DOMContentLoaded', function() {
         search.addEventListener('input', function () {
             clearTimeout(timer);
             const q = this.value.trim();
-            if (q.length < 2) { results.classList.add('hidden'); results.innerHTML = ''; return; }
+            if (q.length < 2) {
+                // Drop a search still in flight, or its answer would bring
+                // the list back for text that is no longer there.
+                if (controller) { controller.abort(); controller = null; }
+                results.classList.add('hidden'); results.innerHTML = ''; return;
+            }
             timer = setTimeout(function () {
                 if (controller) { controller.abort(); }
                 controller = new AbortController();
                 fetch((window.BASE_PATH || '') + '/api/search/libri?q=' + encodeURIComponent(q), { signal: controller.signal, headers: { 'Accept': 'application/json' } })
                     .then(function (r) { return r.ok ? r.json() : []; })
                     .then(function (rows) {
+                        // An answer for an older query than the field holds now is stale.
+                        if (search.value.trim() !== q) { return; }
                         results.innerHTML = '';
                         (Array.isArray(rows) ? rows : []).slice(0, 10).forEach(function (row) {
                             const li = document.createElement('li');

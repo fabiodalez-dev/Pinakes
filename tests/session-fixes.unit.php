@@ -136,9 +136,9 @@ $renderBadges = static function (string $context): string {
 };
 
 // 14. Frontend wrapper carries the --frontend modifier that CSS makes full-width
-//     so the "Cerca su" block wraps onto its own row. The full-width styling moved
-//     from an inline style to the shared plugin-source-search contract
-//     (frontend-layouts.css: `.plugin-source-search--frontend { flex: 1 0 100%; width:100% }`).
+//     so the "Cerca su" block sits on its own row. The styling moved from an inline
+//     style to the shared plugin-source-search contract, now laid out by the 2026
+//     design (pinakes-2026.css: `body.pk .pk-digital .plugin-source-search { order: 10; … }`).
 $check(strpos($renderBadges('frontend'), 'plugin-source-search--frontend') !== false,
     "badges.php frontend: wrapper has the --frontend modifier (own row via CSS)");
 

@@ -63,6 +63,8 @@ $payloads = [
     'cdata-wrap'           => '<![CDATA[</style><script>alert(1)</script>]]>',
     'only-script-open'     => 'body{}<script>alert(1)',
     'only-style-close'     => 'body{}</style>',
+    'nested-tag-split'     => 'a{}</sty<style>le><scr<script>ipt>alert(1)</scr<script>ipt>',
+    'comment-split'        => 'a{}</sty<!---->le><scr<!---->ipt>alert(1)</scr<!---->ipt>',
 ];
 foreach ($payloads as $name => $raw) {
     $out = ContentSanitizer::sanitizeCustomCss($raw);

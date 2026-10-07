@@ -1,8 +1,7 @@
 <?php
-use App\Support\HtmlHelper;
 
 $items = $items ?? [];
-$csrfToken = HtmlHelper::e($_SESSION['csrf_token'] ?? '');
+$csrfToken = htmlspecialchars((string) ($_SESSION['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8');
 $totalItems = count($items);
 $availableCount = 0;
 foreach ($items as $entry) {
@@ -17,7 +16,6 @@ $reservationsRoute = route_path('reservations');
 ?>
 <meta name="csrf-token" content="<?= $csrfToken ?>">
 
-<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
 
 <?php // 2026 design: the account page head, a summary with the three counters, the quick search, then the same book cards as the catalogue. Styles in pinakes-2026.css (.pk-wishlist). ?>
 <div class="loans-container pk-wishlist">
@@ -87,7 +85,9 @@ $reservationsRoute = route_path('reservations');
       // Use actual copy availability (considers reservations and physical copy state)
       $available = !empty($it['has_actual_copy']);
       $nextAvailable = $it['next_available'] ?? null;
-      $dataTitle = HtmlHelper::e(mb_strtolower((string)($it['titolo'] ?? ''), 'UTF-8'));
+      // Decoded once, then escaped where printed, as the catalogue card does.
+      $wishlistTitle = html_entity_decode((string) ($it['titolo'] ?? ''), ENT_QUOTES, 'UTF-8');
+      $dataTitle = htmlspecialchars(mb_strtolower($wishlistTitle, 'UTF-8'), ENT_QUOTES, 'UTF-8');
       $statusLabel = $available ? 'disponibile' : 'attesa';
       $wishlistBookUrl = book_url($it);
       $wishlistAuthor = trim(html_entity_decode((string)($it['autore'] ?? ''), ENT_QUOTES, 'UTF-8'));
@@ -99,11 +99,11 @@ $reservationsRoute = route_path('reservations');
             <div class="pk-book__pages"></div>
             <div class="pk-book__cover">
               <div class="pk-book__blank" aria-hidden="true">
-                <div class="pk-book__blank-title"><?= HtmlHelper::e($it['titolo'] ?? ''); ?></div>
-                <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand">Pinakes</div></div>
+                <div class="pk-book__blank-title"><?= htmlspecialchars($wishlistTitle, ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand"><?= htmlspecialchars((string) \App\Support\ConfigStore::get('app.name', 'Pinakes'), ENT_QUOTES, 'UTF-8'); ?></div></div>
               </div>
               <?php if ($cover !== ''): ?>
-              <img class="book-image pk-book__img" src="<?= HtmlHelper::e($cover); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">
+              <img class="book-image pk-book__img" src="<?= htmlspecialchars((string) $cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">
               <?php endif; ?>
               <div class="pk-book__spine"></div>
               <div class="pk-book__gloss"></div>
@@ -113,9 +113,9 @@ $reservationsRoute = route_path('reservations');
           <span class="book-status-badge pk-card__status wishlist-status <?= $available ? 'status-available available' : 'status-unavailable pending'; ?>"><span><?= $available ? __("Disponibile ora") : __("In attesa"); ?></span></span>
         </div>
         <div class="book-content pk-card__body">
-          <h3 class="book-title pk-card__title wishlist-card-title"><a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($it['titolo'] ?? ''); ?></a></h3>
+          <h3 class="book-title pk-card__title wishlist-card-title"><a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($wishlistTitle, ENT_QUOTES, 'UTF-8'); ?></a></h3>
           <?php if ($wishlistAuthor !== ''): ?>
-          <p class="book-author pk-card__author"><?= HtmlHelper::e($wishlistAuthor); ?></p>
+          <p class="book-author pk-card__author"><?= htmlspecialchars((string) $wishlistAuthor, ENT_QUOTES, 'UTF-8'); ?></p>
           <?php endif; ?>
           <?php if ($available): ?>
           <p class="book-meta pk-card__meta"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>

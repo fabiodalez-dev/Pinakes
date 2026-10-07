@@ -399,6 +399,11 @@
 }
 
 .availability-option {
+    /* A <button>: reset what the browser gives one, so it reads as a row. */
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -455,6 +460,11 @@
 
 .availability-text {
     flex: 1;
+}
+
+.availability-title,
+.availability-desc {
+    display: block;
 }
 
 .availability-title {
