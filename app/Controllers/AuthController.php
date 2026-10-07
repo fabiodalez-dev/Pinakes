@@ -200,7 +200,9 @@ class AuthController
                 } elseif (in_array($row['tipo_utente'], ['admin', 'staff'], true)) {
                     $redirectUrl = '/admin/dashboard';
                 } else {
-                    $redirectUrl = '/user/dashboard';
+                    // The dashboard in the install's language (/utente/bacheca on an Italian
+                    // install), not the English path, which also answers but is not canonical.
+                    $redirectUrl = RouteTranslator::route('user_dashboard');
                 }
 
                 return $response->withHeader('Location', $redirectUrl)->withStatus(302);

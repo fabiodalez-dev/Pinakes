@@ -64,7 +64,7 @@ $reservationsRoute = route_path('reservations');
     <p><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
     <div class="wishlist-actions">
       <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-compass" aria-hidden="true"></i><?= __("Cerca titoli") ?></a>
-      <a href="<?= htmlspecialchars(url('/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-arrow-left" aria-hidden="true"></i><?= __("Torna alla dashboard") ?></a>
+      <a href="<?= htmlspecialchars(route_path('user_dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-arrow-left" aria-hidden="true"></i><?= __("Torna alla dashboard") ?></a>
     </div>
   </div>
 <?php else: ?>

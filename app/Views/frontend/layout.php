@@ -26,6 +26,7 @@ $catalogRoute = route_path('catalog');
 $reservationsRoute = route_path('reservations');
 $wishlistRoute = route_path('wishlist');
 $profileRoute = route_path('profile');
+$userDashboardRoute = route_path('user_dashboard');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 
@@ -1743,7 +1744,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                             <span class="hidden md:inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
                                         </button>
                                         <div class="user-dropdown-menu" role="menu">
-                                            <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" role="menuitem">
+                                            <a href="<?= htmlspecialchars(absoluteUrl($userDashboardRoute), ENT_QUOTES, 'UTF-8') ?>" role="menuitem">
                                                 <i class="fas fa-tachometer-alt"></i>
                                                 <?= __('La mia bacheca') ?>
                                             </a>
@@ -1810,8 +1811,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <?php endforeach; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
-                        <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        <a href="<?= htmlspecialchars(absoluteUrl($userDashboardRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
+                            <i class="fas fa-tachometer-alt mr-2"></i><?= __("Dashboard") ?>
                         </a>
                         <?php if (!$isCatalogueMode): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl($reservationsRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
