@@ -55,7 +55,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
             --auth-field-bg: color-mix(in srgb, var(--primary-color) 4%, #f5f3f4);
             --auth-field-border: color-mix(in srgb, var(--primary-color) 12%, #e2dee0);
             --auth-field-border-hover: color-mix(in srgb, var(--primary-color) 30%, #d6d1d4);
-            --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+            --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
             --sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             color-scheme: light;
         }
