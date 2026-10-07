@@ -51,10 +51,10 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
             --text-color: #1b1720;
             --text-light: #6b6470;
             --border-color: #ece8ea;
-            /* Form fields as in pinakes-2026.css (--pk-field-*): tinted by the theme accent. */
-            --auth-field-bg: color-mix(in srgb, var(--primary-color) 4%, #f5f3f4);
-            --auth-field-border: color-mix(in srgb, var(--primary-color) 12%, #e2dee0);
-            --auth-field-border-hover: color-mix(in srgb, var(--primary-color) 30%, #d6d1d4);
+            /* Form fields as in pinakes-2026.css (--pk-field-*): white, with a rule tinted by the theme accent. */
+            --auth-field-bg: #fff;
+            --auth-field-border: color-mix(in srgb, var(--primary-color) 15%, #918990);
+            --auth-field-border-hover: color-mix(in srgb, var(--primary-color) 35%, #7a7378);
             --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
             --sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             color-scheme: light;

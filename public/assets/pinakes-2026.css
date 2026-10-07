@@ -50,7 +50,7 @@
     --pk-cover-blank: #2a2230;
     /* Form fields, tinted by the theme accent. The rule reads at 3:1 on the
        field and the page (WCAG 1.4.11), so a field's edge is always visible. */
-    --pk-field-bg: color-mix(in srgb, var(--pk-accent) 4%, #f5f3f4);
+    --pk-field-bg: var(--pk-surface);
     --pk-field-line: color-mix(in srgb, var(--pk-accent-text) 15%, #918990);
     --pk-field-line-hover: color-mix(in srgb, var(--pk-accent-text) 35%, #7a7378);
     /* Focus ring: solid accent text colour, AA on every theme surface. */
@@ -632,12 +632,15 @@ body.pk :is(.pk-filters, .filters-panel) .search-box svg, body.pk :is(.pk-filter
     position: static; order: -1; width: 14px; height: 14px; flex: none; fill: none; stroke: var(--pk-faint); stroke-width: 2; stroke-linecap: round; color: var(--pk-faint); transform: none;
 }
 body.pk :is(.pk-filters, .filters-panel) .search-box svg path { fill: currentColor; stroke: none; }
-body.pk :is(.pk-filters, .filters-panel) .search-box input, body.pk :is(.pk-filters, .filters-panel) .pk-filter-search input {
+/* The box draws the field, so the input inside it draws nothing: it must outrank
+   the generic field rule below (body.pk main :is(input[type=…])), or the input
+   gets its own rule and fill inside the box's. */
+body.pk main :is(.pk-filters, .filters-panel) :is(.search-box, .pk-filter-search) input:not([type=checkbox], [type=radio]) {
     flex: 1; min-width: 0; height: auto; border: 0; outline: none; background: transparent; padding: 0; font-size: 13px; color: var(--pk-ink); box-shadow: none;
 }
 /* 16px on phones, so iOS Safari does not zoom the page on focus. */
 @media (max-width: 767px) {
-    body.pk :is(.pk-filters, .filters-panel) .search-box input, body.pk :is(.pk-filters, .filters-panel) .pk-filter-search input { font-size: 16px; }
+    body.pk main :is(.pk-filters, .filters-panel) :is(.search-box, .pk-filter-search) input:not([type=checkbox], [type=radio]) { font-size: 16px; }
 }
 body.pk :is(.pk-filters, .filters-panel) .search-box:focus-within, body.pk :is(.pk-filters, .filters-panel) .pk-filter-search:focus-within { border-color: var(--pk-accent); }
 
@@ -1154,8 +1157,8 @@ body.pk main .card { border-radius: 20px; border: 1px solid var(--pk-line); box-
 body.pk main .card-header { background: none; border-bottom: 1px solid var(--pk-line); }
 body.pk main .section-title { font-family: var(--pk-serif); font-weight: 500; letter-spacing: -.02em; color: var(--pk-ink); }
 body.pk main .btn-cta:not(.pk-card__details) { border-radius: 999px; }
-/* Form fields: one look everywhere in the public pages, a soft fill and a
-   thin rule, both mixed from the theme accent so every theme tints them. */
+/* Form fields: one look everywhere in the public pages, a white field and a
+   thin rule mixed from the theme accent so every theme tints it. */
 body.pk main :is(input[type=text], input[type=email], input[type=tel], input[type=password], input[type=search]:not(.search-input), input[type=date], input[type=number], input[type=url], select, textarea) {
     border-radius: 10px; border: 1px solid var(--pk-field-line); background-color: var(--pk-field-bg); color: var(--pk-ink); box-shadow: none;
 }
