@@ -92,6 +92,27 @@ test.describe('Catalogue list view', () => {
     expect(statusBelow).toBe(true);
   });
 
+  test('a page loaded through the pager is still a list', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(CATALOG);
+    const next = page.locator('#pagination-container a.page-link').last();
+    test.skip(await next.count() === 0, 'one page only');
+    await page.click('[data-pk-view="list"]');
+    // The pager swaps the cards in through AJAX, then shows the container
+    // again: it must not pin it back to a grid.
+    await next.click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#books-grid .book-card').first()).toBeVisible();
+    const r = await page.evaluate(() => {
+      const grid = document.getElementById('books-grid');
+      const card = grid.querySelector('.book-card');
+      return { display: getComputedStyle(grid).display, card: card.getBoundingClientRect().width, body: card.querySelector('.pk-card__body').getBoundingClientRect().width, grid: grid.getBoundingClientRect().width };
+    });
+    expect(r.display).toBe('flex');
+    expect(r.card).toBeGreaterThan(r.grid - 2);
+    expect(r.body).toBeGreaterThan(200);
+  });
+
   test('back to the grid, the grid is as it was', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(CATALOG);

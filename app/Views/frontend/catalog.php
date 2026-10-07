@@ -905,7 +905,7 @@ function loadBooks() {
                 empty.style.display = 'block';
                 container.style.display = 'none';
             } else {
-                container.style.display = 'grid';
+                container.style.display = '';
                 container.innerHTML = data.html;
                 container.dispatchEvent(new Event('pinakes:catalog-grid-updated', { bubbles: true }));
             }
@@ -935,7 +935,7 @@ function loadBooks() {
             }
             console.error('Error loading books:', error);
             loading.style.display = 'none';
-            container.style.display = 'grid';
+            container.style.display = '';
             container.innerHTML = '<div class="w-full px-3"><div class="alert alert-error">' + i18n.errore_caricamento + '</div></div>';
         })
         .finally(() => {
