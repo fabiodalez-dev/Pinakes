@@ -2127,8 +2127,16 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const artLabel = escapeHtml(art.label ?? '');
                         const artAuthor = escapeHtml(art.author ?? '');
                         const artSource = escapeHtml(art.identifier ?? '');
+                        // The article's image, as on its page: its own cover,
+                        // else its issue's, else the masthead's logo (#453).
+                        // Sized like a book cover so the rows line up; with
+                        // no image at all, the newspaper icon in that frame.
+                        const artCover = art.cover ? sanitizeUrl(art.cover) : '#';
+                        const artThumb = artCover !== '#'
+                            ? '<img src="' + artCover + '" alt="" class="search-book-cover search-article-cover" loading="lazy" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem; flex-shrink: 0;">'
+                            : '<div class="search-article-cover" style="width: 40px; height: 60px; background: var(--accent-color); border-radius: 0.25rem; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light); flex-shrink: 0;"><i class="fas fa-newspaper" aria-hidden="true"></i></div>';
                         html += '<a href="' + artUrl + '" class="search-result-item article-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
-                            '<div style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light); flex-shrink: 0;"><i class="fas fa-newspaper" aria-hidden="true"></i></div>' +
+                            artThumb +
                             '<div>' +
                             '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: var(--text-color); text-align: left;">' + artLabel + '</div>' +
                             (artAuthor ? '<div style="font-size: 0.75rem; color: var(--text-light); text-align: left;">' + artAuthor + '</div>' : '') +
