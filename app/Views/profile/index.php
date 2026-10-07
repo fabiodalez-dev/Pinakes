@@ -60,6 +60,17 @@
     margin-bottom: 1.5rem;
   }
 
+  @media (max-width: 480px) {
+    .card { padding: 1.25rem; }
+  }
+
+  /* main.css gives this page 4rem of padding and top margin on phones, with
+     !important: on a 390px screen that left about 200px for the fields. This
+     block comes after main.css, so the same !important wins here. */
+  @media (max-width: 768px) {
+    .profile-container { padding: 24px 16px 48px !important; margin-top: 0 !important; }
+  }
+
   .card-title {
     font-size: 1.25rem;
     font-weight: 700;
@@ -72,7 +83,7 @@
 
   .info-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
     gap: 1.5rem;
   }
 
@@ -132,7 +143,7 @@
 
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
     gap: 1.25rem;
   }
 

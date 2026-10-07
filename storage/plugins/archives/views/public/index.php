@@ -150,7 +150,10 @@ include $corePartials . '/catalog-hero.php';
                             <div class="book-image-container">
                                 <a href="<?= $e($detailUrl) ?>" tabindex="-1" aria-hidden="true" class="archive-unit-card-media">
                                     <?php if ($cover !== ''): ?>
-                                        <img class="book-image" src="<?= $e($cover) ?>" alt="" loading="lazy" decoding="async">
+                                        <?php // A cover file gone from disk falls back to the level icon, as a unit without a cover shows. ?>
+                                        <img class="book-image" src="<?= $e($cover) ?>" alt="" loading="lazy" decoding="async"
+                                             onerror="this.onerror=null;this.nextElementSibling.style.display='';this.remove()">
+                                        <i class="fas <?= $e($levelIcon[$lvl] ?? 'fa-archive') ?> book-image-icon" aria-hidden="true" style="display:none"></i>
                                     <?php else: ?>
                                         <i class="fas <?= $e($levelIcon[$lvl] ?? 'fa-archive') ?> book-image-icon" aria-hidden="true"></i>
                                     <?php endif; ?>

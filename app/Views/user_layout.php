@@ -642,6 +642,9 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
             opacity: 0;
             visibility: hidden;
             transition: opacity 0.3s ease, visibility 0.3s ease;
+            /* The closed drawer waits off-screen to the right: clip it here, so
+               it never widens the page (a phone could pan to it otherwise). */
+            overflow: hidden;
         }
 
         .mobile-menu-overlay.active {
@@ -650,7 +653,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
         }
 
         .mobile-menu-content {
-            position: fixed;
+            position: absolute;
             top: 0;
             right: 0;
             width: 80%;

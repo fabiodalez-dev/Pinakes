@@ -1378,6 +1378,9 @@ $htmlLang = substr($currentLocale, 0, 2);
             opacity: 0;
             visibility: hidden;
             transition: opacity 0.3s ease, visibility 0.3s ease;
+            /* The closed drawer waits off-screen to the right: clip it here, so
+               it never widens the page (a phone could pan to it otherwise). */
+            overflow: hidden;
         }
 
         .mobile-menu-overlay.active {
@@ -1386,7 +1389,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-menu-content {
-            position: fixed;
+            position: absolute;
             top: 0;
             right: 0;
             width: 80%;
