@@ -39,18 +39,39 @@ async function login(page) {
 }
 
 let original = null;
+let hasWanted = false;
+let lent = null;
 let pick = { id: 0, title: '' };
 
 test.describe.serial('Home hero covers (2026)', () => {
   test.beforeAll(() => {
     if (!process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
     original = db("SELECT COALESCE(content, '') FROM home_content WHERE section_key='hero'");
-    const row = db("SELECT id, titolo FROM libri WHERE deleted_at IS NULL AND COALESCE(is_desiderata,0)=0 AND copertina_url <> '' AND copertina_url NOT LIKE '%placeholder%' ORDER BY id LIMIT 1").split('\t');
+    // is_desiderata belongs to the desiderata plugin: filter on it only where
+    // the plugin has added it (a fresh CI install may not have it).
+    hasWanted = db("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'is_desiderata'") === '1';
+    const notWanted = hasWanted ? ' AND COALESCE(is_desiderata,0)=0' : '';
+    let found = db(`SELECT id, titolo FROM libri WHERE deleted_at IS NULL${notWanted} AND copertina_url <> '' AND copertina_url NOT LIKE '%placeholder%' ORDER BY id LIMIT 1`);
+    if (found === '') {
+      // The hero shows covered books only. A catalogue seeded without covers
+      // (CI) lends one book a cover for the run; afterAll gives it back.
+      // A book the picker can find: its search runs on search_index, which
+      // rows written straight into the table do not have.
+      const plain = db(`SELECT id, COALESCE(copertina_url, '') FROM libri WHERE deleted_at IS NULL${notWanted} AND COALESCE(search_index, '') <> '' ORDER BY id LIMIT 1`).split('\t');
+      lent = { id: Number(plain[0]), cover: plain[1] || '' };
+      db(`UPDATE libri SET copertina_url='/assets/brand/logo_small.png' WHERE id=${lent.id}`);
+      found = db(`SELECT id, titolo FROM libri WHERE id=${lent.id}`);
+    }
+    const row = found.split('\t');
     pick = { id: Number(row[0]), title: row[1] };
     expect(pick.id, 'a catalogued book with a cover exists').toBeGreaterThan(0);
   });
 
   test.afterAll(() => {
+    if (lent && lent.id > 0) {
+      const cover = lent.cover === '' ? 'NULL' : "'" + lent.cover.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+      db(`UPDATE libri SET copertina_url=${cover} WHERE id=${lent.id}`);
+    }
     if (original !== null) {
       const value = original === '' ? 'NULL' : "'" + original.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
       db(`UPDATE home_content SET content=${value} WHERE section_key='hero'`);
@@ -71,8 +92,9 @@ test.describe.serial('Home hero covers (2026)', () => {
     await page.locator('input[name="hero[cover_mode]"][value="selected"]').check();
     await expect(page.locator('#hero-cover-picker')).toBeVisible();
     await page.locator('#hero-cover-selected .hero-cover-remove').evaluateAll(btns => btns.forEach(b => b.click()));
-    await page.locator('#hero-cover-search').fill(pick.title.slice(0, 12));
-    const option = page.locator('#hero-cover-results button', { hasText: pick.title.slice(0, 12) }).first();
+    // The whole title: a prefix can match another edition listed first.
+    await page.locator('#hero-cover-search').fill(pick.title);
+    const option = page.locator('#hero-cover-results button', { hasText: pick.title }).first();
     await expect(option).toBeVisible({ timeout: 10000 });
     await option.click();
     await expect(page.locator(`#hero-cover-selected input[value="${pick.id}"]`)).toHaveCount(1);
@@ -105,7 +127,7 @@ test.describe.serial('Home hero covers (2026)', () => {
     try {
       await visitor.goto(`${BASE}/`);
       await expect(visitor.locator('.pk-fan .pk-fan__book').first()).toBeVisible();
-      await expect(visitor.locator('.pk-fan .pk-fan__book')).toHaveCount(Number(db("SELECT LEAST(4, COUNT(*)) FROM libri WHERE deleted_at IS NULL AND COALESCE(is_desiderata,0)=0 AND copertina_url <> '' AND copertina_url NOT LIKE '%placeholder%'")));
+      await expect(visitor.locator('.pk-fan .pk-fan__book')).toHaveCount(Number(db(`SELECT LEAST(4, COUNT(*)) FROM libri WHERE deleted_at IS NULL${hasWanted ? ' AND COALESCE(is_desiderata,0)=0' : ''} AND copertina_url <> '' AND copertina_url NOT LIKE '%placeholder%'`)));
     } finally {
       await visitor.context().close();
     }
