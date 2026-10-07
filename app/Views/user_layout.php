@@ -900,6 +900,12 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
             return translated;
         };
     </script>
+    <?php
+    // The theme's and the site's custom CSS, as on the rest of the public site.
+    require __DIR__ . '/auth/partials/theme-custom-css.php';
+    require __DIR__ . '/auth/partials/custom-css.php';
+    require __DIR__ . '/partials/custom-js.php';
+    ?>
 </head>
 
 <?php $pkStyleClasses = ThemeManager::publicStyleClasses($publicStyle); ?>
@@ -1536,6 +1542,7 @@ $accountPagesVersion = (string) (@filemtime($assetRoot . '/account-pages.css') ?
             }
         })();
     </script>
+    <?php require __DIR__ . '/partials/cookie-banner.php'; ?>
 </body>
 
 </html>

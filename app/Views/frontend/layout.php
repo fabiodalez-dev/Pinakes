@@ -1498,23 +1498,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('/pinakes-2026.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($pinakes2026Version, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
-    // Active theme's "CSS Personalizzato" (settings.advanced.custom_css, saved
-    // by ThemeController). Sanitized again at render time — defense in depth,
-    // same as the custom_header_css partial below. Unavailable in the
-    // no-container fallback branch (no $themeManager there).
-    $themeCustomCss = '';
-    if (isset($themeManager)) {
-        $themeAdvanced = $themeManager->getAdvancedSettings($activeTheme ?? null);
-        $themeCustomCss = is_string($themeAdvanced['custom_css'] ?? null)
-            ? ContentSanitizer::sanitizeCustomCss($themeAdvanced['custom_css'])
-            : '';
-    }
-    if ($themeCustomCss !== ''):
-        ?>
-        <style>
-            <?= $themeCustomCss ?>
-        </style>
-    <?php endif; ?>
+    // Active theme's "CSS Personalizzato", then the site-wide custom CSS.
+    require __DIR__ . '/../auth/partials/theme-custom-css.php';
+    ?>
 
     <?php
     // Load custom CSS from settings (shared partial — also used by the auth
@@ -1523,105 +1509,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     ?>
 
     <?php
-    // Load custom JavaScript from settings (granular by cookie category)
-    $customJsEssential = ConfigStore::get('advanced.custom_js_essential', '');
-    $customJsEssential = is_string($customJsEssential) ? ContentSanitizer::normalizeExternalAssets($customJsEssential) : $customJsEssential;
-
-    $customJsAnalytics = ConfigStore::get('advanced.custom_js_analytics', '');
-    $customJsAnalytics = is_string($customJsAnalytics) ? ContentSanitizer::normalizeExternalAssets($customJsAnalytics) : $customJsAnalytics;
-
-    $customJsMarketing = ConfigStore::get('advanced.custom_js_marketing', '');
-    $customJsMarketing = is_string($customJsMarketing) ? ContentSanitizer::normalizeExternalAssets($customJsMarketing) : $customJsMarketing;
-
-    // JavaScript Essenziali: sempre caricati
-    if (!empty($customJsEssential)):
-        ?>
-        <script id="custom-js-essential">
-            <?= $customJsEssential ?>
-        </script>
-    <?php endif; ?>
-
-    <?php
-    // JavaScript Analitici e Marketing: caricati solo con consenso
-    // Preparazione script per caricamento condizionato
-    if (!empty($customJsAnalytics) || !empty($customJsMarketing)):
-        ?>
-        <script id="custom-js-loader">
-                (function () {
-                    'use strict';
-
-                    // Script analytics
-                    const analyticsScript = <?= json_encode($customJsAnalytics, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
-
-                    // Script marketing
-                    const marketingScript = <?= json_encode($customJsMarketing, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
-
-                    // Funzione per iniettare script
-                    function injectScript(scriptContent, id) {
-                        if (!scriptContent || document.getElementById(id)) {
-                            return; // Skip se vuoto o già iniettato
-                        }
-
-                        // Verifica che il contenuto sia JavaScript valido (non HTML)
-                        if (scriptContent.trim().startsWith('<') || scriptContent.includes('<iframe') || scriptContent.includes('<script')) {
-                            console.warn('Custom script contains HTML tags and will be skipped. Use JavaScript code only.', id);
-                            return;
-                        }
-
-                        try {
-                            const script = document.createElement('script');
-                            script.id = id;
-                            script.textContent = scriptContent;
-                            document.head.appendChild(script);
-                        } catch (error) {
-                            console.error('Failed to inject custom script:', id, error);
-                        }
-                    }
-
-                    // Funzione per controllare consenso e caricare script
-                    function loadCustomScripts() {
-                        if (!window.CookieControl || !window.CookieControl.getCategoryConsent) {
-                            return; // Cookie Control non ancora pronto
-                        }
-
-                        // Carica analytics se consenso granted
-                        if (analyticsScript && window.CookieControl.getCategoryConsent('analytics')) {
-                            injectScript(analyticsScript, 'custom-js-analytics');
-                        }
-
-                        // Carica marketing se consenso granted
-                        if (marketingScript && window.CookieControl.getCategoryConsent('marketing')) {
-                            injectScript(marketingScript, 'custom-js-marketing');
-                        }
-                    }
-
-                    // Prova a caricare al DOMContentLoaded
-                    if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', function () {
-                            setTimeout(loadCustomScripts, 200);
-                        });
-                    } else {
-                        setTimeout(loadCustomScripts, 200);
-                    }
-
-                    // Ascolta cambiamenti consenso
-                    window.addEventListener('silktideConsentChanged', function () {
-                        setTimeout(loadCustomScripts, 100);
-                    });
-
-                    // Retry per i primi 3 secondi (in caso Cookie Control si carica lentamente)
-                    let attempts = 0;
-                    const retryInterval = setInterval(function () {
-                        attempts++;
-                        loadCustomScripts();
-
-                        if (attempts >= 6 || (window.CookieControl && window.CookieControl.getCategoryConsent)) {
-                            clearInterval(retryInterval);
-                        }
-                    }, 500);
-                })();
-        </script>
-    <?php endif; ?>
+    // Custom JavaScript from settings (essential always; analytics and
+    // marketing only after consent). Shared with the account pages.
+    require __DIR__ . '/../partials/custom-js.php';
+    ?>
 
     <!-- Silktide Consent Manager CSS -->
     <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/css/silktide-consent-manager.css'), ENT_QUOTES, 'UTF-8') ?>">

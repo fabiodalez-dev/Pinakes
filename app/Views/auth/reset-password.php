@@ -22,7 +22,9 @@ $resetPasswordRoute = route_path('reset_password');
     <link href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php require __DIR__ . '/partials/auth-theme.php'; ?>
+    <?php require __DIR__ . '/partials/theme-custom-css.php'; ?>
     <?php require __DIR__ . '/partials/custom-css.php'; ?>
+    <?php require __DIR__ . '/../partials/custom-js.php'; ?>
 </head>
 <body class="auth-body">
 
