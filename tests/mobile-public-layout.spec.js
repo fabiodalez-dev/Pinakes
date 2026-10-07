@@ -106,7 +106,12 @@ test.describe('Form fields follow the theme', () => {
     expect(before.bg).not.toBe('rgb(255, 255, 255)');
     // Another theme's accent: the same field must recolour, with no other change.
     // (Through the CSSOM: the site's CSP rightly refuses an injected <style>.)
-    await page.evaluate(() => document.documentElement.style.setProperty('--primary-color', '#059669', 'important'));
+    // A theme sets both the accent and its text shade (--primary-text, which
+    // the field rule is mixed from); set them as a theme would.
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--primary-color', '#059669', 'important');
+      document.documentElement.style.setProperty('--primary-text', '#047b56', 'important');
+    });
     const after = await look();
     expect(after.bg).not.toBe(before.bg);
     expect(after.border).not.toBe(before.border);
