@@ -822,9 +822,9 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                             <?php endif; ?>
 
                             <?php if (!empty($genreHierarchy)): ?>
-                            <div class="meta-item">
+                            <div class="meta-item meta-item--genre">
                                 <div class="meta-label"><?= __("Genere") ?></div>
-                                <div class="meta-value"><?php unset($genreLinkClass, $genreSeparator); include __DIR__ . '/partials/genre-breadcrumb.php'; ?></div>
+                                <div class="meta-value genre-path"><?php $genreLinkClass = 'genre-path__link'; $genreSeparator = '<span class="genre-path__sep" aria-hidden="true">›</span>'; include __DIR__ . '/partials/genre-breadcrumb.php'; unset($genreLinkClass, $genreSeparator); ?></div>
                             </div>
                             <?php endif; ?>
 

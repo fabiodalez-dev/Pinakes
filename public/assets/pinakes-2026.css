@@ -957,6 +957,21 @@ body.pk .pk-bookbody .book-details-section .meta-item {
 }
 body.pk .pk-bookbody .book-details-section .meta-label { color: var(--pk-muted); font-size: 15px; font-weight: 400; text-transform: none; letter-spacing: normal; margin: 0; }
 body.pk .pk-bookbody .book-details-section .meta-value { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; color: var(--pk-ink); font-size: 15px; }
+/* The genre path is the one detail too long for a grid cell: it takes the
+   whole first row, reads as a breadcrumb, and wraps between levels, never
+   inside one. */
+/* First row of the grid: in the middle it broke the rows of short pairs. */
+body.pk .pk-bookbody .book-details-section .meta-item--genre { grid-column: 1 / -1; order: -1; align-items: baseline; }
+body.pk .pk-bookbody .book-details-section .genre-path { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px 10px; min-width: 0; }
+body.pk .pk-bookbody .genre-path__link { color: var(--pk-ink); text-decoration: none; white-space: nowrap; }
+body.pk .pk-bookbody .genre-path__link:hover { color: var(--pk-accent); }
+body.pk .pk-bookbody .genre-path__link:last-child { color: var(--pk-accent-strong); }
+body.pk .pk-bookbody .genre-path__sep { color: var(--pk-faint); font-weight: 400; }
+@media (max-width: 640px) {
+    body.pk .pk-bookbody .book-details-section .meta-item--genre { flex-direction: column; gap: 6px; }
+    body.pk .pk-bookbody .book-details-section .genre-path { justify-content: flex-start; }
+    body.pk .pk-bookbody .genre-path__link { white-space: normal; }
+}
 body.pk .pk-bookbody .keyword-chip {
     padding: 8px 14px; border-radius: 999px; background: var(--pk-accent-soft); color: var(--pk-accent-strong); border: 0; font-size: 14px; font-weight: 500; text-decoration: none;
 }
