@@ -146,6 +146,9 @@ jobs:
       - name: Verify generated assets match the commit
         run: git diff --exit-code -- public/assets
 
+      - name: Verify packaging from a Git worktree
+        run: bash tests/release-worktree.test.sh
+
       - name: Build the release twice and require byte-for-byte reproducibility
         run: |
           bash bin/build-release.sh --skip-build

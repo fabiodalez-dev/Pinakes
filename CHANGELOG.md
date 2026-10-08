@@ -17,6 +17,7 @@ The second candidate includes the complete 2026 restyle from rc.1 and the subseq
 - Mobile API is **1.5.0**, Desiderata **1.2.0**, Emeroteca **1.13.0**, and Archives **1.5.1**. Android 1.6.0 uses advertised capabilities; earlier clients retain existing circulation routes.
 
 ### Fixed
+- **Release ZIPs built from Git worktrees exclude the `.git` metadata file**, as well as ordinary Git directories. The builder rejects every forbidden root path regardless of its type; a CI regression builds and audits a real worktree package.
 - **Clearing catalogue filters cancels obsolete requests** and restores the correct search state. The book detail and keywords use the available width; cover and hero regressions are covered by browser checks.
 - **Article PDFs remain reachable for authorized staff** through protected routes, while public resources keep reader access. Article details do not depend on the mobile middleware class loader. Newly introduced API errors are translated in all five server locales.
 - **Review findings across themes and responsive pages:** escaping and media types, keyboard and screen-reader access, readable accent/hover contrast, citation controls and published resource actions.
