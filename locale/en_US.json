@@ -8105,5 +8105,11 @@
   "Nascosta dal menu del sito": "Hidden from the site menu",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "When hidden, the entry disappears from the public site's menu. The pages stay reachable from catalogue and search results.",
   "Nascosta": "Hidden",
-  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Copy failed: the text is selected, copy it manually"
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Copy failed: the text is selected, copy it manually",
+  "Accesso richiesto.": "Sign in required.",
+  "Contenuti non disponibili.": "Content unavailable.",
+  "Documento non trovato.": "Document not found.",
+  "Filtri non validi.": "Invalid filters.",
+  "Proposta non trovata.": "Proposal not found.",
+  "Sezione non disponibile.": "Section unavailable."
 }

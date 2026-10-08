@@ -684,7 +684,9 @@ final class MobileModule
                 $r=$service->get($id,true);
                 if (!$r) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'not_found',__('Articolo non trovato.'),404); }
                 $items=$this->mapContribution($r);
-                $user = $request->getAttribute(\App\Plugins\MobileApi\Support\AppAuthMiddleware::ATTR_USER);
+                // The mobile router supplies this attribute. Keep this optional
+                // plugin independent of the mobile-api middleware's class loader.
+                $user = $request->getAttribute('mobile_user');
                 $items['manage_url'] = is_array($user) && in_array($user['tipo_utente'] ?? '', ['admin', 'staff'], true)
                     ? absoluteUrl('/admin/periodicals/articles/' . $id) : null;
                 $meta=[];

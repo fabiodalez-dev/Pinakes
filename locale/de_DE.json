@@ -8105,5 +8105,11 @@
   "Nascosta dal menu del sito": "Im Menü der Website ausgeblendet",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Ausgeblendet verschwindet der Eintrag aus dem Menü der öffentlichen Website. Die Seiten bleiben über Katalog- und Suchergebnisse erreichbar.",
   "Nascosta": "Ausgeblendet",
-  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Kopieren fehlgeschlagen: Der Text ist markiert, bitte manuell kopieren"
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Kopieren fehlgeschlagen: Der Text ist markiert, bitte manuell kopieren",
+  "Accesso richiesto.": "Anmeldung erforderlich.",
+  "Contenuti non disponibili.": "Inhalte nicht verfügbar.",
+  "Documento non trovato.": "Dokument nicht gefunden.",
+  "Filtri non validi.": "Ungültige Filter.",
+  "Proposta non trovata.": "Vorschlag nicht gefunden.",
+  "Sezione non disponibile.": "Bereich nicht verfügbar."
 }
