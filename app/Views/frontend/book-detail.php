@@ -514,8 +514,9 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
             <div class="book-cover-column pk-bookhero__cover" id="book-cover-container">
                 <div class="pk-bigcover">
                     <div class="pk-book__blank" aria-hidden="true">
+                        <?php if ($bookAuthor !== ''): ?><div class="pk-book__blank-author"><?= htmlspecialchars($bookAuthor, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
                         <div class="pk-book__blank-title"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></div>
-                        <div class="pk-book__rule"></div>
+                        <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if (!empty($book['editore'])): ?><div class="pk-book__brand"><?= htmlspecialchars(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?></div>
                     </div>
                     <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                          alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"

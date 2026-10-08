@@ -16,6 +16,31 @@
   var PK = window.PK || {};
   var wished = new Set((PK.wish || []).map(String));
   var canvas = null;
+  var coverEncoder = typeof TextEncoder === 'function' ? new TextEncoder() : null;
+
+  function placeholderTone(title) {
+    if (!coverEncoder) return 0;
+    var bytes = coverEncoder.encode(title.trim()), index = 0;
+    for (var i = 0; i < bytes.length; i++) index = (index * 31 + bytes[i]) % 4;
+    return index;
+  }
+
+  function blankCovers(root) {
+    (root || document).querySelectorAll('.pk-book__blank').forEach(function (cover) {
+      var title = cover.querySelector('.pk-book__blank-title');
+      if (!title) return;
+      if (!cover.dataset.pkCoverStyled) {
+        cover.dataset.pkCoverStyled = '1';
+        cover.classList.add('pk-book__blank--tone-' + placeholderTone(title.textContent));
+      }
+      var image = cover.parentElement.querySelector('img');
+      var panel = cover.closest('.pk-card__panel');
+      if (panel && !panel.dataset.pkBlankToned && (!image || image.classList.contains('is-missing'))) {
+        panel.dataset.pkBlankToned = '1';
+        panel.style.setProperty('--pk-tone', 'color-mix(in srgb, ' + getComputedStyle(cover).backgroundColor + ' 16%, white)');
+      }
+    });
+  }
 
   function tone(img) {
     var panel = img.closest('[data-pk-tone-target]') || img.closest('.pk-card__panel');
@@ -37,8 +62,13 @@
     (root || document).querySelectorAll('img[data-pk-tone]').forEach(function (img) {
       if (img.dataset.pkToned) return;
       img.dataset.pkToned = '1';
-      if (img.complete && img.naturalWidth) tone(img);
-      else img.addEventListener('load', function () { tone(img); }, { once: true });
+      var missing = function () { img.classList.add('is-missing'); blankCovers(img.parentElement); };
+      if (img.complete) {
+        if (img.naturalWidth) tone(img); else missing();
+      } else {
+        img.addEventListener('load', function () { tone(img); }, { once: true });
+        img.addEventListener('error', missing, { once: true });
+      }
     });
   }
 
@@ -110,7 +140,7 @@
     }
   });
 
-  function scan(root) { toneAll(root); hearts(root); facetStates(root); }
+  function scan(root) { blankCovers(root); toneAll(root); hearts(root); facetStates(root); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { scan(); });
   else scan();
