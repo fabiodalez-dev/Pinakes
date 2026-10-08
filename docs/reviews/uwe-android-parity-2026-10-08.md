@@ -20,6 +20,8 @@ I filtri di disponibilità si applicano ai libri con copie. La ricerca per gener
 
 ## Verifica e limiti concreti
 
+Le [schermate del confronto browser/Android](mobile-parity-2026-10-08/README.md) e i relativi conteggi sono conservati nel repository con dati di prova, per rendere la verifica consultabile anche dopo la chiusura del server locale.
+
 - 50 controlli d’integrazione su DB: offerte, UUID, recupero solo del proprio esito, consenso, account verificato, copie non inventate, allegati multipli, autore rinominato/ETag, genere a 12 livelli, articoli/antologie/filtri/privacy, documenti archivistici, ricerca browser mista e reset, gate app/plugin.
 - 9 contratti HTTP: manifest OpenAPI completo e nuove route protette, letture ripetibili; invio senza consenso respinto.
 - 36 test browser sulle richieste #412/#453–455/#461; 17 suite PHP bibliografiche/archivistiche; PHPStan livello 5 senza errori.
