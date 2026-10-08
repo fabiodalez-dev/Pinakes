@@ -831,18 +831,20 @@ body.pk .is-list .pk-card .book-media-badge.pk-card__media::after { content: att
 body.pk .is-list .pk-card .pk-heart { grid-area: heart; position: relative; top: auto; right: auto; width: 38px; height: 38px; box-shadow: none; background: transparent; border: 1px solid var(--pk-line); }
 body.pk .is-list .pk-card .pk-heart:hover { border-color: var(--pk-accent); }
 @media (max-width: 640px) {
-    /* A phone row: the cover a little wider, the status as an eyebrow above
-       the title, the heart beside both; a media type, if any, on its own row. */
+    /* A phone row: the status as an eyebrow above the title, then the cover
+       beside the title (their tops level) with the heart on the right; a
+       media type, if any, on its own row under the text. */
     body.pk .is-list .book-card.pk-card {
         grid-template-columns: 56px minmax(0, 1fr) auto; column-gap: 14px; row-gap: 4px; padding: 12px;
-        grid-template-areas: "cover status heart" "cover body heart" "cover media media";
+        grid-template-areas: ". status ." "cover body heart" "cover media media";
     }
-    body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) { grid-template-areas: "cover status heart" "cover body heart"; }
+    body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) { grid-template-areas: ". status ." "cover body heart"; }
     body.pk .is-list .pk-card .pk-book { width: 56px; align-self: start; }
+    body.pk .is-list .pk-card .book-content.pk-card__body { align-self: start; }
     body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 17px; -webkit-line-clamp: 2; }
     body.pk .is-list .pk-card .book-status-badge.pk-card__status,
     body.pk .is-list .pk-card .book-media-badge.pk-card__media { justify-self: start; justify-content: flex-start; }
-    body.pk .is-list .pk-card .book-status-badge.pk-card__status { align-self: start; font-size: 12px; margin-top: 2px; }
+    body.pk .is-list .pk-card .book-status-badge.pk-card__status { align-self: start; font-size: 12px; margin: 0; }
     body.pk .is-list .pk-card .book-media-badge.pk-card__media { margin-top: 4px; }
     body.pk .is-list .pk-card .pk-heart { align-self: start; }
     /* Too narrow for "author · publisher": one line each, no dot. */

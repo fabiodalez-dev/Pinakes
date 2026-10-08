@@ -85,12 +85,19 @@ test.describe('Catalogue list view', () => {
     test.skip(await page.locator('#books-grid .book-card').count() === 0, 'empty catalogue');
     await page.click('[data-pk-view="list"]');
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
-    const statusBelow = await page.locator('#books-grid .book-card').first().evaluate(card => {
+    // The status is an eyebrow above the title, in the text column; the cover
+    // starts level with the title, not with the eyebrow.
+    const row = await page.locator('#books-grid .book-card').first().evaluate(card => {
       const body = card.querySelector('.pk-card__body').getBoundingClientRect();
       const status = card.querySelector('.pk-card__status').getBoundingClientRect();
-      return status.top >= body.bottom - 1 && status.left >= card.querySelector('.pk-book').getBoundingClientRect().right;
+      const cover = card.querySelector('.pk-book').getBoundingClientRect();
+      return {
+        statusAbove: status.bottom <= body.top + 1 && status.left >= cover.right,
+        coverLevelWithTitle: Math.abs(cover.top - body.top) <= 2,
+      };
     });
-    expect(statusBelow).toBe(true);
+    expect(row.statusAbove).toBe(true);
+    expect(row.coverLevelWithTitle).toBe(true);
   });
 
   test('a page loaded through the pager is still a list', async ({ page }) => {
