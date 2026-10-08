@@ -22,8 +22,8 @@ I filtri di disponibilità si applicano ai libri con copie. La ricerca per gener
 
 - 50 controlli d’integrazione su DB: offerte, UUID, recupero solo del proprio esito, consenso, account verificato, copie non inventate, allegati multipli, autore rinominato/ETag, genere a 12 livelli, articoli/antologie/filtri/privacy, documenti archivistici, ricerca browser mista e reset, gate app/plugin.
 - 9 contratti HTTP: manifest OpenAPI completo e nuove route protette, letture ripetibili; invio senza consenso respinto.
-- 36 test browser sulle richieste #412/#453–455/#461; 15 suite PHP bibliografiche/archivistiche; PHPStan livello 5 senza errori.
-- Android: 184 unit test, 19 test Compose su Android 15, zero errori Lint; build debug e release R8 riuscite. Test senza donazioni o modifiche al catalogo Bibliodoc di produzione.
+- 36 test browser sulle richieste #412/#453–455/#461; 17 suite PHP bibliografiche/archivistiche; PHPStan livello 5 senza errori.
+- Android: 185 unit test, 19 test Compose su Android 15, zero errori Lint; build debug e release R8 riuscite. Test senza donazioni o modifiche al catalogo Bibliodoc di produzione.
 - Backend richiesto: Mobile API 1.5.0 e plugin aggiornati (Desiderata 1.2.0, Emeroteca 1.13.0, Archives 1.5.1). Le nuove sezioni dipendono dalle capability del server. Un server precedente continua a funzionare, ma non offre la nuova API delle raccolte; per i filtri analitici non supportati l’app richiede l’aggiornamento.
 - La gestione amministrativa e gli upload degli articoli/archivi aprono il PHP protetto nel browser. Non sono nuovi editor CRUD nativi.
 - [#52](https://github.com/fabiodalez-dev/Pinakes/issues/52), import danese FBI/DBC, resta una richiesta separata non implementata: token e documentazione completa richiedono accesso DBC, che non è disponibile in questa sessione. Non è una funzionalità già presente nel server da sincronizzare.
