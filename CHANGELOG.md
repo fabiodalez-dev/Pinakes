@@ -2,6 +2,30 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.8.0-rc.2]
+
+The second candidate includes the complete 2026 restyle from rc.1 and the subsequent review fixes and coordinated Android 1.6.0 API work. The published rc.1 tag and assets are unchanged.
+
+### Added
+- **Archives and library Desiderata in the authenticated mobile API.** Archives expose hierarchy, signed-year filters, public descriptions, authorities, documents and exports. Desiderata has a separate list and detail, verified-account donation proposals with consent, account-scoped UUID deduplication and outcome recovery. A proposal does not create an inventory copy or alter the personal wishlist.
+- **Complete book and analytic article data for Android:** every digital attachment and publisher, edition and publication place, complete genre ancestry, shared author identities, anthology metadata, five citation styles, rich HTML, RIS/MARCXML and protected staff-management links. Issue details distinguish catalogued contributions from the printed table of contents and link to the complete paginated list.
+- **Release review evidence in the repository:** the Uwe requirements matrix, browser/Android comparison with disposable records, and recorded validation counts under `docs/reviews/`.
+
+### Changed
+- **Missing book covers become readable typeset bindings**, with title, author and publisher; original artwork remains complete. Wanted-book cover metadata includes the publisher.
+- **Catalogue filters and collection search agree across clients.** Publisher lookup follows author lookup; genres reach every depth; localized language names match analytic ISO codes. Archives remain alongside matching books after AJAX updates. Circulation availability applies only to inventory books.
+- Mobile API is **1.5.0**, Desiderata **1.2.0**, Emeroteca **1.13.0**, and Archives **1.5.1**. Android 1.6.0 uses advertised capabilities; earlier clients retain existing circulation routes.
+
+### Fixed
+- **Clearing catalogue filters cancels obsolete requests** and restores the correct search state. The book detail and keywords use the available width; cover and hero regressions are covered by browser checks.
+- **Article PDFs remain reachable for authorized staff** through protected routes, while public resources keep reader access. Article details do not depend on the mobile middleware class loader. Newly introduced API errors are translated in all five server locales.
+- **Review findings across themes and responsive pages:** escaping and media types, keyboard and screen-reader access, readable accent/hover contrast, citation controls and published resource actions.
+
+### Upgrade and validation
+- Desiderata's plugin upgrade adds nullable mobile user/request/hash fields and an account/request unique index to its offers table. The upgrade is additive and idempotent; existing offers and website submission flows remain valid. Use the normal application/plugin updater so the bundled plugin upgrade runs.
+- The functional changes passed 50 database collection checks, 191 Emeroteca behavioral checks, 9 HTTP contracts, 36 targeted browser regressions, 17 PHP suites and PHPStan level 5. The matching Android client passed 185 unit and 19 Compose tests, debug/R8 builds and lint with zero errors. The complete PR CI must pass on the candidate's final commit before publication.
+- Staff editing and uploads remain on protected PHP pages. FBI/DBC import (#52) and the QNAP YAZ environment (#57) are not declared implemented by this candidate; no production-device ANR fix is claimed.
+
 ## [0.8.0-rc.1]
 
 A release candidate for the 2026 design of the public site and the reader's account pages. Every element the pages had is still there; what changes is how they look.

@@ -151,7 +151,7 @@ final class MobileModule
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response, ['status' => 'ok', 'capabilities' => ['standalone_articles'=>true]]);
+        return \App\Plugins\MobileApi\Support\ResponseEnvelope::success($response, ['status' => 'ok', 'capabilities' => ['standalone_articles'=>true, 'article_filters'=>true]]);
     }
 
     // ── GET /api/v1/periodicals ───────────────────────────────────────
@@ -629,6 +629,15 @@ final class MobileModule
                 'volume' => $this->nullableString($row['year_volume'] ?? null),
             ];
             $data['articles'] = $articles;
+            // Catalogued contributions and the printed table of contents are
+            // different records; keep their identities separate for navigation.
+            require_once __DIR__ . '/../Services/ContributionService.php';
+            $service = new \App\Plugins\Emeroteca\Services\ContributionService($this->db);
+            $contributions = $this->tableExists('emeroteca_contributi') ? $service->rows('SELECT c.*, '.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_COLUMNS.' FROM emeroteca_contributi c'.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_JOINS.' WHERE c.pubblico = 1 AND c.fascicolo_id = ? ORDER BY c.id LIMIT 101', [$issueId]) : [];
+            $data['catalogued_articles_truncated'] = count($contributions) > 100;
+            if ($data['catalogued_articles_truncated']) { array_pop($contributions); }
+            $contributions = (new \App\Services\ArticleAuthorService($this->db))->hydrate($contributions);
+            $data['catalogued_articles'] = array_map($this->mapContribution(...), $contributions);
 
             $etag = $this->payloadEtag('periodical-issue', $data);
             if ($this->notModified($request, $etag)) {
@@ -674,7 +683,13 @@ final class MobileModule
             if ($id) {
                 $r=$service->get($id,true);
                 if (!$r) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'not_found',__('Articolo non trovato.'),404); }
-                $items=$this->mapContribution($r); $meta=[];
+                $items=$this->mapContribution($r);
+                // The mobile router supplies this attribute. Keep this optional
+                // plugin independent of the mobile-api middleware's class loader.
+                $user = $request->getAttribute('mobile_user');
+                $items['manage_url'] = is_array($user) && in_array($user['tipo_utente'] ?? '', ['admin', 'staff'], true)
+                    ? absoluteUrl('/admin/periodicals/articles/' . $id) : null;
+                $meta=[];
             } else {
                 $cursor=(string)($q['cursor']??'');
                 if ($cursor!=='' && (!ctype_digit($cursor) || strlen($cursor)>10)) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response,'invalid_cursor',__('Cursore non valido.'),400); }
@@ -685,6 +700,42 @@ final class MobileModule
                 // quietly change it.
                 $limit=$this->clampLimit($q['limit']??20); $where='c.pubblico=1 AND c.id>?'; $params=[(int)$cursor];
                 if (!empty($q['testata_id'])) { $where.=' AND c.testata_id=?'; $params[]=(int)$q['testata_id']; }
+                if (isset($q['fascicolo_id'])) {
+                    $issue = $q['fascicolo_id'];
+                    if (!is_string($issue) || !ctype_digit($issue) || (int) $issue <= 0 || strlen($issue) > 10) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
+                    $where .= ' AND c.fascicolo_id = ?'; $params[] = (int) $issue;
+                }
+                if (isset($q['language']) && $q['language'] !== '') {
+                    if (!is_string($q['language']) || mb_strlen($q['language']) > 100) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
+                    $languageAliases = $this->articleLanguageAliases($q['language']);
+                    $where .= ' AND LOWER(TRIM(c.lingua)) IN (' . implode(',', array_fill(0, count($languageAliases), '?')) . ')';
+                    array_push($params, ...$languageAliases);
+                }
+                if (isset($q['author_id'])) {
+                    $authorId = $q['author_id'];
+                    if (!is_string($authorId) || !ctype_digit($authorId) || (int) $authorId <= 0 || strlen($authorId) > 10) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
+                    $where .= ' AND EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca WHERE ca.contributo_id = c.id AND ca.autore_id = ?)'; $params[] = (int) $authorId;
+                }
+                foreach (['author', 'publisher', 'container', 'keyword'] as $facet) {
+                    if (!isset($q[$facet]) || $q[$facet] === '') { continue; }
+                    if (!is_string($q[$facet]) || mb_strlen($q[$facet]) > 200) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
+                    $pattern = '%' . strtr(trim($q[$facet]), ['=' => '==', '%' => '=%', '_' => '=_']) . '%';
+                    if ($facet === 'author') {
+                        $authorLinked = (new \App\Services\ArticleAuthorService($this->db))->available();
+                        $where .= $authorLinked ? " AND (c.autori LIKE ? ESCAPE '=' OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id = ca.autore_id WHERE ca.contributo_id = c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '=')))" : " AND c.autori LIKE ? ESCAPE '='";
+                        $params[] = $pattern;
+                        if ($authorLinked) { array_push($params, $pattern, $pattern); }
+                    } else {
+                        $column = ['publisher' => 'contenitore_editore', 'container' => 'contenitore_titolo', 'keyword' => 'keywords'][$facet];
+                        $where .= " AND c.$column LIKE ? ESCAPE '='"; $params[] = $pattern;
+                    }
+                }
+                if (isset($q['genre'])) {
+                    $genre = $q['genre'];
+                    if (!is_string($genre) || !ctype_digit($genre) || (int) $genre <= 0 || strlen($genre) > 10) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
+                    $genreIds = \App\Support\GenreTree::withDescendants($this->db, (int) $genre);
+                    $where .= ' AND c.genere_id IN (' . implode(',', array_map('intval', $genreIds)) . ')';
+                }
                 if (is_string($q['q']??null) && $q['q']!=='') {
                     $extraAuthors = (new \App\Services\ArticleAuthorService($this->db))->available()
                         ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))" : '';
@@ -730,7 +781,52 @@ final class MobileModule
         $data['cover_url'] = $this->mediaUrl(
             \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($row)
         );
+        require_once __DIR__ . '/../Support/CitationFormatter.php';
+        $data['citations'] = array_map(static fn(array $citation): array => [
+            'key' => $citation['key'], 'label' => $citation['label'], 'text' => $citation['text'], 'html' => $citation['html'],
+        ], \App\Plugins\Emeroteca\Support\CitationFormatter::all($row));
+        $data['ris_url'] = absoluteUrl('/emeroteca/articolo/' . (int) $row['id'] . '/citazione.ris');
+        $data['author_credits'] = array_map(static fn(array $credit): array => [
+            'id' => $credit['autore_id'], 'name' => $credit['display_name'], 'role' => $credit['ruolo'], 'identifiers' => $credit['identifiers'],
+        ], $row['author_credits'] ?? []);
+        $data['genre_path'] = $this->contributionGenreTrail((int) ($row['genere_id'] ?? 0));
+        $data['marcxml_url'] = absoluteUrl('/emeroteca/articolo/' . (int) $row['id'] . '/marc.xml');
         return $data;
+    }
+
+    /** Book facets contain real free-text values; analytic records store ISO language codes. */
+    private function articleLanguageAliases(string $value): array
+    {
+        require_once __DIR__ . '/../Support/CodeLists.php';
+        $raw = mb_strtolower(trim($value));
+        $codes = [$raw, \App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($raw)];
+        foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
+            foreach (\App\Plugins\Emeroteca\Support\CodeLists::languages($locale) as $code => $name) {
+                if (mb_strtolower($name) === $raw) { $codes[] = $code; }
+            }
+        }
+        $terminology = array_values(array_unique(array_map(\App\Plugins\Emeroteca\Support\CodeLists::terminologyCode(...), $codes)));
+        foreach (\App\Plugins\Emeroteca\Support\ArticleMarcXml::LANGUAGE_639_1 as $two => $bibliographic) {
+            if (in_array(\App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($two), $terminology, true)) { array_push($codes, $two, $bibliographic); }
+        }
+        return array_values(array_unique([...$codes, ...$terminology]));
+    }
+
+    private ?array $genreRows = null;
+    private function contributionGenreTrail(int $id): array
+    {
+        if ($id <= 0) { return []; }
+        if ($this->genreRows === null) {
+            $this->genreRows = [];
+            $result = $this->db->query('SELECT id, nome, parent_id FROM generi');
+            if ($result !== false) { foreach ($result->fetch_all(MYSQLI_ASSOC) as $row) { $this->genreRows[(int) $row['id']] = $row; } }
+        }
+        $path = []; $seen = [];
+        while ($id > 0 && !isset($seen[$id]) && isset($this->genreRows[$id])) {
+            $seen[$id] = true; $row = $this->genreRows[$id];
+            array_unshift($path, ['id' => $id, 'name' => (string) $row['nome']]); $id = (int) ($row['parent_id'] ?? 0);
+        }
+        return $path;
     }
 
     /**
@@ -777,6 +873,10 @@ final class MobileModule
                 ['name'=>'limit','in'=>'query','schema'=>['type'=>'integer','minimum'=>1,'maximum'=>50]],
                 ['name'=>'q','in'=>'query','schema'=>['type'=>'string']],
                 ['name'=>'testata_id','in'=>'query','schema'=>['type'=>'integer']],
+                ['name'=>'fascicolo_id','in'=>'query','schema'=>['type'=>'integer']],
+                ['name'=>'genre','in'=>'query','schema'=>['type'=>'integer']],
+                ['name'=>'language','in'=>'query','schema'=>['type'=>'string']],
+                ...array_map(static fn(string $name): array => ['name' => $name, 'in' => 'query', 'schema' => ['type' => $name === 'author_id' ? 'integer' : 'string']], ['author_id', 'author', 'publisher', 'container', 'keyword']),
             ],'responses'=>$ok('Standalone articles')]],
             '/periodicals/articles/{id}' => ['get'=>['tags'=>$tag,'summary'=>'Public standalone article. No private notes, shelf marks or file paths.','security'=>$sec,'parameters'=>[$idParam('id')],'responses'=>$ok('Standalone article')]],
             '/periodicals/health' => ['get' => ['tags' => $tag, 'summary' => 'Bridge discovery probe: 200 {status: ok} while the emeroteca bridge is mounted.', 'security' => $sec, 'responses' => $ok('Discovery payload')]],

@@ -16,6 +16,31 @@
   var PK = window.PK || {};
   var wished = new Set((PK.wish || []).map(String));
   var canvas = null;
+  var coverEncoder = typeof TextEncoder === 'function' ? new TextEncoder() : null;
+
+  function placeholderTone(title) {
+    if (!coverEncoder) return 0;
+    var bytes = coverEncoder.encode(title.trim()), index = 0;
+    for (var i = 0; i < bytes.length; i++) index = (index * 31 + bytes[i]) % 4;
+    return index;
+  }
+
+  function blankCovers(root) {
+    (root || document).querySelectorAll('.pk-book__blank').forEach(function (cover) {
+      var title = cover.querySelector('.pk-book__blank-title');
+      if (!title) return;
+      if (!cover.dataset.pkCoverStyled) {
+        cover.dataset.pkCoverStyled = '1';
+        cover.classList.add('pk-book__blank--tone-' + placeholderTone(title.textContent));
+      }
+      var image = cover.parentElement.querySelector('img');
+      var panel = cover.closest('.pk-card__panel');
+      if (panel && !panel.dataset.pkBlankToned && (!image || image.classList.contains('is-missing'))) {
+        panel.dataset.pkBlankToned = '1';
+        panel.style.setProperty('--pk-tone', 'color-mix(in srgb, ' + getComputedStyle(cover).backgroundColor + ' 16%, white)');
+      }
+    });
+  }
 
   function tone(img) {
     var panel = img.closest('[data-pk-tone-target]') || img.closest('.pk-card__panel');
@@ -37,8 +62,13 @@
     (root || document).querySelectorAll('img[data-pk-tone]').forEach(function (img) {
       if (img.dataset.pkToned) return;
       img.dataset.pkToned = '1';
-      if (img.complete && img.naturalWidth) tone(img);
-      else img.addEventListener('load', function () { tone(img); }, { once: true });
+      var missing = function () { img.classList.add('is-missing'); blankCovers(img.parentElement); };
+      if (img.complete) {
+        if (img.naturalWidth) tone(img); else missing();
+      } else {
+        img.addEventListener('load', function () { tone(img); }, { once: true });
+        img.addEventListener('error', missing, { once: true });
+      }
     });
   }
 
@@ -110,7 +140,7 @@
     }
   });
 
-  function scan(root) { toneAll(root); hearts(root); facetStates(root); }
+  function scan(root) { blankCovers(root); toneAll(root); hearts(root); facetStates(root); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { scan(); });
   else scan();
@@ -134,7 +164,7 @@
   window.PinakesDesign = { scan: scan };
 })();
 
-/* Catalogue: the author finder filters the author list as you type (also
+/* Catalogue: facet finders filter their lists as you type (also
    after the AJAX refresh re-renders it), and Grid / List switches the view,
    remembered per visitor. */
 (function () {
@@ -146,8 +176,9 @@
     list.querySelectorAll('.filter-option').forEach(function (opt) {
       opt.classList.toggle('is-filtered-out', q !== '' && optionName(opt).toLowerCase().indexOf(q) === -1);
     });
+    if (typeof window.updateFacetOverflowCue === 'function') window.updateFacetOverflowCue(list);
   }
-  // The author's name only: the option also holds its book count
+  // The name only: the option also holds its book count
   // (.count-badge), which must not match a typed number.
   function optionName(opt) {
     if (opt.title) return opt.title;
@@ -164,6 +195,22 @@
   document.addEventListener('pinakes:catalog-grid-updated', function () {
     document.querySelectorAll('[data-pk-filter-list]').forEach(applyFilter);
   });
+
+  // Facets are rebuilt after the grid-updated event, and also when "Cambia"
+  // reopens a selected facet. Keep the finder applied to the new options in
+  // both cases. Only observe children: changing their classes cannot loop.
+  if ('MutationObserver' in window) {
+    var observeFilterLists = function () {
+      document.querySelectorAll('[data-pk-filter-list]').forEach(function (input) {
+        var list = document.getElementById(input.getAttribute('data-pk-filter-list'));
+        if (!list) return;
+        new MutationObserver(function () { applyFilter(input); }).observe(list, { childList: true });
+        applyFilter(input);
+      });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', observeFilterLists);
+    else observeFilterLists();
+  }
 
   var KEY = 'pinakes-catalog-view';
   function setView(view) {
@@ -192,7 +239,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore); else restore();
 })();
 
-/* "N autori" under the author list follows the list the catalogue script
+/* Facet totals follow the lists the catalogue script
    re-renders. */
 (function () {
   'use strict';
@@ -209,8 +256,11 @@
   document.addEventListener('pinakes:catalog-grid-updated', recount);
   if ('MutationObserver' in window) {
     var start = function () {
-      var list = document.getElementById('authors-filter');
-      if (list) new MutationObserver(recount).observe(list, { childList: true });
+      document.querySelectorAll('[data-pk-count-of]').forEach(function (el) {
+        var list = document.getElementById(el.getAttribute('data-pk-count-of'));
+        if (list) new MutationObserver(recount).observe(list, { childList: true });
+      });
+      recount();
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   }

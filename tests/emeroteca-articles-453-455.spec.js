@@ -274,13 +274,13 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
       await expect(visitor.locator('.book-card', { hasText: BOOK }), 'and the book').toBeVisible();
       // The sidebar counts follow the same rule: the root's child counts the
       // book three levels below the root, and the third level lists the leaf.
-      // A selected genre folds its facet into a pill; "Change" opens it.
+      // A selected genre keeps its children visible for further drill-down (#461).
       const genres = visitor.locator('#genres-filter');
       const option = (name) => genres.locator('.filter-option', { hasText: name }).locator('.count-badge');
-      await genres.locator('.facet-change-link').click();
+      await expect(genres).not.toHaveClass(/facet-is-collapsed/);
       await expect(option(`${RUN} Level 2`), 'the root lists its child with the book counted').toHaveText('1');
       await visitor.goto(`${BASE}/catalogo?genere_id=${deepGenres[2]}`);
-      await genres.locator('.facet-change-link').click();
+      await expect(genres).not.toHaveClass(/facet-is-collapsed/);
       await expect(option(`${RUN} Level 4`), 'the third level lists the leaf').toHaveText('1');
     } finally {
       await visitor.context().close();

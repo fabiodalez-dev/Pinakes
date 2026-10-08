@@ -514,8 +514,9 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
             <div class="book-cover-column pk-bookhero__cover" id="book-cover-container">
                 <div class="pk-bigcover">
                     <div class="pk-book__blank" aria-hidden="true">
+                        <?php if ($bookAuthor !== ''): ?><div class="pk-book__blank-author"><?= htmlspecialchars($bookAuthor, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
                         <div class="pk-book__blank-title"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></div>
-                        <div class="pk-book__rule"></div>
+                        <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if (!empty($book['editore'])): ?><div class="pk-book__brand"><?= htmlspecialchars(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?></div>
                     </div>
                     <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                          alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
@@ -764,158 +765,6 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                         <?php endif; ?>
                     </div>
                 </div>
-
-                <!-- Details Section -->
-                <?php
-                $detailFields = [
-                    !empty($book['isbn13']),
-                    !empty($book['isbn10']),
-                    !empty($book['ean']),
-                    !empty($book['issn']),
-                    !empty($bookGenre),
-                    !empty($book['lingua']),
-                    !empty($book['prezzo']),
-                    !empty($book['anno_pubblicazione']),
-                    !empty($book['data_pubblicazione']),
-                    !empty($book['numero_pagine']),
-                    !empty($book['formato']),
-                    !empty($book['dimensioni']),
-                    !empty($book['peso']),
-                    !empty($book['numero_inventario'])
-                ];
-                ?>
-                <?php if (in_array(true, $detailFields, true)): ?>
-                <div class="book-details-section" id="book-details-section">
-                    <h2 class="section-title">
-                        <i class="fas fa-list"></i>
-                        <?= __("Dettagli Libro") ?>
-                    </h2>
-                    <div class="details-grid">
-                        <div class="details-column">
-                            <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!$isMusic && !empty($book['isbn10'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label">ISBN-10</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['ean'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['issn'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label">ISSN</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['issn'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($genreHierarchy)): ?>
-                            <div class="meta-item meta-item--genre">
-                                <div class="meta-label"><?= __("Genere") ?></div>
-                                <div class="meta-value genre-path"><?php $genreLinkClass = 'genre-path__link'; $genreSeparator = '<span class="genre-path__sep" aria-hidden="true">›</span>'; include __DIR__ . '/partials/genre-breadcrumb.php'; unset($genreLinkClass, $genreSeparator); ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['lingua'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Lingua") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['lingua'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['prezzo'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Prezzo") ?></div>
-                                <div class="meta-value">€ <?= number_format($book['prezzo'], 2) ?></div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="details-column">
-                            <?php if (!empty($book['anno_pubblicazione'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['data_pubblicazione'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Data di Pubblicazione") ?></div>
-                                <div class="meta-value"><?= App\Support\HtmlHelper::e(format_date($book['data_pubblicazione'], false, '/')) ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['numero_pagine'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['formato'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Formato") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['dimensioni'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Dimensioni") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['dimensioni'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['peso'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Peso") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['peso'], ENT_QUOTES, 'UTF-8') ?> kg</div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['numero_inventario'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Numero Inventario") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['numero_inventario'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php
-                $keywords = !empty($book['parole_chiave'])
-                    ? array_unique(array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; }))
-                    : [];
-                ?>
-                <?php if (!empty($keywords)): ?>
-                <div class="book-details-section">
-                    <h2 class="section-title">
-                        <i class="fas fa-tags"></i>
-                        <?= __("Parole Chiave") ?>
-                    </h2>
-                    <div class="flex flex-wrap gap-2">
-                        <?php foreach ($keywords as $keyword): ?>
-                        <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
-                           class="status-badge bg-gray-100 text-gray-900 border px-3 py-2 no-underline keyword-chip">
-                            <i class="fas fa-tag mr-1 text-gray-500"></i><?= HtmlHelper::e($keyword) ?>
-                        </a>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
 
                 <!-- LibraryThing Fields Section -->
                 <?php
@@ -1231,6 +1080,162 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 <?php include __DIR__ . '/partials/social-sharing.php'; ?>
 
             </aside>
+        </div>
+
+        <!-- Details and keywords: out of the column, across the whole width, so a
+             label and its value stay on one line. -->
+        <div class="pk-bookbody__full">
+            <!-- Details Section -->
+            <?php
+            $detailFields = [
+                !empty($book['isbn13']),
+                !empty($book['isbn10']),
+                !empty($book['ean']),
+                !empty($book['issn']),
+                !empty($bookGenre),
+                !empty($book['lingua']),
+                !empty($book['prezzo']),
+                !empty($book['anno_pubblicazione']),
+                !empty($book['data_pubblicazione']),
+                !empty($book['numero_pagine']),
+                !empty($book['formato']),
+                !empty($book['dimensioni']),
+                !empty($book['peso']),
+                !empty($book['numero_inventario'])
+            ];
+            ?>
+            <?php if (in_array(true, $detailFields, true)): ?>
+            <div class="book-details-section" id="book-details-section">
+                <h2 class="section-title">
+                    <i class="fas fa-list"></i>
+                    <?= __("Dettagli Libro") ?>
+                </h2>
+                <div class="details-grid">
+                    <div class="details-column">
+                        <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!$isMusic && !empty($book['isbn10'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label">ISBN-10</div>
+                            <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['ean'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['issn'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label">ISSN</div>
+                            <div class="meta-value"><?= htmlspecialchars($book['issn'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($genreHierarchy)): ?>
+                        <div class="meta-item meta-item--genre">
+                            <div class="meta-label"><?= __("Genere") ?></div>
+                            <div class="meta-value genre-path"><?php $genreLinkClass = 'genre-path__link'; $genreSeparator = '<span class="genre-path__sep" aria-hidden="true">›</span>'; include __DIR__ . '/partials/genre-breadcrumb.php'; unset($genreLinkClass, $genreSeparator); ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['lingua'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Lingua") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['lingua'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['prezzo'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Prezzo") ?></div>
+                            <div class="meta-value">€ <?= number_format($book['prezzo'], 2) ?></div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="details-column">
+                        <?php if (!empty($book['anno_pubblicazione'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['data_pubblicazione'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Data di Pubblicazione") ?></div>
+                            <div class="meta-value"><?= App\Support\HtmlHelper::e(format_date($book['data_pubblicazione'], false, '/')) ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['numero_pagine'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['formato'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Formato") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['dimensioni'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Dimensioni") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['dimensioni'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['peso'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Peso") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['peso'], ENT_QUOTES, 'UTF-8') ?> kg</div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['numero_inventario'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Numero Inventario") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['numero_inventario'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php
+            $keywords = !empty($book['parole_chiave'])
+                ? array_unique(array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; }))
+                : [];
+            ?>
+            <?php if (!empty($keywords)): ?>
+            <div class="book-details-section">
+                <h2 class="section-title">
+                    <i class="fas fa-tags"></i>
+                    <?= __("Parole Chiave") ?>
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                    <?php foreach ($keywords as $keyword): ?>
+                    <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
+                       class="status-badge bg-gray-100 text-gray-900 border px-3 py-2 no-underline keyword-chip">
+                        <i class="fas fa-tag mr-1 text-gray-500"></i><?= HtmlHelper::e($keyword) ?>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </section>

@@ -101,3 +101,7 @@ Confrontati testo e commenti di Uwe nella #412 con il candidato `fix/multiple-di
 Oxford era escluso dalla precedente implementazione a quattro stili. Ora copre anche questo elemento dell'esempio LIBRIS di Uwe, seguendo la [guida bibliografica ufficiale di Umeå](https://www.umu.se/bibliotek/soka-skriva-studera/skriva-referenser/oxford-skriva-referenslista/). I collegamenti singoli esistenti restano compatibili; rimuovere un allegato non elimina il file condivisibile dal disco.
 
 Verifiche del candidato: 19 suite PHP superate, build frontend, PHPStan e allineamento delle traduzioni. Le suite browser coprono sette scenari #445, dodici analitici #412 e sei per l'intestazione CMS del catalogo.
+
+## Parità Android — 8 ottobre 2026
+
+Il confronto più recente di richieste, PHP e Android è nella [matrice Uwe](uwe-android-parity-2026-10-08.md), con prove eseguite e limiti di distribuzione espliciti.

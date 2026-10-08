@@ -99,8 +99,9 @@ $reservationsRoute = route_path('reservations');
             <div class="pk-book__pages"></div>
             <div class="pk-book__cover">
               <div class="pk-book__blank" aria-hidden="true">
+                <?php if ($wishlistAuthor !== ''): ?><div class="pk-book__blank-author"><?= htmlspecialchars($wishlistAuthor, ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?>
                 <div class="pk-book__blank-title"><?= htmlspecialchars($wishlistTitle, ENT_QUOTES, 'UTF-8'); ?></div>
-                <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand"><?= htmlspecialchars((string) \App\Support\ConfigStore::get('app.name', 'Pinakes'), ENT_QUOTES, 'UTF-8'); ?></div></div>
+                <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if (!empty($it['editore'])): ?><div class="pk-book__brand"><?= htmlspecialchars(html_entity_decode((string) $it['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?></div>
               </div>
               <?php if ($cover !== ''): ?>
               <img class="book-image pk-book__img" src="<?= htmlspecialchars((string) $cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">

@@ -1,4 +1,6 @@
 {
+  "%d editore": "%d editore",
+  "%d editori": "%d editori",
   "Elimina proposta e dati del donatore": "Elimina proposta e dati del donatore",
   "Eliminare la proposta e i dati del donatore? L’operazione non è reversibile.": "Eliminare la proposta e i dati del donatore? L’operazione non è reversibile.",
   "Pagine richieste": "Pagine richieste",
@@ -8103,5 +8105,11 @@
   "Nascosta dal menu del sito": "Nascosta dal menu del sito",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.",
   "Nascosta": "Nascosta",
-  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Copia non riuscita: il testo è selezionato, copialo manualmente"
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Copia non riuscita: il testo è selezionato, copialo manualmente",
+  "Accesso richiesto.": "Accesso richiesto.",
+  "Contenuti non disponibili.": "Contenuti non disponibili.",
+  "Documento non trovato.": "Documento non trovato.",
+  "Filtri non validi.": "Filtri non validi.",
+  "Proposta non trovata.": "Proposta non trovata.",
+  "Sezione non disponibile.": "Sezione non disponibile."
 }

@@ -264,7 +264,7 @@ class FrontendController
         $searchTerm = trim((string) ($filters['search'] ?? ''));
         /** @var array<int, array<string, mixed>> $archiveResults */
         $archiveResults = $searchTerm !== ''
-            ? \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$searchTerm])
+            ? $this->collectArchiveResults($searchTerm)
             : [];
 
         // Federated-search hint: the catalogue search only reads
@@ -410,6 +410,16 @@ class FrontendController
             ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'catalog');
     }
 
+    /** Public archive snippets, bounded and stripped of every non-display field. */
+    private function collectArchiveResults(string $query): array
+    {
+        try { $results = \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [mb_substr($query, 0, 200)]); }
+        catch (\Throwable $e) { \App\Support\SecureLogger::error('Archive catalogue search failed: ' . $e->getMessage()); return []; }
+        if (!is_array($results)) { return []; }
+        return array_map(static fn(array $row): array => array_intersect_key($row, array_flip(['id', 'label', 'reference_code', 'url'])),
+            array_slice(array_values(array_filter($results, 'is_array')), 0, 6));
+    }
+
     public function catalogAPI(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
@@ -425,16 +435,12 @@ class FrontendController
         $query_params = $where_conditions['params'];
         $param_types = $where_conditions['types'];
 
-        // FIX F001: removed archive results hook from catalogAPI() to avoid
-        // returning archive matches in the search-as-you-type JSON payload.
-        // catalog() still renders archives in its empty-state block.
-
-        // Same search/browse split as catalog(): this endpoint feeds the
-        // search-as-you-type grid, so a term present here is the visitor
-        // asking for a title by name. $searchTerm is derived the same way
-        // catalog() derives it — catalogAPI() has no archive hook to have
-        // computed it earlier.
         $searchTerm = trim((string) ($filters['search'] ?? ''));
+        // Public projection only: the same snippets as the server-rendered catalogue.
+        $archiveResults = $searchTerm !== '' ? $this->collectArchiveResults($searchTerm) : [];
+        ob_start();
+        include __DIR__ . '/../Views/frontend/partials/catalog-archive-results.php';
+        $archiveHtml = (string) ob_get_clean();
         $visibility = $searchTerm !== ''
             ? \App\Support\BookVisibility::discoverable($db, 'l')
             : \App\Support\BookVisibility::catalogue($db, 'l');
@@ -579,6 +585,7 @@ class FrontendController
 
         $data = [
             'html' => $html,
+            'archive_html' => $archiveHtml,
             'pagination' => [
                 'current_page' => $page,
                 'total_pages' => $total_pages,

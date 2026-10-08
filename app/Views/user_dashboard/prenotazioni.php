@@ -565,6 +565,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+              <div class="pk-book__blank pk-book__blank--compact" aria-hidden="true"><div class="pk-book__blank-title"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></div></div>
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
@@ -624,6 +625,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+              <div class="pk-book__blank pk-book__blank--compact" aria-hidden="true"><div class="pk-book__blank-title"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></div></div>
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
@@ -699,6 +701,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+              <div class="pk-book__blank pk-book__blank--compact" aria-hidden="true"><div class="pk-book__blank-title"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></div></div>
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
@@ -757,6 +760,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+              <div class="pk-book__blank pk-book__blank--compact" aria-hidden="true"><div class="pk-book__blank-title"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></div></div>
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">
@@ -812,6 +816,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+              <div class="pk-book__blank pk-book__blank--compact" aria-hidden="true"><div class="pk-book__blank-title"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></div></div>
               <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" data-cover-fallback>
             </a>
             <div class="item-info">

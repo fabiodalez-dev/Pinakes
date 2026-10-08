@@ -1,4 +1,6 @@
 {
+  "%d editore": "%d forlag",
+  "%d editori": "%d forlag",
   "Elimina proposta e dati del donatore": "Slet forslaget og donorens oplysninger",
   "Eliminare la proposta e i dati del donatore? L’operazione non è reversibile.": "Slet forslaget og donorens oplysninger? Handlingen kan ikke fortrydes.",
   "Pagine richieste": "Sider med ønskede bøger",
@@ -8103,5 +8105,11 @@
   "Nascosta dal menu del sito": "Skjult i webstedets menu",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Når den er skjult, forsvinder punktet fra det offentlige websteds menu. Siderne kan stadig nås fra katalog- og søgeresultater.",
   "Nascosta": "Skjult",
-  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Kopiering mislykkedes: teksten er markeret, kopiér den manuelt"
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Kopiering mislykkedes: teksten er markeret, kopiér den manuelt",
+  "Accesso richiesto.": "Login påkrævet.",
+  "Contenuti non disponibili.": "Indholdet er ikke tilgængeligt.",
+  "Documento non trovato.": "Dokumentet blev ikke fundet.",
+  "Filtri non validi.": "Ugyldige filtre.",
+  "Proposta non trovata.": "Forslaget blev ikke fundet.",
+  "Sezione non disponibile.": "Sektionen er ikke tilgængelig."
 }

@@ -102,5 +102,16 @@ $check($c->getContrastRatio($lifted, '#000000') > $c->getContrastRatio($mid, '#0
 $tooDark = $c->readableSurface('#1e3a8a', '#111827');
 $check($c->getContrastRatio('#111827', $tooDark) >= 4.5, "dark text: #1e3a8a → {$tooDark} reads at AA under #111827");
 
+// Intermediate text must choose whichever direction can reach AA, even
+// when a surface starts at an extreme or the 4.6 safety margin is unreachable.
+foreach (['#aaaaaa', '#777777', '#767676', '#808080', '#111827', '#ffffff'] as $text) {
+    foreach (['#ffffff', '#000000', '#909090', '#d70161'] as $surface) {
+        $adjusted = $c->readableSurface($surface, $text);
+        $check($c->getContrastRatio($text, $adjusted) >= 4.5, "{$text} on {$surface} adjusts to AA ({$adjusted})");
+        $hoverPalette = $c->generateColorPalette(['button' => $surface, 'button_text' => $text]);
+        $check($c->getContrastRatio($text, $hoverPalette['button_hover']) >= 4.5, "{$text} on {$surface} also reads at AA in hover");
+    }
+}
+
 echo PHP_EOL . "Passed: {$passed}, Failed: {$failed}" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

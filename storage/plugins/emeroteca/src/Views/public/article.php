@@ -32,7 +32,11 @@ $articleKeywords=array_values(array_filter(array_map('trim', explode(',', (strin
 $articleCover=\App\Plugins\Emeroteca\Services\ContributionService::coverUrl($article);
 /** danMARC2 856. One owner decides whether it exists and whether it may be a link. */
 $articleResource=\App\Plugins\Emeroteca\Services\ContributionService::resource($article,true);
-$articleHasPdf=!empty($article['pdf_path']) && !empty($article['pdf_pubblico']);
+$canEdit=!empty($canEdit);
+$articleHasPdf=trim((string)($article['pdf_path']??''))!=='' && (!empty($article['pdf_pubblico']) || $canEdit);
+$articlePdfUrl=$articleHasPdf
+    ? url(!empty($article['pdf_pubblico']) ? '/emeroteca/articolo/'.(int)$article['id'].'/pdf' : '/admin/periodicals/articles/'.(int)$article['id'].'/pdf')
+    : '';
 /** The reader may open at most one primary action; the PDF is the library's own copy and wins. */
 $articleResourceIsPrimary=$articleResource!==null && $articleResource['linkable'] && !$articleHasPdf;
 $articleCitations=\App\Plugins\Emeroteca\Support\CitationFormatter::all($article);
@@ -55,7 +59,6 @@ $relatedTestata=$relatedTestata??[];
 $relatedAuthor=$relatedAuthor??[];
 $relatedAuthorBooks=$relatedAuthorBooks??[];
 $relatedAuthorId=(int)($relatedAuthorId??0);
-$canEdit=!empty($canEdit);
 $genreTrail=$genreTrail??[];
 $corePartials=dirname(__DIR__, 6).'/app/Views/frontend/partials';
 $catalogPageStyles=true;
@@ -147,7 +150,7 @@ include $corePartials.'/resource-pager.php';
          needs to be told "for internal use only". */ ?>
 <?php if($articleHasPdf || ($articleResource!==null && $articleResource['linkable']) || $canEdit): ?>
 <div class="action-buttons resource-action-buttons">
-<?php if($articleHasPdf): ?><a class="btn-primary ui-button" href="<?= $e(url('/emeroteca/articolo/'.(int)$article['id'].'/pdf')) ?>"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Leggi PDF') ?></a><?php endif; ?>
+<?php if($articleHasPdf): ?><a class="btn-primary ui-button" href="<?= $e($articlePdfUrl) ?>"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Leggi PDF') ?></a><?php endif; ?>
 <?php if($articleResource!==null && $articleResource['linkable']): ?><a class="<?= $articleResourceIsPrimary?'btn-primary ui-button':'ui-button btn-outline' ?>" href="<?= $e($articleResource['url']) ?>" rel="noopener nofollow" target="_blank"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i> <?= $e($articleResource['text']!==''?$articleResource['text']:__('Risorsa online')) ?></a><?php endif; ?>
 <?php /* Staff only (#455): the record opens in the back office. */ ?>
 <?php if($canEdit): ?><a class="ui-button btn-outline" href="<?= $e(url('/admin/periodicals/articles/'.(int)$article['id'].'/edit')) ?>"><i class="fas fa-edit" aria-hidden="true"></i> <?= __('Modifica') ?></a><?php endif; ?>

@@ -9744,13 +9744,14 @@ class ArchivesPlugin
         $searchPattern = $this->archiveSearchPattern($q);
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, level, constructed_title, scope_content
-               FROM archival_units
-              WHERE deleted_at IS NULL
+               FROM archival_units u
+              WHERE u.deleted_at IS NULL
                 AND (
                     reference_code LIKE ?
                     OR constructed_title LIKE ?
                     OR formal_title LIKE ?
                     OR scope_content LIKE ?
+                    OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND ar.authorised_form LIKE ?)
                 )
               ORDER BY FIELD(level,\'fonds\',\'series\',\'file\',\'item\'), constructed_title
               LIMIT 6'
@@ -9758,7 +9759,7 @@ class ArchivesPlugin
         if ($stmt === false) {
             return $results;
         }
-        $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+        $stmt->bind_param('sssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern, $searchPattern);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res instanceof \mysqli_result) {

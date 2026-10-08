@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-08",
+  "php_head": "741d2b3530fb013246a54a7b454090cae4c53c9c",
+  "android_head": "6c4b74590166401cd146fb120f46623ce326313a",
+  "php_checks": 35,
+  "android_checks": 3,
+  "unit_tests": 185,
+  "compose_tests": 19,
+  "collection_checks": 50,
+  "emeroteca_checks": 191,
+  "browser_regressions": 36,
+  "http_contracts": 9,
+  "lint_errors": 0,
+  "lint_warnings": 98,
+  "local_native_donation": {
+    "offers": 1,
+    "inventory_copies": 0,
+    "fixtures_removed": true
+  },
+  "production_deployment": false
+}

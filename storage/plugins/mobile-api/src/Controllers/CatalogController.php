@@ -420,6 +420,14 @@ final class CatalogController
                 'ebook_format'       => $ebookFormat,
                 'has_audio'          => $audioUrl !== null,
                 'has_ebook'          => $ebookUrl !== null,
+                'digital_attachments' => array_map(static fn(array $attachment): array => [
+                    'url' => $absMedia($attachment['url']), 'label' => $attachment['label'], 'kind' => $attachment['kind'],
+                ], \App\Support\DigitalAttachments::fromBook($book)),
+                'citations' => array_map(static fn(array $citation): array => array_intersect_key($citation, array_flip(['key', 'label', 'text', 'html'])), \App\Support\CitationStyles::all(\App\Support\BookCitation::input($book, array_map(static fn(array $author): array => ['nome' => $author['canonical_name'], 'pseudonimo' => $author['pseudonym'], 'ruolo' => $author['role']], $authors)))),
+                'ris_url' => absoluteUrl('/books/' . $bookId . '/citation.ris'),
+                'genre_path' => $this->genreTrail((int) ($book['sottogenere_id'] ?? $book['genere_id'] ?? 0)),
+                'edition' => $this->nullableString($book['edizione'] ?? null),
+                'publication_place' => $this->nullableString($book['luogo_pubblicazione'] ?? null),
                 'genre'              => [
                     'id'          => isset($book['genere_id']) ? (int) $book['genere_id'] : null,
                     'name'        => $this->nullableString($book['genere'] ?? null),
@@ -443,7 +451,7 @@ final class CatalogController
             ];
 
             $lastModified = $this->lastModified($book);
-            $etag         = $this->computeDetailEtag($bookId, $book, $userId, $history);
+            $etag = '"' . sha1(json_encode([$userId, $data], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)) . '"';
 
             if ($this->notModified($request, $etag)) {
                 return $this->notModifiedResponse($response, $etag, $lastModified);
@@ -647,17 +655,22 @@ final class CatalogController
             }
         }
 
+        $authorId = isset($params['author_id']) ? (int) $params['author_id'] : 0;
+        if ($authorId > 0) {
+            $conditions[] = 'EXISTS (SELECT 1 FROM libri_autori lai WHERE lai.libro_id = l.id AND lai.autore_id = ?)';
+            $bind[] = $authorId; $types .= 'i';
+        }
+
         // Genre cascade id: match the id at ANY level of the hierarchy (same
         // semantics as the web catalog) so filtering by a top genre also returns
         // books classified under its descendants.
         $genreId = isset($params['genre']) ? (int) $params['genre'] : 0;
         if ($genreId > 0) {
-            $conditions[] = '(l.genere_id = ? OR g.parent_id = ? OR gp.parent_id = ? OR l.sottogenere_id = ?)';
-            $bind[] = $genreId;
-            $bind[] = $genreId;
-            $bind[] = $genreId;
-            $bind[] = $genreId;
-            $types .= 'iiii';
+            $family = \App\Support\GenreTree::withDescendants($this->db, $genreId);
+            $marks = implode(',', array_fill(0, count($family), '?'));
+            $conditions[] = "(l.genere_id IN ($marks) OR l.sottogenere_id IN ($marks))";
+            array_push($bind, ...$family, ...$family);
+            $types .= str_repeat('i', count($family) * 2);
         }
 
         $language = isset($params['language']) ? trim((string) $params['language']) : '';
@@ -1084,9 +1097,25 @@ final class CatalogController
      * Build a nested cascade tree from the flat genre list. The schema supports
      * up to 3 levels (genre → subgenre → sub-subgenre via parent_id chains).
      *
-     * @param list<array<string, mixed>> $flat
      * @return list<array<string, mixed>>
      */
+    private function genreTrail(int $id): array
+    {
+        $path = []; $seen = [];
+        while ($id > 0 && !isset($seen[$id])) {
+            $seen[$id] = true;
+            $stmt = $this->db->prepare('SELECT id, nome, parent_id FROM generi WHERE id = ?');
+            if ($stmt === false) { break; }
+            try { $stmt->bind_param('i', $id); $stmt->execute(); $row = $stmt->get_result()->fetch_assoc(); }
+            finally { $stmt->close(); }
+            if (!$row) { break; }
+            array_unshift($path, ['id' => (int) $row['id'], 'name' => (string) $row['nome']]);
+            $id = (int) ($row['parent_id'] ?? 0);
+        }
+        return $path;
+    }
+
+    /** @param list<array<string, mixed>> $flat */
     private function buildGenreTree(array $flat): array
     {
         /** @var array<int, list<array<string, mixed>>> $childrenByParent */
@@ -1131,25 +1160,6 @@ final class CatalogController
         }
 
         return '"' . sha1('catalog-list:' . $seed) . '"';
-    }
-
-    /**
-     * @param array<string, mixed> $book
-     * @param array{has_read:bool, has_reserved:bool, has_wishlisted:bool, has_active_loan:bool, has_pending_request:bool} $history
-     */
-    private function computeDetailEtag(int $bookId, array $book, int $userId, array $history): string
-    {
-        $seed = implode('|', [
-            'book:' . $bookId,
-            'av:' . (int) ($book['copie_disponibili'] ?? 0),
-            'upd:' . (string) ($book['updated_at'] ?? ''),
-            'u:' . $userId,
-            'h:' . (int) $history['has_read'] . (int) $history['has_reserved']
-                 . (int) $history['has_wishlisted'] . (int) $history['has_active_loan']
-                 . (int) $history['has_pending_request'],
-        ]);
-
-        return '"' . sha1($seed) . '"';
     }
 
     /**

@@ -1,4 +1,6 @@
 {
+  "%d editore": "%d éditeur",
+  "%d editori": "%d éditeurs",
   "Elimina proposta e dati del donatore": "Supprimer la proposition et les données du donateur",
   "Eliminare la proposta e i dati del donatore? L’operazione non è reversibile.": "Supprimer la proposition et les données du donateur ? L’opération est irréversible.",
   "Pagine richieste": "Pages des livres demandés",
@@ -8103,5 +8105,11 @@
   "Nascosta dal menu del sito": "Masquée dans le menu du site",
   "Quando è nascosta, la voce sparisce dal menu del sito pubblico. Le pagine restano raggiungibili dai risultati del catalogo e della ricerca.": "Masquée, l'entrée disparaît du menu du site public. Les pages restent accessibles depuis les résultats du catalogue et de la recherche.",
   "Nascosta": "Masquée",
-  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Échec de la copie : le texte est sélectionné, copiez-le manuellement"
+  "Copia non riuscita: il testo è selezionato, copialo manualmente": "Échec de la copie : le texte est sélectionné, copiez-le manuellement",
+  "Accesso richiesto.": "Connexion requise.",
+  "Contenuti non disponibili.": "Contenu indisponible.",
+  "Documento non trovato.": "Document introuvable.",
+  "Filtri non validi.": "Filtres non valides.",
+  "Proposta non trovata.": "Proposition introuvable.",
+  "Sezione non disponibile.": "Section indisponible."
 }

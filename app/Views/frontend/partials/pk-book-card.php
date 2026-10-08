@@ -38,8 +38,6 @@ $pkTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
     isset($pkBook['formato']) ? (string) $pkBook['formato'] : null,
     isset($pkBook['tipo_media']) ? (string) $pkBook['tipo_media'] : null
 );
-// The blank cover carries the library's name, as the header does.
-$pkBrand = (string) \App\Support\ConfigStore::get('app.name', 'Pinakes');
 ?>
 <div class="book-card pk-card<?= ($pkCardClass ?? '') !== '' ? ' ' . $pkE((string) $pkCardClass) : '' ?>" data-book-id="<?= $pkId ?>">
     <div class="book-image-container pk-card__panel">
@@ -48,8 +46,9 @@ $pkBrand = (string) \App\Support\ConfigStore::get('app.name', 'Pinakes');
             <div class="pk-book__pages"></div>
             <div class="pk-book__cover">
                 <div class="pk-book__blank" aria-hidden="true">
+                    <?php if ($pkAuthor !== ''): ?><div class="pk-book__blank-author"><?= $pkE($pkAuthor) ?></div><?php endif; ?>
                     <div class="pk-book__blank-title"><?= $pkE($pkTitle) ?></div>
-                    <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand"><?= $pkE($pkBrand) ?></div></div>
+                    <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if ($pkPublisher !== ''): ?><div class="pk-book__brand"><?= $pkE($pkPublisher) ?></div><?php endif; ?></div>
                 </div>
                 <?php if ($pkCover !== ''): ?>
                 <img class="book-image pk-book__img" data-pk-tone
