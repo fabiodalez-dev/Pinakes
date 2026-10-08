@@ -148,9 +148,10 @@ jobs:
       # capped at 20m: deterministic errors can spend the fallback quota, and
       # a late failure after posting can repeat a review. This bounded trade-off
       # is deliberate; a failed review must never turn into a green no-op.
-      # Env credentials are tried before account credentials in the upstream
-      # utils/credentialPool.ts selectConfiguredCredential workflow loop:
-      # https://github.com/pullfrog/pullfrog/blob/0d318bef8c7cf7ae3f193ef32b2bc74e1d94b4d1/utils/credentialPool.ts#L140-L150
+      # The workflow OAuth token leads account OAuth tokens of the same kind.
+      # Verified in runtime 0.1.97: stable subscription sorting keeps workflow
+      # entries first. This does not claim API keys outrank subscriptions.
+      # https://github.com/pullfrog/pullfrog/blob/f0684f2c9286f321085978685f6cbe91d51d4233/utils/credentialPool.ts#L175-L187
       # A per-account rate limit is not fixed by a second expression, only by a
       # second attempt: the first credential has to be tried and seen to fail.
       # Only the fallback token is passed here. If another provider were
