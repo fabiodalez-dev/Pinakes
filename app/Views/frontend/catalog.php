@@ -482,37 +482,9 @@ ob_start();
                         </button>
                     </div>
 
-                    <?php // FIX F014: only show archive fallback when book results are empty, keep as sibling of #empty-state ?>
-                    <?php if (!empty($archiveResults) && empty($books)): ?>
-                    <?php $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); ?>
-                    <div class="mt-4 p-3 rounded border" style="background:var(--light-bg,#f8f9fa);border-color:var(--border-color,#e5e7eb)!important;">
-                        <p class="text-sm font-semibold text-gray-500 mb-2">
-                            <i class="fas fa-archive mr-1"></i>
-                            <?= __("Trovato anche nell'archivio:") ?>
-                        </p>
-                        <ul class="mb-0 list-none">
-                            <?php foreach ($archiveResults as $ar): ?>
-                            <li class="mb-1">
-                                <?php
-                                $rawHref = (string) ($ar['url'] ?? '');
-                                // FIX F015: allow standard URL chars (query, fragment, percent-encoded)
-                                // but reject schemes (javascript:/data:) and CRLF injection by requiring
-                                // a leading slash and disallowing control characters.
-                                if (!preg_match('{^/[\w/\-.~%?&=:;,@!$\'()*+\[\]#]*$}', $rawHref)) {
-                                    $rawHref = '#';
-                                }
-                                ?>
-                                <a href="<?= htmlspecialchars($rawHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
-                                    <?= $e($ar['label']) ?>
-                                    <?php if (($ar['reference_code'] ?? '') !== ''): ?>
-                                        <span class="text-gray-500 text-sm ml-1">(<?= $e($ar['reference_code']) ?>)</span>
-                                    <?php endif; ?>
-                                </a>
-                            </li>
-                            <?php endforeach; ?>
-                        </ul>
+                    <div id="archive-search-results">
+                        <?php include __DIR__ . '/partials/catalog-archive-results.php'; ?>
                     </div>
-                    <?php endif; ?>
                 </div>
 
                 <!-- Pagination: server-rendered with real hrefs so page 2+ is
@@ -926,7 +898,9 @@ function loadBooks() {
             }
             loading.style.display = 'none';
 
-            const hasNoResults = !data.html || data.html.trim() === '';
+            const archiveResults = document.getElementById('archive-search-results');
+            if (archiveResults) archiveResults.innerHTML = data.archive_html || '';
+            const hasNoResults = (!data.html || data.html.trim() === '') && !data.archive_html;
 
             if (hasNoResults) {
                 empty.style.display = 'block';

@@ -87,6 +87,8 @@ final class HealthController
                     // Book reviews ride the loan history (only borrowers can
                     // review), so they are meaningless in catalogue mode.
                     'reviews'       => !$catalogueMode,
+                    'archives'      => $this->pluginActive('archives'),
+                    'desiderata'    => $this->pluginActive('desiderata'),
                 ],
                 'catalogue_mode'       => $catalogueMode,
                 'loan_approval_required' => $loanApprovalRequired,
@@ -142,6 +144,15 @@ final class HealthController
         }
 
         return 'unknown';
+    }
+
+    private function pluginActive(string $name): bool
+    {
+        $stmt = $this->db->prepare('SELECT is_active FROM plugins WHERE name = ? LIMIT 1');
+        if ($stmt === false) { return false; }
+        $stmt->bind_param('s', $name); $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc(); $stmt->close();
+        return (int) ($row['is_active'] ?? 0) === 1;
     }
 
     private function isHttps(ServerRequestInterface $request): bool

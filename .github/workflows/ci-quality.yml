@@ -351,6 +351,7 @@ jobs:
         env:
           CI_STRICT_TESTS: '1'
         run: |
+          php tests/mobile-collections.integration.php
           php tests/desiderata.integration.php
           php tests/desiderata-visibility.integration.php
           php tests/desiderata-extended.integration.php

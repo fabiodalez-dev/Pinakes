@@ -37,6 +37,7 @@ require_once __DIR__ . '/src/Push/PushDispatcher.php';
 require_once __DIR__ . '/src/Controllers/HealthController.php';
 require_once __DIR__ . '/src/Controllers/AuthController.php';
 require_once __DIR__ . '/src/Controllers/CatalogController.php';
+require_once __DIR__ . '/src/Controllers/CollectionsController.php';
 require_once __DIR__ . '/src/Controllers/ActionsController.php';
 require_once __DIR__ . '/src/Controllers/PushController.php';
 require_once __DIR__ . '/src/Controllers/OpenApiController.php';
@@ -412,6 +413,24 @@ class MobileApiPlugin
             });
 
             // ── Public auth endpoints ──────────────────────────────────────
+            foreach (['archives', 'desiderata'] as $collection) {
+                $group->get('/' . $collection . '/health', function ($request, $response) use ($db, $hookManager, $collection) {
+                    return (new \App\Plugins\MobileApi\Controllers\CollectionsController($db, $hookManager))->handle($collection, $request, $response, 'health');
+                })->add($quotaMw())->add($authMw());
+                $group->get('/' . $collection, function ($request, $response) use ($db, $hookManager, $collection) {
+                    return (new \App\Plugins\MobileApi\Controllers\CollectionsController($db, $hookManager))->handle($collection, $request, $response, $collection === 'archives' ? 'archives' : 'wanted');
+                })->add($quotaMw())->add($authMw());
+                $group->get('/' . $collection . '/{id:[1-9][0-9]*}', function ($request, $response, $args) use ($db, $hookManager, $collection) {
+                    return (new \App\Plugins\MobileApi\Controllers\CollectionsController($db, $hookManager))->handle($collection, $request, $response, $collection === 'archives' ? 'archive' : 'wanted_detail', (int) $args['id']);
+                })->add($quotaMw())->add($authMw());
+            }
+            $group->post('/desiderata/offers', function ($request, $response) use ($db, $hookManager) {
+                return (new \App\Plugins\MobileApi\Controllers\CollectionsController($db, $hookManager))->handle('desiderata', $request, $response, 'offer');
+            })->add($quotaMw())->add($authMw());
+            $group->get('/desiderata/offers/{submission:[a-fA-F0-9-]+}', function ($request, $response, $args) use ($db, $hookManager) {
+                return (new \App\Plugins\MobileApi\Controllers\CollectionsController($db, $hookManager))->offerStatus($request, $response, (string) $args['submission']);
+            })->add($quotaMw())->add($authMw());
+
             // Strong throttle on login (anti brute-force, spec §Rate limiting):
             // 10 attempts / 5 min per IP, action-keyed so localized paths can't
             // bypass it (there are none here, but keeps parity with the web rule).

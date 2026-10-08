@@ -36,6 +36,7 @@ final class OpenApiController
             $baseUrl = $this->baseUrl($request);
             $version = $this->appVersion();
             $doc     = $this->build($baseUrl, $version);
+            $doc = $this->collectionsDocument($doc);
 
             // Cross-plugin extension point: active plugins that mount routes under
             // /api/v1 (book-club bridge) document them here, so the add-endpoint ⇒
@@ -76,6 +77,74 @@ final class OpenApiController
     /**
      * @return array<string, mixed>
      */
+    private function collectionsDocument(array $doc): array
+    {
+        $doc['components']['schemas']['HealthPayload']['properties']['features']['properties']['archives'] = ['type' => 'boolean'];
+        $doc['components']['schemas']['HealthPayload']['properties']['features']['properties']['desiderata'] = ['type' => 'boolean'];
+        $doc['components']['schemas']['BookDetail']['properties'] += [
+            'edition' => ['type' => ['string', 'null']], 'publication_place' => ['type' => ['string', 'null']],
+            'genre_path' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer'], 'name' => ['type' => 'string']]]],
+            'citations' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['key' => ['type' => 'string'], 'label' => ['type' => 'string'], 'text' => ['type' => 'string']]]],
+            'ris_url' => ['type' => 'string'],
+            'digital_attachments' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['url' => ['type' => 'string'], 'label' => ['type' => 'string'], 'kind' => ['type' => 'string', 'enum' => ['ebook', 'audio', 'supplement']]]]]];
+        $doc['paths']['/catalog/search']['get']['parameters'][] = ['name' => 'author_id', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1], 'description' => 'Shared author identity, including all credited roles.'];
+        $doc['tags'][] = ['name' => 'collections', 'description' => 'Optional archives and library desiderata; inactive plugins return 404.'];
+        $query = static fn(string $name, string $type = 'string'): array => ['name' => $name, 'in' => 'query', 'schema' => ['type' => $type]];
+        foreach (['archives', 'desiderata'] as $collection) {
+            foreach (['' => 'Paginated public records', '/health' => 'Availability and staff management entry', '/{id}' => 'Public record detail'] as $suffix => $summary) {
+                $parameters = $suffix === '/{id}' ? [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer', 'minimum' => 1]]]
+                    : ($suffix === '' ? [$query('q'), $query('cursor'), $query('limit', 'integer')] : []);
+                if ($collection === 'archives' && $suffix === '') {
+                    array_push($parameters, $query('parent_id', 'integer'), $query('level'), $query('date_from', 'integer'), $query('date_to', 'integer'));
+                }
+                $doc['paths']['/' . $collection . $suffix] = ['get' => ['tags' => ['collections'], 'summary' => $summary,
+                    'security' => [['bearerAuth' => []]], 'parameters' => $parameters,
+                    'responses' => ['200' => ['description' => 'Core envelope with public data; list meta.next_cursor is the next page.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Envelope']]]],
+                        '401' => ['description' => 'Valid verified account token required.'], '404' => ['description' => 'Plugin disabled or record unavailable.']]]];
+            }
+        }
+        $doc['paths']['/desiderata/offers/{submission}'] = ['get' => ['tags' => ['collections'],
+            'summary' => 'Recover the outcome of your donation after a timeout.', 'security' => [['bearerAuth' => []]],
+            'parameters' => [['name' => 'submission', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']]],
+            'responses' => ['200' => ['description' => 'Own proposal receipt in the core envelope.'], '401' => ['description' => 'Authentication required.'],
+                '404' => ['description' => 'No proposal owned by this account, or plugin disabled.'], '422' => ['description' => 'UUID v4 required.']]]];
+        $doc['paths']['/desiderata/offers'] = ['post' => ['tags' => ['collections'], 'summary' => 'Submit a donation proposal; no inventory is created.',
+            'description' => 'Contact identity comes from the verified account. Reuse submission_id on retries; changing its payload returns 409. Anonymous website reCAPTCHA is unchanged.',
+            'security' => [['bearerAuth' => []]], 'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/DonationOffer']]]],
+            'responses' => ['201' => ['description' => 'Proposal submitted.'], '200' => ['description' => 'Same proposal replayed.'], '401' => ['description' => 'Authentication required.'],
+                '404' => ['description' => 'Desiderata disabled.'], '409' => ['description' => 'Book received or UUID reused with different input.'], '422' => ['description' => 'Invalid fields or missing consent.'], '429' => ['description' => 'One new proposal per account per minute.']]]];
+        $doc['components']['schemas']['DonationOffer'] = ['type' => 'object', 'required' => ['submission_id', 'title', 'consent'], 'properties' => [
+            'submission_id' => ['type' => 'string', 'format' => 'uuid', 'description' => 'Client-generated UUID v4, stable for this proposal.'],
+            'book_id' => ['type' => ['integer', 'null'], 'minimum' => 1], 'title' => ['type' => 'string', 'maxLength' => 255],
+            'author' => ['type' => 'string', 'maxLength' => 255], 'publisher' => ['type' => 'string', 'maxLength' => 255],
+            'isbn' => ['type' => 'string', 'maxLength' => 20], 'notes' => ['type' => 'string', 'maxLength' => 2000], 'consent' => ['type' => 'boolean', 'const' => true]]];
+        $string = ['type' => ['string', 'null']];
+        $doc['components']['schemas']['CollectionHealth'] = ['type' => 'object', 'properties' => [
+            'status' => ['type' => 'string'], 'native_offers' => ['type' => 'boolean'], 'web_url' => $string, 'manage_url' => $string]];
+        $doc['components']['schemas']['WantedBook'] = ['type' => 'object', 'required' => ['id', 'title', 'wanted'], 'properties' => [
+            'id' => ['type' => 'integer'], 'title' => ['type' => 'string'], 'wanted' => ['type' => 'boolean', 'const' => true],
+            'subtitle' => $string, 'description' => $string, 'author' => $string, 'publisher' => $string, 'isbn' => $string,
+            'year' => ['type' => ['integer', 'null']], 'cover_url' => $string, 'web_url' => $string]];
+        $doc['components']['schemas']['ArchiveRecord'] = ['type' => 'object', 'required' => ['id', 'title', 'reference_code', 'level'], 'properties' => [
+            'id' => ['type' => 'integer'], 'parent_id' => ['type' => ['integer', 'null']], 'title' => ['type' => 'string'], 'formal_title' => $string,
+            'reference_code' => ['type' => 'string'], 'level' => ['type' => 'string', 'enum' => ['fonds', 'series', 'file', 'item']],
+            'date_start' => ['type' => ['integer', 'null']], 'date_end' => ['type' => ['integer', 'null']], 'extent' => $string, 'material' => $string,
+            'cover_url' => $string, 'web_url' => $string, 'fields' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
+            'ancestors' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/ArchiveRecord']],
+            'authorities' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer'], 'name' => ['type' => 'string'], 'type' => ['type' => 'string'], 'role' => ['type' => 'string'], 'dates' => $string]]],
+            'documents' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['url' => ['type' => 'string'], 'label' => ['type' => 'string'], 'mime' => ['type' => 'string']]]],
+            'exports' => ['type' => 'object', 'additionalProperties' => ['type' => 'string']]]];
+        foreach (['archives' => 'ArchiveRecord', 'desiderata' => 'WantedBook'] as $name => $schema) {
+            foreach (['', '/{id}', '/health'] as $suffix) {
+                $dataSchema = $suffix === '/health' ? ['$ref' => '#/components/schemas/CollectionHealth'] :
+                    ($suffix === '' ? ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/' . $schema]] : ['$ref' => '#/components/schemas/' . $schema]);
+                $doc['paths']['/' . $name . $suffix]['get']['responses']['200']['content']['application/json']['schema'] =
+                    ['allOf' => [['$ref' => '#/components/schemas/Envelope'], ['type' => 'object', 'properties' => ['data' => $dataSchema]]]];
+            }
+        }
+        return $doc;
+    }
+
     private function build(string $baseUrl, string $version): array
     {
         $envelope = $this->envelopeSchema();
