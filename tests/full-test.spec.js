@@ -99,7 +99,9 @@ let appReady = false;
 
 /** Execute a MySQL query and return trimmed output (shell-safe via execFileSync). */
 function dbQuery(sql) {
-  const args = ['-N', '-B', '-e', sql];
+  // utf8mb4 explicitly: a client whose default charset is latin1 (macOS
+  // Homebrew) turns "Malmö" into "Malm?" and fails the place-of-publication checks.
+  const args = ['--default-character-set=utf8mb4', '-N', '-B', '-e', sql];
   if (DB_HOST)               args.push('-h', DB_HOST);
   if (DB_PORT)               args.push('-P', DB_PORT);
   if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);

@@ -20,6 +20,7 @@ $authPalette = [
     'button_text' => '#ffffff',
     'button_hover' => '#c20258',
     'primary_text' => '#ce015d',
+    'primary_ink' => '#d70161',
     'button_surface' => '#d70262',
 ];
 try {
@@ -42,6 +43,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
             --primary-color: <?= $authColor('primary') ?>;
             --primary-dark: <?= $authColor('primary_dark') ?>;
             --primary-text: <?= $authColor('primary_text') ?>;
+            --primary-ink: <?= $authColor('primary_ink') ?>;
             --button-color: <?= $authColor('button') ?>;
             --button-text-color: <?= $authColor('button_text') ?>;
             --button-hover: <?= $authColor('button_hover') ?>;
@@ -89,7 +91,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
         .auth-btn:hover { background: var(--button-hover); border-color: var(--button-hover); color: var(--button-text-color); }
         .auth-btn:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 2px; }
         .auth-btn:disabled { opacity: .7; cursor: not-allowed; }
-        .auth-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-text, var(--primary-color)); font-weight: 500; text-decoration: none; }
+        .auth-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-ink, var(--primary-text, var(--primary-color))); font-weight: 500; text-decoration: none; }
         .auth-link:hover { color: var(--primary-dark); text-decoration: underline; text-underline-offset: 2px; }
         .auth-link:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 1px; }
         .auth-switch { margin: 16px 0 0; text-align: center; font-size: .875rem; color: var(--text-light); }

@@ -443,13 +443,24 @@ class ThemeManager
 
         $settings = json_decode($theme['settings'], true) ?? [];
         $colors = $settings['colors'] ?? [];
+        if (!is_array($colors)) {
+            $colors = [];
+        }
 
-        // Ensure all required colors exist with fallbacks
+        // Ensure all required colors exist with fallbacks. The save path
+        // validates every value, but the stored JSON can still be hand-edited
+        // or come from an older version: a value that is not a 3- or 6-digit
+        // hex colour would make ThemeColorizer's maths warn on every public
+        // page, so it falls back to the default here.
+        $hex = static fn (mixed $value, string $default): string =>
+            is_string($value) && preg_match('/^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $value) === 1
+                ? ($value[0] === '#' ? $value : '#' . $value)
+                : $default;
         return [
-            'primary' => $colors['primary'] ?? '#d70161',
-            'secondary' => $colors['secondary'] ?? '#111827',
-            'button' => $colors['button'] ?? '#d70262',
-            'button_text' => $colors['button_text'] ?? '#ffffff'
+            'primary' => $hex($colors['primary'] ?? null, '#d70161'),
+            'secondary' => $hex($colors['secondary'] ?? null, '#111827'),
+            'button' => $hex($colors['button'] ?? null, '#d70262'),
+            'button_text' => $hex($colors['button_text'] ?? null, '#ffffff')
         ];
     }
 

@@ -1695,6 +1695,11 @@ class EmerotecaPlugin
             \Psr\Http\Message\ServerRequestInterface $request,
             \Psr\Http\Message\ResponseInterface $response
         ): \Psr\Http\Message\ResponseInterface {
+            // AdminAuthMiddleware also admits staff; the public menu is a
+            // site-wide setting, admin only (as the theme's public style).
+            if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+                return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+            }
             $body = $request->getParsedBody();
             \App\Support\ConfigStore::set('cms.emeroteca_in_menu', is_array($body) && isset($body['in_menu']) ? '1' : '0');
             return $response->withHeader('Location', url('/admin/periodicals'))->withStatus(302);

@@ -492,7 +492,7 @@ if (!$isCatalogueMode && empty($book['is_desiderata'])) {
 // the "search on" links alone stand without it.
 $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 'digital-attachments') || str_contains($pkDigitalButtons, 'plugin-book-actions');
 ?>
-<section class="book-hero pk-bookhero">
+<section class="book-hero pk-bookhero" data-pk-tone-target>
     <div class="pk-wrap">
                     <?php
                     // Multi-publisher (issue #143): link every publisher, fallback to primary.
@@ -534,6 +534,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                             <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($resolvedTipoMedia), ENT_QUOTES, 'UTF-8') ?> mr-1" aria-hidden="true"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
                         </span>
                         <?php if ($heroPublishers !== []): ?>
+                            <span class="book-kicker-separator" aria-hidden="true">·</span>
                             <span class="book-hero-publishers pk-kicker__pub">
                                 <?php foreach ($heroPublishers as $hpI => $hp):
                                     $hpName = html_entity_decode((string) ($hp['nome'] ?? ''), ENT_QUOTES, 'UTF-8');
@@ -1323,6 +1324,19 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
             <?php endforeach; ?>
             <?php unset($pkCardClass, $pkCardMeta); $book = $pkMainBook; ?>
         </div><!-- /.related-books-grid -->
+        <noscript>
+            <style>
+                /* With JS off the inert script can't clip cards, so show them all
+                   stacked — matching what assistive tech can reach. row-gap is
+                   restored here because the base rule sets it to 0 for the
+                   JS-driven single-row layout (F005). */
+                .related-books-grid {
+                    overflow: visible !important;
+                    grid-auto-rows: auto !important;
+                    row-gap: 1.5rem !important;
+                }
+            </style>
+        </noscript>
         </div><!-- /.related-books-wrap -->
     </div>
 </section>

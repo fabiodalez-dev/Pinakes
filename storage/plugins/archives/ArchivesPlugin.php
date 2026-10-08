@@ -651,6 +651,11 @@ class ArchivesPlugin
             ServerRequestInterface $request,
             ResponseInterface $response
         ): ResponseInterface {
+            // AdminAuthMiddleware also admits staff; the public menu is a
+            // site-wide setting, admin only (as the theme's public style).
+            if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+                return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+            }
             $body = $request->getParsedBody();
             \App\Support\ConfigStore::set('cms.archives_in_menu', is_array($body) && isset($body['in_menu']) ? '1' : '0');
             return $response->withHeader('Location', url('/admin/archives'))->withStatus(302);

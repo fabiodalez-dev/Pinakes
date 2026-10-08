@@ -260,6 +260,10 @@ class ThemeColorizer
             'secondary_hover' => $this->darken($secondary, 10),
             'button_hover' => $this->readableSurface($this->darken($buttonSurface, 15), $buttonText),
             'primary_text' => $this->readableOnTint($primary),
+            // The accent as text on the page itself (paper, white cards): the
+            // brand colour untouched whenever it already reads, darkened only
+            // for a light accent.
+            'primary_ink' => $this->readableOnPaper($primary),
             // 2026 design: filled surfaces that carry text, kept at AA with
             // that text (see readableSurface()), and the accent as text on
             // the dark surface.
@@ -322,6 +326,24 @@ class ThemeColorizer
      * (--pk-accent-soft: 9% accent over white). A dark accent comes back
      * unchanged; a light one (orange, teal, coral) gets just deep enough.
      */
+    /**
+     * The accent as text on the page background (--pk-bg, #fbfaf9) and the
+     * white cards: darkened only as far as WCAG AA needs on the page paper,
+     * so the default fuchsia stays the brand colour (4.9:1) while a pale
+     * accent gets deep enough to read.
+     */
+    public function readableOnPaper(string $hex): string
+    {
+        $hex = $this->normalizeHex($hex);
+        for ($percent = 0; $percent <= 60; $percent += 2) {
+            $candidate = $this->darken($hex, $percent);
+            if ($this->getContrastRatio($candidate, '#fbfaf9') >= 4.6) {
+                return $candidate;
+            }
+        }
+        return $this->darken($hex, 60);
+    }
+
     public function readableOnTint(string $hex): string
     {
         $hex = $this->normalizeHex($hex);

@@ -50,7 +50,8 @@ test.describe('Catalogue list view', () => {
     for (const row of rows) {
       // A row, not a card: cover, text, then status and heart further right.
       expect(row.card.h).toBeLessThan(200);
-      expect(row.cover.w).toBeLessThanOrEqual(60);
+      // A thumbnail (the design's 64px column), never the grid's full cover.
+      expect(row.cover.w).toBeLessThanOrEqual(72);
       expect(row.body.l).toBeGreaterThan(row.cover.r);
       expect(row.status.l).toBeGreaterThanOrEqual(row.body.r - 1);
       if (row.heart) expect(row.heart.l).toBeGreaterThanOrEqual(row.status.r - 1);

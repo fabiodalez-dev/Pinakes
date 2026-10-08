@@ -366,9 +366,13 @@ $htmlLang = substr($currentLocale, 0, 2);
             --primary-dark:
                 <?= htmlspecialchars($themePalette['primary_dark'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
             ;
-            /* The accent as text: darkened only as far as AA contrast needs. */
+            /* The accent as text: darkened only as far as AA contrast needs
+               (--primary-text on the soft tint, --primary-ink on the page). */
             --primary-text:
                 <?= htmlspecialchars($themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --primary-ink:
+                <?= htmlspecialchars($themePalette['primary_ink'] ?? $themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
             ;
             /* Filled surfaces kept at AA with their text, and the accent as
                text on the dark surface (ThemeColorizer::readableSurface()). */

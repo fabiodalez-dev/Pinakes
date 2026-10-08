@@ -583,8 +583,11 @@ if (!$displayErrorDetails) {
 
         // Log real errors only. A path that matches no route is what any bot or
         // stale link asks for: a stack trace for each filled the error log of a
-        // public site and buried the errors worth reading.
-        if ($logErrors && !$is404) {
+        // public site and buried the errors worth reading. Only the router's own
+        // "no route" is routine: any other exception carrying code 404 (a client
+        // wrapper, a plugin) is still a failure worth a trace.
+        $routineNotFound = $exception instanceof \Slim\Exception\HttpNotFoundException;
+        if ($logErrors && !$routineNotFound) {
             error_log(sprintf(
                 "[ERROR] %s in %s:%d\nStack trace:\n%s",
                 $exception->getMessage(),
