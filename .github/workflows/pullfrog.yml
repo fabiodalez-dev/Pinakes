@@ -29,6 +29,7 @@ jobs:
   pullfrog:
     name: Pullfrog agent
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # Two bounded attempts plus checkout and cleanup.
     env:
       # Whether a second subscription token is configured. Only the presence is
       # hoisted to job level, not the token: a step-level `if:` cannot read the
@@ -78,6 +79,7 @@ jobs:
         uses: pullfrog/pullfrog@0d318bef8c7cf7ae3f193ef32b2bc74e1d94b4d1 # v0.1.90
         with:
           prompt: ${{ inputs.prompt }}
+          timeout: 20m
           # REVIEW ONLY. `push` defaults to `enabled`, which lets the agent
           # push branches and open pull requests of its own. Every commit and
           # pull request in this repository is authored by its maintainer, so
@@ -141,6 +143,14 @@ jobs:
           # OPENAI_COMPATIBLE_CONTEXT: "128000"
           # OPENAI_COMPATIBLE_MAX_OUTPUT: "16384"
 
+      # The action exposes result, not a structured failure code. One retry is
+      # therefore allowed after ANY failure, not only a 429. Each attempt is
+      # capped at 20m: deterministic errors can spend the fallback quota, and
+      # a late failure after posting can repeat a review. This bounded trade-off
+      # is deliberate; a failed review must never turn into a green no-op.
+      # Env credentials are tried before account credentials in the upstream
+      # utils/credentialPool.ts selectConfiguredCredential workflow loop:
+      # https://github.com/pullfrog/pullfrog/blob/0d318bef8c7cf7ae3f193ef32b2bc74e1d94b4d1/utils/credentialPool.ts#L140-L150
       # A per-account rate limit is not fixed by a second expression, only by a
       # second attempt: the first credential has to be tried and seen to fail.
       # Only the fallback token is passed here. If another provider were
@@ -153,6 +163,7 @@ jobs:
         uses: pullfrog/pullfrog@0d318bef8c7cf7ae3f193ef32b2bc74e1d94b4d1 # v0.1.90
         with:
           prompt: ${{ inputs.prompt }}
+          timeout: 20m
           push: disabled
           shell: restricted
         env:
