@@ -154,10 +154,9 @@ jobs:
       # https://github.com/pullfrog/pullfrog/blob/f0684f2c9286f321085978685f6cbe91d51d4233/utils/credentialPool.ts#L175-L187
       # A per-account rate limit is not fixed by a second expression, only by a
       # second attempt: the first credential has to be tried and seen to fail.
-      # Only the fallback token is passed here. If another provider were
-      # configured and usable, the step above would already have reached it —
-      # Pullfrog walks its credentials in order — so duplicating the whole set
-      # would widen the token surface without changing any outcome.
+      # Preserve the primary step's provider configuration for non-Claude
+      # models and replace only its OAuth token. Keys stay scoped to the two
+      # agent steps, never checkout or final failure reporting.
       - name: Run agent with the fallback subscription token
         id: agent_fallback
         if: steps.agent.outcome == 'failure' && env.HAS_OAUTH_FALLBACK == 'true'
@@ -168,7 +167,20 @@ jobs:
           push: disabled
           shell: restricted
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.PULLFROG_OAUTH_FALLBACK }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY:
+            ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+          META_MODEL_API_KEY: ${{ secrets.META_MODEL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
 
       - name: Fail when no attempt succeeded
         if: steps.agent.outcome == 'failure' && steps.agent_fallback.outcome != 'success'
