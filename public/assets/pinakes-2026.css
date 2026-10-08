@@ -647,25 +647,25 @@ body.pk main :is(.pk-filters, .filters-panel) :is(.search-box, .pk-filter-search
 }
 body.pk :is(.pk-filters, .filters-panel) .search-box:focus-within, body.pk :is(.pk-filters, .filters-panel) .pk-filter-search:focus-within { border-color: var(--pk-accent); }
 
-/* Authors, genres: a list of checkbox rows in a white box. */
-body.pk :is(.pk-filters, .filters-panel) #authors-filter, body.pk :is(.pk-filters, .filters-panel) #genres-filter {
+/* Authors, publishers, genres: a list of checkbox rows in a white box. */
+body.pk :is(.pk-filters, .filters-panel) #authors-filter, body.pk :is(.pk-filters, .filters-panel) #publishers-filter, body.pk :is(.pk-filters, .filters-panel) #genres-filter {
     display: flex; flex-direction: column; max-height: 232px; overflow-y: auto; overscroll-behavior: contain;
     border: 1px solid var(--pk-line); border-radius: 12px; background: var(--pk-surface); padding: 4px; gap: 0;
 }
-body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option {
+body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option, body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option {
     display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--pk-ink);
     background: none; border: 0; text-decoration: none; flex: none; min-height: 0; margin: 0;
 }
-body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option::before, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option::before {
+body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option::before, body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option::before, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option::before {
     content: ''; width: 16px; height: 16px; flex: none; border-radius: 5px; border: 1.5px solid var(--pk-field-line); background: var(--pk-surface); box-sizing: border-box;
 }
-body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option:hover, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option:hover { background: var(--pk-soft-2); }
-body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option.active, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option.active { font-weight: 600; }
-body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option.active::before, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option.active::before {
+body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option:hover, body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option:hover, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option:hover { background: var(--pk-soft-2); }
+body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option.active, body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option.active, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option.active { font-weight: 600; }
+body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option.active::before, body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option.active::before, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option.active::before {
     background: var(--pk-accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 8.5 2.5 2.5L12 5.5'/%3E%3C/svg%3E") center / 12px no-repeat;
     border-color: var(--pk-accent);
 }
-body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option > span:first-child, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option > span:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option > span:first-child, body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option > span:first-child, body.pk :is(.pk-filters, .filters-panel) #genres-filter .filter-option > span:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body.pk :is(.pk-filters, .filters-panel) .count-badge { background: none; color: var(--pk-faint); font-size: 12px; font-variant-numeric: tabular-nums; padding: 0; min-width: 0; border-radius: 0; font-weight: 400; }
 body.pk :is(.pk-filters, .filters-panel) .pk-filter-total { font-size: 12px; color: var(--pk-faint); }
 body.pk :is(.pk-filters, .filters-panel) .filter-back-btn { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; color: var(--pk-accent-text); text-decoration: none; background: none; border: 0; }
@@ -673,15 +673,15 @@ body.pk :is(.pk-filters, .filters-panel) .filter-back-btn { display: flex; align
    the generic filter-option display rules further down this stylesheet. */
 body.pk :is(.pk-filters, .filters-panel) .filter-option.is-filtered-out { display: none !important; }
 
-/* Publishers, media types: chips. */
-body.pk :is(.pk-filters, .filters-panel) #publishers-filter, body.pk :is(.pk-filters, .filters-panel) #media-types-filter { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 6px; max-height: none; border: 0; padding: 0; background: none; }
-body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option, body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option {
+/* Media types: chips. */
+body.pk :is(.pk-filters, .filters-panel) #media-types-filter { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 6px; max-height: none; border: 0; padding: 0; background: none; }
+body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option {
     display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; font-size: 13px; line-height: 1.2;
     background: var(--pk-surface); color: var(--pk-ink); border: 1px solid var(--pk-line-2); text-decoration: none; min-height: 0; margin: 0; width: auto;
 }
-body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option:hover, body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option:hover { border-color: var(--pk-ink); }
-body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option.active, body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option.active { background: var(--pk-ink); color: #fff; border-color: var(--pk-ink); }
-body.pk :is(.pk-filters, .filters-panel) #publishers-filter .count-badge, body.pk :is(.pk-filters, .filters-panel) #media-types-filter .count-badge { color: var(--pk-muted); opacity: 1; }
+body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option:hover { border-color: var(--pk-ink); }
+body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option.active { background: var(--pk-ink); color: #fff; border-color: var(--pk-ink); }
+body.pk :is(.pk-filters, .filters-panel) #media-types-filter .count-badge { color: var(--pk-muted); opacity: 1; }
 
 /* A facet folded to its selection (see applyFacetCollapse()). */
 body.pk :is(.pk-filters, .filters-panel) .facet-is-collapsed { border: 0; background: none; padding: 0; max-height: none; }
@@ -832,7 +832,7 @@ body.pk .pk-card .book-status-badge.status-article::before { display: none; }
 body.pk .pk-card__author a, body.pk .pk-card__meta a { color: inherit; text-decoration: none; position: relative; z-index: 2; }
 body.pk .pk-card__author a:hover, body.pk .pk-card__meta a:hover { color: var(--pk-accent-text); }
 body.pk :is(.pk-filters, .filters-panel) .year-slider { z-index: 2; }
-body.pk :is(.pk-filters, .filters-panel) #publishers-filter .filter-option, body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option { flex: 0 0 auto; justify-content: flex-start; }
+body.pk :is(.pk-filters, .filters-panel) #media-types-filter .filter-option { flex: 0 0 auto; justify-content: flex-start; }
 body.pk .pk-footer__bottom a { display: inline-flex; align-items: center; gap: 5px; }
 
 /* Icons stay (every element of the previous design is kept), set quietly:

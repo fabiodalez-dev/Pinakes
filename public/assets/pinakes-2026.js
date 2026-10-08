@@ -134,7 +134,7 @@
   window.PinakesDesign = { scan: scan };
 })();
 
-/* Catalogue: the author finder filters the author list as you type (also
+/* Catalogue: facet finders filter their lists as you type (also
    after the AJAX refresh re-renders it), and Grid / List switches the view,
    remembered per visitor. */
 (function () {
@@ -146,8 +146,9 @@
     list.querySelectorAll('.filter-option').forEach(function (opt) {
       opt.classList.toggle('is-filtered-out', q !== '' && optionName(opt).toLowerCase().indexOf(q) === -1);
     });
+    if (typeof window.updateFacetOverflowCue === 'function') window.updateFacetOverflowCue(list);
   }
-  // The author's name only: the option also holds its book count
+  // The name only: the option also holds its book count
   // (.count-badge), which must not match a typed number.
   function optionName(opt) {
     if (opt.title) return opt.title;
@@ -208,7 +209,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', restore); else restore();
 })();
 
-/* "N autori" under the author list follows the list the catalogue script
+/* Facet totals follow the lists the catalogue script
    re-renders. */
 (function () {
   'use strict';
@@ -225,8 +226,11 @@
   document.addEventListener('pinakes:catalog-grid-updated', recount);
   if ('MutationObserver' in window) {
     var start = function () {
-      var list = document.getElementById('authors-filter');
-      if (list) new MutationObserver(recount).observe(list, { childList: true });
+      document.querySelectorAll('[data-pk-count-of]').forEach(function (el) {
+        var list = document.getElementById(el.getAttribute('data-pk-count-of'));
+        if (list) new MutationObserver(recount).observe(list, { childList: true });
+      });
+      recount();
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   }

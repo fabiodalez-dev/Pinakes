@@ -268,6 +268,10 @@ ob_start();
                             <i class="fas fa-building"></i>
                             <?= __("Editori") ?>
                         </div>
+                        <div class="pk-filter-search">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+                            <input type="search" data-pk-filter-list="publishers-filter" placeholder="<?= htmlspecialchars(__("Cerca editore..."), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Cerca editore..."), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
                         <div class="filter-options" id="publishers-filter">
                             <?php foreach($filter_options['editori'] as $editore): ?>
                                 <a href="#"
@@ -278,6 +282,7 @@ ob_start();
                                 </a>
                             <?php endforeach; ?>
                         </div>
+                        <div class="pk-filter-total" data-pk-count-of="publishers-filter" data-pk-count-label="<?= htmlspecialchars(__('%d editori'), ENT_QUOTES, 'UTF-8') ?>" data-pk-count-label-one="<?= htmlspecialchars(__('%d editore'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(__n('%d editore', '%d editori', count($filter_options['editori'])), ENT_QUOTES, 'UTF-8') ?></div>
                     </div>
 
                     <!-- Genres -->
@@ -689,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateURL();
     applyYearBounds(null);
 
-    // Apply collapse-on-select to the server-rendered genre list, then render the other facets
+    // Keep the server-rendered genre drill-down open, then render the other facets.
     const genresInit = document.getElementById('genres-filter');
     if (genresInit) {
         applyFacetCollapse(genresInit, 'genere_id', genereSelectedLabel(), genresInit.innerHTML);
@@ -751,12 +756,32 @@ function syncAvailabilityActiveState() {
 }
 
 function clearAllFilters() {
-    // Simply redirect to catalog without any query parameters
-    // This will reload the page and show all filter options
-    window.location.href = CATALOG_ROUTE;
+    clearTimeout(searchTimeout);
+    currentFilters = {};
+    currentGenreName = '';
+    Object.keys(facetExpanded).forEach(key => { facetExpanded[key] = false; });
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) searchInput.value = '';
+    document.querySelectorAll('[data-pk-filter-list]').forEach(input => {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) sortSelect.value = 'newest';
+    applyYearBounds(null);
+    syncAvailabilityActiveState();
+    updateActiveFiltersDisplay();
+    renderFacets();
+    updateURL();
+    loadBooks();
 }
 
 function removeFilter(key) {
+    if (key === 'search') {
+        clearTimeout(searchTimeout);
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = '';
+    }
     delete currentFilters[key];
     if (key === 'genere_id') {
         currentGenreName = '';
@@ -1191,7 +1216,9 @@ function applyFacetCollapse(sectionEl, key, selectedLabel, optionsContent) {
     facetOptionsRender[key] = optionsContent;
 
     const hasSelection = !!currentFilters[key];
-    if (hasSelection && !facetExpanded[key]) {
+    // Genre options are the next level of the hierarchy, not alternatives
+    // to the selected value. Keep them visible so readers can drill down.
+    if (hasSelection && key !== 'genere_id' && !facetExpanded[key]) {
         renderCollapsedPill(sectionEl, key, selectedLabel);
     } else {
         renderFacetOptions(sectionEl, key);
