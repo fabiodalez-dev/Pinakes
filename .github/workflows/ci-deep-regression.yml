@@ -98,7 +98,7 @@ jobs:
           done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
 
       - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml, apcu
@@ -300,7 +300,7 @@ jobs:
           [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
           sudo a2dissite 000-default || true
       - name: Setup PHP and Node
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.2'
           extensions: mysqli, mbstring, curl, zip, gd, intl, xml
