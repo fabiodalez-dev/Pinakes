@@ -156,8 +156,8 @@ verify_package_contents() {
     )
 
     for dir in "${forbidden_root_dirs[@]}"; do
-        if [ -d "${package_dir}/${dir}" ]; then
-            log_error "Package contains forbidden root directory: $dir/"
+        if [ -e "${package_dir}/${dir}" ] || [ -L "${package_dir}/${dir}" ]; then
+            log_error "Package contains forbidden root path: $dir"
             has_errors=true
         fi
     done
