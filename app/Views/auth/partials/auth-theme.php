@@ -86,7 +86,7 @@ $authColor = static fn (string $key): string => htmlspecialchars((string) $authP
         .auth-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px 16px; }
         @media (min-width: 640px) { .auth-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         .auth-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; box-sizing: border-box; font: inherit; font-size: 1rem; font-weight: 600; text-decoration: none; cursor: pointer; color: var(--button-text-color); background: var(--button-surface); border: 1px solid var(--button-surface); border-radius: 12px; box-shadow: none; padding-top: 13px; padding-bottom: 13px; }
-        .auth-btn:hover { background: color-mix(in srgb, var(--button-surface) 85%, #000); border-color: color-mix(in srgb, var(--button-surface) 85%, #000); color: var(--button-text-color); }
+        .auth-btn:hover { background: var(--button-hover); border-color: var(--button-hover); color: var(--button-text-color); }
         .auth-btn:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 2px; }
         .auth-btn:disabled { opacity: .7; cursor: not-allowed; }
         .auth-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--primary-text, var(--primary-color)); font-weight: 500; text-decoration: none; }

@@ -30,7 +30,7 @@
     --pk-dark: var(--secondary-surface, var(--secondary-color, #1b1720));
     --pk-button: var(--button-surface, var(--button-color, var(--pk-accent)));
     --pk-button-text: var(--button-text-color, #fff);
-    --pk-button-hover: color-mix(in srgb, var(--pk-button) 85%, #000);
+    --pk-button-hover: var(--button-hover, var(--pk-button));
     --pk-dark-hover: color-mix(in srgb, var(--pk-dark) 85%, #000);
 
     --pk-ink: #1b1720;

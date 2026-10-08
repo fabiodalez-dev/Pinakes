@@ -20,7 +20,7 @@ const e2e = (key) => {
 function db(sql) {
   // TCP when a host is set (CI), the socket otherwise (local dev); the
   // password goes through MYSQL_PWD, never argv.
-  const args = ['-u', e2e('E2E_DB_USER'), e2e('E2E_DB_NAME'), '-N', '-B', '-e', sql];
+  const args = ['-u', e2e('E2E_DB_USER'), e2e('E2E_DB_NAME'), '-N', '-B', '--raw', '-e', sql];
   if (e2e('E2E_DB_HOST')) {
     args.splice(2, 0, '-h', e2e('E2E_DB_HOST'));
     if (e2e('E2E_DB_PORT')) args.splice(4, 0, '-P', e2e('E2E_DB_PORT'));
@@ -42,23 +42,24 @@ let original = null;
 let hasWanted = false;
 let lent = null;
 let pick = { id: 0, title: '' };
+const sqlValue = value => value === null ? 'NULL' : "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
 
 test.describe.serial('Home hero covers (2026)', () => {
   test.beforeAll(() => {
     if (!process.env.E2E_DB_USER) throw new Error('Run with /tmp/run-e2e.sh');
-    original = db("SELECT COALESCE(content, '') FROM home_content WHERE section_key='hero'");
+    original = JSON.parse(db("SELECT JSON_ARRAY(content, updated_at) FROM home_content WHERE section_key='hero'"));
     // is_desiderata belongs to the desiderata plugin: filter on it only where
     // the plugin has added it (a fresh CI install may not have it).
     hasWanted = db("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'is_desiderata'") === '1';
     const notWanted = hasWanted ? ' AND COALESCE(is_desiderata,0)=0' : '';
-    let found = db(`SELECT id, titolo FROM libri WHERE deleted_at IS NULL${notWanted} AND copertina_url <> '' AND copertina_url NOT LIKE '%placeholder%' ORDER BY id LIMIT 1`);
+    let found = db(`SELECT id, titolo FROM libri WHERE deleted_at IS NULL${notWanted} AND COALESCE(search_index, '') <> '' AND copertina_url <> '' AND copertina_url NOT LIKE '%placeholder%' ORDER BY id LIMIT 1`);
     if (found === '') {
       // The hero shows covered books only. A catalogue seeded without covers
       // (CI) lends one book a cover for the run; afterAll gives it back.
       // A book the picker can find: its search runs on search_index, which
       // rows written straight into the table do not have.
-      const plain = db(`SELECT id, COALESCE(copertina_url, '') FROM libri WHERE deleted_at IS NULL${notWanted} AND COALESCE(search_index, '') <> '' ORDER BY id LIMIT 1`).split('\t');
-      lent = { id: Number(plain[0]), cover: plain[1] || '' };
+      const plain = JSON.parse(db(`SELECT JSON_ARRAY(id, copertina_url, updated_at) FROM libri WHERE deleted_at IS NULL${notWanted} AND COALESCE(search_index, '') <> '' ORDER BY id LIMIT 1`));
+      lent = { id: Number(plain[0]), cover: plain[1], updatedAt: plain[2] };
       db(`UPDATE libri SET copertina_url='/assets/brand/logo_small.png' WHERE id=${lent.id}`);
       found = db(`SELECT id, titolo FROM libri WHERE id=${lent.id}`);
     }
@@ -69,12 +70,10 @@ test.describe.serial('Home hero covers (2026)', () => {
 
   test.afterAll(() => {
     if (lent && lent.id > 0) {
-      const cover = lent.cover === '' ? 'NULL' : "'" + lent.cover.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
-      db(`UPDATE libri SET copertina_url=${cover} WHERE id=${lent.id}`);
+      db(`UPDATE libri SET copertina_url=${sqlValue(lent.cover)}, updated_at=${sqlValue(lent.updatedAt)} WHERE id=${lent.id}`);
     }
     if (original !== null) {
-      const value = original === '' ? 'NULL' : "'" + original.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
-      db(`UPDATE home_content SET content=${value} WHERE section_key='hero'`);
+      db(`UPDATE home_content SET content=${sqlValue(original[0])}, updated_at=${sqlValue(original[1])} WHERE section_key='hero'`);
     }
   });
 
@@ -131,5 +130,24 @@ test.describe.serial('Home hero covers (2026)', () => {
     } finally {
       await visitor.context().close();
     }
+  });
+
+  test('4 Malformed cover ids cannot silently select book 1', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/cms/home`);
+    await page.locator('input[name="hero[cover_mode]"][value="selected"]').check();
+    await page.locator('#hero-cover-selected .hero-cover-remove').evaluateAll(btns => btns.forEach(b => b.click()));
+    await page.locator('form[action$="/admin/cms/home"]').evaluate((form, id) => {
+      const values = [['hero[cover_books][0][0]', '7'], ['hero[cover_books][1]', 'invalid'],
+        ['hero[cover_books][2]', '-3'], ['hero[cover_books][3]', '2147483648'],
+        ['hero[cover_books][4]', String(id)], ['hero[cover_books][5]', String(id)]];
+      values.forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden'; input.name = name; input.value = value; form.append(input);
+      });
+    }, pick.id);
+    await page.locator('form[action$="/admin/cms/home"] button[type=submit]').last().click();
+    await page.waitForLoadState('networkidle');
+    expect(JSON.parse(db("SELECT content FROM home_content WHERE section_key='hero'")).cover_books).toEqual([pick.id]);
   });
 });

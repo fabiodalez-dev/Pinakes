@@ -244,6 +244,7 @@ class ThemeColorizer
         $secondary = $colors['secondary'] ?? '#111827';
         $button = $colors['button'] ?? '#d70262';
         $buttonText = $colors['button_text'] ?? '#ffffff';
+        $buttonSurface = $this->readableSurface($button, $buttonText);
 
         return [
             // Base colors
@@ -257,12 +258,12 @@ class ThemeColorizer
             'primary_focus' => $this->darken($primary, 15),
             'primary_dark' => $this->darken($primary, 15),
             'secondary_hover' => $this->darken($secondary, 10),
-            'button_hover' => $this->darken($button, 10),
+            'button_hover' => $this->readableSurface($this->darken($buttonSurface, 15), $buttonText),
             'primary_text' => $this->readableOnTint($primary),
             // 2026 design: filled surfaces that carry text, kept at AA with
             // that text (see readableSurface()), and the accent as text on
             // the dark surface.
-            'button_surface' => $this->readableSurface($button, $buttonText),
+            'button_surface' => $buttonSurface,
             'secondary_surface' => $this->readableSurface($secondary, '#ffffff'),
             'primary_on_dark' => $this->readableOnDark($primary, $this->readableSurface($secondary, '#ffffff')),
         ];
@@ -278,14 +279,23 @@ class ThemeColorizer
     {
         $surface = $this->normalizeHex($surface);
         $text = $this->normalizeHex($text);
-        $textIsLight = $this->getLuminance($text) > 0.5;
-        for ($percent = 0; $percent <= 80; $percent += 2) {
-            $candidate = $textIsLight ? $this->darken($surface, $percent) : $this->lighten($surface, $percent);
-            if ($this->getContrastRatio($text, $candidate) >= 4.6) {
-                return $candidate;
+        $dark = $this->darken($surface, 100);
+        $light = $this->lighten($surface, 100);
+        $preferDark = $this->getContrastRatio($text, $dark) >= $this->getContrastRatio($text, $light);
+        for ($percent = 0; $percent <= 100; $percent += 2) {
+            $candidates = [$this->darken($surface, $percent), $this->lighten($surface, $percent)];
+            if (!$preferDark) {
+                $candidates = array_reverse($candidates);
+            }
+            foreach ($candidates as $candidate) {
+                if ($this->getContrastRatio($text, $candidate) >= 4.6) {
+                    return $candidate;
+                }
             }
         }
-        return $textIsLight ? '#1b1720' : '#ffffff';
+        // Some intermediate text colours cannot reach the 4.6 safety margin.
+        // The better extreme still guarantees WCAG AA (at least sqrt(21):1).
+        return $preferDark ? $dark : $light;
     }
 
     /**

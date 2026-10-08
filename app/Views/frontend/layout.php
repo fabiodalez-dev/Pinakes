@@ -1776,11 +1776,11 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="pk-footer__cols">
                 <div class="pk-footer__brand">
                     <?php if ($appLogo !== ''): ?>
-                        <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
+                        <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>" class="footer-logo">
                     <?php else: ?>
-                        <h5><i class="fas fa-book-open mr-2" aria-hidden="true"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <h5><i class="fas fa-book-open mr-2" aria-hidden="true"></i><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h5>
                     <?php endif; ?>
-                    <p><?= HtmlHelper::e($footerDescription) ?></p>
+                    <p><?= htmlspecialchars($footerDescription, ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <div class="pk-footer__col">
                     <h5><?= __("Menu") ?></h5>
@@ -1815,7 +1815,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
             <div class="pk-footer__bottom">
                 <span><?= date('Y') ?> · <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> · <?= __('Powered by') ?> <a href="<?= htmlspecialchars('https://github.com/fabiodalez-dev/Pinakes', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="Pinakes GitHub"><i class="fa-brands fa-github" aria-hidden="true"></i> Pinakes v<?= htmlspecialchars((string) $appVersion, ENT_QUOTES, 'UTF-8') ?></a></span>
-                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" class="pk-footer__rss" title="<?= HtmlHelper::e(__('Feed RSS')) ?>" aria-label="<?= HtmlHelper::e(__('Feed RSS')) ?>"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg> <?= HtmlHelper::e(__('Feed RSS')) ?></a>
+                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" class="pk-footer__rss" title="<?= htmlspecialchars(__('Feed RSS'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Feed RSS'), ENT_QUOTES, 'UTF-8') ?>"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg> <?= htmlspecialchars(__('Feed RSS'), ENT_QUOTES, 'UTF-8') ?></a>
             </div>
         </div>
     </footer>

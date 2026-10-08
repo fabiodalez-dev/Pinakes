@@ -341,8 +341,11 @@ class CmsController
                 if (isset($heroData['cover_mode'])) {
                     $coverIds = [];
                     foreach ((array) ($heroData['cover_books'] ?? []) as $coverId) {
-                        $coverId = (int) $coverId;
-                        if ($coverId > 0 && !in_array($coverId, $coverIds, true) && count($coverIds) < 4) {
+                        if (!is_int($coverId) && !is_string($coverId)) {
+                            continue;
+                        }
+                        $coverId = filter_var($coverId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 2147483647]]);
+                        if ($coverId !== false && !in_array($coverId, $coverIds, true) && count($coverIds) < 4) {
                             $coverIds[] = $coverId;
                         }
                     }
