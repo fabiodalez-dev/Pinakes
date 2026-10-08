@@ -165,6 +165,22 @@
     document.querySelectorAll('[data-pk-filter-list]').forEach(applyFilter);
   });
 
+  // Facets are rebuilt after the grid-updated event, and also when "Cambia"
+  // reopens a selected facet. Keep the finder applied to the new options in
+  // both cases. Only observe children: changing their classes cannot loop.
+  if ('MutationObserver' in window) {
+    var observeFilterLists = function () {
+      document.querySelectorAll('[data-pk-filter-list]').forEach(function (input) {
+        var list = document.getElementById(input.getAttribute('data-pk-filter-list'));
+        if (!list) return;
+        new MutationObserver(function () { applyFilter(input); }).observe(list, { childList: true });
+        applyFilter(input);
+      });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', observeFilterLists);
+    else observeFilterLists();
+  }
+
   var KEY = 'pinakes-catalog-view';
   function setView(view) {
     var grid = document.getElementById('books-grid');

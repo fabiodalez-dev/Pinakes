@@ -290,7 +290,10 @@ body.pk-cards-tinted :is(.pk-card__panel, .book-card .book-image-container) { --
 .pk-book__blank-foot { display: flex; flex-direction: column; gap: 6px; }
 .pk-book__rule { width: 22px; height: 2px; background: var(--pk-accent); }
 .pk-book__brand { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
-.pk-book__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Keep all artwork visible in the shared frame, including tall covers and
+   square album art. An opaque background keeps the blank-book title hidden
+   in the space beside a fitted image. */
+.pk-book__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--pk-cover-blank); display: block; }
 .pk-book__img.is-missing { display: none; }
 .pk-book__spine {
     position: absolute; inset: 0 auto 0 0; width: 14px; pointer-events: none;
@@ -666,7 +669,9 @@ body.pk :is(.pk-filters, .filters-panel) #authors-filter .filter-option > span:f
 body.pk :is(.pk-filters, .filters-panel) .count-badge { background: none; color: var(--pk-faint); font-size: 12px; font-variant-numeric: tabular-nums; padding: 0; min-width: 0; border-radius: 0; font-weight: 400; }
 body.pk :is(.pk-filters, .filters-panel) .pk-filter-total { font-size: 12px; color: var(--pk-faint); }
 body.pk :is(.pk-filters, .filters-panel) .filter-back-btn { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; color: var(--pk-accent-text); text-decoration: none; background: none; border: 0; }
-body.pk :is(.pk-filters, .filters-panel) .filter-option.is-filtered-out { display: none; }
+/* Hiding a non-match must win over the facet's ID-specific row styles and
+   the generic filter-option display rules further down this stylesheet. */
+body.pk :is(.pk-filters, .filters-panel) .filter-option.is-filtered-out { display: none !important; }
 
 /* Publishers, media types: chips. */
 body.pk :is(.pk-filters, .filters-panel) #publishers-filter, body.pk :is(.pk-filters, .filters-panel) #media-types-filter { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 6px; max-height: none; border: 0; padding: 0; background: none; }
@@ -873,7 +878,7 @@ body.pk .pk-bookhero__cover { flex: 0 1 340px; min-width: 240px; margin: 0 auto;
 .pk-bigcover .pk-book__blank { padding: 28px; }
 .pk-bigcover .pk-book__blank-title { font-size: 28px; line-height: 1.1; -webkit-line-clamp: 8; }
 .pk-bigcover .pk-book__rule { width: 32px; }
-body.pk .pk-bigcover img.book-cover-large { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; border-radius: 0; box-shadow: none; margin: 0; transform: none; }
+body.pk .pk-bigcover img.book-cover-large { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; border-radius: 0; box-shadow: none; margin: 0; transform: none; }
 body.pk .pk-bigcover img.book-cover-large.is-missing { display: none; }
 .pk-bigcover .pk-book__spine { width: 10px; background: linear-gradient(90deg, rgba(0,0,0,.2), rgba(255,255,255,.22), rgba(0,0,0,0)); }
 body.pk .pk-bookhero__info { flex: 1 1 460px; min-width: 0; padding: 0; }
@@ -1112,7 +1117,7 @@ body.pk .book-card:not(.pk-card, :has(> .book-card-icon)):hover .book-image-cont
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-container::after { display: none; }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-container > a { display: block; }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image {
-    display: block; width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 2px 5px 5px 2px; background: var(--pk-cover-blank);
+    display: block; width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: contain; border-radius: 2px 5px 5px 2px; background: var(--pk-cover-blank);
     box-shadow: 0 1px 1px rgba(0,0,0,.12), 0 6px 10px -4px rgba(50,15,35,.25), 0 24px 32px -16px rgba(50,15,35,.5); transform: none;
 }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-icon { border-radius: 2px 5px 5px 2px; }
@@ -1351,7 +1356,7 @@ body.pk .carousel-book-card { overflow: visible; background: transparent; border
 body.pk .carousel-book-card:hover { transform: none; box-shadow: none; }
 body.pk .carousel-book-cover {
     border-radius: 2px 5px 5px 2px; box-shadow: 0 1px 1px rgba(0,0,0,.12), 0 6px 10px -4px rgba(50,15,35,.25), 0 24px 32px -16px rgba(50,15,35,.5);
-    background: var(--pk-cover-blank); aspect-ratio: 2 / 3; object-fit: cover; transition: transform .3s var(--pk-ease);
+    background: var(--pk-cover-blank); aspect-ratio: 2 / 3; object-fit: contain; transition: transform .3s var(--pk-ease);
 }
 body.pk .carousel-book-card:hover .carousel-book-cover { transform: translateY(-4px); }
 body.pk .carousel-book-info { padding: 14px 2px 0; }
