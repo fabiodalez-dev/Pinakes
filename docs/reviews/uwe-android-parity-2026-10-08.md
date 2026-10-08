@@ -20,7 +20,7 @@ I filtri di disponibilità si applicano ai libri con copie. La ricerca per gener
 
 ## Verifica e limiti concreti
 
-- 49 controlli d’integrazione su DB: offerte, UUID, recupero solo del proprio esito, consenso, account verificato, copie non inventate, allegati multipli, autore rinominato/ETag, genere a 12 livelli, articoli/antologie/filtri/privacy, documenti archivistici, ricerca browser mista e reset, gate app/plugin.
+- 50 controlli d’integrazione su DB: offerte, UUID, recupero solo del proprio esito, consenso, account verificato, copie non inventate, allegati multipli, autore rinominato/ETag, genere a 12 livelli, articoli/antologie/filtri/privacy, documenti archivistici, ricerca browser mista e reset, gate app/plugin.
 - 9 contratti HTTP: manifest OpenAPI completo e nuove route protette, letture ripetibili; invio senza consenso respinto.
 - 36 test browser sulle richieste #412/#453–455/#461; 15 suite PHP bibliografiche/archivistiche; PHPStan livello 5 senza errori.
 - Android: 184 unit test, 19 test Compose su Android 15, zero errori Lint; build debug e release R8 riuscite. Test senza donazioni o modifiche al catalogo Bibliodoc di produzione.

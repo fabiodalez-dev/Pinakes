@@ -703,8 +703,11 @@ final class MobileModule
                     if (!is_string($issue) || !ctype_digit($issue) || (int) $issue <= 0 || strlen($issue) > 10) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
                     $where .= ' AND c.fascicolo_id = ?'; $params[] = (int) $issue;
                 }
-                if (isset($q['language']) && is_string($q['language']) && $q['language'] !== '') {
-                    $where .= ' AND c.lingua = ?'; $params[] = $q['language'];
+                if (isset($q['language']) && $q['language'] !== '') {
+                    if (!is_string($q['language']) || mb_strlen($q['language']) > 100) { return \App\Plugins\MobileApi\Support\ResponseEnvelope::error($response, 'validation', __('Filtri non validi.'), 422); }
+                    $languageAliases = $this->articleLanguageAliases($q['language']);
+                    $where .= ' AND LOWER(TRIM(c.lingua)) IN (' . implode(',', array_fill(0, count($languageAliases), '?')) . ')';
+                    array_push($params, ...$languageAliases);
                 }
                 if (isset($q['author_id'])) {
                     $authorId = $q['author_id'];
@@ -787,6 +790,24 @@ final class MobileModule
         $data['genre_path'] = $this->contributionGenreTrail((int) ($row['genere_id'] ?? 0));
         $data['marcxml_url'] = absoluteUrl('/emeroteca/articolo/' . (int) $row['id'] . '/marc.xml');
         return $data;
+    }
+
+    /** Book facets contain real free-text values; analytic records store ISO language codes. */
+    private function articleLanguageAliases(string $value): array
+    {
+        require_once __DIR__ . '/../Support/CodeLists.php';
+        $raw = mb_strtolower(trim($value));
+        $codes = [$raw, \App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($raw)];
+        foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
+            foreach (\App\Plugins\Emeroteca\Support\CodeLists::languages($locale) as $code => $name) {
+                if (mb_strtolower($name) === $raw) { $codes[] = $code; }
+            }
+        }
+        $terminology = array_values(array_unique(array_map(\App\Plugins\Emeroteca\Support\CodeLists::terminologyCode(...), $codes)));
+        foreach (\App\Plugins\Emeroteca\Support\ArticleMarcXml::LANGUAGE_639_1 as $two => $bibliographic) {
+            if (in_array(\App\Plugins\Emeroteca\Support\CodeLists::terminologyCode($two), $terminology, true)) { array_push($codes, $two, $bibliographic); }
+        }
+        return array_values(array_unique([...$codes, ...$terminology]));
     }
 
     private ?array $genreRows = null;

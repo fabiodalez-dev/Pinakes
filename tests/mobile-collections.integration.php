@@ -132,6 +132,8 @@ try {
     $check(str_contains($staffArticle['data']['manage_url'], '/admin/periodicals/articles/' . $articleId), 'staff can reach the existing protected article management page');
     $matched = $payload($module->articles($request('GET', query: ['q' => $prefix, 'author_id' => (string) $authorId, 'genre' => (string) $genreIds[0], 'language' => 'dan']), new Slim\Psr7\Response()));
     $check(array_column($matched['data'], 'id') === [$articleId], 'combined native article filters match shared authors and deeply nested genres');
+    $localizedLanguage = $payload($module->articles($request('GET', query: ['q' => $prefix, 'language' => 'Dansk']), new Slim\Psr7\Response()));
+    $check(array_column($localizedLanguage['data'], 'id') === [$articleId], 'real Danish book-language facets also find analytic records stored as dan');
     $noMatch = $payload($module->articles($request('GET', query: ['q' => $prefix, 'language' => 'deu']), new Slim\Psr7\Response()));
     $check($noMatch['data'] === [], 'article language facet does not silently return unfiltered records');
     $db->query('UPDATE emeroteca_contributi SET pubblico = 0 WHERE id = ' . $articleId);
