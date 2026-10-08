@@ -831,15 +831,19 @@ body.pk .is-list .pk-card .book-media-badge.pk-card__media::after { content: att
 body.pk .is-list .pk-card .pk-heart { grid-area: heart; position: relative; top: auto; right: auto; width: 38px; height: 38px; box-shadow: none; background: transparent; border: 1px solid var(--pk-line); }
 body.pk .is-list .pk-card .pk-heart:hover { border-color: var(--pk-accent); }
 @media (max-width: 640px) {
+    /* A phone row: the cover a little wider, the status as an eyebrow above
+       the title, the heart beside both; a media type, if any, on its own row. */
     body.pk .is-list .book-card.pk-card {
-        grid-template-columns: 44px minmax(0, 1fr) auto; column-gap: 12px; padding: 12px;
-        grid-template-areas: "cover body heart" "cover status status" "cover media media";
+        grid-template-columns: 56px minmax(0, 1fr) auto; column-gap: 14px; row-gap: 4px; padding: 12px;
+        grid-template-areas: "cover status heart" "cover body heart" "cover media media";
     }
-    body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) { grid-template-areas: "cover body heart" "cover status status"; }
-    body.pk .is-list .pk-card .pk-book { width: 44px; align-self: start; }
-    body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 16px; -webkit-line-clamp: 2; }
+    body.pk .is-list .book-card.pk-card:not(:has(.pk-card__media)) { grid-template-areas: "cover status heart" "cover body heart"; }
+    body.pk .is-list .pk-card .pk-book { width: 56px; align-self: start; }
+    body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 17px; -webkit-line-clamp: 2; }
     body.pk .is-list .pk-card .book-status-badge.pk-card__status,
     body.pk .is-list .pk-card .book-media-badge.pk-card__media { justify-self: start; justify-content: flex-start; }
+    body.pk .is-list .pk-card .book-status-badge.pk-card__status { align-self: start; font-size: 12px; margin-top: 2px; }
+    body.pk .is-list .pk-card .book-media-badge.pk-card__media { margin-top: 4px; }
     body.pk .is-list .pk-card .pk-heart { align-self: start; }
     /* Too narrow for "author · publisher": one line each, no dot. */
     body.pk .is-list .pk-card .book-content.pk-card__body > .pk-card__author,
@@ -957,6 +961,13 @@ body.pk .pk-availbox #btn-request-loan.btn-primary, body.pk .pk-availbox #btn-re
 body.pk .pk-availbox #btn-request-loan.btn-primary:hover { background: var(--pk-button-hover); border-color: var(--pk-button-hover); }
 body.pk .pk-availbox #btn-request-loan.btn-outline-primary { background: var(--pk-surface); color: var(--pk-ink); border-color: var(--pk-line-2); }
 body.pk .pk-availbox #btn-request-loan:disabled { opacity: .55; cursor: not-allowed; }
+/* Phones: the loan and favourites buttons stack at the box's full width, so
+   two labels of different length no longer sit centred at different widths. */
+@media (max-width: 640px) {
+    body.pk .pk-availbox { gap: 16px; }
+    body.pk .pk-availbox .action-buttons { flex-direction: column; width: 100%; }
+    body.pk .pk-availbox .action-buttons .ui-button { width: 100%; justify-content: center; }
+}
 body.pk .pk-availbox .btn-fav-custom, body.pk .pk-availbox .action-buttons .btn-secondary {
     background: var(--pk-surface); color: var(--pk-ink); border: 1px solid var(--pk-line-2); font-weight: 500; padding: 13px 18px;
 }
