@@ -954,6 +954,10 @@ body.pk .pk-digital .plugin-source-search { order: 10; display: flex; align-item
 body.pk .pk-digital .plugin-source-search__heading { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; font-size: 13px; color: var(--pk-muted); }
 body.pk .pk-digital .plugin-source-search__heading i { font-size: 11px; color: var(--pk-faint); }
 body.pk .pk-digital .plugin-source-search__links { display: contents; }
+/* On a phone the label takes its own line and the chips follow below it. */
+@media (max-width: 640px) {
+    body.pk .pk-digital .plugin-source-search__heading { flex-basis: 100%; }
+}
 body.pk .pk-digital .plugin-source-link.ui-button {
     display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; min-height: 0; width: auto; border-radius: 999px; margin: 0;
     background: transparent; color: var(--pk-ink); border: 1px solid var(--pk-line-2); font: 400 13px/1.3 var(--pk-sans); box-shadow: none; text-transform: none; letter-spacing: normal;
@@ -969,6 +973,9 @@ body.pk .pk-bookhero .alert { border-radius: 14px; }
 .pk-bookbody__grid { display: flex; flex-wrap: wrap; gap: 48px 64px; align-items: flex-start; }
 .pk-bookbody__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 48px; }
 .pk-bookbody__aside { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+/* Details and keywords run under the description and the sidebar, across the
+   whole width, so a label and its value stay on one line. */
+.pk-bookbody__full { display: flex; flex-direction: column; gap: 48px; margin-top: 48px; }
 body.pk .pk-bookbody .book-description-section, body.pk .pk-bookbody .book-details-section, body.pk .pk-bookbody .book-reviews-section {
     background: none; border: 0; box-shadow: none; padding: 0; margin: 0; border-radius: 0; display: flex; flex-direction: column; gap: 16px;
 }
@@ -976,7 +983,7 @@ body.pk .pk-bookbody .section-title { margin: 0; padding: 0; border: 0; font-fam
 body.pk .pk-bookbody .section-title i { font-size: 18px; color: var(--pk-faint); }
 body.pk .pk-bookbody .section-title::after { display: none; }
 body.pk .pk-bookbody .description-content, body.pk .pk-bookbody .description-content .prose { font-size: 17px; line-height: 1.7; color: var(--pk-ink-3); max-width: 720px; }
-body.pk .pk-bookbody .details-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 32px; }
+body.pk .pk-bookbody .details-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 0 32px; }
 body.pk .pk-bookbody .details-column { display: contents; }
 body.pk .pk-bookbody .book-details-section .meta-item {
     display: flex; justify-content: space-between; gap: 12px; padding: 14px 0; border: 0; border-bottom: 1px solid var(--pk-line); margin: 0; font-size: 15px; background: none;

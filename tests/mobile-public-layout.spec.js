@@ -118,6 +118,34 @@ test.describe('Form fields follow the theme', () => {
   });
 });
 
+test.describe('Book page details', () => {
+  // Details and keywords sit under the description and the sidebar, across the
+  // whole width: on a desktop no label or value of a detail wraps.
+  test('details run across the whole width and stay on one line', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    // The catalogue's latest book with an ISBN-13, the detail every record has.
+    await page.goto(BASE + '/catalogo?search=978', { waitUntil: 'networkidle' });
+    const href = await page.locator('main a[href]').evaluateAll(as => (as.map(a => a.getAttribute('href')).find(h => /^\/[^/]+\/[^/]+\/\d+$/.test(h || '')) || ''));
+    test.skip(href === '', 'no book in the catalogue');
+    await page.goto(new URL(href, BASE).href, { waitUntil: 'networkidle' });
+    const r = await page.evaluate(() => {
+      const details = document.querySelector('#book-details-section');
+      if (!details) return null;
+      const wrap = details.closest('.pk-wrap').getBoundingClientRect();
+      const lh = el => parseFloat(getComputedStyle(el).lineHeight) || 22;
+      return {
+        inMainColumn: !!details.closest('.pk-bookbody__main'),
+        fullWidth: Math.abs(details.getBoundingClientRect().width - (wrap.width - parseFloat(getComputedStyle(details.closest('.pk-wrap')).paddingLeft) * 2)) < 2,
+        wrapped: [...details.querySelectorAll('.meta-item:not(.meta-item--genre)')].filter(m => [...m.children].some(c => c.getBoundingClientRect().height > lh(c) * 1.5)).map(m => m.innerText.replace(/\s+/g, ' ')),
+      };
+    });
+    test.skip(r === null, 'the book has no details');
+    expect(r.inMainColumn).toBe(false);
+    expect(r.fullWidth).toBe(true);
+    expect(r.wrapped).toEqual([]);
+  });
+});
+
 test.describe('Search boxes draw one border', () => {
   // The box carries the rule and the fill; the input inside it draws neither,
   // or the page shows a field inside a field.
