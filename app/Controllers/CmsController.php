@@ -138,7 +138,7 @@ class CmsController
 
         // Carica tutti i contenuti della home (inclusi campi SEO completi)
         $stmt = $db->prepare("
-            SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image,
+            SELECT id, section_key, title, subtitle, content, button_text, button_link,
                    seo_title, seo_description, seo_keywords, og_image,
                    og_title, og_description, og_type, og_url,
                    twitter_card, twitter_title, twitter_description, twitter_image,
@@ -261,10 +261,9 @@ class CmsController
             }
             $heroData['button_link'] = $buttonLink;
 
-            // The hero background photo is retired with the 2026 design (the
-            // hero shows a fan of covers instead): the form no longer offers
-            // an upload, so nothing here accepts or writes one. A photo stored
-            // by an older version stays in `background_image`, unused.
+            // The hero shows a fan of covers (2026 design): there is no
+            // background photo setting any more. The legacy `background_image`
+            // column is neither read nor written.
 
             if (empty($errors)) {
                 // UPSERT: Insert if not exists, update if exists

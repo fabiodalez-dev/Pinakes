@@ -2768,7 +2768,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // Carica i contenuti CMS della home (inclusi campi SEO completi)
         $homeContent = [];
         $sectionsOrdered = [];
-        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
+        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link,
                               seo_title, seo_description, seo_keywords, og_image,
                               og_title, og_description, og_type, og_url,
                               twitter_card, twitter_title, twitter_description, twitter_image,
