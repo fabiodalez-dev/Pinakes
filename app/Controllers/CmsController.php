@@ -77,6 +77,8 @@ class CmsController
         $title = $page['title'];
         $content = ContentSanitizer::normalizeExternalAssets($page['content'] ?? '');
         $image = $page['image'];
+        // An image uploaded by an older version may sit outside the web root.
+        \App\Support\CmsImageStorage::ensurePublic(is_string($image) ? $image : null);
         $seoDescription = $page['meta_description'] ?? '';
 
         ob_start();

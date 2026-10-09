@@ -30,7 +30,7 @@ include __DIR__ . '/partials/catalog-hero.php';
 <section class="static-page">
     <div class="container">
         <?php if (!empty($image)): ?>
-            <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
+            <img src="<?= htmlspecialchars(url((string) $image), ENT_QUOTES, 'UTF-8') ?>"
                  alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
                  class="static-image">
         <?php endif; ?>

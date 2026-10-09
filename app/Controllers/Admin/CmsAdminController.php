@@ -101,6 +101,9 @@ class CmsAdminController
             }
         }
 
+        // An image uploaded by an older version may sit outside the web root.
+        \App\Support\CmsImageStorage::ensurePublic($page['image'] ?? null);
+
         // Passa i dati alla view
         $pageData = $page;
         $title = sprintf(__('Modifica %s'), $page['title']);
@@ -201,20 +204,22 @@ class CmsAdminController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // SECURITY: Store uploads outside web directory to prevent direct access
-        $baseDir = realpath(__DIR__ . '/../../../storage/uploads');
-        if ($baseDir === false) {
-            error_log("Upload base directory not found");
+        // The image is shown on a public page, so it is stored where its URL
+        // (/uploads/cms/<file>) is served from: public/uploads/cms. It used to
+        // be written to storage/uploads/cms, outside the web root, while the
+        // same /uploads/cms URL was saved: every CMS image answered 404.
+        $uploadPath = \App\Support\CmsImageStorage::publicDir();
+        if (!is_dir($uploadPath) && !@mkdir($uploadPath, 0755, true) && !is_dir($uploadPath)) {
+            \App\Support\SecureLogger::error('[CMS] upload directory cannot be created: ' . $uploadPath);
             $payload = json_encode(['error' => __('Errore di configurazione del server.')] );
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
-
-        $uploadPath = $baseDir . '/cms';
-
-        // Crea directory se non esiste
-        if (!is_dir($uploadPath)) {
-            mkdir($uploadPath, 0755, true);
+        $baseDir = realpath($uploadPath);
+        if ($baseDir === false) {
+            $payload = json_encode(['error' => __('Errore di configurazione del server.')] );
+            $response->getBody()->write($payload);
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 
         // SECURITY: Generate cryptographically secure random filename
