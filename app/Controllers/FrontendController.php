@@ -3356,6 +3356,14 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         $seoDescription = __("Scopri tutti gli eventi organizzati dalla biblioteca");
         $seoCanonical = absoluteUrl(RouteTranslator::route('events'));
 
+        // Title and subtitle of the header, as written in Settings → CMS → Eventi.
+        $eventsHeader = ['title' => __(\App\Support\CatalogHeader::PAGES['events']['title']), 'subtitle' => __(\App\Support\CatalogHeader::PAGES['events']['subtitle'])];
+        try {
+            $eventsHeader = \App\Support\CatalogHeader::forLocale(new \App\Models\SettingsRepository($db), \App\Support\I18n::getLocale(), 'events');
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Events header texts unavailable', ['error' => $e->getMessage()]);
+        }
+
         $container = $this->container;
         ob_start();
         include __DIR__ . '/../Views/frontend/events.php';

@@ -79,20 +79,24 @@ test.describe.serial('CMS page image', () => {
     const before = db(`SELECT IFNULL(image, 'NULL') FROM cms_pages WHERE slug = ${q(slug)} LIMIT 1`);
     saved = { slug, image: before };
 
+    // As a librarian does: choose the image, then Save straight away. There
+    // is no separate "Upload" step to remember: the image goes up when it is
+    // chosen, and Save waits for it if it is still on its way.
     await page.locator('#uppy-container input[type="file"]').first().setInputFiles(JPG);
-    await page.locator('#uppy-container .uppy-StatusBar-actionBtn--upload').first().click();
-    await expect(page.locator('#image-url')).toHaveValue(/^\/uploads\/cms\/cms_[a-f0-9]{32}\.jpg$/, { timeout: 15000 });
-    const url = await page.inputValue('#image-url');
-    created.push(path.join(APP_ROOT, 'public', url));
+    await Promise.all([page.waitForURL(/saved=1/, { timeout: 20000 }), page.locator('form button[type="submit"]').last().click()]);
 
-    // The preview really loads (naturalWidth > 0), the stored URL is served.
-    await expect.poll(() => page.evaluate(() => /** @type {HTMLImageElement} */ (document.getElementById('preview-img')).naturalWidth)).toBe(120);
+    const url = db(`SELECT IFNULL(image, '') FROM cms_pages WHERE slug = ${q(slug)} LIMIT 1`);
+    expect(url, 'the image chosen before Save is stored with the page').toMatch(/^\/uploads\/cms\/cms_[a-f0-9]{32}\.jpg$/);
+    created.push(path.join(APP_ROOT, 'public', url));
     const served = await page.request.get(`${BASE}${url}`);
     expect(served.status()).toBe(200);
     expect(served.headers()['content-type'] || '').toMatch(/^image\//);
-    expect(consoleErrors.filter((e) => /reading 'error'/.test(e)), 'no Uppy state error after the upload').toEqual([]);
 
-    await Promise.all([page.waitForURL(/saved=1/, { timeout: 15000 }), page.locator('form button[type="submit"]').last().click()]);
+    // Back in the editor, the preview shows the saved image.
+    await expect(page.locator('#image-url')).toHaveValue(url);
+    await expect.poll(() => page.evaluate(() => /** @type {HTMLImageElement} */ (document.getElementById('preview-img')).naturalWidth)).toBe(120);
+    await expect(page.locator('#image-preview')).toBeVisible();
+    expect(consoleErrors.filter((e) => /reading 'error'/.test(e)), 'no Uppy state error after the upload').toEqual([]);
 
     await page.goto(`${BASE}/chi-siamo`, { waitUntil: 'networkidle' });
     const img = page.locator('img.static-image');
@@ -113,5 +117,16 @@ test.describe.serial('CMS page image', () => {
     await page.goto(`${BASE}/chi-siamo`, { waitUntil: 'networkidle' });
     const img = page.locator('img.static-image');
     await expect.poll(() => img.evaluate((el) => /** @type {HTMLImageElement} */ (el).naturalWidth)).toBe(120);
+  });
+
+  test('a refused file is reported on screen instead of being silently dropped', async ({ page }) => {
+    test.skip(saved === null, 'needs the page from the first test');
+    await login(page);
+    await page.goto(`${BASE}/admin/cms/chi-siamo`, { waitUntil: 'networkidle' });
+    const txt = path.join(tmp, 'not-an-image.txt');
+    fs.writeFileSync(txt, 'plain text');
+    await page.locator('#uppy-container input[type="file"]').first().setInputFiles(txt);
+    await expect(page.locator('.swal2-popup')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#image-url')).toHaveValue(/.*/);
   });
 });

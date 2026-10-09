@@ -6,11 +6,13 @@ namespace App\Support;
 use App\Models\SettingsRepository;
 
 /**
- * Title and subtitle of the public catalogue header, one pair per language.
+ * Title and subtitle of a public listing page header (the catalogue, the
+ * events), one pair per language, edited in Settings → CMS.
  *
- * Each active language can override the two texts from Settings → CMS; a
- * language left empty keeps the shipped wording, translated as before. The
- * texts live in system_settings under category "catalog", keyed by locale
+ * What the field holds is what the page shows: a field never saved is filled
+ * with the shipped wording (in that language), and a field saved empty shows
+ * nothing; no text is ever substituted behind the administrator's back. The
+ * texts live in system_settings under the page's category, keyed by locale
  * ("title.en_US", "subtitle.en_US"), so adding a language needs no schema
  * change.
  */
@@ -22,38 +24,52 @@ final class CatalogHeader
     public const TITLE_MAX = 255;
     public const SUBTITLE_MAX = 500;
 
+    /** @var array<string, array{category: string, title: string, subtitle: string}> */
+    public const PAGES = [
+        'catalog' => ['category' => 'catalog', 'title' => self::DEFAULT_TITLE, 'subtitle' => self::DEFAULT_SUBTITLE],
+        'events' => ['category' => 'events_page', 'title' => 'Eventi', 'subtitle' => 'In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.'],
+    ];
+
+    /** @return array{category: string, title: string, subtitle: string} */
+    private static function page(string $page): array
+    {
+        return self::PAGES[$page] ?? self::PAGES['catalog'];
+    }
+
     /**
      * The header the visitor sees in $locale: the stored text, or the
      * shipped default translated in the current request language.
      *
      * @return array{title: string, subtitle: string}
      */
-    public static function forLocale(SettingsRepository $repository, string $locale): array
+    public static function forLocale(SettingsRepository $repository, string $locale, string $page = 'catalog'): array
     {
-        $stored = self::stored($repository);
+        $stored = self::stored($repository, $page);
         $locale = I18n::normalizeLocaleCode($locale);
+        $config = self::page($page);
 
         return [
-            'title' => ($stored[$locale]['title'] ?? '') !== '' ? $stored[$locale]['title'] : __(self::DEFAULT_TITLE),
-            'subtitle' => ($stored[$locale]['subtitle'] ?? '') !== '' ? $stored[$locale]['subtitle'] : __(self::DEFAULT_SUBTITLE),
+            'title' => $stored[$locale]['title'] ?? __($config['title']),
+            'subtitle' => $stored[$locale]['subtitle'] ?? __($config['subtitle']),
         ];
     }
 
     /**
-     * Stored overrides, by locale. Languages without an override are absent.
+     * Saved texts, by locale; a field never saved is null, a field saved
+     * empty is ''.
      *
-     * @return array<string, array{title: string, subtitle: string}>
+     * @return array<string, array{title: ?string, subtitle: ?string}>
      */
-    public static function stored(SettingsRepository $repository): array
+    public static function stored(SettingsRepository $repository, string $page = 'catalog'): array
     {
         $texts = [];
-        foreach ($repository->getCategory(self::CATEGORY) as $key => $value) {
+        foreach ($repository->getCategory(self::page($page)['category']) as $key => $value) {
             if (!preg_match('/^(title|subtitle)\.([A-Za-z]{2,3}_[A-Za-z]{2})$/', (string) $key, $m)) {
                 continue;
             }
             $locale = I18n::normalizeLocaleCode($m[2]);
-            $texts[$locale] ??= ['title' => '', 'subtitle' => ''];
-            $texts[$locale][$m[1]] = trim($value);
+            $texts[$locale] ??= ['title' => null, 'subtitle' => null];
+            $texts[$locale][$m[1]] = trim((string) $value);
         }
 
         return $texts;
@@ -79,34 +95,30 @@ final class CatalogHeader
     }
 
     /**
-     * Save the submitted texts of the active languages. An empty field
-     * removes the override, so that language goes back to the default; a
-     * language the form did not send is left as it is.
+     * Save the submitted texts of the active languages, as typed: an empty
+     * field is saved empty and the page then shows nothing there. A language
+     * the form did not send is left as it is.
      *
      * @param array<string, string> $titles    locale => title
      * @param array<string, string> $subtitles locale => subtitle
      */
-    public static function save(SettingsRepository $repository, array $titles, array $subtitles): void
+    public static function save(SettingsRepository $repository, array $titles, array $subtitles, string $page = 'catalog'): void
     {
+        $category = self::page($page)['category'];
         foreach (array_keys(I18n::getAvailableLocales()) as $locale) {
             $locale = I18n::normalizeLocaleCode((string) $locale);
             foreach (['title' => [$titles, self::TITLE_MAX], 'subtitle' => [$subtitles, self::SUBTITLE_MAX]] as $field => [$values, $max]) {
                 if (!array_key_exists($locale, $values)) {
                     continue;
                 }
-                $value = self::clean($values[$locale], $max);
-                if ($value === '') {
-                    $repository->delete(self::CATEGORY, $field . '.' . $locale);
-                } else {
-                    $repository->set(self::CATEGORY, $field . '.' . $locale, $value);
-                }
+                $repository->set($category, $field . '.' . $locale, self::clean($values[$locale], $max));
             }
         }
     }
 
     /**
-     * The shipped wording in each of $locales, shown as the placeholder of each
-     * field so the admin sees what an empty field falls back to.
+     * The shipped wording in each of $locales: the text a field shows until
+     * it is first saved.
      *
      * Switching the locale empties the translation cache, so this switches
      * once per language and restores the admin's language once at the end,
@@ -115,15 +127,16 @@ final class CatalogHeader
      * @param list<string> $locales
      * @return array<string, array{title: string, subtitle: string}>
      */
-    public static function defaultsFor(array $locales): array
+    public static function defaultsFor(array $locales, string $page = 'catalog'): array
     {
+        $config = self::page($page);
         $current = I18n::getLocale();
         $defaults = [];
         // finally: the settings page renders in the admin's language after this.
         try {
             foreach ($locales as $locale) {
                 I18n::setLocale($locale);
-                $defaults[$locale] = ['title' => __(self::DEFAULT_TITLE), 'subtitle' => __(self::DEFAULT_SUBTITLE)];
+                $defaults[$locale] = ['title' => __($config['title']), 'subtitle' => __($config['subtitle'])];
             }
         } finally {
             I18n::setLocale($current);

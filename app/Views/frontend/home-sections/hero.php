@@ -8,14 +8,15 @@
  */
 $heroData = $section ?? [];
 $catalogRoute = $catalogRoute ?? route_path('catalog');
-$heroButtonText = trim((string)($heroData['button_text'] ?? ''));
-$heroButtonText = $heroButtonText !== '' ? $heroButtonText : __('Sfoglia Catalogo');
+// Texts follow App\Support\HomeTexts: what CMS → Homepage shows is what this shows.
+$heroButtonText = \App\Support\HomeTexts::label($heroData, 'hero', 'button_text');
 $heroButtonPath = trim((string)($heroData['button_link'] ?? ''));
 $heroButtonLink = $heroButtonPath !== '' ? url($heroButtonPath) : $catalogRoute;
 $latestBooksText = trim((string)($homeContent['latest_books_title']['title'] ?? ''));
 $latestBooksText = $latestBooksText !== '' ? $latestBooksText : __('Ultimi Arrivi');
-$heroTitle = trim((string)($heroData['title'] ?? '')) !== '' ? (string) $heroData['title'] : __("La Tua Biblioteca Digitale");
-$heroSubtitle = trim((string)($heroData['subtitle'] ?? '')) !== '' ? (string) $heroData['subtitle'] : __("Scopri, prenota e gestisci i tuoi libri preferiti con la nostra piattaforma elegante e moderna.");
+// The H1 cannot be blank: an empty title falls back to the default as the form says.
+$heroTitle = \App\Support\HomeTexts::label($heroData, 'hero', 'title');
+$heroSubtitle = \App\Support\HomeTexts::text($heroData, 'hero', 'subtitle');
 $heroCovers = $heroCovers ?? [];
 $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
 
@@ -47,7 +48,7 @@ $spinner = '<span class="inline-block animate-spin rounded-full border-2 border-
             <div class="pk-hero__badge"><?= $e(sprintf(__('%s titoli in catalogo'), $heroNumber((int) $heroTotalBooks))) ?></div>
             <?php endif; ?>
             <h1 class="hero-title pk-hero__title"><?= $heroTitleHtml ?></h1>
-            <p class="hero-subtitle pk-hero__subtitle"><?= $e($heroSubtitle) ?></p>
+            <?php if ($heroSubtitle !== ''): ?><p class="hero-subtitle pk-hero__subtitle"><?= $e($heroSubtitle) ?></p><?php endif; ?>
 
             <div class="hero-search-container">
                 <form class="hero-search-form search-form" action="<?= $e($catalogRoute) ?>" method="get">

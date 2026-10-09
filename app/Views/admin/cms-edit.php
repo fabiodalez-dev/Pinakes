@@ -1,6 +1,7 @@
 <?php
 /** @var string $title */
 /** @var array $pageData */
+$cmsUploadMax = \App\Controllers\Admin\CmsAdminController::uploadLimit();
 ?>
 <div class="max-w-7xl mx-auto py-6 px-4">
   <div class="mb-6">
@@ -219,10 +220,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const uppy = new Uppy({
     restrictions: {
-      maxFileSize: 5 * 1024 * 1024, // 5MB
+      maxFileSize: <?= (int) $cmsUploadMax ?>,
       allowedFileTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     },
-    autoProceed: false
+    // Upload as soon as the image is chosen: with a manual "Upload" step, an
+    // image picked and followed by Save was never sent, and the page was
+    // saved without it.
+    autoProceed: true
   })
   .use(Dashboard, {
     inline: true,
@@ -249,9 +253,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  const uploadFailed = (message) => {
+    const text = message || <?= json_encode(__("Il caricamento dell'immagine non è riuscito."), JSON_HEX_TAG) ?>;
+    if (window.SwalApp && window.SwalApp.error) window.SwalApp.error(undefined, text);
+    else alert(text);
+  };
+  uppy.on('restriction-failed', (file, error) => uploadFailed(error && error.message));
+  uppy.on('upload-error', (file, error, response) => {
+    const body = response && response.body ? response.body : null;
+    uploadFailed((body && body.error) || (error && error.message));
+  });
+
+  // Save waits for an upload still running, so the image is never left
+  // behind: the page is submitted once Uppy reports the upload complete.
+  let uploadDone = null;
+  let finishUpload = null;
+  uppy.on('upload', () => {
+    uploadDone = new Promise((resolve) => { finishUpload = resolve; });
+  });
+  uppy.on('complete', (result) => {
+    if (finishUpload) finishUpload(result);
+    uploadDone = null;
+    finishUpload = null;
+  });
+  const pageForm = document.getElementById('image-url').form;
+  if (pageForm) {
+    pageForm.addEventListener('submit', (event) => {
+      const waiting = uppy.getFiles().some((f) => !(f.progress && f.progress.uploadComplete) && !f.error);
+      if (!uploadDone && !waiting) return;
+      event.preventDefault();
+      const submitBtn = pageForm.querySelector('button[type="submit"]:last-of-type');
+      if (submitBtn) submitBtn.disabled = true;
+      const pending = uploadDone || uppy.upload();
+      Promise.resolve(pending).then((result) => {
+        if (submitBtn) submitBtn.disabled = false;
+        if (result && result.failed && result.failed.length) return; // the error is already on screen
+        pageForm.submit();
+      });
+    });
+  }
+
   uppy.on('upload-success', (file, response) => {
     const imageUrl = response && response.body ? response.body.url : '';
-    if (!imageUrl) return;
+    if (!imageUrl) { uploadFailed(response && response.body && response.body.error); return; }
     // Stored as the site-relative /uploads/cms/… path; shown with the base path
     // of a sub-folder install.
     document.getElementById('image-url').value = imageUrl;

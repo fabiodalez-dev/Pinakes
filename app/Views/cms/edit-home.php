@@ -141,13 +141,13 @@ function getSectionDisplayName($key) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
             <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo principale (H1)") ?></label>
-            <input type="text" id="hero_title" name="hero[title]" value="<?php echo HtmlHelper::e($hero['title'] ?? 'La Tua Biblioteca Digitale'); ?>"
+            <input type="text" id="hero_title" name="hero[title]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($hero ?? null, 'hero', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= htmlspecialchars(__('Es. La Tua Biblioteca Digitale'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
           <div>
             <label for="hero_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
-            <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo HtmlHelper::e($hero['subtitle'] ?? 'Esplora, prenota e gestisci la tua collezione di libri'); ?>"
+            <input type="text" id="hero_subtitle" name="hero[subtitle]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($hero ?? null, 'hero', 'subtitle'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= htmlspecialchars(__('Descrizione breve'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
@@ -196,7 +196,7 @@ function getSectionDisplayName($key) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="hero_button_text" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Testo pulsante") ?></label>
-            <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo HtmlHelper::e($hero['button_text'] ?? 'Esplora il Catalogo'); ?>"
+            <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($hero ?? null, 'hero', 'button_text'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
@@ -233,12 +233,12 @@ function getSectionDisplayName($key) {
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <label for="features_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
-              <input type="text" id="features_title" name="features_title[title]" value="<?php echo HtmlHelper::e($featuresTitle['title'] ?? 'Perché scegliere la nostra biblioteca'); ?>"
+              <input type="text" id="features_title" name="features_title[title]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($featuresTitle ?? null, 'features_title', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             </div>
             <div>
               <label for="features_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo sezione") ?></label>
-              <input type="text" id="features_subtitle" name="features_title[subtitle]" value="<?php echo HtmlHelper::e($featuresTitle['subtitle'] ?? 'Tutto ciò che ti serve per gestire la tua passione per la lettura'); ?>"
+              <input type="text" id="features_subtitle" name="features_title[subtitle]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($featuresTitle ?? null, 'features_title', 'subtitle'), ENT_QUOTES, 'UTF-8'); ?>"
                      class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
             </div>
           </div>
@@ -357,13 +357,13 @@ function getSectionDisplayName($key) {
           <div>
             <label for="latest_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
             <input type="text" id="latest_title" name="latest_books_title[title]"
-                   value="<?php echo HtmlHelper::e($latestBooksTitle['title'] ?? 'Ultimi Arrivi'); ?>"
+                   value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($latestBooksTitle ?? null, 'latest_books_title', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="latest_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="latest_subtitle" name="latest_books_title[subtitle]"
-                   value="<?php echo HtmlHelper::e($latestBooksTitle['subtitle'] ?? 'Scopri le ultime novità aggiunte al catalogo'); ?>"
+                   value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($latestBooksTitle ?? null, 'latest_books_title', 'subtitle'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
@@ -408,13 +408,13 @@ function getSectionDisplayName($key) {
           <div>
             <label for="genre_carousel_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
             <input type="text" id="genre_carousel_title" name="genre_carousel[title]"
-                   value="<?php echo HtmlHelper::e($genreCarousel['title'] ?? __('Esplora i generi principali')); ?>"
+                   value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($genreCarousel ?? null, 'genre_carousel', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="genre_carousel_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="genre_carousel_subtitle" name="genre_carousel[subtitle]"
-                   value="<?php echo HtmlHelper::e($genreCarousel['subtitle'] ?? __('Scopri le nostre radici tematiche e lasciati ispirare dai titoli disponibili.')); ?>"
+                   value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($genreCarousel ?? null, 'genre_carousel', 'subtitle'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
@@ -443,13 +443,13 @@ function getSectionDisplayName($key) {
           <div>
             <label for="events_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
             <input type="text" id="events_title" name="events[title]"
-                   value="<?php echo htmlspecialchars((string) ($eventsSection['title'] ?? __('Gli appuntamenti della biblioteca')), ENT_QUOTES, 'UTF-8'); ?>"
+                   value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($eventsSection ?? null, 'events', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="events_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="events_subtitle" name="events[subtitle]"
-                   value="<?php echo htmlspecialchars((string) ($eventsSection['subtitle'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($eventsSection ?? null, 'events', 'subtitle'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
@@ -477,19 +477,19 @@ function getSectionDisplayName($key) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="cta_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo CTA") ?></label>
-            <input type="text" id="cta_title" name="cta[title]" value="<?php echo HtmlHelper::e($cta['title'] ?? 'Pronto a iniziare?'); ?>"
+            <input type="text" id="cta_title" name="cta[title]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($cta ?? null, 'cta', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
             <label for="cta_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo CTA") ?></label>
-            <input type="text" id="cta_subtitle" name="cta[subtitle]" value="<?php echo HtmlHelper::e($cta['subtitle'] ?? 'Registrati ora e inizia a esplorare il nostro catalogo'); ?>"
+            <input type="text" id="cta_subtitle" name="cta[subtitle]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($cta ?? null, 'cta', 'subtitle'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="cta_button_text" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Testo pulsante") ?></label>
-            <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo HtmlHelper::e($cta['button_text'] ?? 'Registrati Ora'); ?>"
+            <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($cta ?? null, 'cta', 'button_text'), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>

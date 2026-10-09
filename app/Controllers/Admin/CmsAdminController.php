@@ -181,6 +181,45 @@ class CmsAdminController
         return is_array($row) ? $row : null;
     }
 
+    /**
+     * The largest CMS image accepted: 10MB, or what PHP takes when it takes
+     * less (upload_max_filesize, post_max_size). The editor gets the same
+     * limit, so it refuses a file the server would drop instead of failing.
+     */
+    public static function uploadLimit(): int
+    {
+        $limit = 10 * 1024 * 1024;
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $bytes = self::iniBytes((string) ini_get($key));
+            if ($bytes > 0) {
+                $limit = min($limit, $bytes);
+            }
+        }
+        return $limit;
+    }
+
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '' || !preg_match('/^(\d+)\s*([kmg]?)/i', $value, $m)) {
+            return 0;
+        }
+        $n = (int) $m[1];
+        return match (strtolower($m[2])) {
+            'g' => $n * 1024 * 1024 * 1024,
+            'm' => $n * 1024 * 1024,
+            'k' => $n * 1024,
+            default => $n,
+        };
+    }
+
+    private static function formatBytes(int $bytes): string
+    {
+        return $bytes >= 1024 * 1024
+            ? rtrim(rtrim(number_format($bytes / 1048576, 1, '.', ''), '0'), '.') . ' MB'
+            : (int) ceil($bytes / 1024) . ' KB';
+    }
+
     public function uploadImage(Request $request, Response $response): Response
     {
         $uploadedFiles = $request->getUploadedFiles();
@@ -194,7 +233,10 @@ class CmsAdminController
         $uploadedFile = $uploadedFiles['file'];
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
-            $payload = json_encode(['error' => __('Errore durante il caricamento del file.')]);
+            $tooBig = in_array($uploadedFile->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+            $payload = json_encode(['error' => $tooBig
+                ? sprintf(__('File troppo grande. Dimensione massima %s.'), self::formatBytes(self::uploadLimit()))
+                : __('Errore durante il caricamento del file.')]);
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -210,9 +252,9 @@ class CmsAdminController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // SECURITY: Validate file size (max 10MB for CMS images)
-        if ($uploadedFile->getSize() > 10 * 1024 * 1024) {
-            $payload = json_encode(['error' => __('File troppo grande. Dimensione massima 10MB.')] );
+        // SECURITY: Validate file size (10MB, or less when PHP accepts less)
+        if ($uploadedFile->getSize() > self::uploadLimit()) {
+            $payload = json_encode(['error' => sprintf(__('File troppo grande. Dimensione massima %s.'), self::formatBytes(self::uploadLimit()))]);
             $response->getBody()->write($payload);
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }

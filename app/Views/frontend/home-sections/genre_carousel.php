@@ -6,21 +6,19 @@ use App\Support\HtmlHelper;
  * Displays genre-based book carousels and optional events section
  */
 $genreSectionContent = $section ?? [];
-$genreSectionTitle = !empty($genreSectionContent['title'])
-    ? $genreSectionContent['title']
-    : __("Esplora i generi principali");
-$genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
-    ? $genreSectionContent['subtitle']
-    : __("Scopri le nostre radici tematiche e lasciati ispirare dai titoli disponibili.");
+$genreSectionTitle = \App\Support\HomeTexts::text($genreSectionContent, 'genre_carousel', 'title');
+$genreSectionSubtitle = \App\Support\HomeTexts::text($genreSectionContent, 'genre_carousel', 'subtitle');
 ?>
 
 <?php if (!empty($genres_with_books)): ?>
 <!-- Genre Carousels Section -->
 <section id="genre-carousels" class="section" data-section="genre_carousel">
     <div class="container text-center mb-5">
+        <?php if ($genreSectionTitle !== ''): ?>
         <h2 class="section-title">
             <?= htmlspecialchars($genreSectionTitle, ENT_QUOTES, 'UTF-8'); ?>
         </h2>
+        <?php endif; ?>
         <?php if (!empty($genreSectionSubtitle)): ?>
         <p class="section-subtitle">
             <?= htmlspecialchars($genreSectionSubtitle, ENT_QUOTES, 'UTF-8'); ?>

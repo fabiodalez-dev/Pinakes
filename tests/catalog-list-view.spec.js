@@ -15,7 +15,10 @@ const CATALOG = `${BASE}/catalogo?sort=title_asc&page=1`;
 async function gridState(page) {
   return page.$$eval('#books-grid .book-card', cards => cards.slice(0, 12).map(c => {
     const t = c.querySelector('.book-title');
-    return { height: t ? t.style.height : '', clipped: t ? t.scrollHeight > t.clientHeight + 1 : false, placeholder: !!c.querySelector('.subtitle-ph') };
+    // "cut": a height set inline that is shorter than the two lines the
+    // grid reserves for a title (the CSS clamp to two lines is intended).
+    const cut = t && t.style.height !== '' ? parseFloat(t.style.height) < parseFloat(getComputedStyle(t).minHeight) - 1 : false;
+    return { height: t ? t.style.height : '', cut, placeholder: !!c.querySelector('.subtitle-ph') };
   }));
 }
 
@@ -135,6 +138,36 @@ test.describe('Catalogue list view', () => {
     await page.waitForTimeout(400);
     await page.click('[data-pk-view="grid"]');
     await expect.poll(() => gridState(page)).toEqual(before);
-    for (const card of before) expect(card.clipped).toBe(false);
+    // The grid clamps a long title to two lines on purpose (with an ellipsis);
+    // what must never happen is a title cut by a height the row alignment
+    // left inline after the switch.
+    for (const card of before) expect(card.cut).toBe(false);
+  });
+
+  test('in the grid every row lines its cards up: title, author, publisher and Details at the same height', async ({ page }) => {
+    for (const width of [1440, 900]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(CATALOG);
+      test.skip(await page.locator('#books-grid .book-card').count() < 2, 'not enough books');
+      await page.waitForLoadState('networkidle');
+      const offsets = await page.$$eval('#books-grid .book-card', (cards) => {
+        const rows = {};
+        for (const c of cards) {
+          const top = Math.round(c.getBoundingClientRect().top);
+          const at = (sel) => { const e = c.querySelector(sel); return e && getComputedStyle(e).display !== 'none' ? e.getBoundingClientRect().top : null; };
+          (rows[top] = rows[top] || []).push({ title: at('.pk-card__title'), author: at('.pk-card__author'), meta: at('.pk-card__meta'), actions: at('.pk-card__actions') });
+        }
+        const out = [];
+        for (const r of Object.values(rows)) {
+          if (r.length < 2) continue;
+          for (const k of ['title', 'author', 'meta', 'actions']) {
+            const v = r.map((x) => x[k]).filter((x) => x !== null);
+            if (v.length > 1) out.push(Math.max(...v) - Math.min(...v));
+          }
+        }
+        return out;
+      });
+      expect(Math.max(0, ...offsets), `rows line up at ${width}px`).toBeLessThan(2);
+    }
   });
 });

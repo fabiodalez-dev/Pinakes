@@ -356,7 +356,7 @@ body.pk .pk-card__title {
 }
 body.pk .pk-card__title a { color: var(--pk-ink); text-decoration: none; background: none; }
 .pk-card__subtitle { margin: 0; font-size: 13px; color: var(--pk-faint); font-style: italic; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.pk-card__author, .pk-card__meta { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-card__author, .pk-card__meta { margin: 0; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pk-card__author { font-size: 13px; color: var(--pk-muted); }
 .pk-card__meta { font-size: 12px; color: var(--pk-faint); }
 
@@ -553,9 +553,11 @@ body.pk .pk-card .book-status-badge.pk-card__status {
 }
 body.pk .pk-card .book-media-badge.pk-card__media { position: absolute; bottom: 10px; left: 10px; top: auto; right: auto; }
 body.pk .pk-card .book-content.pk-card__body { padding: 0 2px; gap: 4px; display: flex; flex-direction: column; background: none; }
-body.pk .pk-card .book-title.pk-card__title { min-height: 0; margin: 0; font-size: 17px; }
-body.pk .pk-card .book-author.pk-card__author { margin: 0; font-size: 13px; color: var(--pk-muted); }
-body.pk .pk-card .book-meta.pk-card__meta { margin: 0; font-size: 12px; color: var(--pk-faint); }
+/* Grid: the title always takes its two lines, so a one-line title does not
+   lift the author, publisher and Details of its card above its neighbours. */
+body.pk .pk-card .book-title.pk-card__title { min-height: 2.4em; margin: 0; font-size: 17px; }
+body.pk .pk-card .book-author.pk-card__author { margin: 0; font-size: 13px; line-height: 1.35; color: var(--pk-muted); }
+body.pk .pk-card .book-meta.pk-card__meta { margin: 0; font-size: 12px; line-height: 1.35; color: var(--pk-faint); }
 body.pk .pk-card .book-subtitle.pk-card__subtitle { margin: 0; font-size: 13px; color: var(--pk-faint); }
 body.pk .pk-card .book-actions.pk-card__actions { margin: auto 0 0; padding: 6px 0 0; display: block; }
 body.pk .pk-card .book-actions a.pk-card__details,
@@ -797,7 +799,7 @@ body.pk .is-list .pk-card .book-content.pk-card__body {
     grid-area: body; min-width: 0; flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 0; row-gap: 3px;
 }
 body.pk .is-list .pk-card .book-content.pk-card__body > * { flex: 0 0 100%; }
-body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 19px; -webkit-line-clamp: 1; height: auto !important; }
+body.pk .is-list .pk-card .book-title.pk-card__title { font-size: 19px; -webkit-line-clamp: 1; height: auto !important; min-height: 0; }
 body.pk .is-list .pk-card .book-subtitle.pk-card__subtitle { height: auto !important; }
 /* The grid's row-alignment placeholders mean nothing in a list. */
 body.pk .is-list .pk-card .subtitle-ph, body.pk .is-list .pk-card .book-meta-empty { display: none; }

@@ -192,7 +192,7 @@ $checks = [
     'related-book fallback uses one ranked query' => str_contains($frontendController, 'Priorities 1-3 in one ranked query') && str_contains($frontendController, 'ORDER BY {$priorityOrder}'),
     'homepage async states contain no bootstrap compatibility markup' => !preg_match('/spinner-border|visually-hidden|\\bcol-12\\b|alert-danger/', $home),
     'header sits in the page flow so the hero needs no spacer' => str_contains($pk2026, 'body.pk main { padding-top: 0; }') && (bool) preg_match('/body\.pk \.header-container \{\s*position: sticky; top: 0;/', $pk2026),
-    'seeded hero action text and link are rendered' => str_contains($homeHero, "\$heroData['button_text']") && str_contains($homeHero, "\$heroData['button_link']") && str_contains($homeHero, '$heroButtonLink'),
+    'seeded hero action text and link are rendered' => str_contains($homeHero, "HomeTexts::label(\$heroData, 'hero', 'button_text')") && str_contains($homeHero, "\$heroData['button_link']") && str_contains($homeHero, '$heroButtonLink'),
     'latest-books hero link reuses seeded section title' => str_contains($homeHero, "\$homeContent['latest_books_title']['title']"),
     'mobile home stats use an aligned two-column grid' => str_contains($pk2026, '@media (max-width: 520px) { .pk-stats__inner { grid-template-columns: repeat(2, 1fr);'),
     'feature icons share one heading row with their number' => str_contains($homeFeatures, 'class="feature-heading pk-feature__top"') && str_contains($homeFeatures, 'class="feature-icon pk-feature__icon"') && str_contains($pk2026, '.pk-feature__top'),
