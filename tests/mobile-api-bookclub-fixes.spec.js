@@ -434,4 +434,48 @@ test.describe.serial('Mobile API contract fixes — E2E', () => {
 
         setMobileApiEnabled('1');
     });
+
+    // ── Private clubs: card and Join for everyone, activity for members ──────
+
+    test('a private club shows its card to a non-member, hides its activity, and still takes a join request', async ({ request }) => {
+        test.skip(!token, 'no token');
+        const memberRow = dbQuery(`SELECT CONCAT_WS('|', role_id, status) FROM bookclub_members WHERE club_id = ${seed.clubId} AND user_id = ${userId}`);
+        dbExec(`UPDATE bookclub_clubs SET privacy = 'private' WHERE id = ${seed.clubId}`);
+        dbExec(`DELETE FROM bookclub_members WHERE club_id = ${seed.clubId} AND user_id = ${userId}`);
+        try {
+            const res = await request.get(`${API}/bookclub/clubs/${SLUG}`, { headers: authHeaders(token) });
+            expect(res.status(), 'the card of a private club is reachable, as on the web').toBe(200);
+            const body = (await res.json()).data;
+            expect(body.club.privacy).toBe('private');
+            expect(body.club.content_visible).toBe(false);
+            expect(body.books).toEqual([]);
+            expect(body.polls).toEqual([]);
+            expect(body.meetings).toEqual([]);
+            expect(body.my_membership).toBeNull();
+
+            const vote = await request.post(`${API}/bookclub/clubs/${SLUG}/polls/${seed.pollId}/vote`,
+                { headers: authHeaders(token), data: { options: [seed.optA] } });
+            expect(vote.status(), 'a non-member cannot act on the activity').toBe(404);
+
+            const join = await request.post(`${API}/bookclub/clubs/${SLUG}/join`, { headers: authHeaders(token), data: {} });
+            expect(join.status()).toBe(200);
+            expect((await join.json()).data.status).toBe('pending');
+
+            const dash = await request.get(`${API}/bookclub/me/dashboard`, { headers: authHeaders(token) });
+            expect(dash.status()).toBe(200);
+            const card = (await dash.json()).data.clubs.find((c) => c.club.slug === SLUG);
+            expect(card, 'the pending club is listed').toBeTruthy();
+            expect(card.club.member_status).toBe('pending');
+            expect(card.current_books).toEqual([]);
+            expect(card.next_meeting).toBeNull();
+            expect(card.open_polls).toEqual([]);
+        } finally {
+            dbExec(`DELETE FROM bookclub_members WHERE club_id = ${seed.clubId} AND user_id = ${userId}`);
+            if (memberRow) {
+                const [roleId, status] = memberRow.split('|');
+                dbExec(`INSERT INTO bookclub_members (club_id, user_id, role_id, status) VALUES (${seed.clubId}, ${userId}, ${roleId}, '${status}')`);
+            }
+            dbExec(`UPDATE bookclub_clubs SET privacy = 'public' WHERE id = ${seed.clubId}`);
+        }
+    });
 });

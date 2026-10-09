@@ -49,9 +49,11 @@ test.skip(
     'Missing E2E env (DB_*)'
 );
 
-test.describe.serial('BIBFRAME 2.0 Linked Data plugin — v0.7.1 (10 tests)', () => {
+test.describe.serial('BIBFRAME 2.0 Linked Data plugin — v0.7.1 (13 tests)', () => {
     /** @type {number} */
     let testBookId = 0;
+    /** @type {number} */
+    let testAuthorId = 0;
     const TAG = `E2E_BIBFRAME_${Date.now()}`;
 
     test.beforeAll(async () => {
@@ -59,8 +61,8 @@ test.describe.serial('BIBFRAME 2.0 Linked Data plugin — v0.7.1 (10 tests)', ()
         try { dbExec("DELETE FROM libri WHERE titolo LIKE 'E2E_BIBFRAME_%'"); } catch { /* best-effort */ }
         // Create a minimal test book with a unique title.
         dbExec(
-            `INSERT INTO libri (titolo, anno_pubblicazione, created_at, updated_at) ` +
-            `VALUES ('${TAG}', 2024, NOW(), NOW())`
+            `INSERT INTO libri (titolo, anno_pubblicazione, lingua, classificazione_dewey, created_at, updated_at) ` +
+            `VALUES ('${TAG}', 2024, 'italiano', '853.92', NOW(), NOW())`
         );
         testBookId = parseInt(
             dbQuery(`SELECT id FROM libri WHERE titolo='${TAG}' AND deleted_at IS NULL LIMIT 1`)
@@ -68,10 +70,16 @@ test.describe.serial('BIBFRAME 2.0 Linked Data plugin — v0.7.1 (10 tests)', ()
         if (!Number.isInteger(testBookId) || testBookId <= 0) {
             throw new Error(`Failed to create BIBFRAME test book (id=${testBookId})`);
         }
+        // Main author with a VIAF id: the link belongs to the bf:Person, never to the Work.
+        dbExec(`INSERT INTO autori (nome, viaf_id) VALUES ('${TAG} Author', '79045105')`);
+        testAuthorId = parseInt(dbQuery(`SELECT id FROM autori WHERE nome='${TAG} Author' LIMIT 1`));
+        dbExec(`INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (${testBookId}, ${testAuthorId}, 'principale', 1)`);
     });
 
     test.afterAll(async () => {
         try {
+            if (testBookId > 0) { dbExec(`DELETE FROM libri_autori WHERE libro_id=${testBookId}`); }
+            if (testAuthorId > 0) { dbExec(`DELETE FROM autori WHERE id=${testAuthorId}`); }
             dbExec(`DELETE FROM libri WHERE titolo='${TAG}'`);
         } catch { /* best-effort */ }
     });
@@ -181,5 +189,48 @@ test.describe.serial('BIBFRAME 2.0 Linked Data plugin — v0.7.1 (10 tests)', ()
         }).join(' ');
         expect(types).toContain('Work');
         expect(types).toContain('Instance');
+    });
+
+    // ── Tests 11-13: modelling fixes ──────────────────────────────────────────
+
+    test('11. the Work carries no owl:sameAs to viaf.org; the author agent does', async ({ request }) => {
+        const res = await request.get(`${BASE}/api/bibframe/book/${testBookId}`);
+        const json = await res.json();
+        const work = (json['@graph'] ?? []).find((/** @type {any} */ n) => n['@type'] === 'bf:Work');
+        expect(work).toBeTruthy();
+        expect(work).not.toHaveProperty('owl:sameAs');
+        const contrib = Array.isArray(work['bf:contribution']) ? work['bf:contribution'][0] : work['bf:contribution'];
+        expect(contrib?.['bf:agent']?.['owl:sameAs']?.['@id']).toBe('https://viaf.org/viaf/79045105');
+
+        const turtle = await (await request.get(`${BASE}/api/bibframe/book/${testBookId}/work`, {
+            headers: { Accept: 'text/turtle' },
+        })).text();
+        // In Turtle the only viaf.org reference sits inside the agent blank node.
+        expect(turtle).not.toMatch(/^\s*owl:sameAs <https:\/\/viaf\.org/m);
+    });
+
+    test('12. bf:language is a LoC languages URI and DDC uses bf:classificationPortion', async ({ request }) => {
+        const res = await request.get(`${BASE}/api/bibframe/book/${testBookId}`);
+        const json = await res.json();
+        const work = (json['@graph'] ?? []).find((/** @type {any} */ n) => n['@type'] === 'bf:Work');
+        expect(work['bf:language']).toEqual({ '@id': 'http://id.loc.gov/vocabulary/languages/ita' });
+        expect(work['bf:classification']['@type']).toBe('bf:ClassificationDdc');
+        expect(work['bf:classification']['bf:classificationPortion']).toBe('853.92');
+        expect(work['bf:classification']).not.toHaveProperty('rdf:value');
+    });
+
+    test('13. RDA output: rdac: classes from Elements/c/ and a dereferenceable @id', async ({ request }) => {
+        const res = await request.get(`${BASE}/libri/${testBookId}.rda.json`);
+        expect(res.status()).toBe(200);
+        const doc = await res.json();
+        expect(doc['@context']?.rdac).toBe('http://rdaregistry.info/Elements/c/');
+        expect(doc['@type']).toBe('rdac:C10007');
+        const expanded = String(doc['@type']).replace(/^rdac:/, doc['@context'].rdac);
+        expect(expanded).toBe('http://rdaregistry.info/Elements/c/C10007');
+        // @id is the public book page, not the non-routed /libri/{id}.
+        expect(doc['@id']).not.toMatch(/\/libri\/\d+$/);
+        expect(doc['@id']).toMatch(new RegExp(`/${testBookId}$`));
+        const page = await request.get(doc['@id'], { maxRedirects: 0 });
+        expect(page.status()).toBe(200);
     });
 });

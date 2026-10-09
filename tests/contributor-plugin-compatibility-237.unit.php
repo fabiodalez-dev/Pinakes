@@ -107,7 +107,9 @@ $check(str_contains($marcXml, 'tag="100"') && str_contains($marcXml, 'Translator
     && str_contains($marcXml, '>translator</subfield>'),
     'SRU MARCXML behavior exports principal and translator responsibilities');
 $unimarcXml = $renderRecord(\Z39Server\UNIMARCXMLFormatter::class);
-$check(str_contains($unimarcXml, 'tag="702"') && str_contains($unimarcXml, 'Translator Person')
+// UNIMARC 70X enter a personal name under the surname: $a Person $b Translator.
+$check(str_contains($unimarcXml, 'tag="702"')
+    && str_contains($unimarcXml, '<subfield code="a">Person</subfield><subfield code="b">Translator</subfield>')
     && str_contains($unimarcXml, '>730</subfield>'),
     'SRU UNIMARC behavior exports translator as 702 with relator 730');
 

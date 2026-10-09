@@ -2,6 +2,33 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.8.0]
+
+### Changed
+- **A new design for the public site and the account pages (2026).** The catalogue, the book page, the home, the wishlist, loans and reservations, the periodicals, the archive and the events read as one site, built on the Fraunces and Geist typefaces, warm paper and one dark surface. Every colour the site sets as text is computed from the theme so it reads at WCAG AA on every theme. A book without cover art is drawn as a cloth binding with its author, title and publisher; book covers fill the whole book.
+- **Two theme options replace the four layout variants.** Under Admin → Themes, *Hero style* is either *Covers* (title on the left and a fan of covers: the latest ones or up to four picked in CMS → Homepage) or *Centred*, and *Card style* is either *Classic* or *Tinted*. The hero photo upload is gone.
+- **The catalogue on phones.** Rows line the cover up with the title, the filters fold away, and the list view stays a list after paging. A bar at the bottom, as in the Android app, links Home, Catalogue, Loans, Favourites and the account; it appears at the first scroll and gets out of the way at the footer.
+- **The catalogue filters** ([#461](https://github.com/fabiodalez-dev/Pinakes/issues/461)): publishers get the same searchable list as authors, sub-genres can be chosen, and clearing the filters no longer reloads the page.
+- **The admin quick search lists books, articles and periodicals as one list** ([#463](https://github.com/fabiodalez-dev/Pinakes/issues/463)): the title that matches what was typed first, then the ones starting with it or containing it, in alphabetical order by the operator's language.
+- **The Emeroteca and Book Club addresses follow the site's language** (`/emeroteca`, `/periodicals`, `/zeitschriften`, `/periodiques`, `/tidsskrifter`; `/club-di-lettura`, `/book-club`, `/lesekreis`, `/club-de-lecture`, `/laeseklub`). The old addresses keep working.
+- **Interoperability follows the standards more closely.** OAI-PMH: MAG records use the official MAG 2.0.1 namespace, MARC 008 has its 40 positions, MODS names use namePart, languages are ISO 639-2. NCIP 2.02: circulation statuses use the scheme values and due dates fall at the end of the day. SRU: diagnostics in the SRU namespace, CQL NOT and sorting fixed. ResourceSync, BIBFRAME and OpenURL KEV are aligned with their specifications.
+- **Archives export MARC 21 by default** (danMARC2 stays available on request), EAD3 places creators in `did/origination`, and a unit can be kept off the site with a *Published* flag honoured by every public page, feed and protocol.
+
+### Added
+- **The VIAF and ISNI identifiers can be entered when an author is created**, not only afterwards.
+- **Private book clubs and confirmed invitations.** In a private club, books, discussions, polls and meetings are visible to members only; opening an invitation link shows a confirmation page, so a mail scanner can no longer join anyone.
+- **The Android app's push messages are encrypted** (Web Push, RFC 8291) when the device registers its keys.
+- **An issue's PDF opens page by page** (HTTP byte ranges) instead of downloading the whole scan first.
+- **The admin can take the Emeroteca and the Archive out of the public menu**, and edit the title of the home's events section.
+
+### Fixed
+- **The image uploaded for a CMS page is shown.** Every version up to this one stored it outside the web root while saving a public address, so it answered 404; images left there are moved on the next view. The CMS editor no longer creates an empty duplicate of the About page on an Italian installation seeded with `about-us`.
+- **A large PDF or download no longer fails on a low memory limit.** The security-header layer read every response into memory to check whether it was HTML.
+- **Plugin review.** Open Library sends the Google Books key in a header, not in the URL; API Book Scraper fails closed on an unreadable key; GoodLib starts with Anna's Archive, Z-Library and its public block off; Discogs, MusicBrainz and Deezer share one throttle per service; Digital Library checks an upload's content before storing it; the mobile API refuses loans, reservations and the wishlist in catalogue-only mode, expires idle tokens and rate-limits messages.
+- **Custom CSS, custom scripts and the cookie banner apply on every public page**, account and login pages included.
+
+Plugin versions: Archives 1.5.2, Book Club 1.4.8, Emeroteca 1.13.2, Mobile API 1.5.1, Desiderata 1.2.0, VIAF Authority 1.1.2, SRU Server 1.4.1, Digital Library 1.4.1, Open Library 1.0.6, API Book Scraper 1.1.3, GoodLib 1.0.2, Discogs 1.1.1. No core migration; the Archives plugin adds its *published* column on its own when it updates.
+
 ## [0.7.94]
 
 ### Added

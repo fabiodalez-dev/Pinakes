@@ -12,18 +12,18 @@
  *  4. MAG record has version="2.0.1" attribute
  *  5. MAG record contains <gen> section
  *  6. MAG <gen> contains <stprog> element
- *  7. MAG <gen> contains <collection> element
- *  8. MAG <gen> contains <rights> element
+ *  7. MAG <gen> follows the schema order
+ *  8. MAG <gen> access_rights / completeness are 0|1
  *  9. MAG record contains <bib> section
  * 10. MAG <bib> contains dc:title element
  * 11. MAG <bib> contains dc:creator when authors exist
- * 12. MAG <bib> contains <paese>IT</paese>
+ * 12. MAG <bib> carries only Dublin Core children
  * 13. OAI GetRecord with metadataPrefix=mag → 200 for specific book
  * 14. GetRecord MAG response has correct OAI-PMH envelope
  * 15. GetRecord MAG <bib> title matches DB title
- * 16. Book with file_url set → MAG <doc> section present
+ * 16. Book with file_url set → MAG <doc>/<img> section present
  * 17. Book without file_url → no <doc> section
- * 18. MAG records use proper XML namespace (iccu.sbn.it/mag)
+ * 18. MAG records use the official MAG 2.0.1 namespace (iccu.sbn.it/metaAG1.pdf)
  *
  * Run: /tmp/run-e2e.sh tests/mag-validation.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -244,26 +244,31 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         expect(body).toContain('</gen>');
     });
 
-    test('6. MAG <gen> contains <stprog> (project provenance)', async ({ request }) => {
+    // MAG 2.0.1 gen: stprog (anyURI, mandatory), collection? (anyURI), agency,
+    // access_rights (0|1), completeness (0|1) — in that order.
+    test('6. MAG <gen> contains <stprog> as an absolute URI', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(listRecordsUrl);
         const body = await res.text();
-        expect(body).toContain('<stprog>');
-        expect(body).toContain('<progetto>');
+        expect(body).toMatch(/<stprog>[a-z][a-z0-9+.-]*:[^<\s]+<\/stprog>/i);
+        expect(body).not.toContain('<progetto>');
     });
 
-    test('7. MAG <gen> contains <collection> element', async ({ request }) => {
+    test('7. MAG <gen> follows the schema order (stprog, agency, access_rights, completeness)', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(listRecordsUrl);
         const body = await res.text();
-        expect(body).toContain('<collection>');
+        const gen = (body.match(/<gen>([\s\S]*?)<\/gen>/) || [])[1] || '';
+        const order = [...gen.matchAll(/<([a-z_]+)>/g)].map((m) => m[1]).filter((t) => t !== 'collection');
+        expect(order).toEqual(['stprog', 'agency', 'access_rights', 'completeness']);
     });
 
-    test('8. MAG <gen> contains <rights> element', async ({ request }) => {
+    test('8. MAG <gen> access_rights and completeness are 0 or 1', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(listRecordsUrl);
         const body = await res.text();
-        expect(body).toContain('<rights>');
+        expect(body).toMatch(/<access_rights>[01]<\/access_rights>/);
+        expect(body).toMatch(/<completeness>[01]<\/completeness>/);
     });
 
     // ── Tests 9-12: <bib> section ────────────────────────────────────────────
@@ -272,7 +277,7 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(listRecordsUrl);
         const body = await res.text();
-        expect(body).toContain('<bib>');
+        expect(body).toMatch(/<bib level="[msca]">/);
         expect(body).toContain('</bib>');
     });
 
@@ -298,11 +303,16 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         }
     });
 
-    test('12. MAG <bib> contains <paese>IT</paese>', async ({ request }) => {
+    // MAG 2.0.1 bib holds Dublin Core only: no non-schema elements such as <paese>.
+    test('12. MAG <bib> carries only Dublin Core children', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(listRecordsUrl);
         const body = await res.text();
-        expect(body).toContain('<paese>IT</paese>');
+        const bib = (body.match(/<bib level="[msca]">([\s\S]*?)<\/bib>/) || [])[1] || '';
+        expect(bib).not.toBe('');
+        const tags = [...bib.matchAll(/<([a-zA-Z_:]+)[\s>]/g)].map((m) => m[1]);
+        expect(tags.filter((t) => !t.startsWith('dc:'))).toEqual([]);
+        expect(body).not.toContain('<paese>');
     });
 
     // ── Tests 13-15: GetRecord ────────────────────────────────────────────────
@@ -362,8 +372,9 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         expect(res.status()).toBe(200);
         const body = await res.text();
         expect(body).not.toContain('<error code=');
-        expect(body).toContain('<doc>');
-        expect(body).toContain('<defile>');
+        expect(body).toMatch(/<(doc|img)>\s*<sequence_number>1<\/sequence_number>/);
+        expect(body).toMatch(/<file xlink:href="[^"]+"/);
+        expect(body).not.toContain('<defile>');
     });
 
     test('17. Book without file_url → no <doc> section in GetRecord', async ({ request }) => {
@@ -375,14 +386,16 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         const body = await res.text();
         expect(body).not.toContain('<error code=');
         expect(body).not.toContain('<doc>');
+        expect(body).not.toContain('<img>');
     });
 
     // ── Test 18: Namespace ────────────────────────────────────────────────────
 
-    test('18. MAG records use iccu.sbn.it/mag XML namespace', async ({ request }) => {
+    test('18. MAG records use the official MAG 2.0.1 namespace', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(listRecordsUrl);
         const body = await res.text();
-        expect(body).toContain('iccu.sbn.it/mag');
+        expect(body).toMatch(/<metadigit[^>]+xmlns="http:\/\/www\.iccu\.sbn\.it\/metaAG1\.pdf"/);
+        expect(body).not.toContain('iccu.sbn.it/mag/');
     });
 });

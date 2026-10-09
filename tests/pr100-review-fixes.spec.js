@@ -66,14 +66,19 @@ function countCsvRecords(csv) {
 
 // ─── Offline tests: file-level metadata ───────────────────────────────────
 test.describe('PR #100 fixes — offline metadata', () => {
-  test('1. plugin.json declares version 1.1.0, requires_app 0.5.4, 4 hooks', () => {
+  test('1. plugin.json declares version >= 1.1.0, requires_app 0.5.4, 4 hooks', () => {
     const raw = fs.readFileSync(
       path.join(REPO_ROOT, 'storage/plugins/discogs/plugin.json'),
       'utf8'
     );
     const manifest = JSON.parse(raw);
 
-    expect(manifest.version, 'plugin.json version aligned with getInfo()').toBe('1.1.0');
+    // Any later release keeps the PR #100 contract; the manifest and
+    // getInfo() must still agree.
+    const [maj, min] = String(manifest.version).split('.').map(Number);
+    expect(maj > 1 || (maj === 1 && min >= 1), 'plugin.json version >= 1.1.0').toBe(true);
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'storage/plugins/discogs/DiscogsPlugin.php'), 'utf8');
+    expect(src, 'plugin.json version aligned with getInfo()').toContain(`'version' => '${manifest.version}'`);
     expect(manifest.requires_app, 'requires_app must reflect tipo_media dependency').toBe('0.5.4');
 
     const hooks = manifest.metadata?.hooks ?? [];
@@ -100,7 +105,8 @@ test.describe('PR #100 fixes — offline metadata', () => {
     );
     const m = php.match(/'version'\s*=>\s*'([^']+)'/);
     expect(m, 'getInfo() must declare a version').not.toBeNull();
-    expect(m[1]).toBe('1.1.0');
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'storage/plugins/discogs/plugin.json'), 'utf8'));
+    expect(m[1]).toBe(manifest.version);
   });
 
   test('3. README references 4 hooks (not 3)', () => {

@@ -26,6 +26,7 @@ $catalogRoute = route_path('catalog');
 $reservationsRoute = route_path('reservations');
 $wishlistRoute = route_path('wishlist');
 $profileRoute = route_path('profile');
+$userDashboardRoute = route_path('user_dashboard');
 $loginRoute = route_path('login');
 $registerRoute = route_path('register');
 
@@ -36,8 +37,6 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 $versionFile = __DIR__ . '/../../../version.json';
 $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
 $appVersion = $versionData['version'] ?? '0.1.0';
-$frontendLayoutsMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/frontend-layouts.css');
-$frontendLayoutsVersion = $frontendLayoutsMtime !== false ? (string)$frontendLayoutsMtime : $appVersion;
 $frontendMainMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/main.css');
 $frontendMainVersion = $frontendMainMtime !== false ? (string)$frontendMainMtime : $appVersion;
 $frontendVendorMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/vendor.css');
@@ -56,6 +55,10 @@ $catalogPagesMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/catalog-pa
 $catalogPagesVersion = $catalogPagesMtime !== false ? (string)$catalogPagesMtime : $appVersion;
 $bookDetailMtime = @filemtime(dirname(__DIR__, 3) . '/public/assets/book-detail.css');
 $bookDetailVersion = $bookDetailMtime !== false ? (string)$bookDetailMtime : $appVersion;
+// The stylesheet and the script share one version: whichever changed last, so
+// an edit to the script alone still reaches browsers that cached the old one.
+$pinakes2026Mtime = max((int) @filemtime(dirname(__DIR__, 3) . '/public/assets/pinakes-2026.css'), (int) @filemtime(dirname(__DIR__, 3) . '/public/assets/pinakes-2026.js'));
+$pinakes2026Version = $pinakes2026Mtime > 0 ? (string)$pinakes2026Mtime : $appVersion;
 
 // Load theme colors
 if (isset($container)) {
@@ -64,23 +67,23 @@ if (isset($container)) {
     $activeTheme = $themeManager->getActiveTheme();
     $themeColors = $themeManager->getThemeColors($activeTheme);
     $themePalette = $themeColorizer->generateColorPalette($themeColors);
-    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
+    $publicStyle = $themeManager->getPublicStyle($activeTheme);
 } elseif (isset($db) && $db instanceof mysqli) {
     // Public views rendered by standalone controllers or plugins do not always
     // receive the DI container, but they do share the request's DB handle.
     // Resolve the same active theme from that handle so CMS/contact/plugin
-    // pages never silently fall back to Editoriale.
+    // pages never silently fall back to the default palette and style.
     $themeManager = new \App\Support\ThemeManager($db);
     $themeColorizer = new \App\Support\ThemeColorizer();
     $activeTheme = $themeManager->getActiveTheme();
     $themeColors = $themeManager->getThemeColors($activeTheme);
     $themePalette = $themeColorizer->generateColorPalette($themeColors);
-    $layoutVariant = $themeManager->getLayoutVariant($activeTheme);
+    $publicStyle = $themeManager->getPublicStyle($activeTheme);
 } else {
     // Fallback colors when container is not available
     $themePalette = [
         'primary' => '#d70161',
-        'secondary' => '#111827',
+        'secondary' => '#1b1720',
         'button' => '#d70262',
         'button_text' => '#ffffff',
         'primary_light' => '#f9e6ef',
@@ -89,10 +92,14 @@ if (isset($container)) {
         'primary_focus' => '#b70152',
         'secondary_hover' => '#0f1623',
         'button_hover' => '#c20258',
+        'primary_text' => '#ce015d',
+        'button_surface' => '#d70262',
+        'secondary_surface' => '#1b1720',
+        'primary_on_dark' => '#e2488d',
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',
     ];
-    $layoutVariant = \App\Support\ThemeManager::DEFAULT_LAYOUT_VARIANT;
+    $publicStyle = ['hero_style' => \App\Support\ThemeManager::DEFAULT_HERO_STYLE, 'card_style' => \App\Support\ThemeManager::DEFAULT_CARD_STYLE];
 }
 
 // Get events page status using ConfigStore (has its own DB connection)
@@ -156,7 +163,13 @@ try {
 }
 try {
     if (!$archivesAvailable && $publicPluginIsActive('archives') && $publicNavigationDb instanceof mysqli) {
-        $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
+        // Only a PUBLISHED unit makes the archive worth a menu entry; an
+        // Archives older than the publication flag has every unit public.
+        try {
+            $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL AND published = 1 LIMIT 1");
+        } catch (\mysqli_sql_exception $e) {
+            $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
+        }
         if ($unitCheck instanceof mysqli_result && $unitCheck->num_rows === 1) {
             $archivesAvailable = true;
         }
@@ -311,11 +324,13 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($flatpickrCustomVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendMainVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/frontend-layouts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendLayoutsVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($swalThemeVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php if (!empty($archivePageStyles)): ?>
         <link href="<?= htmlspecialchars(assetUrl('/archive-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($archivePagesVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php endif; ?>
+    <?php // The 2026 design's two faces (Latin subset), fetched with the CSS rather than after it. ?>
+    <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Geist-normal-latin.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= htmlspecialchars(assetUrl('fonts/Fraunces-6.woff2'), ENT_QUOTES, 'UTF-8') ?>" as="font" type="font/woff2" crossorigin>
     <link href="<?= htmlspecialchars(assetUrl('fonts/fonts.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
@@ -356,6 +371,25 @@ $htmlLang = substr($currentLocale, 0, 2);
             ;
             --primary-dark:
                 <?= htmlspecialchars($themePalette['primary_dark'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            /* The accent as text: darkened only as far as AA contrast needs
+               (--primary-text on the soft tint, --primary-ink on the page). */
+            --primary-text:
+                <?= htmlspecialchars($themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --primary-ink:
+                <?= htmlspecialchars($themePalette['primary_ink'] ?? $themePalette['primary_text'] ?? $themePalette['primary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            /* Filled surfaces kept at AA with their text, and the accent as
+               text on the dark surface (ThemeColorizer::readableSurface()). */
+            --button-surface:
+                <?= htmlspecialchars($themePalette['button_surface'] ?? $themePalette['button'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --secondary-surface:
+                <?= htmlspecialchars($themePalette['secondary_surface'] ?? $themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
+            ;
+            --primary-on-dark:
+                <?= htmlspecialchars($themePalette['primary_on_dark'] ?? '#ffffff', ENT_QUOTES, 'UTF-8') ?>
             ;
             --secondary-color:
                 <?= htmlspecialchars($themePalette['secondary'], ENT_QUOTES, 'UTF-8') ?>
@@ -436,7 +470,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         .header-brand {
             font-size: 1.5rem;
             font-weight: 800;
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             text-decoration: none;
             display: flex;
             align-items: center;
@@ -496,7 +530,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             font-weight: 600;
         }
 
@@ -569,7 +603,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-search-toggle:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         /* Mobile search container animation */
@@ -792,7 +826,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         .btn-outline-header:hover {
             border-color: var(--primary-color);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             background: rgba(0, 0, 0, 0.02);
             transform: translateY(-1px);
         }
@@ -977,7 +1011,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-menu-toggle:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .header-content {
@@ -1113,7 +1147,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             font-weight: 700;
             line-height: 1.4;
             margin-bottom: 0.75rem;
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             letter-spacing: -0.01em;
         }
 
@@ -1373,6 +1407,9 @@ $htmlLang = substr($currentLocale, 0, 2);
             opacity: 0;
             visibility: hidden;
             transition: opacity 0.3s ease, visibility 0.3s ease;
+            /* The closed drawer waits off-screen to the right: clip it here, so
+               it never widens the page (a phone could pan to it otherwise). */
+            overflow: hidden;
         }
 
         .mobile-menu-overlay.active {
@@ -1381,7 +1418,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-menu-content {
-            position: fixed;
+            position: absolute;
             top: 0;
             right: 0;
             width: 80%;
@@ -1430,7 +1467,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-menu-close:hover {
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-nav {
@@ -1450,12 +1487,12 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         .mobile-nav-link:hover {
             background: rgba(0, 0, 0, 0.05);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
         }
 
         .mobile-nav-link.active {
             background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-            color: var(--primary-color);
+            color: var(--primary-text, var(--primary-color));
             border-left: 3px solid var(--primary-color);
         }
 
@@ -1470,114 +1507,6 @@ $htmlLang = substr($currentLocale, 0, 2);
             border-top: 1px solid var(--border-color);
         }
 
-        /* ==========================================================
-           PINAKES EDITORIAL — bold restyle (branch design/modern-frontend)
-           Shared system across home, catalog, book. Colours + theme
-           variables untouched; --primary-color is used BOLDLY as a
-           committed surface. Self-hosted fonts. Crisp, minimal, few
-           borders. Scoped to .main-content / frontend body.
-           ========================================================== */
-        :root{
-            --serif:'Fraunces', Georgia, 'Times New Roman', serif;
-            --sans:'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            --radius-sm:2px; --radius-md:2px; --radius-lg:2px; --radius-xl:3px;
-            --card-shadow:none;
-            --card-shadow-hover:0 1px 2px rgba(15,23,42,.05);
-            --ink:var(--text-color);
-            --edge:var(--border-color);
-        }
-        body{ font-family:var(--sans); letter-spacing:-.008em; }
-        body, main, .main-content{ background:var(--white); }
-
-        /* Fraunces display voice — light, elegant, big. */
-        h1,h2,h3,h4,
-        .hero-title,.section-title,.page-title,.book-title,.book-title-hero,
-        .book-detail-title,.event-title,.cms-title,.page-hero__title,
-        .related-book-title,.feature-title,.cta-title,.genre-carousel-title,
-        .home-events__title{
-            font-family:var(--serif) !important;
-            font-weight:420 !important;
-            letter-spacing:-.025em !important;
-            line-height:1.05;
-        }
-        .header-brand,.header-brand .brand-text{ font-family:var(--serif) !important; font-weight:560 !important; letter-spacing:-.03em !important; }
-
-        /* Eyebrow / micro-label motif (uppercase, tracked, accent). */
-        .plabel, .eyebrow{ font:600 .72rem/1 var(--sans); letter-spacing:.16em; text-transform:uppercase; color:var(--primary-color); }
-
-        /* --- De-round EVERYTHING (no pills) + flatten + de-box --- */
-        .main-content input, .main-content select, .main-content textarea,
-        .search-input,.hero-search-input,.hero-search-input-group,
-        .btn-cta,.btn-cta-outline,.btn-cta-sm,.btn-cta-lg,.btn-header,.btn-search-mobile,
-        .ui-button,.btn-primary,.btn-outline-primary,.btn-view,.btn-related-view,.btn-catalog,
-        .book-card,.book-image-container,.book-status,.book-status-badge,.book-media-badge,
-        .genre-tag,.keyword-chip,.availability-badge,.author-item,.status-badge,.chip,
-        .filter-tag,.facet-collapsed,.feature-card,.feature-icon,.related-book-card,
-        .event-card,.event-cover,.related-card,.page-link,.user-dropdown-menu,
-        .cover-img,.book-cover-large,.hero-quick-link,.card{
-            border-radius:2px !important;
-        }
-        .main-content .book-card,.main-content .feature-card,.main-content .related-book-card,
-        .main-content .event-card,.main-content .card,.main-content .author-info,
-        .main-content .archive-icon,.book-description-section,.book-details-section,
-        .book-reviews-section,.book-meta{
-            box-shadow:none !important;
-            backdrop-filter:none !important;
-            -webkit-backdrop-filter:none !important;
-        }
-        /* covers get the only real elevation */
-        .book-card .book-image-container, .book-cover-large, .related-book-card .book-image-container{
-            box-shadow:0 1px 3px rgba(15,23,42,.10) !important;
-        }
-
-        /* Buttons: crisp, confident. */
-        .btn-cta,.btn-primary,.btn-outline-primary,.btn-view,.btn-catalog,.btn-related-view{
-            letter-spacing:.01em; font-weight:600; text-transform:none;
-        }
-
-        /* ---- KILL THE "OLD" LOOK: no shadows, no gradients-as-decoration, no
-           glass, everywhere inside the frontend. This is what makes it modern. */
-        .main-content [class*="card"],
-        .main-content [class*="section"],
-        .main-content [class*="panel"],
-        .main-content [class*="box"],
-        .main-content [class*="feature"],
-        .main-content [class*="stat"],
-        .main-content [class*="badge"],
-        .main-content [class*="tag"],
-        .main-content [class*="tile"],
-        .main-content .card, .main-content .well{
-            box-shadow:none !important;
-            backdrop-filter:none !important;
-            -webkit-backdrop-filter:none !important;
-            text-shadow:none !important;
-        }
-        /* covers are the only elevated objects */
-        .main-content .book-image-container,
-        .main-content .book-cover-large,
-        .main-content .cover-img{
-            box-shadow:0 1px 3px rgba(15,23,42,.12) !important;
-        }
-        /* generous editorial rhythm */
-        .main-content .section,
-        .main-content section[class*="section"]{ padding-top:clamp(3.5rem,8vw,6rem); padding-bottom:clamp(3.5rem,8vw,6rem); }
-
-        /* Header: clean, crisp hairline, no heavy blur. */
-        .header-container{ background:rgba(255,255,255,.94); backdrop-filter:saturate(1.03) blur(6px); -webkit-backdrop-filter:saturate(1.03) blur(6px); }
-
-        /* ---- Elegant motion: fade-up on scroll (opt-in via .reveal, added by
-           the observer below). Respects reduced-motion. ---- */
-        .reveal{ opacity:0; transform:translateY(18px); }
-        .reveal.is-in{ opacity:1; transform:none; transition:opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
-        @media (prefers-reduced-motion: reduce){
-            .reveal,.reveal.is-in{ opacity:1 !important; transform:none !important; transition:none !important; }
-        }
-        /* elegant hover: cover lift + link underline reveal */
-        .main-content .book-card{ transition:transform .5s cubic-bezier(.22,1,.36,1); }
-        .main-content .book-card:hover{ transform:translateY(-6px); }
-        .main-content a.book-title-link, .main-content .book-title a{ background-image:linear-gradient(var(--primary-color),var(--primary-color)); background-size:0% 1px; background-position:0 100%; background-repeat:no-repeat; transition:background-size .4s cubic-bezier(.22,1,.36,1); }
-        .main-content a.book-title-link:hover, .main-content .book-title a:hover{ background-size:100% 1px; }
-
         <?= $additional_css ?? '' ?>
     </style>
     <?php if (!empty($catalogPageStyles)): ?>
@@ -1588,25 +1517,13 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php if (!empty($bookDetailStyles)): ?>
         <link href="<?= htmlspecialchars(assetUrl('/book-detail.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($bookDetailVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
     <?php endif; ?>
+    <?php // The 2026 design system: after the page sheets, before the theme's custom CSS. ?>
+    <link href="<?= htmlspecialchars(assetUrl('/pinakes-2026.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($pinakes2026Version, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
-    // Active theme's "CSS Personalizzato" (settings.advanced.custom_css, saved
-    // by ThemeController). Sanitized again at render time — defense in depth,
-    // same as the custom_header_css partial below. Unavailable in the
-    // no-container fallback branch (no $themeManager there).
-    $themeCustomCss = '';
-    if (isset($themeManager)) {
-        $themeAdvanced = $themeManager->getAdvancedSettings($activeTheme ?? null);
-        $themeCustomCss = is_string($themeAdvanced['custom_css'] ?? null)
-            ? ContentSanitizer::sanitizeCustomCss($themeAdvanced['custom_css'])
-            : '';
-    }
-    if ($themeCustomCss !== ''):
-        ?>
-        <style>
-            <?= $themeCustomCss ?>
-        </style>
-    <?php endif; ?>
+    // Active theme's "CSS Personalizzato", then the site-wide custom CSS.
+    require __DIR__ . '/../auth/partials/theme-custom-css.php';
+    ?>
 
     <?php
     // Load custom CSS from settings (shared partial — also used by the auth
@@ -1615,105 +1532,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     ?>
 
     <?php
-    // Load custom JavaScript from settings (granular by cookie category)
-    $customJsEssential = ConfigStore::get('advanced.custom_js_essential', '');
-    $customJsEssential = is_string($customJsEssential) ? ContentSanitizer::normalizeExternalAssets($customJsEssential) : $customJsEssential;
-
-    $customJsAnalytics = ConfigStore::get('advanced.custom_js_analytics', '');
-    $customJsAnalytics = is_string($customJsAnalytics) ? ContentSanitizer::normalizeExternalAssets($customJsAnalytics) : $customJsAnalytics;
-
-    $customJsMarketing = ConfigStore::get('advanced.custom_js_marketing', '');
-    $customJsMarketing = is_string($customJsMarketing) ? ContentSanitizer::normalizeExternalAssets($customJsMarketing) : $customJsMarketing;
-
-    // JavaScript Essenziali: sempre caricati
-    if (!empty($customJsEssential)):
-        ?>
-        <script id="custom-js-essential">
-            <?= $customJsEssential ?>
-        </script>
-    <?php endif; ?>
-
-    <?php
-    // JavaScript Analitici e Marketing: caricati solo con consenso
-    // Preparazione script per caricamento condizionato
-    if (!empty($customJsAnalytics) || !empty($customJsMarketing)):
-        ?>
-        <script id="custom-js-loader">
-                (function () {
-                    'use strict';
-
-                    // Script analytics
-                    const analyticsScript = <?= json_encode($customJsAnalytics, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
-
-                    // Script marketing
-                    const marketingScript = <?= json_encode($customJsMarketing, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
-
-                    // Funzione per iniettare script
-                    function injectScript(scriptContent, id) {
-                        if (!scriptContent || document.getElementById(id)) {
-                            return; // Skip se vuoto o già iniettato
-                        }
-
-                        // Verifica che il contenuto sia JavaScript valido (non HTML)
-                        if (scriptContent.trim().startsWith('<') || scriptContent.includes('<iframe') || scriptContent.includes('<script')) {
-                            console.warn('Custom script contains HTML tags and will be skipped. Use JavaScript code only.', id);
-                            return;
-                        }
-
-                        try {
-                            const script = document.createElement('script');
-                            script.id = id;
-                            script.textContent = scriptContent;
-                            document.head.appendChild(script);
-                        } catch (error) {
-                            console.error('Failed to inject custom script:', id, error);
-                        }
-                    }
-
-                    // Funzione per controllare consenso e caricare script
-                    function loadCustomScripts() {
-                        if (!window.CookieControl || !window.CookieControl.getCategoryConsent) {
-                            return; // Cookie Control non ancora pronto
-                        }
-
-                        // Carica analytics se consenso granted
-                        if (analyticsScript && window.CookieControl.getCategoryConsent('analytics')) {
-                            injectScript(analyticsScript, 'custom-js-analytics');
-                        }
-
-                        // Carica marketing se consenso granted
-                        if (marketingScript && window.CookieControl.getCategoryConsent('marketing')) {
-                            injectScript(marketingScript, 'custom-js-marketing');
-                        }
-                    }
-
-                    // Prova a caricare al DOMContentLoaded
-                    if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', function () {
-                            setTimeout(loadCustomScripts, 200);
-                        });
-                    } else {
-                        setTimeout(loadCustomScripts, 200);
-                    }
-
-                    // Ascolta cambiamenti consenso
-                    window.addEventListener('silktideConsentChanged', function () {
-                        setTimeout(loadCustomScripts, 100);
-                    });
-
-                    // Retry per i primi 3 secondi (in caso Cookie Control si carica lentamente)
-                    let attempts = 0;
-                    const retryInterval = setInterval(function () {
-                        attempts++;
-                        loadCustomScripts();
-
-                        if (attempts >= 6 || (window.CookieControl && window.CookieControl.getCategoryConsent)) {
-                            clearInterval(retryInterval);
-                        }
-                    }, 500);
-                })();
-        </script>
-    <?php endif; ?>
+    // Custom JavaScript from settings (essential always; analytics and
+    // marketing only after consent). Shared with the account pages.
+    require __DIR__ . '/../partials/custom-js.php';
+    ?>
 
     <!-- Silktide Consent Manager CSS -->
     <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/css/silktide-consent-manager.css'), ENT_QUOTES, 'UTF-8') ?>">
@@ -1756,11 +1578,14 @@ $htmlLang = substr($currentLocale, 0, 2);
   $publicNavItems = [
       ['href' => $catalogRoute, 'label' => __('Catalogo'), 'icon' => 'fa-book', 'active' => $navPathActive((string) $catalogRoute)],
   ];
-  if ($archivesAvailable) {
+  if ($archivesAvailable && ConfigStore::isInPublicMenu('archives')) {
       $publicNavItems[] = ['href' => $archivesRoute, 'label' => __('Archivio'), 'icon' => 'fa-archive', 'active' => $navPathActive((string) $archivesRoute)];
   }
-  if ($emerotecaAvailable) {
-      $publicNavItems[] = ['href' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive('/emeroteca')];
+  if ($emerotecaAvailable && ConfigStore::isInPublicMenu('emeroteca')) {
+      // Localized base of the 'periodicals' route key; the historical
+      // /emeroteca stays registered, so both spellings mark the item active.
+      $emerotecaRoute = \App\Support\RouteTranslator::route('periodicals');
+      $publicNavItems[] = ['href' => $emerotecaRoute, 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive($emerotecaRoute) || $navPathActive('/emeroteca')];
   }
   if ($eventsEnabled) {
       // The localized path (/eventi in Italian); /events stays registered as
@@ -1769,7 +1594,8 @@ $htmlLang = substr($currentLocale, 0, 2);
       $publicNavItems[] = ['href' => $eventsRoute, 'label' => __('Eventi'), 'icon' => 'fa-calendar-alt', 'active' => $navPathActive((string) $eventsRoute) || $navPathActive('/events')];
   }
 ?>
-<body class="<?= $isHome ? 'home ' : '' ?>layout-<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>" data-layout="<?= htmlspecialchars($layoutVariant, ENT_QUOTES, 'UTF-8') ?>">
+<?php $pkStyleClasses = \App\Support\ThemeManager::publicStyleClasses($publicStyle); ?>
+<body class="pk<?= $isHome ? ' home' : '' ?><?= $pkStyleClasses !== '' ? ' ' . htmlspecialchars($pkStyleClasses, ENT_QUOTES, 'UTF-8') : '' ?>">
     <!-- Minimalist Header -->
     <div class="header-container">
         <div class="header-main">
@@ -1809,7 +1635,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                     <form class="search-form hidden md:block" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
+                            placeholder="<?= htmlspecialchars(__('Cerca titolo, autore, ISBN…'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
 
                     <div class="user-menu hidden md:flex">
@@ -1840,7 +1666,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                             <span class="hidden md:inline"><?= HtmlHelper::safe($_SESSION['user']['name'] ?? $_SESSION['user']['username'] ?? __('Profilo')) ?></span>
                                         </button>
                                         <div class="user-dropdown-menu" role="menu">
-                                            <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" role="menuitem">
+                                            <a href="<?= htmlspecialchars(absoluteUrl($userDashboardRoute), ENT_QUOTES, 'UTF-8') ?>" role="menuitem">
                                                 <i class="fas fa-tachometer-alt"></i>
                                                 <?= __('La mia bacheca') ?>
                                             </a>
@@ -1861,7 +1687,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                 <?php endif; ?>
                             </div>
                         <?php else: ?>
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-2 pk-guest">
                                 <a class="btn-header btn-outline-header" href="<?= htmlspecialchars(absoluteUrl($loginRoute), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-sign-in-alt"></i>
                                     <span class="hidden sm:inline"><?= __('Accedi') ?></span>
@@ -1877,7 +1703,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <!-- Mobile search container with animation -->
                     <div class="mobile-search-container md:hidden" id="mobileSearchContainer">
                         <form class="search-form mobile-search-form" action="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>" method="get">
-                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>"
+                            <input class="search-input mobile-search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca titolo, autore, ISBN…'), ENT_QUOTES, 'UTF-8') ?>"
                                 aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off">
                             <button type="submit" class="btn-search-mobile" aria-label="<?= htmlspecialchars(__('Cerca'), ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas fa-search"></i>
@@ -1907,8 +1733,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <?php endforeach; ?>
                     <?php if ($isLogged): ?>
                         <hr class="mobile-menu-divider">
-                        <a href="<?= htmlspecialchars(absoluteUrl('/user/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
-                            <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                        <a href="<?= htmlspecialchars(absoluteUrl($userDashboardRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
+                            <i class="fas fa-tachometer-alt mr-2"></i><?= __("Dashboard") ?>
                         </a>
                         <?php if (!$isCatalogueMode): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl($reservationsRoute), ENT_QUOTES, 'UTF-8') ?>" class="mobile-nav-link">
@@ -1947,95 +1773,101 @@ $htmlLang = substr($currentLocale, 0, 2);
     </main>
 
     <!-- Footer -->
+    <?php
+    $footerLink = static fn (string $key): string => htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route($key)), ENT_QUOTES, 'UTF-8');
+    $footerSocials = array_filter([
+        ['href' => $socialFacebook, 'icon' => 'fab fa-facebook', 'label' => 'Facebook'],
+        ['href' => $socialTwitter, 'icon' => 'fa-brands fa-x-twitter', 'label' => 'X'],
+        ['href' => $socialInstagram, 'icon' => 'fab fa-instagram', 'label' => 'Instagram'],
+        ['href' => $socialLinkedin, 'icon' => 'fab fa-linkedin', 'label' => 'LinkedIn'],
+        ['href' => $socialBluesky, 'icon' => 'fa-brands fa-bluesky', 'label' => 'Bluesky'],
+        ['href' => $socialTelegram, 'icon' => 'fa-brands fa-telegram', 'label' => 'Telegram'],
+    ], static fn (array $s): bool => $s['href'] !== '');
+    ?>
+    <?php require __DIR__ . '/partials/mobile-tabbar.php'; ?>
     <footer class="footer">
-        <div class="container">
-            <div class="flex flex-wrap -mx-3">
-                <div class="w-full lg:w-1/4 px-3" style="margin-bottom: 1.7rem;">
+        <div class="pk-footer">
+            <div class="pk-footer__cols">
+                <div class="pk-footer__brand">
                     <?php if ($appLogo !== ''): ?>
-                        <img src="<?= HtmlHelper::e($appLogo) ?>" alt="<?= HtmlHelper::e($appName) ?>" class="footer-logo">
+                        <img src="<?= htmlspecialchars($appLogo, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>" class="footer-logo">
                     <?php else: ?>
-                        <h5><i class="fas fa-book-open mr-2"></i><?= HtmlHelper::e($appName) ?></h5>
+                        <h5><i class="fas fa-book-open mr-2" aria-hidden="true"></i><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h5>
                     <?php endif; ?>
-                    <p><?= HtmlHelper::e($footerDescription) ?></p>
+                    <p><?= htmlspecialchars($footerDescription, ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
-                <div class="w-full lg:w-1/4 px-3">
+                <div class="pk-footer__col">
                     <h5><?= __("Menu") ?></h5>
-                    <ul class="list-none">
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('about')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Chi Siamo") ?></a>
-                        </li>
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('contact')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Contatti") ?></a>
-                        </li>
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('privacy')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Privacy Policy") ?></a>
-                        </li>
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('cookies')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Cookies") ?></a>
-                        </li>
+                    <ul>
+                        <li><a href="<?= $footerLink('about') ?>"><?= __("Chi Siamo") ?></a></li>
+                        <li><a href="<?= $footerLink('contact') ?>"><?= __("Contatti") ?></a></li>
+                        <li><a href="<?= $footerLink('privacy') ?>"><?= __("Privacy Policy") ?></a></li>
+                        <li><a href="<?= $footerLink('cookies') ?>"><?= __("Cookies") ?></a></li>
                     </ul>
                 </div>
-                <div class="w-full lg:w-1/4 px-3">
+                <div class="pk-footer__col">
                     <h5><?= __("Account") ?></h5>
-                    <ul class="list-none">
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('user_dashboard')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Dashboard") ?></a>
-                        </li>
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('profile')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Profilo") ?></a>
-                        </li>
+                    <ul>
+                        <li><a href="<?= $footerLink('user_dashboard') ?>"><?= __("Dashboard") ?></a></li>
+                        <li><a href="<?= $footerLink('profile') ?>"><?= __("Profilo") ?></a></li>
                         <?php if (!$isCatalogueMode): ?>
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('wishlist')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Wishlist") ?></a>
-                        </li>
-                        <li><a
-                                href="<?= htmlspecialchars(absoluteUrl(\App\Support\RouteTranslator::route('reservations')), ENT_QUOTES, 'UTF-8') ?>"><?= __("Prenotazioni") ?></a>
-                        </li>
+                        <li><a href="<?= $footerLink('wishlist') ?>"><?= __("Wishlist") ?></a></li>
+                        <li><a href="<?= $footerLink('reservations') ?>"><?= __("Prenotazioni") ?></a></li>
                         <?php endif; ?>
                     </ul>
                 </div>
-                <?php if ($socialFacebook !== '' || $socialTwitter !== '' || $socialInstagram !== '' || $socialLinkedin !== '' || $socialBluesky !== '' || $socialTelegram !== ''): ?>
-                <div class="w-full lg:w-1/4 px-3">
+                <?php if ($footerSocials !== []): ?>
+                <div class="pk-footer__col">
                     <h5><?= __("Seguici") ?></h5>
-                    <div class="flex gap-3 social-links">
-                        <?php if ($socialFacebook !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialFacebook, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-facebook"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialTwitter !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialTwitter, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-twitter"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialInstagram !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialInstagram, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-instagram"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialLinkedin !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialLinkedin, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fab fa-linkedin"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialBluesky !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialBluesky, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fa-brands fa-bluesky"></i></a>
-                        <?php endif; ?>
-                        <?php if ($socialTelegram !== ''): ?>
-                            <a href="<?= htmlspecialchars($socialTelegram, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
-                                    class="fa-brands fa-telegram"></i></a>
-                        <?php endif; ?>
-                    </div>
+                    <ul class="social-links">
+                        <?php foreach ($footerSocials as $social): ?>
+                        <li><a href="<?= htmlspecialchars($social['href'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="<?= htmlspecialchars($social['icon'], ENT_QUOTES, 'UTF-8') ?> mr-2" aria-hidden="true"></i><?= htmlspecialchars($social['label'], ENT_QUOTES, 'UTF-8') ?></a></li>
+                        <?php endforeach; ?>
+                    </ul>
                 </div>
                 <?php endif; ?>
             </div>
-            <hr class="my-4">
-            <div class="flex justify-center items-center gap-2">
-                <p class="mb-0"><?= date('Y') ?> • <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> • <a href="<?= htmlspecialchars('https://github.com/fabiodalez-dev/Pinakes', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="Pinakes GitHub" class="hover:underline" style="color: inherit;"><i class="fa-brands fa-github"></i> Powered by Pinakes
-                    v<?= htmlspecialchars((string) $appVersion, ENT_QUOTES, 'UTF-8') ?></a></p>
-                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" title="<?= HtmlHelper::e(__('Feed RSS')) ?>" class="text-gray-500" aria-label="<?= HtmlHelper::e(__('Feed RSS')) ?>">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg>
-                </a>
+            <div class="pk-footer__bottom">
+                <span><?= date('Y') ?> · <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> · <?= __('Powered by') ?> <a href="<?= htmlspecialchars('https://github.com/fabiodalez-dev/Pinakes', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="Pinakes GitHub"><i class="fa-brands fa-github" aria-hidden="true"></i> Pinakes v<?= htmlspecialchars((string) $appVersion, ENT_QUOTES, 'UTF-8') ?></a></span>
+                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" class="pk-footer__rss" title="<?= htmlspecialchars(__('Feed RSS'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Feed RSS'), ENT_QUOTES, 'UTF-8') ?>"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg> <?= htmlspecialchars(__('Feed RSS'), ENT_QUOTES, 'UTF-8') ?></a>
             </div>
         </div>
     </footer>
+
+    <?php
+    // State for the 2026 cards' wishlist hearts (public/assets/pinakes-2026.js):
+    // the signed-in user's wishlist in one query, so no card asks on its own.
+    $pkWish = [];
+    $pkLogged = !empty($_SESSION['user']['id']) && !$isCatalogueMode;
+    if ($pkLogged && $publicNavigationDb instanceof mysqli) {
+        try {
+            $pkStmt = $publicNavigationDb->prepare('SELECT libro_id FROM wishlist WHERE utente_id = ?');
+            if ($pkStmt !== false) {
+                $pkUid = (int) $_SESSION['user']['id'];
+                $pkStmt->bind_param('i', $pkUid);
+                $pkStmt->execute();
+                $pkWish = array_map('intval', array_column($pkStmt->get_result()->fetch_all(MYSQLI_ASSOC), 'libro_id'));
+                $pkStmt->close();
+            }
+        } catch (\Throwable $e) {
+            $pkWish = [];
+        }
+    }
+    $pkState = [
+        'logged' => $pkLogged,
+        'wish' => $pkWish,
+        'login' => absoluteUrl($loginRoute),
+        // Only a signed-in reader toggles the heart, and they always have a
+        // session: reuse the meta token so an anonymous render stays
+        // token-free and cacheable (issue #387).
+        'csrf' => $pkLogged ? $csrfMetaToken : '',
+        'wishOn' => __('Nei preferiti'),
+        'wishOff' => __('Aggiungi ai preferiti'),
+        'wishError' => __("Errore nell'aggiornare i preferiti."),
+    ];
+    ?>
+    <script>window.PK = <?= json_encode($pkState, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;</script>
+    <script src="<?= htmlspecialchars(assetUrl('/pinakes-2026.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($pinakes2026Version, ENT_QUOTES, 'UTF-8') ?>" defer></script>
 
     <!-- Scripts -->
     <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
@@ -2058,24 +1890,6 @@ $htmlLang = substr($currentLocale, 0, 2);
                     }
                 }
             });
-        });
-
-        // Add fade-in animation to cards on scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('fade-in');
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.book-card').forEach(card => {
-            observer.observe(card);
         });
 
         // Load user reservations count for badge
@@ -2266,7 +2080,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
                             '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: var(--text-color); text-align: left;">' + bookTitle + '</div>' +
-                            (book.wanted ? '<div class="search-book-wanted" style="font-size: 0.7rem; font-weight: 600; color: var(--primary-color); text-align: left;">' + WANTED_LABEL + '</div>' : '') +
+                            (book.wanted ? '<div class="search-book-wanted" style="font-size: 0.7rem; font-weight: 600; color: var(--primary-text, var(--primary-color)); text-align: left;">' + WANTED_LABEL + '</div>' : '') +
                             (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
                             (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
                             (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: var(--text-muted); text-align: left;">' + bookYear + '</div>' : '') +
@@ -2327,8 +2141,16 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const artLabel = escapeHtml(art.label ?? '');
                         const artAuthor = escapeHtml(art.author ?? '');
                         const artSource = escapeHtml(art.identifier ?? '');
+                        // The article's image, as on its page: its own cover,
+                        // else its issue's, else the masthead's logo (#453).
+                        // Sized like a book cover so the rows line up; with
+                        // no image at all, the newspaper icon in that frame.
+                        const artCover = art.cover ? sanitizeUrl(art.cover) : '#';
+                        const artThumb = artCover !== '#'
+                            ? '<img src="' + artCover + '" alt="" class="search-book-cover search-article-cover" loading="lazy" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem; flex-shrink: 0;">'
+                            : '<div class="search-article-cover" style="width: 40px; height: 60px; background: var(--accent-color); border-radius: 0.25rem; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light); flex-shrink: 0;"><i class="fas fa-newspaper" aria-hidden="true"></i></div>';
                         html += '<a href="' + artUrl + '" class="search-result-item article-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
-                            '<div style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light); flex-shrink: 0;"><i class="fas fa-newspaper" aria-hidden="true"></i></div>' +
+                            artThumb +
                             '<div>' +
                             '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: var(--text-color); text-align: left;">' + artLabel + '</div>' +
                             (artAuthor ? '<div style="font-size: 0.75rem; color: var(--text-light); text-align: left;">' + artAuthor + '</div>' : '') +
@@ -2544,30 +2366,6 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
     <?php require __DIR__ . '/../partials/scroll-to-top.php'; ?>
 
-    <script>
-    /* Editorial fade-up on scroll — adds .reveal to sections/cards at runtime
-       (no markup changed) and reveals them as they enter the viewport.
-       Fully skipped when the user prefers reduced motion. */
-    (function () {
-        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        var sel = '.main-content .book-card, .main-content .feature-card, .main-content .event-card, ' +
-                  '.main-content .related-book-card, .main-content .book-details-section, ' +
-                  '.main-content .book-description-section, .main-content .book-reviews-section, ' +
-                  '.main-content .section-title, .main-content .genre-carousel';
-        var els = Array.prototype.slice.call(document.querySelectorAll(sel));
-        if (!els.length || !('IntersectionObserver' in window)) return;
-        var io = new IntersectionObserver(function (entries) {
-            entries.forEach(function (e) {
-                if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
-            });
-        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
-        els.forEach(function (el, i) {
-            el.classList.add('reveal');
-            el.style.transitionDelay = Math.min(i % 6, 5) * 40 + 'ms';
-            io.observe(el);
-        });
-    })();
-    </script>
 </body>
 
 </html>

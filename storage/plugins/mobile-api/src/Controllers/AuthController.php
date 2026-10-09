@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Controllers;
 
+use App\Plugins\MobileApi\Support\Input;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
@@ -61,8 +62,8 @@ final class AuthController
         }
 
         $body     = JsonBody::parse($request);
-        $email    = trim((string) ($body['email'] ?? ''));
-        $password = (string) ($body['password'] ?? '');
+        $email    = trim(Input::str($body['email'] ?? ''));
+        $password = Input::str($body['password'] ?? '');
 
         // Constant-time password verification (mirrors web AuthController): always
         // run password_verify() even for unknown emails to prevent enumeration.
@@ -107,9 +108,9 @@ final class AuthController
                 return ResponseEnvelope::error($response, 'account_not_active', __('Il tuo account non è ancora attivo.'), 403);
             }
 
-            $deviceName = isset($body['device_name']) ? (string) $body['device_name'] : null;
-            $deviceId   = isset($body['device_id']) ? (string) $body['device_id'] : null;
-            $platform   = isset($body['platform']) ? (string) $body['platform'] : null;
+            $deviceName = isset($body['device_name']) ? Input::str($body['device_name']) : null;
+            $deviceId   = isset($body['device_id']) ? Input::str($body['device_id']) : null;
+            $platform   = isset($body['platform']) ? Input::str($body['platform']) : null;
 
             $service = new TokenService($this->db);
             $issued  = $service->issue((int) $row['id'], $deviceName, $deviceId, $platform);
@@ -153,13 +154,13 @@ final class AuthController
 
         $body = JsonBody::parse($request);
 
-        $nome      = \App\Support\HtmlHelper::decode(trim((string) ($body['nome'] ?? '')));
-        $cognome   = \App\Support\HtmlHelper::decode(trim((string) ($body['cognome'] ?? '')));
-        $email     = trim((string) ($body['email'] ?? ''));
-        $telefono  = trim((string) ($body['telefono'] ?? ''));
-        $indirizzo = \App\Support\HtmlHelper::decode(trim((string) ($body['indirizzo'] ?? '')));
-        $password  = (string) ($body['password'] ?? '');
-        $password2 = (string) ($body['password_confirm'] ?? '');
+        $nome      = \App\Support\HtmlHelper::decode(trim(Input::str($body['nome'] ?? '')));
+        $cognome   = \App\Support\HtmlHelper::decode(trim(Input::str($body['cognome'] ?? '')));
+        $email     = trim(Input::str($body['email'] ?? ''));
+        $telefono  = trim(Input::str($body['telefono'] ?? ''));
+        $indirizzo = \App\Support\HtmlHelper::decode(trim(Input::str($body['indirizzo'] ?? '')));
+        $password  = Input::str($body['password'] ?? '');
+        $password2 = Input::str($body['password_confirm'] ?? '');
         $privacy   = !empty($body['privacy_acceptance']);
         $customFields = $body['custom_fields'] ?? [];
         if (!is_array($customFields)) {
@@ -404,7 +405,7 @@ final class AuthController
         }
 
         $body  = JsonBody::parse($request);
-        $email = trim((string) ($body['email'] ?? ''));
+        $email = trim(Input::str($body['email'] ?? ''));
 
         // Always answer the same way (no account enumeration). Validation failures
         // and unknown emails alike produce the generic "if it exists, we sent it".
@@ -421,7 +422,8 @@ final class AuthController
 
         // Reuse the web reset throttle key so app + web share the same budget.
         if (RateLimiter::isLimited('forgot_password:' . strtolower($email))) {
-            return ResponseEnvelope::error($response, 'rate_limited', __('Troppe richieste. Riprova più tardi.'), 429);
+            return ResponseEnvelope::error($response, 'rate_limited', __('Troppe richieste. Riprova più tardi.'), 429)
+                ->withHeader('Retry-After', '900');
         }
 
         try {

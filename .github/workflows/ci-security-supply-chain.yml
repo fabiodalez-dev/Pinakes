@@ -119,7 +119,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP 8.2
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql, mbstring, curl, intl, xml, zip
@@ -145,6 +145,9 @@ jobs:
 
       - name: Verify generated assets match the commit
         run: git diff --exit-code -- public/assets
+
+      - name: Verify packaging from a Git worktree
+        run: bash tests/release-worktree.test.sh
 
       - name: Build the release twice and require byte-for-byte reproducibility
         run: |

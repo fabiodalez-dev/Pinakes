@@ -96,13 +96,12 @@ test.describe('F003 — SRU errorResponse elements in SRU namespace', () => {
         // Easiest check: the <diagnostic> or <diagnostics> element must appear
         // within a document that has the SRU namespace declared.
         expect(body).toMatch(/<diagnostics[\s>]/);
-        // `<uri>` is now emitted with an explicit xmlns attribute
-        // (`<uri xmlns="info:srw/diagnostic/1/">…</uri>`) — the previous
-        // strict `<uri>` match-only-bare-tag claim no longer holds after
-        // the createElementNS migration. Accept any open-tag form so the
-        // regression guard still fires on a removal but stays correct.
-        expect(body).toMatch(/<uri[\s>]/);
-        expect(body).toContain('info:srw/diagnostic/1/');
+        // The diagnostic and its children live in the SRU diagnostic
+        // namespace (prefix diag); info:srw/diagnostic/1/N is only the text
+        // of <diag:uri>, never a namespace.
+        expect(body).toContain('xmlns:diag="http://www.loc.gov/zing/srw/diagnostic/"');
+        expect(body).toMatch(/<diag:uri>info:srw\/diagnostic\/1\/\d+<\/diag:uri>/);
+        expect(body).not.toContain('xmlns="info:srw/diagnostic/1/"');
     });
 
     test('F003-2: searchRetrieve without query → version element in SRU namespace', async ({ request }) => {

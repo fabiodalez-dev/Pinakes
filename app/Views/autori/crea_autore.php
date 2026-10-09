@@ -129,6 +129,13 @@
         </div>
       </div>
 
+      <?php
+      // Plugin hook: fields of a NEW author (e.g. VIAF/ISNI). Not the edit
+      // form's author.form.fields: its panels act on an existing author id.
+      // What they post is stored through the author.created action.
+      \App\Support\Hooks::do('author.create.fields', [null]);
+      ?>
+
       <div class="mb-6">
         <label for="gnd_id" class="form-label">GND</label>
         <input id="gnd_id" name="gnd_id" class="form-input" maxlength="64" value="<?= htmlspecialchars((string)($autore['gnd_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="118559792">

@@ -105,13 +105,13 @@ $schema = [
     '@type'       => 'PublicationIssue',
     'issueNumber' => (string) $fascicolo['numero'],
     'name'        => (string) $fascicolo['testata_titolo'] . ' — ' . $issueLabel . ' (' . $anno . ')',
-    'url'         => $baseAbs . '/emeroteca/fascicolo/' . $fascicoloId,
+    'url'         => $baseAbs . \App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . $fascicoloId,
     'datePublished' => (string) ($fascicolo['data_pubblicazione'] ?? ''),
     'isPartOf'    => array_filter([
         '@type' => 'Periodical',
         'name'  => (string) $fascicolo['testata_titolo'],
         'issn'  => (string) ($fascicolo['testata_issn'] ?? ''),
-        'url'   => $baseAbs . '/emeroteca/' . $testataId,
+        'url'   => $baseAbs . \App\Support\RouteTranslator::route('periodicals') . '/' . $testataId,
     ], static fn($v) => $v !== ''),
 ];
 if ($fascicolo['pagine'] !== null && (int) $fascicolo['pagine'] > 0) {
@@ -124,7 +124,7 @@ if ((int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path
     $schema['associatedMedia'] = [
         '@type' => 'MediaObject',
         'encodingFormat' => 'application/pdf',
-        'contentUrl' => $baseAbs . '/emeroteca/fascicolo/' . $fascicoloId . '/pdf',
+        'contentUrl' => $baseAbs . \App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . $fascicoloId . '/pdf',
     ];
 }
 $schema = array_filter($schema, static fn($v) => $v !== '');
@@ -139,7 +139,7 @@ $corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
 $catalogPageStyles = true;
 $bookDetailStyles = true;
 $contributi = $contributi ?? [];
-$testataUrl = url('/emeroteca/' . $testataId);
+$testataUrl = url(\App\Support\RouteTranslator::route('periodicals') . '/' . $testataId);
 $annataUrl = $testataUrl . '?' . http_build_query(['anno' => $anno]) . '#emeroteca-fascicoli';
 $testataLogo = $asset((string) ($fascicolo['testata_logo_url'] ?? ''));
 $hasPdf = (int) ($fascicolo['pdf_pubblico'] ?? 0) === 1 && !empty($fascicolo['pdf_path']);
@@ -172,7 +172,7 @@ $resourceBylineHtml = '';
 $resourceExtraHtml = $extra;
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Emeroteca'), 'href' => url('/emeroteca')],
+    ['label' => __('Emeroteca'), 'href' => url(\App\Support\RouteTranslator::route('periodicals'))],
     ['label' => (string) $fascicolo['testata_titolo'], 'href' => $testataUrl],
     ['label' => $issueLabel . ' (' . $anno . ')'],
 ];
@@ -189,8 +189,8 @@ include $corePartials . '/resource-hero.php';
 
     <?php
     $pagerLabel = __('Fascicoli della stessa annata');
-    $pagerPrev = $prev !== null ? ['href' => url('/emeroteca/fascicolo/' . (int) $prev['id']), 'label' => sprintf(__('n. %s'), (string) $prev['numero'])] : null;
-    $pagerNext = $next !== null ? ['href' => url('/emeroteca/fascicolo/' . (int) $next['id']), 'label' => sprintf(__('n. %s'), (string) $next['numero'])] : null;
+    $pagerPrev = $prev !== null ? ['href' => url(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . (int) $prev['id']), 'label' => sprintf(__('n. %s'), (string) $prev['numero'])] : null;
+    $pagerNext = $next !== null ? ['href' => url(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . (int) $next['id']), 'label' => sprintf(__('n. %s'), (string) $next['numero'])] : null;
     $pagerUp = ['href' => $annataUrl, 'label' => sprintf(__('Annata %d'), $anno)];
     include $corePartials . '/resource-pager.php';
     ?>
@@ -199,7 +199,7 @@ include $corePartials . '/resource-hero.php';
         <div class="w-full lg:w-2/3 px-3">
             <?php if ($hasPdf): ?>
             <div class="action-buttons resource-action-buttons">
-                <a class="ui-button btn-primary" href="<?= $e(url('/emeroteca/fascicolo/' . $fascicoloId . '/pdf')) ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Consulta PDF') ?></a>
+                <a class="ui-button btn-primary" href="<?= $e(url(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . $fascicoloId . '/pdf')) ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-pdf" aria-hidden="true"></i> <?= __('Consulta PDF') ?></a>
             </div>
             <?php endif; ?>
             <?php // A printed table of contents with no catalogued article yet: the
@@ -209,7 +209,7 @@ include $corePartials . '/resource-hero.php';
                 <h2 class="listing-section-title" id="emeroteca-sommario-title">
                     <span><?= __('Articoli in questo fascicolo') ?></span>
                     <?php if (count($contributi) > 0): ?>
-                        <a href="<?= $e(url('/emeroteca/articoli') . '?' . http_build_query(['fascicolo' => $fascicoloId])) ?>"><?= __('Cerca in questo fascicolo') ?> →</a>
+                        <a href="<?= $e(url(\App\Support\RouteTranslator::route('periodicals') . '/articoli') . '?' . http_build_query(['fascicolo' => $fascicoloId])) ?>"><?= __('Cerca in questo fascicolo') ?> →</a>
                     <?php endif; ?>
                 </h2>
                 <?php

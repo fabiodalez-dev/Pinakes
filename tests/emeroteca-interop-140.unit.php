@@ -718,7 +718,11 @@ try {
         'operation' => 'explain',
         'version'   => '1.2',
     ]);
-    check(str_contains($explain, 'bath.issn'), 'SRU explain advertises the bath.issn index');
+    check(
+        str_contains($explain, '<name set="bath">issn</name>')
+        && str_contains($explain, 'name="bath"'),
+        'SRU explain advertises the bath.issn index (map name in the declared bath context set)'
+    );
 
     // ── 7. MobileModule meta.truncated ────────────────────────────────
     $truncTestataId = $exec(
@@ -1082,8 +1086,9 @@ try {
         'the degraded bath.issn clause is valid SQL and matches nothing'
     );
 
-    // The serial boolean compiler must never accept an operator it cannot
-    // render: 'a NOT b' is not SQL.
+    // CQL binary NOT (`a NOT b`) is a boolean node: the serial compiler must
+    // render it as `a AND NOT b` — never as the non-SQL `a NOT b` — and must
+    // still refuse an operator it cannot render.
     $serialBool = $ref->getMethod('buildSerialWhereClause');
     $serialBool->setAccessible(true);
     $notNode = [
@@ -1092,9 +1097,18 @@ try {
         'left'  => ['type' => 'condition', 'index' => 'dc.title', 'relation' => '=', 'value' => 'a'],
         'right' => ['type' => 'condition', 'index' => 'dc.title', 'relation' => '=', 'value' => 'b'],
     ];
+    $notSql = $serialBool->invoke($sruProbe, $notNode);
     check(
-        $serialBool->invoke($sruProbe, $notNode) === null,
-        "a 'boolean' node with operator NOT is rejected, not compiled to 'a NOT b'"
+        is_string($notSql) && str_contains($notSql, ' AND NOT ') && !preg_match('/\)\s+NOT\s+\(/', $notSql),
+        "a binary NOT boolean node compiles to 'a AND NOT b', not to 'a NOT b'"
+    );
+    $notProbe = $db->query('SELECT COUNT(*) AS c FROM emeroteca_testate t WHERE ' . $notSql);
+    check($notProbe instanceof \mysqli_result, 'the compiled serial NOT clause is valid SQL');
+    $proxNode = $notNode;
+    $proxNode['operator'] = 'PROX';
+    check(
+        $serialBool->invoke($sruProbe, $proxNode) === null,
+        'an operator the serial compiler cannot render (PROX) is rejected'
     );
     $andNode = $notNode;
     $andNode['operator'] = 'AND';

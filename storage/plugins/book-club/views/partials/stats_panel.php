@@ -26,7 +26,7 @@ $tiles = [
       <i class="fas fa-chart-bar"></i>
       <h2><?= $e(__('Statistiche del club')) ?></h2>
     </div>
-    <a href="<?= $e(url('/book-club/' . $slug . '/stats')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
+    <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/stats')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
       <?= $e(__('Vedi tutte le statistiche')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>

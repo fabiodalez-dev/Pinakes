@@ -26,7 +26,7 @@ const BOOK = `${RUN} Arbejderhistorie bog`;
 const MASTHEAD = `${RUN} Arbejderhistorie`;
 
 function db(sql) {
-  const args = ['-u', process.env.E2E_DB_USER, process.env.E2E_DB_NAME, '-N', '-B', '-e', sql];
+  const args = ['--default-character-set=utf8mb4', '-u', process.env.E2E_DB_USER, process.env.E2E_DB_NAME, '-N', '-B', '-e', sql];
   if (process.env.E2E_DB_SOCKET) args.unshift('-S', process.env.E2E_DB_SOCKET);
   return execFileSync('mysql', args, { encoding: 'utf8', env: { ...process.env, MYSQL_PWD: process.env.E2E_DB_PASS } }).trim();
 }
@@ -83,6 +83,9 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     authorId = Number(db(`SELECT id FROM autori WHERE nome='${AUTHOR}'`));
     db(`INSERT INTO libri (titolo, anno_pubblicazione) VALUES ('${BOOK}', 1988)`);
     bookId = Number(db(`SELECT id FROM libri WHERE titolo='${BOOK}'`));
+    // A raw INSERT leaves the denormalised search column empty; the quick
+    // search reads only that column, as it does for any book saved by the app.
+    db(`UPDATE libri SET search_index='${BOOK} ${AUTHOR}' WHERE id=${bookId}`);
     db(`INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES (${bookId}, ${authorId}, 'principale')`);
     db(`INSERT INTO emeroteca_testate (titolo, issn) VALUES ('${MASTHEAD}', '0107-8461')`);
     mastheadId = Number(db(`SELECT id FROM emeroteca_testate WHERE titolo='${MASTHEAD}'`));
@@ -140,13 +143,13 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
     // The linked author, in citation form, and where it was published.
     await expect(article).toContainText(`Petersen, ${RUN}`);
     await expect(article).toContainText(MASTHEAD);
-    // Articles come before periodicals: the list is cut at 20, and what comes
-    // last is what a busy catalogue drops.
+    // Books, articles and periodicals form ONE alphabetical list (#463), not
+    // a books block followed by the plugin's records; the author follows.
     const unified = await (await admin.request.get(`${BASE}/api/search/unified?q=${encodeURIComponent(RUN)}`)).json();
-    const articleAt = unified.findIndex(r => r.type === 'article');
-    const periodicalAt = unified.findIndex(r => r.type === 'periodical');
-    expect(articleAt, 'the article is listed').toBeGreaterThanOrEqual(0);
-    expect(periodicalAt, 'after it, the periodical').toBeGreaterThan(articleAt);
+    const records = unified.filter(r => ['book', 'article', 'periodical'].includes(r.type)).map(r => `${r.type}:${r.label}`);
+    expect(records).toEqual([`periodical:${MASTHEAD}`, `book:${BOOK}`, `article:${ARTICLE}`]);
+    const authorAt = unified.findIndex(r => r.type === 'author');
+    expect(authorAt, 'the author comes after the records').toBe(records.length);
     await article.click();
     await expect(admin).toHaveURL(new RegExp(`/admin/periodicals/articles/${articleId}$`));
     await expect(admin.locator('h1', { hasText: ARTICLE })).toBeVisible();
@@ -274,13 +277,13 @@ test.describe.serial('Articles like books (#453, #454, #455)', () => {
       await expect(visitor.locator('.book-card', { hasText: BOOK }), 'and the book').toBeVisible();
       // The sidebar counts follow the same rule: the root's child counts the
       // book three levels below the root, and the third level lists the leaf.
-      // A selected genre folds its facet into a pill; "Change" opens it.
+      // A selected genre keeps its children visible for further drill-down (#461).
       const genres = visitor.locator('#genres-filter');
       const option = (name) => genres.locator('.filter-option', { hasText: name }).locator('.count-badge');
-      await genres.locator('.facet-change-link').click();
+      await expect(genres).not.toHaveClass(/facet-is-collapsed/);
       await expect(option(`${RUN} Level 2`), 'the root lists its child with the book counted').toHaveText('1');
       await visitor.goto(`${BASE}/catalogo?genere_id=${deepGenres[2]}`);
-      await genres.locator('.facet-change-link').click();
+      await expect(genres).not.toHaveClass(/facet-is-collapsed/);
       await expect(option(`${RUN} Level 4`), 'the third level lists the leaf').toHaveText('1');
     } finally {
       await visitor.context().close();

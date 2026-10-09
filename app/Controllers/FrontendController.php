@@ -34,7 +34,7 @@ class FrontendController
         // events) clear the 'home_' prefix via ContentCache — which also
         // covers the home_api_count_* keys below — while the TTL covers
         // loan-driven availability drift.
-        $homeData = \App\Support\QueryCache::remember('home_page_data_v1', function () use ($db) {
+        $homeData = \App\Support\QueryCache::remember('home_page_data_v2', function () use ($db) {
             return $this->buildHomePageData($db);
         }, 300);
 
@@ -57,7 +57,21 @@ class FrontendController
         }
         $homeEvents = $homeData['homeEvents'];
         $heroTotalBooks = $homeData['totalBooks'];
+        $heroCovers = $homeData['heroCovers'] ?? [];
+        // The centred hero style shows no cover fan: drop the covers so the
+        // page neither downloads them nor preloads the first one. Read per
+        // request: the style belongs to the active theme, not to the shared
+        // home cache.
+        try {
+            $heroStyle = (new \App\Support\ThemeManager($db))->getPublicStyle()['hero_style'];
+            if ($heroStyle === 'centered') {
+                $heroCovers = [];
+            }
+        } catch (\Throwable $e) {
+            // Keep the covers: the fan is hidden by CSS anyway.
+        }
         $heroAvailableBooks = $homeData['availableBooks'];
+        $heroTotalGenres = $homeData['totalGenres'] ?? null;
 
         $homeEventsEnabled = $homeData['eventsFeatureEnabled'] && !empty($homeEvents);
 
@@ -111,12 +125,12 @@ class FrontendController
         // OG URL (priority: custom og_url > canonical URL)
         $ogUrl = !empty($hero['og_url']) ? $hero['og_url'] : $seoCanonical;
 
-        // OG Image (priority: custom og_image > hero background > app logo > default cover)
+        // OG Image (priority: custom og_image > app logo > default cover).
+        // The retired hero background photo is no longer a fallback: it is
+        // not shown on the page and the admin can no longer change it.
         $ogImage = $defaultSocialImage;
         if (!empty($hero['og_image'])) {
             $ogImage = HtmlHelper::absoluteUrl($hero['og_image']);
-        } elseif (!empty($hero['background_image'])) {
-            $ogImage = HtmlHelper::absoluteUrl($hero['background_image']);
         } elseif ($brandLogoUrl !== '') {
             $ogImage = $brandLogoUrl;
         }
@@ -142,14 +156,12 @@ class FrontendController
                              (!empty($hero['subtitle']) ? $hero['subtitle'] :
                               ($footerDescription ?: __('Esplora il nostro vasto catalogo di libri, prenota i tuoi titoli preferiti e scopri nuove letture')))));
 
-        // Twitter Image (priority: custom twitter_image > og_image > hero background > app logo > default cover)
+        // Twitter Image (priority: custom twitter_image > og_image > app logo > default cover)
         $twitterImage = $defaultSocialImage;
         if (!empty($hero['twitter_image'])) {
             $twitterImage = HtmlHelper::absoluteUrl($hero['twitter_image']);
         } elseif (!empty($hero['og_image'])) {
             $twitterImage = HtmlHelper::absoluteUrl($hero['og_image']);
-        } elseif (!empty($hero['background_image'])) {
-            $twitterImage = HtmlHelper::absoluteUrl($hero['background_image']);
         } elseif ($brandLogoUrl !== '') {
             $twitterImage = $brandLogoUrl;
         }
@@ -251,8 +263,10 @@ class FrontendController
         // Extra results from plugins (e.g. archive units) when a search is active.
         $searchTerm = trim((string) ($filters['search'] ?? ''));
         /** @var array<int, array<string, mixed>> $archiveResults */
-        $archiveResults = $searchTerm !== ''
-            ? \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$searchTerm])
+        // The archive lookup is four leading-wildcard LIKEs over every unit:
+        // only from the third character, when the term can actually select.
+        $archiveResults = mb_strlen($searchTerm) >= 3
+            ? $this->collectArchiveResults($searchTerm)
             : [];
 
         // Federated-search hint: the catalogue search only reads
@@ -344,7 +358,7 @@ class FrontendController
         $total_pages = ceil($total_books / $limit);
 
         if ($mixed !== null) {
-            $articlePath = url('/emeroteca/articoli');
+            $articlePath = url(\App\Support\RouteTranslator::route('periodicals') . '/articoli');
             $externalSearchSuggestions = array_values(array_filter($externalSearchSuggestions,
                 static fn(array $suggestion): bool => !str_starts_with($suggestion['url'], $articlePath . '?')));
         }
@@ -398,6 +412,16 @@ class FrontendController
             ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'catalog');
     }
 
+    /** Public archive snippets, bounded and stripped of every non-display field. */
+    private function collectArchiveResults(string $query): array
+    {
+        try { $results = \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [mb_substr($query, 0, 200)]); }
+        catch (\Throwable $e) { \App\Support\SecureLogger::error('Archive catalogue search failed: ' . $e->getMessage()); return []; }
+        if (!is_array($results)) { return []; }
+        return array_map(static fn(array $row): array => array_intersect_key($row, array_flip(['id', 'label', 'reference_code', 'url'])),
+            array_slice(array_values(array_filter($results, 'is_array')), 0, 6));
+    }
+
     public function catalogAPI(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
@@ -413,16 +437,12 @@ class FrontendController
         $query_params = $where_conditions['params'];
         $param_types = $where_conditions['types'];
 
-        // FIX F001: removed archive results hook from catalogAPI() to avoid
-        // returning archive matches in the search-as-you-type JSON payload.
-        // catalog() still renders archives in its empty-state block.
-
-        // Same search/browse split as catalog(): this endpoint feeds the
-        // search-as-you-type grid, so a term present here is the visitor
-        // asking for a title by name. $searchTerm is derived the same way
-        // catalog() derives it — catalogAPI() has no archive hook to have
-        // computed it earlier.
         $searchTerm = trim((string) ($filters['search'] ?? ''));
+        // Public projection only: the same snippets as the server-rendered catalogue.
+        $archiveResults = mb_strlen($searchTerm) >= 3 ? $this->collectArchiveResults($searchTerm) : [];
+        ob_start();
+        include __DIR__ . '/../Views/frontend/partials/catalog-archive-results.php';
+        $archiveHtml = (string) ob_get_clean();
         $visibility = $searchTerm !== ''
             ? \App\Support\BookVisibility::discoverable($db, 'l')
             : \App\Support\BookVisibility::catalogue($db, 'l');
@@ -567,6 +587,7 @@ class FrontendController
 
         $data = [
             'html' => $html,
+            'archive_html' => $archiveHtml,
             'pagination' => [
                 'current_page' => $page,
                 'total_pages' => $total_pages,
@@ -2657,6 +2678,82 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
     }
 
     /**
+     * The hero's cover settings, stored as JSON in home_content.content of the
+     * 'hero' row: {"cover_mode": "latest"|"selected", "cover_books": [ids]}.
+     * Anything else reads as the default, the latest covers.
+     *
+     * @return array{mode: string, books: list<int>}
+     */
+    public static function heroCoverConfig(?string $raw): array
+    {
+        $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+        $mode = is_array($data) && ($data['cover_mode'] ?? '') === 'selected' ? 'selected' : 'latest';
+        $books = [];
+        foreach ((array) (is_array($data) ? ($data['cover_books'] ?? []) : []) as $id) {
+            $id = (int) $id;
+            if ($id > 0 && !in_array($id, $books, true)) {
+                $books[] = $id;
+            }
+        }
+        return ['mode' => $mode, 'books' => array_slice($books, 0, 4)];
+    }
+
+    /**
+     * Up to four books with a cover for the home hero: the ones the CMS picked,
+     * in the order it picked them, or the latest catalogued covers. A picked
+     * book that lost its cover, was deleted or left the catalogue is skipped;
+     * when none is left the hero falls back to the latest covers.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function heroCovers(mysqli $db, ?string $raw, string $latestSort = 'created_at'): array
+    {
+        // "Latest" follows the same order as the home's latest-arrivals section.
+        $latestSort = in_array($latestSort, ['created_at', 'updated_at'], true) ? $latestSort : 'created_at';
+        $config = self::heroCoverConfig($raw);
+        $select = "SELECT l.id, l.titolo, l.copertina_url,
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore,
+                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore') ORDER BY la.ruolo = 'principale' DESC LIMIT 1) AS autore_principale_nome
+            FROM libri l
+            WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
+              AND l.copertina_url IS NOT NULL AND l.copertina_url <> '' AND l.copertina_url NOT LIKE '%placeholder%'";
+        $rows = [];
+        try {
+            if ($config['mode'] === 'selected' && $config['books'] !== []) {
+                $marks = implode(',', array_fill(0, count($config['books']), '?'));
+                $stmt = $db->prepare($select . " AND l.id IN ($marks)");
+                if ($stmt !== false) {
+                    $stmt->bind_param(str_repeat('i', count($config['books'])), ...$config['books']);
+                    $stmt->execute();
+                    $byId = [];
+                    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+                        $byId[(int) $row['id']] = $row;
+                    }
+                    $stmt->close();
+                    foreach ($config['books'] as $id) {
+                        if (isset($byId[$id])) {
+                            $rows[] = $byId[$id];
+                        }
+                    }
+                }
+            }
+            if ($rows === []) {
+                $result = $db->query($select . " ORDER BY l.{$latestSort} DESC, l.id DESC LIMIT 4");
+                if ($result instanceof \mysqli_result) {
+                    $rows = $result->fetch_all(MYSQLI_ASSOC);
+                    $result->free();
+                }
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Home] hero covers: ' . $e->getMessage());
+            return [];
+        }
+        return $rows;
+    }
+
+    /**
      * Build the cacheable, visitor-independent home page dataset.
      *
      * One home_content read serves both the active-sections map (with full SEO
@@ -2665,14 +2762,15 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
      *
      * @return array{homeContent: array, sectionsOrdered: array, latest_books: array,
      *               latestBooksTotal: int, genres_with_books: array, genreCarouselEnabled: bool,
-     *               eventsFeatureEnabled: bool, homeEvents: array, totalBooks: int, availableBooks: int}
+     *               eventsFeatureEnabled: bool, homeEvents: array, totalBooks: int, availableBooks: int,
+     *               totalGenres: int, heroCovers: list<array<string, mixed>>}
      */
     private function buildHomePageData(mysqli $db): array
     {
         // Carica i contenuti CMS della home (inclusi campi SEO completi)
         $homeContent = [];
         $sectionsOrdered = [];
-        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link, background_image,
+        $query_home = "SELECT section_key, title, subtitle, content, button_text, button_link,
                               seo_title, seo_description, seo_keywords, og_image,
                               og_title, og_description, og_type, og_url,
                               twitter_card, twitter_title, twitter_description, twitter_image,
@@ -2849,7 +2947,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             }
         }
 
-        // This payload is stored in the SHARED home cache (home_page_data_v1).
+        // This payload is stored in the SHARED home cache (home_page_data_v2).
         // Strip live availability (copie_*/stato — a stale count is a
         // double-loan risk) AND the private/non-shareable columns (l.* pulled
         // private_comment, lending_patron, search_index, …). Availability is
@@ -2862,6 +2960,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         return [
             'homeContent' => $homeContent,
             'sectionsOrdered' => $sectionsOrdered,
+            'heroCovers' => $this->heroCovers($db, $homeContent['hero']['content'] ?? null, $latestBooksSort),
             'latest_books' => $latest_books,
             'latestBooksTotal' => $totalBooks,
             'genres_with_books' => $genres_with_books,
@@ -2870,6 +2969,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             'homeEvents' => $homeEvents,
             'totalBooks' => $totalBooks,
             'availableBooks' => $availableBooks,
+            'totalGenres' => count(array_filter($allGenres, static fn (array $g): bool => $g['parent_id'] === null)),
         ];
     }
 

@@ -326,7 +326,30 @@ class ApiBookScraperPlugin
     }
 
     /**
-     * Decrypt value if it starts with ENC:
+     * The raw secret and the key PluginManager derives from it: values are
+     * encrypted with the derived key (sha256 of the secret, as PluginManager
+     * does, so the two read each other's values); values written by older
+     * versions with the raw secret are still read.
+     *
+     * @return array{0:string,1:string}|null [derivedKey, rawKey]
+     */
+    private function encryptionKeys(): ?array
+    {
+        $raw = $_ENV['PLUGIN_ENCRYPTION_KEY']
+            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
+            ?? $_ENV['APP_KEY']
+            ?? (getenv('APP_KEY') ?: null);
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        return [hash('sha256', $raw, true), $raw];
+    }
+
+    /**
+     * Decrypt a value written with the ENC: prefix. Fails closed: when it
+     * cannot be decrypted (key rotated or missing) the result is '' and the
+     * reason is logged, never the ciphertext, which would otherwise be sent
+     * as the X-API-Key header and only surface as a remote HTTP 401.
      */
     private function decryptIfNeeded(string $value): string
     {
@@ -334,35 +357,32 @@ class ApiBookScraperPlugin
             return $value;
         }
 
-        // Rimuovi prefisso ENC:
-        $encrypted = substr($value, 4);
-
-        // Ottieni chiave di crittografia
-        $key = getenv('PLUGIN_ENCRYPTION_KEY') ?: getenv('APP_KEY');
-        if (!$key) {
-            return $value;
+        $keys = $this->encryptionKeys();
+        if ($keys === null) {
+            \App\Support\SecureLogger::error('[ApiBookScraper] Encryption key missing (PLUGIN_ENCRYPTION_KEY/APP_KEY): the stored API key cannot be read.');
+            return '';
         }
 
-        // Decodifica base64
-        $decoded = base64_decode($encrypted, true);
-        if ($decoded === false) {
-            return $value;
+        $decoded = base64_decode(substr($value, 4), true);
+        $ivLength = (int) openssl_cipher_iv_length('aes-256-gcm');
+        if ($decoded === false || strlen($decoded) <= $ivLength + 16) {
+            \App\Support\SecureLogger::error('[ApiBookScraper] Stored API key is not a valid encrypted payload.');
+            return '';
         }
 
-        // Estrai IV, tag e ciphertext
-        $ivLength = openssl_cipher_iv_length('aes-256-gcm');
         $iv = substr($decoded, 0, $ivLength);
         $tag = substr($decoded, $ivLength, 16);
         $ciphertext = substr($decoded, $ivLength + 16);
 
-        // Decripta
-        $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-        if ($decrypted === false) {
-            // Authentication/decryption failed — fall back to the raw value.
-            return $value;
+        foreach ($keys as $key) {
+            $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+            if ($decrypted !== false) {
+                return $decrypted;
+            }
         }
 
-        return $decrypted;
+        \App\Support\SecureLogger::error('[ApiBookScraper] Stored API key could not be decrypted (encryption key changed?): enter it again in the plugin settings.');
+        return '';
     }
 
     /**
@@ -536,7 +556,8 @@ class ApiBookScraperPlugin
             'isbn10' => $data['isbn10'] ?? $data['isbn_10'] ?? null,
             'ean' => $data['ean'] ?? $isbn,
             'pages' => $data['pages'] ?? $data['numero_pagine'] ?? null,
-            'language' => $data['language'] ?? $data['lingua'] ?? 'it',
+            // No language from the API means unknown, not Italian.
+            'language' => $this->languageName($data['language'] ?? $data['lingua'] ?? null),
             'description' => $data['description'] ?? $data['descrizione'] ?? null,
             'cover_url' => $data['cover_url'] ?? $data['copertina_url'] ?? $data['image'] ?? null,
             'series' => $data['series'] ?? $data['collana'] ?? null,
@@ -773,10 +794,11 @@ class ApiBookScraperPlugin
      */
     private function encryptValue(string $value): string
     {
-        $key = getenv('PLUGIN_ENCRYPTION_KEY') ?: getenv('APP_KEY');
-        if (!$key) {
+        $keys = $this->encryptionKeys();
+        if ($keys === null) {
             return $value;
         }
+        $key = $keys[0];
 
         $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-gcm'));
         $tag = '';
@@ -797,6 +819,18 @@ class ApiBookScraperPlugin
         // Combina IV + tag + ciphertext e codifica in base64
         $combined = $iv . $tag . $encrypted;
         return 'ENC:' . base64_encode($combined);
+    }
+
+    /**
+     * The catalogue's language name for an ISO code ("it" → "Italiano"); a
+     * value that is already a name is kept; missing stays null.
+     */
+    private function languageName(mixed $value): ?string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+        return \App\Support\LanguageCodes::nameFor($value) ?? trim($value);
     }
 
     /**

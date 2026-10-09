@@ -200,7 +200,10 @@ class AuthController
                 } elseif (in_array($row['tipo_utente'], ['admin', 'staff'], true)) {
                     $redirectUrl = '/admin/dashboard';
                 } else {
-                    $redirectUrl = '/user/dashboard';
+                    // The dashboard in the reader's language, set just above from their
+                    // profile (/utente/bacheca for an Italian reader), not the English
+                    // path, which also answers but is not canonical there.
+                    $redirectUrl = RouteTranslator::route('user_dashboard');
                 }
 
                 return $response->withHeader('Location', $redirectUrl)->withStatus(302);

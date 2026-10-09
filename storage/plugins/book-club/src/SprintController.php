@@ -50,7 +50,7 @@ class SprintController extends BaseController
 
     private function sprintsPath(string $slug): string
     {
-        return '/book-club/' . $slug . '/sprints';
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/sprints';
     }
 
     // ------------------------------------------------------------------
@@ -60,7 +60,7 @@ class SprintController extends BaseController
     public function index(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolveClub($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $clubId = (int) $club['id'];
@@ -110,7 +110,7 @@ class SprintController extends BaseController
     public function create(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolveClub($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         if (!$this->isActiveMember($club) && !$this->canManage($club)) {
@@ -293,7 +293,7 @@ class SprintController extends BaseController
     private function resolveSprint(string $slug, int $sprintId): ?array
     {
         $club = $this->resolveClub($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return null;
         }
         $sprint = $this->ext->sprintById($sprintId);

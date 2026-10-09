@@ -11,6 +11,7 @@ $feature3 = $sections['feature_3'] ?? null;
 $feature4 = $sections['feature_4'] ?? null;
 $latestBooksTitle = $sections['latest_books_title'] ?? null;
 $genreCarousel = $sections['genre_carousel'] ?? null;
+$eventsSection = $sections['events'] ?? null;
 $cta = $sections['cta'] ?? null;
 $catalogRoute = route_path('catalog');
 
@@ -152,34 +153,45 @@ function getSectionDisplayName($key) {
           </div>
         </div>
 
-        <div class="space-y-3">
-          <label class="block text-sm font-medium text-gray-700"><?= __("Immagine di sfondo Hero") ?></label>
-          <?php if (!empty($hero['background_image'])): ?>
-            <div class="relative rounded-2xl overflow-hidden h-48 bg-gray-100">
-              <img src="<?php echo htmlspecialchars(url($hero['background_image']), ENT_QUOTES, 'UTF-8'); ?>" alt="Sfondo hero" class="w-full h-full object-cover">
-              <div class="absolute inset-0 flex items-center justify-center" style="background: rgba(0, 0, 0, 0.4);">
-                <span class="text-white text-sm font-medium"><?= __("Immagine attuale") ?></span>
-              </div>
-            </div>
-            <label class="inline-flex items-center gap-2 text-xs text-red-600 cursor-pointer">
-              <input type="checkbox" name="hero[remove_background]" value="1" class="rounded border-gray-300">
-              <?= __("Rimuovi immagine di sfondo attuale") ?>
+        <?php
+        // Hero covers (2026 design): the fan of covers beside the title.
+        $heroCoverConfig = $heroCoverConfig ?? \App\Controllers\FrontendController::heroCoverConfig($hero['content'] ?? null);
+        $heroCoverBooks = $heroCoverBooks ?? [];
+        $heroCoverSelected = $heroCoverConfig['mode'] === 'selected';
+        ?>
+        <fieldset class="space-y-3" id="hero-covers-config">
+          <legend class="block text-sm font-medium text-gray-700 mb-2"><?= __("Copertine accanto al titolo") ?></legend>
+          <div class="flex flex-col sm:flex-row gap-3 sm:gap-6">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="radio" name="hero[cover_mode]" value="latest" class="text-gray-900 focus:ring-gray-500" <?= $heroCoverSelected ? '' : 'checked' ?>>
+              <?= __("Le ultime copertine caricate") ?>
             </label>
-          <?php endif; ?>
-          <!-- Uppy Upload Area -->
-          <div id="uppy-hero-upload" class="mb-4"></div>
-          <div id="uppy-hero-progress" class="mb-4"></div>
-          <!-- #292: native Uppy ThumbnailGenerator preview of the just-picked image -->
-          <div id="hero-preview-container" class="mb-4 hidden">
-            <p class="text-xs text-gray-500 mb-1"><?= __("Anteprima immagine caricata") ?></p>
-            <img id="hero-preview-img" alt="<?= htmlspecialchars(__('Anteprima immagine caricata'), ENT_QUOTES, 'UTF-8') ?>"
-                 class="rounded-xl border border-gray-200 max-h-48 w-auto object-cover">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="radio" name="hero[cover_mode]" value="selected" class="text-gray-900 focus:ring-gray-500" <?= $heroCoverSelected ? 'checked' : '' ?>>
+              <?= __("Libri scelti") ?>
+            </label>
           </div>
-          <!-- Fallback file input (hidden, used by Uppy) -->
-          <input type="file" name="hero_background" accept="image/jpeg,image/jpg,image/png,image/webp"
-                 style="display: none;" id="hero-background-input">
-          <p class="text-xs text-gray-500"><?= __("Consigliato JPG o PNG ad alta risoluzione (min 1920x1080px). Max 5MB.") ?></p>
-        </div>
+          <div id="hero-cover-picker" class="space-y-3"<?= $heroCoverSelected ? '' : ' hidden' ?>>
+            <div class="relative">
+              <input type="search" id="hero-cover-search" autocomplete="off"
+                     class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
+                     placeholder="<?= htmlspecialchars(__('Cerca un libro per titolo, autore o ISBN…'), ENT_QUOTES, 'UTF-8') ?>"
+                     aria-label="<?= htmlspecialchars(__('Cerca un libro per titolo, autore o ISBN…'), ENT_QUOTES, 'UTF-8') ?>">
+              <ul id="hero-cover-results" class="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto hidden"></ul>
+            </div>
+            <ol id="hero-cover-selected" class="space-y-2">
+              <?php foreach ($heroCoverBooks as $coverBook): ?>
+              <li class="flex items-center gap-3 p-2 rounded-xl border border-gray-200 bg-gray-50" data-book-id="<?= (int) $coverBook['id'] ?>">
+                <input type="hidden" name="hero[cover_books][]" value="<?= (int) $coverBook['id'] ?>">
+                <i class="fas fa-book text-gray-400" aria-hidden="true"></i>
+                <span class="flex-1 text-sm text-gray-800"><?= htmlspecialchars((string) $coverBook['titolo'], ENT_QUOTES, 'UTF-8') ?><?php if (trim((string) ($coverBook['copertina_url'] ?? '')) === ''): ?> <span class="text-xs text-amber-700">(<?= __("senza copertina: verrà saltato") ?>)</span><?php endif; ?></span>
+                <button type="button" class="hero-cover-remove text-gray-500 hover:text-red-600 px-2" aria-label="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-times" aria-hidden="true"></i></button>
+              </li>
+              <?php endforeach; ?>
+            </ol>
+            <p class="text-xs text-gray-500"><?= __("Fino a 4 libri, nell'ordine in cui li scegli. Un libro senza copertina viene saltato; se non ne resta nessuno, compaiono le ultime copertine.") ?></p>
+          </div>
+        </fieldset>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
@@ -403,6 +415,41 @@ function getSectionDisplayName($key) {
             <label for="genre_carousel_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
             <input type="text" id="genre_carousel_subtitle" name="genre_carousel[subtitle]"
                    value="<?php echo HtmlHelper::e($genreCarousel['subtitle'] ?? __('Scopri le nostre radici tematiche e lasciati ispirare dai titoli disponibili.')); ?>"
+                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Events Section -->
+    <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-calendar-alt text-purple-500"></i>
+            <?= __("Eventi e Incontri") ?>
+          </h2>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Titolo e descrizione mostrati sopra gli eventi in programma") ?></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="events_visible" class="text-sm font-medium text-gray-700"><?= __("Visibile") ?></label>
+          <input type="checkbox" id="events_visible" name="events[is_active]" value="1"
+                 <?php echo (!isset($eventsSection['is_active']) || (int)$eventsSection['is_active'] === 1) ? 'checked' : ''; ?>
+                 class="h-5 w-5 rounded border-gray-300 text-gray-900 focus:ring-gray-500">
+        </div>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label for="events_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo sezione") ?></label>
+            <input type="text" id="events_title" name="events[title]"
+                   value="<?php echo htmlspecialchars((string) ($eventsSection['title'] ?? __('Gli appuntamenti della biblioteca')), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+          </div>
+          <div>
+            <label for="events_subtitle" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Sottotitolo") ?></label>
+            <input type="text" id="events_subtitle" name="events[subtitle]"
+                   value="<?php echo htmlspecialchars((string) ($eventsSection['subtitle'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
         </div>
@@ -713,85 +760,76 @@ function getSectionDisplayName($key) {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
-    if (typeof Uppy === 'undefined') {
-        console.error('Uppy is not loaded! Check vendor.bundle.js');
-        // Fallback to regular file input
-        document.getElementById('hero-background-input').style.display = 'block';
-        return;
-    }
-
-    try {
-        const uppyHero = new Uppy({
-            restrictions: {
-                maxFileSize: 5 * 1024 * 1024, // 5MB
-                maxNumberOfFiles: 1,
-                allowedFileTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-            },
-            autoProceed: false
+    // Hero covers: "latest" or up to four picked books, searched by
+    // /api/search/libri and kept in order as hero[cover_books][].
+    (function () {
+        const picker = document.getElementById('hero-cover-picker');
+        const search = document.getElementById('hero-cover-search');
+        const results = document.getElementById('hero-cover-results');
+        const selected = document.getElementById('hero-cover-selected');
+        if (!picker || !search || !results || !selected) { return; }
+        const MAX = 4;
+        const removeLabel = <?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        const fullLabel = <?= json_encode(__('Hai già scelto 4 libri.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        document.querySelectorAll('input[name="hero[cover_mode]"]').forEach(function (radio) {
+            radio.addEventListener('change', function () { picker.hidden = this.value !== 'selected' || !this.checked; });
         });
-
-        uppyHero.use(UppyDragDrop, {
-            target: '#uppy-hero-upload',
-            note: <?= json_encode(__("Immagini JPG, PNG o WebP (max 5MB)"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-            locale: {
-                strings: {
-                    dropHereOr: <?= json_encode(__("Trascina qui l'immagine di sfondo o %{browse}"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                    dropPasteFiles: <?= json_encode(__("Trascina qui l'immagine di sfondo o %{browse}"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
-                }
-            }
-        });
-
-        uppyHero.use(UppyProgressBar, {
-            target: '#uppy-hero-progress',
-            hideAfterFinish: false
-        });
-
-        // #292: native Uppy image preview (DragDrop has none of its own).
-        if (typeof UppyThumbnailGenerator !== 'undefined') {
-            uppyHero.use(UppyThumbnailGenerator, { thumbnailWidth: 400 });
-            uppyHero.on('thumbnail:generated', (file, preview) => {
-                const img = document.getElementById('hero-preview-img');
-                const box = document.getElementById('hero-preview-container');
-                if (img && box) { img.src = preview; box.classList.remove('hidden'); }
-            });
+        function ids() { return Array.from(selected.querySelectorAll('input[name="hero[cover_books][]"]')).map(function (i) { return i.value; }); }
+        function add(id, label) {
+            if (ids().indexOf(String(id)) !== -1) { return; }
+            if (ids().length >= MAX) { (window.SwalApp && window.SwalApp.info) ? window.SwalApp.info(undefined, fullLabel) : alert(fullLabel); return; }
+            const li = document.createElement('li');
+            li.className = 'flex items-center gap-3 p-2 rounded-xl border border-gray-200 bg-gray-50';
+            li.dataset.bookId = String(id);
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden'; hidden.name = 'hero[cover_books][]'; hidden.value = String(id);
+            const icon = document.createElement('i'); icon.className = 'fas fa-book text-gray-400'; icon.setAttribute('aria-hidden', 'true');
+            const text = document.createElement('span'); text.className = 'flex-1 text-sm text-gray-800'; text.textContent = label;
+            const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'hero-cover-remove text-gray-500 hover:text-red-600 px-2';
+            btn.setAttribute('aria-label', removeLabel); btn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+            li.append(hidden, icon, text, btn);
+            selected.appendChild(li);
         }
-
-        // Handle file added — transfer Uppy's File to the hidden input the form
-        // submits. Uppy always hands us a File/Blob in file.data (no blob: fetch,
-        // which a strict connect-src CSP would block — that was issue #292).
-        uppyHero.on('file-added', (file) => {
-            const fileInput = document.getElementById('hero-background-input');
-            const dataTransfer = new DataTransfer();
-            const f = file.data instanceof File
-                ? file.data
-                : new File([file.data], file.name, { type: file.type });
-            dataTransfer.items.add(f);
-            fileInput.files = dataTransfer.files;
+        selected.addEventListener('click', function (ev) {
+            const btn = ev.target.closest('.hero-cover-remove');
+            if (btn) { btn.closest('li').remove(); }
         });
-
-        // Handle file removed
-        uppyHero.on('file-removed', (file) => {
-            document.getElementById('hero-background-input').value = '';
-            const img = document.getElementById('hero-preview-img');
-            const box = document.getElementById('hero-preview-container');
-            if (img) { img.removeAttribute('src'); }
-            if (box) { box.classList.add('hidden'); }
+        let timer = null, controller = null;
+        search.addEventListener('input', function () {
+            clearTimeout(timer);
+            const q = this.value.trim();
+            if (q.length < 2) {
+                // Drop a search still in flight, or its answer would bring
+                // the list back for text that is no longer there.
+                if (controller) { controller.abort(); controller = null; }
+                results.classList.add('hidden'); results.innerHTML = ''; return;
+            }
+            timer = setTimeout(function () {
+                if (controller) { controller.abort(); }
+                controller = new AbortController();
+                fetch((window.BASE_PATH || '') + '/api/search/libri?q=' + encodeURIComponent(q), { signal: controller.signal, headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.ok ? r.json() : []; })
+                    .then(function (rows) {
+                        // An answer for an older query than the field holds now is stale.
+                        if (search.value.trim() !== q) { return; }
+                        results.innerHTML = '';
+                        (Array.isArray(rows) ? rows : []).slice(0, 10).forEach(function (row) {
+                            const li = document.createElement('li');
+                            const b = document.createElement('button');
+                            b.type = 'button';
+                            b.className = 'w-full text-left px-4 py-2 text-sm hover:bg-gray-50';
+                            b.textContent = row.label || row.titolo || ('#' + row.id);
+                            b.addEventListener('click', function () { add(row.id, b.textContent); results.classList.add('hidden'); search.value = ''; });
+                            li.appendChild(b);
+                            results.appendChild(li);
+                        });
+                        results.classList.toggle('hidden', results.children.length === 0);
+                    })
+                    .catch(function () { /* aborted or offline: keep the list as it is */ });
+            }, 250);
         });
-
-        uppyHero.on('restriction-failed', (file, error) => {
-            console.error('Upload restriction failed:', error);
-            window.SwalApp.error(
-                <?= json_encode(__('Errore Upload'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                error.message
-            );
-        });
-
-    } catch (error) {
-        console.error('Error initializing Uppy:', error);
-        // Fallback to regular file input
-        document.getElementById('hero-background-input').style.display = 'block';
-    }
+        document.addEventListener('click', function (ev) { if (!picker.contains(ev.target)) { results.classList.add('hidden'); } });
+    })();
 
     // Icon Picker - Update preview when typing
     document.querySelectorAll('[id$="_icon"]').forEach(input => {

@@ -194,6 +194,16 @@ else
   bad "standalone unit test failures/skips:"; tail -30 "$CIQ_TMP_DIR/units.log" | sed 's/^/    /'
 fi
 
+# 11b ── Integration suites (ci-quality.yml runs each by name) ──────────────────
+step "PHP integration suites (the *.integration.php files CI runs)"
+it_fail=0
+for it in $(grep -oE 'php tests/[A-Za-z0-9_-]+\.integration\.php' .github/workflows/ci-quality.yml | awk '{print $2}' | sort -u); do
+  if ! CI_STRICT_TESTS=1 php "$it" >"$CIQ_TMP_DIR/integration.log" 2>&1; then
+    bad "$it failed:"; tail -15 "$CIQ_TMP_DIR/integration.log" | sed 's/^/    /'; it_fail=1
+  fi
+done
+[ "$it_fail" -eq 0 ] && ok "every integration suite CI runs passed"
+
 # 12 ── Schema/migration behavioral gate ─────────────────────────────────────
 step "Schema and migration behavioral gate (strict no-skip mode)"
 if CI_STRICT_TESTS=1 bash scripts/verify-schema.sh >"$CIQ_TMP_DIR/schema.log" 2>&1; then

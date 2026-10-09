@@ -94,12 +94,12 @@ foreach ($posts as $post) {
 <style>
   .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
-  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
   .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
   .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-text, var(--primary-color));background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
   .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
@@ -116,7 +116,7 @@ foreach ($posts as $post) {
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug . '/discussions')) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions')) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Discussioni')) ?> · <?= $e($club['name']) ?>
   </a>
 
@@ -149,13 +149,13 @@ foreach ($posts as $post) {
       </div>
       <?php if ($canManage): ?>
         <div class="flex items-center gap-2 whitespace-nowrap">
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/lock')) ?>">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/lock')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
               <i class="fas <?= $isLocked ? 'fa-lock-open' : 'fa-lock' ?>"></i><?= $isLocked ? $e(__('Sblocca')) : $e(__('Blocca')) ?>
             </button>
           </form>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/pin')) ?>">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/pin')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
               <i class="fas fa-thumbtack"></i><?= (int) $thread['is_pinned'] === 1 ? $e(__('Togli evidenza')) : $e(__('Fissa in alto')) ?>
@@ -190,7 +190,7 @@ foreach ($posts as $post) {
             <?php if ($post['edited_at'] !== null): ?><span class="bc-muted ml-1"><?= $e(__('(modificato)')) ?></span><?php endif; ?>
           </div>
           <?php if ($canManage && $post['deleted_at'] === null): ?>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/delete')) ?>"
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $postId . '/delete')) ?>"
                   onsubmit="return confirm(<?= $e(json_encode(__('Rimuovere questo messaggio?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Rimuovi messaggio')) ?>"><i class="fas fa-trash-alt"></i></button>
@@ -203,7 +203,7 @@ foreach ($posts as $post) {
         <!-- Reactions -->
         <?php $postReactions = $reactions[$postId] ?? []; ?>
         <?php if ($post['deleted_at'] === null && ($isMember || $canManage)): ?>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-3">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $postId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-3">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <?php foreach ($emojis as $emoji): ?>
               <?php
@@ -242,7 +242,7 @@ foreach ($posts as $post) {
                 <span class="bc-muted ml-2"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $reply['created_at']))) ?></span>
               </div>
               <?php if ($canManage && $reply['deleted_at'] === null): ?>
-                <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/delete')) ?>"
+                <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $replyId . '/delete')) ?>"
                       onsubmit="return confirm(<?= $e(json_encode(__('Rimuovere questo messaggio?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                   <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Rimuovi messaggio')) ?>"><i class="fas fa-trash-alt"></i></button>
@@ -254,7 +254,7 @@ foreach ($posts as $post) {
 
             <?php $replyReactions = $reactions[$replyId] ?? []; ?>
             <?php if ($reply['deleted_at'] === null && ($isMember || $canManage)): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $replyId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <?php foreach ($emojis as $emoji): ?>
                   <?php
@@ -288,8 +288,8 @@ foreach ($posts as $post) {
         <!-- Reply form -->
         <?php if ($canPost): ?>
           <details class="mt-3">
-            <summary class="text-sm font-semibold" style="cursor: pointer; color: var(--primary-color)"><?= $e(__('Rispondi')) ?></summary>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/posts')) ?>" class="mt-2">
+            <summary class="text-sm font-semibold" style="cursor: pointer; color: var(--primary-text, var(--primary-color))"><?= $e(__('Rispondi')) ?></summary>
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/posts')) ?>" class="mt-2">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="parent_id" value="<?= $postId ?>">
               <textarea name="body" rows="2" required maxlength="20000"
@@ -325,7 +325,7 @@ foreach ($posts as $post) {
         <i class="fas fa-pen"></i>
         <h2><?= $e(__('Scrivi un messaggio')) ?></h2>
       </div>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/posts')) ?>">
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/posts')) ?>">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <textarea name="body" rows="4" required maxlength="20000"
                   placeholder="<?= $e(__('Condividi le tue impressioni… usa @nome per menzionare un membro.')) ?>"

@@ -64,7 +64,7 @@ $profileRoute = route_path('profile');
     justify-content: center;
     font-size: 1.5rem;
     margin: 0 auto 1rem;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
   }
 
   .stat-number {
@@ -109,7 +109,7 @@ $profileRoute = route_path('profile');
 
   .section-header i {
     font-size: 1.25rem;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
   }
 
   .book-card {
@@ -182,7 +182,7 @@ $profileRoute = route_path('profile');
     border-radius: 10px;
     background: var(--white);
     border: 1px solid var(--border-color);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     transition: all 0.2s ease;
     text-decoration: none;
   }
@@ -209,12 +209,12 @@ $profileRoute = route_path('profile');
 
   .availability-badge.available {
     background: rgba(16, 185, 129, 0.1);
-    color: #059669;
+    color: #047857;
   }
 
   .availability-badge.unavailable {
     background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
+    color: #b91c1c;
   }
 
   .availability-badge.expiring {
@@ -224,7 +224,7 @@ $profileRoute = route_path('profile');
 
   .availability-badge.expired {
     background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
+    color: #b91c1c;
   }
 
   .empty-state {
@@ -272,7 +272,7 @@ $profileRoute = route_path('profile');
     border-radius: 999px;
     border: 1px solid var(--border-color);
     background: var(--white);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     font-weight: 600;
     transition: all 0.3s ease;
     text-decoration: none;
@@ -282,7 +282,7 @@ $profileRoute = route_path('profile');
     border-color: var(--primary-color);
     box-shadow: var(--card-shadow-hover);
     text-decoration: none;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
   }
 
   @media (max-width: 768px) {

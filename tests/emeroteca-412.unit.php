@@ -390,6 +390,9 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
     $pdfData=json_decode((string)$pdfResponse->getBody(),true)['data'];
     check412($pdfData['has_public_pdf']===true && $pdfData['pdf_url']===absoluteUrl('/emeroteca/articolo/'.$id.'/pdf'),'mobile public PDF uses the server-resolved route');
     check412(!str_contains((string)$pdfResponse->getBody(),str_repeat('a',40)),'mobile PDF never exposes the storage filename');
+    check412($pdfData['manage_url']===null,'anonymous mobile article detail has no administrative link');
+    $staffData=json_decode((string)$mobile->articles($request->withAttribute('mobile_user',['tipo_utente'=>'staff']),new \Slim\Psr7\Response(),$id)->getBody(),true)['data'];
+    check412($staffData['manage_url']===absoluteUrl('/admin/periodicals/articles/'.$id),'mobile staff article detail exposes the protected administrative route');
     $svc->rows('UPDATE emeroteca_contributi SET pdf_pubblico=0 WHERE id=?',[$id]);
     $withdrawn=$mobile->articles($request,new \Slim\Psr7\Response(),$id);
     check412(json_decode((string)$withdrawn->getBody(),true)['data']['pdf_url']===null && $withdrawn->getHeaderLine('ETag')!==$pdfResponse->getHeaderLine('ETag'),'withdrawing PDF clears its URL and invalidates the mobile ETag');

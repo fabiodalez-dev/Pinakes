@@ -98,31 +98,30 @@ ob_start();
 ?>
 
 <!-- Catalog Header -->
-<section class="catalog-header">
-    <div class="container">
-        <div class="catalog-header-content text-center">
-            <h1 class="catalog-title"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
-            <p class="catalog-subtitle"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb flex flex-wrap items-center gap-2 justify-center bg-transparent p-0 mb-0">
-                    <li class="breadcrumb-item">
-                        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-white opacity-75"><?= __("Home") ?></a>
-                    </li>
-                    <li class="breadcrumb-item text-white active" aria-current="page">
-                        <?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?>
-                    </li>
-                </ol>
-            </nav>
+<section class="catalog-header pk-catalog-head">
+    <div class="pk-wrap">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb pk-crumbs">
+                <li class="breadcrumb-item"><a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a></li>
+                <li class="pk-crumbs__sep" aria-hidden="true">/</li>
+                <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></li>
+            </ol>
+        </nav>
+        <div class="catalog-header-content pk-page-head">
+            <div class="pk-page-head__text">
+                <h1 class="catalog-title pk-h1"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
+                <p class="catalog-subtitle pk-lead"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
+            </div>
         </div>
     </div>
 </section>
 
 <!-- Main Content -->
-<section class="py-5">
-    <div class="container">
-        <div class="flex flex-wrap -mx-3">
+<section class="pk-catalog">
+    <div class="pk-wrap">
+        <div class="pk-catalog__layout">
             <!-- Enhanced Filters Sidebar -->
-            <div class="catalog-filters-column w-full lg:w-1/3 px-3 xl:w-1/4 mb-4">
+            <aside class="catalog-filters-column pk-filters" aria-label="<?= htmlspecialchars(__("Filtri"), ENT_QUOTES, 'UTF-8') ?>">
                 <div class="filters-panel">
                     <div class="filters-header">
                         <h5 class="filters-title">
@@ -140,7 +139,88 @@ ob_start();
                     </div>
 
                     <div class="filters-content" id="catalog-filters-content">
-                        <!-- Search -->
+                    <!-- Clear All, also at the top: no scrolling down a long filter column to reset it -->
+                    <div class="filter-section filter-section--clear-top">
+                        <button class="clear-all-btn" onclick="clearAllFilters()">
+                            <i class="fas fa-times"></i>
+                            <?= __("Pulisci tutti i filtri") ?>
+                        </button>
+                    </div>
+
+                    <!-- Availability -->
+                    <div class="filter-section">
+                        <div class="filter-title">
+                            <i class="fas fa-bookmark"></i>
+                            <?= __("Disponibilità") ?>
+                        </div>
+                        <div class="availability-options" role="group" aria-label="<?= htmlspecialchars(__("Disponibilità"), ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="button" class="availability-option <?= empty($filters['disponibilita']) ? 'active' : '' ?>"
+                             data-filter-value=""
+                             aria-pressed="<?= empty($filters['disponibilita']) ? 'true' : 'false' ?>"
+                             onclick="updateFilter('disponibilita', '')">
+                                <span class="availability-icon" aria-hidden="true">
+                                    <i class="fas fa-th-large"></i>
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("Tutti") ?></span>
+                                    <span class="availability-desc"><?= __("Tutto il catalogo") ?></span>
+                                </span>
+                                <span class="availability-count" id="total-books-count">
+                                    <?= number_format($filter_options['availability_stats']['total'] ?? $total_books) ?>
+                                </span>
+                            </button>
+
+                        <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'active' : '' ?>"
+                             data-filter-value="disponibile"
+                             aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'true' : 'false' ?>"
+                             onclick="updateFilter('disponibilita', 'disponibile')">
+                                <span class="availability-icon" aria-hidden="true">
+                                    <i class="fas fa-check-circle"></i>
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("Disponibili") ?></span>
+                                    <span class="availability-desc"><?= __("Pronti per il prestito") ?></span>
+                                </span>
+                                <span class="availability-count" id="available-books-count">
+                                    <?= number_format($filter_options['availability_stats']['available'] ?? 0) ?>
+                                </span>
+                            </button>
+
+                        <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'active' : '' ?>"
+                             data-filter-value="prenotato"
+                             aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'true' : 'false' ?>"
+                             onclick="updateFilter('disponibilita', 'prenotato')">
+                                <span class="availability-icon" aria-hidden="true">
+                                    <i class="fas fa-bookmark"></i>
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("Prenotati") ?></span>
+                                    <span class="availability-desc"><?= __("Attualmente riservati") ?></span>
+                                </span>
+                                <span class="availability-count" id="reserved-books-count">
+                                    <?= number_format($filter_options['availability_stats']['reserved'] ?? 0) ?>
+                                </span>
+                            </button>
+
+                        <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'active' : '' ?>"
+                             data-filter-value="prestato"
+                             aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'true' : 'false' ?>"
+                             onclick="updateFilter('disponibilita', 'prestato')">
+                                <span class="availability-icon" aria-hidden="true">
+                                    <i class="fas fa-clock"></i>
+                                </span>
+                                <span class="availability-text">
+                                    <span class="availability-title"><?= __("In prestito") ?></span>
+                                    <span class="availability-desc"><?= __("Attualmente prestati") ?></span>
+                                </span>
+                                <span class="availability-count" id="borrowed-books-count">
+                                    <?= number_format($filter_options['availability_stats']['borrowed'] ?? 0) ?>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search -->
                         <div class="filter-section">
                         <div class="filter-title">
                             <i class="fas fa-search"></i>
@@ -164,6 +244,10 @@ ob_start();
                             <i class="fas fa-feather"></i>
                             <?= __("Autori") ?>
                         </div>
+                        <div class="pk-filter-search">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+                            <input type="search" data-pk-filter-list="authors-filter" placeholder="<?= htmlspecialchars(__("Cerca autore…"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Cerca autore…"), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
                         <div class="filter-options" id="authors-filter">
                             <?php foreach($facetAutori as $autore): ?>
                                 <a href="#"
@@ -175,6 +259,30 @@ ob_start();
                                 </a>
                             <?php endforeach; ?>
                         </div>
+                        <div class="pk-filter-total" data-pk-count-of="authors-filter" data-pk-count-label="<?= htmlspecialchars(__('%d autori'), ENT_QUOTES, 'UTF-8') ?>" data-pk-count-label-one="<?= htmlspecialchars(__('%d autore'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(__n('%d autore', '%d autori', count($facetAutori)), ENT_QUOTES, 'UTF-8') ?></div>
+                    </div>
+
+                    <!-- Publishers -->
+                    <div class="filter-section" id="publisher-filter-section"<?= $hideEditoreSection ? ' style="display:none"' : '' ?>>
+                        <div class="filter-title">
+                            <i class="fas fa-building"></i>
+                            <?= __("Editori") ?>
+                        </div>
+                        <div class="pk-filter-search">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+                            <input type="search" data-pk-filter-list="publishers-filter" placeholder="<?= htmlspecialchars(__("Cerca editore..."), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Cerca editore..."), ENT_QUOTES, 'UTF-8') ?>">
+                        </div>
+                        <div class="filter-options" id="publishers-filter">
+                            <?php foreach($filter_options['editori'] as $editore): ?>
+                                <a href="#"
+                                   class="filter-option count <?= ($filters['editore'] ?? '') == $editore['nome'] ? 'active' : '' ?>"
+                                   onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;">
+                                    <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
+                                    <span class="count-badge"><?= $editore['cnt'] ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="pk-filter-total" data-pk-count-of="publishers-filter" data-pk-count-label="<?= htmlspecialchars(__('%d editori'), ENT_QUOTES, 'UTF-8') ?>" data-pk-count-label-one="<?= htmlspecialchars(__('%d editore'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(__n('%d editore', '%d editori', count($filter_options['editori'])), ENT_QUOTES, 'UTF-8') ?></div>
                     </div>
 
                     <!-- Genres -->
@@ -226,93 +334,6 @@ ob_start();
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- Publishers -->
-                    <div class="filter-section" id="publisher-filter-section"<?= $hideEditoreSection ? ' style="display:none"' : '' ?>>
-                        <div class="filter-title">
-                            <i class="fas fa-building"></i>
-                            <?= __("Editori") ?>
-                        </div>
-                        <div class="filter-options" id="publishers-filter">
-                            <?php foreach($filter_options['editori'] as $editore): ?>
-                                <a href="#"
-                                   class="filter-option count <?= ($filters['editore'] ?? '') == $editore['nome'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;">
-                                    <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
-                                    <span class="count-badge"><?= $editore['cnt'] ?></span>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Availability -->
-                    <div class="filter-section">
-                        <div class="filter-title">
-                            <i class="fas fa-bookmark"></i>
-                            <?= __("Disponibilità") ?>
-                        </div>
-                        <div class="availability-options">
-                        <div class="availability-option <?= empty($filters['disponibilita']) ? 'active' : '' ?>"
-                             data-filter-value=""
-                             onclick="updateFilter('disponibilita', '')">
-                                <div class="availability-icon">
-                                    <i class="fas fa-th-large"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("Tutti") ?></div>
-                                    <div class="availability-desc"><?= __("Tutto il catalogo") ?></div>
-                                </div>
-                                <div class="availability-count" id="total-books-count">
-                                    <?= number_format($filter_options['availability_stats']['total'] ?? $total_books) ?>
-                                </div>
-                            </div>
-
-                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'active' : '' ?>"
-                             data-filter-value="disponibile"
-                             onclick="updateFilter('disponibilita', 'disponibile')">
-                                <div class="availability-icon">
-                                    <i class="fas fa-check-circle"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("Disponibili") ?></div>
-                                    <div class="availability-desc"><?= __("Pronti per il prestito") ?></div>
-                                </div>
-                                <div class="availability-count" id="available-books-count">
-                                    <?= number_format($filter_options['availability_stats']['available'] ?? 0) ?>
-                                </div>
-                            </div>
-
-                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'active' : '' ?>"
-                             data-filter-value="prenotato"
-                             onclick="updateFilter('disponibilita', 'prenotato')">
-                                <div class="availability-icon">
-                                    <i class="fas fa-bookmark"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("Prenotati") ?></div>
-                                    <div class="availability-desc"><?= __("Attualmente riservati") ?></div>
-                                </div>
-                                <div class="availability-count" id="reserved-books-count">
-                                    <?= number_format($filter_options['availability_stats']['reserved'] ?? 0) ?>
-                                </div>
-                            </div>
-
-                        <div class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'active' : '' ?>"
-                             data-filter-value="prestato"
-                             onclick="updateFilter('disponibilita', 'prestato')">
-                                <div class="availability-icon">
-                                    <i class="fas fa-clock"></i>
-                                </div>
-                                <div class="availability-text">
-                                    <div class="availability-title"><?= __("In prestito") ?></div>
-                                    <div class="availability-desc"><?= __("Attualmente prestati") ?></div>
-                                </div>
-                                <div class="availability-count" id="borrowed-books-count">
-                                    <?= number_format($filter_options['availability_stats']['borrowed'] ?? 0) ?>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -397,10 +418,10 @@ ob_start();
                     </div>
                     </div><!-- /filters-content -->
                 </div>
-            </div>
+            </aside>
 
             <!-- Main Content -->
-            <div class="catalog-results-column w-full lg:w-2/3 px-3 xl:w-3/4">
+            <div class="catalog-results-column pk-results">
                 <!-- Active Filters Display -->
                 <div id="active-filters" class="active-filters" style="display: none;">
                     <div class="active-filters-title"><?= __("Filtri attivi:") ?></div>
@@ -413,7 +434,7 @@ ob_start();
                         <strong id="total-count"><?= number_format($total_books) ?></strong>
                         <span id="results-text"><?= ($total_articles ?? 0) > 0 ? __('Risultati') : ($total_books == 1 ? __('libro trovato') : __('libri trovati')) ?></span>
                     </div>
-                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <div class="pk-results__tools">
                         <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= htmlspecialchars(__("Rimuovi tutti i filtri"), ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fas fa-filter-circle-xmark"></i>
                             <span class="clear-filters-text"><?= __("Pulisci filtri") ?></span>
@@ -427,6 +448,10 @@ ob_start();
                             <option value="author_asc" <?= ($filters['sort'] ?? 'newest') === 'author_asc' ? 'selected' : '' ?>><?= __("Autore A-Z") ?></option>
                             <option value="author_desc" <?= ($filters['sort'] ?? 'newest') === 'author_desc' ? 'selected' : '' ?>><?= __("Autore Z-A") ?></option>
                         </select>
+                        <div class="pk-view" role="group" aria-label="<?= htmlspecialchars(__("Visualizzazione"), ENT_QUOTES, 'UTF-8') ?>">
+                            <button type="button" class="pk-view__btn is-active" data-pk-view="grid" aria-pressed="true"><?= __("Griglia") ?></button>
+                            <button type="button" class="pk-view__btn" data-pk-view="list" aria-pressed="false"><?= __("Lista") ?></button>
+                        </div>
                     </div>
                 </div>
 
@@ -435,7 +460,7 @@ ob_start();
 
                 <!-- Books Grid -->
                 <div id="books-container">
-                    <div class="books-grid" id="books-grid">
+                    <div class="books-grid pk-grid pk-grid--catalog" id="books-grid">
                         <?php include 'catalog-grid.php'; ?>
                     </div>
 
@@ -457,37 +482,9 @@ ob_start();
                         </button>
                     </div>
 
-                    <?php // FIX F014: only show archive fallback when book results are empty, keep as sibling of #empty-state ?>
-                    <?php if (!empty($archiveResults) && empty($books)): ?>
-                    <?php $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); ?>
-                    <div class="mt-4 p-3 rounded border" style="background:var(--light-bg,#f8f9fa);border-color:var(--border-color,#e5e7eb)!important;">
-                        <p class="text-sm font-semibold text-gray-500 mb-2">
-                            <i class="fas fa-archive mr-1"></i>
-                            <?= __("Trovato anche nell'archivio:") ?>
-                        </p>
-                        <ul class="mb-0 list-none">
-                            <?php foreach ($archiveResults as $ar): ?>
-                            <li class="mb-1">
-                                <?php
-                                $rawHref = (string) ($ar['url'] ?? '');
-                                // FIX F015: allow standard URL chars (query, fragment, percent-encoded)
-                                // but reject schemes (javascript:/data:) and CRLF injection by requiring
-                                // a leading slash and disallowing control characters.
-                                if (!preg_match('{^/[\w/\-.~%?&=:;,@!$\'()*+\[\]#]*$}', $rawHref)) {
-                                    $rawHref = '#';
-                                }
-                                ?>
-                                <a href="<?= htmlspecialchars($rawHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
-                                    <?= $e($ar['label']) ?>
-                                    <?php if (($ar['reference_code'] ?? '') !== ''): ?>
-                                        <span class="text-gray-500 text-sm ml-1">(<?= $e($ar['reference_code']) ?>)</span>
-                                    <?php endif; ?>
-                                </a>
-                            </li>
-                            <?php endforeach; ?>
-                        </ul>
+                    <div id="archive-search-results">
+                        <?php include __DIR__ . '/partials/catalog-archive-results.php'; ?>
                     </div>
-                    <?php endif; ?>
                 </div>
 
                 <!-- Pagination: server-rendered with real hrefs so page 2+ is
@@ -669,7 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateURL();
     applyYearBounds(null);
 
-    // Apply collapse-on-select to the server-rendered genre list, then render the other facets
+    // Keep the server-rendered genre drill-down open, then render the other facets.
     const genresInit = document.getElementById('genres-filter');
     if (genresInit) {
         applyFacetCollapse(genresInit, 'genere_id', genereSelectedLabel(), genresInit.innerHTML);
@@ -724,21 +721,39 @@ function syncAvailabilityActiveState() {
     const options = document.querySelectorAll('.availability-option');
     options.forEach(option => {
         const targetValue = option.dataset.filterValue || '';
-        if (targetValue === currentValue) {
-            option.classList.add('active');
-        } else {
-            option.classList.remove('active');
-        }
+        const isActive = targetValue === currentValue;
+        option.classList.toggle('active', isActive);
+        option.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 }
 
 function clearAllFilters() {
-    // Simply redirect to catalog without any query parameters
-    // This will reload the page and show all filter options
-    window.location.href = CATALOG_ROUTE;
+    clearTimeout(searchTimeout);
+    currentFilters = {};
+    currentGenreName = '';
+    Object.keys(facetExpanded).forEach(key => { facetExpanded[key] = false; });
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) searchInput.value = '';
+    document.querySelectorAll('[data-pk-filter-list]').forEach(input => {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) sortSelect.value = 'newest';
+    applyYearBounds(null);
+    syncAvailabilityActiveState();
+    updateActiveFiltersDisplay();
+    renderFacets();
+    updateURL();
+    loadBooks();
 }
 
 function removeFilter(key) {
+    if (key === 'search') {
+        clearTimeout(searchTimeout);
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = '';
+    }
     delete currentFilters[key];
     if (key === 'genere_id') {
         currentGenreName = '';
@@ -883,13 +898,15 @@ function loadBooks() {
             }
             loading.style.display = 'none';
 
-            const hasNoResults = !data.html || data.html.trim() === '';
+            const archiveResults = document.getElementById('archive-search-results');
+            if (archiveResults) archiveResults.innerHTML = data.archive_html || '';
+            const hasNoResults = (!data.html || data.html.trim() === '') && !data.archive_html;
 
             if (hasNoResults) {
                 empty.style.display = 'block';
                 container.style.display = 'none';
             } else {
-                container.style.display = 'grid';
+                container.style.display = '';
                 container.innerHTML = data.html;
                 container.dispatchEvent(new Event('pinakes:catalog-grid-updated', { bubbles: true }));
             }
@@ -919,7 +936,7 @@ function loadBooks() {
             }
             console.error('Error loading books:', error);
             loading.style.display = 'none';
-            container.style.display = 'grid';
+            container.style.display = '';
             container.innerHTML = '<div class="w-full px-3"><div class="alert alert-error">' + i18n.errore_caricamento + '</div></div>';
         })
         .finally(() => {
@@ -1173,7 +1190,9 @@ function applyFacetCollapse(sectionEl, key, selectedLabel, optionsContent) {
     facetOptionsRender[key] = optionsContent;
 
     const hasSelection = !!currentFilters[key];
-    if (hasSelection && !facetExpanded[key]) {
+    // Genre options are the next level of the hierarchy, not alternatives
+    // to the selected value. Keep them visible so readers can drill down.
+    if (hasSelection && key !== 'genere_id' && !facetExpanded[key]) {
         renderCollapsedPill(sectionEl, key, selectedLabel);
     } else {
         renderFacetOptions(sectionEl, key);

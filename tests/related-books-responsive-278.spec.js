@@ -10,7 +10,8 @@
  *   - layout mode matches the viewport: below 1024px the section is a
  *     single-row horizontal snap-scroll strip (all cards on the strip,
  *     scrollable when they overflow); from 1024px up it is a centred grid
- *     showing at most 4 columns in the single visible row;
+ *     showing at most 6 columns in the single visible row (2026 design: the
+ *     related books are a row of the same cards as the catalogue);
  *   - the row is grouped/centred (bounded width) on ultra-wide screens.
  *
  * Book detail is public — no login needed. The spec finds a book that actually
@@ -147,7 +148,7 @@ test.describe.serial('Related books — responsive layout (#278)', () => {
         const wide = await measure(page, bookId, 1400);
         expect(wide.mode, 'layout mode at 1400px').toBe('grid');
         expect(wide.perRow).toBeGreaterThanOrEqual(Math.min(3, wide.count));
-        expect(wide.perRow).toBeLessThanOrEqual(4);
+        expect(wide.perRow).toBeLessThanOrEqual(6);
     });
 
     test('row is grouped/centred (bounded) on ultra-wide screens', async ({ page }) => {

@@ -48,12 +48,12 @@ class LendingController extends BaseController
     /** @param array<string, mixed> $club */
     private function mayUse(array $club): bool
     {
-        return $this->canView($club) && ($this->isActiveMember($club) || $this->canManage($club));
+        return $this->canSeeContent($club) && ($this->isActiveMember($club) || $this->canManage($club));
     }
 
     private function lendingPath(string $slug): string
     {
-        return '/book-club/' . $slug . '/lending';
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/lending';
     }
 
     /**

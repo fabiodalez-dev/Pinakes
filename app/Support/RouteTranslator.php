@@ -59,6 +59,11 @@ class RouteTranslator
         'api_home' => '/api/home',
         'api_edge_availability' => '/api/edge/availability',
         'language_switch' => '/language',
+        // Public sections of bundled plugins (emeroteca, book-club). The
+        // English spelling is the fallback; LocalizedRouteRegistrar also keeps
+        // each plugin's historical literal base answering.
+        'periodicals' => '/periodicals',
+        'book_club' => '/book-club',
         'bibframe.book'   => '/api/bibframe/book/{id}',
     ];
 

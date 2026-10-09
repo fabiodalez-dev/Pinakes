@@ -622,9 +622,9 @@ final class ContributionController extends AbstractAdminController
         // everyone including the cataloguer. pdf_pubblico alone is the flag for
         // "this file may be served", never for "this record exists publicly".
         $published = !empty($row['pubblico']);
-        $recordUrl = $published ? absoluteUrl('/emeroteca/articolo/'.$id) : '';
+        $recordUrl = $published ? absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.$id) : '';
         $fileUrl = ($published && !empty($row['pdf_path']) && !empty($row['pdf_pubblico']))
-            ? absoluteUrl('/emeroteca/articolo/'.$id.'/pdf')
+            ? absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.$id.'/pdf')
             : '';
         $body = CitationFormatter::ris($row, $recordUrl, $fileUrl);
         $rs->getBody()->write($body);
@@ -653,7 +653,7 @@ final class ContributionController extends AbstractAdminController
         // builds each periodical record with 001 'periodical:<id>'. The shelf
         // mark (852 $c) is included only in the admin export.
         $body = \App\Plugins\Emeroteca\Support\ArticleMarcXml::format($row,
-            !empty($row['pubblico']) ? absoluteUrl('/emeroteca/articolo/'.$id) : '',
+            !empty($row['pubblico']) ? absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.$id) : '',
             !empty($row['testata_id']) ? 'periodical:'.(int)$row['testata_id'] : '', !$public);
         $rs->getBody()->write($body);
         return $rs->withHeader('Content-Type', 'application/marcxml+xml; charset=UTF-8')
@@ -663,12 +663,12 @@ final class ContributionController extends AbstractAdminController
     /** Admin-only PDF download: any contribution, published or not. */
     public function pdf(Request $rq, Response $rs, array $args = []): Response
     {
-        return $this->servePdf($rs, (int)($args['id'] ?? 0), false);
+        return $this->servePdf($rs, (int)($args['id'] ?? 0), false, $rq);
     }
     /** Public PDF download: only contributions with pdf_pubblico set. */
     public function publicPdf(Request $rq, Response $rs, array $args = []): Response
     {
-        return $this->servePdf($rs, (int)($args['id'] ?? 0), true);
+        return $this->servePdf($rs, (int)($args['id'] ?? 0), true, $rq);
     }
     /**
      * Stream a contribution's PDF file. Resolves the stored filename against the PDF directory
@@ -676,7 +676,7 @@ final class ContributionController extends AbstractAdminController
      * filename pattern check), 404ing on a missing row, an unpublished PDF requested publicly,
      * a malformed name, or a file that isn't actually there.
      */
-    private function servePdf(Response $rs, int $id, bool $public): Response
+    private function servePdf(Response $rs, int $id, bool $public, ?Request $rq = null): Response
     {
         $row = $this->service()->get($id, $public);
         $name = (string)($row['pdf_path'] ?? '');
@@ -688,10 +688,11 @@ final class ContributionController extends AbstractAdminController
         if (!$path || !str_starts_with($path, $base.DIRECTORY_SEPARATOR) || !is_file($path)) {
             return $rs->withStatus(404);
         }
-        $handle = fopen($path, 'rb');
-        if (!$handle) {
-            return $rs->withStatus(404);
-        }
-        return $rs->withBody(new \Slim\Psr7\Stream($handle))->withHeader('Content-Type','application/pdf')->withHeader('Content-Length',(string)filesize($path))->withHeader('X-Content-Type-Options','nosniff')->withHeader('Cache-Control','private, no-store')->withHeader('Content-Disposition','inline; filename="articolo.pdf"');
+        require_once __DIR__ . '/../Support/PdfRangeResponder.php';
+        // Range requests let the browser's viewer seek in a large PDF.
+        return \App\Plugins\Emeroteca\Support\PdfRangeResponder::respond($rq, $rs, $path, [
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline; filename="articolo.pdf"',
+        ]);
     }
 }

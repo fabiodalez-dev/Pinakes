@@ -15,7 +15,15 @@ class OpenLibraryPlugin
     private const API_BASE = 'https://openlibrary.org';
     private const COVERS_BASE = 'https://covers.openlibrary.org';
     private const TIMEOUT = 6;
-    private const USER_AGENT = 'Mozilla/5.0 (compatible; BibliotecaBot/1.0) Safari/537.36';
+    // Open Library asks API clients to identify themselves with a contact.
+    private const USER_AGENT = 'Pinakes/1.0 (+https://github.com/fabiodalez-dev/Pinakes)';
+    // Goodreads' public page sits behind a bot challenge that only lets a
+    // browser-like agent through; it is used for that one fallback only.
+    private const GOODREADS_USER_AGENT = 'Mozilla/5.0 (compatible; BibliotecaBot/1.0) Safari/537.36';
+    // covers.openlibrary.org allows 100 requests per IP per 5 minutes: stay
+    // under it across PHP workers (bulk cover runs), then skip the cover.
+    private const COVERS_MAX_REQUESTS = 90;
+    private const COVERS_WINDOW_SECONDS = 300;
     private const MIN_COVER_SIZE_BYTES = 1000;
 
     private ?\mysqli $db = null;
@@ -449,7 +457,7 @@ class OpenLibraryPlugin
         $cmd = sprintf(
             '%s -sL --proto =https --max-time 8 --max-redirs 3 --max-filesize 5242880 -A %s %s 2>/dev/null',
             escapeshellarg($curl),
-            escapeshellarg(self::USER_AGENT),
+            escapeshellarg(self::GOODREADS_USER_AGENT),
             escapeshellarg($url)
         );
         try {
@@ -581,6 +589,9 @@ class OpenLibraryPlugin
      */
     private function checkCoverExists(string $url): bool
     {
+        if (\App\Support\RateLimiter::isLimited('openlibrary_covers', self::COVERS_MAX_REQUESTS, self::COVERS_WINDOW_SECONDS)) {
+            return false;
+        }
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
@@ -909,16 +920,8 @@ class OpenLibraryPlugin
      */
     private function mapLanguage(string $code): string
     {
-        $map = [
-            'eng' => 'Inglese',
-            'ita' => 'Italiano',
-            'fra' => 'Francese',
-            'spa' => 'Spagnolo',
-            'ger' => 'Tedesco',
-            'por' => 'Portoghese',
-        ];
-
-        return $map[$code] ?? ucfirst($code);
+        // Open Library answers ISO 639-2 codes ("eng", "ita", "jpn").
+        return \App\Support\LanguageCodes::nameFor($code) ?? $code;
     }
 
     /**
@@ -938,38 +941,6 @@ class OpenLibraryPlugin
         return $this->fetchFromGoogleBooks($isbn, $apiKey);
     }
 
-    /**
-     * Get application locale from system settings
-     * Returns language code (e.g., "en" from "en_US", "it" from "it_IT")
-     *
-     * @return string Default: "en"
-     */
-    private function getAppLocale(): string
-    {
-        if ($this->db === null) {
-            return 'en';
-        }
-
-        $stmt = $this->db->prepare(
-            "SELECT setting_value FROM system_settings
-             WHERE category = 'app' AND setting_key = 'locale' LIMIT 1"
-        );
-
-        if (!$stmt) {
-            return 'en';
-        }
-
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
-        $stmt->close();
-
-        $locale = $row['setting_value'] ?? 'en_US';
-
-        // Extract language code from locale (en_US → en, it_IT → it)
-        $parts = explode('_', $locale);
-        return strtolower($parts[0]);
-    }
 
     /**
      * Get Google Books API key from settings
@@ -1088,19 +1059,14 @@ class OpenLibraryPlugin
      */
     private function fetchFromGoogleBooks(string $isbn, string $apiKey): ?array
     {
-        // Get application locale for language-specific results
-        $language = $this->getAppLocale();
-
-        $url = sprintf(
-            'https://www.googleapis.com/books/v1/volumes?q=isbn:%s&key=%s&langRestrict=%s',
-            urlencode($isbn),
-            urlencode($apiKey),
-            urlencode($language)
-        );
+        // The ISBN pins the edition: no langRestrict (it hid every non-Italian
+        // book from an Italian install). The key travels in a header, never in
+        // the URL, so it cannot end up in a transport-error log line.
+        $url = sprintf('https://www.googleapis.com/books/v1/volumes?q=isbn:%s', urlencode($isbn));
 
         $res = \App\Support\HttpClient::get(
             $url,
-            [],
+            ['X-Goog-Api-Key' => $apiKey],
             ['timeout' => 10, 'user_agent' => self::USER_AGENT]
         );
 
@@ -1196,16 +1162,9 @@ class OpenLibraryPlugin
         // Extract language
         $bookLanguage = $volume['language'] ?? null;
         if ($bookLanguage) {
-            // Convert language code to full name if needed (e.g., 'it' -> 'Italiano', 'en' -> 'English')
-            $languageNames = [
-                'it' => 'Italiano',
-                'en' => 'English',
-                'fr' => 'Français',
-                'de' => 'Deutsch',
-                'es' => 'Español',
-                'pt' => 'Português',
-            ];
-            $bookLanguage = $languageNames[$bookLanguage] ?? strtoupper($bookLanguage);
+            // Google Books answers ISO 639-1 codes ("it", "en", "ja"): store the
+            // catalogue's name ("Italiano"), like every other source.
+            $bookLanguage = \App\Support\LanguageCodes::nameFor((string) $bookLanguage) ?? (string) $bookLanguage;
         }
 
         // Extract price from saleInfo (from parent response, not volume)

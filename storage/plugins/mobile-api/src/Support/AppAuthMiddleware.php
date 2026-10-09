@@ -69,12 +69,12 @@ final class AppAuthMiddleware implements MiddlewareInterface
         }
 
         if ($row === null) {
-            return $this->deny('unauthorized', __('Token non valido, revocato o scaduto.'), 401);
+            return $this->deny('unauthorized', __('Token non valido, revocato o scaduto.'), 401, true);
         }
 
         $user = $this->loadUser($row['user_id']);
         if ($user === null) {
-            return $this->deny('unauthorized', __('Account non disponibile.'), 401);
+            return $this->deny('unauthorized', __('Account non disponibile.'), 401, true);
         }
 
         // The delegated core services (UserActionsController, ReservationManager,
@@ -162,8 +162,17 @@ final class AppAuthMiddleware implements MiddlewareInterface
         return $token !== '' ? $token : null;
     }
 
-    private function deny(string $code, string $message, int $status): ResponseInterface
+    private function deny(string $code, string $message, int $status, bool $tokenRejected = false): ResponseInterface
     {
-        return ResponseEnvelope::error(new SlimResponse(), $code, $message, $status);
+        $response = ResponseEnvelope::error(new SlimResponse(), $code, $message, $status);
+        if ($status === 401) {
+            // RFC 6750 §3: a 401 on a bearer-protected resource names the scheme,
+            // with error="invalid_token" when a token was presented but refused.
+            $response = $response->withHeader(
+                'WWW-Authenticate',
+                $tokenRejected ? 'Bearer realm="pinakes", error="invalid_token"' : 'Bearer realm="pinakes"'
+            );
+        }
+        return $response;
     }
 }

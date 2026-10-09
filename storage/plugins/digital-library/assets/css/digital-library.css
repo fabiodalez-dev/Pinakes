@@ -323,8 +323,39 @@
 .digital-attachment-invalid { grid-column: 1 / -1; margin: 0; color: #b91c1c; }
 .digital-attachment-row input, .digital-attachment-row select { display: block; width: 100%; }
 .digital-attachment-uploaders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
-.digital-attachments-list { list-style: none; padding: 0; margin: 1rem 0; }
-.digital-attachments-list li { padding: 1rem 0; border-bottom: 1px solid var(--border-color, #e5e7eb); overflow-wrap: anywhere; }
-.digital-attachments-list audio { display: block; width: 100%; margin-top: .75rem; }
-.digital-attachments-list iframe { width: 100%; height: 65vh; border: 0; margin-top: .75rem; }
+/* Frontend: one card per digital file (type, name and kind, then actions). */
+.digital-attachments-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.digital-attachments-list li.digital-attachment { flex: 1 1 300px; min-width: 0; padding: 16px 18px; border-radius: 16px; background: var(--pk-surface, #fff); border: 1px solid var(--pk-line, #ece8ea); display: flex; flex-direction: column; gap: 10px; overflow-wrap: anywhere; }
+/* The file type and its name share the first row; the actions take a row of
+   their own, aligned under the name, so a long file name is never squeezed
+   to a few characters by the buttons beside it. */
+.digital-attachment__head { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px 14px; }
+.digital-attachment__type { flex: none; width: 40px; height: 48px; border-radius: 6px; background: var(--pk-accent-soft, #fdeaf2); color: var(--pk-accent-strong, #a8004b); display: grid; place-items: center; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.digital-attachment__type--round { height: 40px; border-radius: 50%; }
+.digital-attachment__text { min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.digital-attachment__text strong { font-size: 14px; font-weight: 600; color: var(--pk-ink, #1b1720); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.digital-attachment__sep { display: none; }
+.digital-attachment__kind { font-size: 13px; color: var(--pk-muted, #6b6470); }
+.digital-attachment__actions { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
+/* An audiobook has one action and a player below: the button stays beside the name. */
+.digital-attachment--audio .digital-attachment__head { grid-template-columns: 40px minmax(0, 1fr) auto; }
+.digital-attachment--audio .digital-attachment__actions { grid-column: 3; }
+.digital-attachments-list .digital-attachment__actions .ui-button { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; min-height: 0; width: auto; border-radius: 10px; font-size: 13px; font-weight: 600; line-height: 1.2; box-shadow: none; text-transform: none; letter-spacing: normal; }
+.digital-attachments-list .digital-attachment__read { background: var(--pk-dark, #1b1720); color: #fff; border: 1px solid var(--pk-dark, #1b1720); }
+.digital-attachments-list .digital-attachment__read:hover { background: var(--pk-button, #d70161); border-color: var(--pk-button, #d70161); color: var(--pk-button-text, #fff); }
+.digital-attachments-list .digital-attachment__download { background: var(--pk-surface, #fff); color: var(--pk-ink, #1b1720); border: 1px solid var(--pk-line-2, #e2dce0); }
+.digital-attachments-list .digital-attachment__download:hover { border-color: var(--pk-ink, #1b1720); color: var(--pk-ink, #1b1720); }
+.digital-attachments-list .digital-attachment__download i { font-size: 12px; margin: 0; }
+.digital-attachments-list audio { display: block; width: 100%; height: 34px; margin: 0; }
+.digital-attachment__viewer { margin: 0; }
+.digital-attachments-list iframe { width: 100%; height: 65vh; border: 0; border-radius: 10px; }
 @media (max-width: 767px) { .digital-attachment-row, .digital-attachment-uploaders { grid-template-columns: minmax(0, 1fr); } }
+/* Phones: the two actions share the row at equal width. */
+@media (max-width: 480px) {
+    .digital-attachments-list .digital-attachment__actions .ui-button { flex: 1 1 0; justify-content: center; }
+    .digital-attachment--audio .digital-attachment__head { grid-template-columns: 40px minmax(0, 1fr); }
+    .digital-attachment--audio .digital-attachment__actions { grid-column: 2; }
+    .digital-attachment--audio .digital-attachment__actions .ui-button { flex: 0 0 auto; }
+}
+/* "Leggi PDF" is a link (the PDF itself without JavaScript) styled as its button. */
+.digital-attachments-list a.digital-attachment__read, .digital-attachments-list a.digital-attachment__read:hover { text-decoration: none; }

@@ -142,7 +142,7 @@ $check($count($html, '//div[contains(@class,"filter-options--grid")]//*[contains
     'and shows no count badge');
 $check($count($html, '//div[@class="filter-options"]//*[contains(@class,"count-badge")]') === 2,
     'list sections do show count badges');
-$check($count($html, '//a[@class="clear-all-btn"][@href="/emeroteca"]') === 1, 'clear-all link is rendered when given');
+$check($count($html, '//a[@class="clear-all-btn"][@href="/emeroteca"]') === 2, 'clear-all link is rendered when given, at the top and at the bottom');
 $noClear = $render('filters-sidebar.php', ['filterSections' => []]);
 $check($count($noClear, '//a[contains(@class,"clear-all-btn")]') === 0 && $count($noClear, '//form') === 0,
     'without clear href and search, neither is rendered');
@@ -171,7 +171,7 @@ echo "\nE. article-card\n";
 
 $base = ['id' => 7, 'url' => '/emeroteca/articolo/7', 'title' => 'Un <titolo>', 'cover' => ''];
 $html = $render('article-card.php', ['articleCard' => $base]);
-$check(str_contains($html, '/uploads/copertine/placeholder.jpg'), "an empty cover renders the placeholder");
+$check($count($html, '//img') === 0 && $count($html, '//div[contains(@class,"pk-book__blank-title")]') === 1, "an empty cover renders the blank book with its title");
 $check(str_contains($html, 'Un &lt;titolo&gt;') && !str_contains($html, 'Un <titolo>'), 'the title is escaped');
 $check($attr($html, '//article', 'data-article-id') === ['7'], 'the card carries the article id');
 
@@ -190,19 +190,19 @@ $html = $render('article-card.php', ['articleCard' => $base + [
         ['label' => 'pp. 3-20'],
     ],
 ]]);
-$authorLinks = $attr($html, '//p[@class="book-author"]/a', 'href');
+$authorLinks = $attr($html, '//p[contains(@class,"book-author")]/a', 'href');
 $check($authorLinks === ['/autore/1'], 'authors with an href become links, those without do not');
-$check(str_contains((string) ($xp($html)->query('//p[@class="book-author"]')->item(0)?->textContent ?? ''), 'Bruno Neri'),
+$check(str_contains((string) ($xp($html)->query('//p[contains(@class,"book-author")]')->item(0)?->textContent ?? ''), 'Bruno Neri'),
     'an author without href is still shown as text');
-$check($attr($html, '//p[@class="book-meta"]/a', 'href') === ['/emeroteca/3', '/emeroteca/fascicolo/9'], 'meta parts with href are links');
-$check(trim((string) ($xp($html)->query('//p[@class="book-meta"]')->item(0)?->textContent ?? '')) === 'La Rivista · n. 4 (1999) · pp. 3-20',
+$check($attr($html, '//p[contains(@class,"book-meta")]/a', 'href') === ['/emeroteca/3', '/emeroteca/fascicolo/9'], 'meta parts with href are links');
+$check(trim((string) ($xp($html)->query('//p[contains(@class,"book-meta")]')->item(0)?->textContent ?? '')) === 'La Rivista · n. 4 (1999) · pp. 3-20',
     "meta parts are joined with ' · '");
 $check(!str_contains($html, 'onclick='), 'no inline onclick handler');
 
 $text = $render('article-card.php', ['articleCard' => $base + ['authorsText' => 'A. Uno, B. Due', 'badge' => 'Articolo']]);
 $check(str_contains($text, 'A. Uno, B. Due'), 'authorsText is shown when there are no linked authors');
 $check($count($text, '//span[contains(@class,"status-article")]') === 1, 'the badge is rendered');
-$check($count($text, '//p[@class="book-meta"]') === 0, 'no meta paragraph without meta');
+$check($count($text, '//p[contains(@class,"book-meta")]') === 0, 'no meta paragraph without meta');
 
 echo "\nF. resource-hero\n";
 

@@ -15,10 +15,15 @@ class DeweyValidator
     // Standard Dewey codes (000-999) that must exist and cannot be deleted
     private const REQUIRED_MAIN_CLASSES = ['000', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
+    // Deepest decimal extension accepted after the point. Real DDC numbers
+    // built from the tables routinely run past 4 digits (823.91409,
+    // 973.0496073, 616.8588200), so the cap is a sanity bound, not a DDC rule.
+    public const MAX_DECIMAL_DIGITS = 12;
+
     // Regex patterns
     private const PATTERN_INTEGER_CODE = '/^[0-9]{3}$/';
-    private const PATTERN_DECIMAL_CODE = '/^[0-9]{3}\.[0-9]{1,4}$/';
-    private const PATTERN_ANY_CODE = '/^[0-9]{3}(\.[0-9]{1,4})?$/';
+    private const PATTERN_DECIMAL_CODE = '/^[0-9]{3}\.[0-9]{1,12}$/';
+    private const PATTERN_ANY_CODE = '/^[0-9]{3}(\.[0-9]{1,12})?$/';
 
     /**
      * Validate Dewey JSON data structure
@@ -68,13 +73,13 @@ class DeweyValidator
             $this->errors[] = sprintf(__('Il codice %s ha un nome non valido (minimo 2 caratteri).'), $code);
         }
 
-        if (!isset($node['level']) || !is_int($node['level']) || $node['level'] < 1 || $node['level'] > 7) {
-            $this->errors[] = sprintf(__('Il codice %s ha un livello non valido (deve essere 1-7).'), $code);
-        }
-
-        // Code format validation
-        if (!preg_match(self::PATTERN_ANY_CODE, $code)) {
+        // Code format validation; the level is derived from the notation, so
+        // a stored level that disagrees with it is a data error.
+        $expectedLevel = $this->levelForCode($code);
+        if ($expectedLevel === null) {
             $this->errors[] = sprintf(__('Il codice %s ha un formato non valido.'), $code);
+        } elseif (!isset($node['level']) || !is_int($node['level']) || $node['level'] !== $expectedLevel) {
+            $this->errors[] = sprintf(__('Il codice %s ha un livello non valido (atteso %d).'), $code, $expectedLevel);
         }
 
         // Uniqueness check
@@ -207,6 +212,32 @@ class DeweyValidator
     public function isValidCode(string $code): bool
     {
         return (bool) preg_match(self::PATTERN_ANY_CODE, $code);
+    }
+
+    /**
+     * Derive the hierarchy level from the notation: a main class (X00) is
+     * level 1, a division (XX0) level 2, a section level 3, and every decimal
+     * digit adds one level (599.93 is level 5).
+     *
+     * @param string $code The code
+     * @return int|null The level, or null when the code is not a valid notation
+     */
+    public function levelForCode(string $code): ?int
+    {
+        if (!preg_match(self::PATTERN_ANY_CODE, $code)) {
+            return null;
+        }
+        $parts = explode('.', $code, 2);
+        if (isset($parts[1])) {
+            return 3 + strlen($parts[1]);
+        }
+        if (preg_match('/^[0-9]00$/', $code)) {
+            return 1;
+        }
+        if (preg_match('/^[0-9]{2}0$/', $code)) {
+            return 2;
+        }
+        return 3;
     }
 
     /**

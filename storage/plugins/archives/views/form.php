@@ -431,6 +431,20 @@ $levelLabels = [
             <?php endif; ?>
         </div>
 
+        <!-- Public visibility — outside accordion, always visible -->
+        <div class="border-t pt-4 mt-2">
+            <input type="hidden" name="published" value="0">
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="published" id="published" value="1"
+                       <?= (int) ($values['published'] ?? 1) === 1 ? 'checked' : '' ?>
+                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <span class="text-gray-700"><?= __("Pubblicata nel sito") ?></span>
+            </label>
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("Se disattivata, l'unità resta visibile solo nell'amministrazione: scompare dalle pagine pubbliche, dalle esportazioni pubbliche e dagli harvester (OAI-PMH, SRU).") ?>
+            </p>
+        </div>
+
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives')) ?>"
                class="btn-secondary">

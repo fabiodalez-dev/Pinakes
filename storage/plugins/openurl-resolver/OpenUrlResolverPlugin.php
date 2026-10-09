@@ -175,7 +175,10 @@ class OpenUrlResolverPlugin
     /** Inject COinS script on book detail pages. */
     public function injectCoinsScript(): void
     {
-        $basePath = defined('BASE_PATH') ? (string) BASE_PATH : '';
+        // url() carries the install's base path (HtmlHelper::getBasePath()),
+        // so a sub-directory install fetches its own endpoint. No BASE_PATH
+        // constant is ever defined by the app.
+        $coinsEndpoint = url('/api/coins/');
         // Only inject a lightweight script; it self-disables on non-book pages.
         echo '<script>
 (function(){
@@ -186,7 +189,7 @@ class OpenUrlResolverPlugin
     if(!el)return;
     var id=parseInt(el.getAttribute(kind==="book"?"data-libro-id":"data-articolo-id"),10);
     if(!id)return;
-    fetch(' . json_encode($basePath . '/api/coins/', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES) . '+kind+"/"+id)
+    fetch(' . json_encode($coinsEndpoint, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES) . '+kind+"/"+id)
       .then(function(r){return r.ok?r.json():null;})
       .then(function(d){
         if(!d||!d.coins_title)return;
@@ -224,7 +227,12 @@ class OpenUrlResolverPlugin
         // falls through to the external resolver, which is what a link
         // resolver is for.
         $rftValFmt = (string) ($params['rft_val_fmt'] ?? '');
-        if ($rftValFmt === 'info:ofi/fmt:kev:mtx:journal') {
+        // OpenURL 0.1 has no rft_val_fmt: an article is genre=article (or a
+        // journal genre), or simply an id=doi:… identifier.
+        $legacyJournal = $rftValFmt === ''
+            && (in_array(strtolower(self::param($params, 'genre')), ['article', 'journal', 'issue'], true)
+                || preg_match('~^doi:~i', self::param($params, 'id')) === 1);
+        if ($rftValFmt === 'info:ofi/fmt:kev:mtx:journal' || $legacyJournal) {
             $article = $this->guarded(fn () => $this->findArticle($params, 'journal'), 'article lookup');
             if ($article !== null) {
                 // absoluteUrl(), for the same reason localBookUrl() uses it:
@@ -233,7 +241,7 @@ class OpenUrlResolverPlugin
                 // wherever that header says and skips APP_TRUSTED_HOSTS.
                 return $response->withStatus(302)->withHeader(
                     'Location',
-                    absoluteUrl('/emeroteca/articolo/' . (int) $article['id'])
+                    absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $article['id'])
                 );
             }
 
@@ -249,7 +257,7 @@ class OpenUrlResolverPlugin
             if ($chapter !== null) {
                 return $response->withStatus(302)->withHeader(
                     'Location',
-                    absoluteUrl('/emeroteca/articolo/' . (int) $chapter['id'])
+                    absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $chapter['id'])
                 );
             }
         }
@@ -390,10 +398,8 @@ class OpenUrlResolverPlugin
             $parts['rft.date'] = $pages['year'];
         }
 
-        $lang = $this->mapLanguage((string) ($article['lingua'] ?? ''));
-        if ($lang !== '') {
-            $parts['rft.language'] = $lang;
-        }
+        // No rft.language: it is not a key of the mtx:journal (nor mtx:book)
+        // KEV matrix, and strict parsers reject or drop the whole object.
 
         $auParts = [];
         $first = true;
@@ -415,9 +421,7 @@ class OpenUrlResolverPlugin
             $parts['rft_id'] = 'info:doi/' . $doi;
         }
 
-        $uri    = $request->getUri();
-        $origin = $uri->getScheme() . '://' . $uri->getHost();
-        $parts['rfr_id'] = 'info:sid/' . preg_replace('#^https?://#', '', $origin) . ':pinakes';
+        $parts['rfr_id'] = $this->referrerId();
 
         $query = http_build_query($parts, '', '&', PHP_QUERY_RFC3986);
         if ($auParts !== []) {
@@ -490,15 +494,10 @@ class OpenUrlResolverPlugin
             $parts['rft.pub'] = $publisher;
         }
 
-        $lang = $this->mapLanguage((string) ($book['lingua'] ?? ''));
-        if ($lang !== '') {
-            $parts['rft.language'] = $lang;
-        }
+        // No rft.language: not a key of the mtx:book KEV matrix.
 
         // rfr_id — identifies this resolver
-        $uri    = $request->getUri();
-        $origin = $uri->getScheme() . '://' . $uri->getHost();
-        $parts['rfr_id'] = 'info:sid/' . preg_replace('#^https?://#', '', $origin) . ':pinakes';
+        $parts['rfr_id'] = $this->referrerId();
 
         // Build the query string (handle repeated rft.au manually)
         $query = http_build_query($parts, '', '&', PHP_QUERY_RFC3986);
@@ -508,6 +507,20 @@ class OpenUrlResolverPlugin
         return $query;
     }
 
+    /**
+     * rfr_id (the referrer id) for a COinS context object.
+     *
+     * Built from absoluteUrl('/'), which honours APP_CANONICAL_URL and
+     * APP_TRUSTED_HOSTS — never from the request's Host header: the COinS
+     * responses are cached as public, so one forged Host would otherwise be
+     * served to every later visitor.
+     */
+    private function referrerId(): string
+    {
+        $host = (string) (parse_url(absoluteUrl('/'), PHP_URL_HOST) ?? '');
+        return 'info:sid/' . ($host !== '' ? $host : 'localhost') . ':pinakes';
+    }
+
     // ─── Resolver helpers ─────────────────────────────────────────────────────
 
     /**
@@ -515,12 +528,17 @@ class OpenUrlResolverPlugin
      */
     private function extractIsbn(array $params): string
     {
-        foreach (['rft.isbn', 'isbn', 'rft_id'] as $key) {
+        foreach (['rft.isbn', 'isbn', 'rft_id', 'id'] as $key) {
             $raw = self::param($params, $key);
             // rft_id is a URI that can carry any identifier: only an ISBN URI
             // is one. Stripped of its letters, "info:doi/10.1000/1234" would
             // otherwise read as the ISBN-10 1010001234.
             if ($key === 'rft_id' && preg_match('~^(urn:isbn:|info:isbn/)~i', trim($raw)) !== 1) {
+                continue;
+            }
+            // OpenURL 0.1 carries identifiers as id=<namespace>:<value>; only
+            // id=isbn:… is an ISBN (id=doi:… is read by findArticle()).
+            if ($key === 'id' && preg_match('~^(isbn:|urn:isbn:)~i', trim($raw)) !== 1) {
                 continue;
             }
             $val = preg_replace('/[^0-9X]/', '', strtoupper($raw)) ?? '';
@@ -565,6 +583,11 @@ class OpenUrlResolverPlugin
             'rft.aufirst',
             'au_last',
             'au_first',
+            // OpenURL 0.1 (legacy) keys: still what many A&I databases send.
+            'atitle',
+            'aulast',
+            'aufirst',
+            'auinit',
         ] as $k) {
             $v = self::param($params, $k);
             if ($v !== '' && !in_array($v, $parts, true)) {
@@ -660,6 +683,10 @@ class OpenUrlResolverPlugin
         if ($doi === '') {
             $doi = self::param($params, 'rft.doi');
         }
+        // OpenURL 0.1: id=doi:10.xxx/yyy
+        if ($doi === '' && preg_match('~^doi:~i', self::param($params, 'id')) === 1) {
+            $doi = self::param($params, 'id');
+        }
         $doi = (string) preg_replace('~^(?:info:doi/|https?://(?:dx\.)?doi\.org/|doi:\s*)~i', '', $doi);
         if ($doi !== '') {
             $stmt = $this->db->prepare(
@@ -683,6 +710,9 @@ class OpenUrlResolverPlugin
         }
 
         $title = self::param($params, 'rft.atitle');
+        if ($title === '') {
+            $title = self::param($params, 'atitle'); // OpenURL 0.1
+        }
         if ($title === '') {
             return null;
         }
@@ -854,36 +884,5 @@ class OpenUrlResolverPlugin
         }
         $stmt->close();
         return $rows;
-    }
-
-    // ─── Utilities ────────────────────────────────────────────────────────────
-
-    private function mapLanguage(string $italianName): string
-    {
-        $value = strtolower(trim($italianName));
-        // An analytic record stores an ISO code, not a language name: `dan`
-        // is already what rft.language wants, and running it through a list
-        // of Italian names would silently drop it. Books keep storing free
-        // text, so both readings have to work here.
-        if (preg_match('/^[a-z]{3}$/D', $value) === 1) {
-            return $value;
-        }
-        if (preg_match('/^[a-z]{2}$/D', $value) === 1) {
-            return $value;
-        }
-
-        return match ($value) {
-            'italiano', 'italian' => 'ita',
-            'inglese', 'english'  => 'eng',
-            'tedesco', 'german'   => 'ger',
-            'francese', 'french'  => 'fre',
-            'spagnolo', 'spanish' => 'spa',
-            'portoghese', 'portuguese' => 'por',
-            'russo', 'russian'    => 'rus',
-            'cinese', 'chinese'   => 'chi',
-            'giapponese', 'japanese' => 'jpn',
-            'arabo', 'arabic'     => 'ara',
-            default               => '',
-        };
     }
 }

@@ -48,12 +48,12 @@ $modeHelp = [
 <style>
   .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
-  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
   .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
   .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-text, var(--primary-color));background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
   .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
@@ -61,7 +61,7 @@ $modeHelp = [
   .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
   .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
   .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
-  .bc-summary{color:var(--primary-color);font-weight:600;font-size:.9rem;cursor:pointer}
+  .bc-summary{color:var(--primary-text, var(--primary-color));font-weight:600;font-size:.9rem;cursor:pointer}
   .bc-muted{color:var(--text-light);font-size:.85rem}
   .bc-progress{height:8px;background:var(--accent-color);border-radius:2px;overflow:hidden}
   .bc-progress>span{display:block;height:100%;border-radius:2px;background:var(--primary-color)}
@@ -71,7 +71,7 @@ $modeHelp = [
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e($club['name']) ?>
   </a>
 
@@ -92,7 +92,7 @@ $modeHelp = [
     <?php foreach ($openPolls as $poll): ?>
       <div class="bc-list-item items-center">
         <div>
-          <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+          <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
           <div class="bc-muted text-sm mt-1">
             <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
             <?php if ((string) $poll['mode'] === 'elimination'): ?>
@@ -122,7 +122,7 @@ $modeHelp = [
           <?php foreach ($closedPolls as $poll): ?>
             <div class="bc-list-item items-center">
               <div>
-                <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
                 <div class="bc-muted text-sm mt-1">
                   <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
                   · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
@@ -185,7 +185,7 @@ $modeHelp = [
       <?php if (count($eligible) < 2): ?>
         <p class="bc-muted mb-0"><?= $e(__('Servono almeno due proposte per aprire una votazione.')) ?></p>
       <?php else: ?>
-        <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/new')) ?>" class="flex flex-col gap-3">
+        <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/new')) ?>" class="flex flex-col gap-3">
           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
           <input type="text" name="title" maxlength="190" placeholder="<?= $e(__('Titolo (es. Votazione autunno 2026)')) ?>"
                  class="form-input">

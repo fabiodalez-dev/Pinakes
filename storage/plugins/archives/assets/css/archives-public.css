@@ -63,7 +63,7 @@ a.resource-toc-title {
 
 a.resource-toc-title:hover,
 a.resource-toc-title:focus-visible {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: underline;
 }
 

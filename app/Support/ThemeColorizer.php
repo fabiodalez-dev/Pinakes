@@ -241,9 +241,10 @@ class ThemeColorizer
     public function generateColorPalette(array $colors): array
     {
         $primary = $colors['primary'] ?? '#d70161';
-        $secondary = $colors['secondary'] ?? '#111827';
+        $secondary = $colors['secondary'] ?? '#1b1720';
         $button = $colors['button'] ?? '#d70262';
         $buttonText = $colors['button_text'] ?? '#ffffff';
+        $buttonSurface = $this->readableSurface($button, $buttonText);
 
         return [
             // Base colors
@@ -257,7 +258,108 @@ class ThemeColorizer
             'primary_focus' => $this->darken($primary, 15),
             'primary_dark' => $this->darken($primary, 15),
             'secondary_hover' => $this->darken($secondary, 10),
-            'button_hover' => $this->darken($button, 10),
+            'button_hover' => $this->readableSurface($this->darken($buttonSurface, 15), $buttonText),
+            'primary_text' => $this->readableOnTint($primary),
+            // The accent as text on the page itself (paper, white cards): the
+            // brand colour untouched whenever it already reads, darkened only
+            // for a light accent.
+            'primary_ink' => $this->readableOnPaper($primary),
+            // 2026 design: filled surfaces that carry text, kept at AA with
+            // that text (see readableSurface()), and the accent as text on
+            // the dark surface.
+            'button_surface' => $buttonSurface,
+            'secondary_surface' => $this->readableSurface($secondary, '#ffffff'),
+            'primary_on_dark' => $this->readableOnDark($primary, $this->readableSurface($secondary, '#ffffff')),
         ];
+    }
+
+    /**
+     * A filled surface that carries $text, moved only as far as WCAG AA
+     * (4.5:1) for normal-size text needs: darkened under light text,
+     * lightened under dark text. A pair that already reads is returned
+     * unchanged, so a theme keeps its colour wherever it can.
+     */
+    public function readableSurface(string $surface, string $text): string
+    {
+        $surface = $this->normalizeHex($surface);
+        $text = $this->normalizeHex($text);
+        $dark = $this->darken($surface, 100);
+        $light = $this->lighten($surface, 100);
+        $preferDark = $this->getContrastRatio($text, $dark) >= $this->getContrastRatio($text, $light);
+        for ($percent = 0; $percent <= 100; $percent += 2) {
+            $candidates = [$this->darken($surface, $percent), $this->lighten($surface, $percent)];
+            if (!$preferDark) {
+                $candidates = array_reverse($candidates);
+            }
+            foreach ($candidates as $candidate) {
+                if ($this->getContrastRatio($text, $candidate) >= 4.6) {
+                    return $candidate;
+                }
+            }
+        }
+        // Some intermediate text colours cannot reach the 4.6 safety margin.
+        // The better extreme still guarantees WCAG AA (at least sqrt(21):1).
+        return $preferDark ? $dark : $light;
+    }
+
+    /**
+     * The accent as text on the dark surface (the home's story band): the
+     * accent lightened only as far as AA on that surface needs.
+     */
+    public function readableOnDark(string $accent, string $dark): string
+    {
+        $accent = $this->normalizeHex($accent);
+        $dark = $this->normalizeHex($dark);
+        for ($percent = 0; $percent <= 100; $percent += 2) {
+            $candidate = $this->lighten($accent, $percent);
+            if ($this->getContrastRatio($candidate, $dark) >= 4.6) {
+                return $candidate;
+            }
+        }
+        return '#ffffff';
+    }
+
+    /**
+     * The accent as text on the page background (--pk-bg, #fbfaf9) and the
+     * white cards: darkened only as far as WCAG AA needs on the page paper,
+     * so the default fuchsia stays the brand colour (4.9:1) while a pale
+     * accent gets deep enough to read.
+     */
+    public function readableOnPaper(string $hex): string
+    {
+        $hex = $this->normalizeHex($hex);
+        for ($percent = 0; $percent <= 60; $percent += 2) {
+            $candidate = $this->darken($hex, $percent);
+            if ($this->getContrastRatio($candidate, '#fbfaf9') >= 4.6) {
+                return $candidate;
+            }
+        }
+        return $this->darken($hex, 60);
+    }
+
+    /**
+     * The accent as a text colour: the same hue, darkened only as far as it
+     * takes to read at WCAG AA (4.5:1) on the accent's own soft tint, the
+     * lightest surface the public site sets accent text on
+     * (--pk-accent-soft: 9% accent over white). A dark accent comes back
+     * unchanged; a light one (orange, teal, coral) gets just deep enough.
+     */
+    public function readableOnTint(string $hex): string
+    {
+        $hex = $this->normalizeHex($hex);
+        $rgb = $this->hexToRgb($hex);
+        $tint = $this->rgbToHex(
+            (int) round($rgb['r'] * 0.09 + 255 * 0.91),
+            (int) round($rgb['g'] * 0.09 + 255 * 0.91),
+            (int) round($rgb['b'] * 0.09 + 255 * 0.91)
+        );
+        for ($percent = 0; $percent <= 60; $percent += 2) {
+            $candidate = $this->darken($hex, $percent);
+            // A little over 4.5 so rounding in the browser cannot tip it under.
+            if ($this->getContrastRatio($candidate, $tint) >= 4.6) {
+                return $candidate;
+            }
+        }
+        return $this->darken($hex, 60);
     }
 }

@@ -337,7 +337,7 @@ $btnDanger  = 'btn-danger inline-flex items-center gap-2';
             <?php
               if (empty($isStaff) && empty($articolo['pubblico'])) { continue; }
               $articleId = (int) $articolo['id'];
-              $articlePublicUrl = url('/emeroteca/articolo/' . $articleId);
+              $articlePublicUrl = url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . $articleId);
               $articleEditUrl = url('/admin/periodicals/articles/' . $articleId . '/edit');
               // Staff read the article on its admin page, as they do a book;
               // anyone else only ever sees a published one, on its public page.

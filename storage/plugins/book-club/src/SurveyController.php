@@ -76,7 +76,7 @@ class SurveyController extends BaseController
 
     private function indexPath(string $slug): string
     {
-        return '/book-club/' . $slug . '/surveys';
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/surveys';
     }
 
     private function surveyPath(string $slug, int $surveyId): string
@@ -91,7 +91,7 @@ class SurveyController extends BaseController
     public function index(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolveClub($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $canManage = $this->canManage($club);
@@ -166,7 +166,7 @@ class SurveyController extends BaseController
     public function show(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $surveyId): ResponseInterface
     {
         $club = $this->resolveClub($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $canManage = $this->canManage($club);
@@ -437,7 +437,7 @@ class SurveyController extends BaseController
     public function answer(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $surveyId): ResponseInterface
     {
         $club = $this->resolveClub($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         if (!$this->isActiveMember($club)) {

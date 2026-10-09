@@ -28,6 +28,62 @@ class RateLimiter
     }
 
     /**
+     * Client IP for rate limiting, shared by the SRU endpoint and the SBN
+     * search route.
+     *
+     * Forwarding headers are honoured only when the direct peer is a trusted
+     * proxy (TRUSTED_PROXIES, exact IPs or CIDRs, plus $extraTrustedProxies).
+     * X-Forwarded-For is then walked from the RIGHT: each proxy appends the
+     * address it received the request from, so the rightmost entry that is
+     * not one of our proxies is the real client. The leftmost entry is
+     * whatever the client chose to send and must never win. A malformed
+     * chain fails closed to the direct peer.
+     *
+     * @param array<string,mixed> $server $_SERVER-shaped array
+     * @param list<string> $extraTrustedProxies exact IPs trusted in addition to TRUSTED_PROXIES
+     */
+    public static function resolveClientIp(array $server, array $extraTrustedProxies = []): string
+    {
+        $isTrusted = static fn (string $ip): bool =>
+            in_array($ip, $extraTrustedProxies, true) || \App\Support\HtmlHelper::isTrustedProxyIp($ip);
+
+        $remoteAddr = trim((string) ($server['REMOTE_ADDR'] ?? ''));
+        if (filter_var($remoteAddr, FILTER_VALIDATE_IP) === false) {
+            return 'unknown';
+        }
+        if (!$isTrusted($remoteAddr)) {
+            return $remoteAddr;
+        }
+
+        $forwardedFor = trim((string) ($server['HTTP_X_FORWARDED_FOR'] ?? ''));
+        if ($forwardedFor !== '') {
+            $chain = array_map('trim', explode(',', $forwardedFor));
+            foreach ($chain as $hop) {
+                if (filter_var($hop, FILTER_VALIDATE_IP) === false) {
+                    return $remoteAddr;
+                }
+            }
+            foreach (array_reverse($chain) as $hop) {
+                if (!$isTrusted($hop)) {
+                    return $hop;
+                }
+            }
+            // Every hop is one of our proxies: the leftmost is the farthest.
+            return $chain[0];
+        }
+
+        // Single-value headers, only when the proxy sends no X-Forwarded-For.
+        foreach (['HTTP_X_REAL_IP', 'HTTP_CF_CONNECTING_IP'] as $header) {
+            $value = trim((string) ($server[$header] ?? ''));
+            if ($value !== '' && filter_var($value, FILTER_VALIDATE_IP) !== false) {
+                return $value;
+            }
+        }
+
+        return $remoteAddr;
+    }
+
+    /**
      * Check if client is within rate limit
      *
      * @param string $clientIp Client IP address

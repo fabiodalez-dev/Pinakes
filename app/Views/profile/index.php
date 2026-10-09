@@ -60,6 +60,17 @@
     margin-bottom: 1.5rem;
   }
 
+  @media (max-width: 480px) {
+    .card { padding: 1.25rem; }
+  }
+
+  /* main.css gives this page 4rem of padding and top margin on phones, with
+     !important: on a 390px screen that left about 200px for the fields. This
+     block comes after main.css, so the same !important wins here. */
+  @media (max-width: 768px) {
+    .profile-container { padding: 24px 16px 48px !important; margin-top: 0 !important; }
+  }
+
   .card-title {
     font-size: 1.25rem;
     font-weight: 700;
@@ -71,8 +82,9 @@
   }
 
   .info-grid {
+    margin: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
     gap: 1.5rem;
   }
 
@@ -93,7 +105,7 @@
   }
 
   .info-item dd.empty {
-    color: #9ca3af;
+    color: #6b7280;
     font-style: italic;
   }
 
@@ -120,8 +132,8 @@
 
   .form-input:focus, .form-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
   }
 
   .form-input:disabled {
@@ -132,7 +144,7 @@
 
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
     gap: 1.25rem;
   }
 
@@ -207,8 +219,8 @@
   }
 
   .session-item.current {
-    background: #eff6ff;
-    border-color: #3b82f6;
+    background: color-mix(in srgb, var(--primary-color) 6%, #fff);
+    border-color: var(--primary-color);
   }
 
   .session-info {
@@ -224,14 +236,14 @@
 
   .session-meta {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: #4b5563;
   }
 
   .session-badge {
     display: inline-block;
     padding: 0.125rem 0.5rem;
-    background: #3b82f6;
-    color: white;
+    background: var(--primary-text, var(--primary-color));
+    color: #fff;
     border-radius: 4px;
     font-size: 0.625rem;
     font-weight: 600;
@@ -358,7 +370,7 @@
       <i class="fas fa-id-card"></i>
       <?= __("Informazioni tessera") ?>
     </h2>
-    <div class="info-grid">
+    <dl class="info-grid">
       <div class="info-item">
         <dt><?= __("Numero tessera") ?></dt>
         <dd><?php echo App\Support\HtmlHelper::e($user['codice_tessera'] ?? ''); ?></dd>
@@ -385,7 +397,7 @@
           <?php echo !empty($user['data_scadenza_tessera']) ? format_date($user['data_scadenza_tessera'], false, '/') : __('Non specificata'); ?>
         </dd>
       </div>
-    </div>
+    </dl>
   </div>
 
   <!-- Dati personali -->

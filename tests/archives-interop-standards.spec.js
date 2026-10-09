@@ -374,8 +374,11 @@ test.describe.serial('Archives interoperability standards (25 tests)', () => {
         const res = await request.get(`${BASE}/archives/${fondsId}/ead.xml`);
         const text = await res.text();
         expect(text).toContain(ARK_ID);
-        expect(text).toContain('<daoset');
-        expect(text).toContain('manifest.json');
+        // EAD3: <daoset> wraps two or more <dao>; a lone IIIF manifest is a
+        // bare <dao> child of <did>.
+        expect(text).toMatch(/<dao [^>]*href="[^"]*manifest\.json"/);
+        const daoCount = (text.match(/<dao /g) || []).length;
+        expect(text.includes('<daoset')).toBe(daoCount >= 2);
     });
 
     test('20. EAD3 bulk export includes the E2E fonds', async () => {

@@ -22,6 +22,15 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
+
+// A real Web Push subscription key pair (RFC 8291): registration refuses keys
+// that could not encrypt a message.
+const WEB_PUSH_KEYS = (() => {
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.generateKeys();
+    return { public_key: ecdh.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') };
+})();
 
 test.describe.configure({ mode: 'serial' });
 
@@ -134,6 +143,14 @@ const USER_CARD  = `IDEM${String(process.pid).padStart(6, '0')}`.slice(0, 20);
 //   authGate   — call WITHOUT token then WITH token: 1st 401, 2nd 2xx.
 
 const ENDPOINTS = [
+    ...['archives', 'desiderata'].flatMap(collection => ['', '/health', '/{id}'].map(suffix => ({
+        name: `GET /${collection}${suffix}`, method: 'GET', path: `/${collection}${suffix === '/{id}' ? '/1' : suffix}`,
+        route: `/${collection}${suffix}`, auth: true, kind: 'optionalGet',
+    }))),
+    { name: 'GET /desiderata/offers/{submission}', method: 'GET', path: '/desiderata/offers/00000000-0000-4000-8000-000000000001', route: '/desiderata/offers/{submission}', auth: true, kind: 'optionalGet' },
+    { name: 'POST /desiderata/offers', method: 'POST', path: '/desiderata/offers', auth: true, kind: 'conflict2', firstAny: true,
+      body: { submission_id: '00000000-0000-4000-8000-000000000001', title: 'Invalid proposal: no consent', consent: false } },
+
     { name: 'GET /openapi.json',                 method: 'GET',    path: '/openapi.json',                 auth: false, kind: 'doc' },
     { name: 'GET /docs',                         method: 'GET',    path: '/docs',                         auth: false, kind: 'doc' },
     { name: 'GET /health',                       method: 'GET',    path: '/health',                       auth: false, kind: 'doc' },
@@ -180,7 +197,7 @@ const ENDPOINTS = [
     { name: 'PUT /me/push/prefs',                method: 'PUT',    path: '/me/push/prefs',                auth: true,  kind: 'write2xx',
         body: () => ({ loan_due: true, loan_overdue: true, reservation_ready: true, new_message: true, book_available: true }) },
     { name: 'POST /me/push/subscribe',           method: 'POST',   path: '/me/push/subscribe',            auth: true,  kind: 'write2xx',
-        body: () => ({ provider: 'unifiedpush', endpoint: 'https://example.com/idem-push', public_key: 'k', auth: 'a' }) },
+        body: () => ({ provider: 'unifiedpush', endpoint: 'https://example.com/idem-push', ...WEB_PUSH_KEYS }) },
     { name: 'DELETE /me/push/subscribe',         method: 'DELETE', path: '/me/push/subscribe',            auth: true,  kind: 'write2xx' /* unsubscribe is idempotent: both 2xx */ },
 
     // ── Book Club bridge (/api/v1/bookclub, mounted by the book-club plugin) ──
@@ -247,6 +264,15 @@ async function runTwice(request, e, ctx) {
         const r2 = await call(request, e.method, url, { token, body });
         expect(r1.status(), `${e.name} #1`).toBe(200);
         expect(r2.status(), `${e.name} #2 (stable)`).toBe(r1.status());
+        return;
+    }
+    if (e.kind === 'optionalGet') {
+        const anonymous = await call(request, e.method, url);
+        expect(anonymous.status()).toBe(401);
+        const r1 = await call(request, e.method, url, { token, body });
+        const r2 = await call(request, e.method, url, { token, body });
+        expect([200, 404]).toContain(r1.status());
+        expect(r2.status()).toBe(r1.status());
         return;
     }
     if (e.kind === 'safeGet') {
@@ -476,7 +502,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         for (const [p, methods] of Object.entries(doc.paths || {})) {
             for (const m of Object.keys(methods)) documented.push(norm(m, p));
         }
-        const covered = new Set(ENDPOINTS.map((e) => norm(e.method, e.path)));
+        const covered = new Set(ENDPOINTS.map((e) => norm(e.method, e.route || e.path)));
         const missing = documented.filter((d) => !covered.has(d));
         // A documented route with no manifest row fails here — enforcing the
         // "add an endpoint ⇒ add exactly one manifest row" rule.

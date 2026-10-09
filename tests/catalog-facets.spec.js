@@ -328,9 +328,9 @@ test.describe('Catalog facets', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 11. clearAllFilters redirects to plain /catalogo
+  // 11. clearAllFilters resets the catalogue with one AJAX request (#461)
   // -------------------------------------------------------------------------
-  test('11. clearAllFilters() redirects to the catalog without query params', async () => {
+  test('11. clearAllFilters() resets controls without reloading the document', async () => {
     await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
 
     // Apply a filter first so there is something to clear.
@@ -338,18 +338,30 @@ test.describe('Catalog facets', () => {
       await applyFilterMaybeEmpty(page, 'editore', topPublisherName);
     }
 
-    // Trigger clearAllFilters — the implementation does a hard redirect.
-    await Promise.all([
-      page.waitForNavigation({ timeout: 10000 }),
-      page.evaluate(() => window.clearAllFilters()),
-    ]);
+    await page.evaluate(() => {
+      window.__clearMarker = 'same document';
+      document.getElementById('search-input').value = 'pending search';
+      window.debounceSearch('pending search');
+      document.querySelector('[data-pk-filter-list="publishers-filter"]').value = 'finder';
+    });
+    const response = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/api/catalogo'));
+    await page.evaluate(() => window.clearAllFilters());
+    await response;
+    await expect(page.locator('#loading-state')).toBeHidden();
+    // The pending search must not reinstate a filter after the reset.
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => window.__clearMarker)).toBe('same document');
+    await expect(page.locator('#search-input')).toHaveValue('');
+    await expect(page.locator('[data-pk-filter-list="publishers-filter"]')).toHaveValue('');
+    await expect(page.locator('#sort-select')).toHaveValue('newest');
+    await expect(page.locator('#active-filters')).toBeHidden();
 
     // URL should have no query string.
     const url = new URL(page.url());
     expect(url.search).toBe('');
     expect(url.pathname).toMatch(/\/catalogo/);
 
-    // The grid is visible after the redirect.
+    // The grid is visible after the AJAX refresh.
     await expect(page.locator('#books-grid')).toBeVisible({ timeout: 10000 });
   });
 
@@ -595,6 +607,99 @@ test.describe('Catalog facets', () => {
         delete window.__catalogFetchOriginal;
         delete window.__catalogRequests;
       }).catch(() => {});
+    }
+  });
+
+  test('18. Publishers are searchable bounded rows, including after refresh and reopening (#461)', async () => {
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+    const publishers = Array.from({ length: 70 }, (_, i) => ({
+      nome: i === 0 ? 'Lumen <Press> & Co' : `Publisher ${String(i).padStart(2, '0')}`, cnt: i + 1,
+    }));
+    await page.route('**/api/catalogo?*', route => route.fulfill({ json: {
+      html: '<div class="book-card">Publisher fixture</div>',
+      pagination: { current_page: 1, total_pages: 1, total_books: 70 },
+      filter_options: { editori: publishers, suppress: { editore: false } },
+    } }));
+    try {
+      await page.evaluate(editori => window.updateFilterOptions({ editori, suppress: { editore: false } }), publishers);
+      const list = page.locator('#publishers-filter');
+      const finder = page.locator('[data-pk-filter-list="publishers-filter"]');
+      await expect(list.locator('.filter-option')).toHaveCount(70);
+      await expect(page.locator('[data-pk-count-of="publishers-filter"]')).toContainText('70');
+      const shape = await list.evaluate(el => ({
+        direction: getComputedStyle(el).flexDirection, height: el.clientHeight,
+        overflow: el.scrollHeight > el.clientHeight,
+      }));
+      expect(shape.direction).toBe('column');
+      expect(shape.height).toBeLessThanOrEqual(234);
+      expect(shape.overflow).toBe(true);
+      await finder.fill('lumen');
+      await expect(list.locator('.filter-option:visible')).toHaveCount(1);
+      await expect(list.locator('.filter-option:visible')).toContainText('Lumen <Press> & Co');
+      await expect(list.locator('press')).toHaveCount(0);
+      await applyFilter(page, 'search', 'refresh');
+      await expect(list.locator('.filter-option:visible')).toHaveCount(1);
+      await applyFilter(page, 'editore', publishers[0].nome);
+      await expect(list.locator('.facet-collapsed')).toBeVisible();
+      await list.locator('.facet-change-link').click();
+      await expect(list.locator('.filter-option:visible')).toHaveCount(1);
+      await expect(finder).toHaveValue('lumen');
+      await expect(page.locator('[data-pk-count-of="publishers-filter"]')).toContainText('70');
+    } finally {
+      await page.unroute('**/api/catalogo?*');
+    }
+  });
+
+  test('19. Genre drill-down exposes every child level and the way back on desktop and phone (#461)', async () => {
+    const original = page.viewportSize();
+    const root = { id: 461001, nome: 'Root genre', cnt: 1 };
+    const child = { id: 461002, nome: 'Root genre - Child genre', cnt: 1 };
+    const leaf = { id: 461003, nome: 'Root genre - Child genre - Leaf genre', cnt: 1 };
+    await page.route('**/api/catalogo?*', route => {
+      const id = Number(new URL(route.request().url()).searchParams.get('genere_id'));
+      const selected = id === root.id ? root : id === child.id ? child : id === leaf.id ? leaf : null;
+      const genres = id === root.id ? [child] : id === child.id ? [leaf] : id === leaf.id ? [] : [root];
+      return route.fulfill({ json: {
+        html: '<div class="book-card">Genre fixture</div>',
+        pagination: { current_page: 1, total_pages: 1, total_books: 1 },
+        filter_options: { suppress: { genere: false } },
+        genre_display: { genres, level: id === root.id ? 1 : id === child.id ? 2 : id === leaf.id ? 3 : 0,
+          selectedGenre: selected, parent: id === child.id ? root : id === leaf.id ? child : null },
+      } });
+    });
+    const clickAndRefresh = async locator => {
+      const response = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/api/catalogo'));
+      await locator.click();
+      await response;
+      await expect(page.locator('#loading-state')).toBeHidden();
+    };
+    try {
+      for (const width of [1280, 360]) {
+        await page.setViewportSize({ width, height: 720 });
+        await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+        if (width === 360) await page.locator('#catalog-filters-toggle').click();
+        const response = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/api/catalogo'));
+        await page.evaluate(() => window.loadBooks());
+        await response;
+        const list = page.locator('#genres-filter');
+        await clickAndRefresh(list.locator('a[title="Root genre"]'));
+        await expect(list.locator('.facet-collapsed')).toHaveCount(0);
+        await expect(list.locator('a[title="Root genre - Child genre"]')).toBeVisible();
+        await clickAndRefresh(list.locator('a[title="Root genre - Child genre"]'));
+        await expect(list.locator('a[title="Root genre - Child genre - Leaf genre"]')).toBeVisible();
+        await clickAndRefresh(list.locator('a[title="Root genre - Child genre - Leaf genre"]'));
+        await expect(list.locator('.filter-back-btn')).toBeVisible();
+        await clickAndRefresh(list.locator('.filter-back-btn'));
+        expect(new URL(page.url()).searchParams.get('genere_id')).toBe(String(child.id));
+        await clickAndRefresh(list.locator('.filter-back-btn'));
+        expect(new URL(page.url()).searchParams.get('genere_id')).toBe(String(root.id));
+        await clickAndRefresh(list.locator('.filter-back-btn'));
+        expect(new URL(page.url()).searchParams.has('genere_id')).toBe(false);
+        await expect(list.locator('a[title="Root genre"]')).toBeVisible();
+      }
+    } finally {
+      await page.unroute('**/api/catalogo?*');
+      if (original) await page.setViewportSize(original);
     }
   });
 

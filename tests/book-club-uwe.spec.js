@@ -325,7 +325,7 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     await page.locator(`#bc-poll-opt-${first.clubBookId}`).check();
     await page.locator(`#bc-poll-opt-${second.clubBookId}`).check();
     await pollDetails.locator('button:has-text("Apri votazione")').click();
-    await page.waitForURL(/\/book-club\/[^/]+\/polls\/\d+/, { timeout: 15000 });
+    await page.waitForURL(/\/(?:book-club|club-di-lettura|lesekreis|club-de-lecture|laeseklub)\/[^/]+\/polls\/\d+/, { timeout: 15000 });
     await expect(page.locator('body')).toContainText(EXT_TITLE);
     await expect(page.locator('body')).toContainText(EXT_TITLE_2);
     await expect(page.locator('.bc-badge', { hasText: 'esterna' }).first()).toBeVisible();

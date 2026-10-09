@@ -1,7 +1,7 @@
 {
   "name": "digital-library",
   "display_name": "Digital Library (eBooks/Audiobooks)",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "",
@@ -9,7 +9,6 @@
   "main_file": "wrapper.php",
   "requires_php": "8.0",
   "requires_app": "0.4.0",
-  "max_app_version": "0.5.9.6",
   "metadata": {
     "category": "media",
     "priority": 10,

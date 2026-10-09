@@ -252,7 +252,7 @@ try {
         $rs = new $rsClass($db, new \App\Support\HookManager($db));
         $sinceDay = date('Y-m-d');
         /** @var list<array<string,mixed>> $changed */
-        $changed = $callPrivate($rs, 'fetchChangedBooks', [$sinceDay, 0]);
+        $changed = $callPrivate($rs, 'fetchChangedBooks', [$sinceDay, 1]);
         $row = null;
         foreach ($changed as $candidate) {
             if ((int) $candidate['id'] === $transitionId) { $row = $candidate; break; }
@@ -263,12 +263,13 @@ try {
         );
 
         /** @var list<array<string,mixed>> $listed */
-        $listed = $callPrivate($rs, 'fetchBooks', [0]);
+        $listed = $callPrivate($rs, 'fetchBooks', [1]);
         $inList = array_filter($listed, static fn (array $r): bool => (int) $r['id'] === $transitionId);
         $check($inList === [], 'the ResourceSync resource list does NOT carry it');
 
         if (is_array($row)) {
-            $xml = $callPrivate($rs, 'buildChangeList', ['http://example.invalid', [$row], $sinceDay, 0]);
+            // (base, rows, rs:md/@from, the requested `from`, page, paged?)
+            $xml = $callPrivate($rs, 'buildChangeList', ['http://example.invalid', [$row], $sinceDay . 'T00:00:00Z', null, 1, false]);
             $check(
                 is_string($xml) && str_contains($xml, 'change="deleted"'),
                 'the change list entry says change="deleted"'
@@ -282,7 +283,7 @@ try {
         // visibility filter was ANDed over the tombstone arm too.
         $db->query('UPDATE libri SET deleted_at = NOW() WHERE id = ' . $transitionId);
         /** @var list<array<string,mixed>> $afterDelete */
-        $afterDelete = $callPrivate($rs, 'fetchChangedBooks', [$sinceDay, 0]);
+        $afterDelete = $callPrivate($rs, 'fetchChangedBooks', [$sinceDay, 1]);
         $tomb = array_filter($afterDelete, static fn (array $r): bool => (int) $r['id'] === $transitionId);
         $check($tomb !== [], 'soft-deleting a still-flagged book is reported as a deletion');
         $db->query('UPDATE libri SET deleted_at = NULL WHERE id = ' . $transitionId);

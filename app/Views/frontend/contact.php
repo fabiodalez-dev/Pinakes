@@ -85,7 +85,7 @@ $additional_css = "
     .contact-info-content h4 {
         font-size: 0.75rem;
         font-weight: 600;
-        color: var(--primary-color);
+        color: var(--primary-text, var(--primary-color));
         text-transform: uppercase;
         letter-spacing: 0.14em;
         margin: 0 0 0.5rem 0;
@@ -105,7 +105,7 @@ $additional_css = "
     }
 
     .contact-info-content a:hover {
-        color: var(--primary-color);
+        color: var(--primary-text, var(--primary-color));
     }
 
     .contact-map {

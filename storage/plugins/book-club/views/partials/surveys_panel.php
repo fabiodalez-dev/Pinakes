@@ -15,7 +15,7 @@ declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
-$base = url('/book-club/' . $slug . '/surveys');
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/surveys');
 ?>
 <section class="bc-card">
   <div class="flex flex-wrap items-center justify-between gap-2 mb-3">

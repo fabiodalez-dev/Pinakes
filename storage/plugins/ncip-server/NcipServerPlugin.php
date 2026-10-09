@@ -39,6 +39,49 @@ class NcipServerPlugin
     private const NCIP_NS      = 'http://www.niso.org/2008/ncip';
     private const NCIP_VERSION = 'http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd';
 
+    /** NCIP circulation status scheme (values: "Available On Shelf", "On Loan", ...). */
+    private const CIRCULATION_STATUS_SCHEME = 'http://www.niso.org/ncip/v1_0/imp1/schemes/circulationstatus/circulationstatus.scm';
+
+    /** Responder agency id when the plugin has no `agency_id` setting. */
+    private const DEFAULT_AGENCY_ID = 'PINAKES';
+
+    private const PROCESSING_ERROR_SCHEMES = 'http://www.niso.org/ncip/v1_0/schemes/processingerrortype/';
+    private const MESSAGING_ERROR_SCHEME   = 'http://www.niso.org/ncip/v1_0/schemes/messagingerrortype/messagingerrortype.scm';
+
+    /**
+     * Internal problem code => [scheme file (relative to PROCESSING_ERROR_SCHEMES,
+     * or the absolute messaging scheme), NCIP 2.02 scheme value]. The codes stay
+     * internal and stable; only the scheme/value pair goes on the wire, so a
+     * partner can tell a terminal refusal from the one retryable outcome
+     * (Temporary Processing Failure).
+     */
+    private const PROBLEM_TYPES = [
+        // Messaging errors: the message itself could not be processed.
+        'empty-request'                => [self::MESSAGING_ERROR_SCHEME, 'Invalid Message Syntax Error'],
+        'invalid-xml'                  => [self::MESSAGING_ERROR_SCHEME, 'Invalid Message Syntax Error'],
+        'oversized-request'            => [self::MESSAGING_ERROR_SCHEME, 'Invalid Message Syntax Error'],
+        'unsupported-request'          => [self::MESSAGING_ERROR_SCHEME, 'Unsupported Service'],
+        // General processing errors.
+        'temporary-processing-failure' => ['generalprocessingerror.scm', 'Temporary Processing Failure'],
+        'invalid-data'                 => ['generalprocessingerror.scm', 'Element Rule Violated'],
+        'authentication-failed'        => ['generalprocessingerror.scm', 'User Authentication Failed'],
+        'unauthorized'                 => ['generalprocessingerror.scm', 'Unauthorized Service For Agency'],
+        'access-denied'                => ['generalprocessingerror.scm', 'Unauthorized Service For Agency'],
+        // Service-specific processing errors.
+        'unknown-item'                 => ['lookupitemprocessingerror.scm', 'Unknown Item'],
+        'unknown-user'                 => ['lookupuserprocessingerror.scm', 'Unknown User'],
+        'duplicate-request'            => ['requestitemprocessingerror.scm', 'Duplicate Request'],
+        'user-ineligible-to-check-out' => ['checkoutitemprocessingerror.scm', 'User Ineligible To Check Out This Item'],
+        'user-loan-limit-reached'      => ['checkoutitemprocessingerror.scm', 'Maximum Check Outs Exceeded'],
+        'item-not-checked-in'          => ['checkoutitemprocessingerror.scm', 'Resource Cannot Be Provided'],
+        'item-not-checked-out'         => ['checkinitemprocessingerror.scm', 'Item Not Checked Out'],
+        'item-not-renewable'           => ['renewitemprocessingerror.scm', 'Item Not Renewable'],
+        'user-ineligible-to-renew'     => ['renewitemprocessingerror.scm', 'User Ineligible To Renew This Item'],
+        'maximum-renewals-exceeded'    => ['renewitemprocessingerror.scm', 'Maximum Renewals Exceeded'],
+        'user-ineligible-to-request'   => ['requestitemprocessingerror.scm', 'User Ineligible To Request This Item'],
+        'unknown-request'              => ['cancelrequestitemprocessingerror.scm', 'Unknown Request'],
+    ];
+
     /**
      * Maximum accepted request body size for the unauthenticated /ncip endpoint.
      *
@@ -54,6 +97,17 @@ class NcipServerPlugin
 
     /** Partner attivo risolto dal FromAgencyId del messaggio corrente (per il log transazioni). */
     private ?int $currentPartnerId = null;
+
+    /**
+     * The initiator's InitiationHeader/FromAgencyId/AgencyId as received,
+     * echoed back as the response's ToAgencyId.
+     *
+     * @var array{value: string, scheme: ?string}|null
+     */
+    private ?array $initiatorAgency = null;
+
+    /** Cached responder agency id (plugin setting `agency_id`, else PINAKES). */
+    private ?string $responderAgencyCache = null;
 
     public function __construct(\mysqli $db, HookManager $hookManager)
     {
@@ -500,18 +554,34 @@ class NcipServerPlugin
         $endpointUrl = trim((string) ($body['endpoint_url'] ?? ''));
         $isil        = trim((string) ($body['isil'] ?? ''));
         $notes       = trim((string) ($body['notes'] ?? ''));
+        // agency_id / code are what resolvePartner() matches against the
+        // initiator's FromAgencyId; an empty value is stored as NULL (code is
+        // UNIQUE, so '' would collide on the second partner without one).
+        $agencyId    = trim((string) ($body['agency_id'] ?? ''));
+        $agencyId    = $agencyId !== '' ? mb_substr($agencyId, 0, 255) : null;
+        $code        = trim((string) ($body['code'] ?? ''));
+        $code        = $code !== '' ? mb_substr($code, 0, 64) : null;
+        $active      = !empty($body['active']) ? 1 : 0;
 
         if ($name === '' || $endpointUrl === '') {
             return $this->adminPartnersListAction($request, $response, __('Nome ed Endpoint URL sono obbligatori.'));
         }
         $stmt = $this->db->prepare(
-            'INSERT INTO ncip_partners (name, endpoint_url, isil, notes, created_at, updated_at)
-             VALUES (?, ?, ?, ?, NOW(), NOW())'
+            'INSERT INTO ncip_partners (name, endpoint_url, isil, notes, agency_id, code, active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
         );
         if ($stmt === false) {
             return $this->adminPartnersListAction($request, $response, __('Errore nell\'aggiunta del partner.'));
         }
-        if (!$stmt->bind_param('ssss', $name, $endpointUrl, $isil, $notes) || !$stmt->execute()) {
+        try {
+            $inserted = $stmt->bind_param('ssssssi', $name, $endpointUrl, $isil, $notes, $agencyId, $code, $active)
+                && $stmt->execute();
+        } catch (\Throwable $e) {
+            // Duplicate `code` (UNIQUE) under MYSQLI_REPORT_STRICT.
+            SecureLogger::warning('[NcipServer] partner insert failed: ' . $e->getMessage());
+            $inserted = false;
+        }
+        if (!$inserted) {
             $stmt->close();
             return $this->adminPartnersListAction($request, $response, __('Errore nell\'aggiunta del partner.'));
         }
@@ -605,7 +675,7 @@ class NcipServerPlugin
      */
     private function fetchAllPartners(): array
     {
-        $res = $this->db->query('SELECT id, name, endpoint_url, isil, notes, created_at FROM ncip_partners ORDER BY name ASC');
+        $res = $this->db->query('SELECT id, name, endpoint_url, isil, agency_id, code, active, notes, created_at FROM ncip_partners ORDER BY name ASC');
         if (!($res instanceof \mysqli_result)) { return []; }
         $rows = [];
         while ($r = $res->fetch_assoc()) { $rows[] = $r; }
@@ -660,6 +730,7 @@ class NcipServerPlugin
         // Quando FromAgencyId identifica un partner attivo lo conserviamo per il
         // log transazioni; un header assente/sconosciuto lascia partner_id NULL.
         // L'autorità per le operazioni di scrittura resta la Basic auth staff.
+        $this->initiatorAgency = $this->initiatorAgency($xml, $messageType);
         $partner = $this->resolvePartner($xml, $messageType);
         $this->currentPartnerId = $partner !== null ? (int) $partner['id'] : null;
 
@@ -736,7 +807,7 @@ class NcipServerPlugin
         if ($caller === null) {
             return $this->xmlResponse(
                 $response->withStatus(401)->withHeader('WWW-Authenticate', 'Basic realm="NCIP"'),
-                $this->buildProblem('Authentication required', 'unauthorized')
+                $this->buildProblem('Authentication required', 'authentication-failed')
             );
         }
 
@@ -1083,8 +1154,8 @@ class NcipServerPlugin
             $problemType = match ($failureReason) {
                 'not_found'   => 'unknown-item',
                 'duplicate'   => 'duplicate-request',
-                'ineligible'  => 'user-ineligible-to-check-out',
-                'max_loans'   => 'user-loan-limit-reached',
+                'ineligible'  => 'user-ineligible-to-request',
+                'max_loans'   => 'user-ineligible-to-request',
                 default       => 'temporary-processing-failure',
             };
             SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $failureReason);
@@ -1163,7 +1234,7 @@ class NcipServerPlugin
             // branch cannot overwrite the approved loan or orphan its copy.
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('No active ILL request for this item', 'item-not-checked-out')
+                $this->buildProblem('No active ILL request for this item', 'unknown-request')
             );
         }
 
@@ -1178,24 +1249,119 @@ class NcipServerPlugin
 
     // ─── XML builders ─────────────────────────────────────────────────────────
 
-    private function writeResponseHeader(\XMLWriter $xw, string $toAgencyId = 'LOCAL'): void
+    /** Root element with the namespace-qualified ncip:version attribute the XSD declares globally. */
+    private function startNcipMessage(\XMLWriter $xw): void
     {
-        $ns = self::NCIP_NS;
-        $xw->startElementNs('ncip', 'ResponseHeader', $ns);
-        $xw->startElementNs('ncip', 'FromAgencyId', $ns);
-        $xw->writeElementNs('ncip', 'AgencyId', $ns, $toAgencyId);
+        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+    }
+
+    /**
+     * ResponseHeader: FromAgencyId is this responder, ToAgencyId echoes the
+     * initiator's InitiationHeader/FromAgencyId exactly as received (value and
+     * scheme). ToAgencyId is mandatory in the XSD, so when the initiator did not
+     * identify itself the optional header is omitted rather than invented.
+     */
+    private function writeResponseHeader(\XMLWriter $xw): void
+    {
+        $initiator = $this->initiatorAgency;
+        if ($initiator === null) {
+            return;
+        }
+        // The root already declares xmlns:ncip (via ncip:version), so the
+        // prefixed children need no namespace re-declaration of their own.
+        $xw->startElementNs('ncip', 'ResponseHeader', null);
+        $xw->startElementNs('ncip', 'FromAgencyId', null);
+        $this->writeAgencyId($xw, $this->responderAgencyId(), $initiator['scheme']);
         $xw->endElement();
-        $xw->startElementNs('ncip', 'ToAgencyId', $ns);
-        $xw->writeElementNs('ncip', 'AgencyId', $ns, 'PINAKES');
+        $xw->startElementNs('ncip', 'ToAgencyId', null);
+        $this->writeAgencyId($xw, $initiator['value'], $initiator['scheme']);
         $xw->endElement();
         $xw->endElement();
+    }
+
+    private function writeAgencyId(\XMLWriter $xw, string $value, ?string $scheme): void
+    {
+        $xw->startElementNs('ncip', 'AgencyId', null);
+        if ($scheme !== null) {
+            $xw->writeAttributeNs('ncip', 'Scheme', null, $scheme);
+        }
+        $xw->text($value);
+        $xw->endElement();
+    }
+
+    /** This responder's agency id: the plugin's `agency_id` setting, else PINAKES. */
+    private function responderAgencyId(): string
+    {
+        if ($this->responderAgencyCache !== null) {
+            return $this->responderAgencyCache;
+        }
+        $agency = self::DEFAULT_AGENCY_ID;
+        try {
+            $res = $this->db->query(
+                "SELECT ps.setting_value
+                   FROM plugin_settings ps
+                   JOIN plugins p ON p.id = ps.plugin_id
+                  WHERE p.name = 'ncip-server' AND ps.setting_key = 'agency_id'
+                  LIMIT 1"
+            );
+            $row = $res instanceof \mysqli_result ? $res->fetch_row() : null;
+            $value = is_array($row) ? trim((string) ($row[0] ?? '')) : '';
+            if ($value !== '') {
+                $agency = $value;
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[NcipServer] agency_id setting lookup failed: ' . $e->getMessage());
+        }
+        return $this->responderAgencyCache = $agency;
+    }
+
+    /**
+     * The initiator's FromAgencyId/AgencyId with its Scheme attribute, as sent
+     * (qualified ncip:Scheme or unqualified Scheme). Null when absent.
+     *
+     * @return array{value: string, scheme: ?string}|null
+     */
+    private function initiatorAgency(\SimpleXMLElement $xml, string $messageType): ?array
+    {
+        if ($messageType === '') {
+            return null;
+        }
+        $message = $this->messageNode($xml, $messageType);
+        if ($message === null) {
+            return null;
+        }
+        // Same navigation as resolvePartner(): SimpleXML keeps the namespace
+        // context of messageNode(), so this works with and without the NCIP ns.
+        $node = $message->InitiationHeader->FromAgencyId->AgencyId;
+        if (!$node instanceof \SimpleXMLElement || $node->getName() === '') {
+            return null;
+        }
+        $value = trim((string) $node);
+        if ($value === '' || strlen($value) > 255) {
+            return null;
+        }
+        $scheme = (string) ($node->attributes(self::NCIP_NS)['Scheme'] ?? '');
+        if ($scheme === '') {
+            $scheme = (string) ($node->attributes()['Scheme'] ?? '');
+        }
+        return ['value' => $value, 'scheme' => $scheme !== '' ? $scheme : null];
+    }
+
+    /**
+     * An NCIP dateTime for the end of a stored local due DATE. The stored value
+     * is a calendar day, so it is emitted as that day without any timezone
+     * arithmetic (gmdate(strtotime()) shifted it one day west of UTC+x).
+     */
+    private static function endOfDayDateTime(string $ymd): string
+    {
+        return substr($ymd, 0, 10) . 'T23:59:59Z';
     }
 
     private function buildCapabilityXml(): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('LookupAgencyResponse');
         $xw->startElement('AgencyId');
@@ -1211,9 +1377,11 @@ class NcipServerPlugin
         $xw->writeElement('OrganizationName', 'Pinakes');
         $xw->endElement();
 
+        // A scheme value, not prose; the supported services stay readable as a comment.
+        $xw->writeComment(' Supported services: LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem, RequestItem, CancelRequestItem ');
         $xw->startElement('ApplicationProfileSupportedType');
-        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/applicationprofiletype/');
-        $xw->text('NCIP 2.02; supported messages: LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem, RequestItem, CancelRequestItem');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/applicationprofiletype/applicationprofiletype.scm');
+        $xw->text('NCIP Core Implementation Profile');
         $xw->endElement();
         $xw->endElement(); // LookupAgencyResponse
 
@@ -1237,28 +1405,28 @@ class NcipServerPlugin
         $stato = (string) ($book['stato'] ?? '');
         switch ($stato) {
             case 'prestato':
-                $circStatus = 'Checked Out';
+                $circStatus = 'On Loan';
                 break;
             case 'prenotato':
-                $circStatus = 'On Hold';
+                // Every copy is held for a reservation awaiting collection.
+                $circStatus = 'Available For Pickup';
                 break;
             case 'perso':
                 $circStatus = 'Lost';
                 break;
             case 'danneggiato':
+                // Withdrawn for repair: back in technical processing.
+                $circStatus = 'In Process';
+                break;
             case 'non_disponibile':
                 $circStatus = 'Not Available';
-                break;
-            case 'disponibile':
-                $circStatus = $avail > 0 ? 'Available On Shelf' : 'Not Available';
                 break;
             default:
                 $circStatus = $avail > 0 ? 'Available On Shelf' : 'Not Available';
                 break;
         }
 
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('LookupItemResponse');
         $this->writeResponseHeader($xw);
@@ -1281,7 +1449,7 @@ class NcipServerPlugin
         $xw->endElement(); // BibliographicDescription
 
         $xw->startElement('CirculationStatus');
-        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/circulationstatus/');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, self::CIRCULATION_STATUS_SCHEME);
         $xw->text($circStatus);
         $xw->endElement();
 
@@ -1303,8 +1471,7 @@ class NcipServerPlugin
     private function buildLookupUserResponse(array $user): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('LookupUserResponse');
         $this->writeResponseHeader($xw);
@@ -1349,8 +1516,7 @@ class NcipServerPlugin
     private function buildCheckOutItemResponse(int $itemId, int $userId, string $dueDate): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('CheckOutItemResponse');
         $this->writeResponseHeader($xw);
@@ -1368,7 +1534,7 @@ class NcipServerPlugin
         $xw->endElement();
         $xw->writeElement('UserIdentifierValue', (string) $userId);
         $xw->endElement();
-        $xw->writeElement('DateDue', gmdate('Y-m-d\T23:59:59\Z', strtotime($dueDate)));
+        $xw->writeElement('DateDue', self::endOfDayDateTime($dueDate));
         $xw->endElement(); // CheckOutItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -1379,8 +1545,7 @@ class NcipServerPlugin
     private function buildCheckInItemResponse(int $itemId): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('CheckInItemResponse');
         $this->writeResponseHeader($xw);
@@ -1391,7 +1556,6 @@ class NcipServerPlugin
         $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
-        $xw->writeElement('DateReturned', gmdate('Y-m-d\TH:i:s\Z'));
         $xw->endElement(); // CheckInItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -1402,8 +1566,7 @@ class NcipServerPlugin
     private function buildRenewItemResponse(int $itemId, string $newDueDate, int $userId): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('RenewItemResponse');
         $this->writeResponseHeader($xw);
@@ -1421,7 +1584,7 @@ class NcipServerPlugin
         $xw->endElement();
         $xw->writeElement('UserIdentifierValue', (string) $userId);
         $xw->endElement();
-        $xw->writeElement('DateDue', gmdate('Y-m-d\T23:59:59\Z', strtotime($newDueDate)));
+        $xw->writeElement('DateDue', self::endOfDayDateTime($newDueDate));
         $xw->endElement(); // RenewItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -1432,8 +1595,7 @@ class NcipServerPlugin
     private function buildRequestItemResponse(int $itemId, int $userId, string $dueDate): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('RequestItemResponse');
         $this->writeResponseHeader($xw);
@@ -1459,7 +1621,7 @@ class NcipServerPlugin
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/requestscopetype/');
         $xw->text('Item');
         $xw->endElement();
-        $xw->writeElement('DateAvailable', gmdate('Y-m-d\T23:59:59\Z', strtotime($dueDate)));
+        $xw->writeElement('DateAvailable', self::endOfDayDateTime($dueDate));
         $xw->endElement(); // RequestItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -1470,8 +1632,7 @@ class NcipServerPlugin
     private function buildCancelRequestItemResponse(int $itemId, ?int $userId): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
         $xw->startElement('CancelRequestItemResponse');
         $this->writeResponseHeader($xw);
@@ -1498,16 +1659,31 @@ class NcipServerPlugin
         return (string) $xw->outputMemory();
     }
 
+    /**
+     * NCIP 2.02 [scheme URI, value] for an internal problem code. Unknown codes
+     * fall back to the retryable general Temporary Processing Failure.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function problemType(string $code): array
+    {
+        [$scheme, $value] = self::PROBLEM_TYPES[$code] ?? self::PROBLEM_TYPES['temporary-processing-failure'];
+        if (!str_starts_with($scheme, 'http')) {
+            $scheme = self::PROCESSING_ERROR_SCHEMES . $scheme;
+        }
+        return [$scheme, $value];
+    }
+
     private function buildProblem(string $message, string $type): string
     {
         $xw = $this->newXmlWriter();
-        $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('version', self::NCIP_VERSION);
+        $this->startNcipMessage($xw);
 
+        [$scheme, $value] = self::problemType($type);
         $xw->startElement('Problem');
         $xw->startElement('ProblemType');
-        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/');
-        $xw->text($type);
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, $scheme);
+        $xw->text($value);
         $xw->endElement();
         $xw->writeElement('ProblemDetail', $message);
         $xw->endElement(); // Problem

@@ -153,27 +153,58 @@ test.describe.serial('App routing', () => {
 // ===========================================================================
 test.describe.serial('Book detail UI', () => {
   // 6. The goodlib external-search block is present on the book page.
-  test('goodlib "Cerca su" block is present', async ({ page }) => {
+  test('goodlib "Cerca su" block is present', async ({ page, browser }) => {
     test.skip(!bookUrl, 'no catalog book available');
+    test.skip(!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_ADMIN_PASS, 'admin credentials needed to enable the block');
+    // GoodLib starts with the public block off (first-activation default):
+    // switch it on the way an operator does, with Project Gutenberg as source.
+    const admin = await (await browser.newContext()).newPage();
+    try {
+      await admin.goto(`${BASE}/accedi`);
+      await admin.fill('input[name="email"]', process.env.E2E_ADMIN_EMAIL);
+      await admin.fill('input[name="password"]', process.env.E2E_ADMIN_PASS);
+      await admin.locator('button[type="submit"]').click();
+      await admin.waitForURL(u => !u.pathname.includes('accedi'));
+      await admin.goto(`${BASE}/admin/plugins`);
+      await admin.getByRole('button', { name: 'Configura Fonti' }).click();
+      await admin.locator('#goodlib_gutenberg').check();
+      await admin.locator('#goodlib_frontend').check();
+      await admin.getByRole('button', { name: 'Salva' }).click();
+      await expect(admin.getByRole('dialog')).toContainText('Impostazioni GoodLib salvate correttamente.');
+    } finally {
+      await admin.context().close();
+    }
     await page.goto(bookUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await expect(page.locator('text=Cerca su:').first()).toBeVisible();
   });
 
-  // 7. The "Cerca su" wrapper is forced onto its own row (flex-basis:100%).
-  test('"Cerca su" wrapper sits on its own row (flex-basis:100%)', async ({ page }) => {
+  // 7. The "Cerca su" block sits on its own row. It used to be a flex child of
+  //    #book-action-buttons forced to flex-basis:100%; the 2026 book page shows
+  //    it under the quick facts, in the digital-content column. Either way the
+  //    invariant is the same: full width, nothing else on its line.
+  test('"Cerca su" wrapper sits on its own row', async ({ page }) => {
     test.skip(!bookUrl, 'no catalog book available');
     await page.goto(bookUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    const basis = await page.evaluate(() => {
-      const label = Array.from(document.querySelectorAll('#book-action-buttons *'))
+    const row = await page.evaluate(() => {
+      const label = Array.from(document.querySelectorAll('main *'))
         .find((el) => /Cerca su:/.test(el.textContent || '') && el.children.length <= 3);
-      let wrap = label;
-      // climb to the direct flex child of #book-action-buttons
-      while (wrap && wrap.parentElement && wrap.parentElement.id !== 'book-action-buttons') {
-        wrap = wrap.parentElement;
-      }
-      return wrap ? (wrap.style.flexBasis || getComputedStyle(wrap).flexBasis) : null;
+      if (!label) return null;
+      const wrap = label.closest('.plugin-source-search') || label;
+      const parent = wrap.parentElement;
+      const box = wrap.getBoundingClientRect();
+      const shared = Array.from(parent.children).filter((sib) => {
+        if (sib === wrap) return false;
+        const r = sib.getBoundingClientRect();
+        return r.height > 0 && r.top < box.bottom - 1 && r.bottom > box.top + 1;
+      }).length;
+      return { width: box.width, parentWidth: parent.getBoundingClientRect().width, shared };
     });
-    expect(basis).toBe('100%');
+    // Test 6 already requires the block on this page, so its absence is a
+    // failure here too, not a reason to skip.
+    expect(row, '"Cerca su" block present on the book page').not.toBeNull();
+    if (row === null) return;
+    expect(row.width).toBeGreaterThanOrEqual(row.parentWidth - 1);
+    expect(row.shared).toBe(0);
   });
 
   // 8. Genre breadcrumb pills are vertically centered with their separators.
@@ -184,5 +215,26 @@ test.describe.serial('Book detail UI', () => {
     await expect(tags).toBeVisible();
     const align = await tags.evaluate((el) => getComputedStyle(el).alignItems);
     expect(align).toBe('center');
+  });
+
+  // 9. In "Dettagli libro" the genre path is the first row of the details
+  //    grid, at full width, and wraps between levels, never inside a name.
+  test('details genre path is the first full row and wraps only between levels', async ({ page }) => {
+    test.skip(!genreBookUrl, 'no book with a genre breadcrumb available');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(genreBookUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const item = page.locator('.book-details-section .meta-item--genre');
+    await expect(item).toHaveCount(1);
+    const r = await item.evaluate((el) => {
+      const grid = el.closest('.details-grid').getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      const links = Array.from(el.querySelectorAll('.genre-path a'));
+      const firstTop = Math.min(...Array.from(el.closest('.details-grid').querySelectorAll('.meta-item')).map((i) => i.getBoundingClientRect().top));
+      return { width: box.width, gridWidth: grid.width, first: Math.abs(box.top - firstTop) < 1, links: links.length, broken: links.filter((a) => a.getClientRects().length > 1).length };
+    });
+    expect(r.links).toBeGreaterThan(0);
+    expect(r.width).toBeGreaterThanOrEqual(r.gridWidth - 1);
+    expect(r.broken).toBe(0);
+    expect(r.first).toBe(true);
   });
 });

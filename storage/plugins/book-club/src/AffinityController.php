@@ -47,7 +47,7 @@ class AffinityController extends BaseController
 
     private function affinityPath(string $slug): string
     {
-        return '/book-club/' . $slug . '/affinity';
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/affinity';
     }
 
     // ------------------------------------------------------------------
@@ -57,7 +57,7 @@ class AffinityController extends BaseController
     public function show(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $canManage = $this->canManage($club);
@@ -101,7 +101,7 @@ class AffinityController extends BaseController
     public function toggleOptIn(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         if (!$this->isActiveMember($club)) {

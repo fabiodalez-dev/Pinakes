@@ -71,6 +71,24 @@ class ViafAuthorityPlugin
         return array_keys(self::TABLE_ENSURERS);
     }
 
+    /**
+     * Columns ensureSchemaColumns() adds to the core `autori` table. Declared
+     * so the boot-time self-heal re-runs ensureSchema() when an upgrade left
+     * any of them missing on an already-active plugin: every query of this
+     * plugin selects them, and MYSQLI_REPORT_STRICT turns a missing one into
+     * an exception.
+     *
+     * @return list<array{table:string, column:string}>
+     */
+    public function expectedColumns(): array
+    {
+        $out = [];
+        foreach (['viaf_id', 'viaf_uri', 'isni_id', 'isni_uri', 'authority_source', 'authority_confidence'] as $column) {
+            $out[] = ['table' => 'autori', 'column' => $column];
+        }
+        return $out;
+    }
+
     public function ensureSchema(): array
     {
         $created = [];
@@ -112,6 +130,10 @@ class ViafAuthorityPlugin
             // Renders the authority widget into the core author form's
             // `author.form.fields` action hook (same hook z39-server uses).
             $this->registerHookInDb('author.form.fields', 'renderAuthorFields', 20);
+            // The create form has the panel too; its values are stored once
+            // the author row exists (author.created, fired by the core).
+            $this->registerHookInDb('author.create.fields', 'renderAuthorFields', 20);
+            $this->registerHookInDb('author.created', 'storeAuthorityOnCreate', 20);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -530,16 +552,11 @@ class ViafAuthorityPlugin
         $body   = (array) ($request->getParsedBody() ?? []);
         $id     = (int) ($args['id'] ?? 0);
         $viafId = trim((string) ($body['viaf_id'] ?? ''));
-        $isniRaw = preg_replace('/\s+/', '', trim((string) ($body['isni_id'] ?? '')));
+        $isniRaw = (string) preg_replace('/\s+/', '', trim((string) ($body['isni_id'] ?? '')));
 
-        // Validate VIAF ID (numeric string)
-        if ($viafId !== '' && !preg_match('/^\d{1,22}$/', $viafId)) {
-            return $this->json($response, ['error' => true, 'message' => __('VIAF ID non valido. Deve essere un numero.')], 400);
-        }
-
-        // Validate ISNI if provided
-        if ($isniRaw !== '' && !self::isValidIsni($isniRaw)) {
-            return $this->json($response, ['error' => true, 'message' => __('ISNI non valido (check digit errato o formato errato).')], 400);
+        $invalid = self::authorityInputError($viafId, $isniRaw);
+        if ($invalid !== null) {
+            return $this->json($response, ['error' => true, 'message' => $invalid], 400);
         }
 
         $viafIdParam  = $viafId !== '' ? $viafId : null;
@@ -567,7 +584,12 @@ class ViafAuthorityPlugin
             return $this->json($response, ['error' => true, 'message' => __('Errore interno.')], 500);
         }
         $stmt->bind_param('ssssssi', $viafIdParam, $viafUriParam, $isniIdParam, $isniUriParam, $sourceParam, $confParam, $id);
-        $ok       = $stmt->execute();
+        try {
+            $ok = $stmt->execute();
+        } catch (\mysqli_sql_exception $e) {
+            $stmt->close();
+            return $this->writeFailure($response, $e);
+        }
         $affected = $stmt->affected_rows;
         $stmt->close();
 
@@ -661,7 +683,12 @@ class ViafAuthorityPlugin
             }
             $stmt->bind_param('ssssi', $isniIdParam, $isniUriParam, $authSource, $authConfidence, $id);
         }
-        $ok       = $stmt->execute();
+        try {
+            $ok = $stmt->execute();
+        } catch (\mysqli_sql_exception $e) {
+            $stmt->close();
+            return $this->writeFailure($response, $e);
+        }
         $affected = $stmt->affected_rows;
         $stmt->close();
 
@@ -688,6 +715,73 @@ class ViafAuthorityPlugin
      * Validates an ISNI using the MOD 11-2 check digit algorithm (ISO/IEC 7064).
      * Accepts with or without spaces (e.g. "0000000121436345" or "0000 0001 2143 6345").
      */
+    /** The reason a VIAF/ISNI pair cannot be stored, or null when it can. */
+    private static function authorityInputError(string $viafId, string $isniRaw): ?string
+    {
+        if ($viafId !== '' && !preg_match('/^\d{1,22}$/', $viafId)) {
+            return __('VIAF ID non valido. Deve essere un numero.');
+        }
+        if ($isniRaw !== '' && !self::isValidIsni($isniRaw)) {
+            return __('ISNI non valido (check digit errato o formato errato).');
+        }
+        return null;
+    }
+
+    /**
+     * Action `author.created`: store the VIAF/ISNI the create form posted on
+     * the author just inserted. The author is kept whatever happens here; a
+     * value that cannot be stored is reported to the librarian, never lost
+     * silently.
+     *
+     * @param array<string, mixed> $data the create form's parsed body
+     */
+    public function storeAuthorityOnCreate(int $authorId, array $data = []): void
+    {
+        $viafId  = trim((string) ($data['viaf_id'] ?? ''));
+        $isniRaw = (string) preg_replace('/\s+/', '', trim((string) ($data['isni_id'] ?? '')));
+        if ($authorId <= 0 || ($viafId === '' && $isniRaw === '')) {
+            return;
+        }
+        $problem = self::authorityInputError($viafId, $isniRaw);
+        if ($problem === null) {
+            $viafUri = $viafId !== '' ? 'https://viaf.org/viaf/' . $viafId : null;
+            $isniId  = $isniRaw !== '' ? $isniRaw : null;
+            $isniUri = $isniId !== null ? 'https://isni.org/isni/' . $isniId : null;
+            $viaf    = $viafId !== '' ? $viafId : null;
+            $source  = $viaf !== null ? 'viaf' : 'isni';
+            $conf    = 'exact';
+            try {
+                $stmt = $this->db->prepare(
+                    'UPDATE autori
+                        SET viaf_id = ?, viaf_uri = ?, isni_id = ?, isni_uri = ?,
+                            authority_source = ?, authority_confidence = ?
+                      WHERE id = ?'
+                );
+                if ($stmt === false) {
+                    throw new \RuntimeException($this->db->error);
+                }
+                $stmt->bind_param('ssssssi', $viaf, $viafUri, $isniId, $isniUri, $source, $conf, $authorId);
+                $stmt->execute();
+                $stmt->close();
+                ContentCache::booksChanged();
+                return;
+            } catch (\mysqli_sql_exception $e) {
+                $problem = (int) $e->getCode() === 1062
+                    ? __('Questo identificativo VIAF/ISNI è già assegnato a un altro autore.')
+                    : __('Errore interno.');
+                if ((int) $e->getCode() !== 1062) {
+                    SecureLogger::error('[ViafAuthority] store on create failed: ' . $e->getMessage());
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error('[ViafAuthority] store on create failed: ' . $e->getMessage());
+                $problem = __('Errore interno.');
+            }
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['error_message'] = __("L'autore è stato creato, ma VIAF/ISNI non sono stati salvati:") . ' ' . $problem;
+        }
+    }
+
     public static function isValidIsni(string $isni): bool
     {
         $digits = preg_replace('/[\s-]/', '', $isni);
@@ -721,7 +815,9 @@ class ViafAuthorityPlugin
      * POST /admin/api/reconcile → batch reconciliation (OpenRefine compatible)
      *
      * Spec: https://reconciliation-api.github.io/specs/latest/
-     * Supports JSONP via `?callback=` for legacy OpenRefine clients.
+     * No JSONP: this endpoint answers with session/Basic credentials, and a
+     * `?callback=` wrapper would let any page read those answers through a
+     * <script> tag. Browser clients get CORS instead (see reconcileJson()).
      */
     public function reconcileAction(
         ServerRequestInterface $request,
@@ -732,7 +828,6 @@ class ViafAuthorityPlugin
         }
 
         $params   = $request->getQueryParams();
-        $callback = isset($params['callback']) ? preg_replace('/[^a-zA-Z0-9_$]/', '', (string) $params['callback']) : null;
         $method   = strtoupper($request->getMethod());
 
         // GET or POST without queries → return service manifest
@@ -745,16 +840,16 @@ class ViafAuthorityPlugin
         }
 
         if ($queriesRaw === '') {
-            return $this->reconcileManifest($response, $callback);
+            return $this->reconcileManifest($response);
         }
 
-        return $this->reconcileQueries($response, $queriesRaw, $callback);
+        return $this->reconcileQueries($response, $queriesRaw);
     }
 
     /**
      * Return the W3C Reconciliation service manifest (JSON).
      */
-    private function reconcileManifest(ResponseInterface $response, ?string $callback): ResponseInterface
+    private function reconcileManifest(ResponseInterface $response): ResponseInterface
     {
         $base    = absoluteUrl('/');
         $service = rtrim($base, '/') . '/admin/api/reconcile';
@@ -777,7 +872,7 @@ class ViafAuthorityPlugin
             ],
         ];
 
-        return $this->reconcileJson($response, $manifest, $callback);
+        return $this->reconcileJson($response, $manifest);
     }
 
     public function reconcilePreviewAction(
@@ -832,17 +927,15 @@ class ViafAuthorityPlugin
     /**
      * Execute batch reconciliation queries and return results.
      *
-     * @param string      $queriesRaw  JSON string: {"q0":{"query":"...","limit":3},...}
-     * @param string|null $callback    JSONP callback name or null
+     * @param string $queriesRaw JSON string: {"q0":{"query":"...","limit":3},...}
      */
     private function reconcileQueries(
         ResponseInterface $response,
-        string $queriesRaw,
-        ?string $callback
+        string $queriesRaw
     ): ResponseInterface {
         $queries = json_decode($queriesRaw, true);
         if (!is_array($queries)) {
-            return $this->reconcileJson($response, ['error' => 'Invalid queries JSON'], $callback, 400);
+            return $this->reconcileJson($response, ['error' => 'Invalid queries JSON'], 400);
         }
 
         $results = [];
@@ -854,7 +947,7 @@ class ViafAuthorityPlugin
             $results[(string) $qid] = ['result' => $this->reconcileSearch($queryStr, $limit)];
         }
 
-        return $this->reconcileJson($response, $results, $callback);
+        return $this->reconcileJson($response, $results);
     }
 
     /**
@@ -948,19 +1041,17 @@ class ViafAuthorityPlugin
     private function reconcileJson(
         ResponseInterface $response,
         array $data,
-        ?string $callback,
         int $status = 200
     ): ResponseInterface {
-        $json = (string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if ($callback !== null && $callback !== '') {
-            $body        = $callback . '(' . $json . ')';
-            $contentType = 'application/javascript; charset=utf-8';
-        } else {
-            $body        = $json;
-            $contentType = 'application/json; charset=utf-8';
-        }
-        $response->getBody()->write($body);
-        return $response->withStatus($status)->withHeader('Content-Type', $contentType);
+        $response->getBody()->write((string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        // CORS for browser-based reconciliation clients (OpenRefine). A
+        // wildcard origin never carries credentials: a cross-site page that
+        // asks for cookies is refused by the browser, and without them it
+        // only gets the 403 of an anonymous caller.
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Access-Control-Allow-Origin', '*');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -990,14 +1081,32 @@ class ViafAuthorityPlugin
             $authHeader = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
         }
         if (str_starts_with($authHeader, 'Basic ')) {
+            // Throttle credential guessing per client IP before any password
+            // check (same limits as the resource-sync Basic gate): every
+            // attempt counts, a success clears the counter.
+            $server = $request !== null ? $request->getServerParams() : $_SERVER;
+            $ip     = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
+            $rlId   = 'viaf_basic:' . $ip;
+            if (RateLimiter::isLimited($rlId, 10, 300)) {
+                $out = $this->json($response, ['error' => true, 'message' => __('Troppe richieste. Riprova più tardi.')], 429)
+                    ->withHeader('Retry-After', '300');
+                return false;
+            }
+
             $decoded = base64_decode(substr($authHeader, 6), true);
             if ($decoded !== false && str_contains($decoded, ':')) {
                 [$email, $pass] = explode(':', $decoded, 2);
                 if ($this->authenticateBasic($email, $pass)) {
+                    RateLimiter::reset($rlId);
                     $out = $response;
                     return true;
                 }
             }
+
+            // Wrong or malformed credentials: RFC 7235 401 with a fresh challenge.
+            $out = $this->json($response, ['error' => true, 'message' => __('Accesso negato.')], 401)
+                ->withHeader('WWW-Authenticate', 'Basic realm="Pinakes"');
+            return false;
         }
 
         $out = $this->json($response, ['error' => true, 'message' => __('Accesso negato.')], 403);
@@ -1017,8 +1126,31 @@ class ViafAuthorityPlugin
         $res = $stmt->get_result();
         $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
         $stmt->close();
-        if ($row === null) { return false; }
+        if ($row === null) {
+            // Constant-time dummy verify: "no such admin/staff email" must cost
+            // the same bcrypt round as "wrong password", or the response time
+            // enumerates accounts.
+            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            return false;
+        }
         return password_verify($pass, (string) $row['password']);
+    }
+
+    /**
+     * Response for a failed authority write. A VIAF/ISNI already assigned to
+     * another author hits the UNIQUE key (1062): that is the caller's
+     * conflict, answered as JSON 409, never as an HTML 500.
+     */
+    private function writeFailure(ResponseInterface $response, \mysqli_sql_exception $e): ResponseInterface
+    {
+        if ((int) $e->getCode() === 1062) {
+            return $this->json($response, [
+                'error'   => 'duplicate',
+                'message' => __('Questo identificativo VIAF/ISNI è già assegnato a un altro autore.'),
+            ], 409);
+        }
+        SecureLogger::error('[ViafAuthority] authority write failed: ' . $e->getMessage());
+        return $this->json($response, ['error' => true, 'message' => __('Errore interno.')], 500);
     }
 
     /**

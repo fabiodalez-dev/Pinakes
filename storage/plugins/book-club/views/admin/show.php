@@ -49,7 +49,7 @@ $statusLabels = [
       </h1>
     </div>
     <div class="flex items-center gap-3">
-      <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" target="_blank" class="text-sm text-gray-600 hover:underline">
+      <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>" target="_blank" class="text-sm text-gray-600 hover:underline">
         <i class="fas fa-external-link-alt mr-1"></i><?= $e(__('Pagina pubblica')) ?>
       </a>
       <a href="<?= $e(url('/admin/book-club/' . $clubId . '/edit')) ?>"
@@ -241,7 +241,7 @@ $statusLabels = [
       <?php endif; ?>
       <?php foreach ($polls as $poll): ?>
         <div class="flex items-center justify-between border-t py-2 text-sm">
-          <a class="text-blue-600 hover:underline" href="<?= $e(url('/book-club/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+          <a class="text-blue-600 hover:underline" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
           <span class="text-xs <?= $poll['status'] === 'open' ? 'text-green-600' : 'text-gray-400' ?>">
             <?= $poll['status'] === 'open' ? $e(__('Aperta')) : $e(__('Chiusa')) ?>
             · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
@@ -254,7 +254,7 @@ $statusLabels = [
     <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-900"><?= $e(__('Incontri')) ?></h2>
-        <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>#bc-meetings" class="text-sm text-blue-600 hover:underline">
+        <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>#bc-meetings" class="text-sm text-blue-600 hover:underline">
           <i class="fas fa-calendar-check mr-1"></i><?= $e(__('Gestisci incontri')) ?>
         </a>
       </div>
@@ -272,7 +272,7 @@ $statusLabels = [
             · <?= $e(['scheduled' => __('In programma'), 'done' => __('Svolto'), 'cancelled' => __('Annullato')][$meeting['status']] ?? $meeting['status']) ?>
             <?php if ($meeting['status'] === 'scheduled'): ?>
               <?php // The public page only renders the inline edit form for scheduled meetings ?>
-              · <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>#bc-meeting-<?= (int) $meeting['id'] ?>" class="text-blue-600 hover:underline"><?= $e(__('Modifica')) ?></a>
+              · <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>#bc-meeting-<?= (int) $meeting['id'] ?>" class="text-blue-600 hover:underline"><?= $e(__('Modifica')) ?></a>
             <?php endif; ?>
           </span>
         </div>

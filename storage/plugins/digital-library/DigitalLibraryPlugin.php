@@ -574,7 +574,7 @@ class DigitalLibraryPlugin
         // requests (Lighthouse: render-blocking resources).
         $pluginCssPath = __DIR__ . '/assets/css/digital-library.css';
         if (file_exists($pluginCssPath)) {
-            echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css?v=1.4.0'), ENT_QUOTES, 'UTF-8') . '">' . "\n";
+            echo '<link rel="stylesheet" href="' . htmlspecialchars(url('/plugins/digital-library/assets/css/digital-library.css?v=' . (string) filemtime($pluginCssPath)), ENT_QUOTES, 'UTF-8') . '">' . "\n";
         }
     }
 
@@ -706,6 +706,41 @@ class DigitalLibraryPlugin
             return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
+        // Check the content BEFORE the file reaches the public uploads folder:
+        // moved first and checked after, a rejected file was briefly reachable
+        // at its URL. The magic bytes are read from the upload's temp stream.
+        try {
+            $stream = $file->getStream();
+            if ($stream->isSeekable()) {
+                $stream->rewind();
+            }
+            $head = $stream->read(65536);
+            if ($stream->isSeekable()) {
+                $stream->rewind();
+            }
+        } catch (\Throwable $e) {
+            return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
+        }
+        $detectedMime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($head);
+        $contentOk = $detectedMime !== false && in_array($detectedMime, $allowedMime, true);
+        if ($contentOk && $type !== 'audio') {
+            // The extension must match the content: a .pdf is a PDF, and an
+            // .epub is an EPUB container (OCF: the first entry is an
+            // uncompressed "mimetype" file holding application/epub+zip), not
+            // any ZIP renamed.
+            $contentOk = $ext === 'pdf'
+                ? $detectedMime === 'application/pdf'
+                : (strncmp($head, "PK\x03\x04", 4) === 0 && substr($head, 30, 28) === 'mimetypeapplication/epub+zip');
+        }
+        if (!$contentOk) {
+            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: content does not match', [
+                'expected' => $allowedMime,
+                'detected' => $detectedMime ?: 'unknown',
+                'filename' => $clientFilename,
+            ]);
+            return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
+        }
+
         $uploadsDir = realpath(__DIR__ . '/../../../public/uploads/digital');
         if ($uploadsDir === false) {
             $uploadsDir = __DIR__ . '/../../../public/uploads/digital';
@@ -721,24 +756,6 @@ class DigitalLibraryPlugin
             $file->moveTo($targetPath);
         } catch (\Throwable $e) {
             return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
-        }
-
-        // Server-side MIME validation using magic bytes (not client-reported type)
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $detectedMime = $finfo->file($targetPath);
-        if ($detectedMime === false || !in_array($detectedMime, $allowedMime, true)) {
-            // Remove the uploaded file — it failed MIME validation
-            if (!unlink($targetPath)) {
-                \App\Support\SecureLogger::error('[Digital Library] Failed to remove MIME-rejected upload', [
-                    'path' => $targetPath,
-                ]);
-            }
-            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: MIME mismatch', [
-                'expected' => $allowedMime,
-                'detected' => $detectedMime ?: 'unknown',
-                'filename' => $clientFilename,
-            ]);
-            return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
         $publicUrl = '/uploads/digital/' . $safeName;

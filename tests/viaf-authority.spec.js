@@ -48,7 +48,7 @@ function mysqlArgs(sql, batch = false) {
     } else if (DB_SOCKET) {
         args.push('-S', DB_SOCKET);
     }
-    args.push('-u', DB_USER, DB_NAME);
+    args.push('--default-character-set=utf8mb4', '-u', DB_USER, DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
@@ -90,7 +90,7 @@ test.skip(
     'Missing E2E env (DB_*)'
 );
 
-test.describe.serial('VIAF Authority + ISNI plugin — v1.1.0 (16 tests)', () => {
+test.describe.serial('VIAF Authority + ISNI plugin — v1.1.2 (21 tests)', () => {
     /** @type {number} */
     let testAuthorId = 0;
     /** @type {Record<string, string>} original authority field values to restore after tests */
@@ -342,5 +342,142 @@ test.describe.serial('VIAF Authority + ISNI plugin — v1.1.0 (16 tests)', () =>
             headers: { 'Authorization': basicAuth(ADMIN_EMAIL, ADMIN_PASS) },
         });
         expect(res.status()).toBe(404);
+    });
+
+    // ── Test 17: wrong Basic credentials ─────────────────────────────────────
+
+    test('17. wrong Basic credentials → 401 with a Basic challenge; valid ones still work', async ({ request }) => {
+        test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
+        // One failure only: the per-IP throttle (10 / 5 min) is covered by
+        // tests/viaf-basic-auth.unit.php so this suite never locks itself out.
+        const bad = await request.get(`${BASE}/api/viaf/author/9999999`, {
+            headers: { 'Authorization': basicAuth(ADMIN_EMAIL, ADMIN_PASS + '-wrong') },
+        });
+        expect(bad.status()).toBe(401);
+        expect(bad.headers()['www-authenticate'] ?? '').toMatch(/^Basic/);
+        const good = await request.get(`${BASE}/api/viaf/author/9999999`, {
+            headers: { 'Authorization': basicAuth(ADMIN_EMAIL, ADMIN_PASS) },
+        });
+        expect(good.status()).toBe(404);
+    });
+
+    // ── Test 18: duplicate ISNI ───────────────────────────────────────────────
+
+    test('18. an ISNI already held by another author → JSON 409 duplicate on both write paths', async ({ playwright }) => {
+        test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
+        test.skip(testAuthorId === 0, 'No author in DB');
+        const holderName = `VIAF dup holder ${Date.now()}`;
+        dbQuery(`INSERT INTO autori (nome, isni_id) VALUES ('${holderName}', '0000000000000028')`);
+        const holderId = dbQuery(`SELECT id FROM autori WHERE nome = '${holderName}' LIMIT 1`);
+        try {
+            for (const path of [`/api/viaf/author/${testAuthorId}/set`, `/api/viaf/author/${testAuthorId}/isni/set`]) {
+                // A fresh, cookie-less client per call: the stateless-API CSRF
+                // exemption requires a request that carries no session cookie.
+                const client = await playwright.request.newContext();
+                try {
+                    const res = await adminPost(client, path, 'isni_id=0000000000000028');
+                    expect(res.status(), path).toBe(409);
+                    expect(res.headers()['content-type'] ?? '').toContain('application/json');
+                    const body = await res.json();
+                    expect(body.error).toBe('duplicate');
+                } finally {
+                    await client.dispose();
+                }
+            }
+        } finally {
+            dbQuery(`DELETE FROM autori WHERE id = ${holderId}`);
+        }
+    });
+
+    // ── Tests 19-21: create-author form ──────────────────────────────────────
+
+    /** @param {import('@playwright/test').Page} page */
+    async function adminLogin(page) {
+        await page.goto(`${BASE}/admin/dashboard`);
+        const email = page.locator('input[name="email"]');
+        if (await email.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await email.fill(ADMIN_EMAIL);
+            await page.locator('input[name="password"]').fill(ADMIN_PASS);
+            await page.locator('button[type="submit"]').click();
+            await page.waitForURL(/admin/, { timeout: 15000 });
+        }
+    }
+
+    test('19. The create form has the VIAF/ISNI fields, saved with the author; Save is live on an existing author', async ({ browser }) => {
+        test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        try {
+            await adminLogin(page);
+            await page.goto(`${BASE}/admin/authors/create`);
+            await expect(page.locator('#create-author-form #viaf_id_field')).toBeVisible();
+            await expect(page.locator('#create-author-form #isni_id_field')).toBeVisible();
+            await expect(page.locator('#viaf-save-btn')).toHaveCount(0);
+            await expect(page.locator('#viaf-save-hint')).toBeVisible();
+
+            test.skip(testAuthorId === 0, 'No author in DB');
+            await page.goto(`${BASE}/admin/authors/edit/${testAuthorId}`);
+            await expect(page.locator('#viaf-save-btn')).toBeEnabled();
+            await expect(page.locator('#viaf-save-hint')).toHaveCount(0);
+        } finally {
+            await context.close();
+        }
+    });
+
+    test('20. Creating an author with VIAF and ISNI stores both on the new row', async ({ browser }) => {
+        test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
+        const name = `VIAF create ${Date.now()}`;
+        // Identifiers no other author holds (the earlier tests assign fixed ones,
+        // and both columns are unique): ISNI check digit per ISO 7064 Mod 11-2.
+        const viaf = String(Date.now()).slice(-12);
+        const base = ('1' + String(Date.now()).slice(-14)).padStart(15, '0');
+        let total = 0;
+        for (const d of base) total = (total + Number(d)) * 2;
+        const check = (12 - (total % 11)) % 11;
+        const isni = base + (check === 10 ? 'X' : String(check));
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        try {
+            await adminLogin(page);
+            await page.goto(`${BASE}/admin/authors/create`);
+            await page.fill('#nome', name);
+            await page.fill('#viaf_id_field', viaf);
+            await page.fill('#isni_id_field', isni.replace(/(.{4})(?=.)/g, '$1 '));
+            await page.locator('#create-author-form button[type="submit"]').click();
+            await Promise.all([
+                page.waitForURL(/\/admin\/authors(\?|$)/, { timeout: 15000 }),
+                page.locator('.swal2-confirm').click(),
+            ]);
+            const row = dbQuery(`SELECT viaf_id, viaf_uri, isni_id, authority_source, authority_confidence FROM autori WHERE nome = '${name}'`).split('\t');
+            expect(row).toEqual([viaf, `https://viaf.org/viaf/${viaf}`, isni, 'viaf', 'exact']);
+        } finally {
+            dbQuery(`DELETE FROM autori WHERE nome = '${name}'`);
+            await context.close();
+        }
+    });
+
+    test('21. An ISNI held by another author: the author is created and the librarian is told why the ISNI was not saved', async ({ browser }) => {
+        test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
+        const holder = `VIAF dup holder ${Date.now()}`;
+        const name = `VIAF create dup ${Date.now()}`;
+        dbQuery(`INSERT INTO autori (nome, isni_id) VALUES ('${holder}', '0000000000000028')`);
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        try {
+            await adminLogin(page);
+            await page.goto(`${BASE}/admin/authors/create`);
+            await page.fill('#nome', name);
+            await page.fill('#isni_id_field', '0000000000000028');
+            await page.locator('#create-author-form button[type="submit"]').click();
+            await Promise.all([
+                page.waitForURL(/\/admin\/authors(\?|$)/, { timeout: 15000 }),
+                page.locator('.swal2-confirm').click(),
+            ]);
+            expect(dbQuery(`SELECT COUNT(*) FROM autori WHERE nome = '${name}' AND isni_id IS NULL`)).toBe('1');
+            await expect(page.getByText(/VIAF\/ISNI non sono stati salvati|VIAF\/ISNI were not saved/).first()).toBeVisible();
+        } finally {
+            dbQuery(`DELETE FROM autori WHERE nome IN ('${holder}', '${name}')`);
+            await context.close();
+        }
     });
 });

@@ -92,7 +92,7 @@ $slug = (string) $club['slug'];
     <details class="mt-4 pt-4 border-t">
       <summary class="font-semibold" style="cursor: pointer"><?= $e(__('Scrivi una recensione')) ?></summary>
       <p class="bc-muted text-sm mt-2"><?= $e(__('La recensione sarà pubblicata dopo l\'approvazione di un amministratore della biblioteca.')) ?></p>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/reviews')) ?>" class="mt-3">
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/reviews')) ?>" class="mt-3">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
         <div class="flex flex-wrap -mx-3 gap-y-3 mb-3">
           <div class="w-full px-3 md:w-1/2">

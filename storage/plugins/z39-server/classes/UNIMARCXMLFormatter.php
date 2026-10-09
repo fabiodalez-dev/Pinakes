@@ -44,11 +44,14 @@ class UNIMARCXMLFormatter extends RecordFormatter
         // _record_type; serial-only fields (011/207/326) key off it.
         $isSerial = ($record['_record_type'] ?? '') === 'periodical';
 
-        // Leader — 'nam': text language material, monograph.
+        // Record label — 'nam': text language material, monograph.
         // 'nas' for a serial (position 7 = bibliographic level 's').
+        // UNIMARC leaves position 9 undefined (blank: 'a' is the MARC 21
+        // Unicode flag) and position 18 blank means full ISBD form; 'u' is
+        // not a defined value there.
         $recordEl->appendChild($this->doc->createElement(
             'leader',
-            $isSerial ? '00000nas a2200000 u 4500' : '00000nam a2200000 u 4500'
+            $isSerial ? '00000nas  2200000   4500' : '00000nam  2200000   4500'
         ));
 
         // 001 — Control number (local book ID)
@@ -64,6 +67,25 @@ class UNIMARCXMLFormatter extends RecordFormatter
         // Layout: 0-7 date entered, 8 type of date, 9-12 year1, 13-16 year2,
         //         17 audience, 18-21 illustrations, 22-24 language, 25 transliteration, 26-35 charset
         $langCode = $this->langCode((string) ($record['lingua'] ?? ''));
+        $installLanguage = $this->installLanguage();
+        // 100/22-24 is the language of CATALOGUING (the agency's language,
+        // i.e. the install locale), not the language of the item (101).
+        $catalogingLang = match ($installLanguage) {
+            'it' => 'ita',
+            'en' => 'eng',
+            'de' => 'ger',
+            'fr' => 'fre',
+            'da' => 'dan',
+            default => 'und',
+        };
+        $country = match ($installLanguage) {
+            'it' => 'IT',
+            'en' => 'GB',
+            'de' => 'DE',
+            'fr' => 'FR',
+            'da' => 'DK',
+            default => 'XX', // UNIMARC "unknown country"
+        };
         $year     = (string) ($record['anno_pubblicazione'] ?? '');
         $date1    = str_pad(
             (strlen($year) === 4 && ctype_digit($year)) ? $year : '',
@@ -79,7 +101,7 @@ class UNIMARCXMLFormatter extends RecordFormatter
               . ($closedSerial ? $endYear : ($isSerial ? '9999' : '    ')) // 13-16: year 2
               . ' '              // 17:   target audience
               . '    '           // 18-21: illustrations
-              . $langCode        // 22-24: language code
+              . $catalogingLang  // 22-24: language of cataloguing
               . ' '              // 25:   transliteration
               . '          ';    // 26-35: character set (10 spaces)
         $recordEl->appendChild($this->cf('100', $f100));
@@ -113,8 +135,9 @@ class UNIMARCXMLFormatter extends RecordFormatter
         // 101 — Language of document
         $recordEl->appendChild($this->df('101', '0', ' ', [['a', $langCode]]));
 
-        // 102 — Country of publication
-        $recordEl->appendChild($this->df('102', ' ', ' ', [['a', 'IT']]));
+        // 102 — Country of publication (the library's country, from the
+        // install locale: the catalogue has no per-book country field)
+        $recordEl->appendChild($this->df('102', ' ', ' ', [['a', $country]]));
 
         // 200 — Title and statement of responsibility
         $contributors = $this->contributorRows($record);
@@ -207,7 +230,8 @@ class UNIMARCXMLFormatter extends RecordFormatter
         }
 
         // 700/701/702 — creators and secondary intellectual responsibility.
-        // FIX 7: UNIMARC ind1=undefined (space), ind2=form of name: 1=surname entry
+        // UNIMARC ind1=undefined (space), ind2=form of name: '1' entry under
+        // surname ($a surname, $b forename), '0' direct order (whole name in $a).
         $primaryCreatorIndex = null;
         foreach ($contributors as $index => $contributor) {
             if ($contributor['ruolo'] === 'principale') {
@@ -223,10 +247,9 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $tag = $index === $primaryCreatorIndex
                 ? '700'
                 : ($this->isCreatorRole($contributor['ruolo']) ? '701' : '702');
-            $recordEl->appendChild($this->df($tag, ' ', '1', [
-                ['a', $contributor['nome']],
-                ['4', UnimarcLibriParser::relatorForRole($contributor['ruolo'])],
-            ]));
+            [$ind2, $nameSubfields] = $this->personalName($contributor['nome']);
+            $nameSubfields[] = ['4', UnimarcLibriParser::relatorForRole($contributor['ruolo'])];
+            $recordEl->appendChild($this->df($tag, ' ', $ind2, $nameSubfields));
         }
 
         // 856 — Electronic location and access (public record URL)
@@ -236,7 +259,7 @@ class UNIMARCXMLFormatter extends RecordFormatter
 
         // 801 — Originating source
         $recordEl->appendChild($this->df('801', ' ', '0', [
-            ['a', 'IT'],
+            ['a', $country],
             ['b', 'Pinakes'],
             ['c', gmdate('Ymd')],
         ]));
@@ -273,6 +296,49 @@ class UNIMARCXMLFormatter extends RecordFormatter
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
+
+    /**
+     * Personal name as UNIMARC 70X subfields.
+     *
+     * Core names are stored in direct order ("Umberto Eco"). An invertible
+     * name becomes ind2 '1', $a surname (last word, or the part before the
+     * comma of "Eco, Umberto"), $b forename; UnimarcLibriParser::composeName()
+     * turns that back into "Umberto Eco". A single word or a display name
+     * with a parenthetical ("Pseudonym (Real Name)") cannot be split safely:
+     * ind2 '0', the whole name in $a, imported back unchanged.
+     *
+     * @return array{0:string,1:list<array{0:string,1:string}>}
+     */
+    private function personalName(string $name): array
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+        if (!str_contains($name, '(')) {
+            if (str_contains($name, ',')) {
+                [$surname, $forename] = array_map('trim', explode(',', $name, 2));
+                if ($surname !== '' && $forename !== '') {
+                    return ['1', [['a', $surname], ['b', $forename]]];
+                }
+            } else {
+                $position = mb_strrpos($name, ' ');
+                if ($position !== false) {
+                    return ['1', [
+                        ['a', mb_substr($name, $position + 1)],
+                        ['b', mb_substr($name, 0, $position)],
+                    ]];
+                }
+            }
+        }
+        return ['0', [['a', $name]]];
+    }
+
+    /** Two-letter language of the install locale ('it' for it_IT). */
+    private function installLanguage(): string
+    {
+        $locale = class_exists(\App\Support\I18n::class)
+            ? \App\Support\I18n::getInstallationLocale()
+            : 'it_IT';
+        return strtolower(substr($locale, 0, 2));
+    }
 
     private function langCode(string $italianName): string
     {

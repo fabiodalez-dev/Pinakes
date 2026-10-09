@@ -469,7 +469,8 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         expect(res.status()).toBe(200);
         const body = await res.text();
         expect(body).toContain('CheckInItemResponse');
-        expect(body).toContain('DateReturned');
+        // DateReturned is not an element of CheckInItemResponse in the NCIP 2.02 XSD.
+        expect(body).not.toContain('DateReturned');
         expect(dbQuery(`SELECT stato, attivo FROM prestiti WHERE id = ${checkoutLoanId}`))
             .toBe('restituito\t0');
     });
@@ -557,7 +558,9 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         if (isAvailable) {
             expect(ncipBody).toContain('Available On Shelf');
         } else {
-            expect(ncipBody).toContain('Checked Out');
+            // NCIP circulation status scheme value (was the non-scheme "Checked Out").
+            expect(ncipBody).not.toContain('Available On Shelf');
+            expect(ncipBody).toMatch(/On Loan|Available For Pickup|Not Available|In Process|Lost/);
         }
     });
 
@@ -584,7 +587,7 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         expect(res.status()).toBe(400);
     });
 
-    test('G.2 NCIP unsupported message type → Problem unsupported-request', async ({ request }) => {
+    test('G.2 NCIP unsupported message type → Problem Unsupported Service', async ({ request }) => {
         const body = `<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns="${NCIP_NS}">
   <UnsupportedInteropRequest><ItemId><ItemIdentifierValue>1</ItemIdentifierValue></ItemId></UnsupportedInteropRequest>
@@ -592,7 +595,7 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         const res = await ncipPost(request, body);
         const responseBody = await res.text();
         expect(responseBody).toContain('Problem');
-        expect(responseBody).toContain('unsupported-request');
+        expect(responseBody).toContain('Unsupported Service');
     });
 
     test('G.3 BIBFRAME returns 404 for deleted book ID', async ({ request }) => {

@@ -93,7 +93,7 @@
 .filters-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-transform: uppercase;
     letter-spacing: 0.14em;
     display: flex;
@@ -120,7 +120,7 @@
 .filter-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 1rem;
@@ -259,7 +259,7 @@
 
 .filter-option:hover {
     background: color-mix(in srgb, var(--primary-color) 7%, transparent);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     transform: translateX(2px);
 }
 
@@ -399,6 +399,11 @@
 }
 
 .availability-option {
+    /* A <button>: reset what the browser gives one, so it reads as a row. */
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -442,7 +447,7 @@
 
 .availability-option .availability-icon {
     background: var(--bg-secondary);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     transition: var(--transition);
 }
 
@@ -455,6 +460,11 @@
 
 .availability-text {
     flex: 1;
+}
+
+.availability-title,
+.availability-desc {
+    display: block;
 }
 
 .availability-title {
@@ -561,13 +571,15 @@
 .custom-range-toggle:hover,
 .custom-range-toggle.active {
     border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     background: var(--bg-primary);
 }
 
 .custom-pages-inputs {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    /* minmax(0, 1fr): a number field's intrinsic width (about 190px) would
+       otherwise push each column past the filter sidebar. */
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     gap: 0.5rem;
     align-items: center;
     margin-top: 0.5rem;
@@ -578,6 +590,9 @@
 }
 
 .pages-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0.5rem;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -656,7 +671,7 @@
 }
 
 .results-info strong {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     font-weight: 700;
 }
 
@@ -719,7 +734,7 @@
 .active-filters-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-transform: uppercase;
     letter-spacing: 0.12em;
     margin-bottom: 0.5rem;
@@ -893,7 +908,7 @@
 }
 
 .book-author a:hover {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
 }
 
 .book-meta {
@@ -1235,7 +1250,7 @@
     align-self: flex-start;
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: none;
     cursor: pointer;
     transition: var(--transition);
@@ -1421,7 +1436,7 @@
     width: auto;
     justify-content: flex-start;
     background: none !important;
-    color: var(--primary-color) !important;
+    color: var(--primary-text, var(--primary-color)) !important;
     border: none !important;
     padding: 0 !important;
     font-size: 0.82rem;
@@ -1432,7 +1447,7 @@
 }
 .book-actions .btn-cta:hover {
     background: none !important;
-    color: var(--primary-color) !important;
+    color: var(--primary-text, var(--primary-color)) !important;
     transform: none;
     gap: 0.6rem;
     transition: gap .3s cubic-bezier(.22,1,.36,1);
@@ -1550,7 +1565,7 @@
 
 .book-card .book-meta a:hover,
 .book-card .book-meta a:focus-visible {
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: underline;
 }
 
@@ -1607,7 +1622,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     letter-spacing: 0;
-    color: var(--primary-color);
+    color: var(--primary-text, var(--primary-color));
     text-decoration: none;
 }
 

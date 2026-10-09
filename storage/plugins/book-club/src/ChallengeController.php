@@ -49,7 +49,7 @@ class ChallengeController extends BaseController
 
     private function challengesPath(string $slug): string
     {
-        return '/book-club/' . $slug . '/challenges';
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/challenges';
     }
 
     // ------------------------------------------------------------------
@@ -59,7 +59,7 @@ class ChallengeController extends BaseController
     public function show(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $canManage = $this->canManage($club);
@@ -135,7 +135,7 @@ class ChallengeController extends BaseController
     public function create(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $canManage = $this->canManage($club);
@@ -204,7 +204,7 @@ class ChallengeController extends BaseController
     public function delete(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $challengeId): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $challenge = $this->challenges->challengeById($challengeId);

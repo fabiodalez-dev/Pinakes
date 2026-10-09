@@ -297,8 +297,6 @@ class PluginController
      */
     public function updateSettings(Request $request, Response $response, array $args): Response
     {
-        error_log('[PluginController] updateSettings called');
-
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
             error_log('[PluginController] Unauthorized access attempt');
             $response->getBody()->write(json_encode([
@@ -310,11 +308,8 @@ class PluginController
 
         // CSRF validated by CsrfMiddleware
         $body = $request->getParsedBody();
-        // Log only plugin ID, not full body (may contain API keys)
-        error_log('[PluginController] Request received for plugin settings update');
 
         $pluginId = (int) $args['id'];
-        error_log('[PluginController] Plugin ID: ' . $pluginId);
 
         $plugin = $this->pluginManager->getPlugin($pluginId);
 
@@ -337,8 +332,6 @@ class PluginController
             return $this->settingsPage($request, $response, $args);
         }
 
-        error_log('[PluginController] Plugin name: ' . $plugin['name']);
-
         $settings = $body['settings'] ?? [];
         if (!is_array($settings)) {
             error_log('[PluginController] Invalid settings format');
@@ -354,10 +347,15 @@ class PluginController
             // Open Library: Google Books API key
             $apiKey = trim((string) ($settings['google_books_api_key'] ?? ''));
             $apiKeyLength = strlen($apiKey);
-            error_log('[PluginController] Google Books API key length: ' . $apiKeyLength);
 
-            $saveResult = $this->pluginManager->setSetting($pluginId, 'google_books_api_key', $apiKey, false);
-            error_log('[PluginController] Save result: ' . ($saveResult ? 'true' : 'false'));
+            if (!$this->pluginManager->setSetting($pluginId, 'google_books_api_key', $apiKey, false)) {
+                \App\Support\SecureLogger::error('[PluginController] Google Books API key not saved for plugin ' . $pluginId);
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Errore nel salvataggio delle impostazioni.'),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,
@@ -538,7 +536,6 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        error_log('[PluginController] Settings saved successfully');
         return $response->withHeader('Content-Type', 'application/json');
     }
 

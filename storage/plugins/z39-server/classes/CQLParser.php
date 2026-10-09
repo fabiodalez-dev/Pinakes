@@ -176,12 +176,15 @@ class CQLParser
     {
         $node = $this->parseNotExpression();
 
-        while (($token = $this->peek()) !== null && $token['type'] === 'BOOLEAN' && $token['value'] === 'AND') {
+        // CQL NOT is a binary operator (`a NOT b` = a AND NOT b) with the same
+        // precedence as AND, left-associative: `a AND b NOT c` is (a AND b) NOT c.
+        while (($token = $this->peek()) !== null && $token['type'] === 'BOOLEAN'
+            && ($token['value'] === 'AND' || $token['value'] === 'NOT')) {
             $this->consume();
             $right = $this->parseNotExpression();
             $node = [
                 'type' => 'boolean',
-                'operator' => 'AND',
+                'operator' => $token['value'],
                 'left' => $node,
                 'right' => $right,
             ];
@@ -190,6 +193,10 @@ class CQLParser
         return $node;
     }
 
+    /**
+     * Leading NOT (`NOT a`) is not CQL, but earlier releases accepted it as a
+     * unary negation and clients may rely on it, so it keeps working.
+     */
     private function parseNotExpression(): array
     {
         $token = $this->peek();

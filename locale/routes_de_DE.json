@@ -31,6 +31,8 @@
   "language_switch": "/sprache",
   "archives": "/archiv",
   "archive_item": "/archiv",
+  "periodicals": "/zeitschriften",
+  "book_club": "/lesekreis",
   "bibframe.book": "/api/bibframe/book/{id}",
   "api_edge_availability": "/api/edge/availability"
 }

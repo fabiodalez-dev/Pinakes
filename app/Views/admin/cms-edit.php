@@ -72,7 +72,7 @@
         <div id="image-preview" class="<?= !empty($pageData['image']) ? '' : 'hidden' ?>">
           <img
             id="preview-img"
-            src="<?= htmlspecialchars($pageData['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+            src="<?= htmlspecialchars(!empty($pageData['image']) ? url((string) $pageData['image']) : '', ENT_QUOTES, 'UTF-8') ?>"
             alt="<?= htmlspecialchars(__("Anteprima"), ENT_QUOTES, 'UTF-8') ?>"
             class="max-w-full h-auto rounded-xl border border-gray-200"
             style="max-height: 300px;">
@@ -250,11 +250,19 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   uppy.on('upload-success', (file, response) => {
-    const imageUrl = response.body.url;
+    const imageUrl = response && response.body ? response.body.url : '';
+    if (!imageUrl) return;
+    // Stored as the site-relative /uploads/cms/… path; shown with the base path
+    // of a sub-folder install.
     document.getElementById('image-url').value = imageUrl;
-    document.getElementById('preview-img').src = imageUrl;
+    document.getElementById('preview-img').src = (window.BASE_PATH || '') + imageUrl;
     document.getElementById('image-preview').classList.remove('hidden');
-    uppy.clear();
+  });
+  // Clear only once Uppy has finished with the file: clearing inside
+  // upload-success removed it while Uppy was still updating its state
+  // ("Cannot read properties of undefined (reading 'error')").
+  uppy.on('complete', () => {
+    setTimeout(() => uppy.clear(), 0);
   });
 
   // Remove image button

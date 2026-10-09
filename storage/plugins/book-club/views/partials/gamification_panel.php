@@ -20,7 +20,7 @@ $slug = (string) $club['slug'];
       <i class="fas fa-trophy"></i>
       <h2><?= $e(__('Gamification')) ?></h2>
     </div>
-    <a href="<?= $e(url('/book-club/' . $slug . '/leaderboard')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
+    <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/leaderboard')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
       <?= $e(__('Vedi la classifica completa')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>

@@ -71,7 +71,8 @@ class OpereRepository
     public function getForBook(int $bookId): ?array
     {
         $authorDisplay = \App\Support\AuthorName::displaySql('a');
-        $sql = "SELECT o.id, o.titolo_uniforme, o.slug, {$authorDisplay} AS autore_nome
+        $sql = "SELECT o.id, o.titolo_uniforme, o.slug, {$authorDisplay} AS autore_nome,
+                       l.espressione_id
                 FROM libri l
                 INNER JOIN opere o ON l.opera_id = o.id AND o.deleted_at IS NULL
                 LEFT JOIN autori a ON o.autore_principale_id = a.id
@@ -132,7 +133,7 @@ class OpereRepository
             ? ' AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
             : '';
         $sql = "SELECT l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.copertina_url,
-                       l.isbn13, l.isbn10, e.nome AS editore
+                       l.isbn13, l.isbn10, l.espressione_id, e.nome AS editore
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 WHERE l.opera_id = ? AND l.deleted_at IS NULL{$visible}
@@ -160,15 +161,15 @@ class OpereRepository
                    data_creazione_a, lingua_originale, viaf_work_id, wikidata_id, slug, note)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $this->db->prepare($sql);
-        $titolo = (string) ($data['titolo_uniforme'] ?? '');
-        $originale = $data['titolo_originale'] !== '' ? ($data['titolo_originale'] ?? null) : null;
-        $autoreId = !empty($data['autore_principale_id']) ? (int) $data['autore_principale_id'] : null;
-        $da = $data['data_creazione_da'] !== '' ? (int) ($data['data_creazione_da'] ?? 0) : null;
-        $a = $data['data_creazione_a'] !== '' ? (int) ($data['data_creazione_a'] ?? 0) : null;
-        $lingua = $data['lingua_originale'] !== '' ? ($data['lingua_originale'] ?? null) : null;
-        $viaf = $data['viaf_work_id'] !== '' ? ($data['viaf_work_id'] ?? null) : null;
-        $wikidata = $data['wikidata_id'] !== '' ? ($data['wikidata_id'] ?? null) : null;
-        $note = $data['note'] !== '' ? ($data['note'] ?? null) : null;
+        $titolo = trim((string) ($data['titolo_uniforme'] ?? ''));
+        $originale = self::optString($data, 'titolo_originale');
+        $autoreId = self::optInt($data, 'autore_principale_id');
+        $da = self::optInt($data, 'data_creazione_da', true);
+        $a = self::optInt($data, 'data_creazione_a', true);
+        $lingua = self::optString($data, 'lingua_originale');
+        $viaf = self::optString($data, 'viaf_work_id');
+        $wikidata = self::optString($data, 'wikidata_id');
+        $note = self::optString($data, 'note');
         // 10 params: titolo(s) originale(s) autoreId(i) da(i) a(i) lingua(s) viaf(s) wikidata(s) slug(s) note(s)
         $stmt->bind_param('ssiiisssss', $titolo, $originale, $autoreId, $da, $a, $lingua, $viaf, $wikidata, $slug, $note);
         $stmt->execute();
@@ -188,25 +189,29 @@ class OpereRepository
                   viaf_work_id = ?, wikidata_id = ?, note = ?, updated_at = NOW()
                 WHERE id = ? AND deleted_at IS NULL";
         $stmt = $this->db->prepare($sql);
-        $titolo = (string) ($data['titolo_uniforme'] ?? '');
-        $originale = $data['titolo_originale'] !== '' ? ($data['titolo_originale'] ?? null) : null;
-        $autoreId = !empty($data['autore_principale_id']) ? (int) $data['autore_principale_id'] : null;
-        $da = $data['data_creazione_da'] !== '' ? (int) ($data['data_creazione_da'] ?? 0) : null;
-        $a = $data['data_creazione_a'] !== '' ? (int) ($data['data_creazione_a'] ?? 0) : null;
-        $lingua = $data['lingua_originale'] !== '' ? ($data['lingua_originale'] ?? null) : null;
-        $viaf = $data['viaf_work_id'] !== '' ? ($data['viaf_work_id'] ?? null) : null;
-        $wikidata = $data['wikidata_id'] !== '' ? ($data['wikidata_id'] ?? null) : null;
-        $note = $data['note'] !== '' ? ($data['note'] ?? null) : null;
+        $titolo = trim((string) ($data['titolo_uniforme'] ?? ''));
+        $originale = self::optString($data, 'titolo_originale');
+        $autoreId = self::optInt($data, 'autore_principale_id');
+        $da = self::optInt($data, 'data_creazione_da', true);
+        $a = self::optInt($data, 'data_creazione_a', true);
+        $lingua = self::optString($data, 'lingua_originale');
+        $viaf = self::optString($data, 'viaf_work_id');
+        $wikidata = self::optString($data, 'wikidata_id');
+        $note = self::optString($data, 'note');
         $stmt->bind_param('ssiiissssi', $titolo, $originale, $autoreId, $da, $a, $lingua, $viaf, $wikidata, $note, $id);
         $ok = $stmt->execute();
         $stmt->close();
         return $ok;
     }
 
-    /** Soft-delete an opera. Books detach via ON DELETE SET NULL only on hard delete, so we NULL them explicitly. */
+    /**
+     * Soft-delete an opera. Books detach via ON DELETE SET NULL only on hard
+     * delete, so we NULL them explicitly — the Expression link too, since an
+     * Expression cannot outlive the Work it realises.
+     */
     public function softDelete(int $id): bool
     {
-        $this->db->query("UPDATE libri SET opera_id = NULL WHERE opera_id = " . (int) $id);
+        $this->db->query("UPDATE libri SET opera_id = NULL, espressione_id = NULL WHERE opera_id = " . (int) $id);
         $stmt = $this->db->prepare("UPDATE opere SET deleted_at = NOW() WHERE id = ?");
         $stmt->bind_param('i', $id);
         $ok = $stmt->execute();
@@ -221,7 +226,9 @@ class OpereRepository
      */
     public function search(string $q, int $limit = 10): array
     {
-        $like = '%' . $q . '%';
+        // Escape the LIKE metacharacters so a literal `%`, `_` or `\\` in the
+        // query matches itself instead of acting as a wildcard.
+        $like = '%' . addcslashes($q, '%_\\') . '%';
         $sql = "SELECT id, titolo_uniforme AS label
                 FROM opere
                 WHERE deleted_at IS NULL AND (titolo_uniforme LIKE ? OR titolo_originale LIKE ?)
@@ -239,16 +246,19 @@ class OpereRepository
         return $out;
     }
 
-    /** Generate a slug unique within `opere`. */
+    /**
+     * Generate a slug unique within `opere`. Non-ASCII titles are
+     * transliterated first (Война и мир → vojna-i-mir, Les Misérables →
+     * les-miserables) so Cyrillic/Greek/accented works do not all collapse to
+     * `opera`, `opera-2`, …
+     */
     private function uniqueSlug(string $title): string
     {
-        $base = strtolower(trim($title));
-        $base = preg_replace('/[^a-z0-9]+/u', '-', $base) ?? 'opera';
-        $base = trim($base, '-');
+        $base = self::slugBase($title);
         if ($base === '') {
             $base = 'opera';
         }
-        $base = substr($base, 0, 200);
+        $base = rtrim(substr($base, 0, 200), '-');
         $slug = $base;
         $n = 1;
         while (true) {
@@ -262,5 +272,60 @@ class OpereRepository
             }
             $slug = $base . '-' . (++$n);
         }
+    }
+
+    /** ASCII slug body for a title, via the core slug helper when loaded. */
+    public static function slugBase(string $title): string
+    {
+        if (function_exists('slugify_text')) {
+            return slugify_text($title);
+        }
+        $ascii = $title;
+        if (class_exists('Transliterator')) {
+            $t = \Transliterator::create('Any-Latin; Latin-ASCII');
+            $out = $t !== null ? $t->transliterate($title) : false;
+            if ($out !== false) {
+                $ascii = $out;
+            }
+        } else {
+            $out = @iconv('UTF-8', 'ASCII//TRANSLIT', $title);
+            if ($out !== false) {
+                $ascii = $out;
+            }
+        }
+        $ascii = preg_replace('/[^a-z0-9]+/', '-', strtolower($ascii)) ?? '';
+        return trim($ascii, '-');
+    }
+
+    /**
+     * Trimmed string value for an optional form key, or null when the key is
+     * absent or blank.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function optString(array $data, string $key): ?string
+    {
+        $value = $data[$key] ?? null;
+        if (!is_scalar($value)) {
+            return null;
+        }
+        $value = trim((string) $value);
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Integer value for an optional form key, or null when the key is absent,
+     * blank or not numeric. Foreign keys ($allowZero = false) treat 0 as unset.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function optInt(array $data, string $key, bool $allowZero = false): ?int
+    {
+        $value = self::optString($data, $key);
+        if ($value === null || !preg_match('/^-?[0-9]+$/', $value)) {
+            return null;
+        }
+        $int = (int) $value;
+        return ($int === 0 && !$allowZero) ? null : $int;
     }
 }

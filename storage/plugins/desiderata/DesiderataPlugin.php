@@ -25,7 +25,10 @@ class DesiderataPlugin
     public function __construct(private mysqli $db, HookManager $hooks) { $this->hooks = $hooks; }
     public function setPluginId(int $id): void { $this->pluginId = $id; }
     public function expectedTables(): array { return ['desiderata_offers']; }
-    public function expectedColumns(): array { return [['table' => 'libri', 'column' => 'is_desiderata']]; }
+    public function expectedColumns(): array { return [['table' => 'libri', 'column' => 'is_desiderata'],
+        ['table' => 'desiderata_offers', 'column' => 'mobile_user_id'],
+        ['table' => 'desiderata_offers', 'column' => 'mobile_request_id'],
+        ['table' => 'desiderata_offers', 'column' => 'mobile_request_hash']]; }
     public function onInstall(): void { $this->ensureSchema(); }
     /**
      * Bibliographic data and donation history are preserved on purpose, but the
@@ -121,6 +124,20 @@ class DesiderataPlugin
             INDEX (status, created_at), INDEX (book_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci") === false) {
             $this->fail('cannot create desiderata_offers');
+        }
+        // Nullable for existing/browser offers. A device retry is scoped to the
+        // authenticated account, never to a donor email supplied by the client.
+        foreach (['mobile_user_id' => 'INT NULL', 'mobile_request_id' => 'CHAR(36) NULL', 'mobile_request_hash' => 'CHAR(64) NULL'] as $column => $definition) {
+            $check = $this->db->query("SHOW COLUMNS FROM desiderata_offers LIKE '$column'");
+            if ($check === false) { $this->fail('cannot inspect donation request fields'); }
+            if ($check->num_rows === 0 && $this->db->query("ALTER TABLE desiderata_offers ADD COLUMN $column $definition") === false) {
+                $this->fail('cannot add donation request fields');
+            }
+        }
+        $index = $this->db->query("SHOW INDEX FROM desiderata_offers WHERE Key_name = 'uq_desiderata_mobile_request'");
+        if ($index === false) { $this->fail('cannot inspect donation request index'); }
+        if ($index->num_rows === 0 && $this->db->query('ALTER TABLE desiderata_offers ADD UNIQUE INDEX uq_desiderata_mobile_request (mobile_user_id, mobile_request_id)') === false) {
+            $this->fail('cannot index donation requests');
         }
     }
     /** @return never */
@@ -360,7 +377,7 @@ class DesiderataPlugin
         // judged yet — not accepted ones, which are already being handled.
         $pending = $this->pendingOfferCount();
         $badge = $pending > 0
-            ? '<span class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500 text-white">' . $pending . '</span>'
+            ? '<span class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">' . $pending . '</span>'
             : '';
         echo '<a class="nav-link group flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100" href="' . self::e(url('/admin/desiderata')) . '"><i class="fas fa-hand-holding-heart mr-3" aria-hidden="true"></i>' . self::e(__('Desiderata e donazioni')) . $badge . '</a>';
     }
@@ -1316,6 +1333,84 @@ class DesiderataPlugin
                 // second, successful attempt still lands the donor back there.
                 'returnTo' => $returnTo,
             ], 422);
+        }
+    }
+
+    /** Authenticated mobile proposals share validation, book locks and notifications with the public form. */
+    public function mobileOffer(Request $q, Response $r): Response
+    {
+        $envelope = \App\Plugins\MobileApi\Support\ResponseEnvelope::class;
+        $user = $q->getAttribute(\App\Plugins\MobileApi\Support\AppAuthMiddleware::ATTR_USER);
+        if (!is_array($user) || (int) ($user['id'] ?? 0) <= 0) {
+            return $envelope::error($r, 'unauthorized', __('Accesso richiesto.'), 401);
+        }
+        $input = \App\Plugins\MobileApi\Support\JsonBody::parse($q);
+        $transaction = false;
+        try {
+            $requestId = $input['submission_id'] ?? '';
+            if (!is_string($requestId) || preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iD', $requestId) !== 1) {
+                throw new InvalidArgumentException(__('Proposta non valida.'));
+            }
+            $requestId = strtolower($requestId);
+            $bookId = $input['book_id'] ?? null;
+            if ($bookId !== null && (!is_int($bookId) || $bookId <= 0 || $bookId > 2147483647)) {
+                throw new InvalidArgumentException(__('Seleziona un libro valido.'));
+            }
+            // Native requests are already authenticated by an active, verified
+            // account. Public reCAPTCHA remains mandatory on the anonymous form.
+            $input['donor_name'] = mb_substr(trim((string) ($user['nome'] ?? '') . ' ' . (string) ($user['cognome'] ?? '')), 0, 150);
+            $input['donor_email'] = (string) ($user['email'] ?? '');
+            $input['consent'] = ($input['consent'] ?? false) === true ? '1' : '';
+            $values = self::validateOffer($input);
+            $hashValues = $values; unset($hashValues['donor_name'], $hashValues['donor_email']);
+            $hash = hash('sha256', json_encode([$bookId, $hashValues], JSON_THROW_ON_ERROR));
+            $userId = (int) $user['id'];
+            $this->db->begin_transaction(); $transaction = true;
+            // Serializes submissions from different devices of the same account.
+            $lock = $this->db->prepare("SELECT id FROM utenti WHERE id = ? AND stato = 'attivo' AND email_verificata = 1 FOR UPDATE");
+            $lock->bind_param('i', $userId); $lock->execute(); $active = $lock->get_result()->fetch_assoc(); $lock->close();
+            if (!$active) {
+                $this->db->rollback(); $transaction = false;
+                return $envelope::error($r, 'unauthorized', __('Accesso richiesto.'), 401);
+            }
+            $existing = $this->db->prepare('SELECT id, mobile_request_hash FROM desiderata_offers WHERE mobile_user_id = ? AND mobile_request_id = ?');
+            $existing->bind_param('is', $userId, $requestId); $existing->execute();
+            $replay = $existing->get_result()->fetch_assoc(); $existing->close();
+            if ($replay) {
+                $this->db->commit(); $transaction = false;
+                if (!hash_equals((string) $replay['mobile_request_hash'], $hash)) {
+                    return $envelope::error($r, 'conflict', __('Proposta non valida.'), 409);
+                }
+                return $envelope::success($r, ['id' => (int) $replay['id'], 'status' => 'submitted']);
+            }
+            $recent = $this->db->prepare('SELECT id FROM desiderata_offers WHERE mobile_user_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1');
+            $recent->bind_param('i', $userId); $recent->execute();
+            $limited = $recent->get_result()->fetch_assoc(); $recent->close();
+            if ($limited) {
+                $this->db->rollback(); $transaction = false;
+                return $envelope::error($r, 'rate_limited', __('Attendi un minuto prima di inviare un’altra proposta.'), 429)->withHeader('Retry-After', '60');
+            }
+            if ($bookId !== null) {
+                $stmt = $this->db->prepare('SELECT titolo FROM libri l WHERE id = ? AND deleted_at IS NULL AND is_desiderata = 1 AND NOT EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = l.id) FOR UPDATE');
+                $stmt->bind_param('i', $bookId); $stmt->execute();
+                $book = $stmt->get_result()->fetch_assoc(); $stmt->close();
+                if (!$book) {
+                    $this->db->rollback(); $transaction = false;
+                    return $envelope::error($r, 'no_longer_wanted', __('Questo libro non è più richiesto. Puoi proporlo come altra donazione.'), 409);
+                }
+                $values['title'] = (string) $book['titolo'];
+            }
+            $stmt = $this->db->prepare('INSERT INTO desiderata_offers (book_id, donor_name, donor_email, title, author, publisher, isbn, notes, mobile_user_id, mobile_request_id, mobile_request_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('isssssssiss', $bookId, $values['donor_name'], $values['donor_email'], $values['title'], $values['author'], $values['publisher'], $values['isbn'], $values['notes'], $userId, $requestId, $hash);
+            $stmt->execute(); $id = (int) $this->db->insert_id; $stmt->close();
+            $this->db->commit(); $transaction = false;
+            $this->notifyOffer($id, $values);
+            return $envelope::success($r, ['id' => $id, 'status' => 'submitted'], [], 201);
+        } catch (Throwable $e) {
+            if ($transaction) { $this->db->rollback(); }
+            if ($e instanceof InvalidArgumentException) { return $envelope::error($r, 'validation', $e->getMessage(), 422); }
+            \App\Support\SecureLogger::error('[Desiderata:mobile] Offer failed: ' . $e->getMessage());
+            return $envelope::error($r, 'internal_error', __('Non è stato possibile registrare la proposta. Riprova tra poco: i dati che hai inserito sono ancora qui.'), 500);
         }
     }
     /**

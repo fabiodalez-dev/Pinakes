@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Controllers;
 
+use App\Plugins\MobileApi\Support\Input;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
@@ -29,6 +30,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class PushController
 {
+    // new_message is reserved: stored for forward compatibility (the app
+    // already sends it), but nothing produces that push yet, the library has
+    // no in-app reply to contact messages (see OpenApiController).
     private const PREF_KEYS = ['loan_due', 'loan_overdue', 'reservation_ready', 'new_message', 'book_available'];
 
     private mysqli $db;
@@ -49,15 +53,15 @@ final class PushController
         $tokenId = $this->tokenId($request);
 
         $body     = JsonBody::parse($request);
-        $provider = strtolower(trim((string) ($body['provider'] ?? 'unifiedpush')));
+        $provider = strtolower(trim(Input::str($body['provider'] ?? 'unifiedpush')));
         if (!in_array($provider, ['unifiedpush', 'fcm'], true)) {
             return ResponseEnvelope::error($response, 'invalid_provider', __('Provider push non supportato.'), 422);
         }
 
-        $endpoint = isset($body['endpoint']) ? trim((string) $body['endpoint']) : '';
-        $regId    = isset($body['registration_id']) ? trim((string) $body['registration_id']) : '';
-        $pubKey   = isset($body['public_key']) ? trim((string) $body['public_key']) : '';
-        $auth     = isset($body['auth']) ? trim((string) $body['auth']) : '';
+        $endpoint = isset($body['endpoint']) ? trim(Input::str($body['endpoint'])) : '';
+        $regId    = isset($body['registration_id']) ? trim(Input::str($body['registration_id'])) : '';
+        $pubKey   = isset($body['public_key']) ? trim(Input::str($body['public_key'])) : '';
+        $auth     = isset($body['auth']) ? trim(Input::str($body['auth'])) : '';
 
         if ($provider === 'unifiedpush') {
             // UnifiedPush delivers by POSTing to an HTTPS endpoint URL.
@@ -65,6 +69,12 @@ final class PushController
                 return ResponseEnvelope::error($response, 'invalid_endpoint', __('Endpoint UnifiedPush non valido (richiesto HTTPS verso un host pubblico).'), 422);
             }
             $regId = ''; // not used for UnifiedPush
+            // Web Push keys (RFC 8291): both or neither, and usable — a pair that
+            // cannot encrypt would make every later push fail.
+            if (($pubKey !== '' || $auth !== '')
+                && !\App\Plugins\MobileApi\Push\WebPushEncryption::keysAreUsable($pubKey, $auth)) {
+                return ResponseEnvelope::error($response, 'invalid_push_keys', __('Chiavi Web Push non valide (public_key P-256 e auth da 16 byte, in base64url).'), 422);
+            }
         } else {
             if ($regId === '') {
                 return ResponseEnvelope::error($response, 'invalid_registration', __('Token di registrazione FCM mancante.'), 422);

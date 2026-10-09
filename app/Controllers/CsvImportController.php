@@ -2352,9 +2352,10 @@ class CsvImportController
 
         // Classificazione Dewey
         if ($allow('dewey') && empty($csvData['classificazione_dewey'] ?? null) && !empty($scrapedData['classificazione_dewey'] ?? null)) {
-            // Validate Dewey format: 3 digits optionally followed by decimal point and 1-4 digits
+            // Validate Dewey format: 3 digits optionally followed by a decimal
+            // point and up to 12 digits (DDC 23 numbers such as 973.0496073).
             $deweyCode = trim((string) $scrapedData['classificazione_dewey']);
-            if (preg_match('/^[0-9]{3}(\.[0-9]{1,4})?$/', $deweyCode)) {
+            if (preg_match('/^[0-9]{3}(\.[0-9]{1,12})?$/', $deweyCode)) {
                 $updates[] = 'classificazione_dewey = ?';
                 $params[] = $deweyCode;
                 $types .= 's';

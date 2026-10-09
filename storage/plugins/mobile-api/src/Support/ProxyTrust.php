@@ -67,20 +67,14 @@ final class ProxyTrust
         }
         self::$settingCache = '';
 
-        $host   = (string) ($_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost');
-        $name   = (string) ($_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: '');
-        $user   = (string) ($_ENV['DB_USER'] ?? getenv('DB_USER') ?: '');
-        $pass   = (string) ($_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: ($_ENV['DB_PASSWORD'] ?? getenv('DB_PASSWORD') ?: ''));
-        $port   = (int) ($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: 3306);
-        $socket = (string) ($_ENV['DB_SOCKET'] ?? getenv('DB_SOCKET') ?: '');
-        if ($name === '' || $user === '') {
-            return self::$settingCache;
-        }
-
+        // The request's shared connection (ConfigStore keeps one per request):
+        // opening a second mysqli here doubled the DB connections of every
+        // /api/v1 call.
         try {
-            $db = $socket !== ''
-                ? new \mysqli(null, $user, $pass, $name, 0, $socket)
-                : new \mysqli($host, $user, $pass, $name, $port);
+            $db = \App\Support\ConfigStore::sharedConnection();
+            if (!$db instanceof \mysqli) {
+                return self::$settingCache;
+            }
             $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'mobile_api' AND setting_key = 'trusted_proxies' LIMIT 1");
             if ($stmt !== false) {
                 $stmt->execute();
@@ -91,7 +85,6 @@ final class ProxyTrust
                 }
                 $stmt->close();
             }
-            $db->close();
         } catch (\Throwable $e) {
             // stay with '' — never break the HTTPS gate on a settings-read failure
         }

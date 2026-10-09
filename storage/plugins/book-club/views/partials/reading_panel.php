@@ -26,7 +26,7 @@ $slug = (string) $club['slug'];
       $aggregate = $item['aggregate'];
       $myPercent = $mine !== null ? max(0, min(100, (int) $mine['percent'])) : 0;
       $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'])));
-      $readingUrl = url('/book-club/' . $slug . '/reading/' . (int) $book['id']);
+      $readingUrl = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/reading/' . (int) $book['id']);
     ?>
     <div class="border rounded-md px-3 py-3 mb-3">
       <div class="flex items-start gap-3">

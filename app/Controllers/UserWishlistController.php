@@ -21,8 +21,14 @@ final class UserWishlistController
         // A favourite is HIDDEN, never deleted, while the book is flagged as a
         // request: manage('received') clears the flag when the donation arrives,
         // and the entry — plus its availability notification — must come back.
-        $sql = "SELECT l.id, l.titolo, l.copertina_url, l.copie_disponibili
-                FROM wishlist w JOIN libri l ON l.id=w.libro_id
+        // The main author (a translator or editor is never shown as one): shown on the card, and what book_url() needs for the
+        // canonical /author/title/id address (without it the slug fell back to "autore").
+        $sql = "SELECT l.id, l.titolo, l.copertina_url, l.copie_disponibili, e.nome AS editore,
+                       (SELECT a.nome FROM libri_autori la JOIN autori a ON a.id = la.autore_id
+                         WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
+                         ORDER BY la.ruolo = 'principale' DESC, la.ordine_credito IS NULL, la.ordine_credito, a.id
+                         LIMIT 1) AS autore
+                FROM wishlist w JOIN libri l ON l.id=w.libro_id LEFT JOIN editori e ON e.id = l.editore_id
                 WHERE w.utente_id=? AND l.deleted_at IS NULL
                   AND " . \App\Support\BookVisibility::catalogue($db, 'l') . "
                 ORDER BY w.id DESC";

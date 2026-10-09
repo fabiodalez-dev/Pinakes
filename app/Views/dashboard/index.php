@@ -298,7 +298,7 @@ $applicationToday = \App\Support\DateHelper::today();
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <span class="bg-blue-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($pending) ?></span>
+          <span class="bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($pending) ?></span>
           <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutte") ?>
@@ -369,7 +369,7 @@ $applicationToday = \App\Support\DateHelper::today();
                   </button>
                 </div>
               </div>
-              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400 flex items-center">
+              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 flex items-center">
                 <i class="fas fa-clock mr-2"></i>
                 <?= __("Richiesto il") ?> <?= !empty($loan['created_at']) ? format_date((string)$loan['created_at'], true) : 'N/D'; ?>
               </div>
@@ -449,7 +449,7 @@ $applicationToday = \App\Support\DateHelper::today();
                   </div>
                 </div>
               </div>
-              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400 flex items-center mt-auto">
+              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 flex items-center mt-auto">
                 <i class="fas fa-clock mr-2"></i>
                 <?= __("Creato il") ?> <?= !empty($loan['created_at']) ? format_date((string)$loan['created_at'], true) : 'N/D'; ?>
               </div>
@@ -534,7 +534,7 @@ $applicationToday = \App\Support\DateHelper::today();
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <span class="bg-purple-500 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($reservations) ?></span>
+          <span class="bg-purple-600 text-white text-sm font-bold px-3 py-1 rounded-full"><?= count($reservations) ?></span>
           <a href="<?= htmlspecialchars(url('/admin/reservations'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 text-sm bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 whitespace-nowrap font-medium">
             <i class="fas fa-external-link-alt mr-1"></i>
             <?= __("Gestisci tutte") ?>
@@ -591,7 +591,7 @@ $applicationToday = \App\Support\DateHelper::today();
                   </div>
                 </div>
               </div>
-              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-400 flex items-center mt-auto">
+              <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 flex items-center mt-auto">
                 <i class="fas fa-clock mr-2"></i>
                 <?= __("Creata il") ?> <?= !empty($res['created_at']) ? format_date((string)$res['created_at'], true) : 'N/D'; ?>
               </div>

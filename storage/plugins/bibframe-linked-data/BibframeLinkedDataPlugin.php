@@ -38,6 +38,12 @@ class BibframeLinkedDataPlugin
     private const RDF_NS  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
     private const XSD_NS  = 'http://www.w3.org/2001/XMLSchema#';
 
+    /** ISO 639-1 → MARC (ISO 639-2/B) codes of id.loc.gov/vocabulary/languages. */
+    private const MARC_LANGUAGES = [
+        'it' => 'ita', 'en' => 'eng', 'de' => 'ger', 'fr' => 'fre', 'es' => 'spa',
+        'da' => 'dan', 'pt' => 'por', 'nl' => 'dut', 'sv' => 'swe', 'la' => 'lat',
+    ];
+
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
@@ -402,7 +408,6 @@ class BibframeLinkedDataPlugin
         $subtitle = (string) ($book['sottotitolo'] ?? '');
         $year     = (string) ($book['anno_pubblicazione'] ?? '');
         $langCode = $this->langCode((string) ($book['lingua'] ?? ''));
-        $viafId   = (string) ($book['viaf_id'] ?? '');
 
         $workUri     = absoluteUrl('/id/work/' . $bookId);
         $instanceUri = absoluteUrl('/id/instance/' . $bookId);
@@ -427,23 +432,24 @@ class BibframeLinkedDataPlugin
             $work['bf:title']['bf:subtitle'] = $subtitleVal;
         }
 
-        if ($langCode !== '') {
+        // bf:language points at the LoC languages vocabulary (MARC/ISO 639-2B
+        // codes); a language with no known code keeps a literal bf:code.
+        $marcLanguage = self::MARC_LANGUAGES[$langCode] ?? '';
+        $rawLanguage  = trim((string) ($book['lingua'] ?? ''));
+        if ($marcLanguage !== '') {
+            $work['bf:language'] = ['@id' => 'http://id.loc.gov/vocabulary/languages/' . $marcLanguage];
+        } elseif ($rawLanguage !== '') {
             $work['bf:language'] = [
                 '@type'   => 'bf:Language',
-                'bf:code' => ['@value' => $langCode, '@type' => 'xsd:string'],
+                'bf:code' => ['@value' => $rawLanguage, '@type' => 'xsd:string'],
             ];
         }
 
         $work['bf:content'] = ['@type' => 'bf:Content', '@id' => 'http://id.loc.gov/vocabulary/contentTypes/txt'];
 
-        // FIX F045: Work-level VIAF link (mirrors per-author VIAF pattern below).
-        // If the book record carries a Work-level VIAF identifier, expose it as
-        // owl:sameAs on the bf:Work — same shape used for bf:Person agents.
-        if ($viafId !== '') {
-            $work['owl:sameAs'] = [
-                '@id' => 'https://viaf.org/viaf/' . rawurlencode($viafId),
-            ];
-        }
+        // No owl:sameAs on the Work: a VIAF id identifies a PERSON, so linking
+        // the Work to its author's VIAF cluster would assert that the book IS
+        // that person. VIAF links stay on each bf:Person agent below.
 
         // Contributions (authors)
         $contributions = [];
@@ -492,8 +498,8 @@ class BibframeLinkedDataPlugin
         // Dewey classification
         if (!empty($book['classificazione_dewey'])) {
             $work['bf:classification'] = [
-                '@type'     => 'bf:ClassificationDdc',
-                'rdf:value' => (string) $book['classificazione_dewey'],
+                '@type'                   => 'bf:ClassificationDdc',
+                'bf:classificationPortion' => (string) $book['classificazione_dewey'],
             ];
         }
 
@@ -872,7 +878,7 @@ class BibframeLinkedDataPlugin
     {
         if ($id <= 0) { return null; }
         $stmt = $this->db->prepare(
-            'SELECT l.*, a.viaf_id AS viaf_id, a.nome AS autore_principale
+            'SELECT l.*, a.nome AS autore_principale
                FROM libri l
                LEFT JOIN autori a ON a.id = (
                    SELECT la2.autore_id FROM libri_autori la2
@@ -983,15 +989,26 @@ class BibframeLinkedDataPlugin
 
     private function langCode(string $lingua): string
     {
+        $lingua = mb_strtolower(trim($lingua));
         $map = [
             'italiano' => 'it', 'italian' => 'it',
             'inglese'  => 'en', 'english' => 'en',
             'francese' => 'fr', 'français' => 'fr', 'french' => 'fr',
             'tedesco'  => 'de', 'deutsch' => 'de', 'german' => 'de',
             'spagnolo' => 'es', 'español' => 'es', 'spanish' => 'es',
-            'ita' => 'it', 'eng' => 'en', 'fre' => 'fr', 'ger' => 'de', 'spa' => 'es',
+            'danese'   => 'da', 'dansk' => 'da', 'danish' => 'da',
+            'portoghese' => 'pt', 'português' => 'pt', 'portuguese' => 'pt',
+            'olandese' => 'nl', 'nederlands' => 'nl', 'dutch' => 'nl',
+            'svedese'  => 'sv', 'svenska' => 'sv', 'swedish' => 'sv',
+            'latino'   => 'la', 'latin' => 'la',
+            'ita' => 'it', 'eng' => 'en', 'fre' => 'fr', 'fra' => 'fr', 'ger' => 'de', 'deu' => 'de',
+            'spa' => 'es', 'dan' => 'da', 'por' => 'pt', 'dut' => 'nl', 'nld' => 'nl', 'swe' => 'sv', 'lat' => 'la',
         ];
-        return $map[strtolower(trim($lingua))] ?? '';
+        if (isset($map[$lingua])) {
+            return $map[$lingua];
+        }
+        // Already an ISO 639-1 code (it, en, de, …).
+        return isset(self::MARC_LANGUAGES[$lingua]) ? $lingua : '';
     }
 
     private function marcRelatorUri(string $role): string

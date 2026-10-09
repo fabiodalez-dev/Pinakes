@@ -53,12 +53,12 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <h2 id="layout-heading" class="text-lg font-semibold text-gray-900"><?= __("Stile interfaccia") ?></h2>
-                            <p class="mt-1 text-sm text-gray-600"><?= __("Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.") ?></p>
+                            <p class="mt-1 text-sm text-gray-600"><?= __("Scegli come appaiono l'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.") ?></p>
                         </div>
                         <span class="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600"><?= __("Un solo frontend") ?></span>
                     </div>
                 </div>
-                <?php require __DIR__ . '/partials/layout-variant-selector.php'; ?>
+                <?php require __DIR__ . '/partials/public-style-selector.php'; ?>
             </section>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

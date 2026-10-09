@@ -129,7 +129,7 @@ class AutoriController
         $collegamenti = $this->buildCollegamentiJson($data);
 
         try {
-            $repo->create([
+            $newAuthorId = $repo->create([
                 'nome' => trim($data['nome'] ?? ''),
                 'pseudonimo' => trim($data['pseudonimo'] ?? ''),
                 'data_nascita' => $data['data_nascita'] ?? null,
@@ -153,6 +153,14 @@ class AutoriController
         // Persistence succeeded → safe to remove any superseded local photo (none on create).
         if ($photo['deleteOnSuccess'] !== null) {
             $this->deleteLocalPhoto($photo['deleteOnSuccess']);
+        }
+        // Plugins that add fields to the create form (author.create.fields)
+        // store them now that the row exists. A plugin failure never undoes
+        // the author the librarian just created.
+        try {
+            \App\Support\Hooks::do('author.created', [$newAuthorId, $data]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('author.created listener failed: ' . $e->getMessage());
         }
         return $response->withHeader('Location', url('/admin/authors'))->withStatus(302);
     }

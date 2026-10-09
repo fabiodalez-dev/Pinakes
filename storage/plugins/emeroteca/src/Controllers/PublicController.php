@@ -238,7 +238,7 @@ class PublicController
         }
 
         $narrowed = $q !== '' || $tipo !== '' || $editore > 0 || $genere > 0 || $lettera !== '';
-        $canonical = $this->baseUrl() . '/emeroteca' . ($page > 1 ? '?page=' . $page : '');
+        $canonical = $this->baseUrl() . \App\Support\RouteTranslator::route('periodicals') . ($page > 1 ? '?page=' . $page : '');
 
         return $this->renderPublic($response, 'index.php', [
             // While searching, the articles answering the same term; otherwise
@@ -363,7 +363,7 @@ class PublicController
         $q = is_string($rawQ) ? mb_substr(trim($rawQ), 0, 200) : '';
         $articles = $this->articleResults($q, $id, max(1, (int) ($params['page'] ?? 1)));
         $articlePage = max(1, (int) $articles['page']);
-        $canonical = $this->baseUrl() . '/emeroteca/' . $id . ($articlePage > 1 ? '?page=' . $articlePage : '');
+        $canonical = $this->baseUrl() . \App\Support\RouteTranslator::route('periodicals') . '/' . $id . ($articlePage > 1 ? '?page=' . $articlePage : '');
 
         return $this->renderPublic($response, 'testata.php', [
             'articleResults' => $articles,
@@ -491,7 +491,7 @@ class PublicController
             'tipoArticoloLabels'   => \EmerotecaPlugin::TIPI_ARTICOLO,
             'seoTitle' => $title . ' — ' . __('Emeroteca'),
             'seoDescription' => $title,
-            'seoCanonical' => $this->baseUrl() . '/emeroteca/fascicolo/' . $id,
+            'seoCanonical' => $this->baseUrl() . \App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . $id,
             // Withdrawn: reachable for a bookmarked link, but kept out of the
             // index — it is in no listing and in no sitemap, so indexing it
             // would advertise a holding the library no longer has.
@@ -752,7 +752,7 @@ class PublicController
             'filters'=>$filters,
             'facets'=>$this->articleFacets(),
             'seoTitle'=>__('Articoli'),
-            'seoCanonical'=>$this->baseUrl().'/emeroteca/articoli'.($page>1?'?page='.$page:''),
+            'seoCanonical'=>$this->baseUrl().\App\Support\RouteTranslator::route('periodicals') . '/articoli'.($page>1?'?page='.$page:''),
             'seoRobots'=>$narrowed?'noindex,follow':'index,follow',
         ]);
     }
@@ -797,7 +797,7 @@ class PublicController
             'canEdit'=>$canEdit,
             'genreTrail'=>$genreTrail,
             'seoTitle'=>$row['titolo'],
-            'seoCanonical'=>$this->baseUrl().'/emeroteca/articolo/'.$id,
+            'seoCanonical'=>$this->baseUrl().\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.$id,
         ])->withHeader('Cache-Control','private, no-store');
     }
 
@@ -870,7 +870,7 @@ class PublicController
         $title = (string) ($data['seoTitle'] ?? __('Emeroteca'));
         $seoTitle = $title;
         $seoDescription = (string) ($data['seoDescription'] ?? __('Emeroteca'));
-        $seoCanonical = (string) ($data['seoCanonical'] ?? ($this->baseUrl() . '/emeroteca'));
+        $seoCanonical = (string) ($data['seoCanonical'] ?? ($this->baseUrl() . \App\Support\RouteTranslator::route('periodicals')));
         // A withdrawn issue stays reachable — the URL may be bookmarked or
         // linked, and the page explains that the library no longer holds it —
         // but it must not enter the index: it is absent from every listing and
@@ -910,8 +910,8 @@ class PublicController
         $errorTitle = __('Contenuto non trovato');
         $errorDescription = __('La testata, il fascicolo o l\'articolo che cerchi non è disponibile in emeroteca.');
         $errorLinks = [
-            ['href' => url('/emeroteca'), 'icon' => 'fa-newspaper', 'label' => __('Emeroteca')],
-            ['href' => url('/emeroteca/articoli'), 'icon' => 'fa-file-lines', 'label' => __('Articoli')],
+            ['href' => url(\App\Support\RouteTranslator::route('periodicals')), 'icon' => 'fa-newspaper', 'label' => __('Emeroteca')],
+            ['href' => url(\App\Support\RouteTranslator::route('periodicals') . '/articoli'), 'icon' => 'fa-file-lines', 'label' => __('Articoli')],
             ['href' => route_path('catalog'), 'icon' => 'fa-book', 'label' => __('Catalogo')],
         ];
         $seoRobots = 'noindex,follow';

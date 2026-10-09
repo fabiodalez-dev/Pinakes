@@ -32,14 +32,17 @@ class MARCXMLFormatter extends RecordFormatter
         // (022/310/362) and the serial bibliographic level are driven by it.
         $isSerial = ($record['_record_type'] ?? '') === 'periodical';
 
-        // Leader (required in MARC) — exactly 24 characters: '00000nam a2200000 a 4500'
+        // Leader (required in MARC) — exactly 24 characters: '00000nam a2200000   4500'
         // Positions: 0-4 logical record length, 5 status, 6 type, 7 bibl.level,
         // 8 ctrl type, 9 char encoding, 10-16 data/base offsets, 17 encoding level,
         // 18 desc.cataloging form, 19 multipart, 20-23 entry map.
         // Position 7 (bibliographic level): 'm' monograph, 's' serial.
+        // Position 18 is ' ' (non-ISBD): the fields below carry no ISBD
+        // punctuation (no " :" before 245 $b, no " /" before $c), so the
+        // record must not claim AACR2/ISBD form ('a'/'i').
         $leaderStr = $isSerial
-            ? '00000nas a2200000 a 4500'
-            : '00000nam a2200000 a 4500'; // strlen === 24
+            ? '00000nas a2200000   4500'
+            : '00000nam a2200000   4500'; // strlen === 24
         $leader = $this->doc->createElement('leader', $leaderStr);
         $recordEl->appendChild($leader);
 

@@ -58,16 +58,16 @@ $articleAuthorHref = static fn(array $an): string => $an['id'] !== null
     // Where it was published: the masthead page when the article belongs to
     // one, else the free-text container title as a search narrowing.
     if (!empty($a['testata_id']) && ($a['testata_titolo'] ?? '') !== '') {
-        $articleMeta[] = ['label' => (string) $a['testata_titolo'], 'href' => url('/emeroteca/' . (int) $a['testata_id'])];
+        $articleMeta[] = ['label' => (string) $a['testata_titolo'], 'href' => url(\App\Support\RouteTranslator::route('periodicals') . '/' . (int) $a['testata_id'])];
     } elseif (($a['contenitore_titolo'] ?? '') !== '') {
-        $articleMeta[] = ['label' => (string) $a['contenitore_titolo'], 'href' => url('/emeroteca/articoli') . '?' . http_build_query(['pubblicazione' => (string) $a['contenitore_titolo']])];
+        $articleMeta[] = ['label' => (string) $a['contenitore_titolo'], 'href' => url(\App\Support\RouteTranslator::route('periodicals') . '/articoli') . '?' . http_build_query(['pubblicazione' => (string) $a['contenitore_titolo']])];
     }
     // Which issue: the issue page when it is placed in one, else whatever
     // the citation itself says (date, volume, number).
     if (!empty($a['fascicolo_id']) && $articleKeep($a['fascicolo_numero'] ?? '')) {
         $articleMeta[] = [
             'label' => sprintf(__('n. %s'), (string) $a['fascicolo_numero']) . ($articleKeep($a['fascicolo_anno'] ?? '') ? ' (' . (int) $a['fascicolo_anno'] . ')' : ''),
-            'href' => url('/emeroteca/fascicolo/' . (int) $a['fascicolo_id']),
+            'href' => url(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . (int) $a['fascicolo_id']),
         ];
     } else {
         foreach (array_filter([$a['data_pubblicazione_testo'] ?? '', $a['volume'] ?? '', $a['numero'] ?? ''], $articleKeep) as $part) {
@@ -80,7 +80,7 @@ $articleAuthorHref = static fn(array $an): string => $an['id'] !== null
     $resultCover = \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($a);
     $articleCard = [
         'id' => (int) $a['id'],
-        'url' => url('/emeroteca/articolo/' . (int) $a['id']),
+        'url' => url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $a['id']),
         'title' => (string) $a['titolo'],
         'cover' => $resultCover !== '' ? url($resultCover) : '',
         'subtitle' => (string) ($a['sottotitolo'] ?? ''),

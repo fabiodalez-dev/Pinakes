@@ -171,8 +171,8 @@ $body = $sliceMethod($themeSource, 'save');
 $check(
     $body !== null
         && str_contains($body, 'if (!is_array($parsedBody))')
-        && str_contains($body, 'updateThemeColors($themeId, $colors, $layoutVariant, $advanced)'),
-    'theme save rejects malformed bodies and persists colors/layout/CSS in one manager write'
+        && str_contains($body, 'updateThemeColors($themeId, $colors, $publicStyle, $advanced)'),
+    'theme save rejects malformed bodies and persists colors/public style/CSS in one manager write'
 );
 $body = $sliceMethod($themeSource, 'checkContrast');
 $check(
@@ -280,10 +280,40 @@ $check(
     str_contains($layoutSource, "\$themePalette['primary_dark']"),
     '--primary-dark is fed from the generated palette'
 );
+// The theme's custom CSS is printed by one shared partial, included by the
+// public layout (which also renders the account pages) and the auth pages.
+$themeCssPartial = (string) file_get_contents($root . '/app/Views/auth/partials/theme-custom-css.php');
 $check(
-    str_contains($layoutSource, "ContentSanitizer::sanitizeCustomCss(\$themeAdvanced['custom_css'])"),
+    str_contains($themeCssPartial, "ContentSanitizer::sanitizeCustomCss(\$themeCssAdvanced['custom_css'])"),
     'theme custom_css is re-sanitized through ContentSanitizer::sanitizeCustomCss at render'
 );
+foreach ([
+    'app/Views/frontend/layout.php',
+    'app/Views/auth/login.php',
+    'app/Views/auth/register.php',
+    'app/Views/auth/forgot-password.php',
+    'app/Views/auth/reset-password.php',
+    'app/Views/auth/register_success.php',
+] as $view) {
+    $check(
+        str_contains((string) file_get_contents($root . '/' . $view), 'theme-custom-css.php'),
+        "{$view} includes the theme's custom CSS"
+    );
+}
+// Site scripts (Settings > Advanced) never run where a password or a reset
+// token is on the page: the auth pages must not include the custom-JS loader.
+foreach ([
+    'app/Views/auth/login.php',
+    'app/Views/auth/register.php',
+    'app/Views/auth/forgot-password.php',
+    'app/Views/auth/reset-password.php',
+    'app/Views/auth/register_success.php',
+] as $view) {
+    $check(
+        !str_contains((string) file_get_contents($root . '/' . $view), 'custom-js.php'),
+        "{$view} runs no custom site scripts"
+    );
+}
 
 // ---------------------------------------------------------------------------
 // 8. BEHAVIORAL — SettingsRepository round-trip on cookie_banner: set a

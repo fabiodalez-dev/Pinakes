@@ -82,12 +82,16 @@ $refCode = (string) ($row['reference_code'] ?? '');
 $coverUrl   = !empty($row['cover_image_path']) ? url((string) $row['cover_image_path']) : '';
 /** @var list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int,file_size?:int|string|null}> $unit_files */
 $unit_files = $unit_files ?? [];
+// Visitors download through the public document route
+// (/archives/{id}/documents/{fileId}), never from /uploads directly: the
+// route answers 404 as soon as the unit is unpublished.
+$publicDocUrl = static fn(int $fileId): string => url(\App\Plugins\Archives\ArchivesPlugin::publicDocumentPath((int) $row['id'], $fileId));
 // Backwards-compat: expose first file as legacy $docUrl for schema.org etc.
 $firstFile  = !empty($unit_files) ? $unit_files[0] : null;
 $docPath    = $firstFile !== null ? (string) $firstFile['file_path'] : (string) ($row['document_path'] ?? '');
 $docMime    = $firstFile !== null ? (string) $firstFile['file_mime'] : (string) ($row['document_mime'] ?? '');
 $docName    = $firstFile !== null ? (string) $firstFile['original_filename'] : (string) ($row['document_filename'] ?? '');
-$docUrl     = $docPath !== '' ? url($docPath) : '';
+$docUrl     = $docPath !== '' ? $publicDocUrl($firstFile !== null ? (int) $firstFile['id'] : 0) : '';
 $docIsAudio = $docMime !== '' && str_starts_with($docMime, 'audio/');
 $specific   = (string) ($row['specific_material'] ?? '');
 
@@ -124,7 +128,7 @@ $bytesStr = static function (int $bytes): string {
 $downloads = [];
 $fileSources = $unit_files !== []
     ? $unit_files
-    : ($docPath !== '' ? [['file_path' => $docPath, 'file_mime' => $docMime, 'original_filename' => $docName]] : []);
+    : ($docPath !== '' ? [['id' => 0, 'file_path' => $docPath, 'file_mime' => $docMime, 'original_filename' => $docName]] : []);
 foreach ($fileSources as $uf) {
     $ufPath = (string) $uf['file_path'];
     $ufMime = (string) $uf['file_mime'];
@@ -147,7 +151,7 @@ foreach ($fileSources as $uf) {
         }
     }
     $downloads[] = [
-        'url'   => url($ufPath),
+        'url'   => $publicDocUrl((int) $uf['id']),
         'name'  => $ufName,
         'audio' => str_starts_with($ufMime, 'audio/'),
         'facts' => implode(' · ', array_filter([$fileKind($ufMime, $ufName), $ufSize], static fn(string $v): bool => $v !== '')),

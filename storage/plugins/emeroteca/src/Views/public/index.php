@@ -45,7 +45,7 @@ $corePartials = dirname(__DIR__, 6) . '/app/Views/frontend/partials';
 $state = ['q' => $q, 'tipo' => $tipo, 'editore' => $editore ?: '', 'genere' => $genere ?: '', 'lettera' => $lettera];
 $stateUrl = static function (array $changes = []) use ($state): string {
     $query = array_filter($changes + $state, static fn(mixed $v): bool => (string) $v !== '' && (string) $v !== '0');
-    return url('/emeroteca') . ($query ? '?' . http_build_query($query) : '');
+    return url(\App\Support\RouteTranslator::route('periodicals')) . ($query ? '?' . http_build_query($query) : '');
 };
 $narrowed = array_filter($state, static fn(mixed $v): bool => (string) $v !== '') !== [];
 
@@ -94,7 +94,7 @@ include $corePartials . '/catalog-hero.php';
             $letterOptions[] = ['label' => (string) $letter, 'count' => $n, 'href' => $stateUrl(['lettera' => $lettera === $letter ? '' : $letter]), 'active' => $lettera === $letter];
         }
         $filterSearch = [
-            'action' => url('/emeroteca'),
+            'action' => url(\App\Support\RouteTranslator::route('periodicals')),
             'value' => $q,
             'label' => __('Titolo, sottotitolo, ISSN o articolo…'),
             'hidden' => ['tipo' => $tipo, 'editore' => $editore ?: '', 'genere' => $genere ?: '', 'lettera' => $lettera],
@@ -114,7 +114,7 @@ include $corePartials . '/catalog-hero.php';
             )],
             ['title' => __('Iniziale'), 'icon' => 'fa-font', 'grid' => true, 'options' => $letterOptions],
         ];
-        $filterClearHref = $narrowed ? url('/emeroteca') : '';
+        $filterClearHref = $narrowed ? url(\App\Support\RouteTranslator::route('periodicals')) : '';
         include $corePartials . '/filters-sidebar.php';
         ?>
 
@@ -136,14 +136,14 @@ include $corePartials . '/catalog-hero.php';
                 $emptyIcon = 'fa-newspaper';
                 $emptyTitle = $narrowed ? __('Nessun risultato trovato') : __('Nessuna testata pubblicata.');
                 $emptyText = $narrowed ? __('Prova a modificare i filtri o la tua ricerca') : __("L'emeroteca non contiene ancora testate.");
-                $emptyCtaHref = $narrowed ? url('/emeroteca') : '';
+                $emptyCtaHref = $narrowed ? url(\App\Support\RouteTranslator::route('periodicals')) : '';
                 $emptyCtaLabel = $narrowed ? __('Mostra tutte le testate') : '';
                 include $corePartials . '/empty-state.php';
                 ?>
             <?php else: ?>
                 <div class="books-grid emeroteca-testate-grid">
                     <?php foreach ($rows as $row):
-                        $detailUrl = url('/emeroteca/' . (int) $row['id']);
+                        $detailUrl = url(\App\Support\RouteTranslator::route('periodicals') . '/' . (int) $row['id']);
                         $logo = $asset((string) ($row['logo_url'] ?? ''));
                         $meta = array_values(array_filter([$yearsLabel($row), (string) ($row['issn'] ?? '') !== '' ? 'ISSN ' . $row['issn'] : ''], static fn(string $v): bool => $v !== ''));
                     ?>
@@ -181,7 +181,7 @@ include $corePartials . '/catalog-hero.php';
             <section class="listing-section mt-5" aria-labelledby="emeroteca-latest-articles">
                 <h2 class="listing-section-title" id="emeroteca-latest-articles">
                     <span><?= $q !== '' ? $e(sprintf(__('Articoli per «%s»'), $q)) : __('Articoli recenti') ?></span>
-                    <a href="<?= $e(url('/emeroteca/articoli') . ($q !== '' ? '?' . http_build_query(['q' => $q]) : '')) ?>"><?= $q !== '' ? $e(sprintf(__('Tutti i %d articoli'), (int) ($articleResults['total'] ?? 0))) : __('Tutti gli articoli') ?> →</a>
+                    <a href="<?= $e(url(\App\Support\RouteTranslator::route('periodicals') . '/articoli') . ($q !== '' ? '?' . http_build_query(['q' => $q]) : '')) ?>"><?= $q !== '' ? $e(sprintf(__('Tutti i %d articoli'), (int) ($articleResults['total'] ?? 0))) : __('Tutti gli articoli') ?> →</a>
                 </h2>
                 <?php $articleEmpty = null; require __DIR__ . '/article-results.php'; ?>
             </section>

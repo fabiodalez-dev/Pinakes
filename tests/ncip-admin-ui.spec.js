@@ -15,8 +15,9 @@
  *  4.  Partners page contains the NCIP partners heading and add form button
  *  5.  Partners page has the add-partner form with required inputs
  *  6.  Admin can submit the add-partner form and partner is created
- *  7.  Newly added partner appears in the partners list
+ *  7.  Newly added partner appears in the partners list (agency_id/code/active persisted)
  *  8.  Transactions page loads with correct page title
+ *  9.  A success transaction gets the success badge (status keys = ENUM)
  *
  * Run: /tmp/run-e2e.sh tests/ncip-admin-ui.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -62,6 +63,9 @@ const MYSQL_ENV = () => ({ ...process.env, MYSQL_PWD: DB_PASS });
 function dbExec(sql) {
     execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() });
 }
+function dbQuery(sql) {
+    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() }).trim();
+}
 
 test.skip(
     !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
@@ -72,8 +76,11 @@ const PARTNERS_URL    = `${BASE}/admin/plugins/ncip-server/partners`;
 const TRANSACTIONS_URL = `${BASE}/admin/plugins/ncip-server/transactions`;
 const RUN_ID = Date.now().toString(36);
 const TEST_PARTNER_NAME = `E2E_NCIP_Partner_${RUN_ID}`;
+const TEST_AGENCY_ID = `E2E-AGENCY-${RUN_ID}`;
+const TEST_CODE = `E2E-${RUN_ID}`;
+const TEST_REQUEST_ID = `E2E-NCIP-UI-${RUN_ID}`;
 
-test.describe.serial('NCIP Admin UI — partners and transactions (8 tests)', () => {
+test.describe.serial('NCIP Admin UI — partners and transactions (9 tests)', () => {
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
     /** @type {import('@playwright/test').Page} */
@@ -154,6 +161,10 @@ test.describe.serial('NCIP Admin UI — partners and transactions (8 tests)', ()
         await page.fill('input[name="endpoint_url"]', 'https://e2e-ncip.example.org/ncip');
         await page.fill('input[name="isil"]', 'IT-E2E01');
         await page.fill('input[name="notes"]', 'E2E test partner');
+        // The identifiers resolvePartner() matches, plus the active flag.
+        await page.fill('input[name="agency_id"]', TEST_AGENCY_ID);
+        await page.fill('input[name="code"]', TEST_CODE);
+        await page.locator('input[name="active"]').uncheck();
 
         await page.locator('form button[type="submit"]').first().click();
         await page.waitForLoadState('networkidle');
@@ -166,6 +177,11 @@ test.describe.serial('NCIP Admin UI — partners and transactions (8 tests)', ()
         await page.goto(PARTNERS_URL);
         await page.waitForLoadState('networkidle');
         await expect(page.getByText(TEST_PARTNER_NAME)).toBeVisible();
+        const row = dbQuery(
+            `SELECT CONCAT(IFNULL(agency_id, ''), '|', IFNULL(code, ''), '|', active)
+               FROM ncip_partners WHERE name = '${TEST_PARTNER_NAME}'`
+        );
+        expect(row).toBe(`${TEST_AGENCY_ID}|${TEST_CODE}|0`);
     });
 
     // ── Transactions page ─────────────────────────────────────────────────────
@@ -179,5 +195,19 @@ test.describe.serial('NCIP Admin UI — partners and transactions (8 tests)', ()
         await expect(title).toBeVisible();
         const titleText = await title.textContent();
         expect(titleText ?? '').toMatch(/transactions|transazioni/i);
+    });
+
+    test('9. A success transaction row gets the success badge (status keys match the ENUM)', async () => {
+        dbExec(
+            `INSERT INTO ncip_transactions (partner_id, message_type, request_id, status, created_at)
+             SELECT id, 'RequestItem', '${TEST_REQUEST_ID}', 'success', NOW()
+               FROM ncip_partners WHERE name = '${TEST_PARTNER_NAME}'`
+        );
+        await page.goto(TRANSACTIONS_URL);
+        await page.waitForLoadState('networkidle');
+        // The first badge is the message type; the status badge is the last one.
+        const badge = page.locator('tr', { hasText: TEST_REQUEST_ID }).locator('span.rounded-full').last();
+        await expect(badge).toBeVisible();
+        await expect(badge).toHaveClass(/bg-green-100/);
     });
 });

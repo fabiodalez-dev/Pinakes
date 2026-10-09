@@ -315,6 +315,21 @@ class ArchivesPlugin
         return array_keys(self::schemaSteps());
     }
 
+    /**
+     * Columns added to an existing table by an additive migration, declared
+     * so PluginManager's boot-time self-heal re-runs ensureSchema() when one
+     * is missing on an already-active plugin (an admin-UI upgrade runs the
+     * OLD class, so the new ensureSchema never runs at upgrade time).
+     *
+     * @return list<array{table:string, column:string}>
+     */
+    public function expectedColumns(): array
+    {
+        return [
+            ['table' => 'archival_units', 'column' => 'published'],
+        ];
+    }
+
     /** @return array<string,string> table => CREATE DDL, in dependency order. */
     private static function schemaSteps(): array
     {
@@ -456,6 +471,9 @@ class ArchivesPlugin
             'rights_statement_url' => 'VARCHAR(500) NULL',
             'ark_identifier'       => 'VARCHAR(255) NULL',
             'version_note'         => 'VARCHAR(500) NULL',
+            // 1.5.2: public visibility flag. DEFAULT 1 so every existing
+            // unit stays published on upgrade.
+            'published'            => 'TINYINT(1) NOT NULL DEFAULT 1',
         ];
 
         // Fetch existing columns once.
@@ -645,6 +663,21 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->indexAction($request, $response);
         })->add($adminMiddleware);
+
+        // POST /admin/archives/menu-visibility — show or hide the section's entry in the public menu
+        $app->post('/admin/archives/menu-visibility', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ): ResponseInterface {
+            // AdminAuthMiddleware also admits staff; the public menu is a
+            // site-wide setting, admin only (as the theme's public style).
+            if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+                return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+            }
+            $body = $request->getParsedBody();
+            \App\Support\ConfigStore::set('cms.archives_in_menu', is_array($body) && isset($body['in_menu']) ? '1' : '0');
+            return $response->withHeader('Location', url('/admin/archives'))->withStatus(302);
+        })->add($csrfMiddleware)->add($adminMiddleware);
 
         // GET /admin/archives/new — blank create form
         $app->get('/admin/archives/new', function (
@@ -913,7 +946,7 @@ class ArchivesPlugin
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
+            return $plugin->exportDublinCoreAction($request, $response, (int) $args['id'], true);
         });
 
         // EAD3 per-unit export (public + admin).
@@ -929,7 +962,7 @@ class ArchivesPlugin
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->exportEad3Action($request, $response, (int) $args['id']);
+            return $plugin->exportEad3Action($request, $response, (int) $args['id'], true);
         });
 
         // METS per-unit export (public + admin).
@@ -945,7 +978,7 @@ class ArchivesPlugin
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->exportMetsAction($request, $response, (int) $args['id']);
+            return $plugin->exportMetsAction($request, $response, (int) $args['id'], true);
         });
 
         // EAD3 bulk export (same admin-only access as MARCXML export).
@@ -988,7 +1021,7 @@ class ArchivesPlugin
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->iiifManifestAction($request, $response, (int) $args['id']);
+            return $plugin->iiifManifestAction($request, $response, (int) $args['id'], true);
         });
 
         // IIIF Collection — root (all fondi) + per-unit sub-collections
@@ -1207,7 +1240,9 @@ class ArchivesPlugin
         // ── Phase 6 — SRU endpoint for archival_units + authority_records ──
         // Public (no AdminAuthMiddleware) because SRU is a read-only
         // interoperability protocol consumed by external catalogues
-        // (Reindex, Koha, ARKIS). Rate-limiting lives inside the handler.
+        // (Reindex, Koha, ARKIS). Throttled per client by RateLimitMiddleware
+        // (60 requests / 60 s): a searchRetrieve can return 50 full records,
+        // so an unthrottled public endpoint is a cheap way to load the DB.
         // This endpoint ONLY exists while the plugin is active: deactivate
         // → the hook row vanishes from plugin_hooks → registerRoutes never
         // runs → the Slim app returns 404. Zero regression on the rest of
@@ -1217,7 +1252,7 @@ class ArchivesPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->sruAction($request, $response);
-        });
+        })->add(new \App\Middleware\RateLimitMiddleware(60, 60, 'archives_sru'));
 
         // ── Public frontend — read-only browsable view of archival_units ──
         // Lets the public catalogue expose the archive alongside the book
@@ -1249,6 +1284,10 @@ class ArchivesPlugin
         $app->get('/archive/{slug:[a-z0-9-]+}-{id:[0-9]+}', $publicShow);
         $app->get('/archive/{id:[0-9]+}', $publicShow);
         // Register every bundled locale so localized archive routes are reachable.
+        // The document route also lives under the technical /archives prefix
+        // (beside dc.xml, ead.xml…), which is fr_FR's localised base too, so
+        // the bases are de-duplicated: FastRoute refuses a route registered twice.
+        $documentBases = ['/archives' => true, '/archive' => true];
         foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
             $base = $publicRouteFor($locale);
             if (!empty($base) && $base !== '/archive') {
@@ -1256,6 +1295,19 @@ class ArchivesPlugin
                 $app->get($base . '/{slug:[a-z0-9-]+}-{id:[0-9]+}', $publicShow);
                 $app->get($base . '/{id:[0-9]+}', $publicShow);
             }
+            if (!empty($base)) {
+                $documentBases[$base] = true;
+            }
+        }
+        $publicDocument = function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->publicDocumentAction($request, $response, (int) $args['id'], (int) $args['fileId']);
+        };
+        foreach (array_keys($documentBases) as $base) {
+            $app->get($base . '/{id:[0-9]+}/documents/{fileId:[0-9]+}', $publicDocument);
         }
 
         // Serve plugin-local CSS/JS so the inline-style blocks can be
@@ -1371,7 +1423,7 @@ class ArchivesPlugin
             }
 
             $sql  = "SELECT id, parent_id, reference_code, level, constructed_title, formal_title,
-                            date_start, date_end, extent, language_codes, created_at
+                            date_start, date_end, extent, language_codes, published, created_at
                        FROM archival_units
                       WHERE " . implode(' AND ', $whereParts) . "
                       ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
@@ -1392,7 +1444,7 @@ class ArchivesPlugin
             // then by reference_code for stable ordering inside a level.
             $result = $this->db->query(
                 "SELECT id, parent_id, reference_code, level, constructed_title, formal_title,
-                        date_start, date_end, extent, language_codes, created_at
+                        date_start, date_end, extent, language_codes, published, created_at
                    FROM archival_units
                   WHERE deleted_at IS NULL
                   ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
@@ -1456,8 +1508,8 @@ class ArchivesPlugin
                  specific_material, dimensions, color_mode,
                  photographer, publisher, collection_name, local_classification,
                  iiif_manifest_url, rights_statement_url,
-                 ark_identifier, version_note)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 ark_identifier, version_note, published)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
@@ -1466,14 +1518,16 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 22 params: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
+        // A create without the field (API callers, older forms) publishes.
+        $published = $values['published'] ?? 1;
+        // 23 params: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
         //            date_start(i) date_end(i) extent(s) scope(s) lang(s)
         //            spec_material(s) dim(s) color(s) photographer(s)
         //            publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
-        //            ark(s) version_note(s)
-        //            = 'isssssiissssssssssssss' (22 chars)
+        //            ark(s) version_note(s) published(i)
+        //            = 'isssssiissssssssssssssi' (23 chars)
         $stmt->bind_param(
-            'isssssiissssssssssssss',
+            'isssssiissssssssssssssi',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -1495,7 +1549,8 @@ class ArchivesPlugin
             $p['iiif_manifest_url'],
             $p['rights_statement_url'],
             $p['ark_identifier'],
-            $p['version_note']
+            $p['version_note'],
+            $published
         );
 
         // mysqli runs in exception mode (PHP 8.1+ default), so execute() THROWS
@@ -1570,6 +1625,12 @@ class ArchivesPlugin
             'rights_statement_url' => $str('rights_statement_url'),
             'ark_identifier'       => $str('ark_identifier'),
             'version_note'         => $str('version_note'),
+            // The form posts a hidden 0 before the checkbox, so an unchecked
+            // box arrives as '0'. Absent (API callers, older forms) → null:
+            // the create path publishes, the update path keeps the stored value.
+            'published'            => array_key_exists('published', $body)
+                ? ((string) (is_array($body['published']) ? '' : $body['published']) === '1' ? 1 : 0)
+                : null,
         ];
     }
 
@@ -1704,9 +1765,9 @@ class ArchivesPlugin
         // plain PHP loop is fine (capped at 100 hops to harden against
         // pathological data).
         if ($values['parent_id'] === $id) {
-            $errors['parent_id'] = 'An archival unit cannot be its own parent.';
+            $errors['parent_id'] = __("Un'unità archivistica non può essere padre di se stessa.");
         } elseif ($values['parent_id'] !== null && $this->parentWouldCreateCycle($id, (int) $values['parent_id'])) {
-            $errors['parent_id'] = 'An archival unit cannot be moved under one of its own descendants.';
+            $errors['parent_id'] = __("Un'unità archivistica non può essere spostata sotto uno dei propri discendenti.");
         }
 
         if (!empty($errors)) {
@@ -1721,7 +1782,7 @@ class ArchivesPlugin
                 specific_material = ?, dimensions = ?, color_mode = ?,
                 photographer = ?, publisher = ?, collection_name = ?, local_classification = ?,
                 iiif_manifest_url = ?, rights_statement_url = ?,
-                ark_identifier = ?, version_note = ?
+                ark_identifier = ?, version_note = ?, published = ?
              WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
@@ -1731,15 +1792,17 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 23 params: 22 SET-columns + id(i). Type string:
+        // An update without the field keeps the stored visibility.
+        $published = $values['published'] ?? (int) ($existing['published'] ?? 1);
+        // 24 params: 23 SET-columns + id(i). Type string:
         //   parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
         //   date_start(i) date_end(i) extent(s) scope(s) lang(s)
         //   spec_material(s) dim(s) color(s) photographer(s)
         //   publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
-        //   ark(s) version_note(s) id(i)
-        //   = 'isssssiissssssssssssssi' (23 chars)
+        //   ark(s) version_note(s) published(i) id(i)
+        //   = 'isssssiissssssssssssssii' (24 chars)
         $stmt->bind_param(
-            'isssssiissssssssssssssi',
+            'isssssiissssssssssssssii',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -1762,6 +1825,7 @@ class ArchivesPlugin
             $p['rights_statement_url'],
             $p['ark_identifier'],
             $p['version_note'],
+            $published,
             $id
         );
 
@@ -2945,7 +3009,7 @@ class ArchivesPlugin
      *
      * @return list<array<string, mixed>>
      */
-    private function fetchArchivalUnitsForAuthority(int $authorityId): array
+    private function fetchArchivalUnitsForAuthority(int $authorityId, bool $publishedOnly = false): array
     {
         $rows = [];
         // adamsreview F002: formal_title is the fallback preferTitle() reads
@@ -2963,7 +3027,8 @@ class ArchivesPlugin
         $stmt = $this->db->prepare(
             'SELECT au.id, au.reference_code, au.level, au.constructed_title, au.formal_title, aua.role
                FROM archival_unit_authority aua
-               JOIN archival_units au ON au.id = aua.archival_unit_id AND au.deleted_at IS NULL
+               JOIN archival_units au ON au.id = aua.archival_unit_id AND au.deleted_at IS NULL'
+            . ($publishedOnly ? ' AND au.published = 1' : '') . '
               WHERE aua.authority_id = ?
               ORDER BY FIELD(au.level,\'fonds\',\'series\',\'file\',\'item\'), au.reference_code'
         );
@@ -3049,7 +3114,7 @@ class ArchivesPlugin
         }
         $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
         $types = str_repeat('i', count($unitIds));
-        $sql = 'SELECT aua.archival_unit_id, ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, aua.role
+        $sql = 'SELECT aua.archival_unit_id, ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, ar.history, aua.role
                 FROM archival_unit_authority aua
                 JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
                 WHERE aua.archival_unit_id IN (' . $placeholders . ')
@@ -3156,7 +3221,8 @@ class ArchivesPlugin
         // leaves out its own condition, so its counts say what a click on
         // it would return.
         $buildWhere = function (bool $withLevel, bool $withDates, bool $rootOnly) use ($q, $level, $dateFrom, $dateTo): array {
-            $parts = ['deleted_at IS NULL'];
+            // Public listing: unpublished units stay admin-only.
+            $parts = ['deleted_at IS NULL', 'published = 1'];
             $types = '';
             $values = [];
             if ($rootOnly) {
@@ -3279,9 +3345,9 @@ class ArchivesPlugin
         int $id,
         string $slugFromUrl = ''
     ): ResponseInterface {
-        $row = $this->findById($id);
+        $row = $this->findPublishedById($id);
         if ($row === null) {
-            return $this->renderNotFound($response, $id);
+            return $this->renderPublicNotFound($response);
         }
 
         $expectedSlug = slugify_text((string) ($row['constructed_title'] ?? ''));
@@ -3295,7 +3361,7 @@ class ArchivesPlugin
         $stmt = $this->db->prepare(
             "SELECT id, reference_code, level, constructed_title, date_start, date_end
                FROM archival_units
-              WHERE parent_id = ? AND deleted_at IS NULL
+              WHERE parent_id = ? AND deleted_at IS NULL AND published = 1
               ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC"
         );
         if ($stmt !== false) {
@@ -3332,12 +3398,13 @@ class ArchivesPlugin
             }
             $stmt->close();
         }
-        // Breadcrumb trail (parent chain up to root).
+        // Breadcrumb trail (parent chain up to root). It stops at the first
+        // unpublished ancestor: its page would answer 404.
         $breadcrumb = [];
         $current = $row['parent_id'] !== null ? (int) $row['parent_id'] : 0;
         $safetyCap = 20;
         while ($current > 0 && $safetyCap-- > 0) {
-            $parent = $this->findById($current);
+            $parent = $this->findPublishedById($current);
             if ($parent === null) {
                 break;
             }
@@ -3525,7 +3592,12 @@ class ArchivesPlugin
         $xw->startElementNs('zr', 'schema', null);
         $xw->writeAttribute('identifier', 'info:srw/schema/1/marcxml-v1.1');
         $xw->writeAttribute('name', 'marcxml');
-        $xw->writeElementNs('zr', 'title', null, 'MARC21 Slim XML (ABA crosswalk)');
+        $xw->writeElementNs('zr', 'title', null, 'MARC21 Slim XML');
+        $xw->endElement();
+        $xw->startElementNs('zr', 'schema', null);
+        $xw->writeAttribute('identifier', self::SRU_DANMARC2_SCHEMA);
+        $xw->writeAttribute('name', 'danmarc2');
+        $xw->writeElementNs('zr', 'title', null, 'danMARC2 / ABA archive format (MARC Slim envelope)');
         $xw->endElement();
         $xw->endElement();
         $xw->endElement();
@@ -3546,6 +3618,15 @@ class ArchivesPlugin
         if ($cqlQuery === '') {
             return $this->sruDiagnostic($version, 7, 'mandatory parameter not supplied: query');
         }
+        // recordSchema: MARC21 by default; the danMARC2 / ABA dialect on request.
+        $requestedSchema = trim((string) ($params['recordSchema'] ?? ''));
+        if ($requestedSchema === '' || in_array($requestedSchema, ['marcxml', 'info:srw/schema/1/marcxml-v1.1', 'marc21'], true)) {
+            $dialect = 'marc21';
+        } elseif (in_array($requestedSchema, ['danmarc2', self::SRU_DANMARC2_SCHEMA], true)) {
+            $dialect = 'danmarc2';
+        } else {
+            return $this->sruDiagnostic($version, 66, 'Unknown schema for retrieval: ' . $requestedSchema);
+        }
         $startRecord = max(1, (int) ($params['startRecord'] ?? 1));
         $maximumRecords = min(50, max(0, (int) ($params['maximumRecords'] ?? 10)));
 
@@ -3555,7 +3636,7 @@ class ArchivesPlugin
         }
 
         $total = 0;
-        $countSql = 'SELECT COUNT(*) FROM archival_units WHERE deleted_at IS NULL AND (' . $where['sql'] . ')';
+        $countSql = 'SELECT COUNT(*) FROM archival_units WHERE deleted_at IS NULL AND published = 1 AND (' . $where['sql'] . ')';
         $countStmt = $this->db->prepare($countSql);
         if ($countStmt !== false) {
             if ($where['types'] !== '') {
@@ -3573,7 +3654,7 @@ class ArchivesPlugin
         $rows = [];
         if ($maximumRecords > 0 && $total > 0) {
             $offset = $startRecord - 1;
-            $dataSql = 'SELECT * FROM archival_units WHERE deleted_at IS NULL AND (' . $where['sql'] . ')'
+            $dataSql = 'SELECT * FROM archival_units WHERE deleted_at IS NULL AND published = 1 AND (' . $where['sql'] . ')'
                 . " ORDER BY FIELD(level,'fonds','series','file','item'), reference_code"
                 . ' LIMIT ' . $maximumRecords . ' OFFSET ' . $offset;
             $dataStmt = $this->db->prepare($dataSql);
@@ -3606,11 +3687,16 @@ class ArchivesPlugin
             $position = $startRecord;
             foreach ($rows as $row) {
                 $xw->startElementNs('sru', 'record', null);
-                $xw->writeElementNs('sru', 'recordSchema', null, 'info:srw/schema/1/marcxml-v1.1');
+                $xw->writeElementNs('sru', 'recordSchema', null,
+                    $dialect === 'danmarc2' ? self::SRU_DANMARC2_SCHEMA : 'info:srw/schema/1/marcxml-v1.1');
                 $xw->writeElementNs('sru', 'recordPacking', null, 'xml');
                 $xw->startElementNs('sru', 'recordData', null);
                 $authorities = $sruAuthoritiesMap[(int) $row['id']] ?? [];
-                $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
+                if ($dialect === 'danmarc2') {
+                    $this->writeArchivalUnitDanmarcRecord($xw, $row, $authorities, self::MARC21_NS);
+                } else {
+                    $this->writeArchivalUnitMarc21Record($xw, $row, $authorities, true);
+                }
                 $xw->endElement();
                 $xw->writeElementNs('sru', 'recordPosition', null, (string) $position);
                 $xw->endElement();
@@ -3751,13 +3837,18 @@ class ArchivesPlugin
             return $this->renderNotFound($response, $id);
         }
         $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $danmarc = $this->wantsDanmarc($request);
 
         $xw = new \XMLWriter();
         $xw->openMemory();
         $xw->setIndent(true);
         $xw->startDocument('1.0', 'UTF-8');
-        $xw->startElementNs(null, 'collection', 'http://www.loc.gov/MARC21/slim');
-        $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
+        $xw->startElementNs(null, 'collection', self::MARC21_NS);
+        if ($danmarc) {
+            $this->writeArchivalUnitDanmarcRecord($xw, $row, $authorities);
+        } else {
+            $this->writeArchivalUnitMarc21Record($xw, $row, $authorities);
+        }
         $xw->endElement();
         $xw->endDocument();
 
@@ -3847,19 +3938,34 @@ class ArchivesPlugin
         $unitIds = array_map(fn(array $r): int => (int) $r['id'], $rows);
         $authoritiesMap = $this->fetchAuthoritiesForUnits($unitIds);
 
+        $danmarc = $this->wantsDanmarc($request);
         $xw = new \XMLWriter();
         $xw->openMemory();
         $xw->setIndent(true);
         $xw->startDocument('1.0', 'UTF-8');
-        $xw->startElementNs(null, 'collection', 'http://www.loc.gov/MARC21/slim');
+        $xw->startElementNs(null, 'collection', self::MARC21_NS);
         foreach ($rows as $row) {
             $auth = $authoritiesMap[(int) $row['id']] ?? [];
-            $this->writeArchivalUnitMarcRecord($xw, $row, $auth);
+            if ($danmarc) {
+                $this->writeArchivalUnitDanmarcRecord($xw, $row, $auth);
+            } else {
+                $this->writeArchivalUnitMarc21Record($xw, $row, $auth);
+            }
         }
         $xw->endElement();
         $xw->endDocument();
 
         return $this->xmlResponse($response, $xw->outputMemory(), 'archives_export.xml');
+    }
+
+    /**
+     * `?format=danmarc2` (alias `aba`) selects the danMARC2 / ABA dialect on
+     * the admin MARCXML export; anything else (or nothing) is MARC21.
+     */
+    private function wantsDanmarc(ServerRequestInterface $request): bool
+    {
+        $format = strtolower(trim((string) ($request->getQueryParams()['format'] ?? '')));
+        return in_array($format, ['danmarc2', 'danmarc', 'aba'], true);
     }
 
     /**
@@ -3944,6 +4050,9 @@ class ArchivesPlugin
         if (!$dryRun) {
             foreach ($result['parsed'] as $record) {
                 $upsert = $this->upsertImportedArchivalUnit($record);
+                if ($upsert['id'] > 0 && !empty($record['authority_links']) && is_array($record['authority_links'])) {
+                    $this->linkImportedAuthorities($upsert['id'], $record['authority_links']);
+                }
                 if ($upsert['action'] === 'inserted') {
                     $result['inserted'][] = ['id' => $upsert['id'], 'reference_code' => $record['reference_code'] ?? ''];
                 } elseif ($upsert['action'] === 'updated') {
@@ -3984,16 +4093,28 @@ class ArchivesPlugin
     }
 
     /**
-     * Emit one <record type="Bibliographic"> for an archival_unit, following
-     * the ABA crosswalk. Authorities render as 100/110/600/610/700/710
-     * based on (type, role).
+     * Emit one <record type="Bibliographic"> for an archival_unit in the
+     * danMARC2 / ABA dialect (Arbejderbevægelsens Bibliotek og Arkiv): 001,
+     * 008 and 009 as datafields with subfields, no leader, the ABA-only tags
+     * 009/096/241/501/512/513/518/520/525/526/529. This is NOT MARC21 and is
+     * served only where danMARC2 is asked for (export.xml?format=danmarc2,
+     * SRU recordSchema=danmarc2, OAI metadataPrefix=danmarc2); every surface
+     * that claims MARC21 uses writeArchivalUnitMarc21Record().
+     * Authorities render as 100/110/600/610/700/710 based on (type, role).
      *
      * @param array<string, mixed> $row
      * @param list<array<string, mixed>> $authorities
+     * @param string|null $namespace null inherits the namespace in scope (a
+     *        MARC Slim `collection`); OAI/SRU envelopes pass the MARC Slim
+     *        namespace so the record is not taken for an OAI/SRU element.
      */
-    private function writeArchivalUnitMarcRecord(\XMLWriter $xw, array $row, array $authorities): void
+    private function writeArchivalUnitDanmarcRecord(\XMLWriter $xw, array $row, array $authorities, ?string $namespace = null): void
     {
-        $xw->startElement('record');
+        if ($namespace === null) {
+            $xw->startElement('record');
+        } else {
+            $xw->startElementNs(null, 'record', $namespace);
+        }
         $xw->writeAttribute('type', 'Bibliographic');
 
         // 009 — material designation. 'b' = bibliographic archival text,
@@ -4120,6 +4241,527 @@ class ArchivesPlugin
         }
 
         $xw->endElement();
+    }
+
+    /**
+     * MARC21 Slim namespace — every surface that claims MARC21 (admin
+     * export, OAI `marcxml`, SRU `marcxml`) emits records in it.
+     */
+    private const MARC21_NS = 'http://www.loc.gov/MARC21/slim';
+
+    /** SRU recordSchema identifier of the danMARC2 / ABA dialect. */
+    private const SRU_DANMARC2_SCHEMA = 'info:srw/schema/1/danmarc2';
+
+    /**
+     * ISAD(G) level → MARC21 351 $c hierarchical level label.
+     */
+    private const MARC21_LEVEL_LABELS = [
+        'fonds'  => 'Fonds',
+        'series' => 'Series',
+        'file'   => 'File',
+        'item'   => 'Item',
+    ];
+
+    /**
+     * specific_material → 655 genre/form term (English, source unspecified).
+     * Lets the importer restore the exact material, which Leader/06 only
+     * carries coarsely (photograph, poster and postcard are all 'k').
+     */
+    private const MARC21_MATERIAL_TERMS = [
+        'text'       => 'Textual records',
+        'photograph' => 'Photographs',
+        'poster'     => 'Posters',
+        'postcard'   => 'Postcards',
+        'drawing'    => 'Drawings',
+        'audio'      => 'Sound recordings',
+        'video'      => 'Video recordings',
+        'other'      => 'Other materials',
+        'map'        => 'Maps',
+        'picture'    => 'Pictures',
+        'object'     => 'Objects',
+        'film'       => 'Motion pictures',
+        'microform'  => 'Microforms',
+        'electronic' => 'Electronic records',
+        'mixed'      => 'Mixed materials',
+    ];
+
+    /**
+     * Emit one MARC21 bibliographic record (archival control) for an
+     * archival_unit, valid against schemas/MARC21slim.xsd.
+     *
+     * The record is always opened in the MARC21 namespace, so it is
+     * correctly qualified both inside a `<collection>` and inside an OAI-PMH
+     * `<metadata>` or SRU `<recordData>` envelope.
+     *
+     * Crosswalk (ISAD(G) / column → MARC21):
+     *   leader              06 type (p mixed for aggregates; t/k/i/g/f/r/m for
+     *                       items by specific_material), 07 c collection / d
+     *                       subunit, 08 a archival control, 09 a UTF-8
+     *   reference_code      001 · institution_code 003, 040 $a $c, 852 $a
+     *   updated_at          005 · registration_date/created_at 008/00-05
+     *   date_start/end      008/06-14, 245 $f · predominant_dates 245 $g
+     *   language_codes      008/35-37, 041 $a, 546 $a
+     *   ark_identifier      024 8_ $a
+     *   local_classification 090 $a
+     *   creator authorities 100 / 110 (+ 700 / 710 for further creators)
+     *   constructed_title   245 $a · formal_title 246 1_ $a
+     *   publisher           264 _1 $b
+     *   extent/color/dims   300 $a $b $c
+     *   arrangement/level   351 $b $c
+     *   date_gaps           500 $a
+     *   access_conditions   506 $a · scope_content 520 2_ $a
+     *   (citation)          524 $a
+     *   copies_location     530 $a · originals_location 535 1_ $a
+     *   reproduction_rules  540 $a, rights_statement_url 540 $u
+     *   acquisition_source  541 $a · related_units 544 $n
+     *   creator history     545 $a (0_ biographical / 1_ administrative)
+     *   finding_aids        555 0_ $a · archival_history 561 $a
+     *   registration_date + material_status + appraisal → 583
+     *   subject authorities 600 / 610 · linked activities 650 · places 651
+     *   specific_material   655 _4 $a
+     *   other authorities   700 / 710 with $e role · photographer 700 $e $4 pht
+     *   parent unit         773 0_ $t $w
+     *   collection_name/physical_location 852 $b $c
+     *   documents           856 4_ $u (public document route; published units only)
+     *
+     * @param array<string, mixed>       $row
+     * @param list<array<string, mixed>> $authorities
+     * @param bool $publicContext true on harvest surfaces (OAI/SRU): the
+     *        parent link is emitted only when the parent is published too.
+     */
+    private function writeArchivalUnitMarc21Record(
+        \XMLWriter $xw,
+        array $row,
+        array $authorities,
+        bool $publicContext = false
+    ): void {
+        $unitId      = (int) ($row['id'] ?? 0);
+        $level       = (string) ($row['level'] ?? 'item');
+        $spec        = (string) ($row['specific_material'] ?? 'text');
+        $institution = trim((string) ($row['institution_code'] ?? '')) ?: 'PINAKES';
+        $published   = (int) ($row['published'] ?? 1) === 1;
+
+        $xw->startElementNs(null, 'record', self::MARC21_NS);
+
+        // ── Leader ────────────────────────────────────────────────────────
+        $isAggregate = $level !== 'item';
+        $typeOfRecord = 'p';
+        if (!$isAggregate) {
+            $typeOfRecord = match ($spec) {
+                'text', 'microform'                              => 't',
+                'photograph', 'poster', 'postcard', 'drawing', 'picture' => 'k',
+                'audio'                                          => 'i',
+                'video', 'film'                                  => 'g',
+                'map'                                            => 'f',
+                'object'                                         => 'r',
+                'electronic'                                     => 'm',
+                default                                          => 'p',
+            };
+        }
+        $leader = '00000'            // 00-04 record length (computed by consumers)
+            . 'n'                    // 05 record status: new
+            . $typeOfRecord          // 06 type of record
+            . ($isAggregate ? 'c' : 'd') // 07 bibliographic level
+            . 'a'                    // 08 type of control: archival
+            . 'a'                    // 09 character coding: UCS/Unicode
+            . '22'                   // 10-11 indicator / subfield code count
+            . '00000'                // 12-16 base address of data
+            . ' '                    // 17 encoding level: full
+            . 'i'                    // 18 descriptive cataloguing form: ISBD
+            . ' '                    // 19 multipart resource record level
+            . '4500';                // 20-23 entry map
+        $xw->writeElement('leader', $leader);
+
+        // ── Control fields ────────────────────────────────────────────────
+        $this->writeMarc21Controlfield($xw, '001', (string) ($row['reference_code'] ?? ''));
+        $this->writeMarc21Controlfield($xw, '003', $institution);
+        $latest = $this->marc21Timestamp((string) ($row['updated_at'] ?? ''), 'YmdHis');
+        if ($latest !== null) {
+            $this->writeMarc21Controlfield($xw, '005', $latest . '.0');
+        }
+
+        $entered = $this->marc21Timestamp((string) ($row['registration_date'] ?? ''), 'ymd')
+            ?? $this->marc21Timestamp((string) ($row['created_at'] ?? ''), 'ymd')
+            ?? gmdate('ymd');
+        $date1 = $this->marc21Year($row['date_start'] ?? null);
+        $date2 = $this->marc21Year($row['date_end'] ?? null);
+        if ($date1 === null) {
+            // Dates unknown.
+            $dateType = 'n';
+            $date1 = 'uuuu';
+            $date2 = 'uuuu';
+        } elseif ($date2 === null || $date2 === $date1) {
+            // Single known date.
+            $dateType = 's';
+            $date2 = '    ';
+        } else {
+            // Inclusive dates of a collection / unit.
+            $dateType = 'i';
+        }
+        $languages = $this->marc21LanguageCodes((string) ($row['language_codes'] ?? ''));
+        $f008 = $entered                       // 00-05 date entered on file
+            . $dateType                        // 06 type of date
+            . $date1                           // 07-10 date 1
+            . $date2                           // 11-14 date 2
+            . 'xx '                            // 15-17 place: unknown
+            . str_repeat(' ', 17)              // 18-34 material specific (mixed materials: blank)
+            . ($languages[0] ?? 'und')         // 35-37 language
+            . '  ';                            // 38-39 modified record / cataloguing source
+        $this->writeMarc21Controlfield($xw, '008', $f008);
+
+        // ── Numbers and codes ────────────────────────────────────────────
+        if (!empty($row['ark_identifier'])) {
+            $this->writeMarc21Datafield($xw, '024', '8', ' ', [['a', (string) $row['ark_identifier']]]);
+        }
+        $this->writeMarc21Datafield($xw, '040', ' ', ' ', [['a', $institution], ['c', $institution]]);
+        if ($languages !== []) {
+            $this->writeMarc21Datafield($xw, '041', '0', ' ', array_map(
+                static fn(string $code): array => ['a', $code],
+                $languages
+            ));
+        }
+        if (!empty($row['local_classification'])) {
+            $this->writeMarc21Datafield($xw, '090', ' ', ' ', [['a', (string) $row['local_classification']]]);
+        }
+
+        // ── Main entry: the first creator (ISAD(G) 3.2.1) ────────────────
+        $creators = array_values(array_filter(
+            $authorities,
+            static fn(array $a): bool => (string) ($a['role'] ?? '') === 'creator'
+        ));
+        $mainCreator = $creators[0] ?? null;
+        if ($mainCreator !== null) {
+            $this->writeMarc21NameField($xw, '1', $mainCreator, null);
+        }
+
+        // ── Title and dates ──────────────────────────────────────────────
+        $dateText = '';
+        $rawStart = $row['date_start'] ?? null;
+        $rawEnd   = $row['date_end'] ?? null;
+        if ($rawStart !== null && $rawStart !== '') {
+            $dateText = (string) $rawStart;
+            if ($rawEnd !== null && $rawEnd !== '' && (string) $rawEnd !== (string) $rawStart) {
+                $dateText .= '-' . (string) $rawEnd;
+            }
+        }
+        $this->writeMarc21Datafield($xw, '245', $mainCreator !== null ? '1' : '0', '0', [
+            ['a', (string) ($row['constructed_title'] ?? '')],
+            ['f', $dateText],
+            ['g', (string) ($row['predominant_dates'] ?? '')],
+        ]);
+        if (!empty($row['formal_title'])) {
+            $this->writeMarc21Datafield($xw, '246', '1', ' ', [['a', (string) $row['formal_title']]]);
+        }
+        if (!empty($row['publisher'])) {
+            $this->writeMarc21Datafield($xw, '264', ' ', '1', [['b', (string) $row['publisher']]]);
+        }
+
+        // ── Physical description and arrangement ─────────────────────────
+        $colorText = ['bw' => 'black-and-white', 'color' => 'colour', 'mixed' => 'mixed'];
+        $this->writeMarc21Datafield($xw, '300', ' ', ' ', [
+            ['a', (string) ($row['extent'] ?? '')],
+            ['b', $colorText[(string) ($row['color_mode'] ?? '')] ?? ''],
+            ['c', (string) ($row['dimensions'] ?? '')],
+        ]);
+        $this->writeMarc21Datafield($xw, '351', ' ', ' ', [
+            ['b', (string) ($row['arrangement_system'] ?? '')],
+            ['c', self::MARC21_LEVEL_LABELS[$level] ?? ''],
+        ]);
+
+        // ── Notes ────────────────────────────────────────────────────────
+        $this->writeMarc21Datafield($xw, '500', ' ', ' ', [['a', (string) ($row['date_gaps'] ?? '')]]);
+        $this->writeMarc21Datafield($xw, '506', ' ', ' ', [['a', (string) ($row['access_conditions'] ?? '')]]);
+        $this->writeMarc21Datafield($xw, '520', '2', ' ', [['a', (string) ($row['scope_content'] ?? '')]]);
+        $citation = implode(', ', array_filter([
+            trim((string) ($row['constructed_title'] ?? '')),
+            trim((string) ($row['reference_code'] ?? '')),
+            $institution,
+        ], static fn(string $v): bool => $v !== ''));
+        $this->writeMarc21Datafield($xw, '524', ' ', ' ', [['a', $citation]]);
+        $this->writeMarc21Datafield($xw, '530', ' ', ' ', [['a', (string) ($row['copies_location'] ?? '')]]);
+        $this->writeMarc21Datafield($xw, '535', '1', ' ', [['a', (string) ($row['originals_location'] ?? '')]]);
+        $this->writeMarc21Datafield($xw, '540', ' ', ' ', [
+            ['a', (string) ($row['reproduction_rules'] ?? '')],
+            ['u', (string) ($row['rights_statement_url'] ?? '')],
+        ]);
+        $this->writeMarc21Datafield($xw, '541', ' ', ' ', [['a', (string) ($row['acquisition_source'] ?? '')]]);
+        $this->writeMarc21Datafield($xw, '544', ' ', ' ', [['n', (string) ($row['related_units'] ?? '')]]);
+        if ($mainCreator !== null && trim((string) ($mainCreator['history'] ?? '')) !== '') {
+            $this->writeMarc21Datafield(
+                $xw,
+                '545',
+                (string) ($mainCreator['type'] ?? '') === 'corporate' ? '1' : '0',
+                ' ',
+                [['a', trim((string) $mainCreator['history'])]]
+            );
+        }
+        if ($languages !== []) {
+            $names = array_map(static function (string $code): string {
+                if (class_exists(\Locale::class)) {
+                    $name = \Locale::getDisplayLanguage($code, 'en');
+                    if (is_string($name) && $name !== $code) {
+                        return $name;
+                    }
+                }
+                return $code;
+            }, $languages);
+            $this->writeMarc21Datafield($xw, '546', ' ', ' ', [['a', implode('; ', $names)]]);
+        }
+        $this->writeMarc21Datafield($xw, '555', '0', ' ', [['a', (string) ($row['finding_aids'] ?? '')]]);
+        $this->writeMarc21Datafield($xw, '561', ' ', ' ', [['a', (string) ($row['archival_history'] ?? '')]]);
+        $registration = trim((string) ($row['registration_date'] ?? ''));
+        $status = trim((string) ($row['material_status'] ?? ''));
+        if ($registration !== '' || ($status !== '' && $status !== 'unclassified')) {
+            $this->writeMarc21Datafield($xw, '583', ' ', ' ', [
+                ['a', 'processed'],
+                ['c', $registration],
+                ['l', $status],
+            ]);
+        }
+        if (!empty($row['appraisal'])) {
+            $this->writeMarc21Datafield($xw, '583', ' ', ' ', [
+                ['a', 'appraised'],
+                ['z', (string) $row['appraisal']],
+            ]);
+        }
+
+        // ── Subject access ───────────────────────────────────────────────
+        foreach ($authorities as $auth) {
+            if ((string) ($auth['role'] ?? '') === 'subject') {
+                $this->writeMarc21NameField($xw, '6', $auth, null);
+            }
+        }
+        if ($unitId > 0) {
+            $terms = $this->fetchMarc21SubjectTerms($unitId);
+            foreach ($terms['topics'] as $topic) {
+                $this->writeMarc21Datafield($xw, '650', ' ', '4', [['a', $topic]]);
+            }
+            foreach ($terms['places'] as $place) {
+                $this->writeMarc21Datafield($xw, '651', ' ', '4', [['a', $place]]);
+            }
+        }
+        if (isset(self::MARC21_MATERIAL_TERMS[$spec])) {
+            $this->writeMarc21Datafield($xw, '655', ' ', '4', [['a', self::MARC21_MATERIAL_TERMS[$spec]]]);
+        }
+
+        // ── Added entries ────────────────────────────────────────────────
+        foreach (array_slice($creators, 1) as $creator) {
+            $this->writeMarc21NameField($xw, '7', $creator, 'creator');
+        }
+        foreach ($authorities as $auth) {
+            $role = (string) ($auth['role'] ?? 'associated');
+            if ($role !== 'creator' && $role !== 'subject') {
+                $this->writeMarc21NameField($xw, '7', $auth, $role);
+            }
+        }
+        if (!empty($row['photographer'])) {
+            $this->writeMarc21Datafield($xw, '700', '1', ' ', [
+                ['a', (string) $row['photographer']],
+                ['e', 'photographer'],
+                ['4', 'pht'],
+            ]);
+        }
+
+        // ── Host item: the parent unit ───────────────────────────────────
+        $parentId = (int) ($row['parent_id'] ?? 0);
+        if ($parentId > 0) {
+            $parent = $publicContext ? $this->findPublishedById($parentId) : $this->findById($parentId);
+            if ($parent !== null) {
+                $parentInstitution = trim((string) ($parent['institution_code'] ?? '')) ?: 'PINAKES';
+                $this->writeMarc21Datafield($xw, '773', '0', ' ', [
+                    ['t', (string) ($parent['constructed_title'] ?? '')],
+                    ['w', '(' . $parentInstitution . ')' . (string) ($parent['reference_code'] ?? '')],
+                ]);
+            }
+        }
+
+        // ── Location and electronic access ───────────────────────────────
+        if (!empty($row['collection_name']) || !empty($row['physical_location'])) {
+            $this->writeMarc21Datafield($xw, '852', ' ', ' ', [
+                ['a', $institution],
+                ['b', (string) ($row['collection_name'] ?? '')],
+                ['c', (string) ($row['physical_location'] ?? '')],
+            ]);
+        }
+        // A link is only useful when the public document route will answer
+        // it: an unpublished unit's files 404 there.
+        if ($unitId > 0 && $published) {
+            foreach ($this->publicDocumentLinks($row) as $doc) {
+                $this->writeMarc21Datafield($xw, '856', '4', ' ', [
+                    ['u', absoluteUrl($doc['path'])],
+                    ['q', $doc['mime']],
+                    ['y', $doc['name']],
+                ]);
+            }
+        }
+
+        $xw->endElement(); // record
+    }
+
+    /**
+     * Emit a 1XX / 6XX / 7XX name field for an authority row. Personal names
+     * take ind1 1 (surname first), families 3, corporate bodies use the X10
+     * tag with ind1 2. Subject (6XX) fields carry ind2 4 (source unspecified).
+     *
+     * @param array<string, mixed> $auth
+     */
+    private function writeMarc21NameField(\XMLWriter $xw, string $block, array $auth, ?string $relator): void
+    {
+        $type = (string) ($auth['type'] ?? 'person');
+        $name = trim((string) ($auth['authorised_form'] ?? ''));
+        if ($name === '') {
+            return;
+        }
+        $isCorporate = $type === 'corporate';
+        $tag  = $block . ($isCorporate ? '10' : '00');
+        $ind1 = $isCorporate ? '2' : ($type === 'family' ? '3' : '1');
+        $ind2 = $block === '6' ? '4' : ' ';
+        $subfields = [['a', $name]];
+        // X00 $d = dates associated with a name; X10 $d is the date of a meeting.
+        if (!$isCorporate) {
+            $subfields[] = ['d', trim((string) ($auth['dates_of_existence'] ?? ''))];
+        }
+        $relatorCodes = ['creator' => 'cre', 'custodian' => 'own', 'recipient' => 'rcp', 'associated' => 'asn'];
+        if ($block === '1') {
+            $subfields[] = ['e', 'creator'];
+            $subfields[] = ['4', 'cre'];
+        } elseif ($relator !== null) {
+            $subfields[] = ['e', $relator];
+            if (isset($relatorCodes[$relator])) {
+                $subfields[] = ['4', $relatorCodes[$relator]];
+            }
+        }
+        $this->writeMarc21Datafield($xw, $tag, $ind1, $ind2, $subfields);
+    }
+
+    private function writeMarc21Controlfield(\XMLWriter $xw, string $tag, string $value): void
+    {
+        if ($value === '') {
+            return;
+        }
+        $xw->startElement('controlfield');
+        $xw->writeAttribute('tag', $tag);
+        $xw->text($value);
+        $xw->endElement();
+    }
+
+    /**
+     * Write a MARC21 datafield with explicit indicators. Subfields are
+     * ordered [code, value] pairs so a code may repeat (041 $a $a); empty
+     * values are dropped and a field left without subfields is skipped.
+     *
+     * @param list<array{0:string, 1:string}> $subfields
+     */
+    private function writeMarc21Datafield(\XMLWriter $xw, string $tag, string $ind1, string $ind2, array $subfields): void
+    {
+        $filtered = array_values(array_filter(
+            $subfields,
+            static fn(array $sf): bool => trim($sf[1]) !== ''
+        ));
+        if ($filtered === []) {
+            return;
+        }
+        $xw->startElement('datafield');
+        $xw->writeAttribute('tag', $tag);
+        $xw->writeAttribute('ind1', $ind1);
+        $xw->writeAttribute('ind2', $ind2);
+        foreach ($filtered as [$code, $value]) {
+            $xw->startElement('subfield');
+            $xw->writeAttribute('code', $code);
+            $xw->text(trim($value));
+            $xw->endElement();
+        }
+        $xw->endElement();
+    }
+
+    /** A year as the 4-digit 008 date (0001-9999), or null when out of range. */
+    private function marc21Year(mixed $year): ?string
+    {
+        if ($year === null || $year === '' || !is_numeric($year)) {
+            return null;
+        }
+        $y = (int) $year;
+        return ($y >= 1 && $y <= 9999) ? str_pad((string) $y, 4, '0', STR_PAD_LEFT) : null;
+    }
+
+    /** Format a DB date/datetime for a MARC control field, or null. */
+    private function marc21Timestamp(string $value, string $format): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || str_starts_with($value, '0000')) {
+            return null;
+        }
+        try {
+            return (new \DateTimeImmutable($value))->format($format);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * ISO 639-2 codes from the stored language list ("ita;eng", "ita, eng").
+     * Anything that is not a three-letter code is left out.
+     *
+     * @return list<string>
+     */
+    private function marc21LanguageCodes(string $codes): array
+    {
+        $out = [];
+        foreach (preg_split('/[,;\s]+/', strtolower($codes)) ?: [] as $code) {
+            if (preg_match('/^[a-z]{3}$/', $code) === 1 && !in_array($code, $out, true)) {
+                $out[] = $code;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Names of the activities (650) and places (651) linked to a unit.
+     * Degrades to empty lists on installs without the RiC-CM tables.
+     *
+     * @return array{topics: list<string>, places: list<string>}
+     */
+    private function fetchMarc21SubjectTerms(int $unitId): array
+    {
+        $terms = ['topics' => [], 'places' => []];
+        try {
+            foreach ($this->fetchActivitiesForUnit($unitId) as $activity) {
+                $title = trim((string) ($activity['title'] ?? ''));
+                if ($title !== '' && !in_array($title, $terms['topics'], true)) {
+                    $terms['topics'][] = $title;
+                }
+            }
+        } catch (\Throwable) {
+            // pre-Phase-3 install — no activities
+        }
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT DISTINCT p.name
+                   FROM archive_relations r
+                   JOIN archive_places p
+                     ON p.deleted_at IS NULL
+                    AND ((r.target_type = 'archive_place' AND p.id = r.target_id
+                          AND r.source_type = 'archival_unit' AND r.source_id = ?)
+                      OR (r.source_type = 'archive_place' AND p.id = r.source_id
+                          AND r.target_type = 'archival_unit' AND r.target_id = ?))
+                  ORDER BY p.name"
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('ii', $unitId, $unitId);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                while ($res instanceof \mysqli_result && ($r = $res->fetch_assoc())) {
+                    $name = trim((string) $r['name']);
+                    if ($name !== '') {
+                        $terms['places'][] = $name;
+                    }
+                }
+                $stmt->close();
+            }
+        } catch (\Throwable) {
+            // pre-Phase-4 install — no places
+        }
+        return $terms;
     }
 
     /**
@@ -4305,7 +4947,19 @@ class ArchivesPlugin
                 continue;
             }
 
-            // Default: bibliographic archival_unit.
+            // MARC21 (leader / control fields present) — the format the
+            // export writes by default. The danMARC2 / ABA dialect carries
+            // 001 and 008 as datafields and has no leader.
+            $control = $this->collectMarcControlFields($rec);
+            if (isset($control['leader']) || isset($control['001'])) {
+                $marc21 = $this->buildArchivalUnitRowFromMarc21($control, $fields, $this->collectMarc21Datafields($rec));
+                if ($marc21 !== null) {
+                    $records[] = $marc21;
+                }
+                continue;
+            }
+
+            // Default: bibliographic archival_unit (danMARC2 / ABA dialect).
             $level = $this->decodeLevel($this->marcSub($fields, '008', 'c'));
             $refCode = $this->marcSub($fields, '001', 'a');
             $constructed = $this->marcSub($fields, '245', 'a');
@@ -4512,6 +5166,251 @@ class ArchivesPlugin
         return $out;
     }
 
+    /**
+     * The leader and control fields (001-009) of a <record>, keyed by tag
+     * ('leader' for the leader). Namespace-agnostic like collectMarcFields().
+     *
+     * @return array<string, string>
+     */
+    private function collectMarcControlFields(\SimpleXMLElement $record): array
+    {
+        $out = [];
+        $children = $record->children(self::MARC21_NS);
+        if (count($children) === 0) {
+            $children = $record->children();
+        }
+        foreach ($children as $field) {
+            $name = $field->getName();
+            if ($name === 'leader') {
+                $out['leader'] = (string) $field;
+            } elseif ($name === 'controlfield') {
+                $attrs = $field->attributes();
+                $tag = $attrs !== null ? (string) ($attrs['tag'] ?? '') : '';
+                if ($tag !== '' && !isset($out[$tag])) {
+                    $out[$tag] = (string) $field;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Every datafield of a <record> in document order, with its first
+     * indicator and its subfields as ordered [code, value] pairs (repeated
+     * codes kept). collectMarcFields() keys subfields by code, which is
+     * enough for the danMARC2 dialect but loses 041 $a $a and indicators.
+     *
+     * @return list<array{tag:string, ind1:string, subfields:list<array{0:string,1:string}>}>
+     */
+    private function collectMarc21Datafields(\SimpleXMLElement $record): array
+    {
+        $out = [];
+        $children = $record->children(self::MARC21_NS);
+        if (count($children) === 0) {
+            $children = $record->children();
+        }
+        foreach ($children as $field) {
+            if ($field->getName() !== 'datafield') {
+                continue;
+            }
+            $attrs = $field->attributes();
+            $tag = $attrs !== null ? (string) ($attrs['tag'] ?? '') : '';
+            if ($tag === '') {
+                continue;
+            }
+            $subfields = [];
+            $subChildren = $field->children(self::MARC21_NS);
+            if (count($subChildren) === 0) {
+                $subChildren = $field->children();
+            }
+            foreach ($subChildren as $sub) {
+                if ($sub->getName() !== 'subfield') {
+                    continue;
+                }
+                $sAttrs = $sub->attributes();
+                $code = $sAttrs !== null ? (string) ($sAttrs['code'] ?? '') : '';
+                if ($code !== '') {
+                    $subfields[] = [$code, trim((string) $sub)];
+                }
+            }
+            $out[] = [
+                'tag'       => $tag,
+                'ind1'      => $attrs !== null ? (string) ($attrs['ind1'] ?? ' ') : ' ',
+                'subfields' => $subfields,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Build an archival_unit payload from a MARC21 record — the reverse of
+     * writeArchivalUnitMarc21Record(), so an export re-imports with its
+     * reference code, title, dates, level, extent, scope, notes and linked
+     * authorities (creator 1XX, subjects 6XX, other names 7XX).
+     * Returns null when reference code, title or level cannot be found.
+     *
+     * @param array<string, string>                    $control
+     * @param array<string, list<array<string, string>>> $fields   first value per subfield code
+     * @param list<array{tag:string, ind1:string, subfields:list<array{0:string,1:string}>}> $datafields
+     *        every datafield with its indicators and repeated subfields
+     * @return array<string, mixed>|null
+     */
+    private function buildArchivalUnitRowFromMarc21(array $control, array $fields, array $datafields): ?array
+    {
+        $refCode = trim($control['001'] ?? '');
+        $constructed = $this->marcSub($fields, '245', 'a');
+        $constructed = $constructed !== null ? rtrim($constructed, " /:;,.") : null;
+
+        // Level: 351 $c, else Leader/07 (c collection → fonds, d subunit → item).
+        $levelText = strtolower(trim((string) ($this->marcSub($fields, '351', 'c') ?? '')));
+        $level = match (true) {
+            in_array($levelText, ['fonds', 'collection', 'record group', 'subfonds', 'sub-fonds'], true) => 'fonds',
+            in_array($levelText, ['series', 'subseries', 'sub-series'], true)                          => 'series',
+            in_array($levelText, ['file', 'subfile', 'sub-file'], true)                                => 'file',
+            $levelText === 'item'                                                                     => 'item',
+            default                                                                                   => null,
+        };
+        $leader = $control['leader'] ?? '';
+        if ($level === null && strlen($leader) >= 8) {
+            $level = match ($leader[7]) {
+                'c'     => 'fonds',
+                'd'     => 'item',
+                default => null,
+            };
+        }
+        if ($refCode === '' || $constructed === null || $constructed === '' || $level === null) {
+            return null;
+        }
+
+        // Dates: 008/07-10 and 11-14, else the 245 $f text ("1900-1950").
+        $dateStart = null;
+        $dateEnd = null;
+        $f008 = $control['008'] ?? '';
+        if (strlen($f008) >= 15) {
+            $d1 = substr($f008, 7, 4);
+            $d2 = substr($f008, 11, 4);
+            $dateStart = ctype_digit($d1) ? (int) $d1 : null;
+            $dateEnd = ctype_digit($d2) ? (int) $d2 : null;
+        }
+        if ($dateStart === null) {
+            $f = (string) ($this->marcSub($fields, '245', 'f') ?? '');
+            if (preg_match('/^\s*(-?\d{1,5})(?:\s*-\s*(-?\d{1,5}))?/', $f, $m) === 1) {
+                $dateStart = (int) $m[1];
+                // The optional trailing group is absent (not '') when unmatched.
+                $dateEnd = isset($m[2]) ? (int) $m[2] : null;
+            }
+        }
+        if ($dateStart !== null && $dateEnd === $dateStart) {
+            $dateEnd = null;
+        }
+
+        // Language: every 041 $a (repeatable inside one field), else 008/35-37.
+        $languages = [];
+        foreach ($datafields as $df) {
+            if ($df['tag'] !== '041') {
+                continue;
+            }
+            foreach ($df['subfields'] as [$code, $value]) {
+                if ($code === 'a' && $value !== '' && !in_array($value, $languages, true)) {
+                    $languages[] = $value;
+                }
+            }
+        }
+        if ($languages === [] && strlen($f008) >= 38) {
+            $lang = trim(substr($f008, 35, 3));
+            if ($lang !== '' && $lang !== 'und' && $lang !== '|||') {
+                $languages[] = $lang;
+            }
+        }
+
+        $materialReverse = array_flip(self::MARC21_MATERIAL_TERMS);
+        $specific = 'text';
+        foreach ($this->marcSubAll($fields, '655', 'a') as $term) {
+            if (isset($materialReverse[$term])) {
+                $specific = $materialReverse[$term];
+                break;
+            }
+        }
+        $colorReverse = ['black-and-white' => 'bw', 'bw' => 'bw', 'colour' => 'color', 'color' => 'color', 'mixed' => 'mixed'];
+        $rawColor = strtolower(trim((string) ($this->marcSub($fields, '300', 'b') ?? '')));
+
+        // Names. 1XX = creator; 6XX = subject; 7XX carry their role in $e
+        // (the photographer 700 $4 pht maps back to the photographer column).
+        $links = [];
+        $photographer = null;
+        $roles = array_keys(self::AUTHORITY_ROLES);
+        foreach ($datafields as $df) {
+            $tag = $df['tag'];
+            if (!in_array($tag, ['100', '110', '600', '610', '700', '710'], true)) {
+                continue;
+            }
+            $sub = [];
+            $relatorCode = '';
+            foreach ($df['subfields'] as [$code, $value]) {
+                if ($code === '4') {
+                    // A digit code would become an int array key: keep it apart.
+                    $relatorCode = $relatorCode !== '' ? $relatorCode : $value;
+                    continue;
+                }
+                $sub[$code] ??= $value;
+            }
+            $name = trim((string) ($sub['a'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $relator = strtolower(trim((string) ($sub['e'] ?? '')));
+            if ($tag === '700' && ($relatorCode === 'pht' || $relator === 'photographer')) {
+                $photographer ??= $name;
+                continue;
+            }
+            $role = match ($tag[0]) {
+                '1'     => 'creator',
+                '6'     => 'subject',
+                default => in_array($relator, $roles, true) ? $relator : 'associated',
+            };
+            // X10 = corporate body; X00 with ind1 3 = family name.
+            $type = str_ends_with($tag, '10') ? 'corporate' : ($df['ind1'] === '3' ? 'family' : 'person');
+            $links[] = [
+                'type'               => $type,
+                'authorised_form'    => $name,
+                'dates_of_existence' => isset($sub['d']) && $sub['d'] !== '' ? $sub['d'] : null,
+                'role'               => $role,
+            ];
+        }
+
+        $institution = trim($control['003'] ?? '');
+        if ($institution === '') {
+            $institution = (string) ($this->marcSub($fields, '040', 'a') ?? 'PINAKES');
+        }
+
+        return [
+            'reference_code'       => $refCode,
+            'institution_code'     => $institution,
+            'level'                => $level,
+            'formal_title'         => $this->marcSub($fields, '246', 'a'),
+            'constructed_title'    => $constructed,
+            'date_start'           => $dateStart,
+            'date_end'             => $dateEnd,
+            'extent'               => $this->marcSub($fields, '300', 'a'),
+            'scope_content'        => $this->marcSub($fields, '520', 'a'),
+            'language_codes'       => $languages !== [] ? implode(',', array_unique($languages)) : null,
+            'archival_history'     => $this->marcSub($fields, '561', 'a'),
+            'acquisition_source'   => $this->marcSub($fields, '541', 'a'),
+            'access_conditions'    => $this->marcSub($fields, '506', 'a'),
+            'reproduction_rules'   => $this->marcSub($fields, '540', 'a'),
+            'related_units'        => $this->marcSub($fields, '544', 'n') ?? $this->marcSub($fields, '544', 'a'),
+            'finding_aids'         => $this->marcSub($fields, '555', 'a'),
+            'specific_material'    => $specific,
+            'dimensions'           => $this->marcSub($fields, '300', 'c'),
+            'color_mode'           => $colorReverse[$rawColor] ?? null,
+            'photographer'         => $photographer,
+            'publisher'            => $this->marcSub($fields, '264', 'b'),
+            'collection_name'      => $this->marcSub($fields, '852', 'b'),
+            'local_classification' => $this->marcSub($fields, '090', 'a'),
+            'authority_links'      => $links,
+        ];
+    }
+
     private function decodeLevel(?string $code): ?string
     {
         return match ($code) {
@@ -4655,6 +5554,49 @@ class ArchivesPlugin
         }
 
         return ['action' => $action, 'id' => $insertId];
+    }
+
+    /**
+     * Link the names of an imported MARC21 record (1XX creator, 6XX subject,
+     * 7XX other roles) to the unit, reusing an authority with the same type
+     * and authorised form or creating it. Idempotent: the link table's
+     * primary key (unit, authority, role) makes a re-import a no-op.
+     *
+     * @param list<array{type:string, authorised_form:string, dates_of_existence:?string, role:string}> $links
+     */
+    private function linkImportedAuthorities(int $unitId, array $links): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO archival_unit_authority (archival_unit_id, authority_id, role) VALUES (?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] import link prepare failed: ' . $this->db->error);
+            return;
+        }
+        foreach ($links as $link) {
+            $type = in_array($link['type'], ['person', 'corporate', 'family'], true) ? $link['type'] : 'person';
+            $name = trim($link['authorised_form']);
+            $role = isset(self::AUTHORITY_ROLES[$link['role']]) ? $link['role'] : 'associated';
+            if ($name === '') {
+                continue;
+            }
+            $authorityId = $this->findAuthorityByName($type, $name)
+                ?? $this->insertImportedAuthority([
+                    'type'               => $type,
+                    'authorised_form'    => $name,
+                    'dates_of_existence' => $link['dates_of_existence'],
+                ]);
+            if ($authorityId <= 0) {
+                continue;
+            }
+            try {
+                $stmt->bind_param('iis', $unitId, $authorityId, $role);
+                $stmt->execute();
+            } catch (\Throwable $e) {
+                SecureLogger::error('[Archives] import link failed: ' . $e->getMessage());
+            }
+        }
+        $stmt->close();
     }
 
     /**
@@ -5128,6 +6070,161 @@ class ArchivesPlugin
     }
 
     /**
+     * Like findById(), but only for a unit visitors may see: not deleted and
+     * published. Every public page, export and harvest surface goes through
+     * this (or an equivalent `published = 1` predicate).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findPublishedById(int $id): ?array
+    {
+        $row = $this->findById($id);
+        if ($row === null || (int) ($row['published'] ?? 1) !== 1) {
+            return null;
+        }
+        return $row;
+    }
+
+    /**
+     * Public URL path of one document of a unit. `$fileId` 0 addresses the
+     * legacy single-document columns (document_path/_mime/_filename).
+     */
+    public static function publicDocumentPath(int $unitId, int $fileId): string
+    {
+        return '/archives/' . $unitId . '/documents/' . $fileId;
+    }
+
+    /**
+     * Every document of a unit as served by the public document route:
+     * the multi-file table first, the legacy document_path as a fallback.
+     *
+     * @param array<string, mixed> $row
+     * @param list<array<string, mixed>>|null $unitFiles pre-fetched files
+     * @return list<array{file_id:int, path:string, mime:string, name:string, file_path:string}>
+     */
+    private function publicDocumentLinks(array $row, ?array $unitFiles = null): array
+    {
+        $unitId = (int) ($row['id'] ?? 0);
+        if ($unitId <= 0) {
+            return [];
+        }
+        $out = [];
+        foreach ($unitFiles ?? $this->fetchUnitFiles($unitId) as $uf) {
+            $filePath = (string) ($uf['file_path'] ?? '');
+            $out[] = [
+                'file_id'   => (int) $uf['id'],
+                'path'      => self::publicDocumentPath($unitId, (int) $uf['id']),
+                'mime'      => (string) ($uf['file_mime'] ?? ''),
+                'name'      => (string) (($uf['original_filename'] ?? '') !== '' ? $uf['original_filename'] : basename($filePath)),
+                'file_path' => $filePath,
+            ];
+        }
+        if ($out === [] && !empty($row['document_path'])) {
+            $filePath = (string) $row['document_path'];
+            $out[] = [
+                'file_id'   => 0,
+                'path'      => self::publicDocumentPath($unitId, 0),
+                'mime'      => (string) ($row['document_mime'] ?? ''),
+                'name'      => (string) (!empty($row['document_filename']) ? $row['document_filename'] : basename($filePath)),
+                'file_path' => $filePath,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * GET /archives/{id}/documents/{fileId} (and every localised archive
+     * base) — stream one document of a published unit. 404 unless the unit
+     * is published and not deleted and the file belongs to it. The files stay
+     * under public/uploads/archives/documents; this route is the link every
+     * public surface hands out, so unpublishing a unit withdraws its links.
+     */
+    public function publicDocumentAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id,
+        int $fileId
+    ): ResponseInterface {
+        $row = $this->findPublishedById($id);
+        if ($row === null) {
+            return $this->renderPublicNotFound($response);
+        }
+        $doc = null;
+        if ($fileId > 0) {
+            $stmt = $this->db->prepare(
+                'SELECT file_path, file_mime, original_filename
+                   FROM archival_unit_files
+                  WHERE id = ? AND unit_id = ?
+                  LIMIT 1'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('ii', $fileId, $id);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $doc = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+                $stmt->close();
+            }
+        } elseif (!empty($row['document_path'])) {
+            $doc = [
+                'file_path'         => (string) $row['document_path'],
+                'file_mime'         => (string) ($row['document_mime'] ?? ''),
+                'original_filename' => (string) ($row['document_filename'] ?? ''),
+            ];
+        }
+        if (!is_array($doc)) {
+            return $this->renderPublicNotFound($response);
+        }
+
+        $relative = (string) ($doc['file_path'] ?? '');
+        $prefix = '/uploads/archives/documents/';
+        if (!str_starts_with($relative, $prefix) || str_contains($relative, "\0") || str_contains($relative, '..')) {
+            return $this->renderPublicNotFound($response);
+        }
+        $baseDir = realpath(__DIR__ . '/../../../public/uploads/archives/documents');
+        $filePath = $baseDir === false ? false : realpath($baseDir . DIRECTORY_SEPARATOR . substr($relative, strlen($prefix)));
+        if ($filePath === false
+            || !str_starts_with($filePath, $baseDir . DIRECTORY_SEPARATOR)
+            || !is_file($filePath)) {
+            return $this->renderPublicNotFound($response);
+        }
+        $stream = fopen($filePath, 'rb');
+        if ($stream === false) {
+            return $this->renderPublicNotFound($response);
+        }
+
+        $mime = strtolower(trim((string) ($doc['file_mime'] ?? '')));
+        if (preg_match('#^[a-z0-9][a-z0-9!\#$&^_.+-]*/[a-z0-9][a-z0-9!\#$&^_.+-]*$#', $mime) !== 1) {
+            $mime = 'application/octet-stream';
+        }
+        $original = trim(str_replace(["\r", "\n", '"', '\\', '/'], ' ', (string) ($doc['original_filename'] ?? '')));
+        if ($original === '') {
+            $original = basename($filePath);
+        }
+        $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', $original) ?: 'document';
+        $size = filesize($filePath);
+        // Only formats a browser displays without running page script are
+        // shown inline; anything else (HTML, SVG, XML…) is served as a plain
+        // download so a stored document can never execute on the site origin.
+        $inline = preg_match('#^(application/pdf|image/(jpeg|png|gif|webp|tiff)|audio/|video/|text/plain$)#', $mime) === 1;
+        if (!$inline) {
+            $mime = 'application/octet-stream';
+        }
+
+        $response = $response
+            ->withBody(new \Slim\Psr7\Stream($stream))
+            ->withHeader('Content-Type', $mime)
+            ->withHeader('Content-Disposition', ($inline ? 'inline' : 'attachment') . '; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($original))
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            // Never cacheable: publishing is a revocable toggle, and a shared
+            // cache would keep serving a withdrawn document.
+            ->withHeader('Cache-Control', 'private, no-store');
+        if ($size !== false) {
+            $response = $response->withHeader('Content-Length', (string) $size);
+        }
+        return $response;
+    }
+
+    /**
      * Check if setting $proposedParentId as the parent of $childId would
      * introduce a cycle. Walks up from the proposed parent via parent_id
      * and returns true if $childId appears in the chain. Capped at 100
@@ -5178,14 +6275,46 @@ class ArchivesPlugin
     }
 
     /**
-     * Render a 404 for a missing/deleted archival_unit id.
+     * Render a 404 for a missing/deleted record on an ADMIN route.
      */
     private function renderNotFound(ResponseInterface $response, int $id): ResponseInterface
     {
         $response->getBody()->write(
-            '<h1>404 — Archival unit ' . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . ' not found</h1>'
+            '<h1>404 — ' . htmlspecialchars(sprintf(__('Record archivistico %d non trovato'), $id), ENT_QUOTES, 'UTF-8') . '</h1>'
         );
-        return $response->withStatus(404);
+        return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * 404 for the public archive pages, rendered by the site's own 404 view
+     * (app/Views/errors/404.php wraps itself in the frontend layout) with a
+     * localised title and message and the archive's way back.
+     */
+    private function renderPublicNotFound(ResponseInterface $response): ResponseInterface
+    {
+        $errorPage = __DIR__ . '/../../../app/Views/errors/404.php';
+        if (!is_file($errorPage)) {
+            $response->getBody()->write(htmlspecialchars(__('Unità archivistica non trovata'), ENT_QUOTES, 'UTF-8'));
+            return $response->withStatus(404)->withHeader('Content-Type', 'text/plain; charset=UTF-8');
+        }
+        $archivesRoute = \App\Support\RouteTranslator::route('archives') ?: '/archive';
+        $errorTitle = __('Unità archivistica non trovata');
+        $errorDescription = __("L'unità archivistica che cerchi non esiste o non è consultabile pubblicamente.");
+        $errorLinks = [
+            ['href' => url($archivesRoute), 'icon' => 'fa-archive', 'label' => __('Archivio')],
+            ['href' => route_path('catalog'), 'icon' => 'fa-book', 'label' => __('Catalogo')],
+        ];
+        $seoRobots = 'noindex,follow';
+        // The layout's <title> reads $seoTitle, not the $pageTitle 404.php sets.
+        $seoTitle = $errorTitle . ' — ' . __('Archivio');
+        // Same layout inputs renderPublic() supplies.
+        $archivesAvailable = true;
+        $db = $this->db;
+        ob_start();
+        include $errorPage;
+        $html = (string) ob_get_clean();
+        $response->getBody()->write($html);
+        return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 
     /**
@@ -5202,27 +6331,27 @@ class ArchivesPlugin
 
         $ref = (string) ($values['reference_code'] ?? '');
         if ($ref === '') {
-            $errors['reference_code'] = 'Reference code is required (ISAD(G) 3.1.1).';
+            $errors['reference_code'] = __('Il codice di riferimento è obbligatorio (ISAD(G) 3.1.1).');
         } elseif (strlen($ref) > 64) {
-            $errors['reference_code'] = 'Reference code must be 64 characters or fewer.';
+            $errors['reference_code'] = __('Il codice di riferimento non può superare i 64 caratteri.');
         }
 
         $level = (string) ($values['level'] ?? '');
         if (!array_key_exists($level, self::LEVELS)) {
-            $errors['level'] = 'Level must be one of fonds/series/file/item (ISAD(G) 3.1.4).';
+            $errors['level'] = __('Il livello deve essere fondo, serie, fascicolo o unità (ISAD(G) 3.1.4).');
         }
 
         $title = (string) ($values['constructed_title'] ?? '');
         if ($title === '') {
-            $errors['constructed_title'] = 'Title is required (ISAD(G) 3.1.2).';
+            $errors['constructed_title'] = __('Il titolo è obbligatorio (ISAD(G) 3.1.2).');
         } elseif (strlen($title) > 500) {
-            $errors['constructed_title'] = 'Title must be 500 characters or fewer.';
+            $errors['constructed_title'] = __('Il titolo non può superare i 500 caratteri.');
         }
 
         foreach (['date_start', 'date_end'] as $dateField) {
             $v = $values[$dateField] ?? null;
             if ($v !== null && ($v < -32768 || $v > 32767)) {
-                $errors[$dateField] = 'Year out of range (SMALLINT -32768..32767).';
+                $errors[$dateField] = __('Anno fuori intervallo (da -32768 a 32767).');
             }
         }
 
@@ -5230,7 +6359,7 @@ class ArchivesPlugin
             && is_int($values['date_start']) && is_int($values['date_end'])
             && $values['date_end'] < $values['date_start']
         ) {
-            $errors['date_end'] = 'End year cannot precede start year.';
+            $errors['date_end'] = __("L'anno di fine non può precedere l'anno di inizio.");
         }
 
         if (!empty($values['parent_id']) && is_int($values['parent_id'])) {
@@ -5243,7 +6372,7 @@ class ArchivesPlugin
                 $check->execute();
                 $res = $check->get_result();
                 if ($res === false || $res->num_rows === 0) {
-                    $errors['parent_id'] = 'Parent archival unit not found or deleted.';
+                    $errors['parent_id'] = __("L'unità archivistica padre non esiste o è stata eliminata.");
                 }
                 $check->close();
             }
@@ -5255,9 +6384,9 @@ class ArchivesPlugin
         ] as $field => $maxLen) {
             $value = trim((string) ($values[$field] ?? ''));
             if ($value !== '' && filter_var($value, FILTER_VALIDATE_URL) === false) {
-                $errors[$field] = 'Inserire un URL assoluto valido.';
+                $errors[$field] = __('Inserire un URL assoluto valido.');
             } elseif (strlen($value) > $maxLen) {
-                $errors[$field] = 'Valore troppo lungo (max ' . $maxLen . ' caratteri).';
+                $errors[$field] = sprintf(__('Valore troppo lungo (max %d caratteri).'), $maxLen);
             }
         }
 
@@ -5267,9 +6396,9 @@ class ArchivesPlugin
             $values['ark_identifier'] = $ark;
         }
         if (strlen($ark) > 255) {
-            $errors['ark_identifier'] = 'ARK identifier troppo lungo (max 255 caratteri).';
+            $errors['ark_identifier'] = __('Identificatore ARK troppo lungo (max 255 caratteri).');
         } elseif ($ark !== '' && preg_match('#^ark:/#i', $ark) !== 1) {
-            $errors['ark_identifier'] = "Inserire un identificatore ARK valido nel formato ark:/... (es. ark:/12345/abc123).";
+            $errors['ark_identifier'] = __('Inserire un identificatore ARK valido nel formato ark:/... (es. ark:/12345/abc123).');
         } elseif ($ark !== '') {
             $sql = 'SELECT id FROM archival_units WHERE ark_identifier = ?';
             if ($excludeId !== null) {
@@ -5285,14 +6414,14 @@ class ArchivesPlugin
                 $arkCheck->execute();
                 $res = $arkCheck->get_result();
                 if ($res !== false && $res->num_rows > 0) {
-                    $errors['ark_identifier'] = 'ARK identifier già utilizzato da un altro record.';
+                    $errors['ark_identifier'] = __('Identificatore ARK già utilizzato da un altro record.');
                 }
                 $arkCheck->close();
             }
         }
 
         if (strlen(trim((string) ($values['version_note'] ?? ''))) > 500) {
-            $errors['version_note'] = 'Nota di versione troppo lunga (max 500 caratteri).';
+            $errors['version_note'] = __('Nota di versione troppo lunga (max 500 caratteri).');
         }
 
         return $errors;
@@ -5381,10 +6510,12 @@ class ArchivesPlugin
     public function iiifManifestAction(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        int $id
+        int $id,
+        bool $publicOnly = false
     ): ResponseInterface {
         $stmt = $this->db->prepare(
             'SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+            . ($publicOnly ? ' AND published = 1' : '')
         );
         if ($stmt === false) {
             $response->getBody()->write(json_encode(['error' => 'db_error'], JSON_THROW_ON_ERROR));
@@ -5505,8 +6636,12 @@ class ArchivesPlugin
             $manifest['behavior'] = [$behavior];
         }
 
-        // partOf: link to parent Collection (if unit has a parent)
-        if (!empty($row['parent_id'])) {
+        // partOf: link to parent Collection (if unit has a parent). On the
+        // public route an unpublished parent is not advertised: the manifest
+        // then hangs off the root collection.
+        $parentVisible = !empty($row['parent_id'])
+            && (!$publicOnly || $this->findPublishedById((int) $row['parent_id']) !== null);
+        if ($parentVisible) {
             $manifest['partOf'] = [[
                 'id'   => $base . '/archives/' . (int) $row['parent_id'] . '/collection.json',
                 'type' => 'Collection',
@@ -5600,13 +6735,19 @@ class ArchivesPlugin
         $unitFiles   = $this->fetchUnitFiles($id);
         $canvasIndex = count($items) + 1;
         $rendering   = [];
+        // A published unit hands out the public document route (which 404s
+        // as soon as the unit is unpublished); an unpublished unit's manifest
+        // is only reachable from the admin, which keeps the direct file path.
+        $unitPublished = (int) ($row['published'] ?? 1) === 1;
         foreach ($unitFiles as $uf) {
             $fileMime = (string) $uf['file_mime'];
             $fsPath   = __DIR__ . '/../../../public' . (string) $uf['file_path'];
             if (!is_file($fsPath)) {
                 continue;
             }
-            $fileUrl = $base . '/' . ltrim((string) $uf['file_path'], '/');
+            $fileUrl = $unitPublished
+                ? $base . self::publicDocumentPath($id, (int) $uf['id'])
+                : $base . '/' . ltrim((string) $uf['file_path'], '/');
             $label   = (string) ($uf['original_filename'] ?: basename((string) $uf['file_path']));
             if (str_starts_with($fileMime, 'image/')) {
                 $imgSize      = @getimagesize($fsPath);
@@ -5675,7 +6816,7 @@ class ArchivesPlugin
         // structures: nested IIIF Range hierarchy (§1.1)
         // Each ancestor becomes an outer Range wrapping the next;
         // the innermost Range holds the canvas items directly.
-        $ancestors = $this->iiifBuildAncestorChain((int) $row['id'], (int) ($row['parent_id'] ?? 0));
+        $ancestors = $this->iiifBuildAncestorChain((int) $row['id'], (int) ($row['parent_id'] ?? 0), $publicOnly);
         $structures = $this->iiifBuildNestedStructures($ancestors, $items, $manifestId, $lang);
         if (!empty($structures)) {
             $manifest['structures'] = $structures;
@@ -5694,15 +6835,17 @@ class ArchivesPlugin
      *
      * @return list<array{id:int,title:string}>
      */
-    private function iiifBuildAncestorChain(int $leafId, int $parentId): array
+    private function iiifBuildAncestorChain(int $leafId, int $parentId, bool $publicOnly = false): array
     {
         $chain = [];
         $visited = [];
         $currentParent = $parentId;
         while ($currentParent > 0 && !isset($visited[$currentParent])) {
             $visited[$currentParent] = true;
+            // Public manifests stop at the first unpublished ancestor.
             $s = $this->db->prepare(
                 'SELECT id, parent_id, constructed_title, formal_title FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+                . ($publicOnly ? ' AND published = 1' : '')
             );
             if ($s === false) {
                 break;
@@ -5847,15 +6990,15 @@ class ArchivesPlugin
             $label        = ['en' => ['Archives collection'], 'it' => ['Collezione archivistica']];
             $result = $this->db->query(
                 "SELECT a.id, a.constructed_title, a.formal_title, a.level,
-                        EXISTS(SELECT 1 FROM archival_units c WHERE c.parent_id = a.id AND c.deleted_at IS NULL) AS has_children
+                        EXISTS(SELECT 1 FROM archival_units c WHERE c.parent_id = a.id AND c.deleted_at IS NULL AND c.published = 1) AS has_children
                    FROM archival_units a
-                  WHERE a.parent_id IS NULL AND a.level = 'fonds' AND a.deleted_at IS NULL
+                  WHERE a.parent_id IS NULL AND a.level = 'fonds' AND a.deleted_at IS NULL AND a.published = 1
                   ORDER BY a.reference_code"
             );
         } else {
             // Sub-collection: direct children of the given unit
             $collectionId = $base . '/archives/' . $id . '/collection.json';
-            $parent = $this->findById($id);
+            $parent = $this->findPublishedById($id);
             if ($parent === null) {
                 $response->getBody()->write(json_encode(['error' => 'not_found'], JSON_THROW_ON_ERROR));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
@@ -5863,9 +7006,9 @@ class ArchivesPlugin
             $label = ['none' => [(string) ($parent['constructed_title'] ?? $parent['formal_title'] ?? 'Untitled')]];
             $stmt  = $this->db->prepare(
                 'SELECT a.id, a.constructed_title, a.formal_title, a.level,
-                        EXISTS(SELECT 1 FROM archival_units c WHERE c.parent_id = a.id AND c.deleted_at IS NULL) AS has_children
+                        EXISTS(SELECT 1 FROM archival_units c WHERE c.parent_id = a.id AND c.deleted_at IS NULL AND c.published = 1) AS has_children
                    FROM archival_units a
-                  WHERE a.parent_id = ? AND a.deleted_at IS NULL
+                  WHERE a.parent_id = ? AND a.deleted_at IS NULL AND a.published = 1
                   ORDER BY a.reference_code'
             );
             if ($stmt === false) {
@@ -5988,7 +7131,7 @@ class ArchivesPlugin
         $result = $this->db->query(
             "SELECT id, level, constructed_title, formal_title
                FROM archival_units
-              WHERE parent_id IS NULL AND deleted_at IS NULL AND level = 'fonds'
+              WHERE parent_id IS NULL AND deleted_at IS NULL AND published = 1 AND level = 'fonds'
               ORDER BY reference_code"
         );
         if (!($result instanceof \mysqli_result)) {
@@ -6040,7 +7183,7 @@ class ArchivesPlugin
         // error state to translate failure into 500. collectSameAsForAuthority
         // and fetchAgentRelations are RiC-only and throw directly.
         try {
-            $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
+            $linkedUnits = $this->fetchArchivalUnitsForAuthority($id, true);
             if ($this->db->errno !== 0) {
                 throw new \RuntimeException(
                     '[Archives] fetchArchivalUnitsForAuthority failed: ' . $this->db->error
@@ -6241,7 +7384,7 @@ class ArchivesPlugin
             'SELECT au.id AS unit_id, au.level, au.constructed_title, au.formal_title,
                     aua.ric_predicate
                FROM archive_unit_activities aua
-               JOIN archival_units au ON au.id = aua.unit_id AND au.deleted_at IS NULL
+               JOIN archival_units au ON au.id = aua.unit_id AND au.deleted_at IS NULL AND au.published = 1
               WHERE aua.activity_id = ?
               ORDER BY aua.ric_predicate, au.reference_code'
         );
@@ -6698,7 +7841,7 @@ class ArchivesPlugin
         $stmt = $this->db->prepare(
             'SELECT id, level, constructed_title, formal_title
                FROM archival_units
-              WHERE parent_id = ? AND deleted_at IS NULL
+              WHERE parent_id = ? AND deleted_at IS NULL AND published = 1
               ORDER BY reference_code'
         );
         // adamsreview F006 + CodeRabbit R2: throw on DB failure rather
@@ -6752,7 +7895,7 @@ class ArchivesPlugin
                     scope_content, archival_history, language_codes,
                     physical_location, rights_statement_url, ark_identifier
                FROM archival_units
-              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+              WHERE id = ? AND deleted_at IS NULL AND published = 1 LIMIT 1'
         );
         if ($stmt === false) {
             return ['status' => 'error', 'message' => $this->db->error];
@@ -8422,9 +9565,10 @@ class ArchivesPlugin
     public function exportDublinCoreAction(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        int $id
+        int $id,
+        bool $publicOnly = false
     ): ResponseInterface {
-        $row = $this->findById($id);
+        $row = $publicOnly ? $this->findPublishedById($id) : $this->findById($id);
         if ($row === null) {
             $response->getBody()->write('Not found');
             return $response->withStatus(404);
@@ -8514,9 +9658,14 @@ class ArchivesPlugin
             $xw->writeElementNs('dc', 'description', null, (string) $row['scope_content']);
         }
 
-        $xw->writeElementNs('dc', 'type', null, 'Collection');
-        if (!empty($row['level'])) {
-            $xw->writeElementNs('dc', 'type', null, ucfirst((string) $row['level']));
+        // dc:type from the DCMI Type Vocabulary: `Collection` for the
+        // aggregate levels, then the type of the material itself.
+        if (in_array((string) ($row['level'] ?? ''), ['fonds', 'series'], true)) {
+            $xw->writeElementNs('dc', 'type', null, 'Collection');
+        }
+        $dcmiType = self::dcmiTypeFor((string) ($row['specific_material'] ?? 'text'));
+        if ($dcmiType !== null) {
+            $xw->writeElementNs('dc', 'type', null, $dcmiType);
         }
 
         if (!empty($row['extent'])) {
@@ -8540,6 +9689,23 @@ class ArchivesPlugin
         $xw->endElement(); // oai_dc:dc
     }
 
+    /**
+     * DCMI Type Vocabulary term for a specific_material value
+     * (https://www.dublincore.org/specifications/dublin-core/dcmi-type-vocabulary/).
+     * `mixed` and `electronic` have no single DCMI type and yield null.
+     */
+    public static function dcmiTypeFor(string $specificMaterial): ?string
+    {
+        return match ($specificMaterial) {
+            'text', 'microform'                                       => 'Text',
+            'photograph', 'poster', 'postcard', 'drawing', 'picture', 'map' => 'StillImage',
+            'audio'                                                   => 'Sound',
+            'video', 'film'                                           => 'MovingImage',
+            'electronic', 'mixed'                                     => null,
+            default                                                   => 'PhysicalObject', // other, object
+        };
+    }
+
     // ── EAD3 / METS per-unit export ───────────────────────────────────────────
 
     /**
@@ -8549,9 +9715,10 @@ class ArchivesPlugin
     public function exportEad3Action(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        int $id
+        int $id,
+        bool $publicOnly = false
     ): ResponseInterface {
-        $row = $this->findById($id);
+        $row = $publicOnly ? $this->findPublishedById($id) : $this->findById($id);
         if ($row === null) {
             $response->getBody()->write('Not found');
             return $response->withStatus(404);
@@ -8578,9 +9745,10 @@ class ArchivesPlugin
     public function exportMetsAction(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        int $id
+        int $id,
+        bool $publicOnly = false
     ): ResponseInterface {
-        $row = $this->findById($id);
+        $row = $publicOnly ? $this->findPublishedById($id) : $this->findById($id);
         if ($row === null) {
             $response->getBody()->write('Not found');
             return $response->withStatus(404);
@@ -8742,7 +9910,11 @@ class ArchivesPlugin
                 $xw->startElement('mets:FLocat');
                 $xw->writeAttribute('LOCTYPE', 'URL');
                 $xw->writeAttributeNs('xlink', 'type', null, 'simple');
-                $xw->writeAttributeNs('xlink', 'href', null, $base . '/' . ltrim((string) $uf['file_path'], '/'));
+                // Published units link the public document route; an
+                // unpublished unit's package is admin-only and keeps the path.
+                $xw->writeAttributeNs('xlink', 'href', null, (int) ($row['published'] ?? 1) === 1
+                    ? $base . self::publicDocumentPath($unitId, (int) $uf['id'])
+                    : $base . '/' . ltrim((string) $uf['file_path'], '/'));
                 $xw->endElement(); // FLocat
                 $xw->endElement(); // file
             }
@@ -8878,7 +10050,8 @@ class ArchivesPlugin
      *   3.1.2 constructed_title → control/filedesc/titlestmt/titleproper
      *                             + archdesc/did/unittitle
      *   3.1.2 formal_title      → archdesc/did/unittitle[@altrender="formal"]
-     *   3.1.3 date_start/end    → archdesc/did/unitdatestructured
+     *   3.1.3 date_start/end    → archdesc/did/unitdate (text) + unitdatestructured
+     *                             (@standarddate only for years 1-9999)
      *   3.1.4 level             → archdesc[@level]
      *   3.1.5 extent            → archdesc/did/physdescstructured
      *   3.2.3 archival_history  → archdesc/custodhist
@@ -8887,7 +10060,9 @@ class ArchivesPlugin
      *   3.4.1 access_conditions → archdesc/accessrestrict
      *   3.4.2 reproduction_rules → archdesc/userestrict
      *   3.4.3 language_codes    → archdesc/did/langmaterial
-     *   authority records       → archdesc/controlaccess
+     *   3.2.1 creator authorities → archdesc/did/origination/<persname|corpname|famname><part>
+     *   other authority records → archdesc/controlaccess/<persname|corpname|famname><part>
+     *   institution_code (ISIL) → control/maintenanceagency/agencycode
      *
      * @param array<string, mixed> $row
      * @param list<array<string, mixed>> $authorities
@@ -8931,9 +10106,16 @@ class ArchivesPlugin
         $xw->writeAttribute('value', 'new');
         $xw->endElement();
 
+        // agencycode carries the institution's ISIL (ISO 15511), which the
+        // unit's institution_code holds; PINAKES is only the last fallback.
+        $agencyCode = trim((string) ($row['institution_code'] ?? ''));
+        if ($agencyCode === '') {
+            $agencyCode = 'PINAKES';
+        }
+        $agencyName = trim((string) \App\Support\ConfigStore::get('app.name', ''));
         $xw->startElement('maintenanceagency');
-        $xw->writeElement('agencycode', 'PINAKES');
-        $xw->writeElement('agencyname', 'Pinakes Library Management System');
+        $xw->writeElement('agencycode', $agencyCode);
+        $xw->writeElement('agencyname', $agencyName !== '' ? $agencyName : 'Pinakes Library Management System');
         $xw->endElement();
 
         $xw->startElement('maintenancehistory');
@@ -8992,31 +10174,55 @@ class ArchivesPlugin
             $xw->text((string) $row['reference_code']);
             $xw->endElement();
         }
-        // unitdatestructured
-        if (!empty($row['date_start'])) {
+        // Dates: <unitdate> keeps the human-readable text for every year
+        // (signed, five-digit, …); <unitdatestructured> carries a machine
+        // @standarddate only for years 1-9999, zero-padded to four digits
+        // (ISO 8601 basic years), and omits it otherwise.
+        $rawStart = $row['date_start'] ?? null;
+        $rawEnd   = $row['date_end'] ?? null;
+        if ($rawStart !== null && $rawStart !== '') {
+            $startText = (string) $rawStart;
+            $endText = ($rawEnd !== null && $rawEnd !== '' && (string) $rawEnd !== (string) $rawStart)
+                ? (string) $rawEnd : null;
+            $xw->startElement('unitdate');
+            $xw->writeAttribute('unitdatetype', 'inclusive');
+            $xw->text($endText !== null ? $startText . '-' . $endText : $startText);
+            $xw->endElement();
+
             $xw->startElement('unitdatestructured');
             $xw->writeAttribute('calendar', 'gregorian');
             $xw->writeAttribute('era', 'ce');
-            $dateEnd = !empty($row['date_end']) && $row['date_end'] !== $row['date_start']
-                ? (string) $row['date_end'] : null;
-            if ($dateEnd !== null) {
+            if ($endText !== null) {
                 $xw->startElement('daterange');
                 $xw->startElement('fromdate');
-                $xw->writeAttribute('standarddate', (string) $row['date_start']);
-                $xw->text((string) $row['date_start']);
+                $this->writeEad3StandardDate($xw, $rawStart);
+                $xw->text($startText);
                 $xw->endElement();
                 $xw->startElement('todate');
-                $xw->writeAttribute('standarddate', $dateEnd);
-                $xw->text($dateEnd);
+                $this->writeEad3StandardDate($xw, $rawEnd);
+                $xw->text($endText);
                 $xw->endElement();
                 $xw->endElement(); // daterange
             } else {
                 $xw->startElement('datesingle');
-                $xw->writeAttribute('standarddate', (string) $row['date_start']);
-                $xw->text((string) $row['date_start']);
+                $this->writeEad3StandardDate($xw, $rawStart);
+                $xw->text($startText);
                 $xw->endElement();
             }
             $xw->endElement(); // unitdatestructured
+        }
+        // ISAD(G) 3.2.1 Name of creator(s) → did/origination.
+        $creators = array_values(array_filter(
+            $authorities,
+            static fn(array $a): bool => (string) ($a['role'] ?? '') === 'creator'
+        ));
+        if ($creators !== []) {
+            $xw->startElement('origination');
+            $xw->writeAttribute('label', 'Creator');
+            foreach ($creators as $creator) {
+                $this->writeEad3Name($xw, $creator, 'creator');
+            }
+            $xw->endElement(); // origination
         }
         // physdescstructured
         if (!empty($row['extent'])) {
@@ -9040,46 +10246,60 @@ class ArchivesPlugin
             }
             $xw->endElement(); // langmaterial
         }
-        // <daoset> must be a child of <did> per EAD3 schema
+        // Digital objects. EAD3 <daoset> groups TWO or more <dao>; a single
+        // object is emitted as a bare <dao>. Both are children of <did>.
         $unitId = (int) ($row['id'] ?? 0);
         if ($unitId > 0) {
-            $xw->startElement('daoset');
-            $xw->writeAttribute('coverage', 'whole');
-            $xw->startElement('dao');
-            $xw->writeAttribute('daotype', 'derived');
-            $xw->writeAttribute('href', (string) absoluteUrl('/archives/' . $unitId . '/manifest.json'));
-            $xw->writeAttribute('linktitle', 'IIIF Manifest');
-            $xw->writeAttribute('actuate', 'onrequest');
-            $xw->writeAttribute('show', 'new');
-            $xw->endElement(); // dao
+            $daos = [[
+                'daotype'   => 'derived',
+                'href'      => (string) absoluteUrl('/archives/' . $unitId . '/manifest.json'),
+                'linktitle' => 'IIIF Manifest',
+                'show'      => 'new',
+            ]];
             if (!empty($row['cover_image_path'])
                 && is_file(__DIR__ . '/../../../public' . (string) $row['cover_image_path'])
             ) {
-                $xw->startElement('dao');
-                $xw->writeAttribute('daotype', 'borndigital');
-                $xw->writeAttribute('href', (string) absoluteUrl('/' . ltrim((string) $row['cover_image_path'], '/')));
-                $xw->writeAttribute('linktitle', 'Cover image');
-                $xw->writeAttribute('actuate', 'onrequest');
-                $xw->writeAttribute('show', 'embed');
-                $xw->endElement(); // dao
+                $daos[] = [
+                    'daotype'   => 'borndigital',
+                    'href'      => (string) absoluteUrl('/' . ltrim((string) $row['cover_image_path'], '/')),
+                    'linktitle' => 'Cover image',
+                    'show'      => 'embed',
+                ];
             }
-            // One <dao> per multi-document file in archival_unit_files.
+            // One <dao> per document. A published unit links the public
+            // document route; an unpublished one (admin export only) keeps
+            // the stored path.
+            $unitPublished = (int) ($row['published'] ?? 1) === 1;
             $filesToEmit = $unitFiles ?? $this->fetchUnitFiles($unitId);
-            foreach ($filesToEmit as $uf) {
-                $fsPathDoc = __DIR__ . '/../../../public' . (string) $uf['file_path'];
-                if (!is_file($fsPathDoc)) {
+            foreach ($this->publicDocumentLinks($row, $filesToEmit) as $doc) {
+                if ($doc['file_id'] === 0 || !is_file(__DIR__ . '/../../../public' . $doc['file_path'])) {
                     continue;
                 }
-                $docUrl = (string) absoluteUrl('/' . ltrim((string) $uf['file_path'], '/'));
+                $daos[] = [
+                    'daotype'   => 'borndigital',
+                    'href'      => $unitPublished
+                        ? (string) absoluteUrl($doc['path'])
+                        : (string) absoluteUrl('/' . ltrim($doc['file_path'], '/')),
+                    'linktitle' => $doc['name'],
+                    'show'      => 'new',
+                ];
+            }
+            if (count($daos) > 1) {
+                $xw->startElement('daoset');
+                $xw->writeAttribute('coverage', 'whole');
+            }
+            foreach ($daos as $dao) {
                 $xw->startElement('dao');
-                $xw->writeAttribute('daotype',   'borndigital');
-                $xw->writeAttribute('href',       $docUrl);
-                $xw->writeAttribute('linktitle',  (string) ($uf['original_filename'] ?: basename((string) $uf['file_path'])));
-                $xw->writeAttribute('actuate',    'onrequest');
-                $xw->writeAttribute('show',       'new');
+                $xw->writeAttribute('daotype', $dao['daotype']);
+                $xw->writeAttribute('href', $dao['href']);
+                $xw->writeAttribute('linktitle', $dao['linktitle']);
+                $xw->writeAttribute('actuate', 'onrequest');
+                $xw->writeAttribute('show', $dao['show']);
                 $xw->endElement(); // dao
             }
-            $xw->endElement(); // daoset
+            if (count($daos) > 1) {
+                $xw->endElement(); // daoset
+            }
         }
         $xw->endElement(); // did
 
@@ -9125,28 +10345,77 @@ class ArchivesPlugin
             $xw->endElement();
         }
 
-        // <controlaccess> — linked authority records
-        if (!empty($authorities)) {
+        // <controlaccess> — the other access points (subjects, recipients,
+        // custodians, associated names). The creator is in did/origination.
+        $accessPoints = array_values(array_filter(
+            $authorities,
+            static fn(array $a): bool => (string) ($a['role'] ?? '') !== 'creator'
+        ));
+        if ($accessPoints !== []) {
             $xw->startElement('controlaccess');
-            foreach ($authorities as $auth) {
-                $authType = (string) ($auth['type'] ?? 'person');
-                $tag = match ($authType) {
-                    'corporate' => 'corpname',
-                    'family'    => 'famname',
-                    default     => 'persname',
-                };
-                $xw->startElement($tag);
-                $xw->writeAttribute('encodinganalog', $authType === 'corporate' ? '710' : '700');
-                $role = (string) ($auth['role'] ?? 'associated');
-                $xw->writeAttribute('relator', $role);
-                $xw->text((string) ($auth['authorised_form'] ?? ''));
-                $xw->endElement();
+            foreach ($accessPoints as $auth) {
+                $this->writeEad3Name($xw, $auth, (string) ($auth['role'] ?? 'associated'));
             }
             $xw->endElement(); // controlaccess
         }
 
         $xw->endElement(); // archdesc
         $xw->endElement(); // ead
+    }
+
+    /**
+     * EAD3 name element for an authority: <persname>, <corpname> or
+     * <famname>, whose content model is one or more <part> children (no
+     * mixed text).
+     *
+     * @param array<string, mixed> $auth
+     */
+    private function writeEad3Name(\XMLWriter $xw, array $auth, string $relator): void
+    {
+        $name = trim((string) ($auth['authorised_form'] ?? ''));
+        if ($name === '') {
+            return;
+        }
+        $authType = (string) ($auth['type'] ?? 'person');
+        $tag = match ($authType) {
+            'corporate' => 'corpname',
+            'family'    => 'famname',
+            default     => 'persname',
+        };
+        $isCreator = $relator === 'creator';
+        $isSubject = $relator === 'subject';
+        $analog = $authType === 'corporate'
+            ? ($isCreator ? '110' : ($isSubject ? '610' : '710'))
+            : ($isCreator ? '100' : ($isSubject ? '600' : '700'));
+        $xw->startElement($tag);
+        $xw->writeAttribute('encodinganalog', $analog);
+        $xw->writeAttribute('relator', $relator);
+        $xw->startElement('part');
+        $xw->text($name);
+        $xw->endElement(); // part
+        $dates = trim((string) ($auth['dates_of_existence'] ?? ''));
+        if ($dates !== '' && $authType !== 'corporate') {
+            $xw->startElement('part');
+            $xw->writeAttribute('localtype', 'dates');
+            $xw->text($dates);
+            $xw->endElement(); // part
+        }
+        $xw->endElement();
+    }
+
+    /**
+     * Write @standarddate for a year when it is expressible as an ISO 8601
+     * four-digit year (1-9999, zero-padded: 850 → "0850"); omit it otherwise.
+     */
+    private function writeEad3StandardDate(\XMLWriter $xw, mixed $year): void
+    {
+        if ($year === null || $year === '' || !is_numeric($year)) {
+            return;
+        }
+        $y = (int) $year;
+        if ($y >= 1 && $y <= 9999) {
+            $xw->writeAttribute('standarddate', str_pad((string) $y, 4, '0', STR_PAD_LEFT));
+        }
     }
 
     // ── OAI-PMH 2.0 ──────────────────────────────────────────────────────────
@@ -9231,12 +10500,15 @@ class ArchivesPlugin
         return $response->withHeader('Content-Type', 'text/xml; charset=utf-8');
     }
 
+    /** Metadata formats served by the archives OAI-PMH endpoint. */
+    private const OAI_METADATA_PREFIXES = ['oai_dc', 'marcxml', 'ead3', 'danmarc2'];
+
     private function oaiIdentify(\XMLWriter $xw, string $baseUrl, string $now): void
     {
         // Earliest datestamp from the DB (or fallback to now if no records).
         $earliest = $now;
         $result   = $this->db->query(
-            "SELECT MIN(created_at) AS earliest FROM archival_units WHERE deleted_at IS NULL"
+            "SELECT MIN(created_at) AS earliest FROM archival_units WHERE deleted_at IS NULL AND published = 1"
         );
         if ($result instanceof \mysqli_result) {
             $r = $result->fetch_assoc();
@@ -9293,7 +10565,7 @@ class ArchivesPlugin
                     'The value of the identifier argument is unknown or illegal in this repository.');
                 return;
             }
-            if ($this->findById((int) $m[1]) === null) {
+            if ($this->findPublishedById((int) $m[1]) === null) {
                 $this->oaiError($xw, 'idDoesNotExist',
                     'The value of the identifier argument is unknown or illegal in this repository.');
                 return;
@@ -9318,6 +10590,13 @@ class ArchivesPlugin
         $xw->writeElement('metadataPrefix', 'ead3');
         $xw->writeElement('schema', 'https://www.loc.gov/ead/ead3.xsd');
         $xw->writeElement('metadataNamespace', 'http://ead3.archivists.org/schema/');
+        $xw->endElement();
+
+        // danMARC2 / ABA dialect, carried in the MARC Slim envelope.
+        $xw->startElement('metadataFormat');
+        $xw->writeElement('metadataPrefix', 'danmarc2');
+        $xw->writeElement('schema', 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
+        $xw->writeElement('metadataNamespace', self::MARC21_NS);
         $xw->endElement();
 
         $xw->endElement(); // ListMetadataFormats
@@ -9352,7 +10631,7 @@ class ArchivesPlugin
             $set            = $decoded['set'];
         }
 
-        if ($metadataPrefix === '' || !in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+        if ($metadataPrefix === '' || !in_array($metadataPrefix, self::OAI_METADATA_PREFIXES, true)) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
                 . 'argument is not supported by the item or by the repository.');
@@ -9388,7 +10667,8 @@ class ArchivesPlugin
         }
 
         $pageSize = 100;
-        $where    = ['deleted_at IS NULL'];
+        // Harvesters only ever see published units.
+        $where    = ['deleted_at IS NULL', 'published = 1'];
         $bindTypes = '';
         $bindVals  = [];
 
@@ -9484,13 +10764,7 @@ class ArchivesPlugin
             if (!$identifiersOnly) {
                 $xw->startElement('metadata');
                 $authorities = $oaiAuthoritiesMap[$rowId] ?? [];
-                if ($metadataPrefix === 'oai_dc') {
-                    $this->writeDublinCoreRecord($xw, $row, $authorities);
-                } elseif ($metadataPrefix === 'ead3') {
-                    $this->writeEad3Document($xw, $row, $authorities);
-                } else {
-                    $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
-                }
+                $this->writeOaiMetadata($xw, $metadataPrefix, $row, $authorities);
                 $xw->endElement(); // metadata
             }
 
@@ -9552,7 +10826,7 @@ class ArchivesPlugin
         }
 
         $metadataPrefix = (string) ($payload['metadataPrefix'] ?? '');
-        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+        if (!in_array($metadataPrefix, self::OAI_METADATA_PREFIXES, true)) {
             return null;
         }
 
@@ -9579,7 +10853,7 @@ class ArchivesPlugin
                 . 'includes a repeated argument, or values for arguments have an illegal syntax.');
             return;
         }
-        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+        if (!in_array($metadataPrefix, self::OAI_METADATA_PREFIXES, true)) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
                 . 'argument is not supported by the item or by the repository.');
@@ -9592,7 +10866,7 @@ class ArchivesPlugin
                 'The value of the identifier argument is unknown or illegal in this repository.');
             return;
         }
-        $row = $this->findById((int) $m[1]);
+        $row = $this->findPublishedById((int) $m[1]);
         if ($row === null) {
             $this->oaiError($xw, 'idDoesNotExist',
                 'The value of the identifier argument is unknown or illegal in this repository.');
@@ -9611,16 +10885,28 @@ class ArchivesPlugin
 
         $xw->startElement('metadata');
         $authorities = $this->fetchAuthoritiesForArchivalUnit($rowId);
-        if ($metadataPrefix === 'oai_dc') {
-            $this->writeDublinCoreRecord($xw, $row, $authorities);
-        } elseif ($metadataPrefix === 'ead3') {
-            $this->writeEad3Document($xw, $row, $authorities);
-        } else {
-            $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
-        }
+        $this->writeOaiMetadata($xw, $metadataPrefix, $row, $authorities);
         $xw->endElement(); // metadata
         $xw->endElement(); // record
         $xw->endElement(); // GetRecord
+    }
+
+    /**
+     * The <metadata> payload of one OAI record in the requested format.
+     * `marcxml` is MARC21 in the MARC Slim namespace; `danmarc2` is the
+     * ABA dialect in the same envelope.
+     *
+     * @param array<string, mixed>       $row
+     * @param list<array<string, mixed>> $authorities
+     */
+    private function writeOaiMetadata(\XMLWriter $xw, string $metadataPrefix, array $row, array $authorities): void
+    {
+        match ($metadataPrefix) {
+            'oai_dc'   => $this->writeDublinCoreRecord($xw, $row, $authorities),
+            'ead3'     => $this->writeEad3Document($xw, $row, $authorities),
+            'danmarc2' => $this->writeArchivalUnitDanmarcRecord($xw, $row, $authorities, self::MARC21_NS),
+            default    => $this->writeArchivalUnitMarc21Record($xw, $row, $authorities, true),
+        };
     }
 
     private function oaiListSets(\XMLWriter $xw): void
@@ -9672,17 +10958,22 @@ class ArchivesPlugin
      * @param list<array<string, mixed>> $results
      * @return list<array<string, mixed>>
      */
-    public function addArchivalSources(array $results, string $q): array
+    public function addArchivalSources(array $results, string $q, string $context = 'public'): array
     {
         if ($q === '') {
             return $results;
         }
+        // An operator's quick search (context 'admin') also finds unpublished
+        // units and opens them in the back office; every other caller only
+        // ever sees published units.
+        $isAdmin = $context === 'admin';
         $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
         $searchPattern = $this->archiveSearchPattern($q);
         $stmt = $this->db->prepare(
-            'SELECT id, reference_code, constructed_title
+            'SELECT id, reference_code, constructed_title, published
                FROM archival_units
-              WHERE deleted_at IS NULL
+              WHERE deleted_at IS NULL'
+            . ($isAdmin ? '' : ' AND published = 1') . '
                 AND (
                     reference_code LIKE ?
                     OR constructed_title LIKE ?
@@ -9708,7 +10999,9 @@ class ArchivesPlugin
                     'label'      => $title,
                     'identifier' => (string) ($row['reference_code'] ?? ''),
                     'type'       => 'archive',
-                    'url'        => url($archiveBase . ($slug !== '' ? '/' . $slug . '-' . $id : '/' . $id)),
+                    'url'        => (int) ($row['published'] ?? 1) === 1
+                        ? url($archiveBase . ($slug !== '' ? '/' . $slug . '-' . $id : '/' . $id))
+                        : url('/admin/archives/' . $id),
                 ];
             }
             $res->free();
@@ -9734,13 +11027,15 @@ class ArchivesPlugin
         $searchPattern = $this->archiveSearchPattern($q);
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, level, constructed_title, scope_content
-               FROM archival_units
-              WHERE deleted_at IS NULL
+               FROM archival_units u
+              WHERE u.deleted_at IS NULL
+                AND u.published = 1
                 AND (
                     reference_code LIKE ?
                     OR constructed_title LIKE ?
                     OR formal_title LIKE ?
                     OR scope_content LIKE ?
+                    OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND ar.authorised_form LIKE ?)
                 )
               ORDER BY FIELD(level,\'fonds\',\'series\',\'file\',\'item\'), constructed_title
               LIMIT 6'
@@ -9748,7 +11043,7 @@ class ArchivesPlugin
         if ($stmt === false) {
             return $results;
         }
-        $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+        $stmt->bind_param('sssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern, $searchPattern);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res instanceof \mysqli_result) {
@@ -9846,6 +11141,9 @@ class ArchivesPlugin
             rights_statement_url VARCHAR(500) NULL,
             ark_identifier      VARCHAR(255) NULL,
             version_note        VARCHAR(500) NULL,
+            /* 1.5.2 — public visibility. 0 keeps the unit out of every public
+               page, export and harvest surface; the admin still sees it. */
+            published           TINYINT(1) NOT NULL DEFAULT 1,
             created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             deleted_at          TIMESTAMP NULL,

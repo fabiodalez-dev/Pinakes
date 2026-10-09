@@ -19,7 +19,7 @@ $slug = (string) $club['slug'];
   <p class="bc-muted mb-3">
     <?= $e(__('Scopri la tua affinità di lettura con gli altri membri e i suggerimenti dal catalogo.')) ?>
   </p>
-  <a href="<?= $e(url('/book-club/' . $slug . '/affinity')) ?>" class="bc-btn w-full">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/affinity')) ?>" class="bc-btn w-full">
     <?= $e(__('Apri affinità e suggerimenti')) ?>
   </a>
 </section>

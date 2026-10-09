@@ -16,6 +16,8 @@
  * 11. GET /resync/changelist.xml → Change List XML
  * 12. Change List has rs:md capability="changelist"
  * 13. GET /resync/changelist.xml?from=2020-01-01 → filtered change list
+ * 14-16. Change List: rs:md/@from always present, chronological order, UTC ?from=
+ * 17. require_basic_auth=1 → 401 Basic challenge / 200 with admin credentials
  *
  * Run: /tmp/run-e2e.sh tests/resource-sync.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -51,11 +53,13 @@ test.skip(
     'Missing E2E env (DB_*)'
 );
 
-test.describe.serial('ResourceSync plugin — v0.7.1 (13 tests)', () => {
+test.describe.serial('ResourceSync plugin — v0.7.1 (17 tests)', () => {
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
     /** @type {import('@playwright/test').Page} */
     let page;
+    let pluginId = 0;
+    let activatedHere = false;
 
     test.beforeAll(async ({ browser }) => {
         context = await browser.newContext();
@@ -70,22 +74,42 @@ test.describe.serial('ResourceSync plugin — v0.7.1 (13 tests)', () => {
             page.click('button[type="submit"]'),
         ]);
 
-        // Ensure resource-sync plugin is active.
-        const isActive = dbQuery("SELECT is_active FROM plugins WHERE name = 'resource-sync'");
-        if (isActive !== '1') {
+        // Ensure resource-sync plugin is active, through the real lifecycle
+        // endpoint (flipping is_active in SQL leaves the route cache stale).
+        // The plugin list renders activatePlugin(<id>), so the old
+        // button[onclick*="resource-sync"] selector never matched anything.
+        const row = dbQuery("SELECT CONCAT(id, ':', is_active) FROM plugins WHERE name = 'resource-sync'");
+        const [rsId, rsActive] = row.split(':');
+        pluginId = Number(rsId);
+        if (rsActive !== '1') {
             await page.goto(`${BASE}/admin/plugins`);
-            await page.waitForLoadState('domcontentloaded');
-            const btn = page.locator('button[onclick*="resource-sync"]').first();
-            if (await btn.isVisible({ timeout: 3000 }).catch(() => false)) {
-                await btn.click();
-                const confirm = page.locator('.swal2-confirm').first();
-                if (await confirm.isVisible({ timeout: 5000 }).catch(() => false)) await confirm.click();
-                await page.waitForLoadState('domcontentloaded');
-            }
+            const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+            const status = await page.evaluate(async ({ base, id, token }) => {
+                const r = await fetch(`${base}/admin/plugins/${id}/activate`, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': token || '', 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+                return r.status;
+            }, { base: BASE, id: pluginId, token: csrf });
+            expect(status).toBe(200);
+            activatedHere = true;
         }
     });
 
     test.afterAll(async () => {
+        // Leave the plugin as found.
+        if (activatedHere && page) {
+            await page.goto(`${BASE}/admin/plugins`);
+            const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+            await page.evaluate(async ({ base, id, token }) => {
+                await fetch(`${base}/admin/plugins/${id}/deactivate`, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': token || '', 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+            }, { base: BASE, id: pluginId, token: csrf });
+        }
         await context?.close();
     });
 
@@ -157,14 +181,18 @@ test.describe.serial('ResourceSync plugin — v0.7.1 (13 tests)', () => {
         expect(body).toContain('capability="resourcelist"');
     });
 
-    test('10. Resource List entries link to /api/bibframe/book/ endpoints', async ({ request }) => {
+    test('10. Resource List entries link to BIBFRAME only when that plugin is active', async ({ request }) => {
         const res = await request.get(`${BASE}/resync/resourcelist.xml`);
         const body = await res.text();
-        // If there are books in the DB, their URLs should appear.
-        // If the catalog is empty, urlset is still valid XML.
-        expect(body).toContain('<urlset');
-        if (body.includes('<loc>')) {
-            expect(body).toContain('/api/bibframe/book/');
+        // Small catalogues are one <urlset>; a larger one is a <sitemapindex>.
+        expect(body).toMatch(/<(urlset|sitemapindex)/);
+        if (body.includes('<urlset') && body.includes('<url>')) {
+            const bibframe = dbQuery("SELECT COUNT(*) FROM plugins WHERE name = 'bibframe-linked-data' AND is_active = 1");
+            if (bibframe === '1') {
+                expect(body).toContain('/api/bibframe/book/');
+            } else {
+                expect(body).not.toContain('/api/bibframe/book/');
+            }
         }
     });
 
@@ -190,5 +218,73 @@ test.describe.serial('ResourceSync plugin — v0.7.1 (13 tests)', () => {
         expect(body).toContain('capability="changelist"');
         // from attribute must appear when filter is specified
         expect(body).toContain('from=');
+    });
+
+    // ── Tests 14-16: standard shape of the Change List ───────────────────────
+
+    test('14. Change List always carries rs:md/@from, even without ?from=', async ({ request }) => {
+        const res = await request.get(`${BASE}/resync/changelist.xml`);
+        expect(res.status()).toBe(200);
+        const body = await res.text();
+        expect(body).toMatch(/<rs:md[^>]*capability="changelist"[^>]*from="\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"/);
+    });
+
+    test('15. Change List entries are in chronological order and use no rel="next"/"prev"', async ({ request }) => {
+        const res = await request.get(`${BASE}/resync/changelist.xml`);
+        const body = await res.text();
+        expect(body).not.toContain('rel="next"');
+        expect(body).not.toContain('rel="prev"');
+        const stamps = [...body.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => Date.parse(m[1]));
+        for (let i = 1; i < stamps.length; i++) {
+            expect(stamps[i]).toBeGreaterThanOrEqual(stamps[i - 1]);
+        }
+    });
+
+    test('16. ?from= is a UTC instant: echoed normalised in rs:md/@from', async ({ request }) => {
+        const res = await request.get(`${BASE}/resync/changelist.xml?from=2020-01-01T10:00:00Z`);
+        expect(res.status()).toBe(200);
+        const body = await res.text();
+        expect(body).toContain('from="2020-01-01T10:00:00Z"');
+    });
+
+    // ── Test 17: opt-in Basic Auth gate (require_basic_auth=1) ───────────────
+
+    test('17. require_basic_auth=1 → 401 Basic challenge anonymously, 200 with admin credentials', async ({ request }) => {
+        const pluginId = dbQuery("SELECT id FROM plugins WHERE name = 'resource-sync'");
+        expect(pluginId).toMatch(/^\d+$/);
+        const previous = dbQuery(
+            `SELECT IFNULL((SELECT setting_value FROM plugin_settings WHERE plugin_id = ${pluginId} AND setting_key = 'require_basic_auth'), '__absent__')`
+        );
+        dbQuery(
+            `INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, created_at)
+             VALUES (${pluginId}, 'require_basic_auth', '1', NOW())
+             ON DUPLICATE KEY UPDATE setting_value = '1'`
+        );
+        try {
+            const anon = await request.get(`${BASE}/resync/capabilitylist.xml`);
+            expect(anon.status()).toBe(401);
+            expect(anon.headers()['www-authenticate'] ?? '').toMatch(/^Basic realm="ResourceSync"/);
+
+            const wrong = await request.get(`${BASE}/resync/capabilitylist.xml`, {
+                headers: { Authorization: 'Basic ' + Buffer.from(`${ADMIN_EMAIL}:not-the-password`).toString('base64') },
+            });
+            expect(wrong.status()).toBe(401);
+            expect(wrong.headers()['www-authenticate'] ?? '').toContain('Basic');
+
+            const ok = await request.get(`${BASE}/resync/capabilitylist.xml`, {
+                headers: { Authorization: 'Basic ' + Buffer.from(`${ADMIN_EMAIL}:${ADMIN_PASS}`).toString('base64') },
+            });
+            expect(ok.status()).toBe(200);
+            expect(await ok.text()).toContain('capability="capabilitylist"');
+        } finally {
+            if (previous === '__absent__') {
+                dbQuery(`DELETE FROM plugin_settings WHERE plugin_id = ${pluginId} AND setting_key = 'require_basic_auth'`);
+            } else {
+                dbQuery(
+                    `UPDATE plugin_settings SET setting_value = '${previous.replace(/'/g, "''")}'
+                     WHERE plugin_id = ${pluginId} AND setting_key = 'require_basic_auth'`
+                );
+            }
+        }
     });
 });

@@ -266,6 +266,9 @@ class SearchController
             // emeroteca then links articles to their edit form and adds the
             // periodicals (#453). Same role gate as the wanted titles above.
             $results = \App\Support\Hooks::apply('search.unified.sources', $results, [$q, $isOperator ? 'admin' : 'public']);
+            // One list of records, best title match first, then alphabetical
+            // (#463), instead of the books block followed by the articles.
+            $results = is_array($results) ? \App\Support\QuickSearchOrder::apply($results, $q, null, 20) : [];
 
             // Note: User search is excluded from frontend unified search to keep admin data separate.
         }

@@ -88,7 +88,7 @@ test.skip(
     'Missing E2E env (ADMIN_EMAIL/PASS, DB_*)'
 );
 
-test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
+test.describe.serial('OAI-PMH Server plugin — v0.7.0 (24 tests)', () => {
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
     /** @type {import('@playwright/test').Page} */
@@ -164,6 +164,8 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         try {
             // FK-safe: delete child rows first, then parents
             dbExec(`DELETE FROM oai_deleted_records WHERE entity_type = 'book' AND entity_id IN (SELECT id FROM libri WHERE titolo LIKE 'E2E\\_OAI\\_%' ESCAPE '\\\\')`);
+            dbExec(`DELETE FROM libri_autori WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE 'E2E\\_OAI\\_%' ESCAPE '\\\\')`);
+            dbExec(`DELETE FROM autori WHERE nome LIKE 'E2E\\_OAI\\_%' ESCAPE '\\\\'`);
             dbExec(`DELETE FROM libri WHERE titolo LIKE 'E2E\\_OAI\\_%' ESCAPE '\\\\'`);
             dbExec(`DELETE FROM archival_units WHERE reference_code LIKE 'E2E\\_OAI\\_%' ESCAPE '\\\\'`);
         } catch (error) {
@@ -317,9 +319,17 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         );
         expect(text).not.toContain('<error code=');
         expect(text).toContain('<gen>');
-        expect(text).toContain('<bib>');
         expect(text).toContain('version="2.0.1"');
-        expect(text).toContain('<paese>IT</paese>');
+        // MAG 2.0.1: gen = stprog (anyURI), agency, access_rights, completeness;
+        // bib carries the required level and Dublin Core only.
+        expect(text).toMatch(/<stprog>[a-z][a-z0-9+.-]*:[^<]+<\/stprog>/i);
+        expect(text).toMatch(/<access_rights>[01]<\/access_rights>/);
+        expect(text).toMatch(/<completeness>[01]<\/completeness>/);
+        expect(text).toContain('<bib level="m">');
+        expect(text).not.toContain('<paese>');
+        expect(text).not.toContain('<data_pub>');
+        expect(text).not.toContain('<progetto>');
+        expect(text).not.toMatch(/<dc:identifier [^>]*type=/);
     });
 
     test('11. ListRecords unimarc → valid UNIMARC/XML record (v0.7.0)', async () => {
@@ -331,7 +341,8 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         );
         expect(text).not.toContain('<error code=');
         // UNIMARC leader
-        expect(text).toContain('<leader>00000nam a2200000 u 4500</leader>');
+        // Leader/09 and /18 blank (no ISBD punctuation is emitted).
+        expect(text).toContain('<leader>00000nam  2200000   4500</leader>');
         // UNIMARC field 100 (general processing data, 36 chars fixed-length)
         expect(text).toContain('tag="100"');
         // UNIMARC field 200 (title)
@@ -428,8 +439,9 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         expect(body).toContain('xmlns="http://www.openarchives.org/OAI/2.0/"');
         expect(body).toContain('<ListIdentifiers>');
 
-        // Must have <header> elements.
-        expect(body).toContain('<header>');
+        // Must have <header> elements (a page may hold only deleted-record
+        // headers, which carry status="deleted").
+        expect(body).toMatch(/<header[\s>]/);
         expect(body).toContain('<identifier>');
         expect(body).toContain('<datestamp>');
 
@@ -447,5 +459,148 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         expect(res.status()).toBe(200);
         const body = await res.text();
         expect(body).toContain('<error code="badArgument"');
+    });
+
+    // ── Tests 19-24: datestamp round trip, record shapes, tombstones ───────────
+
+    /** GetRecord in a prefix for the test book, returning the response text. */
+    async function getTestRecord(metadataPrefix) {
+        const identifier = `oai:${oaiHost}:book:${testBookId}`;
+        const res = await page.request.get(
+            `${BASE}/oai?verb=GetRecord&metadataPrefix=${metadataPrefix}&identifier=${identifier}`
+        );
+        expect(res.status()).toBe(200);
+        const text = await res.text();
+        expect(text).not.toContain('<error code=');
+        return text;
+    }
+
+    test('19. from=until=<datestamp of a record> returns that record (UTC both ways)', async () => {
+        const identifier = `oai:${oaiHost}:book:${testBookId}`;
+        const record = await getTestRecord('oai_dc');
+        const datestamp = (record.match(/<datestamp>([^<]+)<\/datestamp>/) || [])[1] || '';
+        expect(datestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+
+        // Seconds granularity: the exact instant.
+        const exact = await page.request.get(
+            `${BASE}/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=${datestamp}&until=${datestamp}`
+        );
+        expect(await exact.text()).toContain(`<identifier>${identifier}</identifier>`);
+
+        // Day granularity: the whole UTC day of that datestamp.
+        const day = datestamp.slice(0, 10);
+        const daily = await page.request.get(
+            `${BASE}/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=${day}&until=${day}`
+        );
+        const dailyText = await daily.text();
+        if (dailyText.includes('<resumptionToken') && !dailyText.includes(identifier)) {
+            // Busy day: follow the token pages until the record shows up.
+            const paged = await fetchOaiPagesUntil(
+                page.request,
+                `${BASE}/oai?verb=ListRecords&metadataPrefix=oai_dc&from=${day}&until=${day}`,
+                identifier
+            );
+            expect(paged).toContain(identifier);
+        } else {
+            expect(dailyText).toContain(`<identifier>${identifier}</identifier>`);
+        }
+
+        // One second after: the record is no longer in the window.
+        const after = new Date(Date.parse(datestamp) + 1000).toISOString().replace(/\.\d+Z$/, 'Z');
+        const later = await page.request.get(
+            `${BASE}/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&from=${after}&until=${after}`
+        );
+        expect(await later.text()).not.toContain(`<identifier>${identifier}</identifier>`);
+    });
+
+    test('20. records with an inverted author name and a language: MARC 008, MODS, UNIMARC, DC', async () => {
+        dbExec(`INSERT INTO autori (nome) VALUES ('E2E_OAI_Rossi, Mario')`);
+        const authorId = parseInt(dbQuery(`SELECT id FROM autori WHERE nome = 'E2E_OAI_Rossi, Mario' ORDER BY id DESC LIMIT 1`));
+        expect(authorId).toBeGreaterThan(0);
+        dbExec(`INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (${testBookId}, ${authorId}, 'principale', 1)`);
+        dbExec(`UPDATE libri SET lingua = 'italiano' WHERE id = ${testBookId}`);
+
+        // MARC 21 008 is exactly 40 characters, language at 35-37.
+        const marc = await getTestRecord('marcxml');
+        const f008 = (marc.match(/<controlfield tag="008">([^<]*)<\/controlfield>/) || [])[1];
+        expect(f008).toBeDefined();
+        expect(f008.length).toBe(40);
+        expect(f008.slice(35, 38)).toBe('ita');
+        expect(marc).toContain('<leader>00000nam a2200000   4500</leader>');
+
+        // MODS: namePart@type="text" is schema-invalid; "Surname, Forename" splits.
+        const mods = await getTestRecord('mods');
+        expect(mods).not.toContain('<namePart type="text">');
+        expect(mods).toContain('<namePart type="family">E2E_OAI_Rossi</namePart>');
+        expect(mods).toContain('<namePart type="given">Mario</namePart>');
+
+        // UNIMARC: 100$a is 36 characters; 700 entered under surname (ind2 1).
+        const unimarc = await getTestRecord('unimarc');
+        const f100 = (unimarc.match(/<datafield tag="100"[^>]*>\s*<subfield code="a">([^<]*)<\/subfield>/) || [])[1];
+        expect(f100).toBeDefined();
+        expect(f100.length).toBe(36);
+        expect(f100.slice(8, 13)).toBe('d2024');
+        expect(f100.slice(26, 30)).toBe('50  ');
+        expect(f100.slice(34, 36)).toBe('ba');
+        const f700 = (unimarc.match(/<datafield tag="700" ind1="([^"]*)" ind2="([^"]*)">([\s\S]*?)<\/datafield>/) || []);
+        expect(f700[1]).toBe(' ');
+        expect(f700[2]).toBe('1');
+        expect(f700[3]).toContain('<subfield code="a">E2E_OAI_Rossi</subfield>');
+        expect(f700[3]).toContain('<subfield code="b">Mario</subfield>');
+
+        // Dublin Core: DCMI type and ISO 639-2 language.
+        const dc = await getTestRecord('oai_dc');
+        expect(dc).toContain('<dc:type>Text</dc:type>');
+        expect(dc).toContain('<dc:language>ita</dc:language>');
+    });
+
+    test('21. UNIMARC: the EAN goes to 073, never 010', async () => {
+        dbExec(`UPDATE libri SET ean = '8001234567897', isbn13 = NULL, isbn10 = NULL WHERE id = ${testBookId}`);
+        try {
+            const unimarc = await getTestRecord('unimarc');
+            expect(unimarc).not.toContain('tag="010"');
+            expect(unimarc).toMatch(/<datafield tag="073"[^>]*>\s*<subfield code="a">8001234567897<\/subfield>/);
+        } finally {
+            dbExec(`UPDATE libri SET ean = NULL WHERE id = ${testBookId}`);
+        }
+    });
+
+    test('22. ListMetadataFormats for a tombstone-only identifier lists formats', async () => {
+        const delTitle = TAG + '_LMFDEL';
+        dbExec(`INSERT INTO libri (titolo, tipo_media) VALUES ('${delTitle}', 'libro')`);
+        const delId = parseInt(dbQuery(`SELECT id FROM libri WHERE titolo='${delTitle}' AND deleted_at IS NULL`));
+        expect(delId).toBeGreaterThan(0);
+        dbExec(`UPDATE libri SET deleted_at=NOW() WHERE id=${delId}`);
+        try {
+            const res = await page.request.get(
+                `${BASE}/oai?verb=ListMetadataFormats&identifier=oai:${oaiHost}:book:${delId}`
+            );
+            const text = await res.text();
+            expect(text).not.toContain('idDoesNotExist');
+            expect(text).toContain('<metadataPrefix>oai_dc</metadataPrefix>');
+        } finally {
+            dbExec(`DELETE FROM oai_deleted_records WHERE entity_id=${delId} AND entity_type='book'`);
+            dbExec(`DELETE FROM libri WHERE id=${delId}`);
+        }
+    });
+
+    test('23. Identify answers without querying a missing archival_units table', async () => {
+        // Covered in depth by tests/oai-identify-without-archives.unit.php;
+        // here only the live endpoint: a well-formed Identify, never a 500.
+        const res = await page.request.get(`${BASE}/oai?verb=Identify`);
+        expect(res.status()).toBe(200);
+        expect(await res.text()).toMatch(/<earliestDatestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z<\/earliestDatestamp>/);
+    });
+
+    test('24. UNIMARC download: wrong Basic credentials → 401 challenge, not 403', async ({ request }) => {
+        const res = await request.get(`${BASE}/admin/books/${testBookId}/unimarc.xml`, {
+            headers: { Authorization: 'Basic ' + Buffer.from(`${ADMIN_EMAIL}:not-the-password`).toString('base64') },
+        });
+        expect(res.status()).toBe(401);
+        expect(res.headers()['www-authenticate'] ?? '').toContain('Basic');
+        const ok = await request.get(`${BASE}/admin/books/${testBookId}/unimarc.xml`, {
+            headers: { Authorization: 'Basic ' + Buffer.from(`${ADMIN_EMAIL}:${ADMIN_PASS}`).toString('base64') },
+        });
+        expect(ok.status()).toBe(200);
     });
 });

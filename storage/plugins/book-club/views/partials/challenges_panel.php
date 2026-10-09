@@ -25,7 +25,7 @@ $metricLabels = [
       <i class="fas fa-bullseye"></i>
       <h2><?= $e(__('Le mie sfide di lettura')) ?> <?= (int) $year ?></h2>
     </div>
-    <a href="<?= $e(url('/book-club/' . $slug . '/challenges')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
+    <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/challenges')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
       <?= $e(__('Vedi tutte le sfide')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>

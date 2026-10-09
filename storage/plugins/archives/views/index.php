@@ -87,6 +87,9 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $html .= '</td>';
     $html .= '<td data-label="' . $e(__("Titolo")) . '" class="px-4 py-2">' . $indent;
     $html .= '<a href="' . $viewUrl . '" class="text-gray-900 hover:underline">' . $e((string) $row['constructed_title']) . '</a>';
+    if (isset($row['published']) && (int) $row['published'] === 0) {
+        $html .= ' <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded bg-gray-100 text-gray-800 archive-unpublished-badge">' . $e(__('Non pubblicata')) . '</span>';
+    }
     $html .= '</td>';
     $html .= '<td data-label="' . $e(__("Date")) . '" class="px-4 py-2 text-sm text-gray-600">' . $e($dateRange) . '</td>';
     $html .= '<td data-label="' . $e(__("Estensione")) . '" class="px-4 py-2 text-sm text-gray-600">' . $e((string) ($row['extent'] ?? '')) . '</td>';
@@ -184,6 +187,15 @@ $rootRows = $byParent[0] ?? [];
             </a>
         </div>
     </header>
+
+    <?php
+    // The public menu is a site-wide setting, admin only (the POST refuses
+    // staff too): staff never see a switch that would do nothing.
+    if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin') {
+    $menuToggle = ['action' => url('/admin/archives/menu-visibility'), 'enabled' => \App\Support\ConfigStore::isInPublicMenu('archives'), 'title' => __("Voce Archivio nel menu")];
+    require dirname(__DIR__, 4) . '/app/Views/admin/partials/menu-visibility-toggle.php';
+    }
+    ?>
 
     <form method="GET" action="<?= $e(url('/admin/archives')) ?>"
           class="card archive-filter-form mb-6">

@@ -47,7 +47,7 @@ function dbQuery(sql) {
 
 const SOCIALS = [
   { key: 'facebook', icon: 'fa-facebook' },
-  { key: 'twitter', icon: 'fa-twitter' },
+  { key: 'twitter', icon: 'fa-x-twitter' },  // X's own logo since the 2026 footer
   { key: 'instagram', icon: 'fa-instagram' },
   { key: 'linkedin', icon: 'fa-linkedin' },
   { key: 'bluesky', icon: 'fa-bluesky' },
@@ -199,10 +199,10 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
     expect(anchorHtml).not.toContain('a=1&b=2');
   });
 
-  // ── 13: the logged-in (user_layout) footer sanitizes too ────────────────────
+  // ── 13: the logged-in footer sanitizes too ──────────────────────────────────
   test('13. the logged-in footer also drops a javascript: social link', async () => {
     await saveSocials({ facebook: 'javascript:alert(1)' });
-    // The admin session renders user_layout on account pages.
+    // A signed-in session renders the same public layout with the account menu.
     await admin.goto(`${BASE}/`);
     const html = await admin.content();
     expect(html).not.toContain('javascript:alert');
@@ -223,22 +223,19 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
 
   test('17. frontend/layout.php escapes social hrefs with htmlspecialchars', async () => {
     const src = read('app/Views/frontend/layout.php');
-    const count = (src.match(/href="<\?= htmlspecialchars\(\$social\w+, ENT_QUOTES, 'UTF-8'\) \?>"/g) || []).length;
-    expect(count).toBe(6);
-  });
-
-  test('18. user_layout.php sanitizes all six socials at load', async () => {
-    const src = read('app/Views/user_layout.php');
+    // The 2026 footer lists the six profiles in $footerSocials and prints
+    // them in one loop: every profile is in the list, and the loop's href is
+    // the only place a social URL reaches the markup, escaped.
     for (const s of SOCIALS) {
-      expect(src).toContain(`sanitizePublicHttpUrl((string) ConfigStore::get('app.social_${s.key}'`);
+      const name = s.key.charAt(0).toUpperCase() + s.key.slice(1);
+      expect(src).toMatch(new RegExp(`\\['href' => \\$social${name},`));
     }
+    expect(src).toContain(`<a href="<?= htmlspecialchars($social['href'], ENT_QUOTES, 'UTF-8') ?>"`);
+    expect(src).not.toMatch(/href="<\?= \$social/);
   });
 
-  test('19. user_layout.php escapes social hrefs and drops HtmlHelper::e', async () => {
-    const src = read('app/Views/user_layout.php');
-    expect(src).not.toMatch(/HtmlHelper::e\(\$social/);
-    expect((src.match(/htmlspecialchars\(\$social\w+, ENT_QUOTES, 'UTF-8'\)/g) || []).length).toBe(6);
-  });
+  // 18-19 covered user_layout.php, an account layout no controller ever
+  // rendered; it is gone and the account pages use frontend/layout.php (15-17).
 
   test('20. SettingsController saves all six socials', async () => {
     const src = read('app/Controllers/SettingsController.php');

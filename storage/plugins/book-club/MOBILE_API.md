@@ -57,7 +57,7 @@ GET /api/v1/bookclub/clubs
 
 GET /api/v1/bookclub/clubs/{slug}
 → data: {
-    club: {id, slug, name, description, rules*, color, privacy, member_count, max_members},
+    club: {id, slug, name, description, rules*, color, privacy, member_count, max_members, content_visible},
     my_membership: {status, role} | null,
     workflow: [{key, label, color, flags}],
     books: [{id, libro_id, title, authors, cover_url, state, state_label,

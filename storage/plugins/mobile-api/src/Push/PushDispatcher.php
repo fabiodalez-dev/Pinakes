@@ -72,6 +72,8 @@ final class PushDispatcher
             // with the web/email pipeline around the library's midnight.
             $today = DateHelper::today();
 
+            $this->pruneLog();
+
             $counters['loan_due']          = $this->sweepLoanDue($counters, $today);
             $counters['loan_overdue']      = $this->sweepLoanOverdue($counters, $today);
             $counters['reservation_ready'] = $this->sweepReservationReady($counters);
@@ -421,8 +423,26 @@ final class PushDispatcher
     }
 
     /**
-     * True when "now" (UTC) falls inside the user's quiet-hours window. Supports a
-     * window that wraps midnight (start > end). No window set → never quiet.
+     * Drop dedup claims older than 90 days: the log was documented as pruned
+     * by age but grew by one row per (user, loan, due date) forever. The keys
+     * embed the loan id and its due date, so a claim that old can no longer
+     * suppress a notification anyone is waiting for.
+     */
+    private function pruneLog(): void
+    {
+        try {
+            $this->db->query('DELETE FROM mobile_push_log WHERE created_at < (NOW() - INTERVAL 90 DAY)');
+        } catch (\Throwable $e) {
+            // Pruning is housekeeping: never let it stop the sweep.
+        }
+    }
+
+    /**
+     * True when the library's local time falls inside the user's quiet-hours
+     * window. The app documents quiet_start/quiet_end as instance wall-clock
+     * time (users type 22:00-07:00 in their own clock), so "now" is read in
+     * the application timezone, not UTC. Supports a window that wraps
+     * midnight (start > end). No window set → never quiet.
      */
     private function inQuietHours(int $userId): bool
     {
@@ -447,7 +467,8 @@ final class PushDispatcher
         if ($start === $end) {
             return false; // zero-length window
         }
-        $now = gmdate('H:i');
+        // The configured app.timezone, like every other date in the loan pipeline.
+        $now = substr(DateHelper::now(), 11, 5);
 
         if ($start < $end) {
             // Same-day window, e.g. 22:00–23:30 (rare) or 08:00–20:00.
@@ -473,7 +494,7 @@ final class PushDispatcher
                 FROM mobile_push_subscriptions s
                 LEFT JOIN mobile_app_tokens t ON t.id = s.token_id
                 WHERE s.user_id = ?
-                  AND (s.token_id IS NULL OR t.revoked_at IS NULL)
+                  AND (s.token_id IS NULL OR (t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > UTC_TIMESTAMP())))
                   AND s.failure_count < 10";
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {

@@ -77,6 +77,8 @@ class CmsController
         $title = $page['title'];
         $content = ContentSanitizer::normalizeExternalAssets($page['content'] ?? '');
         $image = $page['image'];
+        // An image uploaded by an older version may sit outside the web root.
+        \App\Support\CmsImageStorage::ensurePublic(is_string($image) ? $image : null);
         $seoDescription = $page['meta_description'] ?? '';
 
         ob_start();
@@ -138,7 +140,7 @@ class CmsController
 
         // Carica tutti i contenuti della home (inclusi campi SEO completi)
         $stmt = $db->prepare("
-            SELECT id, section_key, title, subtitle, content, button_text, button_link, background_image,
+            SELECT id, section_key, title, subtitle, content, button_text, button_link,
                    seo_title, seo_description, seo_keywords, og_image,
                    og_title, og_description, og_type, og_url,
                    twitter_card, twitter_title, twitter_description, twitter_image,
@@ -180,6 +182,27 @@ class CmsController
 
         // Include the specific view first
         ob_start();
+        // The hero's picked cover books, with their titles for the picker.
+        $heroCoverConfig = \App\Controllers\FrontendController::heroCoverConfig($sections['hero']['content'] ?? null);
+        $heroCoverBooks = [];
+        if ($heroCoverConfig['books'] !== []) {
+            $marks = implode(',', array_fill(0, count($heroCoverConfig['books']), '?'));
+            $coverStmt = $db->prepare("SELECT id, titolo, copertina_url FROM libri WHERE deleted_at IS NULL AND id IN ($marks)");
+            if ($coverStmt !== false) {
+                $coverStmt->bind_param(str_repeat('i', count($heroCoverConfig['books'])), ...$heroCoverConfig['books']);
+                $coverStmt->execute();
+                $coverRows = [];
+                foreach ($coverStmt->get_result()->fetch_all(MYSQLI_ASSOC) as $coverRow) {
+                    $coverRows[(int) $coverRow['id']] = $coverRow;
+                }
+                $coverStmt->close();
+                foreach ($heroCoverConfig['books'] as $coverId) {
+                    if (isset($coverRows[$coverId])) {
+                        $heroCoverBooks[] = $coverRows[$coverId];
+                    }
+                }
+            }
+        }
         include __DIR__ . '/../Views/cms/edit-home.php';
         $content = ob_get_clean();
 
@@ -192,34 +215,9 @@ class CmsController
         return $response;
     }
 
-    /**
-     * Map a PHP file-upload error code to a user-facing message, or null when
-     * there is nothing to report (UPLOAD_ERR_OK / UPLOAD_ERR_NO_FILE).
-     *
-     * #292: a hero photo bigger than upload_max_filesize arrives with a non-OK
-     * error code BEFORE the app can validate it. The upload block only ran on
-     * UPLOAD_ERR_OK, so the failure fell through silently and the page reported
-     * success with no image. Extracted so the mapping is unit-testable without a
-     * specific php.ini (the E2E INI_SIZE case needs upload_max < post_max, which
-     * not every environment has).
-     */
-    public static function heroUploadErrorMessage(int $err): ?string
-    {
-        return match ($err) {
-            UPLOAD_ERR_OK, UPLOAD_ERR_NO_FILE => null,
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
-                "L'immagine supera il limite di upload del server. Riduci la dimensione dell'immagine, oppure aumenta upload_max_filesize e post_max_size nella configurazione PHP.",
-            UPLOAD_ERR_PARTIAL => "L'upload dell'immagine è stato interrotto. Riprova.",
-            UPLOAD_ERR_NO_TMP_DIR => "Cartella temporanea mancante sul server. Contatta l'amministratore.",
-            UPLOAD_ERR_CANT_WRITE => "Impossibile scrivere il file sul server. Controlla i permessi.",
-            default => "Errore durante l'upload dell'immagine (codice {$err}).",
-        };
-    }
-
     public function updateHome(Request $request, Response $response, \mysqli $db, array $args): Response
     {
         $data = $request->getParsedBody();
-        $files = $request->getUploadedFiles();
 
         // CRITICAL: Set UTF-8 charset to prevent corruption of Greek/Unicode characters
         $db->set_charset('utf8mb4');
@@ -265,113 +263,12 @@ class CmsController
             }
             $heroData['button_link'] = $buttonLink;
 
-            $bgImagePath = null;
-
-            // #292: the browser sent a hero image but PHP rejected it BEFORE the
-            // app could validate/save it — almost always because the file exceeds
-            // upload_max_filesize / post_max_size on a self-hosted install (a
-            // phone photo easily beats the 2M PHP default). This used to fall
-            // through silently: the block below (getError() === OK) was skipped,
-            // $errors stayed empty, the UPSERT ran WITHOUT a background, and the
-            // page reported "saved successfully". Surface a clear error instead.
-            $heroUpload = $files['hero_background'] ?? null;
-            $heroUploadErr = $heroUpload !== null ? $heroUpload->getError() : UPLOAD_ERR_NO_FILE;
-            $heroUploadError = self::heroUploadErrorMessage($heroUploadErr);
-            if ($heroUploadError !== null) {
-                $errors[] = $heroUploadError;
-            }
-
-            // SECURITY: Enhanced file upload validation
-            if (isset($files['hero_background']) && $files['hero_background']->getError() === UPLOAD_ERR_OK) {
-                $uploadedFile = $files['hero_background'];
-                $filename = $uploadedFile->getClientFilename();
-                $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-                // SECURITY: Validate file extension
-                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-                if (!in_array($extension, $allowedExtensions)) {
-                    $errors[] = 'Formato immagine non supportato. Usa JPG, PNG o WebP.';
-                } else {
-                    // SECURITY: Validate file size (max 5MB)
-                    if ($uploadedFile->getSize() > 5 * 1024 * 1024) {
-                        $errors[] = 'L\'immagine è troppo grande. Max 5MB.';
-                    } else {
-                        // SECURITY: Validate MIME type with magic number check
-                        $tmpPath = $uploadedFile->getStream()->getMetadata('uri');
-                        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-                        $mimeType = $finfo->file($tmpPath);
-
-                        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-                        if (!in_array($mimeType, $allowedMimes)) {
-                            $errors[] = 'Tipo di file non valido. Il file deve essere un\'immagine reale.';
-                        } else {
-                            // SECURITY: Secure path handling to prevent directory traversal
-                            $baseDir = realpath(__DIR__ . '/../../public/uploads');
-                            if ($baseDir === false) {
-                                \App\Support\SecureLogger::error('CmsController: Upload base directory not found');
-                                $errors[] = 'Errore di configurazione directory upload.';
-                            } else {
-                                $targetDir = $baseDir . '/assets';
-
-                                // Create directory if it doesn't exist
-                                if (!is_dir($targetDir)) {
-                                    mkdir($targetDir, 0755, true);
-                                }
-
-                                // SECURITY: Generate cryptographically secure random filename
-                                $randomSuffix = '';
-                                try {
-                                    $randomSuffix = bin2hex(random_bytes(8));
-                                } catch (\Throwable $e) {
-                                    \App\Support\SecureLogger::error('CmsController: random_bytes() failed: ' . $e->getMessage());
-                                    $errors[] = 'Errore di sistema. Riprova più tardi.';
-                                }
-
-                                if (empty($errors)) {
-                                    $newFilename = 'hero_bg_' . $randomSuffix . '.' . $extension;
-                                    // Sanitize filename to prevent null byte injection
-                                    $newFilename = str_replace("\\0", '', $newFilename);
-                                    $uploadPath = $targetDir . '/' . basename($newFilename);
-
-                                    // SECURITY: Verify final path is within allowed directory
-                                    $realUploadPath = realpath(dirname($uploadPath));
-                                    if ($realUploadPath === false || strpos($realUploadPath, $baseDir) !== 0) {
-                                        \App\Support\SecureLogger::error('CmsController: Path traversal attempt detected');
-                                        $errors[] = 'Percorso file non valido.';
-                                    } else {
-                                        try {
-                                            $uploadedFile->moveTo($uploadPath);
-                                            // SECURITY: Set secure file permissions
-                                            @chmod($uploadPath, 0644);
-                                            // #292: the file is written under
-                                            // public/uploads/assets, so the stored
-                                            // URL must be /uploads/assets/… —
-                                            // /assets/ resolves to public/assets
-                                            // (a different dir) and 404s, so the
-                                            // hero image never rendered even when
-                                            // the upload succeeded.
-                                            $bgImagePath = '/uploads/assets/' . $newFilename;
-                                        } catch (\Throwable $e) {
-                                            \App\Support\SecureLogger::error('CmsController: Image upload error: ' . $e->getMessage());
-                                            $errors[] = 'Errore durante l\'upload dell\'immagine. Riprova.';
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // The hero shows a fan of covers (2026 design): there is no
+            // background photo setting any more. The legacy `background_image`
+            // column is neither read nor written.
 
             if (empty($errors)) {
                 // UPSERT: Insert if not exists, update if exists
-                $backgroundImage = null;
-                if (isset($heroData['remove_background']) && $heroData['remove_background'] == '1') {
-                    $backgroundImage = null;
-                } elseif ($bgImagePath) {
-                    $backgroundImage = $bgImagePath;
-                }
-
                 // SEO fields for hero (base)
                 $seoTitle = $sanitizeText($heroData['seo_title'] ?? '');
                 $seoDescription = $sanitizeText($heroData['seo_description'] ?? '');
@@ -392,19 +289,18 @@ class CmsController
 
                 $stmt = $db->prepare("
                     INSERT INTO home_content (
-                        section_key, title, subtitle, button_text, button_link, background_image,
+                        section_key, title, subtitle, button_text, button_link,
                         seo_title, seo_description, seo_keywords, og_image,
                         og_title, og_description, og_type, og_url,
                         twitter_card, twitter_title, twitter_description, twitter_image,
                         is_active, display_order
                     )
-                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -1)
+                    VALUES ('hero', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, -1)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         subtitle = VALUES(subtitle),
                         button_text = VALUES(button_text),
                         button_link = VALUES(button_link),
-                        background_image = IF(VALUES(background_image) IS NOT NULL OR ? = 1, VALUES(background_image), background_image),
                         seo_title = VALUES(seo_title),
                         seo_description = VALUES(seo_description),
                         seo_keywords = VALUES(seo_keywords),
@@ -418,14 +314,12 @@ class CmsController
                         twitter_description = VALUES(twitter_description),
                         twitter_image = VALUES(twitter_image)
                 ");
-                $removeBackground = isset($heroData['remove_background']) && $heroData['remove_background'] == '1' ? 1 : 0;
                 $stmt->bind_param(
-                    'sssssssssssssssssi',
+                    'ssssssssssssssss',
                     $heroData['title'],
                     $heroData['subtitle'],
                     $heroData['button_text'],
                     $heroData['button_link'],
-                    $backgroundImage,
                     $seoTitle,
                     $seoDescription,
                     $seoKeywords,
@@ -437,11 +331,36 @@ class CmsController
                     $twitterCard,
                     $twitterTitle,
                     $twitterDescription,
-                    $twitterImage,
-                    $removeBackground
+                    $twitterImage
                 );
                 $stmt->execute();
                 $stmt->close();
+
+                // Hero covers (2026 design): the latest catalogued covers, or up
+                // to four books picked here, in the order picked. Stored as JSON
+                // in the hero row's `content`, read by FrontendController::heroCovers().
+                if (isset($heroData['cover_mode'])) {
+                    $coverIds = [];
+                    foreach ((array) ($heroData['cover_books'] ?? []) as $coverId) {
+                        if (!is_int($coverId) && !is_string($coverId)) {
+                            continue;
+                        }
+                        $coverId = filter_var($coverId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 2147483647]]);
+                        if ($coverId !== false && !in_array($coverId, $coverIds, true) && count($coverIds) < 4) {
+                            $coverIds[] = $coverId;
+                        }
+                    }
+                    $coverConfig = json_encode([
+                        'cover_mode' => $heroData['cover_mode'] === 'selected' ? 'selected' : 'latest',
+                        'cover_books' => $coverIds,
+                    ]);
+                    $coverStmt = $db->prepare("UPDATE home_content SET content = ? WHERE section_key = 'hero'");
+                    if ($coverStmt !== false && $coverConfig !== false) {
+                        $coverStmt->bind_param('s', $coverConfig);
+                        $coverStmt->execute();
+                        $coverStmt->close();
+                    }
+                }
             }
         }
 
@@ -534,6 +453,26 @@ class CmsController
             $stmt = $db->prepare("
                 INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
                 VALUES ('genre_carousel', ?, ?, ?, 7)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    subtitle = VALUES(subtitle),
+                    is_active = VALUES(is_active)
+            ");
+            $stmt->bind_param('ssi', $title, $subtitle, $isActive);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        // Events section (the home's list of upcoming events)
+        if (isset($data['events']) && empty($errors)) {
+            $events = $data['events'];
+            $title = $sanitizeText($events['title'] ?? '');
+            $subtitle = $sanitizeText($events['subtitle'] ?? '');
+            $isActive = isset($events['is_active']) ? 1 : 0;
+
+            $stmt = $db->prepare("
+                INSERT INTO home_content (section_key, title, subtitle, is_active, display_order)
+                VALUES ('events', ?, ?, ?, 9)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     subtitle = VALUES(subtitle),

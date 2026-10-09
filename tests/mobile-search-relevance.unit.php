@@ -16,6 +16,7 @@ use Slim\Psr7\Factory\ServerRequestFactory;
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 require_once $root . '/storage/plugins/mobile-api/src/Support/ResponseEnvelope.php';
+require_once $root . '/storage/plugins/mobile-api/src/Support/Input.php';
 require_once $root . '/storage/plugins/mobile-api/src/Support/CursorCodec.php';
 require_once $root . '/storage/plugins/mobile-api/src/Controllers/CatalogController.php';
 

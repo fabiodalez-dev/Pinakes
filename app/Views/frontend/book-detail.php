@@ -454,26 +454,46 @@ $organizationSchema = [
 ];
 // The page surface lives in public/assets/book-detail.css so other single-
 // resource pages (e.g. the emeroteca article, issue and periodical pages) can
-// reuse it; the layout links it. The blurred band reads --book-hero-cover.
+// reuse it; the layout links it.
 $bookDetailStyles = true;
-$bookHeroCoverCss = "url('" . str_replace(["\\", "'", "\n", "\r"], ["\\\\", "\\'", '', ''], (string) $bookCover) . "')";
 
 ob_start();
 ?>
 
 <!-- Book Hero Section -->
-<section class="book-hero" style="--book-hero-cover: <?= htmlspecialchars($bookHeroCoverCss, ENT_QUOTES, 'UTF-8') ?>;">
-    <div class="container">
-        <div class="book-hero-content" id="book-hero-content">
-            <div class="book-cover-column text-center" id="book-cover-container">
-                <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
-                     alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
-                     class="book-cover-large img-fluid"
-                     fetchpriority="high" decoding="async"
-                     id="book-cover-image">
-            </div>
-            <div class="book-info-column">
-                <div class="hero-text">
+<?php
+$pkHasCover = !str_contains($bookCover, 'placeholder');
+$pkYear = trim((string) ($book['anno_pubblicazione'] ?? ''));
+// "1 copia disponibile su 1": what the library owns, as the sidebar counts it (#426).
+$pkPublishedTotal = \App\Support\CopyHoldings::publishedTotal($bookHoldings ?? null, (int) ($book['copie_totali'] ?? 0));
+$pkAvailable = (int) ($book['copie_disponibili'] ?? 0);
+// Quick facts under the availability box, as in the design.
+// A book reads "Anno" and "Pagine" as in the design; other media keep their own labels (tracks, duration…).
+$pkIsBook = $resolvedTipoMedia === 'libro';
+$pkQuick = array_values(array_filter([
+    [$pkIsBook ? __('Anno') : \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null), $pkYear],
+    [$pkIsBook ? __('Pagine') : \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null), trim((string) ($book['numero_pagine'] ?? ''))],
+    [__('Formato'), !empty($book['formato']) ? \App\Support\MediaLabels::formatDisplayName((string) $book['formato']) : ''],
+    ['ISBN', trim((string) ($book['isbn13'] ?? '')) !== '' ? (string) $book['isbn13'] : trim((string) ($book['isbn10'] ?? ''))],
+], static fn (array $f): bool => $f[1] !== ''));
+ob_start();
+do_action('book.detail.digital_player', $book);
+$pkDigitalPlayer = trim((string) ob_get_clean());
+// The plugins' buttons (digital files, "search on" links) go under the quick
+// facts, as in the design, not in the availability box. Same gate as before:
+// nothing for a catalogue-only install or a book the library does not own.
+$pkDigitalButtons = '';
+if (!$isCatalogueMode && empty($book['is_desiderata'])) {
+    ob_start();
+    do_action('book.detail.digital_buttons', $book);
+    $pkDigitalButtons = trim((string) ob_get_clean());
+}
+// "Contenuti digitali" heads the block only when there is a digital file;
+// the "search on" links alone stand without it.
+$pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 'digital-attachments') || str_contains($pkDigitalButtons, 'plugin-book-actions');
+?>
+<section class="book-hero pk-bookhero" data-pk-tone-target>
+    <div class="pk-wrap">
                     <?php
                     // Multi-publisher (issue #143): link every publisher, fallback to primary.
                     $heroPublishers = $book['editori'] ?? [];
@@ -481,45 +501,56 @@ ob_start();
                         $heroPublishers = [['nome' => $book['editore']]];
                     }
                     ?>
-                    <nav class="book-breadcrumb" aria-label="<?= htmlspecialchars(__('Percorso di navigazione'), ENT_QUOTES, 'UTF-8') ?>">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item">
-                                <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a>
-                            </li>
-                            <li class="breadcrumb-item">
-                                <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a>
-                            </li>
-                            <li class="breadcrumb-item active" aria-current="page">
-                                <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
-                            </li>
-                        </ol>
-                    </nav>
-
-                    <div class="book-kicker">
-                        <span class="book-media-type">
+        <nav class="book-breadcrumb" aria-label="<?= htmlspecialchars(__('Percorso di navigazione'), ENT_QUOTES, 'UTF-8') ?>">
+            <ol class="breadcrumb pk-crumbs">
+                <li class="breadcrumb-item"><a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a></li>
+                <li class="pk-crumbs__sep" aria-hidden="true">/</li>
+                <li class="breadcrumb-item"><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a></li>
+                <li class="pk-crumbs__sep" aria-hidden="true">/</li>
+                <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></li>
+            </ol>
+        </nav>
+        <div class="book-hero-content pk-bookhero__grid" id="book-hero-content">
+            <div class="book-cover-column pk-bookhero__cover" id="book-cover-container">
+                <div class="pk-bigcover">
+                    <div class="pk-book__blank" aria-hidden="true">
+                        <?php if ($bookAuthor !== ''): ?><div class="pk-book__blank-author"><?= htmlspecialchars($bookAuthor, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+                        <div class="pk-book__blank-title"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></div>
+                        <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if (!empty($book['editore'])): ?><div class="pk-book__brand"><?= htmlspecialchars(html_entity_decode((string) $book['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?></div>
+                    </div>
+                    <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
+                         alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
+                         class="book-cover-large img-fluid pk-book__img<?= $pkHasCover ? '' : ' is-missing' ?>"
+                         fetchpriority="high" decoding="async" data-pk-tone
+                         onerror="this.onerror=null;this.classList.add('is-missing')"
+                         id="book-cover-image">
+                    <div class="pk-book__spine" aria-hidden="true"></div>
+                </div>
+            </div>
+            <div class="book-info-column pk-bookhero__info">
+                <div class="hero-text">
+                    <div class="book-kicker pk-kicker">
+                        <span class="book-media-type pk-kicker__type">
                             <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($resolvedTipoMedia), ENT_QUOTES, 'UTF-8') ?> mr-1" aria-hidden="true"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
                         </span>
                         <?php if ($heroPublishers !== []): ?>
                             <span class="book-kicker-separator" aria-hidden="true">·</span>
-                            <span class="book-hero-publishers">
+                            <span class="book-hero-publishers pk-kicker__pub">
                                 <?php foreach ($heroPublishers as $hpI => $hp):
                                     $hpName = html_entity_decode((string) ($hp['nome'] ?? ''), ENT_QUOTES, 'UTF-8');
                                     if ($hpName === '') { continue; }
                                 ?><?= $hpI > 0 ? ', ' : '' ?><a href="<?= htmlspecialchars(route_path('publisher') . '/' . urlencode($hpName), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hpName) ?></a><?php endforeach; ?>
                             </span>
                         <?php endif; ?>
+                        <?php if ($pkYear !== ''): ?><span class="pk-kicker__year">· <?= htmlspecialchars($pkYear, ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                     </div>
-                    <h1 class="font-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
-                        <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
-                    </h1>
+                    <h1 class="pk-bookhero__title" id="book-title"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></h1>
 
                     <?php if (!empty($book['sottotitolo'])): ?>
-                    <p class="book-subtitle-hero mb-3" id="book-subtitle">
-                        <?= htmlspecialchars(html_entity_decode($book['sottotitolo'], ENT_QUOTES, 'UTF-8')) ?>
-                    </p>
+                    <p class="book-subtitle-hero pk-bookhero__subtitle" id="book-subtitle"><?= htmlspecialchars(html_entity_decode($book['sottotitolo'], ENT_QUOTES, 'UTF-8')) ?></p>
                     <?php endif; ?>
 
-                    <div class="authors-list" id="book-authors-list">
+                    <div class="authors-list pk-authors" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
                             <?php
                                 // Pseudonym-aware display "Pseudonimo (Nome)". Issue #237.
@@ -535,7 +566,14 @@ ob_start();
                                     'pseudonimo' => html_entity_decode($author['pseudonimo'] ?? '', ENT_QUOTES, 'UTF-8'),
                                 ]);
                             ?>
-                            <a href="<?= htmlspecialchars($authorHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline">
+                            <?php
+                                $authorInitials = '';
+                                foreach (array_slice(preg_split('/[\s,]+/u', trim($authorDisplay)) ?: [], 0, 2) as $authorWord) {
+                                    $authorInitials .= mb_strtoupper(mb_substr($authorWord, 0, 1));
+                                }
+                            ?>
+                            <a href="<?= htmlspecialchars($authorHref, ENT_QUOTES, 'UTF-8') ?>" class="no-underline pk-author">
+                                <span class="pk-author__initials" aria-hidden="true"><?= htmlspecialchars($authorInitials, ENT_QUOTES, 'UTF-8') ?></span>
                                 <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars($authorDisplay, ENT_QUOTES, 'UTF-8') ?><?php if ($author['ruolo'] !== 'principale'): ?> <span class="contributor-role-sep">·</span> <?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
                                 </span>
@@ -549,7 +587,8 @@ ob_start();
                     </div>
                     <?php endif; ?>
 
-                    <div class="mt-4">
+                    <div class="pk-availbox">
+                        <div class="pk-availbox__status">
                         <?php if (!empty($book['is_desiderata'])): ?>
                         <?php
                         // No data-live-* attributes on purpose: this book has
@@ -567,24 +606,14 @@ ob_start();
                                 : __("Non disponibile oggi")) /* lo snapshot è di OGGI: il calendario può mostrare giorni futuri liberi */ ?></span>
                         </span>
                         <?php endif; ?>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- Book Details Section -->
-<section class="py-5" style="margin-top: 3rem; position: relative; z-index: 50;">
-    <div class="container">
-        <div class="flex flex-wrap -mx-3">
-            <!-- Main Content -->
-            <div class="w-full lg:w-2/3 px-3">
+                            <?php if (empty($book['is_desiderata']) && !$edgeCacheEnabled && $pkPublishedTotal > 0): ?>
+                            <div class="pk-availbox__copies"><?= htmlspecialchars(sprintf($pkAvailable === 1 ? __('%1$d copia disponibile su %2$d') : __('%1$d copie disponibili su %2$d'), $pkAvailable, $pkPublishedTotal), ENT_QUOTES, 'UTF-8') ?></div>
+                            <?php endif; ?>
+                        </div>
                 <!-- Action Buttons -->
                 <?php // No loan, reservation or favourite for a book the library does not own. ?>
                 <?php if (!$isCatalogueMode && empty($book['is_desiderata'])): ?>
-                <div class="action-buttons text-center mb-4" id="book-action-buttons">
+                <div class="action-buttons pk-availbox__actions" id="book-action-buttons">
                     <!-- Always show the calendar to choose dates -->
                     <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= !$edgeCacheEnabled && $nothingInCirculation ? ' disabled' : '' ?><?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
                         <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : ((($book['copie_disponibili'] ?? 0) > 0) ? 'book-reader' : ($nothingInCirculation ? 'ban' : 'calendar-alt')) ?> mr-2"></i>
@@ -601,17 +630,29 @@ ob_start();
                       </a>
                     <?php endif; ?>
 
-                    <?php
-                    // Hook: Allow plugins to add digital content buttons (e.g., Download eBook, Play Audio)
-                    do_action('book.detail.digital_buttons', $book);
-                    ?>
                 </div>
                 <?php endif; ?>
 
-                <?php
-                // Hook: Allow plugins to add digital content player (e.g., Green Audio Player)
-                do_action('book.detail.digital_player', $book);
-                ?>
+
+
+                    </div>
+
+                    <?php if ($pkQuick !== []): ?>
+                    <dl class="pk-quick">
+                        <?php foreach ($pkQuick as [$pkK, $pkV]): ?>
+                        <div class="pk-quick__item"><dt><?= htmlspecialchars((string) $pkK, ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars((string) $pkV, ENT_QUOTES, 'UTF-8') ?></dd></div>
+                        <?php endforeach; ?>
+                    </dl>
+                    <?php endif; ?>
+
+                    <?php if ($pkDigitalButtons !== '' || $pkDigitalPlayer !== ''): ?>
+                    <div class="pk-digital">
+                        <?php if ($pkHasDigitalFiles): ?><div class="pk-label"><?= __("Contenuti digitali") ?></div><?php endif; ?>
+                        <?php // Hook book.detail.digital_buttons: plugins add digital content buttons (eBook, audiobook) and external search links. ?>
+                        <?= $pkDigitalButtons ?>
+                        <?= $pkDigitalPlayer ?>
+                    </div>
+                    <?php endif; ?>
 
                 <!-- Alerts Section -->
                 <div id="book-alerts">
@@ -690,6 +731,18 @@ ob_start();
                     <?php endif; ?>
                 </div>
 
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Book Details Section -->
+<section class="pk-bookbody">
+    <div class="pk-wrap">
+        <div class="pk-bookbody__grid">
+            <!-- Main Content -->
+            <div class="pk-bookbody__main">
                 <!-- Description / Tracklist Section -->
                 <div class="book-description-section" id="book-description-section">
                     <h2 class="section-title">
@@ -713,158 +766,6 @@ ob_start();
                         <?php endif; ?>
                     </div>
                 </div>
-
-                <!-- Details Section -->
-                <?php
-                $detailFields = [
-                    !empty($book['isbn13']),
-                    !empty($book['isbn10']),
-                    !empty($book['ean']),
-                    !empty($book['issn']),
-                    !empty($bookGenre),
-                    !empty($book['lingua']),
-                    !empty($book['prezzo']),
-                    !empty($book['anno_pubblicazione']),
-                    !empty($book['data_pubblicazione']),
-                    !empty($book['numero_pagine']),
-                    !empty($book['formato']),
-                    !empty($book['dimensioni']),
-                    !empty($book['peso']),
-                    !empty($book['numero_inventario'])
-                ];
-                ?>
-                <?php if (in_array(true, $detailFields, true)): ?>
-                <div class="book-details-section" id="book-details-section">
-                    <h2 class="section-title">
-                        <i class="fas fa-list"></i>
-                        <?= __("Dettagli Libro") ?>
-                    </h2>
-                    <div class="details-grid">
-                        <div class="details-column">
-                            <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!$isMusic && !empty($book['isbn10'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label">ISBN-10</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['ean'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['issn'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label">ISSN</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['issn'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($genreHierarchy)): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Genere") ?></div>
-                                <div class="meta-value"><?php unset($genreLinkClass, $genreSeparator); include __DIR__ . '/partials/genre-breadcrumb.php'; ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['lingua'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Lingua") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['lingua'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['prezzo'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Prezzo") ?></div>
-                                <div class="meta-value">€ <?= number_format($book['prezzo'], 2) ?></div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="details-column">
-                            <?php if (!empty($book['anno_pubblicazione'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['data_pubblicazione'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Data di Pubblicazione") ?></div>
-                                <div class="meta-value"><?= App\Support\HtmlHelper::e(format_date($book['data_pubblicazione'], false, '/')) ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['numero_pagine'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['formato'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Formato") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['dimensioni'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Dimensioni") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['dimensioni'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['peso'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Peso") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['peso'], ENT_QUOTES, 'UTF-8') ?> kg</div>
-                            </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($book['numero_inventario'])): ?>
-                            <div class="meta-item">
-                                <div class="meta-label"><?= __("Numero Inventario") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['numero_inventario'], ENT_QUOTES, 'UTF-8') ?></div>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php
-                $keywords = !empty($book['parole_chiave'])
-                    ? array_unique(array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; }))
-                    : [];
-                ?>
-                <?php if (!empty($keywords)): ?>
-                <div class="book-details-section">
-                    <h2 class="section-title">
-                        <i class="fas fa-tags"></i>
-                        <?= __("Parole Chiave") ?>
-                    </h2>
-                    <div class="flex flex-wrap gap-2">
-                        <?php foreach ($keywords as $keyword): ?>
-                        <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
-                           class="status-badge bg-gray-100 text-gray-900 border px-3 py-2 no-underline keyword-chip">
-                            <i class="fas fa-tag mr-1 text-gray-500"></i><?= HtmlHelper::e($keyword) ?>
-                        </a>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
 
                 <!-- LibraryThing Fields Section -->
                 <?php
@@ -1093,7 +994,7 @@ ob_start();
             </div>
 
             <!-- Sidebar -->
-            <div class="w-full lg:w-1/3 px-3" id="book-sidebar">
+            <aside class="pk-bookbody__aside" id="book-sidebar">
                 <!-- Book Info Card -->
                 <div class="card mb-4" style="position: relative; z-index: 100;" id="book-info-card">
                     <div class="card-header">
@@ -1179,6 +1080,170 @@ ob_start();
                 <!-- Share Card (configurable via Settings > Sharing) -->
                 <?php include __DIR__ . '/partials/social-sharing.php'; ?>
 
+            </aside>
+        </div>
+
+        <!-- Details and keywords: out of the column, across the whole width, so a
+             label and its value stay on one line. -->
+        <div class="pk-bookbody__full">
+            <!-- Details Section -->
+            <?php
+            $detailFields = [
+                !empty($book['isbn13']),
+                !empty($book['isbn10']),
+                !empty($book['ean']),
+                !empty($book['issn']),
+                !empty($bookGenre),
+                !empty($book['lingua']),
+                !empty($book['prezzo']),
+                !empty($book['anno_pubblicazione']),
+                !empty($book['data_pubblicazione']),
+                !empty($book['numero_pagine']),
+                !empty($book['formato']),
+                !empty($book['dimensioni']),
+                !empty($book['peso']),
+                !empty($book['numero_inventario'])
+            ];
+            ?>
+            <?php if (in_array(true, $detailFields, true)): ?>
+            <div class="book-details-section" id="book-details-section">
+                <h2 class="section-title">
+                    <i class="fas fa-list"></i>
+                    <?= __("Dettagli Libro") ?>
+                </h2>
+                <div class="details-grid">
+                    <div class="details-column">
+                        <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!$isMusic && !empty($book['isbn10'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label">ISBN-10</div>
+                            <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['ean'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['issn'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label">ISSN</div>
+                            <div class="meta-value"><?= htmlspecialchars($book['issn'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($genreHierarchy)): ?>
+                        <div class="meta-item meta-item--genre">
+                            <div class="meta-label"><?= __("Genere") ?></div>
+                            <div class="meta-value genre-path"><?php $genreLinkClass = 'genre-path__link'; $genreSeparator = '<span class="genre-path__sep" aria-hidden="true">›</span>'; include __DIR__ . '/partials/genre-breadcrumb.php'; unset($genreLinkClass, $genreSeparator); ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['lingua'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Lingua") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['lingua'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['prezzo'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Prezzo") ?></div>
+                            <div class="meta-value">€ <?= number_format($book['prezzo'], 2) ?></div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="details-column">
+                        <?php if (!empty($book['anno_pubblicazione'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['data_pubblicazione'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Data di Pubblicazione") ?></div>
+                            <div class="meta-value"><?= App\Support\HtmlHelper::e(format_date($book['data_pubblicazione'], false, '/')) ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['numero_pagine'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['formato'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Formato") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['dimensioni'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Dimensioni") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['dimensioni'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['peso'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Peso") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['peso'], ENT_QUOTES, 'UTF-8') ?> kg</div>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($book['numero_inventario'])): ?>
+                        <div class="meta-item">
+                            <div class="meta-label"><?= __("Numero Inventario") ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['numero_inventario'], ENT_QUOTES, 'UTF-8') ?></div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php
+            $keywords = !empty($book['parole_chiave'])
+                ? array_unique(array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; }))
+                : [];
+            ?>
+            <?php if (!empty($keywords)): ?>
+            <div class="book-details-section">
+                <h2 class="section-title">
+                    <i class="fas fa-tags"></i>
+                    <?= __("Parole Chiave") ?>
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                    <?php foreach ($keywords as $keyword): ?>
+                    <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
+                       class="status-badge bg-gray-100 text-gray-900 border px-3 py-2 no-underline keyword-chip">
+                        <i class="fas fa-tag mr-1 text-gray-500"></i><?= HtmlHelper::e($keyword) ?>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+
+<!-- Cite Section -->
+<section class="pk-cite">
+    <div class="pk-wrap">
                 <?php
                 // "Cite" (#412): the book as the shared citation styles read it;
                 // the RIS download starts from the same input.
@@ -1193,11 +1258,20 @@ ob_start();
                     <h6 class="mb-0"><i class="fas fa-quote-left mr-2"></i><?= htmlspecialchars(__('Cita questo libro'), ENT_QUOTES, 'UTF-8') ?></h6>
                   </div>
                   <div class="card-body py-2 px-3">
-                    <?php include dirname(__DIR__) . '/partials/cite-dialog.php'; ?>
+                    <?php
+                    // The RIS file is already the inline "Download RIS" button: the
+                    // dialog keeps its styles and copy buttons, not a second link.
+                    // Its "Cite" button joins the inline actions row (cite-inline.php).
+                    $citeDownloadsInline = $citeDownloads;
+                    $citeDownloads = [];
+                    ob_start();
+                    include dirname(__DIR__) . '/partials/cite-dialog.php';
+                    $pkCiteDialog = (string) ob_get_clean();
+                    $citeDownloads = $citeDownloadsInline;
+                    include dirname(__DIR__) . '/partials/cite-inline.php';
+                    ?>
                   </div>
                 </div>
-            </div>
-        </div>
     </div>
 </section>
 
@@ -1226,97 +1300,29 @@ ob_start();
 <?php endif; ?>
 
 <!-- Related Books Section -->
+<?php $pkMainBook = $book; ?>
 <?php if (!empty($related_books) && count($related_books) > 0): ?>
-<section class="py-5" style="background: var(--light-bg); margin-top: 3rem;">
-    <div class="container">
-        <h2 class="section-title">
-            <i class="fas fa-lightbulb"></i>
-            <?= __("Potrebbero interessarti") ?>
-        </h2>
+<section class="pk-related">
+    <div class="pk-wrap">
+        <h2 class="section-title pk-h2 pk-related__title"><i class="fas fa-lightbulb" aria-hidden="true"></i><?= __("Potrebbero interessarti") ?></h2>
         <div class="related-books-wrap">
         <div class="related-books-grid">
-            <?php foreach($related_books as $related): ?>
-            <div class="related-book-cell">
-                <div class="related-book-card">
-                    <div class="related-book-image-container">
-                        <?php
-                        $relatedTitle = html_entity_decode($related['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $relatedAuthorsRaw = html_entity_decode($related['autori'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $relatedAuthorsList = array_filter(array_map('trim', preg_split('/\s*,\s*/', (string)$relatedAuthorsRaw)));
-                        $relatedPublisher = html_entity_decode($related['editore'] ?? '', ENT_QUOTES, 'UTF-8');
-                        $relatedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($related['formato'] ?? null, $related['tipo_media'] ?? null);
-                        $relatedIsMusic = $relatedTipoMedia === 'disco';
-                        $relatedAuthorDisplay = trim($relatedAuthorsRaw);
-                        if ($relatedAuthorDisplay === '') {
-                            $relatedAuthorDisplay = trim(html_entity_decode(
-                                (string) ($related['autore_principale'] ?? $related['autore_principale_nome'] ?? ''),
-                                ENT_QUOTES,
-                                'UTF-8'
-                            ));
-                        }
-                        if ($relatedAuthorDisplay === '') {
-                            $relatedAuthorDisplay = __($relatedIsMusic ? 'Artista sconosciuto' : 'Autore sconosciuto');
-                        }
-                        if ($relatedAuthorsList === []) {
-                            $relatedAuthorsList = [$relatedAuthorDisplay];
-                        }
-                        $relatedAltParts = [];
-                        if ($relatedTitle !== '') {
-                            $relatedAltParts[] = sprintf(__('Copertina del libro "%s"'), $relatedTitle);
-                        }
-                        // $relatedAuthorsList is guaranteed non-empty here (the
-                        // guard above seeds it with $relatedAuthorDisplay, which
-                        // always falls back to "Autore/Artista sconosciuto").
-                        $relatedAltParts[] = sprintf(__('di %s'), implode(', ', $relatedAuthorsList));
-                        if ($relatedPublisher !== '') {
-                            $relatedAltParts[] = sprintf(__('Editore %s'), $relatedPublisher);
-                        }
-                        $relatedCoverAlt = trim(implode(' ', $relatedAltParts));
-                        if ($relatedCoverAlt === '') {
-                            $relatedCoverAlt = __("Copertina del libro");
-                        }
-                        ?>
-                        <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                            <?php $relatedCover = ($related['copertina_url'] ?? '') ?: ($related['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
-                            <img src="<?= htmlspecialchars(url($relatedCover), ENT_QUOTES, 'UTF-8') ?>"
-                                 alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
-                                 class="related-book-image"
-                                 loading="lazy">
-                        </a>
-                        <?php if (($related['copie_disponibili'] ?? 0) > 0 || $edgeCacheEnabled): ?>
-                        <span class="related-availability-badge <?= $edgeCacheEnabled ? 'availability-pending' : 'available-badge' ?>"<?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $related['id'] . '" data-live-role="related" data-live-pending="1"' : '' ?>>
-                            <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : 'check-circle' ?>" aria-hidden="true"></i>
-                            <?php if ($edgeCacheEnabled): ?><span data-live-label><?= __("Verifica disponibilità") ?></span><?php endif; ?>
-                            <?php
-                            // Hook: Allow plugins to add icons to related book badge (e.g., eBook/audio icons)
-                            $pluginRelated = $related;
-                            if ($edgeCacheEnabled) {
-                                unset($pluginRelated['copie_disponibili'], $pluginRelated['copie_totali'], $pluginRelated['stato']);
-                            }
-                            do_action('book.badge.digital_icons', $pluginRelated);
-                            ?>
-                        </span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="related-book-content">
-                        <h5 class="related-book-title">
-                            <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                                <?= htmlspecialchars($related['titolo'], ENT_QUOTES, 'UTF-8') ?>
-                            </a>
-                        </h5>
-                        <p class="related-book-author">
-                            <?= htmlspecialchars($relatedAuthorDisplay, ENT_QUOTES, 'UTF-8') ?>
-                        </p>
-                        <div class="related-book-actions book-actions">
-                            <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
-                               class="btn-cta btn-cta-sm">
-                                <i class="fas fa-eye" aria-hidden="true"></i><?= __("Dettagli") ?>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <?php foreach ($related_books as $related): ?>
+                <?php
+                // The shared card reads `autore`; related rows carry the full
+                // author list in `autori`, else the principal author's name.
+                $relatedAuthorDisplay = trim(html_entity_decode((string) ($related['autori'] ?? ''), ENT_QUOTES, 'UTF-8'));
+                if ($relatedAuthorDisplay === '') {
+                    $relatedAuthorDisplay = trim(html_entity_decode((string) ($related['autore_principale'] ?? $related['autore_principale_nome'] ?? ''), ENT_QUOTES, 'UTF-8'));
+                }
+                $book = $related + ['autore' => $relatedAuthorDisplay];
+                $book['copertina_url'] = ($related['copertina_url'] ?? '') ?: ($related['immagine_copertina'] ?? '');
+                $pkCardClass = 'related-book-card';
+                $pkCardMeta = false;
+                ?>
+                <div class="related-book-cell"><?php include __DIR__ . '/partials/pk-book-card.php'; ?></div>
             <?php endforeach; ?>
+            <?php unset($pkCardClass, $pkCardMeta); $book = $pkMainBook; ?>
         </div><!-- /.related-books-grid -->
         <noscript>
             <style>
@@ -1357,7 +1363,7 @@ ob_start();
       cells.forEach(function (c) {
         c.removeAttribute('inert');
         c.removeAttribute('aria-hidden');
-        Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+        Array.prototype.forEach.call(c.querySelectorAll('a:not(.pk-card__link)'), function (a) {
           a.removeAttribute('tabindex');
         });
       });
@@ -1374,7 +1380,8 @@ ob_start();
         c.removeAttribute('aria-hidden');
       }
       // Fallback for browsers without `inert`: keep the links off the tab order.
-      Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+      // The card's cover link is aria-hidden and always out of it (tabindex=-1).
+      Array.prototype.forEach.call(c.querySelectorAll('a:not(.pk-card__link)'), function (a) {
         if (clipped) { a.setAttribute('tabindex', '-1'); }
         else { a.removeAttribute('tabindex'); }
       });
@@ -1520,6 +1527,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!res.ok) throw new Error('bad');
       const data = await res.json();
       setFavUI(!!data.favorite);
+      // Keeps the phone tab bar's favourites badge in step.
+      document.dispatchEvent(new CustomEvent('pinakes:wishlist-changed', { detail: { id: libroId, favorite: !!data.favorite } }));
     } catch (e) {
       window.SwalApp.error(undefined, <?= json_encode(__("Errore nell'aggiornare i preferiti."), JSON_HEX_TAG) ?>);
     }

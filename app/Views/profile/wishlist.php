@@ -1,8 +1,7 @@
 <?php
-use App\Support\HtmlHelper;
 
 $items = $items ?? [];
-$csrfToken = HtmlHelper::e($_SESSION['csrf_token'] ?? '');
+$csrfToken = htmlspecialchars((string) ($_SESSION['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8');
 $totalItems = count($items);
 $availableCount = 0;
 foreach ($items as $entry) {
@@ -17,367 +16,127 @@ $reservationsRoute = route_path('reservations');
 ?>
 <meta name="csrf-token" content="<?= $csrfToken ?>">
 
-<style>
-  .wishlist-hero {
-    background: var(--primary-color);
-    color: var(--white);
-    padding: 4.5rem 0 3.5rem;
-    margin-bottom: 3rem;
-  }
 
-  .wishlist-hero .hero-title {
-    font-size: 2.75rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-  }
-
-  .wishlist-hero .hero-subtitle {
-    font-size: 1.1rem;
-    opacity: 0.85;
-  }
-
-  .wishlist-info-card {
-    background: var(--white);
-    border-radius: 20px;
-    padding: clamp(1.75rem, 4vw, 2.5rem);
-    box-shadow: var(--card-shadow);
-    position: relative;
-    z-index: 2;
-  }
-
-  .wishlist-stat-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-top: 1.5rem;
-  }
-
-  .wishlist-stat {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    background: var(--light-bg);
-    color: var(--primary-color);
-    padding: 0.6rem 1.1rem;
-    border-radius: 999px;
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-
-  .wishlist-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-
-  .wishlist-actions .btn-outline {
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    padding: 0.65rem 1.4rem;
-    font-weight: 600;
-    color: var(--primary-color);
-    background: var(--white);
-    transition: all 0.3s ease;
-  }
-
-  .wishlist-actions .btn-outline:hover {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-    box-shadow: var(--card-shadow-hover);
-    text-decoration: none;
-  }
-
-  .wishlist-filter-card {
-    background: var(--white);
-    border-radius: 18px;
-    padding: clamp(1.5rem, 3vw, 2rem);
-    box-shadow: var(--card-shadow);
-    margin-bottom: 2.5rem;
-  }
-
-  .wishlist-filter-card label {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
-
-  .wishlist-filter-card input[type="search"] {
-    background: var(--light-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 14px;
-    padding: 0.75rem 1rem;
-    font-size: 0.95rem;
-    color: var(--text-color);
-  }
-
-  .wishlist-filter-card input[type="search"]:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
-  }
-
-  .wishlist-filter-card button {
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-  }
-
-  .wishlist-filter-card button:hover {
-    color: var(--primary-color);
-  }
-
-  .wishlist-empty {
-    background: var(--white);
-    border-radius: 24px;
-    padding: clamp(2.5rem, 6vw, 3.5rem);
-    box-shadow: var(--card-shadow);
-    text-align: center;
-  }
-
-  .wishlist-empty-icon {
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-    background: var(--light-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-    margin: 0 auto 1.5rem;
-    color: var(--text-muted);
-  }
-
-  .wishlist-card {
-    background: var(--white);
-    border-radius: 22px;
-    box-shadow: var(--card-shadow);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    overflow: hidden;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .wishlist-card:hover {
-    transform: translateY(-6px);
-    box-shadow: var(--card-shadow-hover);
-  }
-
-  .wishlist-card-cover {
-    background: var(--light-bg);
-    padding: 1.5rem;
-  }
-
-  .wishlist-card-cover img {
-    width: 100%;
-    height: 240px;
-    object-fit: contain;
-    transition: transform 0.4s ease;
-  }
-
-  .wishlist-card:hover .wishlist-card-cover img {
-    transform: scale(1.03);
-  }
-
-  .wishlist-card-body {
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    gap: 1rem;
-  }
-
-  .wishlist-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: 999px;
-    padding: 0.45rem 0.9rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-  }
-
-  .wishlist-status.available {
-    background: rgba(16, 185, 129, 0.1);
-    color: #059669;
-  }
-
-  .wishlist-status.pending {
-    background: rgba(245, 158, 11, 0.12);
-    color: #b45309;
-  }
-
-  .wishlist-card-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-color);
-  }
-
-  .wishlist-card-footer {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .wishlist-card-footer a {
-    flex: 1;
-  }
-
-  .wishlist-card .btn-outline {
-    border-radius: 12px;
-    font-weight: 600;
-    padding: 0.6rem 1rem;
-  }
-
-  .wishlist-card .btn-secondary {
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    padding: 0.6rem;
-  }
-
-  #wishlist-no-results {
-    border-radius: 16px;
-    padding: 0.9rem 1.25rem;
-    background: rgba(59, 130, 246, 0.08);
-    color: #1d4ed8;
-    font-weight: 600;
-    display: none;
-  }
-
-  @media (max-width: 768px) {
-    .wishlist-hero {
-      padding: 3.5rem 0 3rem;
-    }
-
-    .wishlist-hero .hero-title {
-      font-size: 2.1rem;
-    }
-
-  }
-</style>
-
-<link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('account-pages.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= (int)(@filemtime(dirname(__DIR__, 3) . '/public/assets/account-pages.css') ?: 1) ?>">
-
-<section class="wishlist-hero">
-  <div class="container text-center">
-    <h1 class="hero-title"><?= __("I tuoi preferiti") ?></h1>
-    <p class="hero-subtitle"><?= __("Una panoramica dei libri che hai salvato per non perderli di vista.") ?></p>
-  </div>
-</section>
-
-<section class="container">
-  <div class="wishlist-info-card">
-    <div class="flex flex-wrap -mx-3 gap-y-4 items-center">
-      <div class="w-full md:w-1/2 px-3">
-        <h2 class="h4 font-bold mb-2"><?= __("Riepilogo wishlist") ?></h2>
-        <p class="text-gray-500 mb-0"><?= __("Gestisci i tuoi titoli preferiti, scopri quando tornano disponibili e accedi rapidamente ai dettagli del libro.") ?></p>
-        <div class="wishlist-stat-badges">
-          <span class="wishlist-stat"><i class="fas fa-heart"></i> <span id="wishlist-total-count"><?= $totalItems; ?></span> <?= __("preferiti") ?></span>
-          <span class="wishlist-stat"><i class="fas fa-bolt"></i> <span id="wishlist-available-count"><?= $availableCount; ?></span> <?= __("disponibili ora") ?></span>
-          <span class="wishlist-stat"><i class="fas fa-clock"></i> <span id="wishlist-pending-count"><?= max($pendingCount, 0); ?></span> <?= __("in attesa") ?></span>
-        </div>
-      </div>
-      <div class="w-full md:w-1/2 px-3 md:text-right">
-        <div class="wishlist-actions md:justify-end">
-          <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-search mr-2"></i><?= __("Esplora catalogo") ?></a>
-          <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-bookmark mr-2"></i><?= __("Prenotazioni") ?></a>
-        </div>
-      </div>
+<?php // 2026 design: the account page head, a summary with the three counters, the quick search, then the same book cards as the catalogue. Styles in pinakes-2026.css (.pk-wishlist). ?>
+<div class="loans-container pk-wishlist">
+  <header class="account-page-heading">
+    <div>
+      <p class="account-page-heading__eyebrow"><?= __('Area personale') ?></p>
+      <h1><?= __("I tuoi preferiti") ?></h1>
+      <p class="account-page-heading__subtitle"><?= __("Una panoramica dei libri che hai salvato per non perderli di vista.") ?></p>
     </div>
-  </div>
-</section>
+    <nav class="account-page-heading__actions wishlist-actions" aria-label="<?= htmlspecialchars(__('Collegamenti area personale'), ENT_QUOTES, 'UTF-8') ?>">
+      <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-search" aria-hidden="true"></i><?= __("Esplora catalogo") ?></a>
+      <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-bookmark" aria-hidden="true"></i><?= __("Prenotazioni") ?></a>
+    </nav>
+  </header>
 
-<section class="container">
-  <div class="wishlist-filter-card">
+  <section class="wishlist-info-card pk-wishlist__summary" aria-labelledby="wishlist-summary-title">
+    <div class="pk-wishlist__intro">
+      <h2 id="wishlist-summary-title"><?= __("Riepilogo wishlist") ?></h2>
+      <p><?= __("Gestisci i tuoi titoli preferiti, scopri quando tornano disponibili e accedi rapidamente ai dettagli del libro.") ?></p>
+    </div>
+    <div class="wishlist-stat-badges pk-wishlist__stats">
+      <span class="wishlist-stat"><i class="fas fa-heart" aria-hidden="true"></i><strong id="wishlist-total-count"><?= $totalItems; ?></strong> <?= __("preferiti") ?></span>
+      <span class="wishlist-stat"><i class="fas fa-bolt" aria-hidden="true"></i><strong id="wishlist-available-count"><?= $availableCount; ?></strong> <?= __("disponibili ora") ?></span>
+      <span class="wishlist-stat"><i class="fas fa-clock" aria-hidden="true"></i><strong id="wishlist-pending-count"><?= max($pendingCount, 0); ?></strong> <?= __("in attesa") ?></span>
+    </div>
+  </section>
+
+  <div class="wishlist-filter-card pk-wishlist__tools">
     <div class="wishlist-filter-field">
-      <label for="wishlist_search" class="mb-2"><?= __("Ricerca rapida") ?></label>
+      <label for="wishlist_search"><?= __("Ricerca rapida") ?></label>
       <input id="wishlist_search" type="search" class="form-input" placeholder="<?= htmlspecialchars(__('Cerca per titolo o stato (es. disponibile)'), ENT_QUOTES, 'UTF-8') ?>">
     </div>
-    <button id="clear-search" type="button" class="uppercase"><?= __("Pulisci filtro") ?></button>
+    <button id="clear-search" type="button"><i class="fas fa-times" aria-hidden="true"></i><?= __("Pulisci filtro") ?></button>
   </div>
-</section>
 
 <?php if ($totalItems === 0): ?>
-  <section class="container">
-    <div class="wishlist-empty">
-      <div class="wishlist-empty-icon">
-        <svg class="account-line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M20.5 8.75c0 5-8.5 10-8.5 10s-8.5-5-8.5-10A4.25 4.25 0 0 1 12 7.7a4.25 4.25 0 0 1 8.5 1.05Z"></path>
-        </svg>
-      </div>
-      <h2 class="h4 font-bold mb-2"><?= __("La tua wishlist è vuota") ?></h2>
-      <p class="text-gray-500 mb-4"><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
-      <div class="wishlist-actions justify-center">
-        <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-compass mr-2"></i><?= __("Cerca titoli") ?></a>
-        <a href="<?= htmlspecialchars(url('/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="btn-outline"><i class="fas fa-arrow-left mr-2"></i><?= __("Torna alla dashboard") ?></a>
-      </div>
+  <div class="wishlist-empty pk-wishlist__empty">
+    <div class="wishlist-empty-icon">
+      <svg class="account-line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M20.5 8.75c0 5-8.5 10-8.5 10s-8.5-5-8.5-10A4.25 4.25 0 0 1 12 7.7a4.25 4.25 0 0 1 8.5 1.05Z"></path>
+      </svg>
     </div>
-  </section>
+    <h2><?= __("La tua wishlist è vuota") ?></h2>
+    <p><?= __("Aggiungi i libri che ti interessano dalla scheda di dettaglio per ricevere un promemoria quando tornano disponibili.") ?></p>
+    <div class="wishlist-actions">
+      <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-compass" aria-hidden="true"></i><?= __("Cerca titoli") ?></a>
+      <a href="<?= htmlspecialchars(route_path('user_dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="account-page-link"><i class="fas fa-arrow-left" aria-hidden="true"></i><?= __("Torna alla dashboard") ?></a>
+    </div>
+  </div>
 <?php else: ?>
-  <section class="container mb-5">
-    <div id="wishlist-no-results" role="alert">
-      <i class="fas fa-info-circle mr-2"></i><?= __("Nessun titolo corrisponde al filtro corrente.") ?>
-    </div>
-    <div class="flex flex-wrap -mx-3 gap-y-4" id="wishlist-grid">
-      <?php foreach ($items as $it):
-        $cover = (string)($it['copertina_url'] ?? '');
-        if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
-            $cover = '/' . $cover;
-        }
-        if ($cover === '') {
-            $cover = '/uploads/copertine/placeholder.jpg';
-        }
-        if (!preg_match('#^(https?:)?//#', $cover)) {
-            $cover = url($cover);
-        }
-        // Use actual copy availability (considers reservations and physical copy state)
-        $available = !empty($it['has_actual_copy']);
-        $nextAvailable = $it['next_available'] ?? null;
-        $dataTitle = HtmlHelper::e(mb_strtolower((string)($it['titolo'] ?? ''), 'UTF-8'));
-        $statusLabel = $available ? 'disponibile' : 'attesa';
-      ?>
-        <div class="w-full xl:w-1/3 px-3 md:w-1/2">
-          <article class="wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
-            <div class="wishlist-card-cover">
-              <img src="<?= HtmlHelper::e($cover); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
-            </div>
-            <div class="wishlist-card-body">
-              <span class="wishlist-status <?= $available ? 'available' : 'pending'; ?>">
-                <i class="fas <?= $available ? 'fa-check-circle' : 'fa-clock'; ?>"></i>
-                <?= $available ? __("Disponibile ora") : __("In attesa"); ?>
-              </span>
-              <h3 class="wishlist-card-title mb-0"><?= HtmlHelper::e($it['titolo'] ?? ''); ?></h3>
-              <?php if ($available): ?>
-              <p class="text-gray-500 text-sm mb-0"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
-              <?php elseif ($nextAvailable): ?>
-              <p class="text-gray-500 text-sm mb-0">
-                <i class="fas fa-calendar-alt mr-1"></i>
-                <?= __("Disponibile dal:") ?> <?= format_date($nextAvailable, false, '/'); ?>
-              </p>
-              <?php else: ?>
-              <p class="text-gray-500 text-sm mb-0"><?= __("Nessuna copia attualmente disponibile") ?></p>
-              <?php endif; ?>
-              <?php $wishlistBookUrl = book_url($it); ?>
-              <div class="wishlist-card-footer">
-                <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="ui-button btn-outline"><i class="fas fa-book-open mr-2"></i><?= __("Dettagli") ?></a>
-                <button type="button" class="ui-button btn-secondary remove-fav-btn" title="<?= htmlspecialchars(__("Rimuovi dalla wishlist"), ENT_QUOTES, 'UTF-8') ?>">
-                  <i class="fas fa-trash"></i>
-                </button>
+  <div id="wishlist-no-results" role="alert" hidden>
+    <i class="fas fa-info-circle" aria-hidden="true"></i><?= __("Nessun titolo corrisponde al filtro corrente.") ?>
+  </div>
+  <div class="books-grid pk-grid pk-wishlist__grid" id="wishlist-grid">
+    <?php foreach ($items as $it):
+      $cover = (string)($it['copertina_url'] ?? '');
+      if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) {
+          $cover = '/' . $cover;
+      }
+      // No cover, or the placeholder image: the card draws a blank book with the title, as in the catalogue.
+      if (str_contains($cover, 'placeholder')) {
+          $cover = '';
+      }
+      if ($cover !== '' && !preg_match('#^(https?:)?//#', $cover)) {
+          $cover = url($cover);
+      }
+      // Use actual copy availability (considers reservations and physical copy state)
+      $available = !empty($it['has_actual_copy']);
+      $nextAvailable = $it['next_available'] ?? null;
+      // Decoded once, then escaped where printed, as the catalogue card does.
+      $wishlistTitle = html_entity_decode((string) ($it['titolo'] ?? ''), ENT_QUOTES, 'UTF-8');
+      $dataTitle = htmlspecialchars(mb_strtolower($wishlistTitle, 'UTF-8'), ENT_QUOTES, 'UTF-8');
+      $statusLabel = $available ? 'disponibile' : 'attesa';
+      $wishlistBookUrl = book_url($it);
+      $wishlistAuthor = trim(html_entity_decode((string)($it['autore'] ?? ''), ENT_QUOTES, 'UTF-8'));
+    ?>
+      <article class="book-card pk-card wishlist-card" data-libro-id="<?= (int)$it['id']; ?>" data-title="<?= $dataTitle; ?>" data-status="<?= $statusLabel; ?>">
+        <div class="book-image-container pk-card__panel">
+          <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="pk-card__link" tabindex="-1" aria-hidden="true"></a>
+          <div class="pk-book">
+            <div class="pk-book__pages"></div>
+            <div class="pk-book__cover">
+              <div class="pk-book__blank" aria-hidden="true">
+                <?php if ($wishlistAuthor !== ''): ?><div class="pk-book__blank-author"><?= htmlspecialchars($wishlistAuthor, ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?>
+                <div class="pk-book__blank-title"><?= htmlspecialchars($wishlistTitle, ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if (!empty($it['editore'])): ?><div class="pk-book__brand"><?= htmlspecialchars(html_entity_decode((string) $it['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?></div>
               </div>
+              <?php if ($cover !== ''): ?>
+              <img class="book-image pk-book__img" src="<?= htmlspecialchars((string) $cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">
+              <?php endif; ?>
+              <div class="pk-book__spine"></div>
+              <div class="pk-book__gloss"></div>
+              <div class="pk-book__edge"></div>
             </div>
-          </article>
+          </div>
+          <span class="book-status-badge pk-card__status wishlist-status <?= $available ? 'status-available available' : 'status-unavailable pending'; ?>"><span><?= $available ? __("Disponibile ora") : __("In attesa"); ?></span></span>
         </div>
-      <?php endforeach; ?>
-    </div>
-  </section>
+        <div class="book-content pk-card__body">
+          <h3 class="book-title pk-card__title wishlist-card-title"><a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($wishlistTitle, ENT_QUOTES, 'UTF-8'); ?></a></h3>
+          <?php if ($wishlistAuthor !== ''): ?>
+          <p class="book-author pk-card__author"><?= htmlspecialchars((string) $wishlistAuthor, ENT_QUOTES, 'UTF-8'); ?></p>
+          <?php endif; ?>
+          <?php if ($available): ?>
+          <p class="book-meta pk-card__meta"><?= __("Copie disponibili:") ?> <?= (int)($it['copie_disponibili'] ?? 0); ?></p>
+          <?php elseif ($nextAvailable): ?>
+          <p class="book-meta pk-card__meta"><i class="fas fa-calendar-alt" aria-hidden="true"></i> <?= __("Disponibile dal:") ?> <?= format_date($nextAvailable, false, '/'); ?></p>
+          <?php else: ?>
+          <p class="book-meta pk-card__meta"><?= __("Nessuna copia attualmente disponibile") ?></p>
+          <?php endif; ?>
+          <div class="book-actions pk-card__actions wishlist-card-footer">
+            <a href="<?= htmlspecialchars($wishlistBookUrl, ENT_QUOTES, 'UTF-8'); ?>" class="pk-card__details"><i class="fas fa-eye" aria-hidden="true"></i><?= __("Dettagli") ?></a>
+            <button type="button" class="remove-fav-btn" title="<?= htmlspecialchars(__("Rimuovi dalla wishlist"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Rimuovi dalla wishlist"), ENT_QUOTES, 'UTF-8') ?>">
+              <i class="fas fa-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </article>
+    <?php endforeach; ?>
+  </div>
 <?php endif; ?>
+</div>
 
 <?php if ($totalItems > 0): ?>
 <script>
@@ -414,12 +173,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const title = card.dataset.title || '';
       const status = card.dataset.status || '';
       const match = !term || title.includes(term) || status.includes(term);
-      card.parentElement.classList.toggle('hidden', !match);
+      card.hidden = !match;
       if (match) visibleCount++;
     });
 
     if (noResults) {
-      noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+      noResults.hidden = visibleCount !== 0;
     }
   }
 
@@ -463,12 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
+      // Keeps the phone tab bar's favourites badge in step.
+      document.dispatchEvent(new CustomEvent('pinakes:wishlist-changed', { detail: { id: libroId, favorite: !!data.favorite } }));
       if (!data.favorite) {
-        const col = card.parentElement;
         card.remove();
-        if (col) {
-          col.remove();
-        }
 
         if (getCards().length === 0) {
           window.location.reload();

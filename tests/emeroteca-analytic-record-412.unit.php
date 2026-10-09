@@ -480,8 +480,9 @@ try {
         'an impossible date is not printed');
     $check(str_contains(CitationFormatter::apa(['anno_pubblicazione' => 2025] + $sz), '(2025).'),
         'a free date that disagrees with the year column is not grafted onto it');
-    $check(str_contains(CitationFormatter::ris(['data_pubblicazione_testo' => 'Nr. 31 (1988)'] + $sz), "DA  - Nr. 31 (1988)\r\n"),
-        'a free date that is not a date travels as written');
+    // RIS DA is YYYY/MM/DD/other: the free text travels as written in the "other" part.
+    $check(str_contains(CitationFormatter::ris(['data_pubblicazione_testo' => 'Nr. 31 (1988)'] + $sz), "DA  - 2026///Nr. 31 (1988)\r\n"),
+        'a free date that is not a date travels as written, in the RIS "other" part');
 
     // A chapter in an anthology (#412): the host is a book with editors,
     // a publisher and a place, and each style has its own form for it.

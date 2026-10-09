@@ -13,7 +13,7 @@ $catalogPageStyles = true;
 $heroTitle = __('I miei club di lettura');
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
+    ['label' => __('Club di lettura'), 'href' => url(\App\Support\RouteTranslator::route('book_club'))],
     ['label' => $heroTitle],
 ];
 include $corePartials . '/catalog-hero.php';
@@ -21,12 +21,12 @@ include $corePartials . '/catalog-hero.php';
 <style>
   .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
-  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}
   .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
   .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:2px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:background-color .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;min-height:44px}
   .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color)}
   .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
-  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-text, var(--primary-color));background:transparent}
   .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
   .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
   .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem;min-height:44px}
@@ -45,7 +45,7 @@ include $corePartials . '/catalog-hero.php';
 <style>
   /* Page-local helpers (my-clubs dashboard only). */
   .bc-club-accent{position:absolute;top:0;left:0;right:0;height:3px}
-  .bc-link{color:var(--primary-color);font-weight:600;text-decoration:none}
+  .bc-link{color:var(--primary-text, var(--primary-color));font-weight:600;text-decoration:none}
   .bc-link:hover{text-decoration:underline}
   .bc-kicker{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.5rem}
   .bc-toolbar{display:flex;justify-content:flex-end;margin-bottom:1.5rem}
@@ -53,7 +53,7 @@ include $corePartials . '/catalog-hero.php';
 <div class="container py-4">
   <?php if (!empty($cards)): ?>
   <div class="bc-toolbar">
-    <a href="<?= $e(url('/book-club')) ?>" class="bc-btn"><i class="fas fa-compass" aria-hidden="true"></i><?= $e(__('Esplora i club')) ?></a>
+    <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club'))) ?>" class="bc-btn"><i class="fas fa-compass" aria-hidden="true"></i><?= $e(__('Esplora i club')) ?></a>
   </div>
   <?php endif; ?>
 
@@ -67,7 +67,7 @@ include $corePartials . '/catalog-hero.php';
     <?php
     $emptyIcon = 'fa-book-open';
     $emptyTitle = __('Non fai ancora parte di nessun club.');
-    $emptyCtaHref = url('/book-club');
+    $emptyCtaHref = url(\App\Support\RouteTranslator::route('book_club'));
     $emptyCtaLabel = __('Esplora i club');
     include $corePartials . '/empty-state.php';
     ?>
@@ -79,7 +79,7 @@ include $corePartials . '/catalog-hero.php';
       <div class="bc-card relative overflow-hidden">
         <span class="bc-club-accent" style="background: <?= $e($club['color']) ?>"></span>
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-link text-xl"><?= $e($club['name']) ?></a>
+          <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>" class="bc-link text-xl"><?= $e($club['name']) ?></a>
           <span class="bc-muted text-sm"><?= $e($club['role_name'] ?? '') ?><?= ($club['member_status'] ?? '') === 'pending' ? ' · ' . $e(__('adesione in attesa di approvazione')) : '' ?></span>
         </div>
         <div class="flex flex-wrap -mx-3 gap-y-4">
@@ -113,7 +113,7 @@ include $corePartials . '/catalog-hero.php';
             <?php endif; ?>
             <?php foreach ($snap['open_polls'] as $poll): ?>
               <div class="mb-1">
-                <a class="bc-link" href="<?= $e(url('/book-club/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                <a class="bc-link" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
                 <?php if (!empty($poll['closes_at'])): ?>
                   <span class="bc-muted text-sm ml-1"><?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?></span>
                 <?php endif; ?>

@@ -15,7 +15,7 @@ declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
-$base = url('/book-club/' . $slug . '/sprints');
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/sprints');
 
 $countdown = static function (int $seconds): string {
     $minutes = max(1, (int) ceil($seconds / 60));

@@ -98,7 +98,7 @@ abstract class BaseController
                 $type,
                 $title,
                 $message,
-                absoluteUrl('/book-club/' . $slug),
+                absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/' . $slug),
                 (int) $club['id'],
                 $this->repo->clubManagerEmails((int) $club['id'])
             );
@@ -161,6 +161,28 @@ abstract class BaseController
         }
         $m = $this->membership($club);
         return $m !== null && in_array($m['status'], ['active', 'pending'], true);
+    }
+
+    /**
+     * Whether the current visitor may see what happens inside the club:
+     * discussions, polls, quotes, sprints, reading progress, meetings and the
+     * reading list. A public club shows it to anyone; a private one only to
+     * its active members, its managers and the library's admins (anyone can
+     * still see the club card and ask to join); invite-only and hidden clubs
+     * are members-only from the card on (canView()).
+     *
+     * @param array<string, mixed> $club
+     */
+    protected function canSeeContent(array $club): bool
+    {
+        if (!$this->canView($club)) {
+            return false;
+        }
+        if (($club['privacy'] ?? '') !== 'private' || $this->isPinakesAdmin()) {
+            return true;
+        }
+        $m = $this->membership($club);
+        return $m !== null && $m['status'] === 'active';
     }
 
     // ------------------------------------------------------------------

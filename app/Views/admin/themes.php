@@ -40,7 +40,7 @@ $pageTitle = __('Gestione Temi');
             <div class="flex flex-col gap-4 border-b border-gray-200 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 id="layout-heading" class="text-lg font-semibold text-gray-900"><?= __('Stile interfaccia') ?></h2>
-                    <p class="mt-1 max-w-3xl text-sm text-gray-600"><?= __('Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.') ?></p>
+                    <p class="mt-1 max-w-3xl text-sm text-gray-600"><?= __('Scegli come appaiono l\'hero della homepage e le copertine dei libri nel sito pubblico. Colori e contenuti restano quelli del tema.') ?></p>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
                     <a href="<?= htmlspecialchars(url('/admin/themes/' . (int) $activeTheme['id'] . '/customize'), ENT_QUOTES, 'UTF-8') ?>"
@@ -52,8 +52,7 @@ $pageTitle = __('Gestione Temi');
                     </button>
                 </div>
             </div>
-            <?php $layoutVariant = $activeLayoutVariant ?? 'editorial'; ?>
-            <?php require __DIR__ . '/partials/layout-variant-selector.php'; ?>
+            <?php require __DIR__ . '/partials/public-style-selector.php'; ?>
         </form>
     <?php endif; ?>
 

@@ -47,15 +47,19 @@ $check(
     "01 RenewItem maps permanent reasons to terminal ProblemTypes (retryable only by default)"
 );
 
-// 2. CheckOutItem: same shape for its reasons.
-$checkout = $matchArm($src, 'user-loan-limit-reached');
+// 2. CheckOutItem: same shape for its reasons (a switch on $failureReason).
+$checkoutStart = strpos($src, 'private function handleCheckOutItem(');
+$checkoutEnd = strpos($src, 'private function handleCheckInItem(');
+$checkout = ($checkoutStart !== false && $checkoutEnd !== false)
+    ? substr($src, $checkoutStart, $checkoutEnd - $checkoutStart)
+    : '';
 $check(
     $checkout !== ''
-        && str_contains($checkout, 'unknown-item')
-        && str_contains($checkout, 'duplicate-request')
-        && str_contains($checkout, 'user-ineligible-to-check-out')
-        && str_contains($checkout, 'user-loan-limit-reached')
-        && (bool) preg_match("/default\\s*=>\\s*'temporary-processing-failure'/", $checkout),
+        && str_contains($checkout, "'unknown-item'")
+        && str_contains($checkout, "'duplicate-request'")
+        && str_contains($checkout, "'user-ineligible-to-check-out'")
+        && str_contains($checkout, "'user-loan-limit-reached'")
+        && (bool) preg_match("/default:\s*return[^;]*'temporary-processing-failure'/s", $checkout),
     "02 CheckOutItem maps permanent reasons to terminal ProblemTypes (retryable only by default)"
 );
 
@@ -89,6 +93,55 @@ $check(
         && str_contains($renew, 'if ($loanLookupFailed)')
         && str_contains($renew, "'temporary-processing-failure'"),
     '04 CheckIn/Renew classify active-loan lookup faults as retryable DB errors'
+);
+
+// 5. On the wire every internal code becomes an NCIP 2.02 scheme/value pair
+//    (behavioural: the real mapping, through reflection).
+require_once $root . '/vendor/autoload.php';
+require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
+$problemType = new ReflectionMethod(\App\Plugins\NcipServer\NcipServerPlugin::class, 'problemType');
+$pe = 'http://www.niso.org/ncip/v1_0/schemes/processingerrortype/';
+$me = 'http://www.niso.org/ncip/v1_0/schemes/messagingerrortype/messagingerrortype.scm';
+$expected = [
+    'temporary-processing-failure' => [$pe . 'generalprocessingerror.scm', 'Temporary Processing Failure'],
+    'invalid-data'                 => [$pe . 'generalprocessingerror.scm', 'Element Rule Violated'],
+    'unknown-item'                 => [$pe . 'lookupitemprocessingerror.scm', 'Unknown Item'],
+    'unknown-user'                 => [$pe . 'lookupuserprocessingerror.scm', 'Unknown User'],
+    'item-not-checked-out'         => [$pe . 'checkinitemprocessingerror.scm', 'Item Not Checked Out'],
+    'maximum-renewals-exceeded'    => [$pe . 'renewitemprocessingerror.scm', 'Maximum Renewals Exceeded'],
+    'user-ineligible-to-renew'     => [$pe . 'renewitemprocessingerror.scm', 'User Ineligible To Renew This Item'],
+    'user-ineligible-to-request'   => [$pe . 'requestitemprocessingerror.scm', 'User Ineligible To Request This Item'],
+    'unsupported-request'          => [$me, 'Unsupported Service'],
+    'invalid-xml'                  => [$me, 'Invalid Message Syntax Error'],
+];
+$allMapped = true;
+foreach ($expected as $code => $pair) {
+    if ($problemType->invoke(null, $code) !== $pair) {
+        $allMapped = false;
+        echo "       {$code} => " . json_encode($problemType->invoke(null, $code)) . "\n";
+    }
+}
+$check($allMapped, '05 internal codes map to the NCIP 2.02 scheme URI and phrase');
+
+// 6. No code the plugin emits falls through to the default: every literal
+//    passed to buildProblem() or produced by a $failureReason mapping is a
+//    key of PROBLEM_TYPES.
+$table = (new ReflectionClassConstant(\App\Plugins\NcipServer\NcipServerPlugin::class, 'PROBLEM_TYPES'))->getValue();
+preg_match_all("/buildProblem\([^;]*?,\s*'([a-z-]+)'\s*\)/s", $src, $m1);
+preg_match_all("/=>\s*'([a-z]+(?:-[a-z]+)+)'/", (string) preg_replace('/private const PROBLEM_TYPES = \[.*?\];/s', '', $src), $m2);
+$emitted = array_unique(array_merge($m1[1], $m2[1]));
+$unmapped = array_values(array_diff($emitted, array_keys($table)));
+$check(count($m1[1]) > 20 && $unmapped === [], '06 every emitted problem code is mapped (unmapped: ' . implode(', ', $unmapped) . ')');
+
+// 7. ProblemType carries the phrase, never the internal code.
+$build = new ReflectionMethod(\App\Plugins\NcipServer\NcipServerPlugin::class, 'buildProblem');
+$plugin = (new ReflectionClass(\App\Plugins\NcipServer\NcipServerPlugin::class))->newInstanceWithoutConstructor();
+$xml = (string) $build->invoke($plugin, 'x', 'maximum-renewals-exceeded');
+$check(
+    str_contains($xml, 'ncip:Scheme="' . $pe . 'renewitemprocessingerror.scm"')
+        && str_contains($xml, '>Maximum Renewals Exceeded</ProblemType>')
+        && !str_contains($xml, 'maximum-renewals-exceeded'),
+    '07 Problem/ProblemType is the scheme value with its scheme URI'
 );
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
