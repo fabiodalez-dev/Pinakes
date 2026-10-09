@@ -167,7 +167,9 @@ test.describe('Catalogue list view', () => {
         }
         return out;
       });
-      expect(Math.max(0, ...offsets), `rows line up at ${width}px`).toBeLessThan(2);
+      // At least one row of two cards was compared, or the test proves nothing.
+      expect(offsets.length, `cards compared at ${width}px`).toBeGreaterThan(0);
+      expect(Math.max(...offsets), `rows line up at ${width}px`).toBeLessThan(2);
     }
   });
 });

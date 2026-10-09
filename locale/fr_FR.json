@@ -8160,5 +8160,6 @@
   "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Modifier le contenu de la page d'accueil : hero, sections, événements et appel final",
   "Salva intestazione degli eventi": "Enregistrer l'en-tête des événements",
   "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titre et sous-titre en haut de la page des événements, pour chaque langue. La page affiche exactement ces textes ; un champ vide n'affiche rien.",
-  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titre et sous-titre en haut de la page du catalogue, pour chaque langue. La page affiche exactement ces textes ; un champ vide n'affiche rien."
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titre et sous-titre en haut de la page du catalogue, pour chaque langue. La page affiche exactement ces textes ; un champ vide n'affiche rien.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Formats pris en charge : JPG, PNG, GIF, WebP. Taille maximum : %s"
 }

@@ -95,7 +95,7 @@ $cmsUploadMax = \App\Controllers\Admin\CmsAdminController::uploadLimit();
 
         <p class="text-sm text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
-          <?= __("Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: 5MB") ?>
+          <?= htmlspecialchars(sprintf(__("Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s"), \App\Controllers\Admin\CmsAdminController::formatBytes($cmsUploadMax)), ENT_QUOTES, 'UTF-8') ?>
         </p>
       </div>
     </div>
@@ -265,35 +265,39 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Save waits for an upload still running, so the image is never left
-  // behind: the page is submitted once Uppy reports the upload complete.
-  let uploadDone = null;
-  let finishUpload = null;
-  uppy.on('upload', () => {
-    uploadDone = new Promise((resolve) => { finishUpload = resolve; });
+  // behind. It waits on Uppy's own state, not on one event: a finished, failed,
+  // cancelled or removed upload all end the wait, so Save never hangs.
+  const inFlight = () => uppy.getFiles().filter((f) => !(f.progress && f.progress.uploadComplete) && !f.error);
+  const uploadsSettled = () => new Promise((resolve) => {
+    const events = ['complete', 'upload-success', 'upload-error', 'cancel-all', 'file-removed'];
+    const done = (ok) => { events.forEach((e) => uppy.off(e, check)); uppy.off('error', fail); resolve(ok); };
+    const check = () => { if (inFlight().length === 0) done(true); };
+    const fail = () => done(false);
+    events.forEach((e) => uppy.on(e, check));
+    uppy.on('error', fail);
+    check();
   });
-  uppy.on('complete', (result) => {
-    if (finishUpload) finishUpload(result);
-    uploadDone = null;
-    finishUpload = null;
-  });
+  uppy.on('error', (error) => uploadFailed(error && error.message));
   const pageForm = document.getElementById('image-url').form;
   if (pageForm) {
     pageForm.addEventListener('submit', (event) => {
-      const waiting = uppy.getFiles().some((f) => !(f.progress && f.progress.uploadComplete) && !f.error);
-      if (!uploadDone && !waiting) return;
+      if (inFlight().length === 0) return;
       event.preventDefault();
       const submitBtn = pageForm.querySelector('button[type="submit"]:last-of-type');
       if (submitBtn) submitBtn.disabled = true;
-      const pending = uploadDone || uppy.upload();
-      Promise.resolve(pending).then((result) => {
+      const running = Object.keys(uppy.getState().currentUploads || {}).length > 0;
+      if (!running) Promise.resolve(uppy.upload()).catch(() => {}); // the error is shown by the 'error' handler
+      uploadsSettled().then((ok) => {
         if (submitBtn) submitBtn.disabled = false;
-        if (result && result.failed && result.failed.length) return; // the error is already on screen
+        if (!ok || uppy.getFiles().some((f) => f.error)) return; // the error is already on screen
         pageForm.submit();
       });
     });
   }
 
   uppy.on('upload-success', (file, response) => {
+    // A file the user removed while it was uploading must not come back.
+    if (!file || !uppy.getFile(file.id)) return;
     const imageUrl = response && response.body ? response.body.url : '';
     if (!imageUrl) { uploadFailed(response && response.body && response.body.error); return; }
     // Stored as the site-relative /uploads/cms/… path; shown with the base path
@@ -313,6 +317,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const removeBtn = document.getElementById('remove-image-btn');
   if (removeBtn) {
     removeBtn.addEventListener('click', function() {
+      // An image still uploading is cancelled too: its late answer would
+      // otherwise write the removed image back.
+      uppy.cancelAll();
       document.getElementById('image-url').value = '';
       document.getElementById('preview-img').src = '';
       document.getElementById('image-preview').classList.add('hidden');

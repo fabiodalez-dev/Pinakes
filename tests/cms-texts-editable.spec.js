@@ -17,6 +17,12 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 
+/** A value read back from JSON as a SQL literal: null stays NULL, never 'null'. */
+function sqlValue(v) {
+  if (v === null || v === undefined) return 'NULL';
+  return `'${String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
 function db(sql) {
   const args = ['--default-character-set=utf8mb4', '-N', '-B', '-e', sql];
   if (process.env.E2E_DB_HOST) args.push('-h', process.env.E2E_DB_HOST, ...(process.env.E2E_DB_PORT ? ['-P', process.env.E2E_DB_PORT] : []));
@@ -30,13 +36,13 @@ test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !process.env.E2E_DB_USER, 'admin and da
 test.describe.serial('CMS texts are what the site shows', () => {
   /** @type {import('@playwright/test').Page} */
   let page;
-  let heroBackup = '';
-  let heroFieldBackup = '';
-  let settingsBackup = '';
+  let homeBackup = '[]';
+  let settingsBackup = '[]';
   const stamp = Date.now();
 
   test.beforeAll(async ({ browser }) => {
-    heroBackup = db("SELECT JSON_OBJECT('subtitle', subtitle) FROM home_content WHERE section_key = 'hero'");
+    // The texts exactly as stored (NULL = never set), put back as they were.
+    homeBackup = db("SELECT IFNULL(JSON_ARRAYAGG(JSON_ARRAY(section_key, title, subtitle, button_text)), JSON_ARRAY()) FROM home_content");
     settingsBackup = db("SELECT IFNULL(JSON_ARRAYAGG(JSON_ARRAY(category, setting_key, setting_value)), JSON_ARRAY()) FROM system_settings WHERE category IN ('catalog', 'events_page')");
     page = await browser.newPage();
     await page.goto(`${BASE}/accedi`);
@@ -47,7 +53,6 @@ test.describe.serial('CMS texts are what the site shows', () => {
     // Start from a home the site has rendered from what the CMS holds: save
     // the homepage form once, unchanged, as the administrator would.
     await page.goto(`${BASE}/admin/cms/home`);
-    heroFieldBackup = await page.locator('#hero_subtitle').inputValue();
     await saveHome();
   });
 
@@ -59,28 +64,49 @@ test.describe.serial('CMS texts are what the site shows', () => {
         await page.locator('#features_visible').uncheck();
         await saveHome();
       }
-      // The homepage is put back through its form, so the site's cache follows.
-      await page.goto(`${BASE}/admin/cms/home`);
-      await page.locator('#hero_subtitle').fill(heroFieldBackup);
-      await saveHome();
       db("DELETE FROM system_settings WHERE category IN ('catalog', 'events_page')");
       for (const [cat, key, value] of JSON.parse(settingsBackup || '[]')) {
-        const v = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('${cat}', '${key}', '${v}')`);
+        db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES (${sqlValue(cat)}, ${sqlValue(key)}, ${sqlValue(value)})`);
       }
+      // A save through the homepage form makes the site drop its cached home;
+      // the stored texts are then put back exactly, NULLs included, before
+      // any page is rendered again from them.
+      await page.goto(`${BASE}/admin/cms/home`);
+      await saveHome();
+      const before = JSON.parse(homeBackup || '[]');
+      for (const [key, title, subtitle, button] of before) {
+        db(`UPDATE home_content SET title = ${sqlValue(title)}, subtitle = ${sqlValue(subtitle)}, button_text = ${sqlValue(button)} WHERE section_key = ${sqlValue(key)}`);
+      }
+      const keys = before.map(([key]) => sqlValue(key));
+      db(`DELETE FROM home_content WHERE section_key NOT IN (${keys.length ? keys.join(', ') : "''"})`);
     } catch { /* best effort */ }
     await page?.close();
   });
+
+  // A confirmation dialog, when the page shows one after a save, is accepted
+  // as the administrator would.
+  async function confirmIfAsked() {
+    const ok = page.locator('.swal2-confirm');
+    if (await ok.isVisible().catch(() => false)) await ok.click();
+  }
 
   async function saveHome() {
     await Promise.all([
       page.waitForLoadState('load'),
       page.locator('form[action$="/admin/cms/home"] button[type=submit]').last().click(),
     ]);
+    await confirmIfAsked();
+  }
+
+  // The public pages are read in Italian, the language whose fields the test edits.
+  async function italianVisitor(browser) {
+    const visitor = await (await browser.newContext()).newPage();
+    await visitor.goto(`${BASE}/language/it_IT`);
+    return visitor;
   }
 
   test('Homepage: the subtitle field holds what the hero shows; emptied, the hero shows none; written, it shows it', async ({ browser }) => {
-    const visitor = await (await browser.newContext()).newPage();
+    const visitor = await italianVisitor(browser);
     try {
       await page.goto(`${BASE}/admin/cms/home`);
       const field = page.locator('#hero_subtitle');
@@ -106,6 +132,26 @@ test.describe.serial('CMS texts are what the site shows', () => {
       await expect(visitor.locator('.pk-hero__subtitle')).toHaveText(mine);
       await page.goto(`${BASE}/admin/cms/home`);
       await expect(page.locator('#hero_subtitle')).toHaveValue(mine);
+    } finally {
+      await visitor.context().close();
+    }
+  });
+
+  test('Homepage: the hero title and the buttons show the text the page shows, and cannot be left blank', async ({ browser }) => {
+    const visitor = await italianVisitor(browser);
+    try {
+      await page.goto(`${BASE}/admin/cms/home`);
+      await visitor.goto(`${BASE}/`);
+      await expect(visitor.locator('.pk-hero__title')).toHaveText((await page.locator('#hero_title').inputValue()).trim());
+      for (const id of ['#hero_title', '#hero_button_text', '#cta_button_text']) {
+        await expect(page.locator(id), `${id} holds a text`).not.toHaveValue('');
+        await expect(page.locator(id), `${id} is required`).toHaveJSProperty('required', true);
+      }
+      // Emptied, the form is not sent: the browser asks for the title.
+      await page.locator('#hero_title').fill('');
+      await page.locator('form[action$="/admin/cms/home"] button[type=submit]').last().click();
+      expect(await page.locator('#hero_title').evaluate((el) => /** @type {HTMLInputElement} */ (el).validity.valueMissing)).toBe(true);
+      await expect(page).toHaveURL(/\/admin\/cms\/home/);
     } finally {
       await visitor.context().close();
     }
@@ -150,7 +196,7 @@ test.describe.serial('CMS texts are what the site shows', () => {
   ];
   for (const [fieldSel, pageSel] of HOME_TEXTS) {
     test(`Homepage: ${fieldSel} is the text of ${pageSel}, and the page follows every change`, async ({ browser }) => {
-      const visitor = await (await browser.newContext()).newPage();
+      const visitor = await italianVisitor(browser);
       let original = null;
       try {
         await page.goto(`${BASE}/admin/cms/home`);
@@ -184,7 +230,7 @@ test.describe.serial('CMS texts are what the site shows', () => {
 
   for (const [pageKey, publicPath, formId] of [['catalog', '/catalogo', '#catalog-header-form'], ['events', '/eventi', '#events-header-form']]) {
     test(`Settings → CMS: the ${pageKey} header fields hold what the page shows, and the page follows them`, async ({ browser }) => {
-      const visitor = await (await browser.newContext()).newPage();
+      const visitor = await italianVisitor(browser);
       try {
         await page.goto(`${BASE}/admin/settings?tab=cms`);
         expect(new URL(page.url()).hash, 'the tab is in the address once').toBe('');
@@ -200,6 +246,7 @@ test.describe.serial('CMS texts are what the site shows', () => {
         await title.fill(mineTitle);
         await subtitle.fill('');
         await Promise.all([page.waitForLoadState('load'), form.locator('button[type=submit]').click()]);
+        await confirmIfAsked();
         expect(new URL(page.url()).hash).toBe('');
 
         await visitor.goto(`${BASE}${publicPath}`);

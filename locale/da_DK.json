@@ -8160,5 +8160,6 @@
   "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Rediger forsidens indhold: hero, sektioner, arrangementer og afsluttende opfordring",
   "Salva intestazione degli eventi": "Gem arrangementernes overskrift",
   "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel og undertitel øverst på arrangementssiden, for hvert sprog. Siden viser præcis disse tekster; et tomt felt viser intet.",
-  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel og undertitel øverst på katalogsiden, for hvert sprog. Siden viser præcis disse tekster; et tomt felt viser intet."
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel og undertitel øverst på katalogsiden, for hvert sprog. Siden viser præcis disse tekster; et tomt felt viser intet.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Understøttede formater: JPG, PNG, GIF, WebP. Maksimal størrelse: %s"
 }

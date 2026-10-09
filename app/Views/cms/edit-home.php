@@ -141,7 +141,7 @@ function getSectionDisplayName($key) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
             <label for="hero_title" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Titolo principale (H1)") ?></label>
-            <input type="text" id="hero_title" name="hero[title]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($hero ?? null, 'hero', 'title'), ENT_QUOTES, 'UTF-8'); ?>"
+            <input type="text" id="hero_title" name="hero[title]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::label($hero ?? null, 'hero', 'title'), ENT_QUOTES, 'UTF-8'); ?>" required
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
                    placeholder="<?= htmlspecialchars(__('Es. La Tua Biblioteca Digitale'), ENT_QUOTES, 'UTF-8') ?>">
           </div>
@@ -196,7 +196,7 @@ function getSectionDisplayName($key) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="hero_button_text" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Testo pulsante") ?></label>
-            <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($hero ?? null, 'hero', 'button_text'), ENT_QUOTES, 'UTF-8'); ?>"
+            <input type="text" id="hero_button_text" name="hero[button_text]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::label($hero ?? null, 'hero', 'button_text'), ENT_QUOTES, 'UTF-8'); ?>" required
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>
@@ -489,7 +489,7 @@ function getSectionDisplayName($key) {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label for="cta_button_text" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Testo pulsante") ?></label>
-            <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::text($cta ?? null, 'cta', 'button_text'), ENT_QUOTES, 'UTF-8'); ?>"
+            <input type="text" id="cta_button_text" name="cta[button_text]" value="<?php echo htmlspecialchars(\App\Support\HomeTexts::label($cta ?? null, 'cta', 'button_text'), ENT_QUOTES, 'UTF-8'); ?>" required
                    class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
           </div>
           <div>

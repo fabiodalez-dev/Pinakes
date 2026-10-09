@@ -8160,5 +8160,6 @@
   "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Inhalte der Startseite bearbeiten: Hero, Abschnitte, Veranstaltungen und Abschlussaufruf",
   "Salva intestazione degli eventi": "Kopfbereich der Veranstaltungen speichern",
   "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel und Untertitel oben auf der Veranstaltungsseite, für jede Sprache. Die Seite zeigt genau diese Texte; ein leeres Feld zeigt nichts an.",
-  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel und Untertitel oben auf der Katalogseite, für jede Sprache. Die Seite zeigt genau diese Texte; ein leeres Feld zeigt nichts an."
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel und Untertitel oben auf der Katalogseite, für jede Sprache. Die Seite zeigt genau diese Texte; ein leeres Feld zeigt nichts an.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Unterstützte Formate: JPG, PNG, GIF, WebP. Maximale Größe: %s"
 }

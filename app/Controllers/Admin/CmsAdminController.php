@@ -185,15 +185,19 @@ class CmsAdminController
      * The largest CMS image accepted: 10MB, or what PHP takes when it takes
      * less (upload_max_filesize, post_max_size). The editor gets the same
      * limit, so it refuses a file the server would drop instead of failing.
+     * post_max_size counts the whole multipart body, not only the file, so
+     * room is kept for the boundaries, the headers and the CSRF field.
      */
     public static function uploadLimit(): int
     {
         $limit = 10 * 1024 * 1024;
-        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
-            $bytes = self::iniBytes((string) ini_get($key));
-            if ($bytes > 0) {
-                $limit = min($limit, $bytes);
-            }
+        $fileMax = self::iniBytes((string) ini_get('upload_max_filesize'));
+        if ($fileMax > 0) {
+            $limit = min($limit, $fileMax);
+        }
+        $postMax = self::iniBytes((string) ini_get('post_max_size'));
+        if ($postMax > 0) {
+            $limit = min($limit, max(0, $postMax - 64 * 1024));
         }
         return $limit;
     }
@@ -213,7 +217,7 @@ class CmsAdminController
         };
     }
 
-    private static function formatBytes(int $bytes): string
+    public static function formatBytes(int $bytes): string
     {
         return $bytes >= 1024 * 1024
             ? rtrim(rtrim(number_format($bytes / 1048576, 1, '.', ''), '0'), '.') . ' MB'
