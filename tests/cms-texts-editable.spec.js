@@ -24,7 +24,8 @@ function sqlValue(v) {
 }
 
 function db(sql) {
-  const args = ['--default-character-set=utf8mb4', '-N', '-B', '-e', sql];
+  // --raw: batch mode would double every backslash and break the JSON backups.
+  const args = ['--default-character-set=utf8mb4', '-N', '-B', '--raw', '-e', sql];
   if (process.env.E2E_DB_HOST) args.push('-h', process.env.E2E_DB_HOST, ...(process.env.E2E_DB_PORT ? ['-P', process.env.E2E_DB_PORT] : []));
   else if (process.env.E2E_DB_SOCKET) args.push('-S', process.env.E2E_DB_SOCKET);
   args.push('-u', process.env.E2E_DB_USER || '', process.env.E2E_DB_NAME || '');
@@ -79,7 +80,9 @@ test.describe.serial('CMS texts are what the site shows', () => {
       }
       const keys = before.map(([key]) => sqlValue(key));
       db(`DELETE FROM home_content WHERE section_key NOT IN (${keys.length ? keys.join(', ') : "''"})`);
-    } catch { /* best effort */ }
+    } catch (e) {
+      console.warn('CMS texts not restored:', e);
+    }
     await page?.close();
   });
 

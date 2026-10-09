@@ -378,6 +378,11 @@ body.pk .pk-h2 { margin: 0; font-family: var(--pk-serif); font-weight: 500; font
 
 /* ---------- Home: hero ---------------------------------------------------- */
 .pk-hero { position: relative; overflow: hidden; background: linear-gradient(180deg, var(--pk-accent-softer) 0%, var(--pk-bg) 100%); }
+/* The search suggestions open below the hero's search box: while they are
+   shown the hero lets them out downwards (still clipping sideways, so the
+   decorations never widen the page) and sits above the sections that follow,
+   instead of cutting them off under the statistics band. */
+.pk-hero:has(.search-results.is-visible) { overflow-x: clip; overflow-y: visible; z-index: 30; }
 .pk-hero__inner { max-width: var(--pk-wrap); margin: 0 auto; padding: 72px var(--pk-gutter) 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 48px; }
 .pk-hero__text { flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
 .pk-hero__badge {

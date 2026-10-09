@@ -43,7 +43,7 @@ Highlights of the latest release are below. The full version-by-version history 
 
 ### v0.8.1 — latest
 
-**What the CMS says is what the site shows.** Every text of the home, the catalogue header and the new events header is edited in the admin and shown exactly as written: no hidden default replaces an empty field. The image of a CMS page such as About us is saved when Save is pressed, the catalogue grid lines its cards up, and the events page title and subtitle are editable per language. No migration.
+**What the CMS says is what the site shows.** Every text of the home, the catalogue header and the new events header is edited in the admin and shown exactly as written: no hidden default replaces an empty field. The image of a CMS page such as About us is saved when Save is pressed, the search suggestions under the home's search box open on top of the page instead of under the next section, the catalogue grid lines its cards up, and the events page title and subtitle are editable per language. No migration.
 
 ### v0.8.0
 
