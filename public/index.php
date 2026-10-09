@@ -641,8 +641,28 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
     $response = $handler->handle($request);
 
     $contentType = strtolower($response->getHeaderLine('Content-Type'));
-    $html = (string) $response->getBody();
-    if (\App\Support\ContentSecurityPolicy::isHtmlResponse($contentType, $html)) {
+    // Decide from the Content-Type first: a PDF, an image or a download is
+    // never read into memory here (a large scan would hit memory_limit).
+    // Only a response without a type is sniffed, from its first bytes.
+    $html = '';
+    $isHtml = false;
+    $declaredHtml = str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml');
+    if ($declaredHtml) {
+        $isHtml = true;
+    } elseif (trim($contentType) === '') {
+        $body = $response->getBody();
+        if ($body->isSeekable()) {
+            $body->rewind();
+            $head = $body->read(1024);
+            $body->rewind();
+            $isHtml = \App\Support\ContentSecurityPolicy::isHtmlResponse('', $head);
+        } else {
+            $html = (string) $body;
+            $isHtml = \App\Support\ContentSecurityPolicy::isHtmlResponse('', $html);
+        }
+    }
+    if ($isHtml) {
+        $html = $html !== '' ? $html : (string) $response->getBody();
         $html = \App\Support\ContentSecurityPolicy::addNonceAttributes($html, $cspNonce);
         $response = $response
             ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($html))
