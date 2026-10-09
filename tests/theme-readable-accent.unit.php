@@ -58,7 +58,7 @@ $check(($palette['primary_text'] ?? '') === $c->readableOnTint('#0d9488'), 'gene
 // generateColorPalette() as button_surface, secondary_surface, primary_on_dark.
 // The ten bundled presets, as seeded by installer/database/data_en_US.sql.
 $themes = [
-    ['primary' => '#d70161', 'secondary' => '#111827', 'button' => '#d70262', 'button_text' => '#ffffff'],
+    ['primary' => '#d70161', 'secondary' => '#1b1720', 'button' => '#d70262', 'button_text' => '#ffffff'],
     ['primary' => '#404040', 'secondary' => '#000000', 'button' => '#808080', 'button_text' => '#ffffff'],
     ['primary' => '#0284c7', 'secondary' => '#0c4a6e', 'button' => '#0ea5e9', 'button_text' => '#ffffff'],
     ['primary' => '#059669', 'secondary' => '#064e3b', 'button' => '#10b981', 'button_text' => '#ffffff'],

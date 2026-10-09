@@ -263,7 +263,9 @@ class FrontendController
         // Extra results from plugins (e.g. archive units) when a search is active.
         $searchTerm = trim((string) ($filters['search'] ?? ''));
         /** @var array<int, array<string, mixed>> $archiveResults */
-        $archiveResults = $searchTerm !== ''
+        // The archive lookup is four leading-wildcard LIKEs over every unit:
+        // only from the third character, when the term can actually select.
+        $archiveResults = mb_strlen($searchTerm) >= 3
             ? $this->collectArchiveResults($searchTerm)
             : [];
 
@@ -437,7 +439,7 @@ class FrontendController
 
         $searchTerm = trim((string) ($filters['search'] ?? ''));
         // Public projection only: the same snippets as the server-rendered catalogue.
-        $archiveResults = $searchTerm !== '' ? $this->collectArchiveResults($searchTerm) : [];
+        $archiveResults = mb_strlen($searchTerm) >= 3 ? $this->collectArchiveResults($searchTerm) : [];
         ob_start();
         include __DIR__ . '/../Views/frontend/partials/catalog-archive-results.php';
         $archiveHtml = (string) ob_get_clean();

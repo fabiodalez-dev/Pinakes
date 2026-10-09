@@ -241,7 +241,7 @@ class ThemeColorizer
     public function generateColorPalette(array $colors): array
     {
         $primary = $colors['primary'] ?? '#d70161';
-        $secondary = $colors['secondary'] ?? '#111827';
+        $secondary = $colors['secondary'] ?? '#1b1720';
         $button = $colors['button'] ?? '#d70262';
         $buttonText = $colors['button_text'] ?? '#ffffff';
         $buttonSurface = $this->readableSurface($button, $buttonText);

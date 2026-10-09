@@ -83,7 +83,7 @@ if (isset($container)) {
     // Fallback colors when container is not available
     $themePalette = [
         'primary' => '#d70161',
-        'secondary' => '#111827',
+        'secondary' => '#1b1720',
         'button' => '#d70262',
         'button_text' => '#ffffff',
         'primary_light' => '#f9e6ef',
@@ -94,7 +94,7 @@ if (isset($container)) {
         'button_hover' => '#c20258',
         'primary_text' => '#ce015d',
         'button_surface' => '#d70262',
-        'secondary_surface' => '#111827',
+        'secondary_surface' => '#1b1720',
         'primary_on_dark' => '#e2488d',
         'primary_rgb' => '215, 1, 97',
         'button_rgb' => '215, 2, 98',

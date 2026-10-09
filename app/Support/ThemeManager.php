@@ -411,7 +411,7 @@ class ThemeManager
     {
         $defaultColors = [
             'primary' => '#d70161',
-            'secondary' => '#111827',
+            'secondary' => '#1b1720',
             'button' => '#d70262',
             'button_text' => '#ffffff'
         ];
@@ -435,7 +435,7 @@ class ThemeManager
             // Return default colors if no theme configured
             return [
                 'primary' => '#d70161',
-                'secondary' => '#111827',
+                'secondary' => '#1b1720',
                 'button' => '#d70262',
                 'button_text' => '#ffffff'
             ];
@@ -458,7 +458,7 @@ class ThemeManager
                 : $default;
         return [
             'primary' => $hex($colors['primary'] ?? null, '#d70161'),
-            'secondary' => $hex($colors['secondary'] ?? null, '#111827'),
+            'secondary' => $hex($colors['secondary'] ?? null, '#1b1720'),
             'button' => $hex($colors['button'] ?? null, '#d70262'),
             'button_text' => $hex($colors['button_text'] ?? null, '#ffffff')
         ];
