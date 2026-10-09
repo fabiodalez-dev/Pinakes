@@ -122,7 +122,7 @@ final class CollectionsController
         $from = isset($params['date_from']) && $params['date_from'] !== '' ? $this->integer($params['date_from'], -32768, 32767) : null;
         $to = isset($params['date_to']) && $params['date_to'] !== '' ? $this->integer($params['date_to'], -32768, 32767) : null;
         if ($from !== null && $to !== null && $from > $to) { throw new \InvalidArgumentException(); }
-        $where = ['u.deleted_at IS NULL']; $values = [];
+        $where = ['u.deleted_at IS NULL' . $this->publishedSql('u.')]; $values = [];
         if ($parent !== null) { $where[] = 'u.parent_id = ?'; $values[] = $parent; }
         elseif ($query === '' && $level === '' && $from === null && $to === null) { $where[] = 'u.parent_id IS NULL'; }
         if ($query !== '') {
@@ -144,7 +144,7 @@ final class CollectionsController
 
     private function archive(Request $request, Response $response, int $id): Response
     {
-        $rows = $this->rows('SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL', [$id]);
+        $rows = $this->rows('SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL' . $this->publishedSql(), [$id]);
         if ($rows === []) { return ResponseEnvelope::error($response, 'not_found', __('Documento non trovato.'), 404); }
         $row = $rows[0];
         $fields = [];
@@ -160,7 +160,7 @@ final class CollectionsController
         $ancestors = []; $seen = [$id => true]; $parent = (int) ($row['parent_id'] ?? 0);
         while ($parent > 0 && !isset($seen[$parent])) {
             $seen[$parent] = true;
-            $parents = $this->rows('SELECT id, parent_id, constructed_title, formal_title, reference_code, level, date_start, date_end FROM archival_units WHERE id = ? AND deleted_at IS NULL', [$parent]);
+            $parents = $this->rows('SELECT id, parent_id, constructed_title, formal_title, reference_code, level, date_start, date_end FROM archival_units WHERE id = ? AND deleted_at IS NULL' . $this->publishedSql(), [$parent]);
             if ($parents === []) { break; }
             array_unshift($ancestors, $this->archiveItem($parents[0])); $parent = (int) ($parents[0]['parent_id'] ?? 0);
         }
@@ -220,6 +220,20 @@ final class CollectionsController
     {
         $value = is_string($raw) ? trim(html_entity_decode($raw, ENT_QUOTES, 'UTF-8')) : '';
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * Only the units the library published on its site (Archives 1.5.2+); ''
+     * on an older Archives without the flag, where every unit is public.
+     */
+    private function publishedSql(string $alias = ''): string
+    {
+        static $exists = null;
+        if ($exists === null) {
+            $probe = $this->rows("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units' AND COLUMN_NAME = 'published'");
+            $exists = (int) ($probe[0]['c'] ?? 0) > 0;
+        }
+        return $exists ? ' AND ' . $alias . 'published = 1' : '';
     }
 
     private function rows(string $sql, array $values = []): array

@@ -21,6 +21,7 @@ use Psr\Http\Message\ServerRequestInterface;
 require_once __DIR__ . '/src/Support/ResponseEnvelope.php';
 require_once __DIR__ . '/src/Support/CursorCodec.php';
 require_once __DIR__ . '/src/Support/JsonBody.php';
+require_once __DIR__ . '/src/Support/Input.php';
 require_once __DIR__ . '/src/Support/ProxyTrust.php';
 require_once __DIR__ . '/src/Support/HttpsEnforceMiddleware.php';
 require_once __DIR__ . '/src/Support/TokenService.php';
@@ -30,6 +31,7 @@ require_once __DIR__ . '/src/Push/PushPayload.php';
 require_once __DIR__ . '/src/Push/PushResult.php';
 require_once __DIR__ . '/src/Push/PushProvider.php';
 require_once __DIR__ . '/src/Push/VapidSigner.php';
+require_once __DIR__ . '/src/Push/WebPushEncryption.php';
 require_once __DIR__ . '/src/Push/NullProvider.php';
 require_once __DIR__ . '/src/Push/UnifiedPushProvider.php';
 require_once __DIR__ . '/src/Push/FcmProvider.php';
@@ -567,6 +569,25 @@ class MobileApiPlugin
                 return (new CatalogController($db))->languages($request, $response);
             })->add($quotaMw())->add($authMw());
 
+            // Catalogue-only mode (system.catalogue_mode) turns loans,
+            // reservations and the wishlist off on the website; the API must
+            // refuse them too, not only advertise it in /health: an older app
+            // build would otherwise still create loan requests.
+            $catalogueModeGuard = function (
+                ServerRequestInterface $request,
+                \Psr\Http\Server\RequestHandlerInterface $handler
+            ): ResponseInterface {
+                if (\App\Support\ConfigStore::isCatalogueMode()) {
+                    return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                        new \Slim\Psr7\Response(),
+                        'feature_disabled',
+                        __('Funzione non disponibile in modalità catalogo.'),
+                        404
+                    );
+                }
+                return $handler->handle($request);
+            };
+
             // ── User actions (loans / reservations / wishlist / profile / msg) ──
             // Every handler is bearer-authenticated and strictly scoped to the
             // token-resolved user; loan/reservation overlap + availability reuse
@@ -577,21 +598,21 @@ class MobileApiPlugin
                 ResponseInterface $response
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->myLoans($request, $response);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->get('/me/reservations', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->myReservations($request, $response);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->post('/reservations', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->requestReservation($request, $response);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->delete('/reservations/{id:[0-9]+}', function (
                 ServerRequestInterface $request,
@@ -599,7 +620,7 @@ class MobileApiPlugin
                 array $args
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->cancelReservation($request, $response, (int) $args['id']);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             // Explicit loan route avoids the id-space ambiguity of the legacy
             // /reservations/{id} compatibility endpoint and exposes the #381
@@ -610,21 +631,21 @@ class MobileApiPlugin
                 array $args
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->cancelLoan($request, $response, (int) $args['id']);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->get('/me/wishlist', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->getWishlist($request, $response);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->post('/me/wishlist', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->addWishlist($request, $response);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->delete('/me/wishlist/{book_id:[0-9]+}', function (
                 ServerRequestInterface $request,
@@ -632,7 +653,7 @@ class MobileApiPlugin
                 array $args
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->removeWishlist($request, $response, (int) $args['book_id']);
-            })->add($quotaMw())->add($authMw());
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->get('/me', function (
                 ServerRequestInterface $request,
@@ -862,7 +883,7 @@ class MobileApiPlugin
                 $repo->set(self::ENABLE_CATEGORY, self::PUSH_VAPID_SUBJECT_KEY, trim((string) $settings['push_vapid_subject']));
             }
 
-            if (array_key_exists('push_fcm_credentials', $settings)) {
+            if (array_key_exists('push_fcm_credentials', $settings) && $settings['push_fcm_credentials'] !== null) {
                 // FCM service-account JSON contains a private key → encrypt at rest
                 // (same treatment as the VAPID private key), so a DB dump / stray
                 // read can't expose the Google credential.
@@ -961,6 +982,7 @@ class MobileApiPlugin
              FROM mobile_app_tokens t
              INNER JOIN utenti u ON u.id = t.user_id
              WHERE t.revoked_at IS NULL
+               AND (t.expires_at IS NULL OR t.expires_at > UTC_TIMESTAMP())
              ORDER BY t.last_used_at DESC, t.created_at DESC
              LIMIT 200'
         );

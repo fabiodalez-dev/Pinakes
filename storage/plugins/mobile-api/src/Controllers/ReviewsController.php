@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Controllers;
 
+use App\Plugins\MobileApi\Support\Input;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Plugins\MobileApi\Support\CursorCodec;
 use App\Plugins\MobileApi\Support\JsonBody;
@@ -161,7 +162,7 @@ class ReviewsController
             }
 
             $body = JsonBody::parse($request);
-            $rating = isset($body['rating']) && is_numeric($body['rating']) ? (int) $body['rating'] : 0;
+            $rating = isset($body['rating']) && is_numeric($body['rating']) ? Input::int($body['rating']) : 0;
             if ($rating < 1 || $rating > 5) {
                 return ResponseEnvelope::error($response, 'validation_error', __('La valutazione deve essere tra 1 e 5 stelle.'), 422);
             }

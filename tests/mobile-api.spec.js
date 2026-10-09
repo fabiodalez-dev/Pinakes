@@ -33,6 +33,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 
 // ─── Env vars (set by /tmp/run-e2e.sh) ────────────────────────────────────────
 
@@ -1170,16 +1171,33 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         // The endpoint must resolve to a PUBLIC IP (SSRF guard at registration):
         // use example.com, the IANA-reserved domain that resolves publicly and is
         // stable. Registration only validates + stores; no push is sent here.
+        // Web Push keys as a browser/distributor hands them out (RFC 8291):
+        // an uncompressed P-256 point and a 16-byte auth secret, base64url.
+        const ecdh = crypto.createECDH('prime256v1');
+        ecdh.generateKeys();
         const res = await apiPost(request, '/me/push/subscribe', {
             provider:   'unifiedpush',
             endpoint:   'https://example.com/notify/abc123',
-            public_key: 'test_public_key',
-            auth:       'test_auth',
+            public_key: ecdh.getPublicKey().toString('base64url'),
+            auth:       crypto.randomBytes(16).toString('base64url'),
         }, tokenA);
         const body = await envelope(res, 201);
         expect(body.error).toBeNull();
         expect(body.data).toHaveProperty('id');
         expect(body.data.provider).toBe('unifiedpush');
+    });
+
+    test('57b. POST /me/push/subscribe with keys that cannot encrypt → 422 invalid_push_keys', async ({ request }) => {
+        test.skip(!tokenA, 'tokenA not set');
+        // Every later push to such a subscription would fail and, after ten
+        // failures, silently disable the device: refuse it at registration.
+        for (const keys of [{ public_key: 'test_public_key', auth: 'test_auth' }, { public_key: crypto.createECDH('prime256v1').generateKeys().toString('base64url') }]) {
+            const res = await apiPost(request, '/me/push/subscribe', {
+                provider: 'unifiedpush', endpoint: 'https://example.com/notify/bad-keys', ...keys,
+            }, tokenA);
+            const body = await envelope(res, 422);
+            expect(body.error.code).toBe('invalid_push_keys');
+        }
     });
 
     test('58. DELETE /me/push/subscribe → unsubscribe', async ({ request }) => {

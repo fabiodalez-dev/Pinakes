@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Controllers;
 
+use App\Plugins\MobileApi\Support\Input;
 use App\Controllers\ContactController;
 use App\Controllers\ProfileController;
 use App\Controllers\UserActionsController;
@@ -203,8 +204,8 @@ final class ActionsController
         }
 
         $body    = JsonBody::parse($request);
-        $bookId  = (int) ($body['book_id'] ?? $body['libro_id'] ?? 0);
-        $desired = isset($body['desired_date']) ? trim((string) $body['desired_date']) : '';
+        $bookId  = Input::int($body['book_id'] ?? $body['libro_id'] ?? 0);
+        $desired = isset($body['desired_date']) ? trim(Input::str($body['desired_date'])) : '';
 
         if ($bookId <= 0) {
             return ResponseEnvelope::error($response, 'invalid_book', __('Identificativo libro non valido.'), 422);
@@ -327,7 +328,15 @@ final class ActionsController
 
             $outcome = $this->redirectOutcome($result);
             if (isset($outcome['canceled'])) {
-                return ResponseEnvelope::success($response, null, ['message' => __('Prenotazione annullata.')], 200);
+                $ok = ResponseEnvelope::success($response, null, ['message' => __('Prenotazione annullata.')], 200);
+                // Cancelling a LOAN through /reservations/{id} is the legacy
+                // fallback (ids of the two tables can collide): tell clients to
+                // move to DELETE /loans/{id} (RFC 9745 Deprecation, RFC 8594 Sunset).
+                return $kind === 'reservation'
+                    ? $ok
+                    : $ok->withHeader('Deprecation', '@1791504000')
+                        ->withHeader('Sunset', 'Wed, 30 Jun 2027 00:00:00 GMT')
+                        ->withHeader('Link', '<' . absoluteUrl('/api/v1/loans/' . $reservationId) . '>; rel="successor-version"');
             }
             if (($outcome['error'] ?? '') === 'not_found') {
                 return ResponseEnvelope::error($response, 'not_found', __('Prenotazione non trovata.'), 404);
@@ -430,7 +439,7 @@ final class ActionsController
         }
 
         $body   = JsonBody::parse($request);
-        $bookId = (int) ($body['book_id'] ?? $body['libro_id'] ?? 0);
+        $bookId = Input::int($body['book_id'] ?? $body['libro_id'] ?? 0);
         if ($bookId <= 0) {
             return ResponseEnvelope::error($response, 'invalid_book', __('Identificativo libro non valido.'), 422);
         }
@@ -604,12 +613,12 @@ final class ActionsController
         $forward = $current;
         foreach ($allowed as $field) {
             if (array_key_exists($field, $body)) {
-                $forward[$field] = (string) $body[$field];
+                $forward[$field] = Input::str($body[$field]);
             }
         }
         // locale only when explicitly provided (single-locale installs omit it).
         if (array_key_exists('locale', $body)) {
-            $forward['locale'] = (string) $body['locale'];
+            $forward['locale'] = Input::str($body['locale']);
         }
 
         if (array_key_exists('custom_fields', $body)) {
@@ -687,9 +696,9 @@ final class ActionsController
         }
 
         $body    = JsonBody::parse($request);
-        $current = (string) ($body['current_password'] ?? '');
-        $p1      = (string) ($body['password'] ?? '');
-        $p2      = (string) ($body['password_confirm'] ?? '');
+        $current = Input::str($body['current_password'] ?? '');
+        $p1      = Input::str($body['password'] ?? '');
+        $p2      = Input::str($body['password_confirm'] ?? '');
 
         if ($current === '' || $p1 === '') {
             return ResponseEnvelope::error($response, 'missing_fields', __('Compila tutti i campi obbligatori.'), 422);
@@ -727,9 +736,9 @@ final class ActionsController
 
     /**
      * Send a contact message exactly like the web contact form. Delegates to
-     * ContactController::submitForm. The authenticated user's name/email may be
-     * pre-filled from the token if the body omits them, but the body wins so the
-     * app can let the user edit before sending. ReCAPTCHA is bypassed only when no
+     * ContactController::submitForm. The sender's e-mail is the token's account,
+     * always; the name is pre-filled from it and may be edited. At most twenty
+     * messages an hour per account. ReCAPTCHA is bypassed only when no
      * secret is configured (same as web); when configured, the app must supply a
      * recaptcha_token like the web form.
      */
@@ -744,10 +753,21 @@ final class ActionsController
         $user = $request->getAttribute(AppAuthMiddleware::ATTR_USER);
         $user = is_array($user) ? $user : [];
 
-        $nome     = trim((string) ($body['nome'] ?? ($user['nome'] ?? '')));
-        $cognome  = trim((string) ($body['cognome'] ?? ($user['cognome'] ?? '')));
-        $email    = trim((string) ($body['email'] ?? ($user['email'] ?? '')));
-        $messaggio = trim((string) ($body['messaggio'] ?? $body['message'] ?? $body['body'] ?? ''));
+        // The sender is the authenticated account: its e-mail always comes from
+        // the token, never from the body (otherwise any patron could send in
+        // someone else's name); the name may be edited, the address may not.
+        $scalar = static fn(mixed $v): string => is_scalar($v) ? trim((string) $v) : '';
+        $nome     = $scalar($body['nome'] ?? ($user['nome'] ?? ''));
+        $cognome  = $scalar($body['cognome'] ?? ($user['cognome'] ?? ''));
+        $email    = $scalar($user['email'] ?? '');
+        $messaggio = $scalar($body['messaggio'] ?? $body['message'] ?? $body['body'] ?? '');
+
+        // Per-account budget on top of the token quota (240 requests/min):
+        // 20 messages an hour is plenty for a person and stops a scripted flood.
+        if (\App\Support\RateLimiter::isLimited('mobile_message:user:' . $userId, 20, 3600)) {
+            return ResponseEnvelope::error($response, 'rate_limited', __('Troppe richieste. Riprova più tardi.'), 429)
+                ->withHeader('Retry-After', '3600');
+        }
 
         if ($nome === '' || $cognome === '' || $email === '' || $messaggio === '') {
             return ResponseEnvelope::error($response, 'required_fields', __('Compila tutti i campi obbligatori.'), 422);
@@ -760,13 +780,13 @@ final class ActionsController
             'nome'      => $nome,
             'cognome'   => $cognome,
             'email'     => $email,
-            'telefono'  => trim((string) ($body['telefono'] ?? '')),
-            'indirizzo' => trim((string) ($body['indirizzo'] ?? '')),
+            'telefono'  => $scalar($body['telefono'] ?? ''),
+            'indirizzo' => $scalar($body['indirizzo'] ?? ''),
             'messaggio' => $messaggio,
             'privacy'   => '1', // an authenticated user already accepted privacy at registration
         ];
-        if (isset($body['recaptcha_token'])) {
-            $forward['recaptcha_token'] = (string) $body['recaptcha_token'];
+        if (isset($body['recaptcha_token']) && is_string($body['recaptcha_token'])) {
+            $forward['recaptcha_token'] = $body['recaptcha_token'];
         }
 
         try {

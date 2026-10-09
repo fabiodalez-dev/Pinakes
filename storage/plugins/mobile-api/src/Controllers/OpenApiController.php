@@ -1560,7 +1560,7 @@ final class OpenApiController
                 'loan_due'          => ['type' => 'boolean', 'description' => 'Notify when a loan is due soon.'],
                 'loan_overdue'      => ['type' => 'boolean', 'description' => 'Notify when a loan is overdue.'],
                 'reservation_ready' => ['type' => 'boolean', 'description' => 'Notify when a reservation is ready for pick-up.'],
-                'new_message'       => ['type' => 'boolean', 'description' => 'Notify on admin reply / new message.'],
+                'new_message'       => ['type' => 'boolean', 'description' => 'Reserved: accepted and stored for forward compatibility, but no event produces a new_message push yet (the library has no in-app reply to contact messages). Messages sent with POST /messages are answered by e-mail.'],
                 'book_available'    => ['type' => 'boolean', 'description' => 'Notify when a wishlisted/reserved book is available again.'],
                 'quiet_start'       => ['type' => 'string', 'pattern' => '^\\d{2}:\\d{2}$', 'nullable' => true, 'example' => '22:00', 'description' => 'Quiet hours start (HH:MM, instance time zone).'],
                 'quiet_end'         => ['type' => 'string', 'pattern' => '^\\d{2}:\\d{2}$', 'nullable' => true, 'example' => '08:00', 'description' => 'Quiet hours end (HH:MM).'],

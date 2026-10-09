@@ -56,7 +56,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             'enabled'              => $enabled,
             'push_provider'        => $pushProvider,
             'push_vapid_subject'   => (string) ($_POST['push_vapid_subject'] ?? ''),
-            'push_fcm_credentials' => (string) ($_POST['push_fcm_credentials'] ?? ''),
+            // Posted only when the FCM block is shown: never wipe stored credentials otherwise.
+            'push_fcm_credentials' => isset($_POST['push_fcm_credentials']) ? (string) $_POST['push_fcm_credentials'] : null,
             'trusted_proxies'      => (string) ($_POST['trusted_proxies'] ?? ''),
         ])) {
             $successMessage = __('Impostazioni salvate correttamente.');
@@ -217,9 +218,13 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
               <option value="unifiedpush" <?= $pushProvider === 'unifiedpush' ? 'selected' : '' ?>>
                 <?= htmlspecialchars(__('UnifiedPush (consigliato, nessuna credenziale centrale)'), ENT_QUOTES, 'UTF-8') ?>
               </option>
-              <option value="fcm" <?= $pushProvider === 'fcm' ? 'selected' : '' ?>>
+              <?php // FCM is not implemented yet (FcmProvider delivers nothing): offered only
+                    // to an install that already selected it, so its setting is not lost. ?>
+              <?php if ($pushProvider === 'fcm'): ?>
+              <option value="fcm" selected>
                 <?= htmlspecialchars(__('Firebase Cloud Messaging (sperimentale)'), ENT_QUOTES, 'UTF-8') ?>
               </option>
+              <?php endif; ?>
             </select>
           </div>
 
@@ -233,6 +238,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
                    class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:border-blue-500 focus:ring-blue-500">
           </div>
 
+          <?php if ($pushProvider === 'fcm'): ?>
           <div>
             <label for="push_fcm_credentials" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               <?= htmlspecialchars(__('Credenziali FCM (JSON service-account, facoltative)'), ENT_QUOTES, 'UTF-8') ?>
@@ -244,6 +250,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
               <?= htmlspecialchars(__('Lascia vuoto per usare solo UnifiedPush / feed in-app.'), ENT_QUOTES, 'UTF-8') ?>
             </p>
           </div>
+          <?php endif; ?>
 
           <div>
             <label for="trusted_proxies" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -336,8 +343,21 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
             $userEmail   = (string) ($dev['email'] ?? '');
             $deviceName  = (string) ($dev['device_name'] ?? '');
             $platform    = (string) ($dev['platform'] ?? '');
-            $lastUsed    = (string) ($dev['last_used_at'] ?? '');
-            $createdAt   = (string) ($dev['created_at'] ?? '');
+            // Token times are stored in UTC: show them in the library's timezone.
+            $toLocal = static function (string $utc): string {
+                if ($utc === '') {
+                    return '';
+                }
+                try {
+                    return (new \DateTimeImmutable($utc, new \DateTimeZone('UTC')))
+                        ->setTimezone(new \DateTimeZone((string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome')))
+                        ->format('Y-m-d H:i');
+                } catch (\Throwable $e) {
+                    return $utc;
+                }
+            };
+            $lastUsed    = $toLocal((string) ($dev['last_used_at'] ?? ''));
+            $createdAt   = $toLocal((string) ($dev['created_at'] ?? ''));
             $platformIcon = match ($platform) {
                 'android' => 'fab fa-android text-green-500',
                 'ios'     => 'fab fa-apple text-gray-500 dark:text-gray-300',

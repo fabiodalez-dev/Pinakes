@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Controllers;
 
+use App\Plugins\MobileApi\Support\Input;
 use App\Plugins\MobileApi\Support\CursorCodec;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Support\SearchIndexBuilder;
@@ -63,8 +64,8 @@ final class CatalogController
             $params = $request->getQueryParams();
 
             $limit = $this->clampLimit($params['limit'] ?? null);
-            $query = isset($params['q']) ? trim((string) $params['q']) : '';
-            $requestedSort = isset($params['sort']) ? trim((string) $params['sort']) : null;
+            $query = isset($params['q']) ? trim(Input::str($params['q'])) : '';
+            $requestedSort = isset($params['sort']) ? trim(Input::str($params['sort'])) : null;
             // Relevance is the default for a text query and can be selected
             // explicitly by mobile clients. Facet-only browsing keeps the
             // established newest/oldest/title/author keyset sorts.
@@ -78,7 +79,7 @@ final class CatalogController
                 ? SearchIndexBuilder::buildRelevanceOrder($this->db, $query, 'l.')
                 : null;
 
-            $cursor = CursorCodec::decode(isset($params['cursor']) ? (string) $params['cursor'] : null);
+            $cursor = CursorCodec::decode(isset($params['cursor']) ? Input::str($params['cursor']) : null);
             // The cursor is opaque to clients and only carries the last row's sort
             // anchor (value + id). It is NEVER trusted as authorization input. A
             // cursor minted under a different sort is ignored so switching the sort
@@ -295,8 +296,9 @@ final class CatalogController
                 'has_more'    => $hasMore,
             ];
 
-            // Weak validator over the result set so the app can revalidate a
-            // page cheaply. Tied to the exact ids + availability snapshot.
+            // Validator over the whole page the app receives (titles, authors,
+            // covers, availability…), so an edited title is a new ETag and
+            // never a 304 that keeps the stale one on the phone.
             $etag = $this->computeListEtag($items);
             if ($this->notModified($request, $etag)) {
                 return $this->notModifiedResponse($response, $etag);
@@ -590,7 +592,7 @@ final class CatalogController
         $bind  = [];
         $types = '';
 
-        $q = isset($params['q']) ? trim((string) $params['q']) : '';
+        $q = isset($params['q']) ? trim(Input::str($params['q'])) : '';
         if ($q !== '') {
             // Reuse the web catalog's denormalized FULLTEXT condition so mobile
             // and web agree on multi-word semantics, wildcard normalization,
@@ -608,7 +610,7 @@ final class CatalogController
             // inside buildSearchCondition, so they are unaffected.)
         }
 
-        $author = isset($params['author']) ? trim((string) $params['author']) : '';
+        $author = isset($params['author']) ? trim(Input::str($params['author'])) : '';
         if ($author !== '') {
             if (is_numeric($author)) {
                 $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a
@@ -628,7 +630,7 @@ final class CatalogController
             }
         }
 
-        $publisher = isset($params['publisher']) ? trim((string) $params['publisher']) : '';
+        $publisher = isset($params['publisher']) ? trim(Input::str($params['publisher'])) : '';
         if ($publisher !== '') {
             $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
             if (is_numeric($publisher)) {
@@ -655,7 +657,7 @@ final class CatalogController
             }
         }
 
-        $authorId = isset($params['author_id']) ? (int) $params['author_id'] : 0;
+        $authorId = isset($params['author_id']) ? Input::int($params['author_id']) : 0;
         if ($authorId > 0) {
             $conditions[] = 'EXISTS (SELECT 1 FROM libri_autori lai WHERE lai.libro_id = l.id AND lai.autore_id = ?)';
             $bind[] = $authorId; $types .= 'i';
@@ -664,7 +666,7 @@ final class CatalogController
         // Genre cascade id: match the id at ANY level of the hierarchy (same
         // semantics as the web catalog) so filtering by a top genre also returns
         // books classified under its descendants.
-        $genreId = isset($params['genre']) ? (int) $params['genre'] : 0;
+        $genreId = isset($params['genre']) ? Input::int($params['genre']) : 0;
         if ($genreId > 0) {
             $family = \App\Support\GenreTree::withDescendants($this->db, $genreId);
             $marks = implode(',', array_fill(0, count($family), '?'));
@@ -673,7 +675,7 @@ final class CatalogController
             $types .= str_repeat('i', count($family) * 2);
         }
 
-        $language = isset($params['language']) ? trim((string) $params['language']) : '';
+        $language = isset($params['language']) ? trim(Input::str($params['language'])) : '';
         if ($language !== '') {
             // libri.lingua is unnormalized free text (#282): tolerate case /
             // surrounding whitespace so a value taken from /catalog/languages
@@ -685,7 +687,7 @@ final class CatalogController
 
         // available=1/true → loanable now (at least one available copy).
         if (isset($params['available'])) {
-            $av = strtolower(trim((string) $params['available']));
+            $av = strtolower(trim(Input::str($params['available'])));
             if (in_array($av, ['1', 'true', 'yes'], true)) {
                 $conditions[] = 'l.copie_disponibili > 0';
             } elseif (in_array($av, ['0', 'false', 'no'], true)) {
@@ -1154,9 +1156,10 @@ final class CatalogController
      */
     private function computeListEtag(array $items): string
     {
-        $seed = '';
-        foreach ($items as $i) {
-            $seed .= $i['id'] . ':' . $i['copies_available'] . '|';
+        try {
+            $seed = json_encode($items, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } catch (\JsonException $e) {
+            $seed = serialize($items);
         }
 
         return '"' . sha1('catalog-list:' . $seed) . '"';

@@ -31,11 +31,12 @@ use App\Support\SecureLogger;
  *   distributors. Signing is best-effort: a failure never blocks delivery.
  *
  * Payload encryption (RFC 8291):
- *   The JSON payload is sent as-is (not ECDH/HKDF-encrypted). UnifiedPush
- *   distributors that accept unencrypted application payloads (the common
- *   self-hosted case, e.g. ntfy/NextPush) deliver it directly; the stored
- *   `mobile_push_subscriptions.public_key`/`auth` pair is reserved for a future
- *   encrypted transport.
+ *   When the subscription carries the Web Push keys the app registered
+ *   (`public_key` = p256dh, `auth`), the payload is encrypted in the aes128gcm
+ *   content coding (RFC 8188) and sent with `Content-Encoding: aes128gcm`:
+ *   standard Web Push endpoints, and the distributors bridging to them, refuse
+ *   a plaintext body. Without the keys (plain UnifiedPush distributors such as
+ *   ntfy/NextPush) the JSON is sent as-is, as before.
  */
 final class UnifiedPushProvider implements PushProvider
 {
@@ -89,6 +90,27 @@ final class UnifiedPushProvider implements PushProvider
             'Urgency'      => $payload->type === 'loan_overdue' ? 'high' : 'normal',
         ];
 
+        $body = $payload->toJson();
+        $p256dh = trim((string) ($subscription['public_key'] ?? ''));
+        $authSecret = trim((string) ($subscription['auth'] ?? ''));
+        if ($p256dh !== '' && $authSecret !== '') {
+            $encrypted = null;
+            try {
+                $encrypted = WebPushEncryption::encrypt($body, $p256dh, $authSecret);
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[MobileApi] Web Push encryption threw: ' . $e->getMessage());
+            }
+            if ($encrypted === null) {
+                // Keys present but unusable: a plaintext body would be refused by
+                // the endpoint anyway, and would leak the content. Count a failure.
+                SecureLogger::warning('[MobileApi] Web Push subscription keys are not usable; not sending');
+                return PushResult::failed();
+            }
+            $body = $encrypted;
+            $headers['Content-Type'] = 'application/octet-stream';
+            $headers['Content-Encoding'] = 'aes128gcm';
+        }
+
         // VAPID (RFC 8292): sign a per-request ES256 JWT bound to this endpoint's
         // origin when a keypair is configured. Required by standard Web Push
         // endpoints / VAPID-enforcing distributors; advisory otherwise. A signing
@@ -113,7 +135,7 @@ final class UnifiedPushProvider implements PushProvider
         try {
             $res = HttpClient::post(
                 $endpoint,
-                $payload->toJson(),
+                $body,
                 $headers,
                 ['https_only' => true, 'timeout' => 10, 'connect_timeout' => 5, 'max_redirects' => 0, 'pin_ip' => $pinnedIp]
             );

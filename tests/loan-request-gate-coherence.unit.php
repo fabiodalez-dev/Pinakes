@@ -46,6 +46,7 @@ require $root . '/vendor/autoload.php';
 require_once $root . '/storage/plugins/mobile-api/src/Support/AppAuthMiddleware.php';
 require_once $root . '/storage/plugins/mobile-api/src/Support/JsonBody.php';
 require_once $root . '/storage/plugins/mobile-api/src/Support/ResponseEnvelope.php';
+require_once $root . '/storage/plugins/mobile-api/src/Support/Input.php';
 require_once $root . '/storage/plugins/mobile-api/src/Controllers/ActionsController.php';
 require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
 

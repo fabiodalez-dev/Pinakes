@@ -29,6 +29,13 @@ final class TokenService
     /** Hex length of a valid presented token (2 chars per byte). */
     private const TOKEN_HEX_LEN = self::TOKEN_BYTES * 2;
 
+    /**
+     * A device token lapses after this many days without use: the expiry
+     * slides forward on every authenticated request, so an app in use never
+     * logs out, while a lost or abandoned phone loses access on its own.
+     */
+    private const IDLE_DAYS = 180;
+
     private mysqli $db;
 
     public function __construct(mysqli $db)
@@ -56,10 +63,13 @@ final class TokenService
         $deviceId   = $this->clip($deviceId, 190);
         $platform   = $this->clip($platform, 32);
 
+        // The token columns are UTC (UTC_TIMESTAMP(), never NOW(): the DB
+        // session keeps the library's timezone for every other table).
+        $expiresAt ??= gmdate('Y-m-d H:i:s', time() + self::IDLE_DAYS * 86400);
         $stmt = $this->db->prepare(
             'INSERT INTO mobile_app_tokens
                 (user_id, token_hash, device_name, device_id, platform, created_at, last_used_at, expires_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?)'
+             VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), ?)'
         );
         if ($stmt === false) {
             return null;
@@ -92,14 +102,15 @@ final class TokenService
 
         $tokenHash = hash('sha256', $presentedToken);
 
-        $this->db->query("SET SESSION time_zone = '+00:00'");
-
+        // No SET SESSION time_zone here: switching the shared connection to
+        // UTC on every request made every core INSERT later in the same request
+        // (loan requests, reviews, messages) store UTC as if it were local time.
         $stmt = $this->db->prepare(
             'SELECT id, user_id, token_hash
                FROM mobile_app_tokens
               WHERE token_hash = ?
                 AND revoked_at IS NULL
-                AND (expires_at IS NULL OR expires_at > NOW())
+                AND (expires_at IS NULL OR expires_at > UTC_TIMESTAMP())
               LIMIT 1'
         );
         if ($stmt === false) {
@@ -139,7 +150,7 @@ final class TokenService
     {
         $stmt = $this->db->prepare(
             'UPDATE mobile_app_tokens
-                SET revoked_at = NOW()
+                SET revoked_at = UTC_TIMESTAMP()
               WHERE id = ? AND user_id = ? AND revoked_at IS NULL'
         );
         if ($stmt === false) {
@@ -161,14 +172,12 @@ final class TokenService
      */
     public function listDevices(int $userId, ?int $currentTokenId): array
     {
-        $this->db->query("SET SESSION time_zone = '+00:00'");
-
         $stmt = $this->db->prepare(
             'SELECT id, device_name, platform, created_at, last_used_at
                FROM mobile_app_tokens
               WHERE user_id = ?
                 AND revoked_at IS NULL
-                AND (expires_at IS NULL OR expires_at > NOW())
+                AND (expires_at IS NULL OR expires_at > UTC_TIMESTAMP())
               ORDER BY (last_used_at IS NULL), last_used_at DESC, created_at DESC'
         );
         if ($stmt === false) {
@@ -198,7 +207,13 @@ final class TokenService
 
     private function touch(int $tokenId): void
     {
-        $stmt = $this->db->prepare('UPDATE mobile_app_tokens SET last_used_at = NOW() WHERE id = ?');
+        // Slide the idle expiry with every use (see IDLE_DAYS).
+        $stmt = $this->db->prepare(
+            'UPDATE mobile_app_tokens
+                SET last_used_at = UTC_TIMESTAMP(),
+                    expires_at = UTC_TIMESTAMP() + INTERVAL ' . self::IDLE_DAYS . ' DAY
+              WHERE id = ?'
+        );
         if ($stmt === false) {
             return;
         }
@@ -221,16 +236,20 @@ final class TokenService
     }
 
     /**
-     * MySQL DATETIME → ISO-8601 UTC with Z suffix (mobile API contract: dates
-     * are ISO-8601 UTC; the app formats locally). Interprets the wall-clock
-     * value in the current PHP timezone, like gmdate elsewhere in the plugin.
+     * A mobile_app_tokens DATETIME (stored in UTC) → ISO-8601 UTC with a Z
+     * suffix (mobile API contract: dates are ISO-8601 UTC; the app formats
+     * locally). Read as UTC, not in the PHP timezone: doing the latter shifted
+     * every device's "last used" by the library's offset.
      */
     private static function isoUtc(mixed $datetime): ?string
     {
         if (!is_string($datetime) || $datetime === '') {
             return null;
         }
-        $ts = strtotime($datetime);
-        return $ts === false ? null : gmdate('Y-m-d\TH:i:s\Z', $ts);
+        try {
+            return (new \DateTimeImmutable($datetime, new \DateTimeZone('UTC')))->format('Y-m-d\TH:i:s\Z');
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

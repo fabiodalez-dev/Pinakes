@@ -22,6 +22,15 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
+
+// A real Web Push subscription key pair (RFC 8291): registration refuses keys
+// that could not encrypt a message.
+const WEB_PUSH_KEYS = (() => {
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.generateKeys();
+    return { public_key: ecdh.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') };
+})();
 
 test.describe.configure({ mode: 'serial' });
 
@@ -188,7 +197,7 @@ const ENDPOINTS = [
     { name: 'PUT /me/push/prefs',                method: 'PUT',    path: '/me/push/prefs',                auth: true,  kind: 'write2xx',
         body: () => ({ loan_due: true, loan_overdue: true, reservation_ready: true, new_message: true, book_available: true }) },
     { name: 'POST /me/push/subscribe',           method: 'POST',   path: '/me/push/subscribe',            auth: true,  kind: 'write2xx',
-        body: () => ({ provider: 'unifiedpush', endpoint: 'https://example.com/idem-push', public_key: 'k', auth: 'a' }) },
+        body: () => ({ provider: 'unifiedpush', endpoint: 'https://example.com/idem-push', ...WEB_PUSH_KEYS }) },
     { name: 'DELETE /me/push/subscribe',         method: 'DELETE', path: '/me/push/subscribe',            auth: true,  kind: 'write2xx' /* unsubscribe is idempotent: both 2xx */ },
 
     // ── Book Club bridge (/api/v1/bookclub, mounted by the book-club plugin) ──
