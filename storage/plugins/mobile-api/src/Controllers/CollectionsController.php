@@ -164,14 +164,18 @@ final class CollectionsController
             if ($parents === []) { break; }
             array_unshift($ancestors, $this->archiveItem($parents[0])); $parent = (int) ($parents[0]['parent_id'] ?? 0);
         }
-        $files = $this->rows('SELECT file_path, file_mime, original_filename FROM archival_unit_files WHERE unit_id = ? ORDER BY sort_order, id', [$id]);
+        $files = $this->rows('SELECT id, file_path, file_mime, original_filename FROM archival_unit_files WHERE unit_id = ? ORDER BY sort_order, id', [$id]);
         if ($files === [] && !empty($row['document_path'])) {
-            $files = [['file_path' => $row['document_path'], 'file_mime' => $row['document_mime'] ?? '', 'original_filename' => $row['document_filename'] ?? '']];
+            // File id 0 addresses the legacy single-document columns.
+            $files = [['id' => 0, 'file_path' => $row['document_path'], 'file_mime' => $row['document_mime'] ?? '', 'original_filename' => $row['document_filename'] ?? '']];
         }
         $documents = [];
         foreach ($files as $file) {
-            $url = $this->media($file['file_path']);
-            if ($url !== null) { $documents[] = ['url' => $url, 'mime' => (string) $file['file_mime'], 'label' => (string) $file['original_filename']]; }
+            if ($this->media($file['file_path']) === null) { continue; }
+            // The Archives document route, never the upload path: it checks
+            // the unit is still published, so unpublishing withdraws the link.
+            $url = absoluteUrl('/archives/' . $id . '/documents/' . (int) $file['id']);
+            $documents[] = ['url' => $url, 'mime' => (string) $file['file_mime'], 'label' => (string) $file['original_filename']];
         }
         // Children use the paginated listing: a large fonds is never silently truncated.
         return ResponseEnvelope::success($response, $this->archiveItem($row) + ['fields' => (object) $fields, 'ancestors' => $ancestors,

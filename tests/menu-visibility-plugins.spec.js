@@ -7,6 +7,7 @@
  * Switched back on, the entry returns.
  */
 const { test, expect } = require('@playwright/test');
+const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -81,4 +82,36 @@ test.describe('Plugin sections in the public menu', () => {
       }
     });
   }
+
+  test('Staff do not get the switch: the public menu is an admin setting', async ({ browser }) => {
+    test.skip(!process.env.E2E_DB_USER || !process.env.E2E_DB_NAME, 'database credentials not set');
+    const db = (sql) => {
+      const args = ['--default-character-set=utf8mb4', '-N', '-B', '-e', sql];
+      if (process.env.E2E_DB_HOST) args.push('-h', process.env.E2E_DB_HOST, ...(process.env.E2E_DB_PORT ? ['-P', process.env.E2E_DB_PORT] : []));
+      else if (process.env.E2E_DB_SOCKET) args.push('-S', process.env.E2E_DB_SOCKET);
+      args.push('-u', process.env.E2E_DB_USER, process.env.E2E_DB_NAME);
+      return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 15000, env: { ...process.env, MYSQL_PWD: process.env.E2E_DB_PASS || '' } }).trim();
+    };
+    const stamp = Date.now();
+    const email = `menu-staff-${stamp}@example.invalid`;
+    const password = `Menu-staff-${stamp}`;
+    const hash = execFileSync('php', ['-r', 'echo password_hash($argv[1], PASSWORD_DEFAULT);', password], { encoding: 'utf-8' }).trim();
+    db(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata) VALUES ('MS${String(stamp).slice(-8)}', 'Menu', 'Staff', '${email}', '${hash}', 'staff', 'attivo', 1)`);
+    const page = await (await browser.newContext()).newPage();
+    try {
+      await page.goto(`${BASE}/accedi`);
+      await page.fill('input[name="email"]', email);
+      await page.fill('input[name="password"]', password);
+      await page.click('button[type="submit"]');
+      await page.waitForURL(url => !url.pathname.includes('accedi'), { timeout: 30000 });
+      for (const section of SECTIONS) {
+        const res = await page.goto(BASE + section.admin);
+        expect(res?.status(), `${section.admin} opens for staff`).toBe(200);
+        await expect(page.locator('#menuVisibilityForm'), `${section.name}: no switch for staff`).toHaveCount(0);
+      }
+    } finally {
+      await page.context().close();
+      db(`DELETE FROM utenti WHERE email = '${email}'`);
+    }
+  });
 });

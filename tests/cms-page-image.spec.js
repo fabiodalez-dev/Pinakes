@@ -68,8 +68,14 @@ test.describe.serial('CMS page image', () => {
     const consoleErrors = [];
     page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
     await login(page);
+    // The seed stores the About page as 'about-us'; the editor answers on
+    // /admin/cms/chi-siamo and must edit that row, never create a second one.
+    const stored = db("SELECT slug FROM cms_pages WHERE locale = 'it_IT' AND slug IN ('chi-siamo', 'about-us') ORDER BY slug = 'chi-siamo' DESC LIMIT 1") || 'chi-siamo';
+    const rowsBefore = db("SELECT COUNT(*) FROM cms_pages WHERE locale = 'it_IT'");
     await page.goto(`${BASE}/admin/cms/chi-siamo`, { waitUntil: 'networkidle' });
-    const slug = decodeURIComponent(new URL(page.url()).pathname.split('/').pop() || 'chi-siamo');
+    expect(db("SELECT COUNT(*) FROM cms_pages WHERE locale = 'it_IT'"), 'opening the editor creates no duplicate page').toBe(rowsBefore);
+    // The editor may show it under the locale's slug; the row keeps its own.
+    const slug = stored;
     const before = db(`SELECT IFNULL(image, 'NULL') FROM cms_pages WHERE slug = ${q(slug)} LIMIT 1`);
     saved = { slug, image: before };
 

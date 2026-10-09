@@ -157,6 +157,13 @@ try {
     $stmt->close();
     $archive = $payload($controller->handle('archives', $request('GET'), new Slim\Psr7\Response(), 'archive', $archiveIds[2]));
     $check(count($archive['data']['documents']) === 3 && array_column($archive['data']['documents'], 'mime') === ['application/pdf', 'image/jpeg', 'audio/wav'], 'archive exposes every public document type while rejecting executable URLs');
+    $check(array_reduce($archive['data']['documents'], static fn(bool $ok, array $d): bool => $ok && preg_match('#/archives/' . $archiveIds[2] . '/documents/[1-9][0-9]*$#', (string) $d['url']) === 1, true), 'archive documents link the published-only document route, not the upload path');
+    $hasPublished = (int) $db->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units' AND COLUMN_NAME = 'published'")->fetch_row()[0] === 1;
+    if ($hasPublished) {
+        $db->query('UPDATE archival_units SET published = 0 WHERE id = ' . $archiveIds[2]);
+        $check($controller->handle('archives', $request('GET'), new Slim\Psr7\Response(), 'archive', $archiveIds[2])->getStatusCode() === 404, 'an unpublished archival record cannot be opened');
+        $db->query('UPDATE archival_units SET published = 1 WHERE id = ' . $archiveIds[2]);
+    }
     $check(array_column($archive['data']['ancestors'], 'id') === array_slice($archiveIds, 0, 2), 'archive ancestors remain ordered from the root');
     $check(!isset($archive['data']['physical_location']) && !isset($archive['data']['document_path']), 'archive detail exposes public projection instead of raw storage');
     $check($controller->handle('archives', $request('GET', query: ['date_from' => '2000', 'date_to' => '1900']), new Slim\Psr7\Response(), 'archives')->getStatusCode() === 422, 'inverted archive dates are rejected');

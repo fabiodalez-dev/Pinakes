@@ -45,22 +45,16 @@ class CmsAdminController
         $correctSlug = CmsHelper::getRedirectSlug($slug, $currentLocale);
         if ($correctSlug !== null) {
             // Redirect 301 to correct localized admin slug
+            // Keep the query (?saved=1, ?error=…): it carries the save outcome.
+            $query = $request->getUri()->getQuery();
             return $response
-                ->withHeader('Location', '/admin/cms/' . $correctSlug)
+                ->withHeader('Location', url('/admin/cms/' . $correctSlug) . ($query !== '' ? '?' . $query : ''))
                 ->withStatus(301);
         }
 
-        // Recupera la pagina dal database (slug + locale)
-        $stmt = $this->db->prepare("
-            SELECT id, slug, locale, title, content, image, meta_description, is_active
-            FROM cms_pages
-            WHERE slug = ? AND locale = ?
-        ");
-        $stmt->bind_param('ss', $slug, $currentLocale);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $page = $result->fetch_assoc();
-        $stmt->close();
+        // The page under this slug, or under another slug of the same page
+        // (an it_IT install seeded with 'about-us'): never a duplicate.
+        $page = $this->findPageRow($slug, $currentLocale);
 
         if (!$page) {
             // Check if this is a known CMS page that should exist
@@ -134,26 +128,57 @@ class CmsAdminController
         $metaDescription = $data['meta_description'] ?? '';
         $isActive = isset($data['is_active']) ? 1 : 0;
 
-        // Aggiorna la pagina (slug + locale)
+        // The row the editor showed: the same lookup as editPage(), so a page
+        // stored under another slug of the same page is the one updated.
+        $page = $this->findPageRow($slug, $currentLocale);
+        if ($page === null) {
+            return $response
+                ->withHeader('Location', url('/admin/cms/' . $slug . '?error=db'))
+                ->withStatus(302);
+        }
+        $pageRowId = (int) $page['id'];
+
         $stmt = $this->db->prepare("
             UPDATE cms_pages
             SET title = ?, content = ?, image = ?, meta_description = ?, is_active = ?, updated_at = NOW()
-            WHERE slug = ? AND locale = ?
+            WHERE id = ?
         ");
-        $stmt->bind_param('ssssiss', $title, $content, $image, $metaDescription, $isActive, $slug, $currentLocale);
+        $stmt->bind_param('ssssii', $title, $content, $image, $metaDescription, $isActive, $pageRowId);
 
-        if ($stmt->execute()) {
-            $stmt->close();
-            return $response
-                ->withHeader('Location', '/admin/cms/' . $slug . '?saved=1')
-                ->withStatus(302);
-        } else {
-            $error = $this->db->error;
-            $stmt->close();
-            return $response
-                ->withHeader('Location', '/admin/cms/' . $slug . '?error=db')
-                ->withStatus(302);
-        }
+        $ok = $stmt->execute();
+        $stmt->close();
+        // Back to the editor under the locale's own slug (no extra 301 hop).
+        return $response
+            ->withHeader('Location', url('/admin/cms/' . CmsHelper::getLocalizedSlug($slug, $currentLocale) . ($ok ? '?saved=1' : '?error=db')))
+            ->withStatus(302);
+    }
+
+    /**
+     * The cms_pages row for a slug in a locale: the exact slug first, then any
+     * other slug of the same page (CmsHelper's map), as the public page does.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findPageRow(string $slug, string $locale): ?array
+    {
+        $pageId = CmsHelper::getPageIdFromSlug($slug);
+        $variants = $pageId !== null ? CmsHelper::getSlugsForPage($pageId) : [];
+        $slugs = array_values(array_unique(array_merge([$slug], $variants)));
+        $placeholders = implode(',', array_fill(0, count($slugs), '?'));
+        $stmt = $this->db->prepare("
+            SELECT id, slug, locale, title, content, image, meta_description, is_active
+            FROM cms_pages
+            WHERE slug IN ($placeholders) AND locale = ?
+            ORDER BY slug = ? DESC, id ASC
+            LIMIT 1
+        ");
+        $params = array_merge($slugs, [$locale, $slug]);
+        $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
     }
 
     public function uploadImage(Request $request, Response $response): Response

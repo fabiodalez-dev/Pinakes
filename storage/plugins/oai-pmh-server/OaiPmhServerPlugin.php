@@ -3215,16 +3215,11 @@ class OaiPmhServerPlugin
             $row = $res->fetch_assoc();
             $res->free();
             if ($row !== null) {
-                // Taken off the site (Archives' "published" flag): harvesters
-                // learn it as a deletion, as for a withdrawn book.
+                // Off the site (Archives' "published" flag): it does not exist
+                // for a harvester. Not a deletion: nothing records whether it
+                // was ever public, and deletedRecord may be "no" here.
                 if ($this->archivalPublishedSql() !== '' && (int) ($row['published'] ?? 1) !== 1) {
-                    return [
-                        '_entity'    => 'archival_unit',
-                        '_status'    => 'deleted',
-                        'entity_id'  => (int) $row['id'],
-                        'datestamp'  => $row['updated_at'] ?? null,
-                        '_datestamp' => $row['updated_at'] ?? null,
-                    ];
+                    return null;
                 }
                 $row['_entity'] = 'archival_unit';
                 $row['_status'] = 'active';
@@ -3570,12 +3565,15 @@ class OaiPmhServerPlugin
             $w = ['deleted_at IS NULL'];
             if ($fromMysql !== null)  { $w[] = 'updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-            // An unpublished unit is listed as deleted, so a harvester that
-            // took it while it was public drops it (deletedRecord persistent).
-            $auStatus = $this->archivalPublishedSql() !== ''
-                ? 'IF(published = 1, \'active\', \'deleted\')'
-                : '\'active\'';
-            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, ' . $auStatus . ' AS _status, updated_at AS _datestamp,'
+            // Only units published on the site are harvestable. An
+            // unpublished one is left out, never reported as deleted: nothing
+            // records whether it was ever public (a draft never was), and
+            // without the tombstone triggers Identify says deletedRecord=no.
+            $publishedOnly = $this->archivalPublishedSql();
+            if ($publishedOnly !== '') {
+                $w[] = ltrim(substr($publishedOnly, 5));
+            }
+            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, \'active\' AS _status, updated_at AS _datestamp,'
                 . ' \'archival_units\' AS _source'
                 . ' FROM archival_units WHERE ' . implode(' AND ', $w);
         }
@@ -4000,15 +3998,6 @@ class OaiPmhServerPlugin
                 // shape a tombstone table row arrives in.
                 $result[] = [
                     '_entity'    => 'book',
-                    '_status'    => 'deleted',
-                    'entity_id'  => $id,
-                    'datestamp'  => $ref['_datestamp'],
-                    '_datestamp' => $ref['_datestamp'],
-                ];
-            } elseif ($ref['_status'] === 'deleted' && $source === 'archival_units') {
-                // Unpublished archival unit: header only, like a de-listed book.
-                $result[] = [
-                    '_entity'    => 'archival_unit',
                     '_status'    => 'deleted',
                     'entity_id'  => $id,
                     'datestamp'  => $ref['_datestamp'],

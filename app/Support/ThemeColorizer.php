@@ -320,13 +320,6 @@ class ThemeColorizer
     }
 
     /**
-     * The accent as a text colour: the same hue, darkened only as far as it
-     * takes to read at WCAG AA (4.5:1) on the accent's own soft tint, the
-     * lightest surface the public site sets accent text on
-     * (--pk-accent-soft: 9% accent over white). A dark accent comes back
-     * unchanged; a light one (orange, teal, coral) gets just deep enough.
-     */
-    /**
      * The accent as text on the page background (--pk-bg, #fbfaf9) and the
      * white cards: darkened only as far as WCAG AA needs on the page paper,
      * so the default fuchsia stays the brand colour (4.9:1) while a pale
@@ -344,6 +337,13 @@ class ThemeColorizer
         return $this->darken($hex, 60);
     }
 
+    /**
+     * The accent as a text colour: the same hue, darkened only as far as it
+     * takes to read at WCAG AA (4.5:1) on the accent's own soft tint, the
+     * lightest surface the public site sets accent text on
+     * (--pk-accent-soft: 9% accent over white). A dark accent comes back
+     * unchanged; a light one (orange, teal, coral) gets just deep enough.
+     */
     public function readableOnTint(string $hex): string
     {
         $hex = $this->normalizeHex($hex);
