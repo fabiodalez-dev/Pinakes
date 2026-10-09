@@ -8151,5 +8151,15 @@
   "Libri, discussioni, sondaggi e incontri di questo club sono visibili solo ai membri.": "Bücher, Diskussionen, Umfragen und Treffen dieses Clubs sind nur für Mitglieder sichtbar.",
   "Non ora": "Nicht jetzt",
   "Sei stato invitato a unirti al club \"%s\".": "Du wurdest eingeladen, dem Club „%s“ beizutreten.",
-  "Navigazione rapida": "Schnellnavigation"
+  "Navigazione rapida": "Schnellnavigation",
+  "File troppo grande. Dimensione massima %s.": "Datei zu groß. Maximale Größe %s.",
+  "Il caricamento dell'immagine non è riuscito.": "Das Bild konnte nicht hochgeladen werden.",
+  "Intestazione della pagina eventi": "Kopfbereich der Veranstaltungsseite",
+  "Intestazione della pagina eventi aggiornata.": "Kopfbereich der Veranstaltungsseite aktualisiert.",
+  "Intestazione non salvata: dati del modulo non validi.": "Kopfbereich nicht gespeichert: ungültige Formulardaten.",
+  "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Inhalte der Startseite bearbeiten: Hero, Abschnitte, Veranstaltungen und Abschlussaufruf",
+  "Salva intestazione degli eventi": "Kopfbereich der Veranstaltungen speichern",
+  "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel und Untertitel oben auf der Veranstaltungsseite, für jede Sprache. Die Seite zeigt genau diese Texte; ein leeres Feld zeigt nichts an.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel und Untertitel oben auf der Katalogseite, für jede Sprache. Die Seite zeigt genau diese Texte; ein leeres Feld zeigt nichts an.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Unterstützte Formate: JPG, PNG, GIF, WebP. Maximale Größe: %s"
 }

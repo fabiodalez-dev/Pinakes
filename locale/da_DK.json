@@ -8151,5 +8151,15 @@
   "Libri, discussioni, sondaggi e incontri di questo club sono visibili solo ai membri.": "Klubbens bøger, diskussioner, afstemninger og møder er kun synlige for medlemmer.",
   "Non ora": "Ikke nu",
   "Sei stato invitato a unirti al club \"%s\".": "Du er inviteret til at blive medlem af klubben \"%s\".",
-  "Navigazione rapida": "Hurtig navigation"
+  "Navigazione rapida": "Hurtig navigation",
+  "File troppo grande. Dimensione massima %s.": "Filen er for stor. Maksimal størrelse %s.",
+  "Il caricamento dell'immagine non è riuscito.": "Billedet kunne ikke uploades.",
+  "Intestazione della pagina eventi": "Overskrift på arrangementssiden",
+  "Intestazione della pagina eventi aggiornata.": "Overskriften på arrangementssiden er opdateret.",
+  "Intestazione non salvata: dati del modulo non validi.": "Overskriften blev ikke gemt: ugyldige formulardata.",
+  "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Rediger forsidens indhold: hero, sektioner, arrangementer og afsluttende opfordring",
+  "Salva intestazione degli eventi": "Gem arrangementernes overskrift",
+  "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel og undertitel øverst på arrangementssiden, for hvert sprog. Siden viser præcis disse tekster; et tomt felt viser intet.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titel og undertitel øverst på katalogsiden, for hvert sprog. Siden viser præcis disse tekster; et tomt felt viser intet.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Understøttede formater: JPG, PNG, GIF, WebP. Maksimal størrelse: %s"
 }

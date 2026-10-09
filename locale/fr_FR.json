@@ -8151,5 +8151,15 @@
   "Libri, discussioni, sondaggi e incontri di questo club sono visibili solo ai membri.": "Les livres, discussions, sondages et rencontres de ce club ne sont visibles que par ses membres.",
   "Non ora": "Pas maintenant",
   "Sei stato invitato a unirti al club \"%s\".": "Vous avez été invité à rejoindre le club « %s ».",
-  "Navigazione rapida": "Navigation rapide"
+  "Navigazione rapida": "Navigation rapide",
+  "File troppo grande. Dimensione massima %s.": "Fichier trop volumineux. Taille maximale %s.",
+  "Il caricamento dell'immagine non è riuscito.": "L'image n'a pas pu être envoyée.",
+  "Intestazione della pagina eventi": "En-tête de la page des événements",
+  "Intestazione della pagina eventi aggiornata.": "En-tête de la page des événements mis à jour.",
+  "Intestazione non salvata: dati del modulo non validi.": "En-tête non enregistré : données du formulaire non valides.",
+  "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Modifier le contenu de la page d'accueil : hero, sections, événements et appel final",
+  "Salva intestazione degli eventi": "Enregistrer l'en-tête des événements",
+  "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titre et sous-titre en haut de la page des événements, pour chaque langue. La page affiche exactement ces textes ; un champ vide n'affiche rien.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Titre et sous-titre en haut de la page du catalogue, pour chaque langue. La page affiche exactement ces textes ; un champ vide n'affiche rien.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Formats pris en charge : JPG, PNG, GIF, WebP. Taille maximum : %s"
 }

@@ -9,8 +9,9 @@ $featuresData = $section ?? [];
 <!-- Features Section -->
 <section class="section section-alt pk-section pk-section--features" data-section="features_title">
     <div class="pk-features__head">
-        <h2 class="section-title pk-h2"><?php echo htmlspecialchars($featuresData['title'] ?? __("Perché Scegliere la Nostra Biblioteca"), ENT_QUOTES, 'UTF-8'); ?></h2>
-        <p class="section-subtitle pk-lead"><?php echo htmlspecialchars($featuresData['subtitle'] ?? __("Un'esperienza di lettura moderna, intuitiva e sempre a portata di mano"), ENT_QUOTES, 'UTF-8'); ?></p>
+        <?php $featTitle = \App\Support\HomeTexts::text($featuresData, 'features_title', 'title'); $featSub = \App\Support\HomeTexts::text($featuresData, 'features_title', 'subtitle'); ?>
+        <?php if ($featTitle !== ''): ?><h2 class="section-title pk-h2"><?php echo htmlspecialchars($featTitle, ENT_QUOTES, 'UTF-8'); ?></h2><?php endif; ?>
+        <?php if ($featSub !== ''): ?><p class="section-subtitle pk-lead"><?php echo htmlspecialchars($featSub, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
     </div>
     <?php
     // $homeContent holds only the sections that are switched on, so a card

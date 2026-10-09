@@ -15,7 +15,9 @@ $heroEscape = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_Q
         <?php $breadcrumbVariant = 'hero'; include __DIR__ . '/breadcrumb.php'; ?>
         <div class="catalog-header-content pk-page-head">
             <div class="pk-page-head__text">
-                <h1 class="catalog-title pk-h1"><?= $heroEscape($heroTitle ?? '') ?></h1>
+                <?php if (($heroTitle ?? '') !== ''): ?>
+                    <h1 class="catalog-title pk-h1"><?= $heroEscape($heroTitle) ?></h1>
+                <?php endif; ?>
                 <?php if (($heroSubtitle ?? '') !== ''): ?>
                     <p class="catalog-subtitle pk-lead"><?= $heroEscape($heroSubtitle) ?></p>
                 <?php endif; ?>

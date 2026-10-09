@@ -15,7 +15,7 @@ $catalogHeader = $catalogHeader ?? [
     'title' => __(\App\Support\CatalogHeader::DEFAULT_TITLE),
     'subtitle' => __(\App\Support\CatalogHeader::DEFAULT_SUBTITLE),
 ];
-$title = $catalogHeader['title'];
+$title = $catalogHeader['title'] !== '' ? $catalogHeader['title'] : __('Catalogo'); // tab title and breadcrumb: never blank
 if (!isset($filters)) {
     $filters = [];
 }
@@ -25,13 +25,13 @@ $searchQuery = $filters['search'] ?? '';
 if ($searchQuery) {
     $sanitizedSearchQuery = htmlspecialchars($searchQuery, ENT_QUOTES, 'UTF-8');
     // The catalogue is called what its header says, in the results title too.
-    $seoTitle = __("Risultati per '%s' - %s", $sanitizedSearchQuery, $catalogHeader['title']);
+    $seoTitle = __("Risultati per '%s' - %s", $sanitizedSearchQuery, $title);
     $seoDescription = __("Scopri tutti i libri che contengono '%s' nel nostro catalogo. Trova autori, titoli e argomenti correlati alla tua ricerca.", $sanitizedSearchQuery);
     // Internal search results must not enter the index (infinite query space,
     // thin/duplicate content); links are still followed toward the books.
     $seoRobots = 'noindex,follow';
 } else {
-    $seoTitle = $catalogHeader['title'];
+    $seoTitle = $title;
     $seoDescription = __("Sfoglia il nostro catalogo completo di libri disponibili per il prestito. Filtra per categoria, autore, editore e anno di pubblicazione per trovare la tua prossima lettura.");
 }
 if (!empty($filters['autore'])) { $seoRobots = 'noindex,follow'; }
@@ -104,13 +104,17 @@ ob_start();
             <ol class="breadcrumb pk-crumbs">
                 <li class="breadcrumb-item"><a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Home") ?></a></li>
                 <li class="pk-crumbs__sep" aria-hidden="true">/</li>
-                <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></li>
+                <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></li>
             </ol>
         </nav>
         <div class="catalog-header-content pk-page-head">
             <div class="pk-page-head__text">
+                <?php if ($catalogHeader['title'] !== ''): ?>
                 <h1 class="catalog-title pk-h1"><?= htmlspecialchars($catalogHeader['title'], ENT_QUOTES, 'UTF-8') ?></h1>
+                <?php endif; ?>
+                <?php if ($catalogHeader['subtitle'] !== ''): ?>
                 <p class="catalog-subtitle pk-lead"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
+                <?php endif; ?>
             </div>
         </div>
     </div>

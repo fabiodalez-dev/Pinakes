@@ -41,7 +41,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.8.0 — latest
+### v0.8.1 — latest
+
+**What the CMS says is what the site shows.** Every text of the home, the catalogue header and the new events header is edited in the admin and shown exactly as written: no hidden default replaces an empty field. The image of a CMS page such as About us is saved when Save is pressed, the search suggestions under the home's search box open on top of the page instead of under the next section, the catalogue grid lines its cards up, and the events page title and subtitle are editable per language. No migration.
+
+### v0.8.0
 
 **A new design.** The public site and the account pages are rebuilt on the 2026 design: one typographic voice, covers that fill the book, a cloth binding for books without artwork, colours that stay readable on every theme, and on phones a bottom bar like the Android app's. Admin → Themes chooses the home hero (a fan of covers, or centred) and the card style.
 

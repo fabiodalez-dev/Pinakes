@@ -8151,5 +8151,15 @@
   "Libri, discussioni, sondaggi e incontri di questo club sono visibili solo ai membri.": "This club's books, discussions, polls and meetings are visible to members only.",
   "Non ora": "Not now",
   "Sei stato invitato a unirti al club \"%s\".": "You have been invited to join the club \"%s\".",
-  "Navigazione rapida": "Quick navigation"
+  "Navigazione rapida": "Quick navigation",
+  "File troppo grande. Dimensione massima %s.": "File too large. Maximum size %s.",
+  "Il caricamento dell'immagine non è riuscito.": "The image could not be uploaded.",
+  "Intestazione della pagina eventi": "Events page header",
+  "Intestazione della pagina eventi aggiornata.": "Events page header updated.",
+  "Intestazione non salvata: dati del modulo non validi.": "Header not saved: invalid form data.",
+  "Modifica i contenuti della homepage: hero, sezioni, eventi e invito finale": "Edit the homepage content: hero, sections, events and closing call to action",
+  "Salva intestazione degli eventi": "Save events header",
+  "Titolo e sottotitolo in cima alla pagina degli eventi, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Title and subtitle at the top of the events page, for each language. The page shows exactly these texts; an empty field shows nothing.",
+  "Titolo e sottotitolo in cima alla pagina del catalogo, per ogni lingua. La pagina mostra esattamente questi testi; un campo vuoto non mostra nulla.": "Title and subtitle at the top of the catalogue page, for each language. The page shows exactly these texts; an empty field shows nothing.",
+  "Formati supportati: JPG, PNG, GIF, WebP. Dimensione massima: %s": "Supported formats: JPG, PNG, GIF, WebP. Maximum size: %s"
 }

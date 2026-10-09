@@ -110,8 +110,9 @@ $additional_css = "
 
 ob_start();
 
-$heroTitle = __("Eventi");
-$heroSubtitle = __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.");
+// Settings → CMS → Eventi: the page shows exactly what is written there.
+$heroTitle = (string) (($eventsHeader ?? [])['title'] ?? __("Eventi"));
+$heroSubtitle = (string) (($eventsHeader ?? [])['subtitle'] ?? '');
 $breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __("Eventi")]];
 include $corePartials . '/catalog-hero.php';
 ?>

@@ -74,6 +74,9 @@ class SettingsController
         $catalogHeaderLocales = \App\Support\I18n::getAvailableLocales();
         $catalogHeaderTexts = \App\Support\CatalogHeader::stored($repository);
         $catalogHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)));
+        // The events page header, edited the same way (Settings → CMS → Eventi).
+        $eventsHeaderTexts = \App\Support\CatalogHeader::stored($repository, 'events');
+        $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
@@ -105,6 +108,8 @@ class SettingsController
             'catalogHeaderLocales',
             'catalogHeaderTexts',
             'catalogHeaderDefaults',
+            'eventsHeaderTexts',
+            'eventsHeaderDefaults',
             'advancedSettings',
             'loansSettings',
             'contactMessages',
@@ -1382,7 +1387,7 @@ class SettingsController
         // public page, so editing it is admin-only — re-check inline.
         if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
-            return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+            return $this->redirect($response, '/admin/settings?tab=privacy');
         }
 
         $data = (array) $request->getParsedBody();
@@ -1398,7 +1403,7 @@ class SettingsController
         if (($statementRaw !== '' && $statementUrl === '')
             || ($technologiesRaw !== '' && $technologiesUrl === '')) {
             $_SESSION['error_message'] = __('I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.');
-            return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+            return $this->redirect($response, '/admin/settings?tab=privacy');
         }
 
         $repository = new SettingsRepository($db);
@@ -1460,7 +1465,7 @@ class SettingsController
         }
 
         $_SESSION['success_message'] = __('Impostazioni del banner cookie aggiornate correttamente.');
-        return $this->redirect($response, '/admin/settings?tab=privacy#privacy');
+        return $this->redirect($response, '/admin/settings?tab=privacy');
     }
 
     private function resolveCookieBannerTexts(SettingsRepository $repository): array
@@ -1578,7 +1583,7 @@ class SettingsController
      * CMS tab. A malformed post is rejected before any write; on success the
      * catalogue pages are purged from the LiteSpeed cache.
      */
-    public function updateCatalogHeader(Request $request, Response $response, mysqli $db): Response
+    public function updateCatalogHeader(Request $request, Response $response, mysqli $db, string $page = 'catalog'): Response
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
@@ -1589,18 +1594,18 @@ class SettingsController
         // Both fields arrive as locale => text maps. Anything else (a missing
         // field, a scalar, a nested array) is rejected before touching the
         // database: read as an empty map, it would reset every language.
-        $titles = $data['catalog_title'] ?? null;
-        $subtitles = $data['catalog_subtitle'] ?? null;
+        $titles = $data[$page . '_title'] ?? null;
+        $subtitles = $data[$page . '_subtitle'] ?? null;
         if (!\App\Support\CatalogHeader::isTextMap($titles) || !\App\Support\CatalogHeader::isTextMap($subtitles)) {
-            $_SESSION['error_message'] = __('Intestazione del catalogo non salvata: dati del modulo non validi.');
-            return $this->redirect($response, '/admin/settings?tab=cms#cms');
+            $_SESSION['error_message'] = __('Intestazione non salvata: dati del modulo non validi.');
+            return $this->redirect($response, '/admin/settings?tab=cms');
         }
 
-        \App\Support\CatalogHeader::save($repository, $titles, $subtitles);
+        \App\Support\CatalogHeader::save($repository, $titles, $subtitles, $page);
         LiteSpeedCache::queuePurge([LiteSpeedCache::TAG_CATALOG]);
 
-        $_SESSION['success_message'] = __('Intestazione del catalogo aggiornata.');
-        return $this->redirect($response, '/admin/settings?tab=cms#cms');
+        $_SESSION['success_message'] = $page === 'events' ? __('Intestazione della pagina eventi aggiornata.') : __('Intestazione del catalogo aggiornata.');
+        return $this->redirect($response, '/admin/settings?tab=cms');
     }
 
     /**

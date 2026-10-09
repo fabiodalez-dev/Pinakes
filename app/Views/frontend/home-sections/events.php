@@ -56,12 +56,9 @@ if ($homeEventsEnabled && !empty($homeEvents)):
             <div class="home-events__header">
                 <div>
                     <p class="page-hero__eyebrow"><?= __("Calendario eventi") ?></p>
-                    <h2 class="home-events__title">
-                        <?= !empty($section['title']) ? htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8') : __("Gli appuntamenti della biblioteca") ?>
-                    </h2>
-                    <p class="home-events__subtitle">
-                        <?= !empty($section['subtitle']) ? htmlspecialchars($section['subtitle'], ENT_QUOTES, 'UTF-8') : __("In questa pagina trovi tutti gli eventi, gli incontri e i laboratori organizzati dalla biblioteca.") ?>
-                    </p>
+                    <?php $evTitle = \App\Support\HomeTexts::text($section ?? null, 'events', 'title'); $evSub = \App\Support\HomeTexts::text($section ?? null, 'events', 'subtitle'); ?>
+                    <?php if ($evTitle !== ''): ?><h2 class="home-events__title"><?= htmlspecialchars($evTitle, ENT_QUOTES, 'UTF-8') ?></h2><?php endif; ?>
+                    <?php if ($evSub !== ''): ?><p class="home-events__subtitle"><?= htmlspecialchars($evSub, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 </div>
                 <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>" class="home-events__all-link">
                     <?= __("Vedi tutti gli eventi") ?>

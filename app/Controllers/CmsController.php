@@ -255,6 +255,14 @@ class CmsController
             $heroData['title'] = $sanitizeText($heroData['title'] ?? '');
             $heroData['subtitle'] = $sanitizeText($heroData['subtitle'] ?? '');
             $heroData['button_text'] = $sanitizeText($heroData['button_text'] ?? '');
+            // The hero title and its button cannot be blank on the page: an
+            // emptied field goes back to "never set", so the form and the
+            // site both show the default text again.
+            foreach (['title', 'button_text'] as $required) {
+                if ($heroData[$required] === '') {
+                    $heroData[$required] = null;
+                }
+            }
 
             // SECURITY: Validate button URL
             $buttonLink = trim($heroData['button_link'] ?? '');
@@ -513,6 +521,9 @@ class CmsController
             $title = $sanitizeText($cta['title'] ?? '');
             $subtitle = $sanitizeText($cta['subtitle'] ?? '');
             $buttonText = $sanitizeText($cta['button_text'] ?? '');
+            if ($buttonText === '') {
+                $buttonText = null; // a button needs a label: blank means the default one
+            }
             $buttonLink = trim($cta['button_link'] ?? '');
             $isActive = isset($cta['is_active']) ? 1 : 0;
 

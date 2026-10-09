@@ -38,10 +38,9 @@ async function catalogHeader(page, locale) {
   // Public routes follow the installation language, whatever the visitor reads.
   await page.goto(`${BASE}${process.env.E2E_CATALOG_PATH || '/catalogo'}`);
   const header = page.locator('.catalog-header-content');
-  return {
-    title: (await header.locator('h1.catalog-title').innerText()).trim(),
-    subtitle: (await header.locator('p.catalog-subtitle').innerText()).trim(),
-  };
+  // A heading or subtitle left empty in the CMS is not rendered at all.
+  const text = async (sel) => ((await header.locator(sel).count()) ? (await header.locator(sel).innerText()).trim() : '');
+  return { title: await text('h1.catalog-title'), subtitle: await text('p.catalog-subtitle') };
 }
 
 test.describe.serial('Catalogue header editable per language (Settings → CMS)', () => {
@@ -85,14 +84,16 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
     const form = page.locator('#catalog-header-form');
     await expect(form).toBeVisible();
-    // Every language has its own pair, with its default as placeholder.
-    await expect(form.locator('input[name="catalog_title[en_US]"]')).toHaveAttribute('placeholder', 'Catalog');
-    await expect(form.locator('input[name="catalog_title[it_IT]"]')).toHaveAttribute('placeholder', 'Catalogo');
+    // Every language has its own pair, filled with the text its page shows
+    // (the default of that language until it is first saved): no hidden text.
+    await expect(form.locator('input[name="catalog_title[en_US]"]')).toHaveValue('Catalog');
+    await expect(form.locator('input[name="catalog_title[it_IT]"]')).toHaveValue('Catalogo');
+    await expect(form.locator('input[name="catalog_subtitle[en_US]"]')).toHaveValue('Discover thousands of titles in our digital collection');
 
     await form.locator('input[name="catalog_title[it_IT]"]').fill('Catalogo della Biblioteca femminista');
     await form.locator('input[name="catalog_subtitle[it_IT]"]').fill('Libri, riviste e <b>archivi</b> del movimento');
     await form.locator('input[name="catalog_title[en_US]"]').fill('Feminist Library catalogue');
-    // en_US subtitle left empty: it keeps the default.
+    // en_US subtitle left as it is: it is saved with the text it shows.
     await form.locator('button[type=submit]').click();
     await page.waitForURL(/\/admin\/settings\?tab=cms/);
     // The settings page confirms with its inline banner, not a SweetAlert dialog.
@@ -104,7 +105,7 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     // Markup is not kept: the header is plain text.
     expect(db("SELECT setting_value FROM system_settings WHERE category='catalog' AND setting_key='subtitle.it_IT'"))
       .toBe('Libri, riviste e archivi del movimento');
-    expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog' AND setting_key='subtitle.en_US'")).toBe('0');
+    expect(db("SELECT setting_value FROM system_settings WHERE category='catalog' AND setting_key='subtitle.en_US'")).toBe('Discover thousands of titles in our digital collection');
   });
 
   test('each language reads its own header', async ({ page }) => {
@@ -138,17 +139,18 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     await expect(page).toHaveTitle(/Leggi <3 libri & riviste/);
   });
 
-  test('emptying a field goes back to the default', async ({ page }) => {
+  test('emptying a field shows nothing there: no hidden default comes back', async ({ page }) => {
     await login(page);
     await page.goto(`${BASE}/language/it_IT`);
-    await page.goto(`${BASE}/admin/settings?tab=cms#cms`);
-    await page.locator('input[name="catalog_title[it_IT]"]').fill('');
+    await page.goto(`${BASE}/admin/settings?tab=cms`);
+    await page.locator('input[name="catalog_subtitle[it_IT]"]').fill('');
     await page.locator('#catalog-header-form button[type=submit]').click();
     await page.waitForURL(/\/admin\/settings\?tab=cms/);
     await expect(page.getByText('Intestazione del catalogo aggiornata.')).toBeVisible();
     await expect(page.locator('.swal2-confirm')).toHaveCount(0);
-    expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog' AND setting_key='title.it_IT'")).toBe('0');
-    expect((await catalogHeader(page, 'it_IT')).title).toBe('Catalogo');
+    // The field stays empty, and the page shows no subtitle.
+    await expect(page.locator('input[name="catalog_subtitle[it_IT]"]')).toHaveValue('');
+    expect((await catalogHeader(page, 'it_IT')).subtitle).toBe('');
   });
 
   test('a malformed post changes nothing', async ({ page }) => {
@@ -169,6 +171,6 @@ test.describe.serial('Catalogue header editable per language (Settings → CMS)'
     expect(db("SELECT COUNT(*) FROM system_settings WHERE category='catalog'")).toBe(before);
     // reload(): a goto to the same URL with #cms would only move the fragment.
     await page.reload();
-    await expect(page.getByText('Intestazione del catalogo non salvata: dati del modulo non validi.')).toBeVisible();
+    await expect(page.getByText('Intestazione non salvata: dati del modulo non validi.')).toBeVisible();
   });
 });

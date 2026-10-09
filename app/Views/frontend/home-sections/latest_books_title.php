@@ -20,8 +20,9 @@ $latestHasMore = $latestBooksPrefetched && $latestBooksTotal > count($latest_boo
     <div class="pk-section-head">
         <div class="pk-section-head__text">
             <div class="pk-eyebrow"><?= __("Novità") ?></div>
-            <h2 class="section-title pk-h2"><?php echo htmlspecialchars($latestBooksData['title'] ?? __("Ultimi Libri Aggiunti"), ENT_QUOTES, 'UTF-8'); ?></h2>
-            <p class="section-subtitle pk-lead"><?php echo htmlspecialchars($latestBooksData['subtitle'] ?? __("Scopri le ultime novità della nostra collezione"), ENT_QUOTES, 'UTF-8'); ?></p>
+            <?php $lbTitle = \App\Support\HomeTexts::text($latestBooksData, 'latest_books_title', 'title'); $lbSub = \App\Support\HomeTexts::text($latestBooksData, 'latest_books_title', 'subtitle'); ?>
+            <?php if ($lbTitle !== ''): ?><h2 class="section-title pk-h2"><?php echo htmlspecialchars($lbTitle, ENT_QUOTES, 'UTF-8'); ?></h2><?php endif; ?>
+            <?php if ($lbSub !== ''): ?><p class="section-subtitle pk-lead"><?php echo htmlspecialchars($lbSub, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
         </div>
         <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="pk-btn pk-btn--ghost"><i class="fas fa-th-large" aria-hidden="true"></i><?= __("Visualizza Tutto il Catalogo") ?> <span aria-hidden="true">→</span></a>
     </div>
