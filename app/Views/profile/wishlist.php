@@ -222,6 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
+      // Keeps the phone tab bar's favourites badge in step.
+      document.dispatchEvent(new CustomEvent('pinakes:wishlist-changed', { detail: { id: libroId, favorite: !!data.favorite } }));
       if (!data.favorite) {
         card.remove();
 

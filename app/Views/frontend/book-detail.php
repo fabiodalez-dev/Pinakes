@@ -1527,6 +1527,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!res.ok) throw new Error('bad');
       const data = await res.json();
       setFavUI(!!data.favorite);
+      // Keeps the phone tab bar's favourites badge in step.
+      document.dispatchEvent(new CustomEvent('pinakes:wishlist-changed', { detail: { id: libroId, favorite: !!data.favorite } }));
     } catch (e) {
       window.SwalApp.error(undefined, <?= json_encode(__("Errore nell'aggiornare i preferiti."), JSON_HEX_TAG) ?>);
     }

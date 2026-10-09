@@ -85,6 +85,27 @@ test.describe('Phone tab bar', () => {
       } else {
         await expect(badge).toBeHidden();
       }
+
+      // The book page's own favourites button moves the badge too, both ways.
+      await page.goto(`${BASE}/catalogo`, { waitUntil: 'domcontentloaded' });
+      const href = await page.locator('a[href]').evaluateAll((links) => {
+        const a = links.find((l) => /\/\d+$/.test(new URL(l.href).pathname) && l.closest('[data-book-id], .pk-book-card, article'));
+        return a ? a.href : '';
+      });
+      test.skip(href === '', 'no catalogue book to open');
+      await page.goto(href, { waitUntil: 'domcontentloaded' });
+      const fav = page.locator('#btn-fav');
+      test.skip(await fav.count() === 0, 'no favourites button on this book page');
+      const before = await page.evaluate(() => ((window.PK && window.PK.wish) || []).length);
+      // Read the badge itself, not its visibility: the bar may be off screen.
+      const count = () => badge.evaluate((el) => (el.hasAttribute('hidden') ? 0 : Number(el.textContent)));
+      await expect.poll(count).toBe(before);
+      await fav.click();
+      await expect.poll(count).not.toBe(before);
+      const toggled = await count();
+      expect(Math.abs(toggled - before)).toBe(1);
+      await fav.click();
+      await expect.poll(count, { message: 'toggling back restores the count' }).toBe(before);
     } finally {
       await page.context().close();
     }
