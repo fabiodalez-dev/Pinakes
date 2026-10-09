@@ -181,6 +181,12 @@ test.describe('Book page details', () => {
           actions: rows(tops(acts)),
           lastActionClipped: !!(clipper && lastBox && getComputedStyle(clipper).overflow !== 'visible' && clipper.getBoundingClientRect().bottom <= lastBox.bottom + 0.5),
           sideways: document.documentElement.scrollWidth > window.innerWidth,
+          // The availability ("Disponibile") and the buttons under it share one left edge.
+          availOffsets: (() => {
+            const badge = document.querySelector('.pk-availbox .availability-badge');
+            const btns = [...document.querySelectorAll('.pk-availbox .action-buttons .ui-button')].filter((e) => e.offsetParent);
+            return badge ? btns.map((b) => Math.round(Math.abs(b.getBoundingClientRect().left - badge.getBoundingClientRect().left))) : [];
+          })(),
         };
       });
       expect(r.facts, 'four facts, two by two').toEqual([2, 2]);
@@ -191,6 +197,39 @@ test.describe('Book page details', () => {
       if (r.actions.length) expect(Math.max(...r.actions), 'one citation action per row').toBe(1);
       expect(r.lastActionClipped, 'the last citation button is not cut').toBe(false);
       expect(r.sideways).toBe(false);
+      for (const off of r.availOffsets) expect(off, 'the buttons start where "Disponibile" starts').toBeLessThanOrEqual(1);
+    });
+
+    // Available or not ("Disponibile", "Non disponibile oggi"), the status and
+    // the buttons under it (Request a loan / Reserve, Favourites) start at the
+    // same left edge and fill the box: they used to be capped at 300px and
+    // centred, a step to the right of the status.
+    test(`on a ${width}px phone the availability lines up with its buttons`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE + '/catalogo', { waitUntil: 'networkidle' });
+      const hrefs = await page.locator('main a[href]').evaluateAll(as => [...new Set(as.map(a => a.getAttribute('href')).filter(h => /^\/[^/]+\/[^/]+\/\d+$/.test(h || '')))].slice(0, 8));
+      test.skip(hrefs.length === 0, 'no book in the catalogue');
+      let checked = 0;
+      for (const href of hrefs) {
+        await page.goto(new URL(href, BASE).href, { waitUntil: 'networkidle' });
+        const m = await page.evaluate(() => {
+          const box = document.querySelector('.pk-availbox');
+          const badge = box && box.querySelector('.availability-badge');
+          const btns = box ? [...box.querySelectorAll('.action-buttons .ui-button')].filter((e) => e.offsetParent) : [];
+          if (!badge || btns.length === 0) return null;
+          const inner = box.getBoundingClientRect().right - parseFloat(getComputedStyle(box).paddingRight);
+          return {
+            state: badge.textContent.trim(),
+            left: btns.map((b) => Math.round(Math.abs(b.getBoundingClientRect().left - badge.getBoundingClientRect().left))),
+            right: btns.map((b) => Math.round(Math.abs(b.getBoundingClientRect().right - inner))),
+          };
+        });
+        if (!m) continue;
+        checked++;
+        for (const off of m.left) expect(off, `${m.state}: the buttons start where the status starts`).toBeLessThanOrEqual(1);
+        for (const off of m.right) expect(off, `${m.state}: the buttons fill the box`).toBeLessThanOrEqual(1);
+      }
+      test.skip(checked === 0, 'no book with loan buttons');
     });
   }
 });

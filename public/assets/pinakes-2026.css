@@ -975,7 +975,9 @@ body.pk .pk-availbox #btn-request-loan:disabled { opacity: .55; cursor: not-allo
 @media (max-width: 640px) {
     body.pk .pk-availbox { gap: 16px; }
     body.pk .pk-availbox .action-buttons { flex-direction: column; width: 100%; }
-    body.pk .pk-availbox .action-buttons .ui-button { width: 100%; justify-content: center; }
+    /* Full width, so the buttons start where "Disponibile" starts: book-detail.css
+       caps them at 300px and centres them inside the box. */
+    body.pk .pk-availbox .action-buttons .ui-button { width: 100%; max-width: none; justify-content: center; }
 }
 body.pk .pk-availbox .btn-fav-custom, body.pk .pk-availbox .action-buttons .btn-secondary {
     background: var(--pk-surface); color: var(--pk-ink); border: 1px solid var(--pk-line-2); font-weight: 500; padding: 13px 18px;
