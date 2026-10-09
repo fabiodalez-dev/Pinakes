@@ -24,6 +24,11 @@ for (const [name, viewport] of [['phone', { width: 375, height: 812 }], ['deskto
     const results = page.locator('.pk-hero .search-results.is-visible');
     await expect(results).toBeVisible({ timeout: 10000 });
     await expect(results.locator('a').first()).toBeVisible();
+    // While typing, only the rounded box shows the focus: no second rectangle
+    // around the text.
+    const ring = await input.evaluate((el) => ({ shadow: getComputedStyle(el).boxShadow, outline: getComputedStyle(el).outlineStyle }));
+    expect(ring.shadow, 'no ring around the typed text').toBe('none');
+    expect(ring.outline).toBe('none');
 
     // Bring the box to the top of the screen, as a visitor scrolls to read on.
     await page.evaluate(() => {

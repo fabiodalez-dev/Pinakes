@@ -401,7 +401,10 @@ body.pk .pk-hero__title em { color: var(--pk-accent-ink); }
 body.pk .pk-search input { flex: 1; min-width: 0; border: 0; outline: none; font-size: 16px; background: transparent; color: var(--pk-ink); padding: 8px 0; box-shadow: none; }
 /* The field has no frame of its own: the whole search box shows the focus. */
 .pk-search:focus-within { border-color: var(--pk-focus); box-shadow: 0 0 0 1px var(--pk-focus), 0 12px 32px -18px color-mix(in srgb, var(--pk-accent-strong) 35%, transparent); }
-body.pk .pk-search input:focus-visible { outline: none; }
+/* The field draws nothing of its own when focused: the whole rounded box
+   already shows the focus (:focus-within above). A form-reset rule gave the
+   input a 1px accent ring, a second rectangle around the typed text. */
+body.pk .pk-search input:focus, body.pk .pk-search input:focus-visible { outline: none; box-shadow: none !important; border-color: transparent; }
 .pk-search button {
     min-height: 44px; padding: 12px 22px; border-radius: 11px; border: 0; background: var(--pk-button); color: var(--pk-button-text);
     font-weight: 600; font-size: 15px; cursor: pointer; transition: background-color .2s;
@@ -603,8 +606,12 @@ body.pk .pk-catalog-head .catalog-header-content { text-align: left; max-width: 
 
 .pk-catalog { padding: 0 0 88px; }
 .pk-catalog__layout { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
-.pk-filters { flex: 1 1 250px; max-width: 100%; position: sticky; top: 88px; }
-.pk-results { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
+/* The filters column has a width of its own: a quarter of the layout, 250 to
+   300px. It never grows to its content: a publisher named in a hundred
+   characters (shown with an ellipsis) still counted at full length in the
+   column's minimum width, which pushed the books under the filters. */
+.pk-filters { flex: 0 0 clamp(250px, 25%, 300px); min-width: 0; max-width: 100%; position: sticky; top: 88px; }
+.pk-results { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
 @media (max-width: 860px) { .pk-filters { position: static; flex-basis: 100%; } }
 
 body.pk :is(.pk-filters, .filters-panel) .filters-panel { background: none; border: 0; box-shadow: none; padding: 0; position: static; max-height: none; overflow: visible; }
@@ -1540,6 +1547,10 @@ body.pk.pk-hero-centered .pk-fan { display: none; }
     /* The back-to-top button and the cookie icon move above the bar. */
     body.pk-tabbar-on #scroll-to-top { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
     body.pk-tabbar-on #silktide-cookie-icon { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; transition: bottom .28s var(--pk-ease); }
+    /* The cookie banner too: at its own bottom: 16px it lay over the bar, and a
+       visitor who had not answered it yet tapped the banner instead of the
+       tab, which then needed a second tap. */
+    body.pk-tabbar-on #silktide-banner { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; max-height: calc(100vh - 92px - env(safe-area-inset-bottom, 0px)); transition: bottom .28s var(--pk-ease); }
 }
 @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
     .pk-tabbar, .pk-tabbar.is-visible { transition: none; }
