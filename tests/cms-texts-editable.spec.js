@@ -53,6 +53,12 @@ test.describe.serial('CMS texts are what the site shows', () => {
 
   test.afterAll(async () => {
     try {
+      if (eventTitle) db(`DELETE FROM events WHERE title = '${eventTitle}'`);
+      if (featuresWasOn === false) {
+        await page.goto(`${BASE}/admin/cms/home`);
+        await page.locator('#features_visible').uncheck();
+        await saveHome();
+      }
       // The homepage is put back through its form, so the site's cache follows.
       await page.goto(`${BASE}/admin/cms/home`);
       await page.locator('#hero_subtitle').fill(heroFieldBackup);
@@ -104,6 +110,77 @@ test.describe.serial('CMS texts are what the site shows', () => {
       await visitor.context().close();
     }
   });
+
+  // The features section and the events band appear only when switched on and
+  // when an event exists: set that up as the administrator does, from the admin.
+  let featuresWasOn = null;
+  let eventTitle = '';
+  test('setup: the administrator switches on the features section and publishes an event', async () => {
+    await page.goto(`${BASE}/admin/cms/home`);
+    const toggle = page.locator('#features_visible');
+    featuresWasOn = await toggle.isChecked();
+    if (!featuresWasOn) { await toggle.check(); await saveHome(); }
+
+    eventTitle = `Evento CMS ${stamp}`;
+    await page.goto(`${BASE}/admin/cms/events/create`);
+    await page.waitForLoadState('networkidle');
+    await page.fill('#event_title', eventTitle);
+    const inAWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    await page.locator('#event_date').evaluate((el, d) => { el.value = d; el.dispatchEvent(new Event('change', { bubbles: true })); }, inAWeek);
+    if (!(await page.locator('#is_active').isChecked())) await page.locator('#is_active').check();
+    await page.evaluate(() => { if (typeof tinymce !== 'undefined' && tinymce.get('event_content')) tinymce.get('event_content').setContent('<p>Evento di prova</p>'); }).catch(() => {});
+    await page.locator('button[type="submit"]').first().click();
+    await page.waitForLoadState('networkidle');
+    expect(db(`SELECT COUNT(*) FROM events WHERE title = '${eventTitle}'`)).toBe('1');
+  });
+
+  // Every other text of the home: the field holds what the page shows, a new
+  // text appears as written, an emptied field shows nothing.
+  const HOME_TEXTS = [
+    ['#features_title', '[data-section="features_title"] .section-title'],
+    ['#features_subtitle', '[data-section="features_title"] .section-subtitle'],
+    ['#latest_title', '[data-section="latest_books_title"] .section-title'],
+    ['#latest_subtitle', '[data-section="latest_books_title"] .section-subtitle'],
+    ['#genre_carousel_title', '[data-section="genre_carousel"] .section-title'],
+    ['#genre_carousel_subtitle', '[data-section="genre_carousel"] .section-subtitle'],
+    ['#events_title', '.home-events__title'],
+    ['#events_subtitle', '.home-events__subtitle'],
+    ['#cta_title', '.cta-title'],
+    ['#cta_subtitle', '.cta-subtitle'],
+  ];
+  for (const [fieldSel, pageSel] of HOME_TEXTS) {
+    test(`Homepage: ${fieldSel} is the text of ${pageSel}, and the page follows every change`, async ({ browser }) => {
+      const visitor = await (await browser.newContext()).newPage();
+      let original = null;
+      try {
+        await page.goto(`${BASE}/admin/cms/home`);
+        const field = page.locator(fieldSel);
+        original = await field.inputValue();
+        // A section switched off, or the events band with no event, is not on the page at all.
+        const mine = `Testo CMS ${fieldSel.slice(1)} ${stamp}`;
+        await field.fill(mine);
+        await saveHome();
+        await visitor.goto(`${BASE}/`);
+        const shown = visitor.locator(pageSel);
+        test.skip(await shown.count() === 0 && await visitor.locator(pageSel.split(' ')[0]).count() === 0, 'this section is not on the home');
+        await expect(shown.first()).toHaveText(mine);
+
+        await page.goto(`${BASE}/admin/cms/home`);
+        await expect(page.locator(fieldSel), 'the field shows what was saved').toHaveValue(mine);
+        await page.locator(fieldSel).fill('');
+        await saveHome();
+        await visitor.goto(`${BASE}/`);
+        await expect(visitor.locator(pageSel), 'an emptied field shows nothing: no hidden default').toHaveCount(0);
+      } finally {
+        if (original !== null) {
+          await page.goto(`${BASE}/admin/cms/home`);
+          await page.locator(fieldSel).fill(original);
+          await saveHome();
+        }
+        await visitor.context().close();
+      }
+    });
+  }
 
   for (const [pageKey, publicPath, formId] of [['catalog', '/catalogo', '#catalog-header-form'], ['events', '/eventi', '#events-header-form']]) {
     test(`Settings → CMS: the ${pageKey} header fields hold what the page shows, and the page follows them`, async ({ browser }) => {
