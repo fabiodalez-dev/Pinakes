@@ -41,7 +41,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 Highlights of the latest release are below. The full version-by-version history (v0.7.59 → v0.6.x) lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.7.94 — latest
+### v0.8.0 — latest
+
+**A new design.** The public site and the account pages are rebuilt on the 2026 design: one typographic voice, covers that fill the book, a cloth binding for books without artwork, colours that stay readable on every theme, and on phones a bottom bar like the Android app's. Admin → Themes chooses the home hero (a fan of covers, or centred) and the card style.
+
+**Libraries that exchange data get standard records.** OAI-PMH, NCIP, SRU, ResourceSync, BIBFRAME and OpenURL follow their specifications more closely, MAG uses the official namespace, and archives export MARC 21 and can keep a unit off the site. The quick search lists books and articles as one list with the best match first ([#463](https://github.com/fabiodalez-dev/Pinakes/issues/463)), and the catalogue filters publishers and sub-genres as it does authors ([#461](https://github.com/fabiodalez-dev/Pinakes/issues/461)). No core migration.
+
+### v0.7.94
 
 **An article has its own page in the admin** ([#453](https://github.com/fabiodalez-dev/Pinakes/issues/453), [#454](https://github.com/fabiodalez-dev/Pinakes/issues/454)). Like a book, it opens on a page that shows the record (cover, authors, publication, genre, keywords, PDF and exports) with Edit and Delete as buttons, instead of opening straight into its form. The quick search, the Articles list and the author page lead there, and saving the form brings you back to it.
 
