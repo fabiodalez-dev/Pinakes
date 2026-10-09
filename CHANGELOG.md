@@ -2,6 +2,16 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.8.2]
+
+### Fixed
+- **The catalogue filters are a sidebar again, whatever the names in them.** A publisher named in a hundred characters (shown with an ellipsis) still counted at full length in the width of the filters column: on a live library the column took the whole page and the books went under the filters. The column now has a width of its own, a quarter of the page between 250 and 300px.
+- **One tap on the phone's tab bar.** For a visitor who had not answered the cookie banner yet, the banner lay over the bar and took the first tap, so "Catalogo" needed a second one. The banner now sits above the bar.
+- **The book page on a phone has no uneven rows.** Year, pages, format and ISBN go two by two instead of three and one; the share buttons and the citation actions go one per row, the citation styles stay on one line that scrolls sideways; the card titles keep room above their buttons; the loan and favourite buttons start where "Available" / "Not available today" starts and fill the box.
+- The home search no longer draws a second rectangle around the text while typing: the rounded box alone shows the focus.
+
+No migration.
+
 ## [0.8.1]
 
 ### Fixed
