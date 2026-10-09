@@ -37,7 +37,9 @@ const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 // is the empty string the `-e` flag is omitted so callers can pipe SQL
 // via stdin (used for applying migration files).
 function mysqlArgs(sql, batch = false) {
-    const args = ['-u', DB_USER];
+    // utf8mb4 on the wire: fixtures carry non-ASCII text ("15×10 cm"), which
+    // a latin1 client default hands back as a cp1252 byte (decoded as U+FFFD).
+    const args = ['--default-character-set=utf8mb4', '-u', DB_USER];
     if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
     if (DB_SOCKET) args.push('-S', DB_SOCKET);
     args.push(DB_NAME);
@@ -280,7 +282,7 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         await page.goto(`${BASE}/admin/archives/${fondsId}/edit`);
         await page.fill('input[name="parent_id"]', fondsId);
         await page.click('button[type="submit"]');
-        await expect(page.locator('body')).toContainText(/cannot be its own parent/i);
+        await expect(page.locator('body')).toContainText(/cannot be its own parent|non può essere padre di se stessa|kann nicht ihre eigene übergeordnete|ne peut pas être sa propre unité parente|kan ikke være sin egen overordnede/i);
     });
 
     // ─── Phase 2: authority records CRUD ───────────────────────────────
@@ -588,13 +590,20 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
                FROM archival_units WHERE reference_code = '${PHOTO_REF}' AND deleted_at IS NULL`
         );
         expect(row).toBe('photograph|bw|15×10 cm|Harry Nielsen');
-        // Export and verify MARC 009/300 mapping lands in the XML.
+        // Default export is MARC21: Leader/06 'k' (image) for a photograph
+        // item, photographer as a 700 added entry, 300 $b colour.
         const photoId = dbQuery(`SELECT id FROM archival_units WHERE reference_code = '${PHOTO_REF}' AND deleted_at IS NULL`);
         const resp = await page.request.get(`${BASE}/admin/archives/${photoId}/export.xml`);
         const xml = await resp.text();
-        expect(xml).toContain('tag="009"');
-        expect(xml).toContain('Harry Nielsen');
+        expect(xml).toMatch(/<leader>\d{5}nkda/);
+        expect(xml).not.toContain('tag="009"');
+        expect(xml).toMatch(/tag="700"[\s\S]*Harry Nielsen[\s\S]*pht/);
         expect(xml).toMatch(/tag="300"[\s\S]*black-and-white/);
+        // The danMARC2 / ABA dialect stays available on request (009 material).
+        const aba = await (await page.request.get(`${BASE}/admin/archives/${photoId}/export.xml?format=danmarc2`)).text();
+        expect(aba).toContain('tag="009"');
+        expect(aba).toContain('Harry Nielsen');
+        expect(aba).toMatch(/tag="300"[\s\S]*black-and-white/);
     });
 
     // ─── Phase 6: SRU endpoint ─────────────────────────────────────────
@@ -613,12 +622,56 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         const searchXml = await search.text();
         expect(searchXml).toContain('numberOfRecords');
         expect(searchXml).toContain(FONDS_REF);
-        // SRU envelope declares the sru namespace; MARC namespace is on the
-        // explain response or on the outer collection in plain export, but
-        // the per-record shape is a <record> element emitted by the same
-        // writer used in phase-4 export. Validate the record shape instead.
-        expect(searchXml).toMatch(/<record type="Bibliographic"/);
+        // recordSchema=marcxml (the default) is MARC21 in the MARC Slim
+        // namespace: leader + control fields, no danMARC2 type attribute.
+        expect(searchXml).toMatch(/<record xmlns="http:\/\/www\.loc\.gov\/MARC21\/slim">/);
+        expect(searchXml).toContain('<leader>');
+        expect(searchXml).toContain('<controlfield tag="001">' + FONDS_REF + '</controlfield>');
         expect(searchXml).toContain('<datafield tag="245"');
+
+        // recordSchema=danmarc2 returns the ABA dialect.
+        const aba = await page.request.get(
+            `${BASE}/api/archives/sru?operation=searchRetrieve&recordSchema=danmarc2&query=${encodeURIComponent('reference="' + FONDS_REF + '"')}`
+        );
+        const abaXml = await aba.text();
+        expect(abaXml).toMatch(/<record type="Bibliographic" xmlns="http:\/\/www\.loc\.gov\/MARC21\/slim">/);
+        expect(abaXml).toContain('<datafield tag="001"');
+    });
+
+    test('26. Strict-XSD import accepts the MARC21 export (round trip)', async () => {
+        const fondsId = dbQuery(`SELECT id FROM archival_units WHERE reference_code = '${FONDS_REF}' AND deleted_at IS NULL`);
+        const before = dbQuery(
+            `SELECT CONCAT_WS('|', constructed_title, level, IFNULL(date_start, ''), IFNULL(date_end, ''), IFNULL(extent, ''))
+               FROM archival_units WHERE id = ${fondsId}`
+        );
+        const exported = await (await page.request.get(`${BASE}/admin/archives/${fondsId}/export.xml`)).text();
+        expect(exported).toContain('<leader>');
+        await page.goto(`${BASE}/admin/archives/import`);
+        const tmpPath = writeTmpXml(exported, 'archives-marc21-roundtrip');
+        try {
+            await page.setInputFiles('input[name="marcxml"]', tmpPath);
+            await page.uncheck('input[name="dry_run"]');
+            await page.check('input[name="strict_xsd"]');
+            await Promise.all([
+                page.waitForResponse(r =>
+                    r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
+                    { timeout: 15000 }),
+                page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
+            ]);
+            await page.waitForLoadState('domcontentloaded');
+            await expect(page.locator("body")).not.toContainText(/XSD validation error|Errori XSD|XSD-Fehler|Erreurs XSD|XSD-fejl/i);
+            await expect(page.locator('body')).toContainText(FONDS_REF);
+            // Upsert onto the same row: the main fields survive unchanged.
+            const count = dbQuery(`SELECT COUNT(*) FROM archival_units WHERE reference_code = '${FONDS_REF}'`);
+            expect(count).toBe('1');
+            const after = dbQuery(
+                `SELECT CONCAT_WS('|', constructed_title, level, IFNULL(date_start, ''), IFNULL(date_end, ''), IFNULL(extent, ''))
+                   FROM archival_units WHERE id = ${fondsId}`
+            );
+            expect(after).toBe(before);
+        } finally {
+            rmIfExists(tmpPath);
+        }
     });
 });
 

@@ -473,7 +473,7 @@ $pageTitle = __('Editor Classificazione Dewey');
         const name = document.getElementById('add-name').value.trim();
 
         // Validate code format
-        if (!/^[0-9]{3}\.[0-9]{1,4}$/.test(code)) {
+        if (!/^[0-9]{3}\.[0-9]{1,12}$/.test(code)) {
             Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Formato codice non valido. Usa: XXX.Y (es. 599.1)'), JSON_HEX_TAG) ?>, 'error');
             return;
         }
@@ -503,7 +503,9 @@ $pageTitle = __('Editor Classificazione Dewey');
             parent.children.push({
                 code: code,
                 name: name,
-                level: parent.level + 1,
+                // Level follows the notation (DeweyValidator::levelForCode):
+                // 3 for the section plus one per decimal digit.
+                level: 3 + code.split('.')[1].length,
                 children: []
             });
             // Sort children by code

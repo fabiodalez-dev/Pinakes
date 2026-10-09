@@ -253,7 +253,7 @@ test.describe.serial('Archives plugin CRUD (#103 phase 1d)', () => {
         await page.fill('input[name="parent_id"]', fondsId); // self
         await page.click('button[type="submit"]');
         // Stays on the edit page and shows the error.
-        await expect(page.locator('body')).toContainText(/cannot be its own parent/i);
+        await expect(page.locator('body')).toContainText(/cannot be its own parent|non può essere padre di se stessa|kann nicht ihre eigene übergeordnete|ne peut pas être sa propre unité parente|kan ikke være sin egen overordnede/i);
     });
 
     test('8. Soft-delete the series', async () => {

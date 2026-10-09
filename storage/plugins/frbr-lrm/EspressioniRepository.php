@@ -51,6 +51,19 @@ class EspressioniRepository
         return $row ?: null;
     }
 
+    /** True when a non-deleted espressione with this id realises the given opera. */
+    public function belongsToOpera(int $espressioneId, int $operaId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM espressioni WHERE id = ? AND opera_id = ? AND deleted_at IS NULL LIMIT 1"
+        );
+        $stmt->bind_param('ii', $espressioneId, $operaId);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $found;
+    }
+
     /** @param array<string, mixed> $data */
     public function create(array $data): int
     {

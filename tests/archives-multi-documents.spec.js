@@ -381,13 +381,19 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
 
     // ── 20-22: EAD3 export ───────────────────────────────────────────────────
 
-    test('20. EAD3 export contains <daoset> element', async ({ request }) => {
+    test('20. EAD3 export carries its digital objects (<daoset> only for two or more)', async ({ request }) => {
         test.skip(fondsId === 0, 'Fondo not found');
         const res = await request.get(`${BASE}/archives/${fondsId}/ead.xml`);
         expect(res.status()).toBe(200);
         const body = await res.text();
-        expect(body).toContain('<daoset');
         expect(body).toContain('<dao');
+        // EAD3: <daoset> groups two or more <dao>; a single object is bare.
+        const daoCount = (body.match(/<dao /g) || []).length;
+        if (body.includes('<daoset')) {
+            expect(daoCount).toBeGreaterThanOrEqual(2);
+        } else {
+            expect(daoCount).toBe(1);
+        }
     });
 
     test('21. EAD3 <dao> elements reference the IIIF manifest URL', async ({ request }) => {

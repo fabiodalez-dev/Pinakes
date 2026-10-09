@@ -4,8 +4,20 @@
  *
  * @var array<string, mixed> $opera
  * @var array<int, array<string, mixed>> $edizioni
+ * @var list<array{label: string, edizioni: array<int, array<string, mixed>>}> $gruppi
+ *      editions grouped under the Expression they embody
+ * @var array<int, array<string, mixed>> $altreEdizioni editions without an Expression
  */
 $placeholder = url('/uploads/copertine/placeholder.jpg');
+// One grid per Expression, then the editions without one. With no
+// Expression in play the page keeps its single, unlabelled grid.
+$sections = [];
+foreach ($gruppi as $gruppo) {
+    $sections[] = ['label' => (string) $gruppo['label'], 'edizioni' => $gruppo['edizioni']];
+}
+if ($altreEdizioni !== []) {
+    $sections[] = ['label' => $gruppi !== [] ? __("Altre edizioni") : '', 'edizioni' => $altreEdizioni];
+}
 ?>
 <div class="frbr-opera-page max-w-5xl mx-auto px-4 py-8">
   <header class="mb-8">
@@ -31,8 +43,13 @@ $placeholder = url('/uploads/copertine/placeholder.jpg');
   <?php if (empty($edizioni)): ?>
     <p class="text-gray-500"><?= __("Nessuna edizione disponibile per questa opera.") ?></p>
   <?php else: ?>
+    <?php foreach ($sections as $section): ?>
+    <section class="frbr-espressione mb-8">
+      <?php if ($section['label'] !== ''): ?>
+        <h3 class="text-base font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200"><?= htmlspecialchars($section['label'], ENT_QUOTES, 'UTF-8') ?></h3>
+      <?php endif; ?>
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-      <?php foreach ($edizioni as $ed): ?>
+      <?php foreach ($section['edizioni'] as $ed): ?>
         <?php
           $cover = trim((string) ($ed['copertina_url'] ?? ''));
           $coverUrl = $cover !== '' ? absoluteUrl($cover) : $placeholder;
@@ -56,5 +73,7 @@ $placeholder = url('/uploads/copertine/placeholder.jpg');
         </a>
       <?php endforeach; ?>
     </div>
+    </section>
+    <?php endforeach; ?>
   <?php endif; ?>
 </div>

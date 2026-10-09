@@ -156,7 +156,7 @@ class DeweyEditorPlugin
 
         $app->post('/api/dewey-editor/validate', function (Request $request, Response $response) use ($plugin) {
             return $plugin->validateData($request, $response);
-        })->add($adminMiddleware);
+        })->add($csrfMiddleware)->add($adminMiddleware);
 
         $app->get('/api/dewey-editor/export/{locale}', function (Request $request, Response $response, array $args) use ($plugin) {
             return $plugin->exportData($request, $response, $args);

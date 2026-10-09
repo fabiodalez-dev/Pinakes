@@ -39,7 +39,9 @@ function mysqlArgs(sql, batch = false) {
     if (DB_HOST)              args.push('-h', DB_HOST);
     if (DB_PORT)              args.push('-P', DB_PORT);
     if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
-    args.push('-u', DB_USER);
+    // utf8mb4 on the wire: authority names carry an em dash, which a latin1
+    // client default would never match in the WHERE clause.
+    args.push('--default-character-set=utf8mb4', '-u', DB_USER);
     args.push(DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);

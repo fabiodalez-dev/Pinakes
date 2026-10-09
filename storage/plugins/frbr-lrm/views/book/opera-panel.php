@@ -6,6 +6,7 @@
  * In scope:
  * @var int $id                            book id (0 for a not-yet-saved book)
  * @var array<string,mixed>|null $currentOpera  the Work this book is linked to
+ * @var list<array{id:int,label:string}> $espressioniOptions  Expressions of that Work
  * @var string $csrf
  *
  * Chrome copied from the sibling z39-server REICAT/SBN book-form panel so the
@@ -18,12 +19,14 @@ $hasOpera = $currentOpera !== null;
 $operaLabel = $hasOpera ? (string) ($currentOpera['titolo_uniforme'] ?? '') : '';
 $operaAuthor = $hasOpera ? (string) ($currentOpera['autore_nome'] ?? '') : '';
 $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
+$currentEspressioneId = $hasOpera ? (int) ($currentOpera['espressione_id'] ?? 0) : 0;
 ?>
 
 <div id="frbr-opera-panel"
      class="mt-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-2xl p-6"
      data-csrf="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>"
-     data-book-id="<?php echo (int) $id; ?>">
+     data-book-id="<?php echo (int) $id; ?>"
+     data-opera-id="<?php echo (int) $operaId; ?>">
 
     <button type="button" id="frbr-opera-toggle"
             class="w-full flex items-center justify-between gap-2 text-left"
@@ -74,6 +77,24 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
             </div>
         </div>
 
+        <!-- Expression (FRBR Expression → Manifestation), filtered by the linked Work -->
+        <div id="frbr-espressione-box" class="mb-4 <?= $hasOpera ? '' : 'hidden' ?>">
+            <label for="frbr_espressione_select" class="form-label flex items-center gap-2">
+                <i class="fas fa-stream text-emerald-600"></i>
+                <?= __("Espressione") ?>
+            </label>
+            <select id="frbr_espressione_select" class="form-input w-full">
+                <option value=""><?= __("— Nessuna espressione —") ?></option>
+                <?php foreach ($espressioniOptions as $opt): ?>
+                    <option value="<?= (int) $opt['id'] ?>"<?= (int) $opt['id'] === $currentEspressioneId ? ' selected' : '' ?>><?= htmlspecialchars($opt['label'], ENT_QUOTES, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+            </select>
+            <p class="text-xs text-emerald-700 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                <?= __("La traduzione, revisione o versione dell'opera che questa edizione riproduce.") ?>
+            </p>
+        </div>
+
         <!-- Search + attach -->
         <div>
             <label for="frbr_opera_search" class="form-label flex items-center gap-2">
@@ -115,7 +136,9 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
         unlinked: <?= json_encode(__('Libro scollegato dall\'Opera.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         error: <?= json_encode(__('Errore durante la richiesta.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         view: <?= json_encode(__('Vedi Opera'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
+        noExpression: <?= json_encode(__('— Nessuna espressione —'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
     };
+    let currentOperaId = parseInt(panel.dataset.operaId || '0', 10) || 0;
 
     // Accordion toggle (matches the sibling REICAT/SBN panel behaviour).
     const acToggle = document.getElementById('frbr-opera-toggle');
@@ -151,10 +174,13 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
     }
 
     // ── POST helper to the existing attach-opera endpoint ────────────────────
-    function postAttach(operaId, onOk) {
+    // espressioneId: undefined = leave the server to keep/clear it, '' = clear,
+    // a number = link that Expression (must belong to operaId).
+    function postAttach(operaId, onOk, espressioneId) {
         const fd = new URLSearchParams();
         fd.set('csrf_token', csrf);
         if (operaId) { fd.set('opera_id', String(operaId)); }
+        if (espressioneId !== undefined) { fd.set('espressione_id', String(espressioneId)); }
         fetch(base + '/admin/books/' + encodeURIComponent(bookId) + '/attach-opera', {
             method: 'POST',
             credentials: 'same-origin',
@@ -169,7 +195,7 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
         .then(function (r) { return r.json(); })
         .then(function (d) {
             if (!d || !d.success) { status((d && d.error) ? d.error : T.error, 'err'); return; }
-            onOk(d.opera || null);
+            onOk(d.opera || null, Array.isArray(d.espressioni) ? d.espressioni : []);
         })
         .catch(function () { status(T.error, 'err'); });
     }
@@ -207,11 +233,50 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
         currentBox.classList.remove('hidden');
     }
 
+    // ── Expression select ────────────────────────────────────────────────────
+    const esBox = document.getElementById('frbr-espressione-box');
+    const esSelect = document.getElementById('frbr_espressione_select');
+
+    function renderEspressioni(opera, options) {
+        currentOperaId = opera && opera.id ? parseInt(opera.id, 10) : 0;
+        if (!esBox || !esSelect) { return; }
+        if (!currentOperaId) {
+            esBox.classList.add('hidden');
+            return;
+        }
+        const selected = opera.espressione_id ? String(opera.espressione_id) : '';
+        clearEl(esSelect);
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = T.noExpression;
+        esSelect.appendChild(none);
+        options.forEach(function (opt) {
+            const o = document.createElement('option');
+            o.value = String(opt.id);
+            o.textContent = opt.label || '';
+            if (o.value === selected) { o.selected = true; }
+            esSelect.appendChild(o);
+        });
+        esBox.classList.remove('hidden');
+    }
+
+    if (esSelect) {
+        esSelect.addEventListener('change', function () {
+            if (!currentOperaId) { return; }
+            postAttach(currentOperaId, function (opera, options) {
+                renderCurrent(opera);
+                renderEspressioni(opera, options);
+                status(T.linked, 'ok');
+            }, esSelect.value);
+        });
+    }
+
     const unlinkBtn = document.getElementById('frbr-opera-unlink');
     if (unlinkBtn) {
         unlinkBtn.addEventListener('click', function () {
             postAttach(null, function () {
                 renderCurrent(null);
+                renderEspressioni(null, []);
                 status(T.unlinked, 'ok');
             });
         });
@@ -236,8 +301,9 @@ $operaId = $hasOpera ? (int) ($currentOpera['id'] ?? 0) : 0;
             row.addEventListener('click', function () {
                 hideResults();
                 if (sInput) { sInput.value = ''; }
-                postAttach(it.id, function (opera) {
+                postAttach(it.id, function (opera, options) {
                     renderCurrent(opera);
+                    renderEspressioni(opera, options);
                     openPanel();
                     status(T.linked, 'ok');
                 });

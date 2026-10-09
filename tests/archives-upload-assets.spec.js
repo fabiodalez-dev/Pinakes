@@ -190,14 +190,27 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
         const resp = await page.request.get(`${BASE}/archivio/${ids.pdf}`);
         const body = await resp.text();
         expect(body).toContain('archive-test.pdf');
-        expect(body).toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.pdf/);
+        // Visitors download through the public document route, never from
+        // /uploads directly (the route 404s once the unit is unpublished).
+        const fileId = dbQuery(`SELECT id FROM archival_unit_files WHERE unit_id = ${ids.pdf} ORDER BY id DESC LIMIT 1`);
+        const docPath = `/archives/${ids.pdf}/documents/${fileId}`;
+        expect(body).toContain(docPath);
+        expect(body).not.toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.pdf/);
+        const doc = await page.request.get(`${BASE}${docPath}`);
+        expect(doc.status()).toBe(200);
+        expect(doc.headers()['content-type']).toBe('application/pdf');
+        expect((await doc.body()).subarray(0, 5).toString()).toBe('%PDF-');
     });
 
     test('7. Public frontend: audio row renders <audio> + green-audio-player', async () => {
         const resp = await page.request.get(`${BASE}/archivio/${ids.audio}`);
         const body = await resp.text();
         expect(body).toContain('green-audio-player');
-        expect(body).toMatch(/<audio[^>]+\.wav/);
+        const fileId = dbQuery(`SELECT id FROM archival_unit_files WHERE unit_id = ${ids.audio} ORDER BY id DESC LIMIT 1`);
+        expect(body).toMatch(new RegExp(`<audio[^>]+src="[^"]*/archives/${ids.audio}/documents/${fileId}"`));
+        const audio = await page.request.get(`${BASE}/archives/${ids.audio}/documents/${fileId}`);
+        expect(audio.status()).toBe(200);
+        expect(['audio/wav', 'audio/x-wav']).toContain(audio.headers()['content-type']);
     });
 
     test('8. Public frontend: cover images are served by nginx', async () => {

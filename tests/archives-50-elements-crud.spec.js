@@ -32,7 +32,9 @@ const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
 function mysqlArgs(sql, batch = false) {
-    const args = ['-u', DB_USER];
+    // utf8mb4 on the wire: titles carry an em dash, which a latin1 client
+    // default would hand back as a cp1252 byte (decoded as U+FFFD).
+    const args = ['--default-character-set=utf8mb4', '-u', DB_USER];
     if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
     if (DB_SOCKET) args.push('-S', DB_SOCKET);
     args.push(DB_NAME);

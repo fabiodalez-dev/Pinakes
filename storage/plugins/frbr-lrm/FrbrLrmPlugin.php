@@ -154,6 +154,11 @@ class FrbrLrmPlugin
             return $plugin->attachBookToOperaAction($req, $res, (int) $args['id']);
         })->add($csrfMiddleware)->add($adminMiddleware);
 
+        // ── Admin: expressions of an opera (for the book panel's select) ──
+        $app->get('/admin/frbr-lrm/opere/{id:[0-9]+}/espressioni', function (ServerRequestInterface $req, ResponseInterface $res, array $args) use ($plugin): ResponseInterface {
+            return $plugin->apiEspressioniForOperaAction($req, $res, (int) $args['id']);
+        })->add($adminMiddleware);
+
         // ── Admin: opera autocomplete (for attach UI) ──
         $app->get('/api/opere/search', function (ServerRequestInterface $req, ResponseInterface $res) use ($plugin): ResponseInterface {
             return $plugin->apiSearchOpereAction($req, $res);
@@ -454,35 +459,133 @@ class FrbrLrmPlugin
     }
 
     /**
-     * Attach (or, with an empty opera_id, detach) a book to/from an opera.
-     * POSTed from the book edit form's Opera panel. Answers JSON to an AJAX
-     * caller and 302-redirects a plain form submit, so the endpoint is usable
-     * both ways.
+     * Attach (or, with an empty opera_id, detach) a book to/from an opera,
+     * optionally naming the Expression the book embodies. POSTed from the book
+     * edit form's Opera panel. Answers JSON to an AJAX caller and
+     * 302-redirects a plain form submit, so the endpoint is usable both ways.
+     *
+     * `espressione_id`: when posted, an empty value clears the link and a
+     * value must be a live Expression of the chosen opera; when absent, the
+     * book keeps its current Expression only if that still belongs to the
+     * (possibly new) opera.
      */
     public function attachBookToOperaAction(ServerRequestInterface $request, ResponseInterface $response, int $libroId): ResponseInterface
     {
         $data = (array) $request->getParsedBody();
         $operaId = !empty($data['opera_id']) ? (int) $data['opera_id'] : null;
         $wantsJson = $this->wantsJson($request);
+        $opereRepo = new OpereRepository($this->db);
+        $espressioniRepo = new EspressioniRepository($this->db);
 
         // Reject a non-existent / soft-deleted opera so we never store a dangling FK.
-        if ($operaId !== null && !(new OpereRepository($this->db))->exists($operaId)) {
+        if ($operaId !== null && !$opereRepo->exists($operaId)) {
             if ($wantsJson) {
                 return $this->json($response, ['success' => false, 'error' => __('Opera non trovata')], 404);
             }
             return $this->redirect($response, '/admin/books/' . $libroId);
         }
 
-        $stmt = $this->db->prepare('UPDATE libri SET opera_id = ? WHERE id = ? AND deleted_at IS NULL');
-        $stmt->bind_param('ii', $operaId, $libroId);
+        $espressioneId = null;
+        if ($operaId !== null) {
+            if (array_key_exists('espressione_id', $data)) {
+                $raw = $data['espressione_id'];
+                $espressioneId = (is_scalar($raw) && (int) $raw > 0) ? (int) $raw : null;
+                if ($espressioneId !== null && !$espressioniRepo->belongsToOpera($espressioneId, $operaId)) {
+                    if ($wantsJson) {
+                        return $this->json($response, ['success' => false, 'error' => __("L'espressione non appartiene a questa opera.")], 422);
+                    }
+                    return $this->redirect($response, '/admin/books/' . $libroId);
+                }
+            } else {
+                $current = $opereRepo->getForBook($libroId);
+                $currentEspressione = (int) ($current['espressione_id'] ?? 0);
+                if ($currentEspressione > 0 && $espressioniRepo->belongsToOpera($currentEspressione, $operaId)) {
+                    $espressioneId = $currentEspressione;
+                }
+            }
+        }
+
+        $stmt = $this->db->prepare('UPDATE libri SET opera_id = ?, espressione_id = ? WHERE id = ? AND deleted_at IS NULL');
+        $stmt->bind_param('iii', $operaId, $espressioneId, $libroId);
         $stmt->execute();
         $stmt->close();
 
         if ($wantsJson) {
-            $opera = $operaId !== null ? (new OpereRepository($this->db))->getForBook($libroId) : null;
-            return $this->json($response, ['success' => true, 'opera' => $opera]);
+            $opera = $operaId !== null ? $opereRepo->getForBook($libroId) : null;
+            return $this->json($response, [
+                'success' => true,
+                'opera' => $opera,
+                'espressioni' => $operaId !== null ? $this->espressioniOptions($operaId) : [],
+            ]);
         }
         return $this->redirect($response, '/admin/books/' . $libroId);
+    }
+
+    /** Expressions of an opera as `{id, label}` options for the book panel. */
+    public function apiEspressioniForOperaAction(ServerRequestInterface $request, ResponseInterface $response, int $operaId): ResponseInterface
+    {
+        if (!(new OpereRepository($this->db))->exists($operaId)) {
+            return $this->json($response, ['success' => false, 'error' => __('Opera non trovata')], 404);
+        }
+        return $this->json($response, ['success' => true, 'espressioni' => $this->espressioniOptions($operaId)]);
+    }
+
+    /**
+     * @return list<array{id:int, label:string}>
+     */
+    private function espressioniOptions(int $operaId): array
+    {
+        $out = [];
+        foreach ((new EspressioniRepository($this->db))->listForOpera($operaId) as $es) {
+            $out[] = ['id' => (int) $es['id'], 'label' => self::espressioneLabel($es)];
+        }
+        return $out;
+    }
+
+    /**
+     * Expression type => localised label. Keys match the
+     * `espressioni.tipo_espressione` ENUM.
+     *
+     * @return array<string, string>
+     */
+    public static function tipiEspressioneLabels(): array
+    {
+        return [
+            'testo'            => __("Testo (originale)"),
+            'traduzione'       => __("Traduzione"),
+            'revisione'        => __("Revisione"),
+            'adattamento'      => __("Adattamento"),
+            'edizione_critica' => __("Edizione critica"),
+            'audio'            => __("Audio"),
+            'altro'            => __("Altro"),
+        ];
+    }
+
+    /**
+     * Human-readable label of an Expression row: type, then its title (or
+     * language), year and translator when known.
+     *
+     * @param array<string, mixed> $es
+     */
+    public static function espressioneLabel(array $es): string
+    {
+        $tipi = self::tipiEspressioneLabels();
+        $tipo = (string) ($es['tipo_espressione'] ?? 'testo');
+        $parts = [$tipi[$tipo] ?? $tipo];
+        $name = trim((string) ($es['titolo_espressione'] ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($es['lingua'] ?? ''));
+        }
+        if ($name !== '') {
+            $parts[] = $name;
+        }
+        if (!empty($es['anno_espressione'])) {
+            $parts[] = (string) (int) $es['anno_espressione'];
+        }
+        if (!empty($es['traduttore_nome'])) {
+            $parts[] = __("trad.") . ' ' . (string) $es['traduttore_nome'];
+        }
+        return implode(' · ', $parts);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -498,6 +601,7 @@ class FrbrLrmPlugin
     {
         $id = $bookId ?? (is_array($book) ? (int) ($book['id'] ?? 0) : 0);
         $currentOpera = $id > 0 ? (new OpereRepository($this->db))->getForBook($id) : null;
+        $espressioniOptions = $currentOpera !== null ? $this->espressioniOptions((int) $currentOpera['id']) : [];
         $csrf = \App\Support\Csrf::ensureToken();
         include __DIR__ . '/views/book/opera-panel.php';
     }
@@ -604,18 +708,44 @@ class FrbrLrmPlugin
         $repo = new OpereRepository($this->db);
         $opera = $repo->getBySlug($slug);
         if ($opera === null) {
-            $response->getBody()->write(htmlspecialchars(__('Opera non trovata'), ENT_QUOTES, 'UTF-8'));
-            return $response->withStatus(404);
+            return $this->renderPublicNotFound($response);
         }
         // Public route: the edition list (and the count the view derives from
         // it) must not advertise titles the library only wishes it had.
         $edizioni = $repo->editionsForOpera((int) $opera['id'], true);
 
+        // Group the editions under the Expression they embody (FRBR
+        // Expression → Manifestation); editions without one fall under
+        // "Altre edizioni". Expressions without a visible edition are skipped.
+        $byEspressione = [];
+        $altre = [];
+        foreach ($edizioni as $ed) {
+            $eid = (int) ($ed['espressione_id'] ?? 0);
+            if ($eid > 0) {
+                $byEspressione[$eid][] = $ed;
+            } else {
+                $altre[] = $ed;
+            }
+        }
+        $gruppi = [];
+        foreach ((new EspressioniRepository($this->db))->listForOpera((int) $opera['id']) as $es) {
+            $eid = (int) $es['id'];
+            if (!empty($byEspressione[$eid])) {
+                $gruppi[] = ['label' => self::espressioneLabel($es), 'edizioni' => $byEspressione[$eid]];
+                unset($byEspressione[$eid]);
+            }
+        }
+        // A link to an Expression that is no longer listed (defensive): keep
+        // the edition visible rather than dropping it.
+        foreach ($byEspressione as $orphans) {
+            array_push($altre, ...$orphans);
+        }
+
         $viewFile = __DIR__ . '/views/frontend/opera.php';
         ob_start();
         $content = '';
         if (is_file($viewFile)) {
-            extract(['opera' => $opera, 'edizioni' => $edizioni], EXTR_SKIP);
+            extract(['opera' => $opera, 'edizioni' => $edizioni, 'gruppi' => $gruppi, 'altreEdizioni' => $altre], EXTR_SKIP);
             require $viewFile;
             $content = (string) ob_get_clean();
         } else {
@@ -625,6 +755,7 @@ class FrbrLrmPlugin
         $layout = __DIR__ . '/../../../app/Views/frontend/layout.php';
         if (is_file($layout)) {
             $db = $this->db;
+            $seoTitle = (string) $opera['titolo_uniforme'];
             ob_start();
             require $layout;
             $html = (string) ob_get_clean();
@@ -633,6 +764,32 @@ class FrbrLrmPlugin
             $response->getBody()->write($content);
         }
         return $response->withHeader('Content-Type', 'text/html');
+    }
+
+    /** 404 page for an unknown Work, rendered inside the public layout. */
+    private function renderPublicNotFound(ResponseInterface $response): ResponseInterface
+    {
+        // The site's own 404 (app/Views/errors/404.php wraps itself in the
+        // frontend layout), told what was missing and offering a way back.
+        $errorPage = __DIR__ . '/../../../app/Views/errors/404.php';
+        if (!is_file($errorPage)) {
+            $response->getBody()->write(htmlspecialchars(__('Opera non trovata'), ENT_QUOTES, 'UTF-8'));
+            return $response->withStatus(404)->withHeader('Content-Type', 'text/plain; charset=UTF-8');
+        }
+        $errorTitle = __('Opera non trovata');
+        $errorDescription = __("L'opera che cerchi non esiste o non è più disponibile nel catalogo.");
+        $errorLinks = [
+            ['href' => route_path('catalog'), 'icon' => 'fa-book', 'label' => __('Catalogo')],
+        ];
+        $seoRobots = 'noindex,follow';
+        // The layout's <title> reads $seoTitle, not the $pageTitle 404.php sets.
+        $seoTitle = $errorTitle;
+        $db = $this->db;
+        ob_start();
+        include $errorPage;
+        $html = (string) ob_get_clean();
+        $response->getBody()->write($html);
+        return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 
     // ─────────────────────────────────────────────────────────────────────
