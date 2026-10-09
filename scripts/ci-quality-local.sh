@@ -198,7 +198,7 @@ fi
 step "PHP integration suites (the *.integration.php files CI runs)"
 it_fail=0
 for it in $(grep -oE 'php tests/[A-Za-z0-9_-]+\.integration\.php' .github/workflows/ci-quality.yml | awk '{print $2}' | sort -u); do
-  if ! php "$it" >"$CIQ_TMP_DIR/integration.log" 2>&1; then
+  if ! CI_STRICT_TESTS=1 php "$it" >"$CIQ_TMP_DIR/integration.log" 2>&1; then
     bad "$it failed:"; tail -15 "$CIQ_TMP_DIR/integration.log" | sed 's/^/    /'; it_fail=1
   fi
 done
