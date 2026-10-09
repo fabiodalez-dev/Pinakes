@@ -2,6 +2,19 @@
 
 Full version-by-version history for Pinakes. The README shows only the latest release; everything older lives here.
 
+## [0.8.1]
+
+### Fixed
+- **Every text the CMS edits is the text the site shows.** In CMS → Homepage the fields of the hero, the sections, the events band and the closing call to action hold exactly what the home displays, and a field emptied shows nothing. The site used to put a hidden default in place of an empty field (the hero subtitle "Scopri, prenota e gestisci i tuoi libri preferiti…"), which no field showed and nobody could change. The catalogue header in Settings → CMS follows the same rule.
+- **The image of a CMS page (About us) is saved when Save is pressed.** The image uploads as soon as it is chosen, and Save waits for an upload still running; before, an image chosen without the separate "Upload" click was left behind. A refused or failed upload is reported on screen, with the size limit the server actually accepts.
+- **The catalogue grid lines its cards up**: title, author, publisher and Details sit at the same height in every row, whatever the length of the title.
+- The settings address names its tab once (`?tab=cms`, no longer `?tab=cms#cms`).
+
+### Added
+- **The title and subtitle of the events page can be edited** in Settings → CMS, per language.
+
+No migration.
+
 ## [0.8.0]
 
 ### Changed
