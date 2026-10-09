@@ -45,7 +45,7 @@ async function login(page) {
   await page.fill('input[name="email"]', ADMIN_EMAIL);
   await page.fill('input[name="password"]', ADMIN_PASS);
   await page.locator('button[type="submit"]').click();
-  await page.waitForFunction(() => !location.pathname.includes('accedi') && !location.pathname.includes('login'), { timeout: 15000 });
+  await page.waitForFunction(() => !location.pathname.includes('accedi') && !location.pathname.includes('login'), null, { timeout: 15000 });
 }
 
 test.describe.serial('uploaded image is served from the stored URL', () => {
