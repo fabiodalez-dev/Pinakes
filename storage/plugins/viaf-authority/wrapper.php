@@ -29,6 +29,17 @@ if (!class_exists('ViafAuthorityPlugin', false)) {
             return $this->instance->expectedTables();
         }
 
+        /**
+         * Explicit, not via __call(): PluginManager probes the self-heal
+         * surface with method_exists(), which does not see magic methods.
+         *
+         * @return list<array{table:string, column:string}>
+         */
+        public function expectedColumns(): array
+        {
+            return $this->instance->expectedColumns();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();

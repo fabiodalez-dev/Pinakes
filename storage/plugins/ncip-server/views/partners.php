@@ -83,10 +83,31 @@
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <?= __("ID Agenzia NCIP") ?>
+            </label>
+            <input type="text" name="agency_id" maxlength="255"
+                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <?= __("Codice") ?>
+            </label>
+            <input type="text" name="code" maxlength="64"
+                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               <?= __("Note") ?>
             </label>
             <input type="text" name="notes" maxlength="500"
                    class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="flex items-end">
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="active" value="1" checked
+                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+              <span class="text-gray-700 dark:text-gray-300"><?= __("Attivo") ?></span>
+            </label>
           </div>
         </div>
         <div class="mt-4">
@@ -124,6 +145,9 @@
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Nome Partner") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Endpoint NCIP") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Codice ISIL") ?></th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("ID Agenzia NCIP") ?></th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Codice") ?></th>
+              <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Stato") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Note") ?></th>
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"><?= __("Aggiunto il") ?></th>
               <th class="px-5 py-3"></th>
@@ -140,6 +164,15 @@
               </td>
               <td class="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
                 <?= htmlspecialchars((string) ($p['isil'] ?? '—'), ENT_QUOTES, 'UTF-8') ?>
+              </td>
+              <td class="px-5 py-4 text-sm text-gray-600 dark:text-gray-300 font-mono">
+                <?= htmlspecialchars((string) ($p['agency_id'] ?? '—'), ENT_QUOTES, 'UTF-8') ?>
+              </td>
+              <td class="px-5 py-4 text-sm text-gray-600 dark:text-gray-300 font-mono">
+                <?= htmlspecialchars((string) ($p['code'] ?? '—'), ENT_QUOTES, 'UTF-8') ?>
+              </td>
+              <td class="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                <?= (int) ($p['active'] ?? 0) === 1 ? __("Attivo") : __("Inattivo") ?>
               </td>
               <td class="px-5 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
                 <?= htmlspecialchars((string) ($p['notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>

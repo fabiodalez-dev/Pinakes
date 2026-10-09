@@ -22,10 +22,12 @@ $check(
     '01 RequestItem receives a stable failure reason from createRequestItemNcip'
 );
 
+// RequestItem refusals use the request scheme (requestitemprocessingerror),
+// not the check-out one: they are mapped to their own internal codes.
 foreach ([
     "'duplicate'   => 'duplicate-request'",
-    "'ineligible'  => 'user-ineligible-to-check-out'",
-    "'max_loans'   => 'user-loan-limit-reached'",
+    "'ineligible'  => 'user-ineligible-to-request'",
+    "'max_loans'   => 'user-ineligible-to-request'",
 ] as $i => $mapping) {
     $check(
         str_contains($source, $mapping),
@@ -45,6 +47,16 @@ foreach (['duplicate', 'ineligible', 'max_loans'] as $reason) {
         "createRequestItemNcip reports {$reason}"
     );
 }
+
+require_once $root . '/vendor/autoload.php';
+require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
+$problemType = new ReflectionMethod(\App\Plugins\NcipServer\NcipServerPlugin::class, 'problemType');
+$rq = 'http://www.niso.org/ncip/v1_0/schemes/processingerrortype/requestitemprocessingerror.scm';
+$check(
+    $problemType->invoke(null, 'user-ineligible-to-request') === [$rq, 'User Ineligible To Request This Item']
+        && $problemType->invoke(null, 'duplicate-request') === [$rq, 'Duplicate Request'],
+    'RequestItem refusals go on the wire as requestitemprocessingerror scheme values'
+);
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

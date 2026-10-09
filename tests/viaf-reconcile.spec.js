@@ -14,7 +14,7 @@
  *  6. Manifest has "defaultTypes" array
  *  7. Manifest has "versions" array containing "0.2"
  *  8. Manifest has "view" with url template
- *  9. GET /admin/api/reconcile?callback=fn → JSONP response
+ *  9. GET /admin/api/reconcile?callback=fn → plain JSON + CORS (no JSONP)
  * 10. POST /admin/api/reconcile without queries → manifest (same as GET)
  * 11. POST /admin/api/reconcile without auth → 403
  * 12. POST with queries={} → empty results per query key
@@ -166,14 +166,19 @@ test.describe.serial('W3C Reconciliation API — v0.7.4 (18 tests)', () => {
 
     // ── Test 9: JSONP ─────────────────────────────────────────────────────────
 
-    test('9. GET with ?callback=myFn → JSONP response', async ({ request }) => {
+    test('9. ?callback= is ignored: plain JSON with CORS, never JSONP', async ({ request }) => {
         test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
+        // JSONP on a credentialed endpoint lets any page read the answer
+        // through a <script> tag; browser clients get CORS instead.
         const res = await request.get(`${BASE}/admin/api/reconcile?callback=myFn`, {
             headers: { 'Authorization': basicAuth(ADMIN_EMAIL, ADMIN_PASS) },
         });
         expect(res.status()).toBe(200);
+        expect(res.headers()['content-type'] ?? '').toContain('application/json');
+        expect(res.headers()['access-control-allow-origin']).toBe('*');
         const text = await res.text();
-        expect(text.startsWith('myFn({')).toBe(true);
+        expect(text.startsWith('myFn(')).toBe(false);
+        expect(JSON.parse(text)).toHaveProperty('identifierSpace');
     });
 
     // ── Tests 10-11: POST without queries → manifest ──────────────────────────

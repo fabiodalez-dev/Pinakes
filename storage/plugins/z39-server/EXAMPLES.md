@@ -292,7 +292,7 @@ public class SRUClient {
     <recordPosition>1</recordPosition>
     <recordData>
       <record xmlns="http://www.loc.gov/MARC21/slim">
-        <leader>00000nam a2200000 a 4500</leader>
+        <leader>00000nam a2200000   4500</leader>
         <controlfield tag="001">123</controlfield>
         <controlfield tag="008">250116s2020    xx            000 0 ita d</controlfield>
         <datafield tag="020" ind1=" " ind2=" ">

@@ -11,7 +11,9 @@ use mysqli;
  *
  * Emits the EURIG-aligned RDA Registry vocabulary as an alternative to the
  * plugin's default BIBFRAME 2.0 output. Models the FRBR/LRM stack:
- *   rdam:Manifestation → rdae:Expression → rdaw:Work → rdaa:* (agents)
+ *   Manifestation (rdac:C10007) → Expression (rdac:C10006) → Work
+ *   (rdac:C10001) → Agent (rdac:C10002), described with rdam:/rdae:/rdaw:
+ *   properties
  *
  * Work/Expression cross-links are populated from the `opere`/`espressioni`
  * tables created by the frbr-lrm plugin (#134) WHEN PRESENT. If those tables
@@ -20,7 +22,17 @@ use mysqli;
  */
 class RdaRegistryBuilder
 {
+    /**
+     * RDA classes live in the Elements/c/ vocabulary under their canonical
+     * numeric URIs; the m/e/w/a namespaces hold only properties.
+     */
+    private const CLASS_MANIFESTATION = 'rdac:C10007';
+    private const CLASS_EXPRESSION    = 'rdac:C10006';
+    private const CLASS_WORK          = 'rdac:C10001';
+    private const CLASS_AGENT         = 'rdac:C10002';
+
     private const CONTEXT = [
+        'rdac' => 'http://rdaregistry.info/Elements/c/',
         'rdam' => 'http://rdaregistry.info/Elements/m/',
         'rdae' => 'http://rdaregistry.info/Elements/e/',
         'rdaw' => 'http://rdaregistry.info/Elements/w/',
@@ -41,11 +53,12 @@ class RdaRegistryBuilder
      */
     public function buildManifestation(array $book): array
     {
-        $id = (int) ($book['id'] ?? 0);
+        // @id is the public book page (book_url() is the canonical, locale-
+        // and base-path-aware link), so the URI dereferences.
         $doc = [
             '@context' => self::CONTEXT,
-            '@id'      => absoluteUrl('/libri/' . $id),
-            '@type'    => 'rdam:Manifestation',
+            '@id'      => absoluteUrl(book_url($book)),
+            '@type'    => self::CLASS_MANIFESTATION,
         ];
 
         $title = trim((string) ($book['titolo'] ?? ''));
@@ -90,7 +103,7 @@ class RdaRegistryBuilder
             if ($work !== null) {
                 // Manifestation embeds an anonymous Expression that carries the Work.
                 $doc['rdam:expressionManifested'] = [
-                    '@type'           => 'rdae:Expression',
+                    '@type'           => self::CLASS_EXPRESSION,
                     'rdae:workExpressed' => $work,
                 ];
             }
@@ -148,7 +161,7 @@ class RdaRegistryBuilder
         }
         $node = [
             '@id'   => absoluteUrl('/espressioni/' . $id),
-            '@type' => 'rdae:Expression',
+            '@type' => self::CLASS_EXPRESSION,
         ];
         $lingua = trim((string) ($row['lingua'] ?? ''));
         if ($lingua !== '') {
@@ -183,16 +196,17 @@ class RdaRegistryBuilder
         }
         $node = [
             '@id'   => absoluteUrl('/opere/' . $id),
-            '@type' => 'rdaw:Work',
+            '@type' => self::CLASS_WORK,
         ];
         $titolo = trim((string) ($row['titolo_uniforme'] ?? ''));
         if ($titolo !== '') {
             $node['rdaw:preferredTitleOfWork'] = $titolo;
         }
         if (!empty($row['autore_principale_id'])) {
+            // The public author page (same link the book page uses).
             $node['rdaw:creator'] = [
-                '@id'   => absoluteUrl('/autori/' . (int) $row['autore_principale_id']),
-                '@type' => 'rdaa:Agent',
+                '@id'   => absoluteUrl(route_path('author') . '/' . (int) $row['autore_principale_id']),
+                '@type' => self::CLASS_AGENT,
             ];
         }
         return $node;

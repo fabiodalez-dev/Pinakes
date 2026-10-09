@@ -131,7 +131,24 @@ class SRUServer
     private const PUBLISHER_MATCH = '__pub_exists__';
 
     private const NS_SRU = 'http://www.loc.gov/zing/srw/';
-    private const NS_DIAG = 'info:srw/diagnostic/1/';
+    // SRU 1.2 diagnostics: the <diagnostic> element and its children live in
+    // the diagnostic XML namespace; info:srw/diagnostic/1/N is only the text
+    // of <uri>, never a namespace.
+    private const NS_DIAG = 'http://www.loc.gov/zing/srw/diagnostic/';
+    private const DIAG_URI_PREFIX = 'info:srw/diagnostic/1/';
+
+    /**
+     * CQL context sets this server answers, keyed by the prefix used in the
+     * index names above. Declared in explain/indexInfo so clients can resolve
+     * every <name set="..."> to a real context set.
+     */
+    private const CONTEXT_SETS = [
+        'dc'      => 'info:srw/cql-context-set/1/dc-v1.1',
+        'bath'    => 'http://zing.z3950.org/cql/bath/2.0/',
+        'cql'     => 'info:srw/cql-context-set/1/cql-v1.2',
+        // Local, Pinakes-specific indexes (shelf, availability, inventory).
+        'library' => 'https://github.com/fabiodalez-dev/Pinakes/cql-context-set/library/1.0',
+    ];
 
     /**
      * Constructor
@@ -161,15 +178,16 @@ class SRUServer
         $operation = $this->sanitizeString($params['operation'] ?? '');
         $version = $this->sanitizeString($params['version'] ?? '1.2');
 
+        // SRU 1.2: a request without an operation parameter is an explain
+        // request (the base URL alone must describe the server).
+        if ($operation === '') {
+            $operation = 'explain';
+        }
+
         // Log request
         $this->logAccess($operation, $params);
 
         try {
-            // Validate operation
-            if (empty($operation)) {
-                return $this->errorResponse(7, 'Mandatory parameter not supplied: operation', $version);
-            }
-
             // Route to appropriate handler
             switch ($operation) {
                 case 'explain':
@@ -213,65 +231,55 @@ class SRUServer
     private function handleExplain(array $params): string
     {
         $version = $this->sanitizeString($params['version'] ?? '1.2');
-        $recordPacking = $this->sanitizeString($params['recordPacking'] ?? 'xml');
+        $recordPacking = $this->resolveRecordPacking($params);
+        if ($recordPacking === null) {
+            return $this->errorResponse(71, 'Unsupported record packing', $version, 'explain', (string) ($params['recordPacking'] ?? ''));
+        }
 
-        $host = $this->settings['server_host'] ?? 'localhost';
-        $port = $this->settings['server_port'] ?? '80';
-        $database = $this->settings['server_database'] ?? 'catalog';
+        [$host, $port, $database] = $this->serverLocation();
 
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
+        $ns = self::NS_SRU;
 
         // Root element
-        $root = $xml->createElementNS(self::NS_SRU, 'explainResponse');
+        $root = $xml->createElementNS($ns, 'explainResponse');
         $xml->appendChild($root);
 
         // Version
-        $versionEl = $xml->createElement('version', $this->escapeXml($version));
-        $root->appendChild($versionEl);
+        $root->appendChild($xml->createElementNS($ns, 'version', $this->escapeXml($version)));
 
         // Record
-        $record = $xml->createElement('record');
+        $record = $xml->createElementNS($ns, 'record');
         $root->appendChild($record);
 
-        $recordSchema = $xml->createElement('recordSchema', 'http://explain.z3950.org/dtd/2.1/');
-        $record->appendChild($recordSchema);
-
-        $recordPacking = $xml->createElement('recordPacking', $this->escapeXml($recordPacking));
-        $record->appendChild($recordPacking);
+        $record->appendChild($xml->createElementNS($ns, 'recordSchema', 'http://explain.z3950.org/dtd/2.1/'));
+        $record->appendChild($xml->createElementNS($ns, 'recordPacking', $recordPacking));
 
         // Record data
-        $recordData = $xml->createElement('recordData');
+        $recordData = $xml->createElementNS($ns, 'recordData');
         $record->appendChild($recordData);
 
         // Explain record
         $explain = $xml->createElementNS('http://explain.z3950.org/dtd/2.1/', 'explain');
-        $recordData->appendChild($explain);
 
-        // Server info
+        // Server info: where this endpoint really answers, not the
+        // localhost/80 placeholders of a fresh install.
         $serverInfo = $xml->createElement('serverInfo');
         $serverInfo->setAttribute('protocol', 'SRU');
         $serverInfo->setAttribute('version', '1.2');
         $explain->appendChild($serverInfo);
 
-        $host = $xml->createElement('host', $this->escapeXml($host));
-        $serverInfo->appendChild($host);
-
-        $port = $xml->createElement('port', $this->escapeXml($port));
-        $serverInfo->appendChild($port);
-
-        $database = $xml->createElement('database', $this->escapeXml($database));
-        $serverInfo->appendChild($database);
+        $serverInfo->appendChild($xml->createElement('host', $this->escapeXml($host)));
+        $serverInfo->appendChild($xml->createElement('port', $this->escapeXml($port)));
+        $serverInfo->appendChild($xml->createElement('database', $this->escapeXml($database)));
 
         // Database info
         $databaseInfo = $xml->createElement('databaseInfo');
         $explain->appendChild($databaseInfo);
 
-        $title = $xml->createElement('title', 'Library Catalog - Pinakes');
-        $databaseInfo->appendChild($title);
-
-        $description = $xml->createElement('description', 'SRU interface to library catalog');
-        $databaseInfo->appendChild($description);
+        $databaseInfo->appendChild($xml->createElement('title', 'Library Catalog - Pinakes'));
+        $databaseInfo->appendChild($xml->createElement('description', 'SRU interface to library catalog'));
 
         // Index info
         $indexInfo = $xml->createElement('indexInfo');
@@ -294,18 +302,32 @@ class SRUServer
             ['title' => 'Any', 'name' => 'cql.anywhere']
         ];
 
+        // Every context set an index below refers to, declared once.
+        $usedSets = [];
         foreach ($indexes as $idx) {
+            $usedSets[explode('.', $idx['name'], 2)[0]] = true;
+        }
+        foreach (array_keys($usedSets) as $setName) {
+            $set = $xml->createElement('set');
+            $set->setAttribute('identifier', self::CONTEXT_SETS[$setName]);
+            $set->setAttribute('name', $setName);
+            $indexInfo->appendChild($set);
+        }
+
+        foreach ($indexes as $idx) {
+            [$setName, $indexName] = explode('.', $idx['name'], 2);
+
             $index = $xml->createElement('index');
             $indexInfo->appendChild($index);
 
-            $indexTitle = $xml->createElement('title', $this->escapeXml($idx['title']));
-            $index->appendChild($indexTitle);
+            $index->appendChild($xml->createElement('title', $this->escapeXml($idx['title'])));
 
             $map = $xml->createElement('map');
             $index->appendChild($map);
 
-            $indexName = $xml->createElement('name', $this->escapeXml($idx['name']));
-            $map->appendChild($indexName);
+            $nameEl = $xml->createElement('name', $this->escapeXml($indexName));
+            $nameEl->setAttribute('set', $setName);
+            $map->appendChild($nameEl);
         }
 
         // Schema info
@@ -338,11 +360,85 @@ class SRUServer
         $configInfo = $xml->createElement('configInfo');
         $explain->appendChild($configInfo);
 
-        $maxRecords = $xml->createElement('default', $this->escapeXml($this->settings['max_records'] ?? '100'));
+        $maxRecords = $xml->createElement('default', $this->escapeXml((string) ($this->settings['max_records'] ?? '100')));
         $maxRecords->setAttribute('type', 'numberOfRecords');
         $configInfo->appendChild($maxRecords);
 
+        $this->appendRecordPayload($xml, $recordData, $explain, $recordPacking);
+
         return $xml->saveXML();
+    }
+
+    /**
+     * The recordPacking a client asked for: 'xml' (default) or 'string'.
+     * Null for any other value, which callers answer with diagnostic 71.
+     *
+     * @param array<string,mixed> $params
+     */
+    private function resolveRecordPacking(array $params): ?string
+    {
+        $packing = strtolower($this->sanitizeString($params['recordPacking'] ?? 'xml'));
+        if ($packing === '') {
+            return 'xml';
+        }
+        return in_array($packing, ['xml', 'string'], true) ? $packing : null;
+    }
+
+    /**
+     * Put a record into <recordData>: as a child element for recordPacking=xml,
+     * or as its escaped XML serialisation for recordPacking=string.
+     */
+    private function appendRecordPayload(\DOMDocument $xml, \DOMElement $recordData, \DOMElement $payload, string $packing): void
+    {
+        if ($packing !== 'string') {
+            $recordData->appendChild($payload);
+            return;
+        }
+        // Serialise through a standalone document so every namespace the
+        // record uses is declared in the string the client receives.
+        $standalone = new \DOMDocument('1.0', 'UTF-8');
+        $standalone->appendChild($standalone->importNode($payload, true));
+        $serialised = $standalone->documentElement !== null
+            ? (string) $standalone->saveXML($standalone->documentElement)
+            : '';
+        $recordData->appendChild($xml->createTextNode($serialised));
+    }
+
+    /**
+     * Host, port and database path the endpoint actually answers on.
+     *
+     * The plugin settings ship with localhost/80/catalog placeholders; when
+     * they are still at those defaults the values come from the public URL
+     * of the /api/sru endpoint (absoluteUrl(), which honours the canonical
+     * URL and the sub-directory base path).
+     *
+     * @return array{0:string,1:string,2:string}
+     */
+    private function serverLocation(): array
+    {
+        $host = trim((string) ($this->settings['server_host'] ?? ''));
+        $port = trim((string) ($this->settings['server_port'] ?? ''));
+        $database = trim((string) ($this->settings['server_database'] ?? ''));
+
+        $url = function_exists('absoluteUrl') ? (string) \absoluteUrl('/api/sru') : '';
+        $parts = $url !== '' ? parse_url($url) : false;
+        if (is_array($parts) && !empty($parts['host'])) {
+            if ($host === '' || $host === 'localhost') {
+                $host = (string) $parts['host'];
+                $port = isset($parts['port'])
+                    ? (string) $parts['port']
+                    : ((($parts['scheme'] ?? 'http') === 'https') ? '443' : '80');
+            }
+            if ($database === '' || $database === 'catalog') {
+                $database = ltrim((string) ($parts['path'] ?? '/api/sru'), '/');
+            }
+        }
+
+        return [
+            $host !== '' ? $host : 'localhost',
+            $port !== '' ? $port : '80',
+            $database !== '' ? $database : 'api/sru',
+        ];
     }
 
     /**
@@ -356,12 +452,28 @@ class SRUServer
     {
         $version = $this->sanitizeString($params['version'] ?? '1.2');
         $query = $this->sanitizeString($params['query'] ?? '');
-        $startRecord = max(1, (int) ($params['startRecord'] ?? 1));
-        $maximumRecords = min(
-            (int) ($params['maximumRecords'] ?? $this->settings['default_records'] ?? 10),
+
+        // startRecord / maximumRecords are non-negative integers (startRecord
+        // at least 1). Anything else is SRU diagnostic 6, never an SQL error
+        // from a negative LIMIT/OFFSET.
+        $startRaw = $this->integerParam($params, 'startRecord');
+        if ($startRaw === false || ($startRaw !== null && $startRaw < 1)) {
+            return $this->errorResponse(6, 'Unsupported parameter value: startRecord', $version, 'searchRetrieve', 'startRecord');
+        }
+        $maxRaw = $this->integerParam($params, 'maximumRecords');
+        if ($maxRaw === false) {
+            return $this->errorResponse(6, 'Unsupported parameter value: maximumRecords', $version, 'searchRetrieve', 'maximumRecords');
+        }
+        $startRecord = $startRaw ?? 1;
+        $maximumRecords = max(0, min(
+            $maxRaw ?? (int) ($this->settings['default_records'] ?? 10),
             (int) ($this->settings['max_records'] ?? 100)
-        );
+        ));
         $recordSchema = $this->sanitizeString($params['recordSchema'] ?? $this->settings['default_format'] ?? 'marcxml');
+        $recordPacking = $this->resolveRecordPacking($params);
+        if ($recordPacking === null) {
+            return $this->errorResponse(71, 'Unsupported record packing', $version, 'searchRetrieve', (string) ($params['recordPacking'] ?? ''));
+        }
 
         // Validate query parameter
         if (empty($query)) {
@@ -410,9 +522,9 @@ class SRUServer
             }
 
             // Format response
-            return $this->formatSearchResponse($version, $query, $totalRecords, $startRecord, count($records), $records, $recordSchema, $maximumRecords);
+            return $this->formatSearchResponse($version, $query, $totalRecords, $startRecord, count($records), $records, $recordSchema, $maximumRecords, $recordPacking);
         } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
-            return $this->errorResponse(16, $e->getMessage(), $version);
+            return $this->errorResponse(16, 'Unsupported index', $version, 'searchRetrieve', $e->getMessage());
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
@@ -437,8 +549,14 @@ class SRUServer
     {
         $version = $this->sanitizeString($params['version'] ?? '1.2');
         $scanClause = $this->sanitizeString($params['scanClause'] ?? '');
-        $responsePosition = max(1, (int) ($params['responsePosition'] ?? 1));
-        $maximumTerms = min((int) ($params['maximumTerms'] ?? 10), 100);
+        $positionRaw = $this->integerParam($params, 'responsePosition');
+        $termsRaw = $this->integerParam($params, 'maximumTerms');
+        if ($positionRaw === false || $termsRaw === false) {
+            $bad = $positionRaw === false ? 'responsePosition' : 'maximumTerms';
+            return $this->errorResponse(6, 'Unsupported parameter value: ' . $bad, $version, 'scan', $bad);
+        }
+        $responsePosition = max(1, $positionRaw ?? 1);
+        $maximumTerms = min($termsRaw ?? 10, 100);
 
         if (empty($scanClause)) {
             return $this->errorResponse(7, 'Mandatory parameter not supplied: scanClause', $version, 'scan');
@@ -453,7 +571,7 @@ class SRUServer
 
             return $this->formatScanResponse($version, $scanClause, $terms, $responsePosition);
         } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
-            return $this->errorResponse(16, $e->getMessage(), $version, 'scan');
+            return $this->errorResponse(16, 'Unsupported index', $version, 'scan', $e->getMessage());
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
             return $this->errorResponse(10, $e->getMessage(), $version, 'scan');
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
@@ -487,24 +605,7 @@ class SRUServer
         // We passed it as argument. We'll use it in the data query construction.
         // The original code passed $ast only. I updated the signature.
 
-        $baseQuery = "
-            FROM libri l
-            LEFT JOIN libri_autori la ON l.id = la.libro_id
-                                      AND la.ruolo IN ('principale', 'co-autore')
-            LEFT JOIN autori a ON la.autore_id = a.id
-            LEFT JOIN editori e ON l.editore_id = e.id
-            -- Secondary publishers (#143) are matched via a correlated EXISTS in
-            -- the WHERE (see PUBLISHER_MATCH) rather than a LEFT JOIN, so the base
-            -- query doesn't multiply rows (libri_autori × copie × libri_editori)
-            -- before GROUP BY. Payload publishers come from fetchPublishersForRecords().
-            LEFT JOIN generi g ON l.genere_id = g.id
-            -- #5: resolve shelf/location from the CURRENT columns. The admin
-            -- book save hard-sets libri.posizione_id = NULL and stores the
-            -- location in libri.scaffale_id / libri.mensola_id / libri.collocazione,
-            -- so the legacy posizioni chain is always empty for UI-saved books.
-            LEFT JOIN scaffali s ON l.scaffale_id = s.id
-            LEFT JOIN mensole m ON l.mensola_id = m.id
-            LEFT JOIN copie c ON l.id = c.libro_id
+        $baseQuery = $this->bookFromClause() . "
             -- A requested book (desiderata) is not a holding: never publish it.
             WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . " AND ({$whereClause})
             GROUP BY l.id
@@ -538,6 +639,49 @@ class SRUServer
                 " . $this->buildSortClause($sortKeys) . "
                 LIMIT " . (int) $maximumRecords . " OFFSET " . (int) $offset
         ];
+    }
+
+    /**
+     * FROM/JOIN block of the book search. Shared by the main query and by the
+     * negation sub-select (see negateBookClause()), so both see exactly the
+     * same aliases.
+     */
+    private function bookFromClause(): string
+    {
+        // CI-SOFT-DELETE-EXEMPT: FROM/JOIN fragment only; the main query adds l.deleted_at IS NULL, and the NOT IN negation sub-select runs inside that guarded query.
+        return "
+            FROM libri l
+            LEFT JOIN libri_autori la ON l.id = la.libro_id
+                                      AND la.ruolo IN ('principale', 'co-autore')
+            LEFT JOIN autori a ON la.autore_id = a.id
+            LEFT JOIN editori e ON l.editore_id = e.id
+            -- Secondary publishers (#143) are matched via a correlated EXISTS in
+            -- the WHERE (see PUBLISHER_MATCH) rather than a LEFT JOIN, so the base
+            -- query doesn't multiply rows (libri_autori × copie × libri_editori)
+            -- before GROUP BY. Payload publishers come from fetchPublishersForRecords().
+            LEFT JOIN generi g ON l.genere_id = g.id
+            -- #5: resolve shelf/location from the CURRENT columns. The admin
+            -- book save hard-sets libri.posizione_id = NULL and stores the
+            -- location in libri.scaffale_id / libri.mensola_id / libri.collocazione,
+            -- so the legacy posizioni chain is always empty for UI-saved books.
+            LEFT JOIN scaffali s ON l.scaffale_id = s.id
+            LEFT JOIN mensole m ON l.mensola_id = m.id
+            LEFT JOIN copie c ON l.id = c.libro_id
+        ";
+    }
+
+    /**
+     * Book-level negation of a WHERE fragment.
+     *
+     * The search joins authors and copies, so the WHERE is evaluated once per
+     * (book, author, copy) row before GROUP BY. A plain `NOT x` would keep a
+     * two-author book whose second author does not match `x`, and drop books
+     * whose `x` is NULL (no author at all). Negating at book level — "no row
+     * of this book matches" — gives the CQL meaning of NOT.
+     */
+    private function negateBookClause(string $clause): string
+    {
+        return "l.id NOT IN (SELECT l.id " . $this->bookFromClause() . " WHERE {$clause})";
     }
 
     private function executeCountQuery(string $sql): int
@@ -750,8 +894,15 @@ class SRUServer
                 $left = $this->buildWhereClause($node['left'] ?? null);
                 $right = $this->buildWhereClause($node['right'] ?? null);
                 $operator = strtoupper($node['operator'] ?? 'AND');
+                if (!in_array($operator, ['AND', 'OR', 'NOT'], true)) {
+                    throw new \Z39Server\Exceptions\InvalidCQLSyntaxException('Unsupported boolean operator: ' . $operator);
+                }
                 if ($left === '' || $right === '') {
                     return $left ?: $right ?: '1=1';
+                }
+                // CQL binary NOT: `a NOT b` is `a AND NOT b`.
+                if ($operator === 'NOT') {
+                    return "(({$left}) AND " . $this->negateBookClause($right) . ")";
                 }
                 return "({$left} {$operator} {$right})";
 
@@ -760,10 +911,10 @@ class SRUServer
                 if ($operand === '') {
                     return '1=1';
                 }
-                return "(NOT {$operand})";
+                return '(' . $this->negateBookClause($operand) . ')';
 
             case 'condition':
-                $index = strtolower($node['index'] ?? 'cql.anywhere');
+                $index = $this->resolveIndex((string) ($node['index'] ?? 'cql.anywhere'));
                 $relation = $node['relation'] ?? '=';
                 $value = $node['value'] ?? '';
                 return $this->compileConditionClause($index, $relation, $value);
@@ -771,6 +922,29 @@ class SRUServer
             default:
                 return '1=1';
         }
+    }
+
+    /**
+     * Canonical name of a CQL index, or UnsupportedIndexException (SRU
+     * diagnostic 16) when this server does not support it.
+     *
+     * cql.serverChoice (and the legacy SRW srw.serverChoice) and bare terms
+     * search everywhere; an unprefixed index belongs to the default context
+     * set, dc.
+     */
+    private function resolveIndex(string $index): string
+    {
+        $name = strtolower(trim($index));
+        if ($name === '' || in_array($name, ['cql.serverchoice', 'srw.serverchoice', 'serverchoice'], true)) {
+            return 'cql.anywhere';
+        }
+        if (!str_contains($name, '.')) {
+            $name = 'dc.' . $name;
+        }
+        if (!isset($this->indexDefinitions[$name])) {
+            throw new \Z39Server\Exceptions\UnsupportedIndexException($index);
+        }
+        return $name;
     }
 
     private function compileConditionClause(string $index, string $relation, string $value): string
@@ -1128,13 +1302,14 @@ class SRUServer
                 if ($left === null || $right === null) {
                     return null;
                 }
-                // FIX (issue #140 review): 'NOT' removed from the allow-list.
-                // CQLParser only ever sets operator = AND|OR on a 'boolean'
-                // node (negation is its own 'not' node, handled below), so
-                // 'NOT' was unreachable — but had it ever been produced it
-                // would have compiled to `a NOT b`, which is not SQL. An
-                // allow-list must not list a value it cannot render.
+                // CQLParser emits AND, OR and the binary NOT (`a NOT b`).
+                // NOT is rendered as `a AND NOT b`, never as the non-SQL
+                // `a NOT b`. COALESCE keeps a NULL operand (a NULL column in
+                // a LIKE) from turning the negation into "unknown".
                 $operator = strtoupper((string) ($node['operator'] ?? 'AND'));
+                if ($operator === 'NOT') {
+                    return "({$left} AND NOT COALESCE({$right}, FALSE))";
+                }
                 if (!in_array($operator, ['AND', 'OR'], true)) {
                     return null;
                 }
@@ -1142,11 +1317,11 @@ class SRUServer
 
             case 'not':
                 $operand = $this->buildSerialWhereClause(is_array($node['operand'] ?? null) ? $node['operand'] : null);
-                return $operand === null ? null : "(NOT {$operand})";
+                return $operand === null ? null : "(NOT COALESCE({$operand}, FALSE))";
 
             case 'condition':
                 return $this->compileSerialCondition(
-                    strtolower((string) ($node['index'] ?? 'cql.anywhere')),
+                    $this->resolveIndex((string) ($node['index'] ?? 'cql.anywhere')),
                     (string) ($node['relation'] ?? '='),
                     (string) ($node['value'] ?? '')
                 );
@@ -1376,7 +1551,7 @@ class SRUServer
 
         $publicUrl = '';
         if ($id > 0 && function_exists('absoluteUrl')) {
-            $publicUrl = (string) \absoluteUrl('/emeroteca/' . $id);
+            $publicUrl = (string) \absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/' . $id);
         }
 
         return [
@@ -1429,7 +1604,8 @@ class SRUServer
         int $returnedRecords,
         array $records,
         string $recordSchema,
-        int $maximumRecords = 10
+        int $maximumRecords = 10,
+        string $recordPacking = 'xml'
     ): string {
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
@@ -1439,21 +1615,12 @@ class SRUServer
 
         $ns = self::NS_SRU;
 
-        // Add version (FIX 1: use createElementNS for SRU child elements)
-        $versionEl = $xml->createElementNS($ns, 'version', $this->escapeXml($version));
-        $root->appendChild($versionEl);
+        // SRU 1.2 fixes the child order: version, numberOfRecords,
+        // resultSetId?, resultSetIdleTime?, records?, nextRecordPosition?,
+        // echoedSearchRetrieveRequest?, diagnostics?, extraResponseData?.
+        $root->appendChild($xml->createElementNS($ns, 'version', $this->escapeXml($version)));
+        $root->appendChild($xml->createElementNS($ns, 'numberOfRecords', (string) $totalRecords));
 
-        // Add number of records (FIX 1)
-        $numRecords = $xml->createElementNS($ns, 'numberOfRecords', (string) $totalRecords);
-        $root->appendChild($numRecords);
-
-        // FIX 3: nextRecordPosition when more records exist beyond this page
-        $nextPos = $startRecord + $returnedRecords;
-        if ($returnedRecords > 0 && $nextPos <= $totalRecords) {
-            $root->appendChild($xml->createElementNS($ns, 'nextRecordPosition', (string) $nextPos));
-        }
-
-        // Add records
         $schemaKey = strtolower($recordSchema);
         $formatter = RecordFormatter::create($schemaKey, $xml);
 
@@ -1467,38 +1634,44 @@ class SRUServer
         ];
         $schemaUri = $schemaUriMap[$schemaKey] ?? $recordSchema;
 
-        $recordsEl = $xml->createElementNS($ns, 'records');
-        $root->appendChild($recordsEl);
+        // <records> is optional and must not be emitted empty.
+        if ($records !== []) {
+            $recordsEl = $xml->createElementNS($ns, 'records');
+            $root->appendChild($recordsEl);
 
-        $position = $startRecord;
-        foreach ($records as $record) {
-            $recordEl = $xml->createElementNS($ns, 'record');
-            $recordsEl->appendChild($recordEl);
+            $position = $startRecord;
+            foreach ($records as $record) {
+                $recordEl = $xml->createElementNS($ns, 'record');
+                $recordsEl->appendChild($recordEl);
 
-            $recordSchemaEl = $xml->createElementNS($ns, 'recordSchema', $this->escapeXml($schemaUri));
-            $recordEl->appendChild($recordSchemaEl);
+                $recordEl->appendChild($xml->createElementNS($ns, 'recordSchema', $this->escapeXml($schemaUri)));
+                $recordEl->appendChild($xml->createElementNS($ns, 'recordPacking', $recordPacking));
 
-            $recordPacking = $xml->createElementNS($ns, 'recordPacking', 'xml');
-            $recordEl->appendChild($recordPacking);
+                $recordData = $xml->createElementNS($ns, 'recordData');
+                $recordEl->appendChild($recordData);
+                $this->appendRecordPayload($xml, $recordData, $formatter->format($record), $recordPacking);
 
-            $recordPosition = $xml->createElementNS($ns, 'recordPosition', (string) $position);
-            $recordEl->appendChild($recordPosition);
+                $recordEl->appendChild($xml->createElementNS($ns, 'recordPosition', (string) $position));
 
-            $recordData = $xml->createElementNS($ns, 'recordData');
-            $recordEl->appendChild($recordData);
-
-            $formattedRecord = $formatter->format($record);
-            $recordData->appendChild($formattedRecord);
-
-            $position++;
+                $position++;
+            }
         }
 
-        // Echo query (FIX 1)
+        // nextRecordPosition when more records exist beyond this page
+        $nextPos = $startRecord + $returnedRecords;
+        if ($returnedRecords > 0 && $nextPos <= $totalRecords) {
+            $root->appendChild($xml->createElementNS($ns, 'nextRecordPosition', (string) $nextPos));
+        }
+
+        // Echo the request (version and query first, as the schema requires)
         $echoedQuery = $xml->createElementNS($ns, 'echoedSearchRetrieveRequest');
         $root->appendChild($echoedQuery);
-
-        $queryEl = $xml->createElementNS($ns, 'query', $this->escapeXml($query));
-        $echoedQuery->appendChild($queryEl);
+        $echoedQuery->appendChild($xml->createElementNS($ns, 'version', $this->escapeXml($version)));
+        $echoedQuery->appendChild($xml->createElementNS($ns, 'query', $this->escapeXml($query)));
+        $echoedQuery->appendChild($xml->createElementNS($ns, 'startRecord', (string) $startRecord));
+        $echoedQuery->appendChild($xml->createElementNS($ns, 'maximumRecords', (string) $maximumRecords));
+        $echoedQuery->appendChild($xml->createElementNS($ns, 'recordPacking', $recordPacking));
+        $echoedQuery->appendChild($xml->createElementNS($ns, 'recordSchema', $this->escapeXml($recordSchema)));
 
         return $xml->saveXML();
     }
@@ -1510,7 +1683,7 @@ class SRUServer
         }
 
         return [
-            'index' => $ast['index'] ?? 'cql.anywhere',
+            'index' => $this->resolveIndex((string) ($ast['index'] ?? 'cql.anywhere')),
             'value' => $ast['value'] ?? '',
         ];
     }
@@ -1697,7 +1870,7 @@ class SRUServer
      * @param string $operation SRU operation context ('searchRetrieve', 'scan', 'explain')
      * @return string XML error response
      */
-    private function errorResponse(int $code, string $message, string $version = '1.2', string $operation = 'searchRetrieve'): string
+    private function errorResponse(int $code, string $message, string $version = '1.2', string $operation = 'searchRetrieve', ?string $details = null): string
     {
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
@@ -1716,23 +1889,58 @@ class SRUServer
         $versionEl = $xml->createElementNS($ns, 'version', $this->escapeXml($version));
         $root->appendChild($versionEl);
 
+        // numberOfRecords is mandatory in a searchRetrieveResponse, also when
+        // the request failed.
+        if ($rootElement === 'searchRetrieveResponse') {
+            $root->appendChild($xml->createElementNS($ns, 'numberOfRecords', '0'));
+        }
+
         $diagnostics = $xml->createElementNS($ns, 'diagnostics');
         $root->appendChild($diagnostics);
 
-        $diagnostic = $xml->createElementNS($ns, 'diagnostic');
+        // <diag:diagnostic> with uri/details/message, all in the SRU
+        // diagnostic namespace. The info:srw URI is the TEXT of <uri>.
+        $diagnostic = $xml->createElementNS(self::NS_DIAG, 'diag:diagnostic');
         $diagnostics->appendChild($diagnostic);
 
-        // FIX F086: diagnostic <uri>/<details>/<message> belong in NS_DIAG per SRU spec
-        $uri = $xml->createElementNS(self::NS_DIAG, 'uri', self::NS_DIAG . $code);
-        $diagnostic->appendChild($uri);
+        $diagnostic->appendChild($xml->createElementNS(self::NS_DIAG, 'diag:uri', self::DIAG_URI_PREFIX . $code));
 
-        $details = $xml->createElementNS(self::NS_DIAG, 'details', $this->escapeXml($message));
-        $diagnostic->appendChild($details);
+        $detailText = $details !== null && $details !== '' ? $details : $message;
+        $diagnostic->appendChild($xml->createElementNS(self::NS_DIAG, 'diag:details', $this->escapeXml($detailText)));
 
-        $messageEl = $xml->createElementNS(self::NS_DIAG, 'message', $this->escapeXml($message));
-        $diagnostic->appendChild($messageEl);
+        $diagnostic->appendChild($xml->createElementNS(self::NS_DIAG, 'diag:message', $this->escapeXml($message)));
 
         return $xml->saveXML();
+    }
+
+    /**
+     * Read an optional integer request parameter.
+     *
+     * @param array<string,mixed> $params
+     * @return int|null|false null when absent/empty, false when it is not a
+     *         non-negative integer (the caller answers diagnostic 6)
+     */
+    private function integerParam(array $params, string $name): int|null|false
+    {
+        if (!array_key_exists($name, $params)) {
+            return null;
+        }
+        $raw = $params[$name];
+        if (is_int($raw)) {
+            return $raw >= 0 ? $raw : false;
+        }
+        if (!is_string($raw)) {
+            return false;
+        }
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+        // Bounded length keeps the cast inside the int range.
+        if (strlen($raw) > 9 || !ctype_digit($raw)) {
+            return false;
+        }
+        return (int) $raw;
     }
 
     /**

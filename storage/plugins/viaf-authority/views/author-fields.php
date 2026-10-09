@@ -69,12 +69,20 @@ use App\Support\HtmlHelper;
                 <i class="fas fa-search"></i>
                 <?= __("Cerca su VIAF") ?>
             </button>
+            <?php if ((int) $authorId > 0): ?>
             <button type="button" id="viaf-save-btn" class="btn btn-primary flex items-center gap-2">
                 <i class="fas fa-save"></i>
                 <?= __("Salva VIAF / ISNI") ?>
             </button>
+            <?php endif; ?>
             <span id="viaf-lookup-status" class="text-sm text-gray-600"></span>
         </div>
+        <?php if ((int) $authorId <= 0): ?>
+            <?php // Create form: the fields are posted with the form and stored once the author exists (author.created). ?>
+            <p id="viaf-save-hint" class="text-xs text-gray-500 mt-2">
+                <i class="fas fa-info-circle mr-1"></i><?= __("I dati VIAF/ISNI si salvano insieme all'autore.") ?>
+            </p>
+        <?php endif; ?>
 
         <div id="viaf-lookup-results" class="mt-3 hidden border border-gray-200 rounded-lg divide-y"></div>
     </div>
@@ -94,6 +102,7 @@ use App\Support\HtmlHelper;
         searching: <?= json_encode(__('Ricerca su VIAF…'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         none: <?= json_encode(__('Nessun risultato trovato su VIAF.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         saved: <?= json_encode(__('Dati VIAF/ISNI salvati.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
+        notYet: <?= json_encode(__("I dati VIAF/ISNI si salvano insieme all'autore."), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         error: <?= json_encode(__('Errore durante la richiesta.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         apply: <?= json_encode(__('Applica'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         emptyName: <?= json_encode(__('Inserisci prima il nome dell\'autore.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
@@ -109,7 +118,10 @@ use App\Support\HtmlHelper;
     // Persist current field values via the existing set endpoint. Returns a Promise.
     function persist() {
         if (!authorId || authorId === '0') {
-            statusEl.textContent = T.saved;
+            // New author: the fields go with the form and are stored once the
+            // author exists; say so, never claim a save that has not happened.
+            statusEl.textContent = T.notYet;
+            updateCurrentLink(viafField.value.trim());
             return Promise.resolve();
         }
         const fd = new URLSearchParams();
@@ -210,8 +222,10 @@ use App\Support\HtmlHelper;
         .finally(function () { btn.disabled = false; });
     });
 
-    document.getElementById('viaf-save-btn').addEventListener('click', function () {
+    const saveBtn = document.getElementById('viaf-save-btn');
+    if (saveBtn) saveBtn.addEventListener('click', function () {
         const btn = this;
+        if (!authorId || authorId === '0') { statusEl.textContent = T.notYet; return; }
         btn.disabled = true;
         Promise.resolve(persist()).finally(function () { btn.disabled = false; });
     });

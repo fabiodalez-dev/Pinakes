@@ -747,7 +747,8 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(res.status()).toBe(200);
         const responseBody = await res.text();
         expect(responseBody).toContain('Problem');
-        expect(responseBody).toContain('unsupported-request');
+        expect(responseBody).toContain('Unsupported Service');
+        expect(responseBody).toContain('messagingerrortype.scm');
     });
 
     // ── Test 13: Invalid XML ───────────────────────────────────────────────────
@@ -900,7 +901,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(malformedCheckIn.status()).toBe(200);
         const malformedBody = await malformedCheckIn.text();
         expect(malformedBody).toContain('Problem');
-        expect(malformedBody).toContain('invalid-data');
+        expect(malformedBody).toContain('Element Rule Violated');
 
         const nonPositiveRenew = await ncipPost(
             request,
@@ -910,7 +911,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(nonPositiveRenew.status()).toBe(200);
         const nonPositiveBody = await nonPositiveRenew.text();
         expect(nonPositiveBody).toContain('Problem');
-        expect(nonPositiveBody).toContain('invalid-data');
+        expect(nonPositiveBody).toContain('Element Rule Violated');
 
         expect(dbQuery(
             `SELECT CONCAT(attivo, ':', stato, ':', renewals) FROM prestiti WHERE id=${loanId}`
@@ -926,13 +927,13 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         const ambiguousCheckIn = await ncipPost(request, checkInItemXml(hardeningBookId), auth);
         expect(ambiguousCheckIn.status()).toBe(200);
         const checkInBody = await ambiguousCheckIn.text();
-        expect(checkInBody).toContain('invalid-data');
+        expect(checkInBody).toContain('Element Rule Violated');
         expect(checkInBody).toContain('Multiple active loans');
 
         const ambiguousRenew = await ncipPost(request, renewItemXml(hardeningBookId), auth);
         expect(ambiguousRenew.status()).toBe(200);
         const renewBody = await ambiguousRenew.text();
-        expect(renewBody).toContain('invalid-data');
+        expect(renewBody).toContain('Element Rule Violated');
         expect(renewBody).toContain('Multiple active loans');
 
         expect(dbQuery(
@@ -954,7 +955,13 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
             auth
         );
         expect(res.status()).toBe(200);
-        expect(await res.text()).toContain('CheckInItemResponse');
+        const checkInBody = await res.text();
+        expect(checkInBody).toContain('CheckInItemResponse');
+        // ResponseHeader: this responder is FromAgencyId, the initiator is
+        // echoed back as ToAgencyId; no DateReturned (not in the XSD).
+        expect(checkInBody).toMatch(/<ncip:FromAgencyId[^>]*>\s*<ncip:AgencyId[^>]*>PINAKES<\/ncip:AgencyId>/);
+        expect(checkInBody).toMatch(new RegExp(`<ncip:ToAgencyId[^>]*>\\s*<ncip:AgencyId[^>]*>${hardeningAgencyId}</ncip:AgencyId>`));
+        expect(checkInBody).not.toContain('DateReturned');
         expect(dbQuery(`SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${selectedLoanId}`))
             .toBe('0:restituito');
         expect(dbQuery(`SELECT CONCAT(attivo, ':', stato) FROM prestiti WHERE id=${siblingLoanId}`))
@@ -1083,7 +1090,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(ambiguous.status()).toBe(200);
         const ambiguousBody = await ambiguous.text();
         expect(ambiguousBody).toContain('Problem');
-        expect(ambiguousBody).toContain('invalid-data');
+        expect(ambiguousBody).toContain('Element Rule Violated');
         expect(ambiguousBody).toContain('Multiple pending ILL requests');
 
         const malformed = await ncipPost(
@@ -1094,7 +1101,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(malformed.status()).toBe(200);
         const malformedBody = await malformed.text();
         expect(malformedBody).toContain('Problem');
-        expect(malformedBody).toContain('invalid-data');
+        expect(malformedBody).toContain('Element Rule Violated');
 
         expect(dbQuery(
             `SELECT COUNT(*) FROM prestiti
@@ -1158,7 +1165,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(unsafeCancel.status()).toBe(200);
         const unsafeBody = await unsafeCancel.text();
         expect(unsafeBody).toContain('Problem');
-        expect(unsafeBody).toContain('item-not-checked-out');
+        expect(unsafeBody).toContain('Unknown Request');
         expect(dbQuery(
             `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
              FROM prestiti WHERE id=${unsafeRequestId}`
@@ -1196,7 +1203,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(response.status()).toBe(200);
         const body = await response.text();
         expect(body).toContain('Problem');
-        expect(body).toContain('item-not-checked-out');
+        expect(body).toContain('Unknown Request');
         expect(dbQuery(
             `SELECT CONCAT(attivo, ':', stato, ':', copia_id)
              FROM prestiti WHERE id=${requestId}`
@@ -1255,7 +1262,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
         expect(response.status()).toBe(200);
         const body = await response.text();
         expect(body).toContain('Problem');
-        expect(body).toContain('item-not-checked-out');
+        expect(body).toContain('Item Not Checked Out');
         expect(dbQuery(
             `SELECT CONCAT(utente_id, ':', renewals, ':', data_scadenza)
              FROM prestiti WHERE id=${loanId}`
@@ -1281,7 +1288,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (32 tests)', () => {
             expect(replay.status()).toBe(200);
             const replayBody = await replay.text();
             expect(replayBody).toContain('Problem');
-            expect(replayBody).toContain('duplicate-request');
+            expect(replayBody).toContain('Duplicate Request');
             expect(dbQuery(
                 `SELECT COUNT(*) FROM prestiti
                  WHERE libro_id=${hardeningBookId} AND utente_id=${hardeningUserIds[0]}

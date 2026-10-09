@@ -43,7 +43,7 @@ Include informazioni complete sulle copie nei campi MARC:
 
 ```xml
 <record xmlns="http://www.loc.gov/MARC21/slim">
-  <leader>00000nam a2200000 a 4500</leader>
+  <leader>00000nam a2200000   4500</leader>
   <datafield tag="245" ind1="1" ind2="0">
     <subfield code="a">Titolo del libro</subfield>
   </datafield>

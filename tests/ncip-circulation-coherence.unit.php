@@ -8,7 +8,7 @@ declare(strict_types=1);
  *   - RenewItem refuses a loan that is overdue BY DATE (in_corso with
  *     data_scadenza < application today), same predicate as
  *     PrestitiController::renew() — mapped to the permanent NCIP
- *     ProblemType 'item-not-renewable';
+ *     ProblemType 'Item Not Renewable' (renewitemprocessingerror scheme);
  *   - a successful RenewItem resets recall_count/last_recall_at like
  *     renew()/update()/bulkExtend, records the 'loan.renewed' audit
  *     event with source=ncip and leaves renewals incremented;
@@ -247,7 +247,7 @@ $aXml = new SimpleXMLElement(
 $aResponse = $handleRenew->invoke($ncip, $request, new SlimResponse(), $aXml, $staffCaller);
 $aBody = (string) $aResponse->getBody();
 $check(
-    str_contains($aBody, '<Problem>') && str_contains($aBody, 'item-not-renewable'),
+    str_contains($aBody, '<Problem>') && str_contains($aBody, 'Item Not Renewable'),
     '04 RenewItem answers the permanent item-not-renewable ProblemType, not a retryable failure'
 );
 
@@ -340,7 +340,7 @@ $gScoped = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gScopedX
 $check(!str_contains((string) $gScoped->getBody(), '<Problem>') && $loanRow($gLoanNcip)['stato'] === 'restituito',
     '12c2 explicit borrower closes only the identified NCIP loan');
 $gScopedRetry = $handleCheckIn->invoke($ncip, $request, new SlimResponse(), $gScopedXml, $staffCaller);
-$check(str_contains((string) $gScopedRetry->getBody(), 'item-not-checked-out'),
+$check(str_contains((string) $gScopedRetry->getBody(), 'Item Not Checked Out'),
     '12c3 identical scoped retry finds no further loan for that borrower');
 $check($loanRow($gLoanMan)['stato'] === 'in_corso' && (int) $loanRow($gLoanMan)['attivo'] === 1
     && $db->query("SELECT stato FROM copie WHERE id = {$gCopy2}")->fetch_row()[0] === 'prestato',

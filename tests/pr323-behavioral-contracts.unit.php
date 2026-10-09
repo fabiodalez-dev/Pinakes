@@ -117,11 +117,25 @@ foreach ($formatters as $format => $class) {
     $doc = new DOMDocument('1.0', 'UTF-8');
     $check(\Z39Server\RecordFormatter::create($format, $doc) instanceof $class, "factory resolves {$format}");
     $xml[$format] = $render($class, $record);
+    // UNIMARC 70X carry the name inverted ($a surname, $b forename); read
+    // them back in direct order so every format is counted the same way.
+    $searchable = $xml[$format];
+    if ($format === 'unimarcxml') {
+        $uniDoc = new DOMDocument();
+        $uniDoc->loadXML($xml[$format]);
+        $uniXp = new DOMXPath($uniDoc);
+        $searchable = (string) $uniXp->evaluate('string(//*[local-name()="datafield"][@tag="200"])');
+        foreach ($uniXp->query('//*[local-name()="datafield"][@tag="700" or @tag="701" or @tag="702"]') ?: [] as $field) {
+            $a = (string) $uniXp->evaluate('string(*[local-name()="subfield"][@code="a"])', $field);
+            $b = (string) $uniXp->evaluate('string(*[local-name()="subfield"][@code="b"])', $field);
+            $searchable .= ' | ' . trim($b . ' ' . $a);
+        }
+    }
     foreach (['Primary Person', 'Coauthor Person', 'Entity Translator', 'Legacy Translator', 'Illustrator One', 'Illustrator Two', 'Editor Person', 'Colorist Person'] as $name) {
         // UNIMARC repeats the first creator in the 200$f statement of
         // responsibility and the controlled 700 access point by design.
         $expectedOccurrences = $format === 'unimarcxml' && $name === 'Primary Person' ? 2 : 1;
-        $check($countText($xml[$format], $name) === $expectedOccurrences, "{$format} exports {$name} with the expected cardinality");
+        $check($countText($searchable, $name) === $expectedOccurrences, "{$format} exports {$name} with the expected cardinality");
     }
     $check(!str_contains($xml[$format], 'Ignored Legacy Publisher'), "{$format} prefers the publisher collection over the legacy scalar");
 }
@@ -190,10 +204,11 @@ $buildLookup = $ncipReflection->getMethod('buildLookupItemResponse');
 $ncipCases = [
     ['disponibile', 2, 'Available On Shelf'],
     ['disponibile', 0, 'Not Available'],
-    ['prestato', 0, 'Checked Out'],
-    ['prenotato', 0, 'On Hold'],
+    // NCIP 2.02 Circulation Status scheme values (not free text).
+    ['prestato', 0, 'On Loan'],
+    ['prenotato', 0, 'Available For Pickup'],
     ['perso', 0, 'Lost'],
-    ['danneggiato', 0, 'Not Available'],
+    ['danneggiato', 0, 'In Process'],
     ['non_disponibile', 0, 'Not Available'],
     ['unexpected', 1, 'Available On Shelf'],
     ['unexpected', 0, 'Not Available'],

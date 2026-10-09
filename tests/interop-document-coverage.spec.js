@@ -385,7 +385,7 @@ test.describe.serial('Interop document coverage - 50 tests', () => {
       data: body,
       headers: { 'Content-Type': 'application/xml' },
     });
-    expect(await textFor(res)).toContain('unsupported-request');
+    expect(await textFor(res)).toContain('Unsupported Service');
   });
 
   test('50. Database exposes new interop tables and columns after migrations', async () => {

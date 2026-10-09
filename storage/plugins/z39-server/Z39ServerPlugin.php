@@ -562,26 +562,9 @@ class Z39ServerPlugin
             require_once __DIR__ . '/classes/RateLimiter.php';
             $rateLimiter = new \Z39Server\RateLimiter($db, 60, 3600);
 
-            // Secure IP extraction - trust X-Forwarded-For only from known proxies
-            // Adjust $trustedProxies based on your infrastructure (load balancer IPs)
-            $trustedProxies = ['127.0.0.1', '::1'];
-            $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-
-            if (in_array($remoteAddr, $trustedProxies, true) && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-                // When behind trusted proxy, use rightmost non-trusted IP in chain.
-                // The rightmost entry is appended by the nearest trusted proxy and cannot
-                // be spoofed by the client, unlike the leftmost entry.
-                $forwardedIps = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
-                $clientIp = $remoteAddr; // fallback
-                foreach (array_reverse($forwardedIps) as $ip) {
-                    if (filter_var($ip, FILTER_VALIDATE_IP) && !in_array($ip, $trustedProxies, true)) {
-                        $clientIp = $ip;
-                        break;
-                    }
-                }
-            } else {
-                $clientIp = $remoteAddr;
-            }
+            // Secure IP extraction - trust X-Forwarded-For only from known
+            // proxies (loopback plus TRUSTED_PROXIES), rightmost untrusted hop.
+            $clientIp = \Z39Server\RateLimiter::resolveClientIp($_SERVER, ['127.0.0.1', '::1']);
 
             if (!$rateLimiter->checkLimit($clientIp)) {
                 $response->getBody()->write(json_encode([

@@ -78,7 +78,26 @@ class OaiPmhServerPlugin
     private const TOKEN_TTL = 86400;
 
     /** MARCXchange XML container for UNIMARC records (ISO 25577). */
+    private const XLINK_NS    = 'http://www.w3.org/1999/xlink';
+    /** NISO Z39.87 data dictionary namespace MAG 2.0.1 imports for image metrics. */
+    private const NISO_MAG_NS = 'http://www.niso.org/pdfs/DataDict.pdf';
+
+    /**
+     * MAG 2.0.1 (ICCU): the schema's targetNamespace is the historical
+     * http://www.iccu.sbn.it/metaAG1.pdf, not a /mag/ path; validators and
+     * harvesters (Internet Culturale, MagTeca) match on it. The schema file is
+     * metadigit.xsd, linked from ICCU's MAG 2.0.1 page.
+     */
+    private const MAG_NS = 'http://www.iccu.sbn.it/metaAG1.pdf';
+    private const MAG_SCHEMA = 'https://www.iccu.sbn.it/pagine/metadigit.xsd';
     private const NS_MARCXCHANGE = 'info:lc/xmlns/marcxchange-v2';
+    /**
+     * UNIMARC leader template (record length and base address are filled by
+     * the ISO 2709 serializer): n a m, pos 8-9 blank (pos 9 undefined in
+     * UNIMARC), indicator/subfield counts 2 2, pos 17-19 blank (full level,
+     * pos 18 blank because ISBD punctuation is not emitted), entry map 4500.
+     */
+    private const UNIMARC_LEADER_TEMPLATE = '00000nam  2200000   4500';
     private const SCHEMA_MARCXCHANGE = 'http://www.loc.gov/standards/iso25577/marcxchange-2-0.xsd';
 
     public function setPluginId(int $pluginId): void
@@ -797,6 +816,20 @@ class OaiPmhServerPlugin
         return str_contains($value, 'T') ? 'seconds' : 'days';
     }
 
+    /**
+     * A validated OAI date (UTC, day or seconds granularity) as a local-time
+     * MySQL DATETIME. Day granularity covers the whole UTC day: `from` starts
+     * at 00:00:00Z, `until` ends at 23:59:59Z.
+     */
+    private function oaiDateToLocal(string $value, bool $isUntil): string
+    {
+        $utcText = strlen($value) === 10
+            ? $value . ($isUntil ? ' 23:59:59' : ' 00:00:00')
+            : str_replace(['T', 'Z'], [' ', ''], $value);
+        $utc = new \DateTimeImmutable($utcText, new \DateTimeZone('UTC'));
+        return $utc->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('Y-m-d H:i:s');
+    }
+
     private function oaiDateTimestamp(string $value): int
     {
         $mysql = str_replace(['T', 'Z'], [' ', ''], $value);
@@ -825,10 +858,12 @@ class OaiPmhServerPlugin
                 }
             }
         }
-        // Also check archival_units if the table exists.
-        $r2 = $this->db->query(
-            "SELECT MIN(created_at) AS e FROM archival_units WHERE deleted_at IS NULL"
-        );
+        // Also check archival_units if the table exists. Probed first: under
+        // MYSQLI_REPORT_STRICT a query on a missing table throws, and Identify
+        // must answer on installations that never had the Archives plugin.
+        $r2 = $this->hasArchivalUnitsTable()
+            ? $this->db->query("SELECT MIN(created_at) AS e FROM archival_units WHERE deleted_at IS NULL" . $this->archivalPublishedSql())
+            : false;
         if ($r2 instanceof \mysqli_result) {
             $row2 = $r2->fetch_assoc();
             $r2->free();
@@ -902,7 +937,10 @@ class OaiPmhServerPlugin
         $entityType = null; // null = no identifier filter; 'book' or 'archival_unit'
         if ($identifier !== '') {
             // Validate identifier refers to a known item (book or archival_unit).
-            $resolved = $this->resolveIdentifier($identifier, $host);
+            // A deleted record still exists for OAI-PMH (persistent deletion
+            // tracking): its formats are listed, never idDoesNotExist.
+            $resolved = $this->resolveIdentifier($identifier, $host)
+                ?? $this->resolveDeletedIdentifier($identifier, $host);
             if ($resolved === null) {
                 $this->oaiError($xw, 'idDoesNotExist',
                     'The value of the identifier argument is unknown or illegal in this repository.');
@@ -979,8 +1017,8 @@ class OaiPmhServerPlugin
             ],
             [
                 'prefix'    => 'mag',
-                'schema'    => 'http://www.iccu.sbn.it/schede/mag/mag_V2.0.1.xsd',
-                'namespace' => 'http://www.iccu.sbn.it/mag/',
+                'schema'    => self::MAG_SCHEMA,
+                'namespace' => self::MAG_NS,
             ],
             [
                 'prefix'    => 'unimarc',
@@ -1257,14 +1295,12 @@ class OaiPmhServerPlugin
             return;
         }
 
-        // Normalise date strings to MySQL DATETIME format.
-        // For date-only values (YYYY-MM-DD) expand to inclusive day boundaries.
-        $fromMysql = $from !== ''
-            ? (strlen($from) === 10 ? $from . ' 00:00:00' : str_replace(['T', 'Z'], [' ', ''], $from))
-            : null;
-        $untilMysql = $until !== ''
-            ? (strlen($until) === 10 ? $until . ' 23:59:59' : str_replace(['T', 'Z'], [' ', ''], $until))
-            : null;
+        // Normalise the UTC OAI dates to the local-time DATETIME the columns
+        // hold (datestamps are emitted local → UTC by recordDatestamp(), so
+        // the bound must make the opposite trip). Date-only values expand to
+        // the inclusive UTC day boundaries first.
+        $fromMysql  = $from !== '' ? $this->oaiDateToLocal($from, false) : null;
+        $untilMysql = $until !== '' ? $this->oaiDateToLocal($until, true) : null;
 
         // Build the combined result set: active records + persistent deletions.
         // Non-DC formats are only available for book records on the unified endpoint.
@@ -1692,7 +1728,7 @@ class OaiPmhServerPlugin
         // Legacy safety-net columns are exported only when that role has not
         // already been represented by an entity above.
         $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
-        foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $col) {
+        foreach (['traduttore', 'illustratore', 'curatore'] as $col) {
             if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
                 $xw->writeElementNs('dc', 'contributor', null, (string) $row[$col]);
             }
@@ -1703,9 +1739,8 @@ class OaiPmhServerPlugin
             $xw->writeElementNs('dc', 'date', null, (string) $row['anno_pubblicazione']);
         }
 
-        // dc:type
-        $tipo = (string) ($row['tipo_media'] ?? 'libro');
-        $xw->writeElementNs('dc', 'type', null, ucfirst($tipo));
+        // dc:type — DCMI Type Vocabulary term for the media type
+        $xw->writeElementNs('dc', 'type', null, $this->dcmiType((string) ($row['tipo_media'] ?? 'libro')));
 
         // dc:format
         if (!empty($row['formato'])) {
@@ -1720,9 +1755,9 @@ class OaiPmhServerPlugin
             }
         }
 
-        // dc:language
-        if (!empty($row['lingua'])) {
-            $xw->writeElementNs('dc', 'language', null, (string) $row['lingua']);
+        // dc:language — ISO 639-2 code per language (free text kept when unknown)
+        foreach ($this->languageList((string) ($row['lingua'] ?? '')) as $language) {
+            $xw->writeElementNs('dc', 'language', null, $this->languageCode($language) ?? $language);
         }
 
         $xw->endElement(); // oai_dc:dc
@@ -1769,8 +1804,10 @@ class OaiPmhServerPlugin
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
             'http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
 
-        // Leader: type 'a' (language material), bibliographic level 'm' (monograph)
-        $xw->writeElement('leader', '00000nam a2200000 i 4500');
+        // Leader: type 'a' (language material), bibliographic level 'm'
+        // (monograph), 's' for a serial. Leader/18 stays blank: the record
+        // carries no ISBD punctuation, so 'i' (ISBD) would be a false claim.
+        $xw->writeElement('leader', '00000na' . ($this->isSerialRecord($row) ? 's' : 'm') . ' a2200000   4500');
 
         // 001 — Control number (book id)
         $this->marcControlField($xw, '001', (string) $row['id']);
@@ -1782,10 +1819,8 @@ class OaiPmhServerPlugin
         $ts = strtotime((string) ($row['updated_at'] ?? 'now')) ?: time();
         $this->marcControlField($xw, '005', gmdate('YmdHis', $ts) . '.0');
 
-        // 008 — Fixed-length data (minimal: year + language)
-        $year = str_pad((string) ($row['anno_pubblicazione'] ?? ''), 4, ' ');
-        $lang = str_pad($this->iso639_3ToMarc((string) ($row['lingua'] ?? '')), 3, ' ');
-        $this->marcControlField($xw, '008', gmdate('ymd') . 's' . $year . '    it |||||||||' . $lang . '  d');
+        // 008 — Fixed-length data elements (exactly 40 characters)
+        $this->marcControlField($xw, '008', $this->marc21Field008($row));
 
         // 020 — ISBN
         if (!empty($row['isbn13'])) {
@@ -1795,8 +1830,9 @@ class OaiPmhServerPlugin
             $this->marcDataField($xw, '020', ' ', ' ', [['a', (string) $row['isbn10']]]);
         }
 
-        // 022 — ISSN
-        if (!empty($row['issn'])) {
+        // 022 — ISSN of the resource itself: serials only. On a monograph the
+        // ISSN belongs to its series and is carried in 490 $x below.
+        if (!empty($row['issn']) && $this->isSerialRecord($row)) {
             $this->marcDataField($xw, '022', ' ', ' ', [['a', (string) $row['issn']]]);
         }
 
@@ -1899,6 +1935,9 @@ class OaiPmhServerPlugin
         // 490 — Series statement
         if (!empty($row['collana'])) {
             $serSubs = [['a', (string) $row['collana']]];
+            if (!empty($row['issn']) && !$this->isSerialRecord($row)) {
+                $serSubs[] = ['x', (string) $row['issn']];
+            }
             if (!empty($row['numero_serie'])) {
                 $serSubs[] = ['v', (string) $row['numero_serie']];
             }
@@ -1926,7 +1965,7 @@ class OaiPmhServerPlugin
 
         // 700 — legacy contributors not already represented by entities.
         $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
-        foreach (['traduttore' => 'translator', 'illustratore' => 'illustrator', 'curatore' => 'editor', 'colorista' => 'colorist'] as $col => $role) {
+        foreach (['traduttore' => 'translator', 'illustratore' => 'illustrator', 'curatore' => 'editor'] as $col => $role) {
             if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
                 $this->marcDataField($xw, '700', '1', ' ', [
                     ['a', (string) $row[$col]],
@@ -1995,47 +2034,68 @@ class OaiPmhServerPlugin
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
             self::NS_MARCXCHANGE . ' ' . self::SCHEMA_MARCXCHANGE);
 
-        // Leader — 'nam': text language material, monograph
-        $xw->writeElement('leader', '00000nam a2200000 u 4500');
+        $xw->writeElement('leader', self::UNIMARC_LEADER_TEMPLATE);
 
-        // 001 — Record identifier
-        $this->marcControlField($xw, '001', (string) $row['id']);
-
-        // 003 — Identifier source (repository base URL)
-        $this->marcControlField($xw, '003', absoluteUrl('/'));
-
-        // 005 — Date/time of last modification
-        $this->marcControlField($xw, '005', gmdate('YmdHis') . '.0');
-
-        // 100 — General processing data (UNIMARC fixed-length 36 chars)
-        // Pos 0-7: date entered (YYYYMMDD)
-        // Pos 8:   type of date ('1' = single known date)
-        // Pos 9-12: Date 1 (publication year, padded)
-        // Pos 13-16: Date 2 (blank for single date)
-        // Pos 17-23: various flags (audience, gov-pub, modified, alphabet)
-        // Pos 24-26: language of cataloguing (ISO 639-2/B)
-        // Pos 27-35: transliteration + character sets (spaces)
-        $langCode  = $this->iso639_3ToMarc((string) ($row['lingua'] ?? 'italiano'));
-        $year      = (string) ($row['anno_pubblicazione'] ?? '');
-        $date1     = (strlen($year) === 4 && ctype_digit($year)) ? $year : '    ';
-        $f100core  = gmdate('Ymd') . '1' . $date1 . '    ' . '0000ba' . $langCode;
-        $this->marcControlField($xw, '100', str_pad($f100core, 36));
-
-        // 010 — ISBN
-        foreach (['isbn13', 'isbn10', 'ean'] as $col) {
-            if (!empty($row[$col])) {
-                $this->marcDataField($xw, '010', ' ', ' ', [['a', (string) $row[$col]]]);
-                break;
+        foreach ($this->unimarcFields($row, $authors, $publishers, $genre) as [$tag, $ind1, $ind2, $data]) {
+            if ($ind1 === null || $ind2 === null || is_string($data)) {
+                $this->marcControlField($xw, $tag, is_string($data) ? $data : '');
+            } else {
+                $this->marcDataField($xw, $tag, $ind1, $ind2, $data);
             }
         }
 
-        // 101 — Language of document
-        $this->marcDataField($xw, '101', '0', ' ', [['a', $langCode]]);
+        $xw->endElement(); // record
+    }
+
+    /**
+     * The UNIMARC Bibliographic fields of a book, in tag order — one source
+     * for the MARCXchange writer and the ISO 2709 serializer, so the two
+     * downloads can never disagree. Control fields (001-005) carry their
+     * value as a string and null indicators.
+     *
+     * @param array<string, mixed>             $row
+     * @param list<array<string, mixed>>        $authors
+     * @param list<array<string, mixed>>        $publishers
+     * @param array<string, mixed>|null         $genre
+     * @return list<array{0: string, 1: ?string, 2: ?string, 3: string|list<array{0: string, 1: string}>}>
+     */
+    private function unimarcFields(array $row, array $authors, array $publishers, ?array $genre): array
+    {
+        $fields = [];
+
+        // 001 — Record identifier
+        $fields[] = ['001', null, null, (string) $row['id']];
+        // 003 — Persistent record identifier source (repository base URL)
+        $fields[] = ['003', null, null, absoluteUrl('/')];
+        // 005 — Version identifier: date/time of the latest modification
+        $updated = strtotime((string) ($row['updated_at'] ?? '')) ?: time();
+        $fields[] = ['005', null, null, gmdate('YmdHis', $updated) . '.0'];
+
+        // 010 — ISBN only. 073 — EAN (an EAN that is just the ISBN-13 again
+        // is not repeated).
+        foreach (['isbn13', 'isbn10'] as $col) {
+            if (!empty($row[$col])) {
+                $fields[] = ['010', ' ', ' ', [['a', (string) $row[$col]]]];
+                break;
+            }
+        }
+        $ean = trim((string) ($row['ean'] ?? ''));
+        $isbn13Digits = preg_replace('/\D/', '', (string) ($row['isbn13'] ?? ''));
+        if ($ean !== '' && preg_replace('/\D/', '', $ean) !== $isbn13Digits) {
+            $fields[] = ['073', ' ', ' ', [['a', $ean]]];
+        }
+
+        // 100 — General processing data
+        $langCode = $this->iso639_3ToMarc((string) ($row['lingua'] ?? 'italiano'));
+        $fields[] = ['100', ' ', ' ', [['a', $this->unimarcField100a($row)]]];
+
+        // 101 — Language of the item
+        $fields[] = ['101', '0', ' ', [['a', $langCode]]];
 
         // 102 — Country of publication
-        $this->marcDataField($xw, '102', ' ', ' ', [['a', 'IT']]);
+        $fields[] = ['102', ' ', ' ', [['a', 'IT']]];
 
-        // 200 — Title proper
+        // 200 — Title and statement of responsibility
         $subs200 = [['a', (string) ($row['titolo'] ?? '')]];
         if (!empty($row['sottotitolo'])) {
             $subs200[] = ['e', (string) $row['sottotitolo']];
@@ -2044,56 +2104,75 @@ class OaiPmhServerPlugin
         if ($primaryCreatorIndex !== null) {
             $subs200[] = ['f', (string) $authors[$primaryCreatorIndex]['nome']];
         }
-        $this->marcDataField($xw, '200', '1', ' ', $subs200);
+        $fields[] = ['200', '1', ' ', $subs200];
 
         // 205 — Edition statement
         if (!empty($row['edizione'])) {
-            $this->marcDataField($xw, '205', ' ', ' ', [['a', (string) $row['edizione']]]);
+            $fields[] = ['205', ' ', ' ', [['a', (string) $row['edizione']]]];
         }
 
-        // 210 — Publication, distribution. UNIMARC $c (publisher name) is
-        // repeatable, so multiple publishers become repeated $c in one 210.
+        // 210 — Publication, distribution. $c (publisher name) is repeatable,
+        // so multiple publishers become repeated $c in one 210.
         $subs210 = [];
+        if (!empty($row['luogo_pubblicazione'])) {
+            $subs210[] = ['a', (string) $row['luogo_pubblicazione']];
+        }
         foreach ($publishers as $pub) {
             if (!empty($pub['nome'])) {
                 $subs210[] = ['c', (string) $pub['nome']];
             }
         }
-        if (!empty($year)) {
+        $year = (string) ($row['anno_pubblicazione'] ?? '');
+        if ($year !== '') {
             $subs210[] = ['d', $year];
         }
-        if (!empty($subs210)) {
-            $this->marcDataField($xw, '210', ' ', ' ', $subs210);
+        if ($subs210 !== []) {
+            $fields[] = ['210', ' ', ' ', $subs210];
         }
 
         // 215 — Physical description
+        $subs215 = [];
         if (!empty($row['numero_pagine'])) {
-            $this->marcDataField($xw, '215', ' ', ' ', [['a', $row['numero_pagine'] . ' p.']]);
+            $subs215[] = ['a', $row['numero_pagine'] . ' p.'];
+        }
+        if (!empty($row['dimensioni'])) {
+            $subs215[] = ['d', (string) $row['dimensioni']];
+        }
+        if ($subs215 !== []) {
+            $fields[] = ['215', ' ', ' ', $subs215];
+        }
+
+        // 225 — Series (UNIMARC equivalent of MARC21 490)
+        if (!empty($row['collana'])) {
+            $subs225 = [['a', (string) $row['collana']]];
+            if (!empty($row['numero_serie'])) {
+                $subs225[] = ['v', (string) $row['numero_serie']];
+            }
+            $fields[] = ['225', '0', ' ', $subs225];
         }
 
         // 330 — Summary / abstract
         $desc = !empty($row['descrizione_plain']) ? $row['descrizione_plain'] : ($row['descrizione'] ?? '');
         if ($desc !== '') {
-            $this->marcDataField($xw, '330', ' ', ' ', [['a', strip_tags((string) $desc)]]);
+            $fields[] = ['330', ' ', ' ', [['a', strip_tags((string) $desc)]]];
         }
 
-        // 606 — Subject — genre
+        // 606 — Subject: genre, then keywords
         if ($genre !== null && !empty($genre['nome'])) {
-            $this->marcDataField($xw, '606', ' ', ' ', [['a', (string) $genre['nome']]]);
+            $fields[] = ['606', ' ', ' ', [['a', (string) $genre['nome']]]];
         }
-
-        // 606 — Subject — keywords
         if (!empty($row['parole_chiave'])) {
             foreach (explode(',', (string) $row['parole_chiave']) as $kw) {
                 $kw = trim($kw);
                 if ($kw !== '') {
-                    $this->marcDataField($xw, '606', ' ', ' ', [['a', $kw]]);
+                    $fields[] = ['606', ' ', ' ', [['a', $kw]]];
                 }
             }
         }
 
         // 700/701 — primary and alternative intellectual responsibility.
         // 702 — secondary responsibility (translator, illustrator, etc.).
+        $responsibility = [];
         foreach ($authors as $index => $a) {
             $role = (string) ($a['ruolo'] ?? '');
             $isCreator = in_array($role, ['principale', 'co-autore'], true);
@@ -2105,29 +2184,100 @@ class OaiPmhServerPlugin
                 'colorista'    => '410',
                 default        => '070',
             };
-            $this->marcDataField($xw, $tag, '0', ' ', [
-                ['a', (string) $a['nome']],
-                ['4', $relCode],
-            ]);
+            [$ind2, $nameSubs] = $this->unimarcPersonalName((string) $a['nome']);
+            $nameSubs[] = ['4', $relCode];
+            $responsibility[$tag][] = [$tag, ' ', $ind2, $nameSubs];
         }
-
-        // 225 — Series (UNIMARC equivalent of MARC21 490)
-        if (!empty($row['collana'])) {
-            $subs225 = [['a', (string) $row['collana']]];
-            if (!empty($row['numero_serie'])) {
-                $subs225[] = ['v', (string) $row['numero_serie']];
+        foreach (['700', '701', '702'] as $tag) {
+            foreach ($responsibility[$tag] ?? [] as $field) {
+                $fields[] = $field;
             }
-            $this->marcDataField($xw, '225', '0', ' ', $subs225);
         }
 
         // 801 — Originating source
-        $this->marcDataField($xw, '801', ' ', '0', [
+        $fields[] = ['801', ' ', '0', [
             ['a', 'IT'],
             ['b', 'Pinakes'],
             ['c', gmdate('Ymd')],
-        ]);
+        ]];
 
-        $xw->endElement(); // record
+        return $fields;
+    }
+
+    /**
+     * UNIMARC 100 $a — general processing data, exactly 36 positions:
+     *   0-7 date entered (YYYYMMDD) · 8 type of publication date (d single
+     *   known date, u unknown) · 9-12 date 1 · 13-16 date 2 · 17-19 target
+     *   audience · 20 government publication (y not a government
+     *   publication) · 21 modified record (0) · 22-24 language of
+     *   cataloguing · 25 transliteration (y none) · 26-29 character set
+     *   (50 = ISO 10646) · 30-33 additional character sets · 34-35 script
+     *   of title (ba = Latin).
+     *
+     * @param array<string, mixed> $row
+     */
+    private function unimarcField100a(array $row): string
+    {
+        $entered = strtotime((string) ($row['created_at'] ?? '')) ?: time();
+        $year    = trim((string) ($row['anno_pubblicazione'] ?? ''));
+        $known   = strlen($year) === 4 && ctype_digit($year);
+
+        $value = date('Ymd', $entered)
+            . ($known ? 'd' : 'u')
+            . ($known ? $year : '    ')
+            . '    '
+            . '   '
+            . 'y'
+            . '0'
+            . $this->cataloguingLanguage()
+            . 'y'
+            . '50  '
+            . '    '
+            . 'ba';
+
+        return $value;
+    }
+
+    /** ISO 639-2/B language of cataloguing, from the installation locale. */
+    private function cataloguingLanguage(): string
+    {
+        try {
+            $locale = \App\Support\I18n::getInstallationLocale();
+        } catch (\Throwable) {
+            $locale = 'it_IT';
+        }
+        return match (strtolower(substr($locale, 0, 2))) {
+            'en'    => 'eng',
+            'de'    => 'ger',
+            'fr'    => 'fre',
+            'da'    => 'dan',
+            default => 'ita',
+        };
+    }
+
+    /**
+     * UNIMARC personal name (7XX): [ind2, subfields]. A name that can be
+     * inverted ("Surname, Forename", or a multi-word name whose last word is
+     * taken as the surname) is entered under the surname — ind2 1, $a surname
+     * $b forename; a single-word name stays in direct order — ind2 0, $a.
+     *
+     * @return array{0: string, 1: list<array{0: string, 1: string}>}
+     */
+    private function unimarcPersonalName(string $name): array
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
+        if (str_contains($name, ',')) {
+            [$surname, $forename] = array_map('trim', explode(',', $name, 2));
+            if ($surname !== '' && $forename !== '') {
+                return ['1', [['a', $surname], ['b', $forename]]];
+            }
+        }
+        $words = $name === '' ? [] : explode(' ', $name);
+        if (count($words) >= 2) {
+            $surname = (string) array_pop($words);
+            return ['1', [['a', $surname], ['b', implode(' ', $words)]]];
+        }
+        return ['0', [['a', $name]]];
     }
 
     // ── MODS 3.7 for books ────────────────────────────────────────────────────
@@ -2170,10 +2320,22 @@ class OaiPmhServerPlugin
             };
             $xw->startElement('name');
             $xw->writeAttribute('type', 'personal');
-            $xw->startElement('namePart');
-            $xw->writeAttribute('type', 'text');
-            $xw->text((string) $a['nome']);
-            $xw->endElement();
+            // namePart@type only allows date|family|given|termsOfAddress:
+            // a stored "Surname, Forename" splits into family/given, any
+            // other form stays a single untyped namePart.
+            $nameParts = explode(',', (string) $a['nome'], 2);
+            if (count($nameParts) === 2 && trim($nameParts[0]) !== '' && trim($nameParts[1]) !== '') {
+                $xw->startElement('namePart');
+                $xw->writeAttribute('type', 'family');
+                $xw->text(trim($nameParts[0]));
+                $xw->endElement();
+                $xw->startElement('namePart');
+                $xw->writeAttribute('type', 'given');
+                $xw->text(trim($nameParts[1]));
+                $xw->endElement();
+            } else {
+                $xw->writeElement('namePart', (string) $a['nome']);
+            }
             $xw->startElement('role');
             $xw->startElement('roleTerm');
             $xw->writeAttribute('type', 'text');
@@ -2189,7 +2351,6 @@ class OaiPmhServerPlugin
             ['traduttore', 'translator'],
             ['illustratore', 'illustrator'],
             ['curatore', 'editor'],
-            ['colorista', 'colorist'],
         ];
         $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
         foreach ($contribs as [$col, $role]) {
@@ -2335,9 +2496,9 @@ class OaiPmhServerPlugin
         array $publishers,
         ?array $genre
     ): void {
-        $magNs     = 'http://www.iccu.sbn.it/mag/';
+        $magNs     = self::MAG_NS;
         $dcNs      = 'http://purl.org/dc/elements/1.1/';
-        $magSchema = 'http://www.iccu.sbn.it/mag/mag_V2.0.1.xsd';
+        $magSchema = self::MAG_SCHEMA;
 
         // Use pre-fetched MAG project config when available (batch path), else fetch once.
         $magCfg = (array_key_exists('_mag_config', $row) && is_array($row['_mag_config']) && !empty($row['_mag_config']))
@@ -2346,42 +2507,65 @@ class OaiPmhServerPlugin
 
         $xw->startElementNs(null, 'metadigit', $magNs);
         $xw->writeAttributeNs('xmlns', 'dc', null, $dcNs);
+        $xw->writeAttributeNs('xmlns', 'xlink', null, self::XLINK_NS);
+        $xw->writeAttributeNs('xmlns', 'niso', null, self::NISO_MAG_NS);
         $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null, $magNs . ' ' . $magSchema);
         $xw->writeAttribute('version', '2.0.1');
 
-        // ── <gen> — General metadata ──────────────────────────────────────────
-        $xw->startElement('gen');
-        $xw->startElement('stprog');
-        $xw->writeElement('progetto', (string) ($magCfg['project_code'] ?? 'PINAKES'));
-        $xw->writeElement('codice_progetto', (string) ($magCfg['institution_code'] ?? 'IT'));
-        $xw->endElement(); // stprog
-        $xw->writeElement('agency', (string) ($magCfg['institution_code'] ?? 'IT-UNKNOWN'));
-        $xw->writeElement('collection', (string) ($magCfg['collection_name'] ?? 'Biblioteca'));
-        $xw->writeElement('item', (string) ($row['id'] ?? ''));
-        $xw->writeElement('rights', (string) ($magCfg['rights_statement'] ?? 'In Copyright'));
-        $xw->endElement(); // gen
-
-        // ── <bib> — Bibliographic metadata ───────────────────────────────────
-        $xw->startElement('bib');
-
-        // <identifier type="ISBN">
-        foreach (['isbn13', 'isbn10'] as $col) {
-            if (!empty($row[$col])) {
-                $xw->startElementNs('dc', 'identifier', null);
-                $xw->writeAttribute('type', 'ISBN');
-                $xw->text((string) $row[$col]);
-                $xw->endElement();
-                break;
-            }
+        // Digital object: prefer the pre-fetched asset (avoids N+1 on list
+        // verbs), else one query (GetRecord / direct MAG download); a bare
+        // libri.file_url is the legacy fallback.
+        if (array_key_exists('_digital_asset', $row)) {
+            $preAsset = $row['_digital_asset'];
+            $asset = is_array($preAsset) ? $preAsset : null;
+        } else {
+            $asset = $this->fetchDigitalAsset((int) $row['id']);
+        }
+        if ($asset === null && !empty($row['file_url'])) {
+            $asset = ['url' => (string) $row['file_url'], 'filetype' => 'PDF'];
         }
 
-        // <paese> — publication country (default IT)
-        $xw->writeElement('paese', 'IT');
+        // ── <gen> — General metadata (MAG 2.0.1: stprog, collection?, agency,
+        // access_rights, completeness). stprog/collection are URIs; a plain
+        // project code or collection name is kept as a comment.
+        $projectCode    = trim((string) ($magCfg['project_code'] ?? ''));
+        $collectionName = trim((string) ($magCfg['collection_name'] ?? ''));
+        $baseCfgUrl     = trim((string) ($magCfg['base_url'] ?? ''));
+        $rights         = trim((string) ($magCfg['rights_statement'] ?? ''));
+        $xw->startElement('gen');
+        if ($projectCode !== '' && !$this->isAbsoluteUri($projectCode)) {
+            $xw->writeComment(' project: ' . str_replace('--', '- -', $projectCode) . ' ');
+        }
+        $xw->writeElement('stprog', $this->isAbsoluteUri($projectCode)
+            ? $projectCode
+            : ($this->isAbsoluteUri($baseCfgUrl) ? $baseCfgUrl : absoluteUrl('/')));
+        if ($this->isAbsoluteUri($collectionName)) {
+            $xw->writeElement('collection', $collectionName);
+        } elseif ($collectionName !== '') {
+            $xw->writeComment(' collection: ' . str_replace('--', '- -', $collectionName) . ' ');
+        }
+        $xw->writeElement('agency', (string) ($magCfg['institution_code'] ?? 'IT-UNKNOWN'));
+        // 1 = public use, 0 = use restricted to the institution.
+        $xw->writeElement('access_rights', $this->isOpenRights($rights) ? '1' : '0');
+        // 0 = complete digitisation, 1 = incomplete (no digital object yet).
+        $xw->writeElement('completeness', $asset !== null ? '0' : '1');
+        $xw->endElement(); // gen
 
-        // <data_pub>
-        if (!empty($row['anno_pubblicazione'])) {
-            $xw->writeElement('data_pub', (string) $row['anno_pubblicazione']);
+        // ── <bib> — Bibliographic metadata: @level and Dublin Core only, in
+        // the order of the MAG schema's bib sequence.
+        $xw->startElement('bib');
+        $xw->writeAttribute('level', $this->isSerialRecord($row) ? 's' : 'm');
+
+        $identifiers = [];
+        foreach (['isbn13', 'isbn10'] as $col) {
+            if (!empty($row[$col])) {
+                $identifiers[] = (string) $row[$col];
+            }
+        }
+        $identifiers[] = (string) ($row['id'] ?? '');
+        foreach ($identifiers as $identifier) {
+            $xw->writeElementNs('dc', 'identifier', null, $identifier);
         }
 
         // Dublin Core title.
@@ -2392,19 +2576,13 @@ class OaiPmhServerPlugin
         $xw->writeElementNs('dc', 'title', null, $title);
 
         // Preserve creator/contributor semantics in the embedded Dublin Core.
+        $contributors = [];
         foreach ($authors as $a) {
             $role = (string) ($a['ruolo'] ?? '');
-            $element = in_array($role, ['principale', 'co-autore'], true) ? 'creator' : 'contributor';
-            $xw->writeElementNs('dc', $element, null, (string) $a['nome']);
-        }
-
-        // Fallback for contributors still held on the legacy free-text columns
-        // (not yet promoted to entities by the backfill) — mirrors oai_dc/marcxml
-        // so the MAG Dublin Core sub-record doesn't drop them mid-migration.
-        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
-        foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $col) {
-            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
-                $xw->writeElementNs('dc', 'contributor', null, (string) $row[$col]);
+            if (in_array($role, ['principale', 'co-autore'], true)) {
+                $xw->writeElementNs('dc', 'creator', null, (string) $a['nome']);
+            } else {
+                $contributors[] = (string) $a['nome'];
             }
         }
 
@@ -2414,70 +2592,139 @@ class OaiPmhServerPlugin
             }
         }
 
-        $xw->writeElementNs('dc', 'format', null, (string) ($row['formato'] ?? 'text'));
+        if ($genre !== null && !empty($genre['nome'])) {
+            $xw->writeElementNs('dc', 'subject', null, (string) $genre['nome']);
+        }
 
         $desc = !empty($row['descrizione_plain']) ? $row['descrizione_plain'] : ($row['descrizione'] ?? '');
         if ($desc !== '') {
             $xw->writeElementNs('dc', 'description', null, strip_tags((string) $desc));
         }
 
-        if ($genre !== null && !empty($genre['nome'])) {
-            $xw->writeElementNs('dc', 'subject', null, (string) $genre['nome']);
+        // Fallback for contributors still held on the legacy free-text columns
+        // (not yet promoted to entities by the backfill) — mirrors oai_dc/marcxml
+        // so the MAG Dublin Core sub-record doesn't drop them mid-migration.
+        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
+        foreach (['traduttore', 'illustratore', 'curatore'] as $col) {
+            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
+                $contributors[] = (string) $row[$col];
+            }
+        }
+        foreach ($contributors as $contributor) {
+            $xw->writeElementNs('dc', 'contributor', null, $contributor);
+        }
+
+        if (!empty($row['anno_pubblicazione'])) {
+            $xw->writeElementNs('dc', 'date', null, (string) $row['anno_pubblicazione']);
+        }
+
+        $xw->writeElementNs('dc', 'type', null, $this->dcmiType((string) ($row['tipo_media'] ?? 'libro')));
+
+        $xw->writeElementNs('dc', 'format', null, (string) ($row['formato'] ?? 'text'));
+
+        foreach ($this->languageList((string) ($row['lingua'] ?? '')) as $language) {
+            $xw->writeElementNs('dc', 'language', null, $this->languageCode($language) ?? $language);
+        }
+
+        // Place of publication as printed: the spatial coverage of the edition.
+        if (!empty($row['luogo_pubblicazione'])) {
+            $xw->writeElementNs('dc', 'coverage', null, (string) $row['luogo_pubblicazione']);
+        }
+
+        if ($rights !== '') {
+            $xw->writeElementNs('dc', 'rights', null, $rights);
         }
 
         $xw->endElement(); // bib
 
-        // ── <doc> — Digital file (from digital_assets table, if present) ───────
-        // Prefer pre-fetched asset from fetchRecordsPage (avoids N+1 on list verbs).
-        // Fall back to per-record query for GetRecord / direct MAG download endpoint.
-        if (array_key_exists('_digital_asset', $row)) {
-            $preAsset = $row['_digital_asset'];
-            $asset = is_array($preAsset) ? $preAsset : null;
-        } else {
-            $asset = $this->fetchDigitalAsset((int) $row['id']);
-        }
+        // ── <img>/<doc> — the digital file (sequence_number, nomenclature,
+        // file@xlink:href, md5, filesize, then the type-specific metrics and
+        // format). Images go to <img>, every other file type to <doc>.
         if ($asset !== null) {
-            $baseUrl = !empty($magCfg['base_url']) ? rtrim((string) $magCfg['base_url'], '/') : '';
-            $fileUrl = (string) $asset['url'];
+            $baseUrl = $baseCfgUrl !== '' ? rtrim($baseCfgUrl, '/') : '';
+            $fileUrl = (string) ($asset['url'] ?? '');
             if (!preg_match('/^https?:\/\//', $fileUrl) && $baseUrl !== '') {
                 $fileUrl = $baseUrl . '/' . ltrim($fileUrl, '/');
             }
-            $xw->startElement('doc');
-            $xw->startElement('defile');
+            [$formatName, $mime] = $this->magFileFormat((string) ($asset['filetype'] ?? 'PDF'));
+            $isImage = str_starts_with($mime, 'image/');
+            $md5     = strtolower(trim((string) ($asset['md5_hash'] ?? '')));
+            $size    = (int) ($asset['filesize'] ?? 0);
+
+            $xw->startElement($isImage ? 'img' : 'doc');
             $xw->writeElement('sequence_number', '1');
-            $xw->writeElement('file', $fileUrl);
-            $xw->writeElement('filesize', (string) ((int) ($asset['filesize'] ?? 0)));
-            $xw->writeElement('md5', (string) ($asset['md5_hash'] ?? ''));
-            $xw->writeElement('filetype', (string) ($asset['filetype'] ?? 'PDF'));
-            if ((int) ($asset['image_width'] ?? 0) > 0) {
-                $xw->writeElement('image_width', (string) (int) $asset['image_width']);
+            $nomenclature = basename((string) (parse_url($fileUrl, PHP_URL_PATH) ?: $fileUrl));
+            $xw->writeElement('nomenclature', $nomenclature !== '' ? $nomenclature : $title);
+            $xw->startElement('file');
+            $xw->writeAttributeNs('xlink', 'href', null, $fileUrl);
+            $xw->endElement(); // file
+            if (preg_match('/^[0-9a-f]{32}$/', $md5) === 1) {
+                $xw->writeElement('md5', $md5);
             }
-            if ((int) ($asset['image_height'] ?? 0) > 0) {
-                $xw->writeElement('image_height', (string) (int) $asset['image_height']);
+            if ($size > 0) {
+                $xw->writeElement('filesize', (string) $size);
             }
-            if ((int) ($asset['ppi'] ?? 0) > 0) {
-                $xw->writeElement('ppi', (string) (int) $asset['ppi']);
+            if ($isImage) {
+                $width  = (int) ($asset['image_width'] ?? 0);
+                $height = (int) ($asset['image_height'] ?? 0);
+                if ($width > 0 && $height > 0) {
+                    $xw->startElement('image_dimensions');
+                    $xw->writeElementNs('niso', 'imagelength', null, (string) $height);
+                    $xw->writeElementNs('niso', 'imagewidth', null, (string) $width);
+                    $xw->endElement(); // image_dimensions
+                }
+                if ((int) ($asset['ppi'] ?? 0) > 0) {
+                    $xw->writeElement('ppi', (string) (int) $asset['ppi']);
+                }
             }
-            $xw->endElement(); // defile
-            $xw->endElement(); // doc
-        } elseif (!empty($row['file_url'])) {
-            // Legacy fallback: file_url column (no digital_assets row)
-            $baseUrl = !empty($magCfg['base_url']) ? rtrim((string) $magCfg['base_url'], '/') : '';
-            $fileUrl = (string) $row['file_url'];
-            if (!preg_match('/^https?:\/\//', $fileUrl) && $baseUrl !== '') {
-                $fileUrl = $baseUrl . '/' . ltrim($fileUrl, '/');
-            }
-            $xw->startElement('doc');
-            $xw->startElement('defile');
-            $xw->writeElement('sequence_number', '1');
-            $xw->writeElement('file', $fileUrl);
-            $xw->writeElement('filesize', '0');
-            $xw->writeElement('filetype', 'PDF');
-            $xw->endElement(); // defile
-            $xw->endElement(); // doc
+            $xw->startElement('format');
+            $xw->writeElement('name', $formatName);
+            $xw->writeElement('mime', $mime);
+            $xw->endElement(); // format
+            $xw->endElement(); // img / doc
         }
 
         $xw->endElement(); // metadigit
+    }
+
+    /** True for an absolute URI (scheme:...), the shape MAG's anyURI fields expect here. */
+    private function isAbsoluteUri(string $value): bool
+    {
+        return preg_match('/^[a-z][a-z0-9+.-]*:\S+$/i', $value) === 1;
+    }
+
+    /** Whether a rights statement grants public use (MAG gen/access_rights = 1). */
+    private function isOpenRights(string $rights): bool
+    {
+        $r = strtolower($rights);
+        foreach (['public domain', 'pubblico dominio', 'no copyright', 'creativecommons.org', 'cc0', 'cc by', 'cc-by'] as $open) {
+            if (str_contains($r, $open)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * MAG format/name and format/mime for a digital_assets.filetype value.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function magFileFormat(string $filetype): array
+    {
+        return match (strtoupper(trim($filetype))) {
+            'JPG', 'JPEG' => ['JPG', 'image/jpeg'],
+            'TIF', 'TIFF' => ['TIF', 'image/tiff'],
+            'PNG'         => ['PNG', 'image/png'],
+            'GIF'         => ['GIF', 'image/gif'],
+            'JP2'         => ['JP2', 'image/jp2'],
+            'EPUB'        => ['EPUB', 'application/epub+zip'],
+            'DJVU'        => ['DJVU', 'image/vnd.djvu'],
+            'TXT'         => ['TXT', 'text/plain'],
+            'XML'         => ['XML', 'text/xml'],
+            'HTML', 'HTM' => ['HTML', 'text/html'],
+            default       => ['PDF', 'application/pdf'],
+        };
     }
 
     // ── Archival unit metadata (delegates to archives plugin formats) ─────────
@@ -2501,7 +2748,10 @@ class OaiPmhServerPlugin
                 'http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd');
 
             $xw->writeElementNs('dc', 'title', null, (string) ($rec['constructed_title'] ?? $rec['formal_title'] ?? ''));
-            $xw->writeElementNs('dc', 'type', null, 'Archival Unit');
+            // DCMI Type: an aggregation level (fonds, series, ...) is a
+            // Collection; a single file or item is described as Text.
+            $level = strtolower((string) ($rec['level'] ?? 'fonds'));
+            $xw->writeElementNs('dc', 'type', null, in_array($level, ['file', 'item'], true) ? 'Text' : 'Collection');
             if (!empty($rec['reference_code'])) {
                 $xw->writeElementNs('dc', 'identifier', null, (string) $rec['reference_code']);
             }
@@ -2641,7 +2891,7 @@ class OaiPmhServerPlugin
         $stmt = $this->db->prepare(
             'SELECT id, level, constructed_title, formal_title
                FROM archival_units
-              WHERE parent_id = ? AND deleted_at IS NULL
+              WHERE parent_id = ? AND deleted_at IS NULL' . $this->archivalPublishedSql() . '
               ORDER BY reference_code'
         );
         if (!$stmt) {
@@ -2799,6 +3049,7 @@ class OaiPmhServerPlugin
 
         // dc:type — generic serial type first (harvester-facing), then the
         // local flavour (rivista / giornale / magazine / bollettino / fanzine).
+        $xw->writeElementNs('dc', 'type', null, 'Text'); // DCMI Type Vocabulary
         $xw->writeElementNs('dc', 'type', null, 'Periodical');
         $tipo = trim((string) ($row['tipo'] ?? ''));
         if ($tipo !== '') {
@@ -2837,7 +3088,7 @@ class OaiPmhServerPlugin
     }
 
     /**
-     * Absolute URL of the public masthead page (/emeroteca/{id}). Prefers
+     * Absolute URL of the public masthead page (/emeroteca/{id}, localized). Prefers
      * absoluteUrl() (canonical base, same source the RiC-O writer uses) and
      * degrades to the OAI request host when the helper is unavailable
      * (plugin loaded standalone, e.g. from a bare CLI harvester).
@@ -2847,8 +3098,13 @@ class OaiPmhServerPlugin
         if ($id <= 0) {
             return '';
         }
+        // The section's localized base ('periodicals' route key); the
+        // historical /emeroteca still answers when the core is not loaded.
+        $section = class_exists(\App\Support\RouteTranslator::class)
+            ? \App\Support\RouteTranslator::route('periodicals')
+            : '/emeroteca';
         if (function_exists('absoluteUrl')) {
-            $url = (string) \absoluteUrl('/emeroteca/' . $id);
+            $url = (string) \absoluteUrl($section . '/' . $id);
             if ($url !== '') {
                 return $url;
             }
@@ -2858,7 +3114,7 @@ class OaiPmhServerPlugin
         }
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 
-        return $scheme . '://' . $host . '/emeroteca/' . $id;
+        return $scheme . '://' . $host . $section . '/' . $id;
     }
 
     // ── Identifier resolution ─────────────────────────────────────────────────
@@ -2959,6 +3215,17 @@ class OaiPmhServerPlugin
             $row = $res->fetch_assoc();
             $res->free();
             if ($row !== null) {
+                // Taken off the site (Archives' "published" flag): harvesters
+                // learn it as a deletion, as for a withdrawn book.
+                if ($this->archivalPublishedSql() !== '' && (int) ($row['published'] ?? 1) !== 1) {
+                    return [
+                        '_entity'    => 'archival_unit',
+                        '_status'    => 'deleted',
+                        'entity_id'  => (int) $row['id'],
+                        'datestamp'  => $row['updated_at'] ?? null,
+                        '_datestamp' => $row['updated_at'] ?? null,
+                    ];
+                }
                 $row['_entity'] = 'archival_unit';
                 $row['_status'] = 'active';
                 return $row;
@@ -3082,6 +3349,30 @@ class OaiPmhServerPlugin
         }
 
         return $this->periodicalTombstoneTableCache = $exists;
+    }
+
+    /** Cached probe for archival_units.published (Archives 1.5.2+). */
+    private ?bool $archivalPublishedColumnExists = null;
+
+    /**
+     * SQL that keeps only the archival units published on the site, or ''
+     * when the installed Archives version has no publication flag yet.
+     */
+    private function archivalPublishedSql(string $alias = ''): string
+    {
+        if ($this->archivalPublishedColumnExists === null) {
+            $exists = false;
+            if ($this->hasArchivalUnitsTable()) {
+                $r = $this->db->query(
+                    "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units' AND COLUMN_NAME = 'published'"
+                );
+                $exists = $r instanceof \mysqli_result && ((int) ($r->fetch_assoc()['c'] ?? 0)) > 0;
+                if ($r instanceof \mysqli_result) { $r->free(); }
+            }
+            $this->archivalPublishedColumnExists = $exists;
+        }
+        return $this->archivalPublishedColumnExists ? ' AND ' . $alias . 'published = 1' : '';
     }
 
     /** Cached INFORMATION_SCHEMA probe for archival_units. */
@@ -3279,7 +3570,12 @@ class OaiPmhServerPlugin
             $w = ['deleted_at IS NULL'];
             if ($fromMysql !== null)  { $w[] = 'updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
-            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, \'active\' AS _status, updated_at AS _datestamp,'
+            // An unpublished unit is listed as deleted, so a harvester that
+            // took it while it was public drops it (deletedRecord persistent).
+            $auStatus = $this->archivalPublishedSql() !== ''
+                ? 'IF(published = 1, \'active\', \'deleted\')'
+                : '\'active\'';
+            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, ' . $auStatus . ' AS _status, updated_at AS _datestamp,'
                 . ' \'archival_units\' AS _source'
                 . ' FROM archival_units WHERE ' . implode(' AND ', $w);
         }
@@ -3381,7 +3677,8 @@ class OaiPmhServerPlugin
                            l.descrizione, l.descrizione_plain, l.parole_chiave,
                            l.traduttore, l.illustratore, l.curatore, l.collana,
                            l.numero_serie, l.classificazione_dewey, l.file_url,
-                           l.edizione, l.created_at, l.updated_at
+                           l.edizione, l.luogo_pubblicazione, l.dimensioni,
+                           l.created_at, l.updated_at
                       FROM libri l WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . " AND l.id IN ($ph)";
             $stmt = $this->db->prepare($sql);
             if ($stmt !== false) {
@@ -3708,6 +4005,15 @@ class OaiPmhServerPlugin
                     'datestamp'  => $ref['_datestamp'],
                     '_datestamp' => $ref['_datestamp'],
                 ];
+            } elseif ($ref['_status'] === 'deleted' && $source === 'archival_units') {
+                // Unpublished archival unit: header only, like a de-listed book.
+                $result[] = [
+                    '_entity'    => 'archival_unit',
+                    '_status'    => 'deleted',
+                    'entity_id'  => $id,
+                    'datestamp'  => $ref['_datestamp'],
+                    '_datestamp' => $ref['_datestamp'],
+                ];
             } elseif ($ref['_status'] === 'deleted') {
                 $tomb = $source === 'oai_deleted_periodicals'
                     ? ($perDelMap[$id] ?? null)
@@ -4000,22 +4306,110 @@ class OaiPmhServerPlugin
     }
 
     /**
-     * Convert common language name/code to ISO 639-2/B three-letter MARC code.
+     * Convert common language name/code to ISO 639-2/B three-letter MARC code
+     * ('und' when unknown). A multi-language value uses its first language.
      */
     private function iso639_3ToMarc(string $lang): string
     {
-        $map = [
-            'italiano' => 'ita', 'italian' => 'ita',
-            'english'  => 'eng', 'inglese' => 'eng',
-            'français' => 'fre', 'francese' => 'fre', 'french' => 'fre',
-            'deutsch'  => 'ger', 'tedesco' => 'ger', 'german' => 'ger',
-            'español'  => 'spa', 'spagnolo' => 'spa', 'spanish' => 'spa',
-            'português'=> 'por', 'portoghese' => 'por', 'portuguese' => 'por',
-            'ita' => 'ita', 'eng' => 'eng', 'fre' => 'fre', 'ger' => 'ger',
-            'spa' => 'spa', 'por' => 'por', 'lat' => 'lat', 'grc' => 'grc',
+        $first = $this->languageList($lang)[0] ?? '';
+        return $this->languageCode($first) ?? 'und';
+    }
+
+    /**
+     * ISO 639-2/B code for one stored language (Italian/English/native name,
+     * ISO 639-1 or 639-2 code), or null when it is not recognised.
+     */
+    private function languageCode(string $lang): ?string
+    {
+        static $map = [
+            'italiano' => 'ita', 'italian' => 'ita', 'it' => 'ita', 'ita' => 'ita',
+            'inglese' => 'eng', 'english' => 'eng', 'en' => 'eng', 'eng' => 'eng',
+            'francese' => 'fre', 'français' => 'fre', 'french' => 'fre', 'fr' => 'fre', 'fre' => 'fre', 'fra' => 'fre',
+            'tedesco' => 'ger', 'deutsch' => 'ger', 'german' => 'ger', 'de' => 'ger', 'ger' => 'ger', 'deu' => 'ger',
+            'spagnolo' => 'spa', 'español' => 'spa', 'spanish' => 'spa', 'es' => 'spa', 'spa' => 'spa',
+            'portoghese' => 'por', 'português' => 'por', 'portuguese' => 'por', 'pt' => 'por', 'por' => 'por',
+            'danese' => 'dan', 'dansk' => 'dan', 'danish' => 'dan', 'da' => 'dan', 'dan' => 'dan',
+            'olandese' => 'dut', 'nederlands' => 'dut', 'dutch' => 'dut', 'nl' => 'dut', 'dut' => 'dut', 'nld' => 'dut',
+            'svedese' => 'swe', 'svenska' => 'swe', 'swedish' => 'swe', 'sv' => 'swe', 'swe' => 'swe',
+            'norvegese' => 'nor', 'norsk' => 'nor', 'norwegian' => 'nor', 'no' => 'nor', 'nor' => 'nor',
+            'russo' => 'rus', 'russian' => 'rus', 'ru' => 'rus', 'rus' => 'rus',
+            'polacco' => 'pol', 'polski' => 'pol', 'polish' => 'pol', 'pl' => 'pol', 'pol' => 'pol',
+            'greco' => 'gre', 'greek' => 'gre', 'el' => 'gre', 'gre' => 'gre', 'ell' => 'gre',
+            'greco antico' => 'grc', 'grc' => 'grc',
+            'latino' => 'lat', 'latin' => 'lat', 'la' => 'lat', 'lat' => 'lat',
+            'cinese' => 'chi', 'chinese' => 'chi', 'zh' => 'chi', 'chi' => 'chi', 'zho' => 'chi',
+            'giapponese' => 'jpn', 'japanese' => 'jpn', 'ja' => 'jpn', 'jpn' => 'jpn',
+            'arabo' => 'ara', 'arabic' => 'ara', 'ar' => 'ara', 'ara' => 'ara',
+            'catalano' => 'cat', 'català' => 'cat', 'catalan' => 'cat', 'ca' => 'cat', 'cat' => 'cat',
         ];
-        $key = strtolower(trim($lang));
-        return $map[$key] ?? 'und';
+        $key = mb_strtolower(trim($lang));
+        return $map[$key] ?? null;
+    }
+
+    /**
+     * The individual languages of a stored lingua value ("italiano, inglese").
+     *
+     * @return list<string>
+     */
+    private function languageList(string $lang): array
+    {
+        $parts = preg_split('/\s*[,;\/]\s*/', trim($lang)) ?: [];
+        return array_values(array_filter(array_map('trim', $parts), static fn (string $p): bool => $p !== ''));
+    }
+
+    /** DCMI Type Vocabulary term for a libri.tipo_media value. */
+    private function dcmiType(string $tipoMedia): string
+    {
+        return match (strtolower(trim($tipoMedia))) {
+            'audiolibro', 'disco', 'cd', 'audio', 'vinile' => 'Sound',
+            'dvd', 'video', 'bluray', 'blu-ray'            => 'MovingImage',
+            'immagine', 'image', 'foto', 'stampa'          => 'Image',
+            'fondo', 'collection'                          => 'Collection',
+            default                                        => 'Text',
+        };
+    }
+
+    /** Whether a libri row describes a serial (MARC bibliographic level 's'). */
+    private function isSerialRecord(array $row): bool
+    {
+        return in_array(strtolower((string) ($row['tipo_media'] ?? '')), ['periodical', 'serial', 'periodico', 'rivista'], true);
+    }
+
+    /**
+     * MARC 21 008 for books/serials: exactly 40 positions (same layout as the
+     * Z39.50 server's MARCXMLFormatter::generateField008()).
+     *   00-05 date entered (YYMMDD), 06 date type, 07-10 date 1, 11-14 date 2,
+     *   15-17 place of publication, 35-37 language, 39 cataloguing source.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function marc21Field008(array $row): string
+    {
+        $field = str_repeat(' ', 40);
+        $created = strtotime((string) ($row['created_at'] ?? '')) ?: time();
+        $field = substr_replace($field, date('ymd', $created), 0, 6);
+
+        $isSerial = $this->isSerialRecord($row);
+        $field = substr_replace($field, $isSerial ? 'c' : 's', 6, 1);
+
+        $year = trim((string) ($row['anno_pubblicazione'] ?? ''));
+        if ($year !== '' && ctype_digit($year) && strlen($year) <= 4) {
+            $field = substr_replace($field, str_pad($year, 4, '0', STR_PAD_LEFT), 7, 4);
+        }
+        if ($isSerial) {
+            // Continuing resource still published: date 2 = 9999.
+            $field = substr_replace($field, '9999', 11, 4);
+        }
+
+        // Place of publication unknown/unspecified.
+        $field = substr_replace($field, 'xx ', 15, 3);
+
+        if (trim((string) ($row['lingua'] ?? '')) !== '') {
+            $field = substr_replace($field, $this->iso639_3ToMarc((string) $row['lingua']), 35, 3);
+        }
+
+        // 39 — cataloguing source: 'd' (other than a national agency).
+        return substr_replace($field, 'd', 39, 1);
     }
 
     private function oaiError(\XMLWriter $xw, string $code, string $message): void
@@ -4112,12 +4506,12 @@ class OaiPmhServerPlugin
     /**
      * Require admin or staff via session or HTTP Basic Auth.
      *
-     * RFC 7235 compliant:
-     * - No credentials supplied: 401 + WWW-Authenticate (challenge the client)
-     * - Credentials supplied but invalid: 403 (forbidden)
+     * RFC 7235 compliant: missing or invalid credentials answer 401 with a
+     * WWW-Authenticate challenge; more than 10 Basic attempts per IP in
+     * 300 s answer 429 (Retry-After) before the password is even checked.
      *
      * @param ResponseInterface       $response template response
-     * @param ResponseInterface|null  &$out     set to 401 or 403 on failure
+     * @param ResponseInterface|null  &$out     set to 401 or 429 on failure
      * @param ServerRequestInterface|null $request used for Basic Auth header
      */
     private function requireAdminForDownload(
@@ -4133,20 +4527,28 @@ class OaiPmhServerPlugin
         }
 
         $auth = $request !== null ? $request->getHeaderLine('Authorization') : '';
-        if ($auth !== '' && str_starts_with($auth, 'Basic ')) {
+        if ($request !== null && $auth !== '' && str_starts_with($auth, 'Basic ')) {
+            // Throttle credential guessing per client IP, checked BEFORE the
+            // password (same 10 attempts / 300 s as the ResourceSync gate and
+            // the mobile login): every attempt counts toward the limit.
+            $ip   = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+            $rlId = 'oai_unimarc_basic:' . $ip;
+            if (\App\Support\RateLimiter::isLimited($rlId, 10, 300)) {
+                $out = $response->withStatus(429)->withHeader('Retry-After', '300');
+                return false;
+            }
             $decoded = base64_decode(substr($auth, 6), true);
             if ($decoded !== false) {
                 $parts = explode(':', $decoded, 2);
                 if (count($parts) === 2 && $this->authenticateBasicOai($parts[0], $parts[1])) {
+                    // Successful auth clears the throttle for this IP.
+                    \App\Support\RateLimiter::reset($rlId);
                     return true;
                 }
             }
-            // Credentials present but invalid
-            $out = $response->withStatus(403);
-            return false;
         }
 
-        // No credentials provided — challenge the client (RFC 7235 §3.1)
+        // Missing or invalid credentials — challenge the client (RFC 7235 §3.1)
         $out = $response->withStatus(401)->withHeader('WWW-Authenticate', 'Basic realm="OAI-PMH"');
         return false;
     }
@@ -4163,7 +4565,13 @@ class OaiPmhServerPlugin
         $res  = $stmt->get_result();
         $row  = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
         $stmt->close();
-        return $row !== null && password_verify($pass, (string) $row['password']);
+        if ($row === null) {
+            // Constant-time dummy verify: an unknown admin/staff email costs
+            // the same bcrypt work as a wrong password (no enumeration oracle).
+            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            return false;
+        }
+        return password_verify($pass, (string) $row['password']);
     }
 
     /**
@@ -4209,86 +4617,17 @@ class OaiPmhServerPlugin
         // Control fields (001-009): ind1/ind2 = null
         /** @var list<array{0:string,1:string|null,2:string|null,3:string}> $fields */
         $fields = [];
-
-        $fields[] = ['001', null, null, (string) ($row['id'] ?? '')];
-        $fields[] = ['003', null, null, absoluteUrl('/')];
-        $fields[] = ['005', null, null, gmdate('YmdHis') . '.0'];
-
-        $langCode = $this->iso639_3ToMarc((string) ($row['lingua'] ?? 'italiano'));
-        $year     = (string) ($row['anno_pubblicazione'] ?? '');
-        $date1    = (strlen($year) === 4 && ctype_digit($year)) ? $year : '    ';
-        $f100core = gmdate('Ymd') . '1' . $date1 . '    ' . '0000ba' . $langCode;
-        $fields[] = ['100', ' ', ' ', $SF . 'a' . str_pad($f100core, 36)];
-
-        foreach (['isbn13', 'isbn10', 'ean'] as $col) {
-            if (!empty($row[$col])) {
-                $fields[] = ['010', ' ', ' ', $SF . 'a' . (string) $row[$col]];
-                break;
+        foreach ($this->unimarcFields($row, $authors, $publishers, $genre) as [$tag, $ind1, $ind2, $data]) {
+            if (is_string($data)) {
+                $fields[] = [$tag, null, null, $data];
+                continue;
             }
-        }
-
-        $fields[] = ['101', '0', ' ', $SF . 'a' . $langCode];
-        $fields[] = ['102', ' ', ' ', $SF . 'a' . 'IT'];
-
-        $d200 = $SF . 'a' . (string) ($row['titolo'] ?? '');
-        if (!empty($row['sottotitolo'])) { $d200 .= $SF . 'e' . (string) $row['sottotitolo']; }
-        $primaryCreatorIndex = $this->primaryCreatorIndex($authors);
-        if ($primaryCreatorIndex !== null) {
-            $d200 .= $SF . 'f' . (string) $authors[$primaryCreatorIndex]['nome'];
-        }
-        $fields[] = ['200', '1', ' ', $d200];
-
-        if (!empty($row['edizione'])) {
-            $fields[] = ['205', ' ', ' ', $SF . 'a' . (string) $row['edizione']];
-        }
-
-        $d210 = '';
-        foreach ($publishers as $pub) {
-            if (!empty($pub['nome'])) {
-                $d210 .= $SF . 'c' . (string) $pub['nome']; // $c repeatable
+            $encoded = '';
+            foreach ($data as [$code, $value]) {
+                $encoded .= $SF . $code . $value;
             }
+            $fields[] = [$tag, $ind1, $ind2, $encoded];
         }
-        if ($year !== '') { $d210 .= $SF . 'd' . $year; }
-        if ($d210 !== '') { $fields[] = ['210', ' ', ' ', $d210]; }
-
-        if (!empty($row['numero_pagine'])) {
-            $fields[] = ['215', ' ', ' ', $SF . 'a' . (string) $row['numero_pagine'] . ' p.'];
-        }
-
-        $desc = !empty($row['descrizione_plain']) ? (string) $row['descrizione_plain']
-                                                  : (string) ($row['descrizione'] ?? '');
-        if ($desc !== '') {
-            $fields[] = ['330', ' ', ' ', $SF . 'a' . strip_tags($desc)];
-        }
-
-        if ($genre !== null && !empty($genre['nome'])) {
-            $fields[] = ['606', ' ', ' ', $SF . 'a' . (string) $genre['nome']];
-        }
-
-        if (!empty($row['parole_chiave'])) {
-            foreach (explode(',', (string) $row['parole_chiave']) as $kw) {
-                $kw = trim($kw);
-                if ($kw !== '') { $fields[] = ['606', ' ', ' ', $SF . 'a' . $kw]; }
-            }
-        }
-
-        $relMap = ['traduttore' => '730', 'curatore' => '340', 'illustratore' => '440', 'colorista' => '410'];
-        foreach ($authors as $index => $a) {
-            $role = (string) ($a['ruolo'] ?? '');
-            $isCreator = in_array($role, ['principale', 'co-autore'], true);
-            $tag = $isCreator ? ($index === $primaryCreatorIndex ? '700' : '701') : '702';
-            $rel = $relMap[$role] ?? '070';
-            $fields[] = [$tag, '0', ' ', $SF . 'a' . (string) $a['nome'] . $SF . '4' . $rel];
-        }
-
-        if (!empty($row['collana'])) {
-            $d225 = $SF . 'a' . (string) $row['collana'];
-            if (!empty($row['numero_serie'])) { $d225 .= $SF . 'v' . (string) $row['numero_serie']; }
-            $fields[] = ['225', '0', ' ', $d225];
-        }
-
-        $fields[] = ['801', ' ', '0',
-            $SF . 'a' . 'IT' . $SF . 'b' . 'Pinakes' . $SF . 'c' . gmdate('Ymd')];
 
         // ── Build directory and field data section ─────────────────────────────
         $directory = '';
@@ -4308,35 +4647,12 @@ class OaiPmhServerPlugin
         $baseAddr     = 24 + strlen($directory);
         $recordLength = $baseAddr + strlen($fieldData) + 1; // +1 for record terminator
 
-        // FIX F065: UNIMARC leader was inconsistent between MARCXML and binary
-        // (ISO 2709) serializations:
-        //   - MARCXML (line ~1339): "00000nam a2200000 u 4500"  ← correct
-        //   - binary (this fn):     "00000nam  2200000   4500"  ← missing
-        //     character coding scheme at pos 9 ('a' = UCS/Unicode) and the
-        //     descriptive cataloguing form at pos 18 ('u' = UNIMARC base level).
-        //
-        // UNIMARC leader layout (24 bytes total):
-        //   00-04  Record length      (5 digits)
-        //   05     Record status      'n'  (new)
-        //   06     Type of record     'a'  (printed language material)
-        //   07     Bibliographic level 'm'  (monograph)
-        //   08-09  Implementation     '  ' (two blanks)
-        //   10     Indicator count    '2'
-        //   11     Subfield code len  '2'
-        //   12-16  Base address       (5 digits)
-        //   17     Encoding level     ' '  (full level)
-        //   18     Descriptive form   'u'  (UNIMARC, IFLA 2008)
-        //   19     Reserved           ' '
-        //   20-23  Entry map          '4500'
-        //
-        // The XML and binary leaders now match exactly (modulo length & base
-        // address fields, which obviously differ); preserves backward compat
-        // with the existing `nam` prefix that test 14 verifies, and adds the
-        // missing 'a' + 'u' that strict UNIMARC validators expect.
+        // Same leader as the MARCXchange record (UNIMARC_LEADER_TEMPLATE),
+        // with the record length (00-04) and base address (12-16) filled in.
         $leader = sprintf('%05d', $recordLength)
-            . 'nam a22'
+            . substr(self::UNIMARC_LEADER_TEMPLATE, 5, 7)
             . sprintf('%05d', $baseAddr)
-            . ' u 4500';
+            . substr(self::UNIMARC_LEADER_TEMPLATE, 17);
 
         return $leader . $directory . $fieldData . $RT;
     }

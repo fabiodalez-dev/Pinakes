@@ -38,6 +38,19 @@ class ResourceSyncPlugin
     {
         $this->db          = $db;
         $this->hookManager = $hookManager;
+
+        // HookManager::doAction() builds the request-serving instance with
+        // `new $class($db, $hookManager)` and never calls setPluginId(), so
+        // without this lookup getSetting() always returned its default and
+        // the opt-in Basic Auth gate could never engage.
+        try {
+            $result = $db->query("SELECT id FROM plugins WHERE name = 'resource-sync' LIMIT 1");
+            if ($result instanceof \mysqli_result && ($row = $result->fetch_assoc()) !== null) {
+                $this->pluginId = (int) $row['id'];
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[ResourceSync] plugin id lookup failed: ' . $e->getMessage());
+        }
     }
 
     public function setPluginId(int $pluginId): void
@@ -187,8 +200,8 @@ class ResourceSyncPlugin
      *
      * Returns true when the request is allowed to proceed. When the
      * `require_basic_auth` setting is enabled, validates an admin/staff session
-     * or HTTP Basic Auth header; otherwise sets `$out` to a 401 challenge or 403
-     * response (RFC 7235 §3.1) and returns false. When the setting is disabled
+     * or HTTP Basic Auth header; otherwise sets `$out` to a 401 challenge
+     * (RFC 7235 §3.1) or a 429 throttle response and returns false. When the setting is disabled
      * (default), this is a no-op — preserving ResourceSync spec compliance.
      *
      * @internal Called from route closures; public for closure visibility only.
@@ -234,12 +247,10 @@ class ResourceSyncPlugin
                     return true;
                 }
             }
-            // Credentials present but invalid
-            $out = $response->withStatus(403);
-            return false;
         }
 
-        // No credentials provided — challenge the client
+        // Missing, malformed or wrong credentials: RFC 7235 §3.1 — a 401 with
+        // a fresh challenge, never 403 (which tells the client not to retry).
         $out = $response
             ->withStatus(401)
             ->withHeader('WWW-Authenticate', 'Basic realm="ResourceSync"');
@@ -329,10 +340,17 @@ class ResourceSyncPlugin
         ResponseInterface $response
     ): ResponseInterface {
         $base   = $this->baseUrl();
-        $params = $request->getQueryParams();
-        $page   = max(0, (int) ($params['page'] ?? 0));
-        $books  = $this->fetchBooks($page);
-        $xml    = $this->buildResourceList($base, $books, $page);
+        $pages  = $this->pageCount($this->countBooks());
+        $page   = $this->requestedPage($request->getQueryParams());
+        if ($page === null && $pages > 1) {
+            // ResourceSync 1.1 §10.2: a list too large for one document is
+            // published as a Resource List Index that points at its parts.
+            $xml = $this->buildListIndex($base, 'resourcelist', '/resync/resourcelist.xml', $pages, null, null);
+            return $this->xmlResponse($response, $xml);
+        }
+        $page  = $page ?? 1;
+        $books = $this->fetchBooks($page);
+        $xml   = $this->buildResourceList($base, $books, $page, $pages > 1);
         return $this->xmlResponse($response, $xml);
     }
 
@@ -342,15 +360,78 @@ class ResourceSyncPlugin
     ): ResponseInterface {
         $base   = $this->baseUrl();
         $params = $request->getQueryParams();
-        $sinceRaw = isset($params['from']) ? (string) $params['from'] : null;
-        $page     = max(0, (int) ($params['page'] ?? 0));
-        // Normalize $since so the XML from-attribute matches what the DB actually used
-        $since = ($sinceRaw !== null && preg_match('/^\d{4}-\d{2}-\d{2}(T[\d:]+Z?)?$/', $sinceRaw))
-            ? $sinceRaw
-            : null;
-        $books  = $this->fetchChangedBooks($since, $page);
-        $xml    = $this->buildChangeList($base, $books, $since, $page);
+        // `from` is a W3C datetime in UTC, the columns hold local time: the
+        // bound value is the same instant expressed in the app timezone.
+        $sinceUtc   = $this->parseUtcDatetime(isset($params['from']) ? (string) $params['from'] : null);
+        $sinceParam = $sinceUtc?->format('Y-m-d\TH:i:s\Z');
+        $sinceLocal = $sinceUtc?->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('Y-m-d H:i:s');
+
+        [$total, $earliestLocal] = $this->changedBooksSummary($sinceLocal);
+        // rs:md/@from is always present: the requested boundary when there is
+        // one, otherwise the earliest boundary the unfiltered query reached.
+        $from  = $sinceParam ?? $this->localToW3cUtc($earliestLocal);
+        $pages = $this->pageCount($total);
+        $page  = $this->requestedPage($params);
+        if ($page === null && $pages > 1) {
+            $xml = $this->buildListIndex($base, 'changelist', '/resync/changelist.xml', $pages, $from, $sinceParam);
+            return $this->xmlResponse($response, $xml);
+        }
+        $page  = $page ?? 1;
+        $books = $this->fetchChangedBooks($sinceLocal, $page);
+        $xml   = $this->buildChangeList($base, $books, $from, $sinceParam, $page, $pages > 1);
         return $this->xmlResponse($response, $xml);
+    }
+
+    /**
+     * The 1-based part requested with `?page=N`, or null when the client asked
+     * for the list itself (which may be an index).
+     *
+     * @param array<string, mixed> $params
+     */
+    private function requestedPage(array $params): ?int
+    {
+        if (!isset($params['page']) || !is_scalar($params['page'])) {
+            return null;
+        }
+        return max(1, (int) $params['page']);
+    }
+
+    private function pageCount(int $total): int
+    {
+        return max(1, (int) ceil($total / self::PAGE_SIZE));
+    }
+
+    /**
+     * Parse a ResourceSync `from` value (W3C datetime, UTC) into a UTC instant.
+     * Returns null for anything that is not a date or date-time.
+     */
+    private function parseUtcDatetime(?string $raw): ?\DateTimeImmutable
+    {
+        if ($raw === null || !preg_match('/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?Z?)?$/', $raw)) {
+            return null;
+        }
+        try {
+            $utc = new \DateTimeZone('UTC');
+            return (new \DateTimeImmutable(rtrim($raw, 'Z'), $utc))->setTimezone($utc);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** A local-time DB datetime as a W3C UTC datetime (now when empty). */
+    private function localToW3cUtc(?string $local): string
+    {
+        $utc = new \DateTimeZone('UTC');
+        if ($local === null || $local === '' || $local === '0000-00-00 00:00:00') {
+            return (new \DateTimeImmutable('now', $utc))->format('Y-m-d\TH:i:s\Z');
+        }
+        try {
+            return (new \DateTimeImmutable($local, new \DateTimeZone(date_default_timezone_get())))
+                ->setTimezone($utc)
+                ->format('Y-m-d\TH:i:s\Z');
+        } catch (\Throwable) {
+            return (new \DateTimeImmutable('now', $utc))->format('Y-m-d\TH:i:s\Z');
+        }
     }
 
     // ─── XML builders ─────────────────────────────────────────────────────────
@@ -454,9 +535,56 @@ class ResourceSyncPlugin
     }
 
     /**
+     * Resource List Index / Change List Index (ResourceSync 1.1 §10.2, §12.2):
+     * a <sitemapindex> whose <sitemap> entries are the 1-based parts.
+     */
+    private function buildListIndex(
+        string $base,
+        string $capability,
+        string $path,
+        int $pages,
+        ?string $from,
+        ?string $sinceParam
+    ): string {
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->setIndentString('  ');
+        $xw->startDocument('1.0', 'UTF-8');
+
+        $xw->startElementNs(null, 'sitemapindex', self::SM_NS);
+        $xw->writeAttribute('xmlns:rs', self::RS_NS);
+
+        $xw->startElementNs('rs', 'md', null);
+        $xw->writeAttribute('capability', $capability);
+        $xw->writeAttribute('at', gmdate('c'));
+        if ($from !== null) {
+            $xw->writeAttribute('from', $from);
+        }
+        $xw->endElement();
+
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'up');
+        $xw->writeAttribute('href', $base . '/resync/capabilitylist.xml');
+        $xw->endElement();
+
+        $sinceQuery = $sinceParam !== null ? '&from=' . rawurlencode($sinceParam) : '';
+        for ($n = 1; $n <= $pages; $n++) {
+            $xw->startElement('sitemap');
+            $xw->writeElement('loc', $base . $path . '?page=' . $n . $sinceQuery);
+            $xw->endElement();
+        }
+
+        $xw->endElement(); // sitemapindex
+        $xw->endDocument();
+
+        return (string) $xw->outputMemory();
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $books
      */
-    private function buildResourceList(string $base, array $books, int $page = 0): string
+    private function buildResourceList(string $base, array $books, int $page, bool $indexed): string
     {
         $xw = new \XMLWriter();
         $xw->openMemory();
@@ -472,11 +600,11 @@ class ResourceSyncPlugin
         $xw->writeAttribute('at', gmdate('c'));
         $xw->endElement();
 
-        // rs:ln rel="self" — canonical URL of this document (page-aware)
-        $selfHref = $base . '/resync/resourcelist.xml' . ($page > 0 ? '?page=' . $page : '');
+        $listUrl = $base . '/resync/resourcelist.xml';
+        // rs:ln rel="self" — canonical URL of this document (part-aware)
         $xw->startElementNs('rs', 'ln', null);
         $xw->writeAttribute('rel', 'self');
-        $xw->writeAttribute('href', $selfHref);
+        $xw->writeAttribute('href', $indexed ? $listUrl . '?page=' . $page : $listUrl);
         $xw->endElement();
 
         $xw->startElementNs('rs', 'ln', null);
@@ -484,16 +612,11 @@ class ResourceSyncPlugin
         $xw->writeAttribute('href', $base . '/resync/capabilitylist.xml');
         $xw->endElement();
 
-        if ($page > 0) {
+        if ($indexed) {
+            // A part of a Resource List points back at its index (§10.2).
             $xw->startElementNs('rs', 'ln', null);
-            $xw->writeAttribute('rel', 'prev');
-            $xw->writeAttribute('href', $base . '/resync/resourcelist.xml?page=' . ($page - 1));
-            $xw->endElement();
-        }
-        if (count($books) === self::PAGE_SIZE) {
-            $xw->startElementNs('rs', 'ln', null);
-            $xw->writeAttribute('rel', 'next');
-            $xw->writeAttribute('href', $base . '/resync/resourcelist.xml?page=' . ($page + 1));
+            $xw->writeAttribute('rel', 'index');
+            $xw->writeAttribute('href', $listUrl);
             $xw->endElement();
         }
 
@@ -519,8 +642,14 @@ class ResourceSyncPlugin
     /**
      * @param array<int, array<string, mixed>> $books
      */
-    private function buildChangeList(string $base, array $books, ?string $since, int $page = 0): string
-    {
+    private function buildChangeList(
+        string $base,
+        array $books,
+        string $from,
+        ?string $sinceParam,
+        int $page,
+        bool $indexed
+    ): string {
         $xw = new \XMLWriter();
         $xw->openMemory();
         $xw->setIndent(true);
@@ -533,19 +662,19 @@ class ResourceSyncPlugin
         $xw->startElementNs('rs', 'md', null);
         $xw->writeAttribute('capability', 'changelist');
         $xw->writeAttribute('at', gmdate('c'));
-        if ($since !== null) {
-            $xw->writeAttribute('from', $since);
-        }
+        $xw->writeAttribute('from', $from);
         $xw->endElement();
 
-        // rs:ln rel="self" — canonical URL of this document (page- and since-aware)
+        $listUrl    = $base . '/resync/changelist.xml';
+        $sinceQuery = $sinceParam !== null ? 'from=' . rawurlencode($sinceParam) : '';
+
+        // rs:ln rel="self" — canonical URL of this document (part- and since-aware)
         $selfQuery = [];
-        if ($page > 0) { $selfQuery[] = 'page=' . $page; }
-        if ($since !== null) { $selfQuery[] = 'from=' . urlencode($since); }
-        $selfHref = $base . '/resync/changelist.xml' . (!empty($selfQuery) ? '?' . implode('&', $selfQuery) : '');
+        if ($indexed) { $selfQuery[] = 'page=' . $page; }
+        if ($sinceQuery !== '') { $selfQuery[] = $sinceQuery; }
         $xw->startElementNs('rs', 'ln', null);
         $xw->writeAttribute('rel', 'self');
-        $xw->writeAttribute('href', $selfHref);
+        $xw->writeAttribute('href', $listUrl . ($selfQuery !== [] ? '?' . implode('&', $selfQuery) : ''));
         $xw->endElement();
 
         $xw->startElementNs('rs', 'ln', null);
@@ -553,18 +682,11 @@ class ResourceSyncPlugin
         $xw->writeAttribute('href', $base . '/resync/capabilitylist.xml');
         $xw->endElement();
 
-        // Pagination links: next/prev for harvesters
-        $sinceParam = $since !== null ? '&from=' . urlencode($since) : '';
-        if (count($books) === self::PAGE_SIZE) {
+        if ($indexed) {
+            // A part of a Change List points back at its index (§12.2).
             $xw->startElementNs('rs', 'ln', null);
-            $xw->writeAttribute('rel', 'next');
-            $xw->writeAttribute('href', $base . '/resync/changelist.xml?page=' . ($page + 1) . $sinceParam);
-            $xw->endElement();
-        }
-        if ($page > 0) {
-            $xw->startElementNs('rs', 'ln', null);
-            $xw->writeAttribute('rel', 'prev');
-            $xw->writeAttribute('href', $base . '/resync/changelist.xml?page=' . ($page - 1) . $sinceParam);
+            $xw->writeAttribute('rel', 'index');
+            $xw->writeAttribute('href', $listUrl . ($sinceQuery !== '' ? '?' . $sinceQuery : ''));
             $xw->endElement();
         }
 
@@ -606,12 +728,26 @@ class ResourceSyncPlugin
 
     // ─── DB helpers ───────────────────────────────────────────────────────────
 
+    private function countBooks(): int
+    {
+        $res = $this->db->query(
+            'SELECT COUNT(*) FROM libri
+             WHERE deleted_at IS NULL
+               AND ' . \App\Support\BookVisibility::catalogue($this->db)
+        );
+        if (!$res instanceof \mysqli_result) {
+            return 0;
+        }
+        $row = $res->fetch_row();
+        return (int) ($row[0] ?? 0);
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchBooks(int $page = 0): array
+    private function fetchBooks(int $page = 1): array
     {
-        $offset = $page * self::PAGE_SIZE;
+        $offset = max(0, $page - 1) * self::PAGE_SIZE;
         // A requested (desiderata) title is not a holding: keep it out of every list and change list.
         $stmt   = $this->db->prepare(
             'SELECT id, titolo, updated_at, created_at
@@ -634,14 +770,13 @@ class ResourceSyncPlugin
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * The change-list WHERE clause, shared by the page query and the summary.
+     *
+     * @param ?string $sinceLocal lower bound in local time ('Y-m-d H:i:s'), or null
+     * @return array{0: string, 1: string, 2: list<string>} [condition, bind types, bind values]
      */
-    private function fetchChangedBooks(?string $since, int $page = 0): array
+    private function changeListWhere(?string $sinceLocal): array
     {
-        if ($since !== null && !preg_match('/^\d{4}-\d{2}-\d{2}(T[\d:]+Z?)?$/', $since)) {
-            $since = null;
-        }
-
         // The visibility predicate is applied PER ARM, never over the whole
         // WHERE. ANDing it across everything also silenced the tombstone arm, so
         // a wanted title that was later soft-deleted produced no deletion event
@@ -671,7 +806,7 @@ class ResourceSyncPlugin
         // this whole guard is inert.
         $publishedOnce = 'NOT (' . $delisted . ' AND NOT (' . $everCatalogued . '))';
 
-        if ($since !== null) {
+        if ($sinceLocal !== null) {
             // FIX F078: bound tombstone exposure on `?from=` queries.
             // - Live rows: deleted_at IS NULL AND updated_at >= ?  (soft-delete consistency)
             // - De-listings: a still-present row now flagged as a request. It is
@@ -686,47 +821,87 @@ class ResourceSyncPlugin
             // The first two arms are mutually exclusive by construction (one
             // wants is_desiderata = 0, the other = 1), so no id can be reported
             // as both live and withdrawn in one response.
-            $stmt = $this->db->prepare(
-                'SELECT id, titolo, updated_at, created_at, deleted_at,
-                        (' . $delisted . ') AS is_delisted,
-                        (created_at >= ?) AS is_new_entry
-                 FROM libri
-                 WHERE ((deleted_at IS NULL AND updated_at >= ? AND ' . $visible . ')
+            $where = '((deleted_at IS NULL AND updated_at >= ? AND ' . $visible . ')
                     OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . ' AND updated_at >= ?
                         AND updated_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))
                     OR (deleted_at IS NOT NULL AND deleted_at >= ? AND ' . $publishedOnce . '
-                        AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)))
-                 ORDER BY COALESCE(deleted_at, updated_at) ASC
-                 LIMIT ? OFFSET ?'
-            );
-            if ($stmt === false) {
-                return [];
-            }
-            $limit  = self::PAGE_SIZE;
-            $offset = max(0, $page) * self::PAGE_SIZE;
-            $stmt->bind_param('ssssii', $since, $since, $since, $since, $limit, $offset);
-        } else {
-            // Include recent tombstones (≤30 days) for ResourceSync — intentional exception to strict deleted_at IS NULL rule.
-            // Recent de-listings ride the same 30-day window.
-            $stmt = $this->db->prepare(
-                'SELECT id, titolo, updated_at, created_at, deleted_at,
-                        (' . $delisted . ') AS is_delisted, 0 AS is_new_entry
-                 FROM libri
-                 WHERE ((deleted_at IS NULL AND ' . $visible . ')
-                    OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . '
-                        AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
-                    OR (deleted_at IS NOT NULL AND ' . $publishedOnce . ' AND deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))
-                 ORDER BY COALESCE(deleted_at, updated_at, created_at) DESC
-                 LIMIT ? OFFSET ?'
-            );
-            if ($stmt === false) {
-                return [];
-            }
-            $limit  = self::PAGE_SIZE;
-            $offset = max(0, $page) * self::PAGE_SIZE;
-            $stmt->bind_param('ii', $limit, $offset);
+                        AND deleted_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)))';
+            return [$where, 'sss', [$sinceLocal, $sinceLocal, $sinceLocal]];
         }
 
+        // Include recent tombstones (≤30 days) for ResourceSync — intentional exception to strict deleted_at IS NULL rule.
+        // Recent de-listings ride the same 30-day window.
+        $where = '((deleted_at IS NULL AND ' . $visible . ')
+                    OR (deleted_at IS NULL AND ' . $delisted . ' AND ' . $everCatalogued . '
+                        AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                    OR (deleted_at IS NOT NULL AND ' . $publishedOnce . ' AND deleted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))';
+        return [$where, '', []];
+    }
+
+    /**
+     * Size of the change list and, for the unfiltered list, the earliest
+     * boundary it reaches: the older of the oldest listed change and the
+     * 30-day tombstone window.
+     *
+     * @return array{0: int, 1: ?string} [row count, earliest boundary in local time]
+     */
+    private function changedBooksSummary(?string $sinceLocal): array
+    {
+        [$where, $types, $values] = $this->changeListWhere($sinceLocal);
+        // CI-SOFT-DELETE-EXEMPT: a change list reports deletions too; changeListWhere() admits a deleted row only inside the 30-day tombstone window.
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) AS n,
+                    LEAST(COALESCE(MIN(COALESCE(deleted_at, updated_at, created_at)), DATE_SUB(NOW(), INTERVAL 30 DAY)),
+                          DATE_SUB(NOW(), INTERVAL 30 DAY)) AS earliest
+             FROM libri
+             WHERE ' . $where
+        );
+        if ($stmt === false) {
+            return [0, null];
+        }
+        if ($types !== '') {
+            $stmt->bind_param($types, ...$values);
+        }
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row === null) {
+            return [0, null];
+        }
+        return [(int) $row['n'], $row['earliest'] !== null ? (string) $row['earliest'] : null];
+    }
+
+    /**
+     * One part of the change list, oldest change first (ResourceSync lists
+     * changes in chronological order so a harvester can replay them).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchChangedBooks(?string $sinceLocal, int $page = 1): array
+    {
+        [$where, $types, $values] = $this->changeListWhere($sinceLocal);
+        $delisted = \App\Support\BookVisibility::delisted($this->db);
+        $newEntry = $sinceLocal !== null ? '(created_at >= ?)' : '0';
+
+        // CI-SOFT-DELETE-EXEMPT: a change list reports deletions too; changeListWhere() admits a deleted row only inside the 30-day tombstone window.
+        $stmt = $this->db->prepare(
+            'SELECT id, titolo, updated_at, created_at, deleted_at,
+                    (' . $delisted . ') AS is_delisted,
+                    ' . $newEntry . ' AS is_new_entry
+             FROM libri
+             WHERE ' . $where . '
+             ORDER BY COALESCE(deleted_at, updated_at, created_at) ASC, id ASC
+             LIMIT ? OFFSET ?'
+        );
+        if ($stmt === false) {
+            return [];
+        }
+        $limit  = self::PAGE_SIZE;
+        $offset = max(0, $page - 1) * self::PAGE_SIZE;
+        $bindTypes  = ($sinceLocal !== null ? 's' : '') . $types . 'ii';
+        $bindValues = array_merge($sinceLocal !== null ? [$sinceLocal] : [], $values, [$limit, $offset]);
+        $stmt->bind_param($bindTypes, ...$bindValues);
         $stmt->execute();
         /** @var array<int, array<string, mixed>> $rows */
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

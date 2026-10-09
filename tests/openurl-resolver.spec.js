@@ -17,6 +17,9 @@
  *        Emeroteca's standalone articles instead of being refused, by DOI and
  *        by exact title, under both spellings PHP can produce for rft.atitle;
  *        an article carries its own mtx:journal COinS.
+ * 18. rfr_id never follows a forged Host header (COinS are cached public);
+ *     no rft.language in the mtx:book KEV.
+ * 19. OpenURL 0.1 legacy keys: aulast/aufirst/auinit, id=isbn:…, id=doi:….
  *
  * Run: /tmp/run-e2e.sh tests/openurl-resolver.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -317,9 +320,8 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
         expect(kev).toContain('rft.jtitle=Arbejderhistorie');
         expect(kev).toContain('rft.spage=18');
         expect(kev).toContain('rft.epage=38');
-        // The language arrives as the stored ISO code, which the book path's
-        // name-to-code table would have dropped on the floor.
-        expect(kev).toContain('rft.language=dan');
+        // rft.language is not a key of the mtx:journal KEV matrix.
+        expect(kev).not.toContain('rft.language');
         expect(String(body.coins_html)).toContain('<span class="Z3988"');
 
         const missing = await request.get(`${BASE}/api/coins/article/9999999`);
@@ -350,6 +352,56 @@ test.describe.serial('OpenURL Z39.88 Resolver + COinS plugin — v0.7.2 (10 test
             expect(journalAsChapter.headers()['location'], 'a book-item request does not land on a journal article').not.toContain(`/emeroteca/articolo/${articleId}`);
         } finally {
             if (chapterId > 0) dbQuery(`DELETE FROM emeroteca_contributi WHERE id=${chapterId}`);
+        }
+    });
+
+    test('18. rfr_id comes from the canonical host, never from a forged Host header', async ({ request }) => {
+        test.skip(testBookId === 0, 'No book in DB');
+        const r = await request.get(`${BASE}/api/coins/book/${testBookId}`, {
+            headers: { Host: 'evil.example.test' },
+        });
+        expect(r.status()).toBe(200);
+        const kev = decodeURIComponent(String((await r.json()).coins_title));
+        expect(kev).not.toContain('evil.example.test');
+        const canonical = new URL(BASE).hostname;
+        expect(kev).toContain(`rfr_id=info:sid/${canonical}:pinakes`);
+        // rft.language is not a key of the mtx:book KEV matrix either.
+        expect(kev).not.toContain('rft.language');
+    });
+
+    test('19. OpenURL 0.1 legacy keys are honoured', async ({ request }) => {
+        // aulast / aufirst / auinit reach the external search.
+        const legacy = await request.get(`${BASE}/openurl?genre=book&title=Legacy+Title+${Date.now()}&aulast=Eco&aufirst=Umberto&auinit=U`, { maxRedirects: 0 });
+        expect(legacy.status()).toBe(302);
+        const location = decodeURIComponent(legacy.headers()['location'] ?? '');
+        expect(location).toContain('worldcat');
+        expect(location).toContain('Eco');
+        expect(location).toContain('Umberto');
+
+        // id=isbn:… resolves to the local book.
+        const prefix = `97888${String(Date.now()).slice(-7)}`;
+        const digits = prefix.split('').map(Number);
+        const sum = digits.reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 1 : 3), 0);
+        const isbn = prefix + String((10 - (sum % 10)) % 10);
+        const title = `OpenUrlLegacy ${Date.now()}`;
+        dbQuery(`INSERT INTO libri (titolo, isbn13, copie_totali, copie_disponibili, created_at) VALUES ('${title}', '${isbn}', 1, 1, NOW())`);
+        const bookId = parseInt(dbQuery(`SELECT id FROM libri WHERE isbn13='${isbn}' AND deleted_at IS NULL LIMIT 1`)) || 0;
+        try {
+            expect(bookId).toBeGreaterThan(0);
+            const byId = await request.get(`${BASE}/openurl?genre=book&id=${encodeURIComponent('isbn:' + isbn)}`, { maxRedirects: 0 });
+            expect(byId.status()).toBe(302);
+            const to = byId.headers()['location'] ?? '';
+            expect(to).not.toContain('google');
+            expect(to).toMatch(new RegExp(`/${bookId}$`));
+        } finally {
+            if (bookId > 0) dbQuery(`UPDATE libri SET deleted_at=NOW(), isbn10=NULL, isbn13=NULL, ean=NULL WHERE id=${bookId}`);
+        }
+
+        // id=doi:… resolves to the local article, without rft_val_fmt.
+        if (articleId > 0) {
+            const byDoi = await request.get(`${BASE}/openurl?genre=article&id=${encodeURIComponent('doi:' + articleDoi)}`, { maxRedirects: 0 });
+            expect(byDoi.status()).toBe(302);
+            expect(byDoi.headers()['location']).toContain(`/emeroteca/articolo/${articleId}`);
         }
     });
 });
