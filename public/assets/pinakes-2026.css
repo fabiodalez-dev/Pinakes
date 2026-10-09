@@ -315,7 +315,7 @@ body.pk-cards-tinted :is(.pk-card__panel, .book-card .book-image-container) { --
 /* Keep all artwork visible in the shared frame, including tall covers and
    square album art. An opaque background keeps the blank-book title hidden
    in the space beside a fitted image. */
-.pk-book__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--pk-cover-blank); display: block; }
+.pk-book__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--pk-cover-blank); display: block; }
 .pk-book__img.is-missing { display: none; }
 .pk-book__spine {
     position: absolute; inset: 0 auto 0 0; width: 14px; pointer-events: none;
@@ -906,7 +906,7 @@ body.pk .pk-bookhero__cover { flex: 0 1 340px; min-width: 240px; margin: 0 auto;
 .pk-bigcover .pk-book__blank { padding: 27% 10% 12% 12%; gap: 16px; }
 .pk-bigcover .pk-book__blank-title { font-size: clamp(28px, 12cqw, 38px); line-height: 1.16; }
 .pk-bigcover .pk-book__rule { width: 32px; }
-body.pk .pk-bigcover img.book-cover-large { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; border-radius: 0; box-shadow: none; margin: 0; transform: none; }
+body.pk .pk-bigcover img.book-cover-large { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; border-radius: 0; box-shadow: none; margin: 0; transform: none; }
 body.pk .pk-bigcover img.book-cover-large.is-missing { display: none; }
 .pk-bigcover .pk-book__spine { width: 10px; background: linear-gradient(90deg, rgba(0,0,0,.2), rgba(255,255,255,.22), rgba(0,0,0,0)); }
 body.pk .pk-bookhero__info { flex: 1 1 460px; min-width: 0; padding: 0; }
@@ -1156,7 +1156,7 @@ body.pk .book-card:not(.pk-card, :has(> .book-card-icon)):hover .book-image-cont
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-container::after { display: none; }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-container > a { display: block; }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image {
-    display: block; width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: contain; border-radius: 2px 5px 5px 2px; background: var(--pk-cover-blank);
+    display: block; width: 100%; aspect-ratio: 2 / 3; height: auto; object-fit: cover; border-radius: 2px 5px 5px 2px; background: var(--pk-cover-blank);
     box-shadow: 0 1px 1px rgba(0,0,0,.12), 0 6px 10px -4px rgba(50,15,35,.25), 0 24px 32px -16px rgba(50,15,35,.5); transform: none;
 }
 body.pk .book-card:not(.pk-card, :has(> .book-card-icon)) .book-image-icon { border-radius: 2px 5px 5px 2px; }
@@ -1339,7 +1339,7 @@ body.pk .loans-container .item-cover {
 }
 body.pk .loans-container .item-cover:hover { transform: translateY(-2px); }
 /* Keep artwork opaque above the typeset fallback, including fitted covers. */
-body.pk .loans-container .item-cover img { position: relative; background: var(--pk-cover-blank); object-fit: contain; }
+body.pk .loans-container .item-cover img { position: relative; background: var(--pk-cover-blank); object-fit: cover; }
 /* No cover: the placeholder image gives way to the typeset book. */
 body.pk .loans-container .item-cover img[src$="placeholder.jpg"] { opacity: 0; }
 body.pk .loans-container .item-title { margin: 0 0 12px; font-family: var(--pk-serif); font-weight: 500; font-size: 20px; line-height: 1.2; letter-spacing: -.01em; }
@@ -1404,7 +1404,7 @@ body.pk .carousel-book-card { overflow: visible; background: transparent; border
 body.pk .carousel-book-card:hover { transform: none; box-shadow: none; }
 body.pk .carousel-book-cover {
     border-radius: 2px 5px 5px 2px; box-shadow: 0 1px 1px rgba(0,0,0,.12), 0 6px 10px -4px rgba(50,15,35,.25), 0 24px 32px -16px rgba(50,15,35,.5);
-    background: var(--pk-cover-blank); aspect-ratio: 2 / 3; object-fit: contain; transition: transform .3s var(--pk-ease);
+    background: var(--pk-cover-blank); aspect-ratio: 2 / 3; object-fit: cover; transition: transform .3s var(--pk-ease);
 }
 body.pk .carousel-book-card:hover .carousel-book-cover { transform: translateY(-4px); }
 body.pk .carousel-book-info { padding: 14px 2px 0; }
