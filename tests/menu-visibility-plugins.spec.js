@@ -14,8 +14,8 @@ const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 
 const SECTIONS = [
-  { name: 'Emeroteca', admin: '/admin/periodicals', page: '/emeroteca', href: /\/emeroteca$/ },
-  { name: 'Archivio', admin: '/admin/archives', page: '/archivio', href: /\/(archivio|archive)$/ },
+  { name: 'Emeroteca', plugin: 'emeroteca', admin: '/admin/periodicals', page: '/emeroteca', href: /\/emeroteca$/ },
+  { name: 'Archivio', plugin: 'archives', admin: '/admin/archives', page: '/archivio', href: /\/(archivio|archive)$/ },
 ];
 
 async function login(page) {
@@ -104,11 +104,16 @@ test.describe('Plugin sections in the public menu', () => {
       await page.fill('input[name="password"]', password);
       await page.click('button[type="submit"]');
       await page.waitForURL(url => !url.pathname.includes('accedi'), { timeout: 30000 });
+      let checked = 0;
       for (const section of SECTIONS) {
+        // A section whose plugin is off has no admin page at all.
+        if (db(`SELECT COALESCE(MAX(is_active), 0) FROM plugins WHERE name = '${section.plugin}'`) !== '1') continue;
+        checked++;
         const res = await page.goto(BASE + section.admin);
         expect(res?.status(), `${section.admin} opens for staff`).toBe(200);
         await expect(page.locator('#menuVisibilityForm'), `${section.name}: no switch for staff`).toHaveCount(0);
       }
+      test.skip(checked === 0, 'neither Emeroteca nor Archives is active');
     } finally {
       await page.context().close();
       db(`DELETE FROM utenti WHERE email = '${email}'`);

@@ -237,7 +237,11 @@ test.describe.serial('Archives — published flag on public surfaces', () => {
         // The document route streams the stored file with safe headers.
         const doc = await request.get(`${BASE}/archives/${unitId}/documents/${fileId}`);
         expect(doc.headers()['content-type']).toBe('application/pdf');
-        expect(doc.headers()['x-content-type-options']).toBe('nosniff');
+        // Apache's `Header always set` and the app may both send it: every
+        // value must be nosniff, however many copies arrive.
+        const nosniff = String(doc.headers()['x-content-type-options'] || '').split(',').map((v) => v.trim());
+        expect(nosniff.length).toBeGreaterThan(0);
+        expect(nosniff.every((v) => v === 'nosniff')).toBe(true);
         const disposition = doc.headers()['content-disposition'] || '';
         expect(disposition).toMatch(/^inline; filename="[A-Za-z0-9._-]+"; filename\*=UTF-8''/);
         expect(disposition).toContain(encodeURIComponent(DOC_NAME));
