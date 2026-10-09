@@ -352,3 +352,50 @@
     else fail();
   });
 })();
+
+/* Phone tab bar (frontend/partials/mobile-tabbar.php): shown from the first
+   scroll on, hidden while the footer is in view; the favourites badge follows
+   the hearts on the page. */
+(function () {
+  var bar = document.querySelector('[data-pk-tabbar]');
+  if (!bar) return;
+  var footer = document.querySelector('footer.footer');
+  var scrolled = false, atFooter = false;
+
+  function apply() {
+    var on = scrolled && !atFooter;
+    bar.classList.toggle('is-visible', on);
+    document.body.classList.toggle('pk-tabbar-on', on);
+    if (on) { bar.removeAttribute('inert'); bar.removeAttribute('aria-hidden'); }
+    else { bar.setAttribute('inert', ''); bar.setAttribute('aria-hidden', 'true'); }
+  }
+  function onScroll() {
+    if (!scrolled && window.scrollY > 24) { scrolled = true; apply(); window.removeEventListener('scroll', onScroll); }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  if (footer && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      atFooter = entries[0].isIntersecting;
+      apply();
+    }).observe(footer);
+  }
+
+  var badge = bar.querySelector('[data-pk-wish-count]');
+  if (badge) {
+    var PK = window.PK || {};
+    var ids = new Set((PK.wish || []).map(String));
+    var render = function () {
+      var n = ids.size;
+      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.hidden = n === 0;
+    };
+    render();
+    document.addEventListener('pinakes:wishlist-changed', function (e) {
+      var d = e.detail || {};
+      if (d.id === undefined) return;
+      if (d.favorite) ids.add(String(d.id)); else ids.delete(String(d.id));
+      render();
+    });
+  }
+})();

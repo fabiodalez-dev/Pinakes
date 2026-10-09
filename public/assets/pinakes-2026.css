@@ -1467,3 +1467,51 @@ body.pk.pk-hero-centered .pk-fan { display: none; }
 .pk-citebox__status { margin: -8px 0 0; font-size: 13px; color: var(--pk-muted, #6b6470); }
 .pk-citebox__status:empty,
 .pk-citebox__status[data-state="ok"] { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Phone tab bar (frontend/partials/mobile-tabbar.php), as the Android app's
+   bottom navigation. Off screen until the reader first scrolls, and again
+   once the footer is in view; never on wider screens, where the header
+   carries the same links. */
+.pk-tabbar { display: none; }
+@media (max-width: 767px) {
+    .pk-tabbar {
+        display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 1020;
+        padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+        background: color-mix(in srgb, #fff 94%, transparent);
+        -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+        border-top: 1px solid var(--pk-line);
+        box-shadow: 0 -8px 24px -18px color-mix(in srgb, var(--pk-ink) 40%, transparent);
+        transform: translateY(110%); visibility: hidden;
+        transition: transform .28s var(--pk-ease), visibility 0s linear .28s;
+    }
+    .pk-tabbar.is-visible { transform: none; visibility: visible; transition: transform .28s var(--pk-ease), visibility 0s; }
+    .pk-tabbar__list { display: flex; justify-content: space-around; gap: 4px; margin: 0; padding: 0; list-style: none; }
+    .pk-tabbar__list > li { flex: 1 1 0; min-width: 0; }
+    .pk-tabbar__item {
+        display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 4px 2px;
+        color: var(--pk-muted); text-decoration: none; -webkit-tap-highlight-color: transparent;
+    }
+    .pk-tabbar__icon {
+        position: relative; display: flex; align-items: center; justify-content: center;
+        width: 56px; height: 30px; border-radius: 999px; font-size: 1.05rem;
+        transition: background-color .2s var(--pk-ease), color .2s var(--pk-ease);
+    }
+    .pk-tabbar__label { max-width: 100%; font-size: .6875rem; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pk-tabbar__item.is-active { color: var(--pk-accent-ink); }
+    .pk-tabbar__item.is-active .pk-tabbar__icon { background: var(--pk-accent-soft); }
+    .pk-tabbar__item.is-active .pk-tabbar__label { font-weight: 600; }
+    .pk-tabbar__item:focus-visible { outline: none; }
+    .pk-tabbar__item:focus-visible .pk-tabbar__icon { outline: 2px solid var(--pk-accent); outline-offset: 2px; }
+    .pk-tabbar__badge {
+        position: absolute; top: -2px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;
+        border-radius: 999px; background: var(--pk-accent); color: var(--button-text-color, #fff);
+        font-size: .625rem; font-weight: 700; line-height: 16px; text-align: center;
+    }
+    .pk-tabbar__badge[hidden] { display: none; }
+    /* The back-to-top button and the cookie icon move above the bar. */
+    body.pk-tabbar-on #scroll-to-top { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
+    body.pk-tabbar-on #silktide-cookie-icon { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; transition: bottom .28s var(--pk-ease); }
+}
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    .pk-tabbar, .pk-tabbar.is-visible { transition: none; }
+}

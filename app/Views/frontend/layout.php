@@ -1784,6 +1784,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         ['href' => $socialTelegram, 'icon' => 'fa-brands fa-telegram', 'label' => 'Telegram'],
     ], static fn (array $s): bool => $s['href'] !== '');
     ?>
+    <?php require __DIR__ . '/partials/mobile-tabbar.php'; ?>
     <footer class="footer">
         <div class="pk-footer">
             <div class="pk-footer__cols">
