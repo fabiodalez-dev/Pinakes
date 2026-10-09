@@ -110,7 +110,7 @@ class MobileApiController extends BaseController
 
     public function clubDetail(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
-        $club = $this->clubForApi($slug, $error);
+        $club = $this->clubForApi($slug, $error, false);
         if ($club === null) {
             return $error !== null ? $error($response) : $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
@@ -124,8 +124,12 @@ class MobileApiController extends BaseController
             $stateIndex[$s['key']] = $s;
         }
 
+        // A private club shows its card and Join to everyone; its books,
+        // polls and meetings only to active members (as PublicController::show).
+        $contentVisible = $this->canSeeContent($club);
+
         $books = [];
-        foreach ($this->repo->clubBooks((int) $club['id']) as $book) {
+        foreach ($contentVisible ? $this->repo->clubBooks((int) $club['id']) : [] as $book) {
             if ($book['state'] === BookClubPlugin::STATE_PENDING && !$canManage) {
                 continue;
             }
@@ -148,7 +152,7 @@ class MobileApiController extends BaseController
         }
 
         $polls = [];
-        foreach ($this->repo->clubPolls((int) $club['id']) as $poll) {
+        foreach ($contentVisible ? $this->repo->clubPolls((int) $club['id']) : [] as $poll) {
             $polls[] = [
                 'id' => (int) $poll['id'],
                 'title' => (string) $poll['title'],
@@ -173,7 +177,7 @@ class MobileApiController extends BaseController
         }
 
         $meetings = [];
-        foreach ($this->repo->clubMeetings((int) $club['id']) as $meeting) {
+        foreach ($contentVisible ? $this->repo->clubMeetings((int) $club['id']) : [] as $meeting) {
             $rsvp = $this->repo->userRsvp((int) $meeting['id'], $userId);
             $meetings[] = [
                 'id' => (int) $meeting['id'],
@@ -204,6 +208,9 @@ class MobileApiController extends BaseController
                 'privacy' => (string) $club['privacy'],
                 'member_count' => $this->repo->countActiveMembers((int) $club['id']),
                 'max_members' => $club['max_members'] !== null ? (int) $club['max_members'] : null,
+                // false: a private club seen by a non-member; books, polls and
+                // meetings are then empty on purpose, not missing.
+                'content_visible' => $contentVisible,
             ],
             'my_membership' => $membership !== null ? [
                 'status' => (string) $membership['status'],
@@ -227,7 +234,10 @@ class MobileApiController extends BaseController
             if ($club === null || !Registry::clubEnabled($club, $this->module)) {
                 continue;
             }
-            $snapshot = $this->repo->clubSnapshot($club);
+            // A pending request to a private club lists the club, not its activity.
+            $snapshot = $this->canSeeContent($club)
+                ? $this->repo->clubSnapshot($club)
+                : ['current_books' => [], 'next_meeting' => null, 'open_polls' => []];
             $cards[] = [
                 'club' => [
                     'id' => (int) $club['id'],
@@ -519,12 +529,16 @@ class MobileApiController extends BaseController
      * @param callable|null $error out-param
      * @return array<string, mixed>|null
      */
-    private function clubForApi(string $slug, ?callable &$error): ?array
+    private function clubForApi(string $slug, ?callable &$error, bool $contentRequired = true): ?array
     {
         $error = null;
         $club = $this->repo->clubBySlug($slug);
+        // Actions on a club's activity need its content (a private club's:
+        // active members only); the club card itself only needs canView, as
+        // the web page shows a private club's header and Join to anyone.
+        $allowed = $club !== null && ($contentRequired ? $this->canSeeContent($club) : $this->canView($club));
         if ($club === null || (int) $club['is_active'] !== 1
-            || !Registry::clubEnabled($club, $this->module) || !$this->canSeeContent($club)) {
+            || !Registry::clubEnabled($club, $this->module) || !$allowed) {
             $error = fn(ResponseInterface $r): ResponseInterface =>
                 $this->fail($r, 'not_found', __('Club non trovato.'), 404);
             return null;
