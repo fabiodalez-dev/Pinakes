@@ -46,7 +46,11 @@ interface ModuleInterface
      * Attach the module's Slim routes. Called once per request at
      * app.routes.register time, regardless of per-club enablement.
      *
-     * @param \Slim\App $app
+     * Receives the plugin's LocalizedRouteRegistrar: a pattern under
+     * '/book-club' is registered under every localized base of the
+     * 'book_club' route key as well; anything else reaches the app as is.
+     *
+     * @param \Slim\App<\Psr\Container\ContainerInterface|null>|\App\Support\LocalizedRouteRegistrar $app
      */
     public function registerRoutes($app): void;
 

@@ -20,7 +20,7 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 $csrf = \App\Support\Csrf::ensureToken();
-$base = url('/book-club/' . $slug . '/lending');
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/lending');
 
 $statusLabels = [
     'offered' => __('In offerta'),
@@ -61,8 +61,8 @@ $heroTitle = __('Prestito tra membri');
 $heroSubtitle = __('Qui i membri si prestano le proprie copie personali: le copie della biblioteca si prenotano dalla scheda del libro.');
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
-    ['label' => (string) $club['name'], 'href' => url('/book-club/' . $slug)],
+    ['label' => __('Club di lettura'), 'href' => url(\App\Support\RouteTranslator::route('book_club'))],
+    ['label' => (string) $club['name'], 'href' => url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)],
     ['label' => $heroTitle],
 ];
 include $corePartials . '/catalog-hero.php';

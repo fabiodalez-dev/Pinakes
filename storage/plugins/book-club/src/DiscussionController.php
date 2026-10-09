@@ -40,7 +40,7 @@ class DiscussionController extends BaseController
         if (!($this->module instanceof Modules\AbstractModule) || !$this->module->enabledFor($club)) {
             return null;
         }
-        if (!$this->canView($club)) {
+        if (!$this->canSeeContent($club)) {
             return null;
         }
         return $club;
@@ -84,14 +84,14 @@ class DiscussionController extends BaseController
         }
         if (!$this->isActiveMember($club) && !$this->canManage($club)) {
             $this->flash('error', __('Solo i membri attivi del club possono aprire discussioni.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions');
         }
 
         $body = $request->getParsedBody();
         $title = self::str($body, 'title', 190);
         if ($title === '') {
             $this->flash('error', __('Il titolo della discussione è obbligatorio.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions');
         }
 
         $kind = self::str($body, 'kind', 20);
@@ -100,7 +100,7 @@ class DiscussionController extends BaseController
         }
         if ($kind === 'announcement' && !$this->can($club, 'posts.moderate')) {
             $this->flash('error', __('Solo i moderatori possono pubblicare annunci.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions');
         }
 
         $clubBookId = self::intOrNull($body, 'club_book_id');
@@ -126,10 +126,10 @@ class DiscussionController extends BaseController
         );
         if ($threadId === null) {
             $this->flash('error', __('Discussione non creata, riprova.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions');
         }
         $this->flash('success', __('Discussione aperta.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
     }
 
     // ------------------------------------------------------------------
@@ -233,18 +233,18 @@ class DiscussionController extends BaseController
         $canManage = $this->canManage($club);
         if (!$this->isActiveMember($club) && !$canManage) {
             $this->flash('error', __('Solo i membri attivi del club possono scrivere messaggi.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
         if ((int) $thread['is_locked'] === 1 && !$canManage) {
             $this->flash('warning', __('Questa discussione è bloccata.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
 
         $body = $request->getParsedBody();
         $text = self::str($body, 'body', 20000);
         if ($text === '') {
             $this->flash('error', __('Il messaggio non può essere vuoto.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
 
         $spoiler = self::str($body, 'spoiler', 10);
@@ -271,11 +271,11 @@ class DiscussionController extends BaseController
         $postId = $this->discussions->createPost($threadId, $parentId, (int) $this->userId(), $text, $spoiler, $spoilerSectionId);
         if ($postId === null) {
             $this->flash('error', __('Messaggio non pubblicato, riprova.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
         $this->storeMentions($postId, $text, (int) $club['id']);
         $this->flash('success', __('Messaggio pubblicato.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId . '#post-' . $postId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '#post-' . $postId);
     }
 
     /**
@@ -323,19 +323,19 @@ class DiscussionController extends BaseController
         $threadId = (int) $post['thread_id'];
         if (!$this->isActiveMember($club) && !$this->canManage($club)) {
             $this->flash('error', __('Solo i membri attivi del club possono reagire ai messaggi.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
         if ($post['deleted_at'] !== null) {
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
         $body = $request->getParsedBody();
         $emoji = self::str($body, 'emoji', 16);
         if (!in_array($emoji, DiscussionRepo::EMOJIS, true)) {
             $this->flash('error', __('Reazione non valida.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
         }
         $this->discussions->toggleReaction($postId, (int) $this->userId(), $emoji);
-        return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId . '#post-' . $postId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '#post-' . $postId);
     }
 
     // ------------------------------------------------------------------
@@ -360,7 +360,7 @@ class DiscussionController extends BaseController
         }
         $this->discussions->softDeletePost($postId);
         $this->flash('success', __('Messaggio rimosso.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . (int) $post['thread_id']);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . (int) $post['thread_id']);
     }
 
     /**
@@ -381,7 +381,7 @@ class DiscussionController extends BaseController
         }
         $this->discussions->toggleLock($threadId);
         $this->flash('success', (int) $thread['is_locked'] === 1 ? __('Discussione sbloccata.') : __('Discussione bloccata.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
     }
 
     /**
@@ -402,6 +402,6 @@ class DiscussionController extends BaseController
         }
         $this->discussions->togglePin($threadId);
         $this->flash('success', (int) $thread['is_pinned'] === 1 ? __('Discussione non più in evidenza.') : __('Discussione fissata in alto.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId);
     }
 }

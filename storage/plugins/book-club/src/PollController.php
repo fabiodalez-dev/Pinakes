@@ -65,7 +65,7 @@ class PollController extends BaseController
     public function show(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $pollId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $poll = $this->repo->poll($pollId);
@@ -121,7 +121,7 @@ class PollController extends BaseController
     public function pollsPage(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canView($club) || !$this->advancedVotingEnabled($club)) {
+        if ($club === null || !$this->canSeeContent($club) || !$this->advancedVotingEnabled($club)) {
             return $this->notFound($response);
         }
         $books = $this->repo->clubBooks((int) $club['id']);
@@ -174,7 +174,7 @@ class PollController extends BaseController
             }
         } elseif (in_array($mode, self::ADVANCED_MODES, true)) {
             $this->flash('error', __('Le votazioni avanzate non sono attive per questo club.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
         $votesPerMember = 1;
@@ -202,7 +202,7 @@ class PollController extends BaseController
         $optionIds = array_values(array_unique(array_map('intval', $optionIds)));
         if (count($optionIds) < 2) {
             $this->flash('error', __('Seleziona almeno due proposte da mettere in votazione.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
         $states = $this->repo->workflowStates($club);
@@ -221,7 +221,7 @@ class PollController extends BaseController
             if ($book === null || (int) $book['club_id'] !== (int) $club['id']
                 || !in_array($clubBookId, $eligibleIds, true)) {
                 $this->flash('error', __('Una delle proposte selezionate non è valida o è già in un\'altra votazione aperta.'));
-                return $this->redirect($response, '/book-club/' . $slug);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
             $books[] = $book;
         }
@@ -265,13 +265,13 @@ class PollController extends BaseController
             $this->db->rollback();
             SecureLogger::error('[BookClub] poll creation rolled back: ' . $e->getMessage());
             $this->flash('error', __('Votazione non creata, riprova.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         if (function_exists('do_action')) {
             do_action('bookclub.poll.opened', $pollId);
         }
         $this->flash('success', __('Votazione aperta.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
     }
 
     /**
@@ -287,13 +287,13 @@ class PollController extends BaseController
         }
         if (!$this->isActiveMember($club)) {
             $this->flash('error', __('Solo i membri attivi possono votare.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
         // Guests are read-only members: no ballots in any mode.
         $membership = $this->membership($club);
         if (($membership['role_slug'] ?? '') === 'guest') {
             $this->flash('error', __('Gli ospiti non possono votare.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
         $poll = $this->repo->poll($pollId);
         if ($poll === null || (int) $poll['club_id'] !== (int) $club['id']) {
@@ -305,11 +305,11 @@ class PollController extends BaseController
         if ($poll['status'] === 'open' && $this->repo->pollDeadlinePassed($pollId)) {
             $this->closeExpiredPollById($pollId);
             $this->flash('error', __('La scadenza della votazione è passata: la votazione è stata chiusa e il tuo voto non è stato registrato.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
         if ($poll['status'] !== 'open') {
             $this->flash('error', __('La votazione è chiusa.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
 
         $mode = (string) ($poll['mode'] ?? 'simple');
@@ -335,11 +335,11 @@ class PollController extends BaseController
         $max = in_array($mode, ['multi', 'weighted'], true) ? (int) $poll['votes_per_member'] : 1;
         if (count($picked) === 0) {
             $this->flash('error', __('Seleziona almeno un libro.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
         if (count($picked) > $max) {
             $this->flash('error', sprintf(__n('Puoi esprimere al massimo %d voto.', 'Puoi esprimere al massimo %d voti.', $max), $max));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
 
         // Only options belonging to this poll are acceptable.
@@ -347,7 +347,7 @@ class PollController extends BaseController
         foreach ($picked as $optionId) {
             if (!in_array($optionId, $validIds, true)) {
                 $this->flash('error', __('Opzione non valida.'));
-                return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
             }
         }
 
@@ -366,11 +366,11 @@ class PollController extends BaseController
             $this->db->rollback();
             SecureLogger::error('[BookClub] vote failed: ' . $e->getMessage());
             $this->flash('error', __('Voto non registrato, riprova.'));
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
 
         $this->flash('success', __('Voto registrato. Puoi modificarlo finché la votazione è aperta.'));
-        return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
     }
 
     public function close(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $pollId): ResponseInterface
@@ -384,7 +384,7 @@ class PollController extends BaseController
             return $this->notFound($response);
         }
         if ($poll['status'] !== 'open') {
-            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
         }
         $result = $this->resolvePoll($poll, false);
         switch ($result) {
@@ -404,7 +404,7 @@ class PollController extends BaseController
             default:
                 $this->flash('success', __('Votazione chiusa.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId);
     }
 
     /**
@@ -424,7 +424,7 @@ class PollController extends BaseController
         if ($poll === null || (int) $poll['club_id'] !== (int) $club['id']) {
             return $this->notFound($response);
         }
-        $back = '/book-club/' . $slug . '/polls/' . $pollId;
+        $back = \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId;
         if ($poll['status'] !== 'closed'
             || $poll['winner_club_book_id'] !== null
             || (string) ($poll['tiebreak'] ?? 'oldest_proposal') !== 'admin') {
@@ -512,7 +512,7 @@ class PollController extends BaseController
     private function voteStars(ServerRequestInterface $request, ResponseInterface $response, string $slug, array $poll): ResponseInterface
     {
         $pollId = (int) $poll['id'];
-        $back = '/book-club/' . $slug . '/polls/' . $pollId;
+        $back = \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId;
         $body = $request->getParsedBody();
         $stars = is_array($body) && isset($body['stars']) && is_array($body['stars']) ? $body['stars'] : [];
 
@@ -566,7 +566,7 @@ class PollController extends BaseController
     private function voteRanking(ServerRequestInterface $request, ResponseInterface $response, string $slug, array $poll): ResponseInterface
     {
         $pollId = (int) $poll['id'];
-        $back = '/book-club/' . $slug . '/polls/' . $pollId;
+        $back = \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId;
         $body = $request->getParsedBody();
         $ranks = is_array($body) && isset($body['ranks']) && is_array($body['ranks']) ? $body['ranks'] : [];
 
@@ -611,7 +611,7 @@ class PollController extends BaseController
     private function voteElimination(ServerRequestInterface $request, ResponseInterface $response, string $slug, array $poll): ResponseInterface
     {
         $pollId = (int) $poll['id'];
-        $back = '/book-club/' . $slug . '/polls/' . $pollId;
+        $back = \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . $pollId;
         $round = max(1, (int) ($poll['round'] ?? 1));
         $body = $request->getParsedBody();
         $picked = is_array($body) ? ($body['options'] ?? []) : [];

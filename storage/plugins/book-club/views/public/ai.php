@@ -29,8 +29,8 @@ $heroTitle = __('Assistente IA');
 $heroSubtitle = $configured ? $model . ' · ' . sprintf(__('%1$d/%2$d generazioni nelle ultime 24 ore'), (int) $recentCount, (int) $dailyCap) : '';
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
-    ['label' => (string) $club['name'], 'href' => url('/book-club/' . $slug)],
+    ['label' => __('Club di lettura'), 'href' => url(\App\Support\RouteTranslator::route('book_club'))],
+    ['label' => (string) $club['name'], 'href' => url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)],
     ['label' => $heroTitle],
 ];
 include $corePartials . '/catalog-hero.php';
@@ -101,7 +101,7 @@ include $corePartials . '/catalog-hero.php';
           <?php if ($books === []): ?>
             <p class="bc-muted mb-0"><?= $e(__('Nessun libro nel club: proponi prima un libro.')) ?></p>
           <?php else: ?>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/ai/questions')) ?>">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/ai/questions')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <label class="form-label text-sm font-semibold" for="ai-book"><?= $e(__('Libro del club')) ?></label>
               <select id="ai-book" name="club_book_id" required class="form-input mb-3">
@@ -130,7 +130,7 @@ include $corePartials . '/catalog-hero.php';
           <?php if ($meetings === []): ?>
             <p class="bc-muted mb-0"><?= $e(__('Nessun incontro con verbale: compila prima il verbale di un incontro.')) ?></p>
           <?php else: ?>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/ai/minutes')) ?>">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/ai/minutes')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <label class="form-label text-sm font-semibold" for="ai-meeting"><?= $e(__('Incontro con verbale')) ?></label>
               <select id="ai-meeting" name="meeting_id" required class="form-input mb-3">

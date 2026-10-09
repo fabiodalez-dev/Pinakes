@@ -806,7 +806,7 @@ final class KbartExporter
      */
     private static function testataUrl(int $testataId): string
     {
-        $path = '/emeroteca/' . $testataId;
+        $path = \App\Support\RouteTranslator::route('periodicals') . '/' . $testataId;
         if (function_exists('absoluteUrl')) {
             return absoluteUrl($path);
         }

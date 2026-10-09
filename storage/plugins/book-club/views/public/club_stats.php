@@ -53,7 +53,7 @@ foreach ($topProposers as $proposer) {
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
@@ -64,9 +64,9 @@ foreach ($topProposers as $proposer) {
     </h1>
     <?php if ($canManage): ?>
       <div class="flex items-center gap-2">
-        <a href="<?= $e(url('/book-club/' . $slug . '/export.json')) ?>"
+        <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/export.json')) ?>"
            class="bc-btn bc-btn-outline bc-btn-sm"><i class="fas fa-file-code"></i><?= $e(__('Esporta JSON')) ?></a>
-        <a href="<?= $e(url('/book-club/' . $slug . '/export.csv')) ?>"
+        <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/export.csv')) ?>"
            class="bc-btn bc-btn-outline bc-btn-sm"><i class="fas fa-file-csv"></i><?= $e(__('Esporta CSV')) ?></a>
       </div>
     <?php endif; ?>

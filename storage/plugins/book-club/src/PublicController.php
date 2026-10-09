@@ -40,7 +40,9 @@ class PublicController extends BaseController
         $canManage = $this->canManage($club);
         $isMember = $membership !== null && $membership['status'] === 'active';
 
-        $books = $this->repo->clubBooks((int) $club['id']);
+        // A private club shows its card to anyone, its activity to members only.
+        $contentVisible = $this->canSeeContent($club);
+        $books = $contentVisible ? $this->repo->clubBooks((int) $club['id']) : [];
         // Proposals awaiting moderation are manager-only.
         if (!$canManage) {
             $books = array_values(array_filter(
@@ -62,7 +64,7 @@ class PublicController extends BaseController
         ];
         $modulePanelsMain = [];
         $modulePanelsSidebar = [];
-        foreach (Modules\Registry::enabledForClub($this->db, $club) as $module) {
+        foreach (($contentVisible ? Modules\Registry::enabledForClub($this->db, $club) : []) as $module) {
             try {
                 $panel = $module->renderClubPanel($ctx);
                 if ($panel !== '') {
@@ -88,11 +90,12 @@ class PublicController extends BaseController
             'modulePanelsSidebar' => $modulePanelsSidebar,
             'pollEligible' => $canManage ? $this->repo->pollEligibleBooks($club, $books) : [],
             'books' => $books,
-            'polls' => $this->repo->clubPolls((int) $club['id']),
-            'meetings' => $this->repo->clubMeetings((int) $club['id']),
+            'polls' => $contentVisible ? $this->repo->clubPolls((int) $club['id']) : [],
+            'meetings' => $contentVisible ? $this->repo->clubMeetings((int) $club['id']) : [],
+            'contentVisible' => $contentVisible,
             'members' => $isMember || $canManage ? $this->repo->listMembers((int) $club['id']) : [],
             'memberCount' => $this->repo->countActiveMembers((int) $club['id']),
-            'nextMeeting' => $this->repo->nextMeeting((int) $club['id']),
+            'nextMeeting' => $contentVisible ? $this->repo->nextMeeting((int) $club['id']) : null,
             'roles' => $this->repo->systemRoles(),
         ], (string) $club['name']);
     }
@@ -110,19 +113,19 @@ class PublicController extends BaseController
         $userId = (int) $this->userId();
         $existing = $this->repo->memberRow((int) $club['id'], $userId);
         if ($existing !== null && in_array($existing['status'], ['active', 'pending'], true)) {
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         if ($existing !== null && $existing['status'] === 'banned') {
             $this->flash('error', __('Non puoi unirti a questo club.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         if (!in_array($club['privacy'], ['public', 'private'], true)) {
             $this->flash('error', __('Questo club è accessibile solo su invito.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         if ($club['max_members'] !== null && $this->repo->countActiveMembers((int) $club['id']) >= (int) $club['max_members']) {
             $this->flash('error', __('Il club ha raggiunto il numero massimo di membri.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $roleId = $this->repo->roleIdBySlug('member');
         if ($roleId === null) {
@@ -145,7 +148,7 @@ class PublicController extends BaseController
         $this->flash('success', $status === 'active'
             ? __('Benvenuto nel club!')
             : __('Richiesta inviata: un moderatore deve approvarla.'));
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     public function leave(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
@@ -162,7 +165,7 @@ class PublicController extends BaseController
             }
             $this->flash('success', __('Hai lasciato il club.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /**
@@ -189,12 +192,12 @@ class PublicController extends BaseController
         } else {
             if ($club['max_members'] !== null && $this->repo->countActiveMembers((int) $club['id']) >= (int) $club['max_members']) {
                 $this->flash('error', __('Il club ha raggiunto il numero massimo di membri.'));
-                return $this->redirect($response, '/book-club/' . $slug);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
             $this->repo->setMemberStatus($memberId, 'active');
             $this->flash('success', __('Membro approvato.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     // ------------------------------------------------------------------
@@ -217,16 +220,16 @@ class PublicController extends BaseController
         $email = self::str($body, 'email', 190);
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->flash('error', __('Indirizzo email non valido.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $roleId = $this->repo->roleIdBySlug('member');
         $token = $this->repo->createInvitation((int) $club['id'], $email, $roleId, (int) $this->userId());
         if ($token === null) {
             $this->flash('error', __('Invito non creato, riprova.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
-        $link = absoluteUrl('/book-club/invite/' . $token);
+        $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/invite/' . $token);
         $sent = false;
         try {
             $emailService = new EmailService($this->db);
@@ -250,24 +253,30 @@ class PublicController extends BaseController
             // invitation is still usable.
             $this->flash('warning', sprintf(__('Email non inviata. Condividi manualmente questo link di invito: %s'), $link));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
+    /**
+     * GET shows the invitation (confirm page); only the POST of its button,
+     * CSRF-protected, makes the user a member: following the e-mail link,
+     * or a scanner fetching it, changes nothing on its own.
+     */
     public function acceptInvite(ServerRequestInterface $request, ResponseInterface $response, string $token): ResponseInterface
     {
+        $confirm = strtoupper($request->getMethod()) === 'POST';
         $invitation = $this->repo->pendingInvitationByToken($token);
         if ($invitation === null) {
             $this->flash('error', __('Invito non valido o scaduto.'));
-            return $this->redirect($response, '/book-club');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
         $club = $this->repo->clubById((int) $invitation['club_id']);
         if ($club === null || (int) $club['is_active'] !== 1) {
             $this->flash('error', __('Il club non è più disponibile.'));
-            return $this->redirect($response, '/book-club');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
         if ($club['max_members'] !== null && $this->repo->countActiveMembers((int) $club['id']) >= (int) $club['max_members']) {
             $this->flash('error', __('Il club ha raggiunto il numero massimo di membri.'));
-            return $this->redirect($response, '/book-club');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
         // The invitation is bound to the invited address: a forwarded or
         // leaked link must not let a different account into an invite-only
@@ -275,17 +284,23 @@ class PublicController extends BaseController
         $sessionEmail = (string) ($this->sessionUser()['email'] ?? '');
         if ($sessionEmail === '' || strcasecmp($sessionEmail, (string) $invitation['email']) !== 0) {
             $this->flash('error', __('Questo invito è riservato a un altro indirizzo email.'));
-            return $this->redirect($response, '/book-club');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
         $userId = (int) $this->userId();
         $existing = $this->repo->memberRow((int) $club['id'], $userId);
         if ($existing !== null && $existing['status'] === 'banned') {
             $this->flash('error', __('Non puoi unirti a questo club.'));
-            return $this->redirect($response, '/book-club');
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
         $roleId = $invitation['role_id'] !== null ? (int) $invitation['role_id'] : $this->repo->roleIdBySlug('member');
         if ($roleId === null) {
             return $this->notFound($response);
+        }
+        if (!$confirm) {
+            return $this->renderPublic($response, 'public/invite', [
+                'club' => $club,
+                'token' => $token,
+            ], __('Invito al club'));
         }
         $this->repo->upsertMember((int) $club['id'], $userId, $roleId, 'active', $invitation['invited_by'] !== null ? (int) $invitation['invited_by'] : null);
         $this->repo->markInvitationAccepted((int) $invitation['id']);
@@ -293,7 +308,7 @@ class PublicController extends BaseController
             do_action('bookclub.member.joined', (int) $club['id'], $userId, 'active');
         }
         $this->flash('success', sprintf(__('Benvenuto nel club "%s"!'), (string) $club['name']));
-        return $this->redirect($response, '/book-club/' . $club['slug']);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
     }
 
     // ------------------------------------------------------------------
@@ -370,17 +385,17 @@ class PublicController extends BaseController
         $motivation = self::str($body, 'motivation', 3000);
         if ($libroId === null) {
             $this->flash('error', __('Seleziona un libro dal catalogo.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         if ($this->repo->bookAlreadyInClub((int) $club['id'], $libroId)) {
             $this->flash('error', __('Questo libro è già presente nel club.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         // The catalog row must exist and not be soft-deleted.
         $catBook = $this->repo->searchCatalogById($libroId);
         if ($catBook === null) {
             $this->flash('error', __('Libro non trovato in catalogo.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
         $states = $this->repo->workflowStates($club);
@@ -393,7 +408,7 @@ class PublicController extends BaseController
             $open = $this->repo->countOpenProposalsBy((int) $club['id'], $userId, $entryState);
             if ($open >= (int) $maxProposals) {
                 $this->flash('error', sprintf(__('Hai già %d proposte aperte: attendi che vengano votate.'), $open));
-                return $this->redirect($response, '/book-club/' . $slug);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
         }
 
@@ -412,7 +427,7 @@ class PublicController extends BaseController
                 ? __('Proposta inviata: sarà visibile dopo l\'approvazione di un moderatore.')
                 : __('Proposta aggiunta al club.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /** Notify the club managers that a new book was proposed. */
@@ -442,7 +457,7 @@ class PublicController extends BaseController
         $motivation = self::str($body, 'motivation', 3000);
         if ($titolo === '') {
             $this->flash('error', __('Inserisci almeno il titolo del libro.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
         $states = $this->repo->workflowStates($club);
@@ -455,7 +470,7 @@ class PublicController extends BaseController
             $open = $this->repo->countOpenProposalsBy((int) $club['id'], $userId, $entryState);
             if ($open >= (int) $maxProposals) {
                 $this->flash('error', sprintf(__('Hai già %d proposte aperte: attendi che vengano votate.'), $open));
-                return $this->redirect($response, '/book-club/' . $slug);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
         }
 
@@ -482,7 +497,7 @@ class PublicController extends BaseController
                 ? __('Proposta inviata: sarà visibile dopo l\'approvazione di un moderatore.')
                 : __('Proposta aggiunta al club.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /**
@@ -502,7 +517,7 @@ class PublicController extends BaseController
         }
         if (empty($book['is_external'])) {
             $this->flash('error', __('Questo libro è già in catalogo.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $acquireReason = null;
         $libroId = $this->repo->acquireExternalBook($bookId, $acquireReason);
@@ -513,7 +528,7 @@ class PublicController extends BaseController
         } else {
             $this->flash('error', __('Acquisizione non riuscita, riprova.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /**
@@ -555,12 +570,12 @@ class PublicController extends BaseController
                 $this->repo->deleteClubBook($bookId);
                 $this->flash('success', __('Proposta rifiutata.'));
             }
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
         if (Repo::stateByKey($states, $toState) === null) {
             $this->flash('error', __('Stato non valido.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $this->repo->changeBookState($bookId, (string) $book['state'], $toState, $this->userId());
 
@@ -574,7 +589,7 @@ class PublicController extends BaseController
         }
 
         $this->flash('success', __('Stato del libro aggiornato.'));
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /**
@@ -599,7 +614,7 @@ class PublicController extends BaseController
         } else {
             $this->flash('error', __('Impossibile rimuovere il libro, riprova.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /**
@@ -610,7 +625,7 @@ class PublicController extends BaseController
     public function booksPdf(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $membership = $this->membership($club);

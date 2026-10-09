@@ -31,7 +31,8 @@ verify($value('245','a')===$row['titolo'] && $value('245','b')==='Solidaritet', 
 verify($value('300','a')==='18–38', 'extent retains exact pagination');
 verify($value('773','t')==='Arbejderhistorie' && $value('773','x')==='0107-8461', 'host title and ISSN');
 verify($value('773','g')==='Vol. 12, No. 31, 1988, pp. 18–38', 'host enumeration chronology and pages');
-verify($value('773','w')==='HOST-4', 'a real host control number is carried in 773 $w');
+verify($value('773','w')==='(Pinakes)HOST-4', 'a real host control number is carried in 773 $w with its agency prefix');
+verify($xp->evaluate('string(//m:controlfield[@tag="003"])')==='Pinakes', '003 names the agency of the control numbers');
 verify(!str_contains($xml,'PRIVATE') && !str_contains($xml,'SECRET'), 'public export excludes private metadata');
 $fixed = $xp->evaluate('string(//m:controlfield[@tag="008"])');
 // 008

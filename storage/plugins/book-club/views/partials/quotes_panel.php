@@ -19,7 +19,7 @@ $slug = (string) $club['slug'];
       <i class="fas fa-quote-left"></i>
       <h2><?= $e(__('Citazioni recenti')) ?></h2>
     </div>
-    <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url('/book-club/' . $slug . '/quotes')) ?>">
+    <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/quotes')) ?>">
       <?= $e(__('Tutte le citazioni')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>

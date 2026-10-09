@@ -75,7 +75,7 @@ $publisherWebsite = $archive_type === 'editore'
 $hasArchiveDetails = ($archive_type === 'autore' && (!empty($archive_info['biografia']) || $authorWebsite !== '' || $authorLinks !== []))
     || ($archive_type === 'editore' && (!empty($archive_info['indirizzo']) || $publisherWebsite !== ''));
 
-$createBookUrl = static fn(array $book): string => ($book['_record_kind'] ?? '') === 'article' ? url('/emeroteca/articolo/' . (int)$book['id']) : book_url($book);
+$createBookUrl = static fn(array $book): string => ($book['_record_kind'] ?? '') === 'article' ? url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int)$book['id']) : book_url($book);
 $defaultCoverUrl = absoluteUrl('/uploads/copertine/placeholder.jpg');
 
 // ── SEO: shared by ALL archive types (author, publisher, genre) and by both

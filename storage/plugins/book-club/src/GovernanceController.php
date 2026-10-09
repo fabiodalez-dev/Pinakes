@@ -136,7 +136,7 @@ class GovernanceController extends BaseController
         }
 
         $this->flash('success', __('Automazioni aggiornate.'));
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     // ------------------------------------------------------------------

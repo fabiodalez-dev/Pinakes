@@ -20,7 +20,7 @@ $slug = (string) $club['slug'];
       <i class="fas fa-comments"></i>
       <h2><?= $e(__('Discussioni')) ?></h2>
     </div>
-    <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url('/book-club/' . $slug . '/discussions')) ?>">
+    <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions')) ?>">
       <?= $e(__('Tutte le discussioni')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>
@@ -40,7 +40,7 @@ $slug = (string) $club['slug'];
             <i class="fas fa-lock text-gray-500 text-sm" title="<?= $e(__('Bloccata')) ?>"></i>
           <?php endif; ?>
           <a class="font-semibold truncate"
-             href="<?= $e(url('/book-club/' . $slug . '/discussions/' . (int) $thread['id'])) ?>"><?= $e($thread['title']) ?></a>
+             href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . (int) $thread['id'])) ?>"><?= $e($thread['title']) ?></a>
         </div>
         <div class="bc-muted text-sm whitespace-nowrap ml-3">
           <?= (int) $thread['post_count'] ?> <?= $e(__n('messaggio', 'messaggi', (int) $thread['post_count'])) ?>
@@ -51,7 +51,7 @@ $slug = (string) $club['slug'];
   </div>
 
   <?php if ($isMember || $canManage): ?>
-    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/new')) ?>" class="flex items-center gap-2 mt-4 pt-4 border-t">
+    <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/new')) ?>" class="flex items-center gap-2 mt-4 pt-4 border-t">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
       <input type="hidden" name="kind" value="free">
       <input type="text" name="title" required maxlength="190"

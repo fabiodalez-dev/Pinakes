@@ -13,7 +13,7 @@ $catalogPageStyles = true;
 $heroTitle = __('I miei club di lettura');
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
+    ['label' => __('Club di lettura'), 'href' => url(\App\Support\RouteTranslator::route('book_club'))],
     ['label' => $heroTitle],
 ];
 include $corePartials . '/catalog-hero.php';
@@ -53,7 +53,7 @@ include $corePartials . '/catalog-hero.php';
 <div class="container py-4">
   <?php if (!empty($cards)): ?>
   <div class="bc-toolbar">
-    <a href="<?= $e(url('/book-club')) ?>" class="bc-btn"><i class="fas fa-compass" aria-hidden="true"></i><?= $e(__('Esplora i club')) ?></a>
+    <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club'))) ?>" class="bc-btn"><i class="fas fa-compass" aria-hidden="true"></i><?= $e(__('Esplora i club')) ?></a>
   </div>
   <?php endif; ?>
 
@@ -67,7 +67,7 @@ include $corePartials . '/catalog-hero.php';
     <?php
     $emptyIcon = 'fa-book-open';
     $emptyTitle = __('Non fai ancora parte di nessun club.');
-    $emptyCtaHref = url('/book-club');
+    $emptyCtaHref = url(\App\Support\RouteTranslator::route('book_club'));
     $emptyCtaLabel = __('Esplora i club');
     include $corePartials . '/empty-state.php';
     ?>
@@ -79,7 +79,7 @@ include $corePartials . '/catalog-hero.php';
       <div class="bc-card relative overflow-hidden">
         <span class="bc-club-accent" style="background: <?= $e($club['color']) ?>"></span>
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-link text-xl"><?= $e($club['name']) ?></a>
+          <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>" class="bc-link text-xl"><?= $e($club['name']) ?></a>
           <span class="bc-muted text-sm"><?= $e($club['role_name'] ?? '') ?><?= ($club['member_status'] ?? '') === 'pending' ? ' · ' . $e(__('adesione in attesa di approvazione')) : '' ?></span>
         </div>
         <div class="flex flex-wrap -mx-3 gap-y-4">
@@ -113,7 +113,7 @@ include $corePartials . '/catalog-hero.php';
             <?php endif; ?>
             <?php foreach ($snap['open_polls'] as $poll): ?>
               <div class="mb-1">
-                <a class="bc-link" href="<?= $e(url('/book-club/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                <a class="bc-link" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'] . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
                 <?php if (!empty($poll['closes_at'])): ?>
                   <span class="bc-muted text-sm ml-1"><?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?></span>
                 <?php endif; ?>

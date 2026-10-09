@@ -342,9 +342,11 @@ final class CitationFormatter
             'SP' => $p['pageStart'],
             'EP' => $p['pageEnd'],
             'PY' => $p['year'],
+            // RIS DA is YYYY/MM/DD/other: a free-text date ("Nr. 31 (1988)")
+            // goes into the "other" part, never in place of the year.
             'DA' => $p['month'] > 0
                 ? sprintf('%s/%02d/%s/', $p['year'], $p['month'], $p['day'] > 0 ? sprintf('%02d', $p['day']) : '')
-                : self::clean($row['data_pubblicazione_testo'] ?? ''),
+                : ($p['year'] !== '' ? $p['year'] . '///' . self::clean($row['data_pubblicazione_testo'] ?? '') : ''),
             // A chapter's host is a book: its identifier is the ISBN or
             // nothing, never an ISSN left over from a journal record.
             'SN' => $p['isAnthology'] ? $p['isbn'] : $p['issn'],

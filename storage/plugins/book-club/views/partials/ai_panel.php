@@ -21,7 +21,7 @@ $slug = (string) $club['slug'];
       </div>
       <p class="bc-muted mb-0"><?= $e(__('Genera domande di discussione per un libro o il riassunto del verbale di un incontro.')) ?></p>
     </div>
-    <a href="<?= $e(url('/book-club/' . $slug . '/ai')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
+    <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/ai')) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
       <?= $e(__('Apri l\'assistente')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>

@@ -59,7 +59,7 @@ class SeasonController extends BaseController
 
     private function clubPath(string $slug): string
     {
-        return '/book-club/' . $slug;
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug;
     }
 
     // ------------------------------------------------------------------

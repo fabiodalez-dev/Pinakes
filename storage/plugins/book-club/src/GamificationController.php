@@ -51,7 +51,7 @@ class GamificationController extends BaseController
     public function show(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canView($club)) {
+        if ($club === null || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         $canManage = $this->canManage($club);

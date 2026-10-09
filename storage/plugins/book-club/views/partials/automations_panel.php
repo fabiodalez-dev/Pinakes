@@ -37,7 +37,7 @@ $channelLabels = [
   </div>
   <p class="bc-muted mb-4"><?= $e(__('Promemoria automatici inviati ai membri attivi dal cron di manutenzione. Ogni avviso parte una sola volta per libro o votazione.')) ?></p>
 
-  <form method="post" action="<?= $e(url('/book-club/' . $slug . '/automations')) ?>">
+  <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/automations')) ?>">
     <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
     <div class="flex flex-col gap-3">
       <?php foreach ($rows as $trigger => $meta): ?>

@@ -56,7 +56,7 @@ $kindBadges = [
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
   </a>
 
@@ -78,7 +78,7 @@ $kindBadges = [
         <i class="fas fa-comment-medical"></i>
         <h2><?= $e(__('Apri una nuova discussione')) ?></h2>
       </div>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/new')) ?>">
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/new')) ?>">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="text" name="title" required maxlength="190"
                placeholder="<?= $e(__('Titolo della discussione')) ?>"
@@ -132,7 +132,7 @@ $kindBadges = [
               <i class="fas fa-lock text-sm bc-muted" title="<?= $e(__('Bloccata')) ?>"></i>
             <?php endif; ?>
             <a class="font-semibold no-underline" style="color: var(--primary-color)"
-               href="<?= $e(url('/book-club/' . $slug . '/discussions/' . (int) $thread['id'])) ?>"><?= $e($thread['title']) ?></a>
+               href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . (int) $thread['id'])) ?>"><?= $e($thread['title']) ?></a>
             <span class="<?= $e($kindBadges[$thread['kind']] ?? 'bc-badge bc-badge-closed') ?>">
               <?= $e($kindLabels[$thread['kind']] ?? $thread['kind']) ?>
             </span>

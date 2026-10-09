@@ -34,7 +34,7 @@ $filterLabels=['autore'=>__('Autore'),'pubblicazione'=>__('Pubblicazione'),'keyw
 $keep=static fn(mixed $value):bool=>(string)$value!=='';
 $idParam=static fn(int $id):string=>$id>0?(string)$id:'';
 $testataId=(int)$testata;
-$articlesPath=url('/emeroteca/articoli');
+$articlesPath=url(\App\Support\RouteTranslator::route('periodicals') . '/articoli');
 /** The current narrowing (term, masthead, issue, filters) with $changes applied; a '' value removes a key. */
 $state=['q'=>$term,'testata'=>$idParam($testataId),'fascicolo'=>$idParam($fascicolo)]+$filters;
 $stateUrl=static function(array $changes) use ($state,$keep,$articlesPath):string {
@@ -52,7 +52,7 @@ $catalogPageStyles=true;
 <?php
 $heroTitle=__('Articoli');
 $heroSubtitle=__('Articoli e contributi dei periodici della biblioteca');
-$breadcrumbItems=[['label'=>__('Home'),'href'=>url('/')],['label'=>__('Emeroteca'),'href'=>url('/emeroteca')],['label'=>__('Articoli')]];
+$breadcrumbItems=[['label'=>__('Home'),'href'=>url('/')],['label'=>__('Emeroteca'),'href'=>url(\App\Support\RouteTranslator::route('periodicals'))],['label'=>__('Articoli')]];
 include $corePartials.'/catalog-hero.php';
 ?>
 

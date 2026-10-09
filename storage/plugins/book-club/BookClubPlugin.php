@@ -723,54 +723,62 @@ class BookClubPlugin
         // Any authenticated Pinakes user may participate in clubs.
         $authMw = new \App\Middleware\AuthMiddleware(['admin', 'staff', 'standard', 'premium']);
 
+        // Public club pages answer under every localized base of the
+        // 'book_club' route key (/club-di-lettura, /lesekreis, …) and keep the
+        // historical /book-club base for existing links, bookmarks and the
+        // app; /admin/… and /api/… patterns pass through unchanged. The
+        // modules below receive the same wrapper, so their routes follow too.
+        $routes = \App\Support\LocalizedRouteRegistrar::wrap($app, 'book_club', '/book-club');
+
         // ---- Admin ----
-        $app->get('/admin/book-club', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $admin->index($rq, $rs))->add($adminMw);
-        $app->get('/admin/book-club/new', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $admin->form($rq, $rs, null))->add($adminMw);
-        $app->post('/admin/book-club/new', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $admin->save($rq, $rs, null))->add($csrfMw)->add($adminMw);
-        $app->get('/admin/book-club/{id:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->show($rq, $rs, (int) $a['id']))->add($adminMw);
-        $app->get('/admin/book-club/{id:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->form($rq, $rs, (int) $a['id']))->add($adminMw);
-        $app->post('/admin/book-club/{id:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->save($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
-        $app->post('/admin/book-club/{id:[0-9]+}/delete', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->delete($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
-        $app->post('/admin/book-club/{id:[0-9]+}/workflow', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->saveWorkflow($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
-        $app->post('/admin/book-club/{id:[0-9]+}/members/add', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->addMember($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
-        $app->post('/admin/book-club/{id:[0-9]+}/members/{memberId:[0-9]+}/update', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->updateMember($rq, $rs, (int) $a['id'], (int) $a['memberId']))->add($csrfMw)->add($adminMw);
+        $routes->get('/admin/book-club', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $admin->index($rq, $rs))->add($adminMw);
+        $routes->get('/admin/book-club/new', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $admin->form($rq, $rs, null))->add($adminMw);
+        $routes->post('/admin/book-club/new', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $admin->save($rq, $rs, null))->add($csrfMw)->add($adminMw);
+        $routes->get('/admin/book-club/{id:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->show($rq, $rs, (int) $a['id']))->add($adminMw);
+        $routes->get('/admin/book-club/{id:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->form($rq, $rs, (int) $a['id']))->add($adminMw);
+        $routes->post('/admin/book-club/{id:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->save($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
+        $routes->post('/admin/book-club/{id:[0-9]+}/delete', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->delete($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
+        $routes->post('/admin/book-club/{id:[0-9]+}/workflow', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->saveWorkflow($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
+        $routes->post('/admin/book-club/{id:[0-9]+}/members/add', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->addMember($rq, $rs, (int) $a['id']))->add($csrfMw)->add($adminMw);
+        $routes->post('/admin/book-club/{id:[0-9]+}/members/{memberId:[0-9]+}/update', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $admin->updateMember($rq, $rs, (int) $a['id'], (int) $a['memberId']))->add($csrfMw)->add($adminMw);
 
         // ---- Public / member area ----
-        $app->get('/book-club', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $public->index($rq, $rs));
-        $app->get('/my/book-clubs', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $public->dashboard($rq, $rs))->add($authMw);
-        $app->get('/book-club/invite/{token:[a-f0-9]{64}}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acceptInvite($rq, $rs, (string) $a['token']))->add($authMw);
-        $app->get('/book-club/{slug:[a-z0-9\-]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->show($rq, $rs, (string) $a['slug']));
-        $app->get('/book-club/{slug:[a-z0-9\-]+}/calendar.ics', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->icsFeed($rq, $rs, (string) $a['slug']));
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/join', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->join($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/leave', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->leave($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/invite', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->sendInvite($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/members/{memberId:[0-9]+}/approve', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->approveMember($rq, $rs, (string) $a['slug'], (int) $a['memberId']))->add($csrfMw)->add($authMw);
+        $routes->get('/book-club', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $public->index($rq, $rs));
+        $routes->get('/my/book-clubs', fn(ServerRequestInterface $rq, ResponseInterface $rs): ResponseInterface => $public->dashboard($rq, $rs))->add($authMw);
+        $routes->get('/book-club/invite/{token:[a-f0-9]{64}}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acceptInvite($rq, $rs, (string) $a['token']))->add($authMw);
+        $routes->post('/book-club/invite/{token:[a-f0-9]{64}}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acceptInvite($rq, $rs, (string) $a['token']))->add($csrfMw)->add($authMw);
+        $routes->get('/book-club/{slug:[a-z0-9\-]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->show($rq, $rs, (string) $a['slug']));
+        $routes->get('/book-club/{slug:[a-z0-9\-]+}/calendar.ics', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->icsFeed($rq, $rs, (string) $a['slug']));
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/join', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->join($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/leave', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->leave($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/invite', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->sendInvite($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/members/{memberId:[0-9]+}/approve', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->approveMember($rq, $rs, (string) $a['slug'], (int) $a['memberId']))->add($csrfMw)->add($authMw);
 
         // Proposals
-        $app->get('/book-club/{slug:[a-z0-9\-]+}/book-search', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->bookSearch($rq, $rs, (string) $a['slug']))->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/proposals', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->propose($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/state', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->changeBookState($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/acquire', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acquireBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/remove', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->removeBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
-        $app->get('/book-club/{slug:[a-z0-9\-]+}/books.pdf', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->booksPdf($rq, $rs, (string) $a['slug']))->add($authMw);
+        $routes->get('/book-club/{slug:[a-z0-9\-]+}/book-search', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->bookSearch($rq, $rs, (string) $a['slug']))->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/proposals', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->propose($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/state', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->changeBookState($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/acquire', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acquireBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/remove', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->removeBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
+        $routes->get('/book-club/{slug:[a-z0-9\-]+}/books.pdf', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->booksPdf($rq, $rs, (string) $a['slug']))->add($authMw);
 
         // Polls
-        $app->get('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->show($rq, $rs, (string) $a['slug'], (int) $a['pollId']));
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/polls/new', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->create($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}/vote', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->vote($rq, $rs, (string) $a['slug'], (int) $a['pollId']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}/close', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->close($rq, $rs, (string) $a['slug'], (int) $a['pollId']))->add($csrfMw)->add($authMw);
+        $routes->get('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->show($rq, $rs, (string) $a['slug'], (int) $a['pollId']));
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/polls/new', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->create($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}/vote', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->vote($rq, $rs, (string) $a['slug'], (int) $a['pollId']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}/close', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->close($rq, $rs, (string) $a['slug'], (int) $a['pollId']))->add($csrfMw)->add($authMw);
 
         // Meetings
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/new', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->create($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->update($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/rsvp', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->rsvp($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
-        $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/status', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->changeStatus($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/meetings/new', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->create($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->update($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/rsvp', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->rsvp($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
+        $routes->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/status', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->changeStatus($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
 
         // Feature modules (reading, discussions, stats, …) attach their own
         // routes; per-club enablement is re-checked inside each handler.
         foreach (Modules\Registry::all($this->db) as $module) {
             try {
-                $module->registerRoutes($app);
+                $module->registerRoutes($routes);
             } catch (\Throwable $e) {
                 SecureLogger::error('[BookClub] module ' . $module->slug() . ' registerRoutes failed: ' . $e->getMessage());
             }

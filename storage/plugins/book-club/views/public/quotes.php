@@ -21,7 +21,7 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 $csrf = \App\Support\Csrf::ensureToken();
-$base = url('/book-club/' . $slug . '/quotes');
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/quotes');
 $quoteVisibilityLabels = [
     'private' => __('Privata'),
     'club' => __('Solo club'),
@@ -75,7 +75,7 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
   .bc-badge-club{background:var(--accent-color);color:var(--primary-text, var(--primary-color))}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Torna al club')) ?>
   </a>
 

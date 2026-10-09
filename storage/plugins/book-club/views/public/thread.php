@@ -116,7 +116,7 @@ foreach ($posts as $post) {
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug . '/discussions')) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions')) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Discussioni')) ?> · <?= $e($club['name']) ?>
   </a>
 
@@ -149,13 +149,13 @@ foreach ($posts as $post) {
       </div>
       <?php if ($canManage): ?>
         <div class="flex items-center gap-2 whitespace-nowrap">
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/lock')) ?>">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/lock')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
               <i class="fas <?= $isLocked ? 'fa-lock-open' : 'fa-lock' ?>"></i><?= $isLocked ? $e(__('Sblocca')) : $e(__('Blocca')) ?>
             </button>
           </form>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/pin')) ?>">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/pin')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
               <i class="fas fa-thumbtack"></i><?= (int) $thread['is_pinned'] === 1 ? $e(__('Togli evidenza')) : $e(__('Fissa in alto')) ?>
@@ -190,7 +190,7 @@ foreach ($posts as $post) {
             <?php if ($post['edited_at'] !== null): ?><span class="bc-muted ml-1"><?= $e(__('(modificato)')) ?></span><?php endif; ?>
           </div>
           <?php if ($canManage && $post['deleted_at'] === null): ?>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/delete')) ?>"
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $postId . '/delete')) ?>"
                   onsubmit="return confirm(<?= $e(json_encode(__('Rimuovere questo messaggio?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Rimuovi messaggio')) ?>"><i class="fas fa-trash-alt"></i></button>
@@ -203,7 +203,7 @@ foreach ($posts as $post) {
         <!-- Reactions -->
         <?php $postReactions = $reactions[$postId] ?? []; ?>
         <?php if ($post['deleted_at'] === null && ($isMember || $canManage)): ?>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $postId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-3">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $postId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-3">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <?php foreach ($emojis as $emoji): ?>
               <?php
@@ -242,7 +242,7 @@ foreach ($posts as $post) {
                 <span class="bc-muted ml-2"><?= $e(date('d/m/Y H:i', (int) strtotime((string) $reply['created_at']))) ?></span>
               </div>
               <?php if ($canManage && $reply['deleted_at'] === null): ?>
-                <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/delete')) ?>"
+                <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $replyId . '/delete')) ?>"
                       onsubmit="return confirm(<?= $e(json_encode(__('Rimuovere questo messaggio?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                   <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Rimuovi messaggio')) ?>"><i class="fas fa-trash-alt"></i></button>
@@ -254,7 +254,7 @@ foreach ($posts as $post) {
 
             <?php $replyReactions = $reactions[$replyId] ?? []; ?>
             <?php if ($reply['deleted_at'] === null && ($isMember || $canManage)): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/posts/' . $replyId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $replyId . '/react')) ?>" class="flex flex-wrap items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <?php foreach ($emojis as $emoji): ?>
                   <?php
@@ -289,7 +289,7 @@ foreach ($posts as $post) {
         <?php if ($canPost): ?>
           <details class="mt-3">
             <summary class="text-sm font-semibold" style="cursor: pointer; color: var(--primary-text, var(--primary-color))"><?= $e(__('Rispondi')) ?></summary>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/posts')) ?>" class="mt-2">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/posts')) ?>" class="mt-2">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="parent_id" value="<?= $postId ?>">
               <textarea name="body" rows="2" required maxlength="20000"
@@ -325,7 +325,7 @@ foreach ($posts as $post) {
         <i class="fas fa-pen"></i>
         <h2><?= $e(__('Scrivi un messaggio')) ?></h2>
       </div>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/discussions/' . $threadId . '/posts')) ?>">
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/' . $threadId . '/posts')) ?>">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <textarea name="body" rows="4" required maxlength="20000"
                   placeholder="<?= $e(__('Condividi le tue impressioni… usa @nome per menzionare un membro.')) ?>"

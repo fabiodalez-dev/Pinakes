@@ -42,7 +42,7 @@ $closedPolls = array_values(array_filter(
 // Members always get the tokenized feed URL: the token proves membership
 // and unlocks the members-only fields (e.g. video-conference links) that
 // the anonymous public-club feed omits.
-$icsUrl = url('/book-club/' . $slug . '/calendar.ics') . '?token=' . $club['ics_token'];
+$icsUrl = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/calendar.ics') . '?token=' . $club['ics_token'];
 $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybrid' => __('Ibrido')];
 ?>
 <style>
@@ -98,7 +98,7 @@ $corePartials = dirname(__DIR__, 5) . '/app/Views/frontend/partials';
 $bookDetailStyles = true;
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
+    ['label' => __('Club di lettura'), 'href' => url(\App\Support\RouteTranslator::route('book_club'))],
     ['label' => (string) $club['name']],
 ];
 $resourceCover = '';
@@ -119,7 +119,7 @@ ob_start();
           <a href="<?= $e(\App\Support\RouteTranslator::route('login')) ?>" class="bc-btn"><?= $e(__('Accedi per partecipare')) ?></a>
         <?php elseif ($membership === null || !in_array($membership['status'], ['active', 'pending'], true)): ?>
           <?php if (in_array($club['privacy'], ['public', 'private'], true)): ?>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/join')) ?>">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/join')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn">
                 <?= $club['privacy'] === 'public' ? $e(__('Unisciti al club')) : $e(__('Richiedi di partecipare')) ?>
@@ -131,7 +131,7 @@ ob_start();
         <?php elseif ($membership['status'] === 'pending'): ?>
           <span class="bc-badge bc-badge-warn"><?= $e(__('Richiesta in attesa di approvazione')) ?></span>
         <?php else: ?>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/leave')) ?>"
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/leave')) ?>"
                 onsubmit="return confirm(<?= $e(json_encode(__('Vuoi davvero lasciare il club?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Lascia il club')) ?></button>
@@ -176,12 +176,12 @@ include $corePartials . '/resource-hero.php';
             <?php if (!empty($book['motivation'])): ?><p class="bc-muted text-sm mt-1 mb-0"><?= $e($book['motivation']) ?></p><?php endif; ?>
           </div>
           <div class="flex items-center gap-2">
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="state" value="<?= $e($states[0]['key'] ?? 'proposed') ?>">
               <button type="submit" class="bc-btn bc-btn-sm"><?= $e(__('Approva')) ?></button>
             </form>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="state" value="reject-proposal">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Rifiuta')) ?></button>
@@ -195,6 +195,17 @@ include $corePartials . '/resource-hero.php';
   <div class="flex flex-wrap -mx-3 gap-y-4">
     <div class="w-full px-3 lg:w-2/3">
 
+      <?php if (($contentVisible ?? true) === false): ?>
+      <!-- Private club, visitor not a member: the card and the join request only. -->
+      <section class="bc-card">
+        <div class="bc-section-header">
+          <i class="fas fa-lock"></i>
+          <h2 class="mb-0"><?= $e(__('Club privato')) ?></h2>
+        </div>
+        <p class="bc-muted mb-0"><?= $e(__('Libri, discussioni, sondaggi e incontri di questo club sono visibili solo ai membri.')) ?></p>
+      </section>
+      <?php else: ?>
+
       <!-- Workflow board -->
       <section class="bc-card">
         <div class="bc-section-header flex items-center justify-between">
@@ -202,7 +213,7 @@ include $corePartials . '/resource-hero.php';
             <h2 class="mb-0"><?= $e(__('I libri del club')) ?></h2>
           </span>
           <?php if ($isMember || $canManage): ?>
-            <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url('/book-club/' . $slug . '/books.pdf')) ?>" target="_blank" rel="noopener"><i class="fas fa-file-pdf mr-1"></i><?= $e(__('Stampa PDF')) ?></a>
+            <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/books.pdf')) ?>" target="_blank" rel="noopener"><i class="fas fa-file-pdf mr-1"></i><?= $e(__('Stampa PDF')) ?></a>
           <?php endif; ?>
         </div>
         <?php $hasAny = false; ?>
@@ -245,7 +256,7 @@ include $corePartials . '/resource-hero.php';
                   </div>
                   <?php if ($canManage): ?>
                     <div class="flex flex-col items-end gap-2">
-                      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>" class="flex items-center gap-2">
+                      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/books/' . (int) $book['id'] . '/state')) ?>" class="flex items-center gap-2">
                         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                         <select name="state" class="form-input px-3 py-2 text-sm w-auto">
                           <?php foreach ($states as $target): ?>
@@ -255,12 +266,12 @@ include $corePartials . '/resource-hero.php';
                         <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm" title="<?= $e(__('Sposta')) ?>"><i class="fas fa-arrow-right"></i></button>
                       </form>
                       <?php if (!empty($book['is_external'])): ?>
-                        <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/acquire')) ?>">
+                        <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/books/' . (int) $book['id'] . '/acquire')) ?>">
                           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                           <button type="submit" class="bc-btn bc-btn-sm" title="<?= $e(__('Crea la voce di catalogo da questa proposta esterna.')) ?>"><i class="fas fa-plus mr-1"></i><?= $e(__('Acquisisci in catalogo')) ?></button>
                         </form>
                       <?php endif; ?>
-                      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/books/' . (int) $book['id'] . '/remove')) ?>"
+                      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/books/' . (int) $book['id'] . '/remove')) ?>"
                             data-swal-confirm="<?= $e(__('Rimuovere questo libro dalla lista del club? L\'operazione non si può annullare.')) ?>"
                             data-swal-confirm-button="<?= $e(__('Rimuovi')) ?>">
                         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
@@ -289,7 +300,7 @@ include $corePartials . '/resource-hero.php';
             <h2><?= $e(__('Proponi un libro')) ?></h2>
           </div>
           <p class="bc-muted mb-3"><?= $e(__('Cerca nel catalogo della biblioteca e racconta al club perché vale la pena leggerlo.')) ?></p>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/proposals')) ?>">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/proposals')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <input type="hidden" name="libro_id" id="bc-libro-id">
             <div class="relative mb-3">
@@ -326,7 +337,7 @@ include $corePartials . '/resource-hero.php';
           <details class="mt-3 pt-3 border-t bc-external-propose">
             <summary class="bc-summary"><?= $e(__('Proponi un libro non ancora in catalogo')) ?></summary>
             <p class="bc-muted text-sm mt-2 mb-3"><?= $e(__('Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.')) ?></p>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/proposals')) ?>">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/proposals')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="hidden" name="source" value="external">
               <input type="text" name="ext_titolo" required maxlength="500" placeholder="<?= $e(__('Titolo')) ?>" class="form-input mb-2">
@@ -353,7 +364,7 @@ include $corePartials . '/resource-hero.php';
                 var q = input.value.trim();
                 if (q.length < 2) { box.classList.add('hidden'); return; }
                 timer = setTimeout(function () {
-                  fetch(<?= json_encode(url('/book-club/' . $slug . '/book-search'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?> + '?q=' + encodeURIComponent(q), {headers: {'Accept': 'application/json'}})
+                  fetch(<?= json_encode(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/book-search'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?> + '?q=' + encodeURIComponent(q), {headers: {'Accept': 'application/json'}})
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                       box.innerHTML = '';
@@ -393,7 +404,7 @@ include $corePartials . '/resource-hero.php';
         <?php foreach ($openPolls as $poll): ?>
           <div class="bc-list-item items-center">
             <div>
-              <a class="bc-link" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+              <a class="bc-link" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
               <div class="bc-muted text-sm mt-1">
                 <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
                 <?php if (!empty($poll['closes_at'])): ?>
@@ -416,7 +427,7 @@ include $corePartials . '/resource-hero.php';
               <?php foreach ($closedPolls as $poll): ?>
                 <div class="bc-list-item items-center">
                   <div>
-                    <a class="bc-link" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                    <a class="bc-link" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
                     <div class="bc-muted text-sm mt-1">
                       <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
                       <?php if (!empty($poll['closed_at'])): ?>
@@ -445,7 +456,7 @@ include $corePartials . '/resource-hero.php';
             <?php if (count($eligible) < 2): ?>
               <p class="bc-muted mt-3 mb-0"><?= $e(__('Servono almeno due proposte per aprire una votazione.')) ?></p>
             <?php else: ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/new')) ?>" class="mt-3">
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/new')) ?>" class="mt-3">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <input type="text" name="title" maxlength="190" placeholder="<?= $e(__('Titolo (es. Votazione autunno 2026)')) ?>"
                        class="form-input mb-3">
@@ -533,7 +544,7 @@ include $corePartials . '/resource-hero.php';
               </div>
             </div>
             <?php if ($isMember && $meeting['status'] === 'scheduled' && !$isPast): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/rsvp')) ?>" class="flex items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/meetings/' . (int) $meeting['id'] . '/rsvp')) ?>" class="flex items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <span class="bc-muted text-sm mr-1"><?= $e(__('Parteciperai?')) ?></span>
                 <button name="response" value="yes" class="bc-btn bc-btn-sm"><?= $e(__('Sì')) ?></button>
@@ -542,7 +553,7 @@ include $corePartials . '/resource-hero.php';
               </form>
             <?php endif; ?>
             <?php if ($canManage && $meeting['status'] === 'scheduled'): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/status')) ?>" class="flex items-center gap-2 mt-2">
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/meetings/' . (int) $meeting['id'] . '/status')) ?>" class="flex items-center gap-2 mt-2">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button name="status" value="done" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Segna come svolto')) ?></button>
                 <button name="status" value="cancelled" class="bc-btn bc-btn-danger bc-btn-sm"
@@ -550,7 +561,7 @@ include $corePartials . '/resource-hero.php';
               </form>
               <details class="mt-2 bc-meeting-edit">
                 <summary class="bc-summary"><?= $e(__('Modifica incontro')) ?></summary>
-                <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/edit')) ?>" class="mt-3">
+                <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/meetings/' . (int) $meeting['id'] . '/edit')) ?>" class="mt-3">
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                   <input type="text" name="title" required maxlength="190" value="<?= $e((string) $meeting['title']) ?>" class="form-input mb-3">
                   <div class="flex flex-wrap -mx-3 gap-y-2 mb-3">
@@ -597,7 +608,7 @@ include $corePartials . '/resource-hero.php';
         <?php if ($canManage): ?>
           <details class="mt-4 pt-3 border-t">
             <summary class="bc-summary"><?= $e(__('Pianifica un incontro')) ?></summary>
-            <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/new')) ?>" class="mt-3">
+            <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/meetings/new')) ?>" class="mt-3">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Titolo dell\'incontro')) ?>"
                      class="form-input mb-3">
@@ -645,6 +656,7 @@ include $corePartials . '/resource-hero.php';
       <?php foreach (($modulePanelsMain ?? []) as $panelHtml): ?>
         <?= $panelHtml /* module-rendered, already escaped inside the partial */ ?>
       <?php endforeach; ?>
+      <?php endif; ?>
     </div>
 
     <!-- Sidebar -->
@@ -673,7 +685,7 @@ include $corePartials . '/resource-hero.php';
             <div class="bc-muted text-sm mt-2" style="white-space:pre-wrap;"><?= $e(mb_substr((string) $nextMeeting['agenda'], 0, 500)) ?></div>
           <?php endif; ?>
           <?php if ($canManage): ?>
-            <a class="bc-btn bc-btn-outline bc-btn-sm mt-2" href="<?= $e(url('/book-club/' . $slug)) ?>#bc-meeting-<?= (int) $nextMeeting['id'] ?>"><i class="fas fa-pen mr-1"></i><?= $e(__('Modifica incontro')) ?></a>
+            <a class="bc-btn bc-btn-outline bc-btn-sm mt-2" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>#bc-meeting-<?= (int) $nextMeeting['id'] ?>"><i class="fas fa-pen mr-1"></i><?= $e(__('Modifica incontro')) ?></a>
           <?php endif; ?>
         </section>
       <?php endif; ?>
@@ -684,7 +696,7 @@ include $corePartials . '/resource-hero.php';
             <i class="fas fa-envelope"></i>
             <h2><?= $e(__('Invita un lettore')) ?></h2>
           </div>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/invite')) ?>">
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/invite')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <input type="email" name="email" required placeholder="email@esempio.it"
                    class="form-input mb-2">
@@ -709,7 +721,7 @@ include $corePartials . '/resource-hero.php';
                     <span class="bc-muted text-sm"><?= $e($member['role_name']) ?></span>
                   <?php endif; ?>
                   <?php if ($member['status'] === 'pending' && $canManage): ?>
-                    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/members/' . (int) $member['id'] . '/approve')) ?>" class="inline-flex gap-1">
+                    <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/members/' . (int) $member['id'] . '/approve')) ?>" class="inline-flex gap-1">
                       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                       <button name="action" value="approve" class="bc-btn bc-btn-sm"><?= $e(__('Approva')) ?></button>
                       <button name="action" value="reject" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Rifiuta')) ?></button>

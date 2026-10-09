@@ -16,7 +16,7 @@ declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
-$base = url('/book-club/' . $slug . '/buddy');
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/buddy');
 
 $statusMeta = [
     'proposed' => [__('In attesa'), 'bc-badge-warn'],

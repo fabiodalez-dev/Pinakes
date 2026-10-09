@@ -69,13 +69,13 @@ foreach ($archivedBooks as $book) {
         <?php if ($canManage): ?>
           <div class="flex items-center gap-2 whitespace-nowrap">
             <?php if (!$isCurrent): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/' . $seasonId . '/current')) ?>">
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/seasons/' . $seasonId . '/current')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Imposta come corrente')) ?></button>
               </form>
             <?php endif; ?>
             <?php if ($bookCount === 0): ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/' . $seasonId . '/delete')) ?>"
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/seasons/' . $seasonId . '/delete')) ?>"
                     onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa stagione?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Puoi eliminare solo stagioni senza libri.')) ?>"><?= $e(__('Elimina')) ?></button>
@@ -88,7 +88,7 @@ foreach ($archivedBooks as $book) {
       <?php if ($canManage): ?>
         <details class="mt-2">
           <summary class="text-sm font-semibold" style="cursor: pointer"><?= $e(__('Modifica')) ?></summary>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/' . $seasonId . '/update')) ?>"
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/seasons/' . $seasonId . '/update')) ?>"
                 class="mt-2 flex flex-wrap -mx-3 gap-y-2 items-end">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <div class="w-full px-3 md:w-1/4">
@@ -120,7 +120,7 @@ foreach ($archivedBooks as $book) {
   <?php if ($canManage): ?>
     <details class="mt-4 pt-4 border-t">
       <summary class="font-semibold" style="cursor: pointer"><?= $e(__('Nuova stagione')) ?></summary>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/new')) ?>" class="mt-3">
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/seasons/new')) ?>" class="mt-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="text" name="name" required maxlength="190"
                placeholder="<?= $e(__('Nome della stagione (es. 2026 Primavera)')) ?>"
@@ -154,7 +154,7 @@ foreach ($archivedBooks as $book) {
       <div class="mt-3 flex flex-col gap-2">
         <?php foreach ($assignBooks as $assignBook): ?>
           <?php $currentSeasonId = $assignBook['season_id'] !== null ? (int) $assignBook['season_id'] : null; ?>
-          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/assign')) ?>"
+          <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/seasons/assign')) ?>"
                 class="flex flex-wrap items-center gap-2">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <input type="hidden" name="club_book_id" value="<?= (int) $assignBook['id'] ?>">

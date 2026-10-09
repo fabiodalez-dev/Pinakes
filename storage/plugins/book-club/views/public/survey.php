@@ -27,7 +27,7 @@ $surveyId = (int) $survey['id'];
 $status = (string) $survey['status'];
 $anonymous = (int) ($survey['anonymous'] ?? 0) === 1;
 $csrf = \App\Support\Csrf::ensureToken();
-$base = url('/book-club/' . $slug . '/surveys/' . $surveyId);
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/surveys/' . $surveyId);
 $statusBadges = [
     'draft' => ['bc-badge bc-badge-warn', __('Bozza')],
     'open' => ['bc-badge bc-badge-open', __('Aperto')],
@@ -63,7 +63,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug . '/surveys')) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/surveys')) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Tutti i questionari')) ?>
   </a>
 

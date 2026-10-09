@@ -61,7 +61,7 @@ $privacyLabels = [
                 <span class="inline-block w-3 h-3 rounded-full mr-3" style="background: <?= $e($club['color']) ?>"></span>
                 <div>
                   <a class="font-medium text-gray-900 hover:text-blue-600" href="<?= $e(url('/admin/book-club/' . (int) $club['id'])) ?>"><?= $e($club['name']) ?></a>
-                  <div class="text-xs text-gray-400">/book-club/<?= $e($club['slug']) ?></div>
+                  <div class="text-xs text-gray-400"><?= $e(\App\Support\RouteTranslator::route('book_club')) ?>/<?= $e($club['slug']) ?></div>
                 </div>
               </div>
             </td>
@@ -77,7 +77,7 @@ $privacyLabels = [
             <td class="px-4 py-3 text-right text-sm whitespace-nowrap">
               <a class="text-blue-600 hover:underline mr-3" href="<?= $e(url('/admin/book-club/' . (int) $club['id'])) ?>"><?= $e(__('Gestisci')) ?></a>
               <a class="text-gray-500 hover:underline mr-3" href="<?= $e(url('/admin/book-club/' . (int) $club['id'] . '/edit')) ?>"><?= $e(__('Modifica')) ?></a>
-              <a class="text-gray-500 hover:underline" target="_blank" href="<?= $e(url('/book-club/' . $club['slug'])) ?>"><?= $e(__('Vedi')) ?></a>
+              <a class="text-gray-500 hover:underline" target="_blank" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>"><?= $e(__('Vedi')) ?></a>
             </td>
           </tr>
         <?php endforeach; ?>

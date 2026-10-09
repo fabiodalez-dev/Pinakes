@@ -33,7 +33,7 @@ class BuddyController extends BaseController
 
     private function clubPath(string $slug): string
     {
-        return '/book-club/' . $slug;
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug;
     }
 
     // ------------------------------------------------------------------
@@ -43,7 +43,7 @@ class BuddyController extends BaseController
     public function propose(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->module->enabledFor($club) || !$this->canView($club)) {
+        if ($club === null || !$this->module->enabledFor($club) || !$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         if (!$this->isActiveMember($club)) {
@@ -194,7 +194,7 @@ class BuddyController extends BaseController
             return null;
         }
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->module->enabledFor($club) || !$this->canView($club)) {
+        if ($club === null || !$this->module->enabledFor($club) || !$this->canSeeContent($club)) {
             return null;
         }
         $buddy = $this->ext->buddyById($buddyId);

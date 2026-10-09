@@ -62,7 +62,7 @@ $fascicoli = array_values(array_filter(
 ));
 
 // ── Schema.org Periodical (dedicated branch for SEO consumers) ────────
-$canonicalSelf = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . '/emeroteca/' . $testataId;
+$canonicalSelf = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . \App\Support\RouteTranslator::route('periodicals') . '/' . $testataId;
 $temporalCoverage = null;
 if ($annoInizio !== null) {
     $temporalCoverage = (string) $annoInizio . '/' . ($annoFine !== null ? (string) $annoFine : '..');
@@ -98,7 +98,7 @@ $catalogPageStyles = true;
 $bookDetailStyles = true;
 $q = $q ?? '';
 $rawAnno = $rawAnno ?? '';
-$testataUrl = url('/emeroteca/' . $testataId);
+$testataUrl = url(\App\Support\RouteTranslator::route('periodicals') . '/' . $testataId);
 /** This page's URL with the article search / page / year changed; '' removes a key. */
 $pageUrl = static function (array $changes = []) use ($testataUrl, $q, $selectedYear, $rawAnno): string {
     $state = ['anno' => $rawAnno !== '' ? (string) $selectedYear : '', 'q' => $q];
@@ -111,7 +111,7 @@ $kicker = '<span class="book-media-type"><i class="fas fa-newspaper mr-1" aria-h
     . $e(__($tipoLabels[(string) $testata['tipo']] ?? (string) $testata['tipo'])) . '</span>';
 if (!empty($testata['editore_nome'])) {
     $kicker .= '<span class="book-kicker-separator" aria-hidden="true">·</span><span class="book-hero-publishers"><a href="'
-        . $e(url('/emeroteca') . '?' . http_build_query(['editore' => (int) ($testata['editore_id'] ?? 0)])) . '">'
+        . $e(url(\App\Support\RouteTranslator::route('periodicals')) . '?' . http_build_query(['editore' => (int) ($testata['editore_id'] ?? 0)])) . '">'
         . $e((string) $testata['editore_nome']) . '</a></span>';
 }
 $heroFacts = array_values(array_filter([
@@ -125,15 +125,15 @@ if ($heroFacts !== []) {
 }
 if (!empty($testata['genere_nome'])) {
     $extra .= '<div class="genre-tags"><i class="fas fa-tags" aria-hidden="true"></i><a class="genre-tag" href="'
-        . $e(url('/emeroteca') . '?' . http_build_query(['genere' => (int) ($testata['genere_id'] ?? 0)])) . '">'
+        . $e(url(\App\Support\RouteTranslator::route('periodicals')) . '?' . http_build_query(['genere' => (int) ($testata['genere_id'] ?? 0)])) . '">'
         . $e((string) $testata['genere_nome']) . '</a></div>';
 }
 $chain = [];
 if ($precedente !== null) {
-    $chain[] = $e(__('Già:')) . ' <a href="' . $e(url('/emeroteca/' . (int) $precedente['id'])) . '">' . $e((string) $precedente['titolo']) . '</a>';
+    $chain[] = $e(__('Già:')) . ' <a href="' . $e(url(\App\Support\RouteTranslator::route('periodicals') . '/' . (int) $precedente['id'])) . '">' . $e((string) $precedente['titolo']) . '</a>';
 }
 if ($successiva !== null) {
-    $chain[] = $e(__('Poi:')) . ' <a href="' . $e(url('/emeroteca/' . (int) $successiva['id'])) . '">' . $e((string) $successiva['titolo']) . '</a>';
+    $chain[] = $e(__('Poi:')) . ' <a href="' . $e(url(\App\Support\RouteTranslator::route('periodicals') . '/' . (int) $successiva['id'])) . '">' . $e((string) $successiva['titolo']) . '</a>';
 }
 if ($chain !== []) {
     $extra .= '<p class="resource-placement">' . implode(' · ', $chain) . '</p>';
@@ -149,7 +149,7 @@ $resourceBylineHtml = '';
 $resourceExtraHtml = $extra;
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Emeroteca'), 'href' => url('/emeroteca')],
+    ['label' => __('Emeroteca'), 'href' => url(\App\Support\RouteTranslator::route('periodicals'))],
     ['label' => (string) $testata['titolo']],
 ];
 include $corePartials . '/resource-hero.php';
@@ -214,7 +214,7 @@ include $corePartials . '/resource-hero.php';
                             $stato = (string) $f['stato'];
                             $posseduto = $stato === 'posseduto';
                             $cover = $asset((string) ($f['copertina_url'] ?? ''));
-                            $issueUrl = url('/emeroteca/fascicolo/' . (int) $f['id']);
+                            $issueUrl = url(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . (int) $f['id']);
                             $numeroLabel = sprintf(__('n. %s'), (string) $f['numero']);
                             $issueMeta = array_values(array_filter([
                                 (string) ($f['data_copertina'] ?? ''),
@@ -250,7 +250,7 @@ include $corePartials . '/resource-hero.php';
                 <h2 class="listing-section-title" id="emeroteca-articoli-testata-title">
                     <span><?= __('Articoli') ?></span>
                     <?php if ((int) ($articleResults['total'] ?? 0) > 0): ?>
-                        <a href="<?= $e(url('/emeroteca/articoli') . '?' . http_build_query(['testata' => $testataId])) ?>"><?= __('Cerca con tutti i filtri') ?> →</a>
+                        <a href="<?= $e(url(\App\Support\RouteTranslator::route('periodicals') . '/articoli') . '?' . http_build_query(['testata' => $testataId])) ?>"><?= __('Cerca con tutti i filtri') ?> →</a>
                     <?php endif; ?>
                 </h2>
                 <?php

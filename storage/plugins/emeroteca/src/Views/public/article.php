@@ -19,7 +19,7 @@
 $article=$article??[]; $e=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');
 require_once dirname(__DIR__, 2) . '/Support/CodeLists.php';
 $articlePlaceholder=url('/uploads/copertine/placeholder.jpg');
-$articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url('/emeroteca/articoli')).'?'.http_build_query([$key=>$value]);
+$articleFilterUrl=static fn(string $key,string $value):string=>($key==='autore' ? route_path('catalog') : url(\App\Support\RouteTranslator::route('periodicals') . '/articoli')).'?'.http_build_query([$key=>$value]);
 // Plugin classes have no autoloader scope and a view must not depend on the
 // controller having loaded them: require the service before reading it.
 require_once __DIR__.'/../../Services/ContributionService.php';
@@ -35,7 +35,7 @@ $articleResource=\App\Plugins\Emeroteca\Services\ContributionService::resource($
 $canEdit=!empty($canEdit);
 $articleHasPdf=trim((string)($article['pdf_path']??''))!=='' && (!empty($article['pdf_pubblico']) || $canEdit);
 $articlePdfUrl=$articleHasPdf
-    ? url(!empty($article['pdf_pubblico']) ? '/emeroteca/articolo/'.(int)$article['id'].'/pdf' : '/admin/periodicals/articles/'.(int)$article['id'].'/pdf')
+    ? url(!empty($article['pdf_pubblico']) ? \App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$article['id'].'/pdf' : '/admin/periodicals/articles/'.(int)$article['id'].'/pdf')
     : '';
 /** The reader may open at most one primary action; the PDF is the library's own copy and wins. */
 $articleResourceIsPrimary=$articleResource!==null && $articleResource['linkable'] && !$articleHasPdf;
@@ -70,8 +70,8 @@ $articleFascicoloId=(int)($article['fascicolo_id']??0);
 $articleIssueLabel=$articleFascicoloId>0 && trim((string)($article['fascicolo_numero']??''))!==''
     ? sprintf(__('n. %s'),(string)$article['fascicolo_numero']).(trim((string)($article['fascicolo_anno']??''))!=='' ? ' ('.(int)$article['fascicolo_anno'].')' : '')
     : '';
-$articleTestataUrl=$articleTestataId>0 ? url('/emeroteca/'.$articleTestataId) : '';
-$articleIssueUrl=$articleIssueLabel!=='' ? url('/emeroteca/fascicolo/'.$articleFascicoloId) : '';
+$articleTestataUrl=$articleTestataId>0 ? url(\App\Support\RouteTranslator::route('periodicals') . '/'.$articleTestataId) : '';
+$articleIssueUrl=$articleIssueLabel!=='' ? url(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/'.$articleFascicoloId) : '';
 $articleAuthorHref=static fn(array $an):string=>$an['id']!==null ? route_path('author').'/'.$an['id'] : $articleFilterUrl('autore',$an['name']);
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.10.0')) ?>">
@@ -117,12 +117,12 @@ $resourceTitle=(string)($article['titolo']??'');
 $resourceSubtitle=(string)($article['sottotitolo']??'');
 $resourceBylineHtml=$byline;
 $resourceExtraHtml=$extra;
-$breadcrumbItems=[['label'=>__('Home'),'href'=>url('/')],['label'=>__('Emeroteca'),'href'=>url('/emeroteca')]];
+$breadcrumbItems=[['label'=>__('Home'),'href'=>url('/')],['label'=>__('Emeroteca'),'href'=>url(\App\Support\RouteTranslator::route('periodicals'))]];
 if($articleTestataUrl!=='' && $articleTestataTitle!==''){
     $breadcrumbItems[]=['label'=>$articleTestataTitle,'href'=>$articleTestataUrl];
     if($articleIssueUrl!==''){ $breadcrumbItems[]=['label'=>$articleIssueLabel,'href'=>$articleIssueUrl]; }
 } else {
-    $breadcrumbItems[]=['label'=>__('Articoli'),'href'=>url('/emeroteca/articoli')];
+    $breadcrumbItems[]=['label'=>__('Articoli'),'href'=>url(\App\Support\RouteTranslator::route('periodicals') . '/articoli')];
 }
 $breadcrumbItems[]=['label'=>(string)($article['titolo']??'')];
 include $corePartials.'/resource-hero.php';
@@ -135,8 +135,8 @@ include $corePartials.'/resource-hero.php';
 <div id="emeroteca-articolo" class="container emeroteca-public" data-articolo-id="<?= (int)($article['id'] ?? 0) ?>">
 <?php
 $pagerLabel=__('Articoli dello stesso fascicolo');
-$pagerPrev=$neighbours['prev']!==null ? ['href'=>url('/emeroteca/articolo/'.(int)$neighbours['prev']['id']),'label'=>(string)$neighbours['prev']['titolo']] : null;
-$pagerNext=$neighbours['next']!==null ? ['href'=>url('/emeroteca/articolo/'.(int)$neighbours['next']['id']),'label'=>(string)$neighbours['next']['titolo']] : null;
+$pagerPrev=$neighbours['prev']!==null ? ['href'=>url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$neighbours['prev']['id']),'label'=>(string)$neighbours['prev']['titolo']] : null;
+$pagerNext=$neighbours['next']!==null ? ['href'=>url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$neighbours['next']['id']),'label'=>(string)$neighbours['next']['titolo']] : null;
 $pagerUp=$articleIssueUrl!=='' ? ['href'=>$articleIssueUrl,'label'=>$articleIssueLabel] : null;
 include $corePartials.'/resource-pager.php';
 ?>
@@ -195,8 +195,8 @@ include $corePartials.'/resource-pager.php';
 $citeCitations = $articleCitations;
 $citeTitle = (string) $article['titolo'];
 $citeDownloads = [
-    ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/emeroteca/articolo/'.(int)$article['id'].'/citazione.ris')],
-    ['label' => 'MARCXML', 'url' => url('/emeroteca/articolo/'.(int)$article['id'].'/marc.xml')],
+    ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$article['id'].'/citazione.ris')],
+    ['label' => 'MARCXML', 'url' => url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$article['id'].'/marc.xml')],
 ];
 include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
 ?>
@@ -215,7 +215,7 @@ include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
 // The way back is the most specific place the article came from.
 [$backHref,$backLabel]=$articleIssueUrl!==''
     ? [$articleIssueUrl, sprintf(__('Torna al fascicolo %s'), $articleIssueLabel)]
-    : ($articleTestataUrl!=='' ? [$articleTestataUrl, __('Torna alla testata')] : [url('/emeroteca/articoli'), __('Torna agli articoli')]);
+    : ($articleTestataUrl!=='' ? [$articleTestataUrl, __('Torna alla testata')] : [url(\App\Support\RouteTranslator::route('periodicals') . '/articoli'), __('Torna agli articoli')]);
 ?>
 <a class="ui-button btn-outline resource-back" href="<?= $e($backHref) ?>"><i class="fas fa-arrow-left" aria-hidden="true"></i> <?= $e($backLabel) ?></a>
 </div>
@@ -251,7 +251,7 @@ include dirname(__DIR__, 6) . '/app/Views/partials/cite-dialog.php';
 
 
 <?php
-$structured=['@context'=>'https://schema.org','@type'=>'Article','headline'=>$article['titolo'],'url'=>absoluteUrl('/emeroteca/articolo/'.(int)$article['id'])];
+$structured=['@context'=>'https://schema.org','@type'=>'Article','headline'=>$article['titolo'],'url'=>absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$article['id'])];
 if (!empty($article['sottotitolo'])) { $structured['alternativeHeadline']=$article['sottotitolo']; }
 // One Person per credited name. Declaring "Rossi, Mario; Bianchi, Anna" as a
 // single Person was a statement no aggregator could use and none of it true.
@@ -282,7 +282,7 @@ if (!empty($article['lingua'])) { $structured['inLanguage']=\App\Plugins\Emerote
 if (!empty($article['anno_pubblicazione'])) { $structured['datePublished']=(string)(int)$article['anno_pubblicazione']; }
 if ($articleParts['pageStart']!=='') { $structured['pageStart']=$articleParts['pageStart']; }
 if ($articleParts['pageEnd']!=='') { $structured['pageEnd']=$articleParts['pageEnd']; }
-if ($articleHasPdf) { $structured['encoding']=['@type'=>'MediaObject','encodingFormat'=>'application/pdf','contentUrl'=>absoluteUrl('/emeroteca/articolo/'.(int)$article['id'].'/pdf')]; }
+if ($articleHasPdf) { $structured['encoding']=['@type'=>'MediaObject','encodingFormat'=>'application/pdf','contentUrl'=>absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/'.(int)$article['id'].'/pdf')]; }
 if (!empty($article['pagine'])) { $structured['pagination']=$article['pagine']; }
 if (!empty($article['doi'])) { $structured['identifier']=$article['doi']; }
 // Only a real image: the shared placeholder is chrome, and declaring it here

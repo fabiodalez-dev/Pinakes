@@ -46,6 +46,32 @@ final class ArticleMarcXml
      * ICU and published as schema.org inLanguage (BCP 47), where the MARC /B
      * forms such as `ger` would be wrong — so the mapping happens here only.
      */
+    /** Agency of the 001 / 773 $w control numbers this export emits. */
+    private const CONTROL_AGENCY = 'Pinakes';
+
+    /**
+     * Leading articles per MARC language code, longest first: a match gives
+     * 245 ind2 its count of nonfiling characters (0-9).
+     */
+    private const LEADING_ARTICLES = [
+        'eng' => ['The ', 'An ', 'A '],
+        'ita' => ['Gli ', 'Una ', 'Uno ', 'Il ', 'Lo ', 'La ', 'Le ', 'Un\'', 'Un’', 'Un ', 'L\'', 'L’', 'I '],
+        'fre' => ['Les ', 'Une ', 'Le ', 'La ', 'Un ', 'L\'', 'L’'],
+        'ger' => ['Der ', 'Die ', 'Das ', 'Ein ', 'Eine '],
+        'spa' => ['Los ', 'Las ', 'Una ', 'El ', 'La ', 'Un '],
+        'dan' => ['Den ', 'Det ', 'De ', 'En ', 'Et '],
+    ];
+
+    public static function nonfilingCharacters(string $title, string $language): int
+    {
+        foreach (self::LEADING_ARTICLES[$language] ?? [] as $article) {
+            if (strncasecmp($title, $article, strlen($article)) === 0 && strlen($title) > strlen($article)) {
+                return min(9, mb_strlen($article));
+            }
+        }
+        return 0;
+    }
+
     public static function marcLanguage(string $code): string
     {
         $code = strtolower(trim($code));
@@ -75,6 +101,12 @@ final class ArticleMarcXml
         $xml->startElement('controlfield');
         $xml->writeAttribute('tag', '001');
         $xml->text('article:' . (string)($row['reference_key'] ?? $row['id'] ?? ''));
+        $xml->endElement();
+        // 003: the agency whose control numbers 001 and 773 $w use, so the
+        // "(agency)" prefix of $w resolves (MARC 21 control-number linking).
+        $xml->startElement('controlfield');
+        $xml->writeAttribute('tag', '003');
+        $xml->text(self::CONTROL_AGENCY);
         $xml->endElement();
         $xml->startElement('controlfield');
         $xml->writeAttribute('tag', '008');
@@ -120,7 +152,10 @@ final class ArticleMarcXml
             $comma = substr_count($name, ',') === 1 ? strpos($name, ',') : false;
             return $comma === false ? $name : trim(substr($name, $comma + 1)) . ' ' . trim(substr($name, 0, $comma));
         }, $credits), static fn(string $name): bool => $name !== ''));
-        $field('245', ['a'=>$row['titolo'] ?? '', 'b'=>$row['sottotitolo'] ?? '', 'c'=>$responsibility !== '' ? $responsibility : ($row['autori'] ?? '')], $parts['authors'] === [] ? '0' : '1', '0');
+        // 245 ind2: the nonfiling characters of a leading article ("The ",
+        // "L'", "Die "), so the title files under its first significant word.
+        $title = (string) ($row['titolo'] ?? '');
+        $field('245', ['a'=>$title, 'b'=>$row['sottotitolo'] ?? '', 'c'=>$responsibility !== '' ? $responsibility : ($row['autori'] ?? '')], $parts['authors'] === [] ? '0' : '1', (string) self::nonfilingCharacters($title, self::marcLanguage($parts['language'])));
         $field('300', ['a'=>$row['pagine'] ?? '']);
         $enumeration = array_filter([
             $parts['volume'] !== '' ? 'Vol. '.$parts['volume'] : '',
@@ -138,7 +173,9 @@ final class ArticleMarcXml
                 .($parts['year'] !== '' ? ', '.$parts['year'] : ''), ', ');
         }
         $field('773', ['t'=>$parts['container'], 'd'=>$imprint, 'x'=>$parts['isAnthology'] ? '' : $parts['issn'],
-            'z'=>$parts['isAnthology'] ? $parts['isbn'] : '', 'g'=>implode(', ', $enumeration), 'w'=>$hostControlNumber], '0', ' ', [['t', 'x', 'z', 'g']]);
+            'z'=>$parts['isAnthology'] ? $parts['isbn'] : '', 'g'=>implode(', ', $enumeration),
+            // $w carries the MARC organisation prefix in parentheses (the 003 above).
+            'w'=>$hostControlNumber !== '' ? '(' . self::CONTROL_AGENCY . ')' . $hostControlNumber : ''], '0', ' ', [['t', 'x', 'z', 'g']]);
         $language = self::marcLanguage($parts['language']);
         $field('041', ['a'=>$language], '0');
         // ISO 3166 alpha-2 in 044 $c; 008/15-17 carries the MARC country code.

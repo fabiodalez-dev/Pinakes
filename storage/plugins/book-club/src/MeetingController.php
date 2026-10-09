@@ -33,7 +33,7 @@ class MeetingController extends BaseController
         $startsAt = self::dateTimeOrNull(self::str($body, 'starts_at', 30));
         if ($title === '' || $startsAt === null) {
             $this->flash('error', __('Titolo e data di inizio sono obbligatori.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $kind = self::str($body, 'kind', 20);
         if (!in_array($kind, ['in_person', 'online', 'hybrid'], true)) {
@@ -78,7 +78,7 @@ class MeetingController extends BaseController
             );
             $this->flash('success', __('Incontro pianificato.'));
         }
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     public function update(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $meetingId): ResponseInterface
@@ -96,7 +96,7 @@ class MeetingController extends BaseController
         $startsAt = self::dateTimeOrNull(self::str($body, 'starts_at', 30));
         if ($title === '' || $startsAt === null) {
             $this->flash('error', __('Titolo e data di inizio sono obbligatori.'));
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $kind = self::str($body, 'kind', 20);
         if (!in_array($kind, ['in_person', 'online', 'hybrid'], true)) {
@@ -127,7 +127,7 @@ class MeetingController extends BaseController
         ]);
 
         $this->flash($ok ? 'success' : 'error', $ok ? __('Incontro aggiornato.') : __('Incontro non aggiornato, riprova.'));
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     public function rsvp(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $meetingId): ResponseInterface
@@ -143,7 +143,7 @@ class MeetingController extends BaseController
         $body = $request->getParsedBody();
         $answer = self::str($body, 'response', 10);
         if (!in_array($answer, ['yes', 'no', 'maybe'], true)) {
-            return $this->redirect($response, '/book-club/' . $slug);
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
         $userId = (int) $this->userId();
 
@@ -154,13 +154,13 @@ class MeetingController extends BaseController
             $alreadyYes = $current !== null && $current['response'] === 'yes';
             if (!$alreadyYes && (int) $meeting['yes_count'] >= (int) $meeting['seats']) {
                 $this->flash('error', __('Non ci sono più posti disponibili per questo incontro.'));
-                return $this->redirect($response, '/book-club/' . $slug);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
         }
 
         $this->repo->setRsvp($meetingId, $userId, $answer);
         $this->flash('success', __('Partecipazione registrata.'));
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     /**
@@ -189,7 +189,7 @@ class MeetingController extends BaseController
             $this->repo->setMeetingMinutes($meetingId, $minutes);
         }
         $this->flash('success', __('Incontro aggiornato.'));
-        return $this->redirect($response, '/book-club/' . $slug);
+        return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
     }
 
     // ------------------------------------------------------------------
@@ -308,7 +308,7 @@ class MeetingController extends BaseController
             if (!empty($meeting['video_url'])) {
                 $where .= ($where !== '' ? ' / ' : '') . (string) $meeting['video_url'];
             }
-            $link = absoluteUrl('/book-club/' . $club['slug']);
+            $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
             $bodyHtml = '<p>' . htmlspecialchars(sprintf(
                 __('Il club "%s" si incontra il %s.'),
                 (string) $club['name'],

@@ -40,7 +40,7 @@ class LibraryController extends BaseController
         if ($club === null || !$this->module->enabledFor($club)) {
             return $this->notFound($response);
         }
-        $clubPath = '/book-club/' . $slug;
+        $clubPath = \App\Support\RouteTranslator::route('book_club') . '/' . $slug;
 
         if (!$this->isActiveMember($club)) {
             $this->flash('error', __('Solo i membri attivi del club possono inviare recensioni.'));

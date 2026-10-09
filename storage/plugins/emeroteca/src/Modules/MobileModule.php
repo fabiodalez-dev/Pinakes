@@ -617,7 +617,7 @@ final class MobileModule
             // The PDF URL points at the public streaming route, NEVER at the
             // stored pdf_path, and only when the per-issue opt-in is on.
             $data['pdf_url'] = $data['has_public_pdf']
-                ? absoluteUrl('/emeroteca/fascicolo/' . (int) $row['id'] . '/pdf')
+                ? absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/fascicolo/' . (int) $row['id'] . '/pdf')
                 : null;
             $data['masthead'] = [
                 'id'    => (int) $row['testata_id'],
@@ -776,7 +776,7 @@ final class MobileModule
     {
         $data = \App\Plugins\Emeroteca\Services\ContributionService::publicData($row);
         $data['pdf_url'] = $data['has_public_pdf']
-            ? absoluteUrl('/emeroteca/articolo/' . (int)$row['id'] . '/pdf')
+            ? absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int)$row['id'] . '/pdf')
             : null;
         $data['cover_url'] = $this->mediaUrl(
             \App\Plugins\Emeroteca\Services\ContributionService::coverUrl($row)
@@ -785,12 +785,12 @@ final class MobileModule
         $data['citations'] = array_map(static fn(array $citation): array => [
             'key' => $citation['key'], 'label' => $citation['label'], 'text' => $citation['text'], 'html' => $citation['html'],
         ], \App\Plugins\Emeroteca\Support\CitationFormatter::all($row));
-        $data['ris_url'] = absoluteUrl('/emeroteca/articolo/' . (int) $row['id'] . '/citazione.ris');
+        $data['ris_url'] = absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $row['id'] . '/citazione.ris');
         $data['author_credits'] = array_map(static fn(array $credit): array => [
             'id' => $credit['autore_id'], 'name' => $credit['display_name'], 'role' => $credit['ruolo'], 'identifiers' => $credit['identifiers'],
         ], $row['author_credits'] ?? []);
         $data['genre_path'] = $this->contributionGenreTrail((int) ($row['genere_id'] ?? 0));
-        $data['marcxml_url'] = absoluteUrl('/emeroteca/articolo/' . (int) $row['id'] . '/marc.xml');
+        $data['marcxml_url'] = absoluteUrl(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $row['id'] . '/marc.xml');
         return $data;
     }
 

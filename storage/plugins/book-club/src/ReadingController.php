@@ -50,7 +50,7 @@ class ReadingController extends BaseController
 
     private function readingPath(string $slug, int $bookId): string
     {
-        return '/book-club/' . $slug . '/reading/' . $bookId;
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/reading/' . $bookId;
     }
 
     // ------------------------------------------------------------------
@@ -64,7 +64,7 @@ class ReadingController extends BaseController
             return $this->notFound($response);
         }
         [$club, $book] = $resolved;
-        if (!$this->canView($club)) {
+        if (!$this->canSeeContent($club)) {
             return $this->notFound($response);
         }
         // Books awaiting moderation are manager-only everywhere.

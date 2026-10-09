@@ -1665,6 +1665,11 @@ class EmerotecaPlugin
         $plugin = $this;
         $adminMiddleware = new \App\Middleware\AdminAuthMiddleware();
         $csrfMiddleware  = new \App\Middleware\CsrfMiddleware();
+        // The public section answers under every localized base of the
+        // 'periodicals' route key (/emeroteca, /periodicals, /zeitschriften,
+        // /periodiques, /tidsskrifter) and keeps the historical /emeroteca
+        // base for existing links, bookmarks, OAI records and the app.
+        $publicRoutes = \App\Support\LocalizedRouteRegistrar::wrap($app, 'periodicals', '/emeroteca');
 
         // Throttles for the three routes a client can hammer (1.4.0).
         // Layering matches the core admin routes in app/Routes/web.php and
@@ -1716,14 +1721,14 @@ class EmerotecaPlugin
                 return $plugin->dispatch($articles, $method, $rq, $rs, $args);
             })->add($csrfMiddleware)->add($adminMiddleware);
         }
-        $app->get('/emeroteca/articoli', fn($rq,$rs,$args) => $plugin->dispatch($public, 'articles', $rq,$rs,$args));
-        $app->get('/emeroteca/articolo/{id:[0-9]+}', fn($rq,$rs,$args) => $plugin->dispatch($public, 'article', $rq,$rs,$args));
-        $app->get('/emeroteca/articolo/{id:[0-9]+}/pdf', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicPdf', $rq,$rs,$args));
+        $publicRoutes->get('/emeroteca/articoli', fn($rq,$rs,$args) => $plugin->dispatch($public, 'articles', $rq,$rs,$args));
+        $publicRoutes->get('/emeroteca/articolo/{id:[0-9]+}', fn($rq,$rs,$args) => $plugin->dispatch($public, 'article', $rq,$rs,$args));
+        $publicRoutes->get('/emeroteca/articolo/{id:[0-9]+}/pdf', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicPdf', $rq,$rs,$args));
         // The citation as a file a reference manager can swallow. Public route
         // and admin route are separate because they answer differently for an
         // unpublished article: 404 out here, the record in there.
-        $app->get('/emeroteca/articolo/{id:[0-9]+}/marc.xml', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicMarcXml', $rq,$rs,$args));
-        $app->get('/emeroteca/articolo/{id:[0-9]+}/citazione.ris', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicRis', $rq,$rs,$args));
+        $publicRoutes->get('/emeroteca/articolo/{id:[0-9]+}/marc.xml', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicMarcXml', $rq,$rs,$args));
+        $publicRoutes->get('/emeroteca/articolo/{id:[0-9]+}/citazione.ris', fn($rq,$rs,$args) => $plugin->dispatch($articles, 'publicRis', $rq,$rs,$args));
 
         // ── Admin — testate (periodical titles) ──────────────────────
 
@@ -1941,7 +1946,7 @@ class EmerotecaPlugin
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->serveIssuePdf($response, $args, false);
+            return $plugin->serveIssuePdf($response, $args, false, $request);
         })->add($adminMiddleware);
 
         // POST /admin/periodicals/issue/{id} — update fascicolo
@@ -1972,11 +1977,12 @@ class EmerotecaPlugin
         });
 
         // ── Public frontend — read-only /emeroteca section ───────────
-        // No auth: periodicals are public cultural material. Literal
-        // technical path (non-localized), like /calendar/*.ics.
+        // No auth: periodicals are public cultural material. Registered
+        // through $publicRoutes, so each pattern also answers under the
+        // localized bases of the 'periodicals' route key.
 
         // GET /emeroteca — index of testate
-        $app->get('/emeroteca', function (
+        $publicRoutes->get('/emeroteca', function (
             ServerRequestInterface $request,
             ResponseInterface $response
         ) use ($plugin, $public): ResponseInterface {
@@ -1986,7 +1992,7 @@ class EmerotecaPlugin
         // GET /emeroteca/fascicolo/{id} — fascicolo detail
         // Registered before /emeroteca/{id}; the [0-9]+ constraint on the
         // latter keeps 'fascicolo' from matching it anyway.
-        $app->get('/emeroteca/fascicolo/{id:[0-9]+}', function (
+        $publicRoutes->get('/emeroteca/fascicolo/{id:[0-9]+}', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -1996,16 +2002,16 @@ class EmerotecaPlugin
 
         // Public PDF access is opt-in per issue; newly uploaded scans stay
         // private until an administrator explicitly enables this route.
-        $app->get('/emeroteca/fascicolo/{id:[0-9]+}/pdf', function (
+        $publicRoutes->get('/emeroteca/fascicolo/{id:[0-9]+}/pdf', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->serveIssuePdf($response, $args, true);
+            return $plugin->serveIssuePdf($response, $args, true, $request);
         });
 
         // GET /emeroteca/{id} — testata detail
-        $app->get('/emeroteca/{id:[0-9]+}', function (
+        $publicRoutes->get('/emeroteca/{id:[0-9]+}', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -2110,7 +2116,8 @@ class EmerotecaPlugin
     public function serveIssuePdf(
         ResponseInterface $response,
         array $args,
-        bool $publicOnly
+        bool $publicOnly,
+        ?ServerRequestInterface $request = null
     ): ResponseInterface {
         $id = (int) ($args['id'] ?? 0);
         $sql = 'SELECT pdf_path, pdf_nome_originale FROM emeroteca_fascicoli WHERE id = ? AND pdf_path IS NOT NULL';
@@ -2146,31 +2153,22 @@ class EmerotecaPlugin
             || !is_file($filePath)) {
             return $response->withStatus(404);
         }
-        $handle = fopen($filePath, 'rb');
-        $size = filesize($filePath);
-        if ($handle === false || $size === false) {
-            return $response->withStatus(404);
-        }
-
         $original = basename((string) ($row['pdf_nome_originale'] ?? 'fascicolo.pdf'));
         if ($original === '' || strtolower(pathinfo($original, PATHINFO_EXTENSION)) !== 'pdf') {
             $original = 'fascicolo.pdf';
         }
         $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', $original) ?: 'fascicolo.pdf';
-        return $response
-            ->withBody(new Stream($handle))
-            ->withHeader('Content-Type', 'application/pdf')
-            ->withHeader('Content-Length', (string) $size)
-            ->withHeader('X-Content-Type-Options', 'nosniff')
+        require_once __DIR__ . '/src/Support/PdfRangeResponder.php';
+        // Range requests let the browser's viewer show the first page of a
+        // large scan and seek without downloading the whole file.
+        return \App\Plugins\Emeroteca\Support\PdfRangeResponder::respond($request, $response, $filePath, [
             // Never cacheable, even when pdf_pubblico is on: the flag is a
             // revocable privacy toggle, and a 'public' TTL would keep a
             // revoked (or deleted) PDF servable from shared/edge caches
             // (LiteSpeed edge in production) until expiry.
-            ->withHeader('Cache-Control', 'private, no-store')
-            ->withHeader(
-                'Content-Disposition',
-                'inline; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($original)
-            );
+            'Cache-Control' => 'private, no-store',
+            'Content-Disposition' => 'inline; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($original),
+        ]);
     }
 
     /**
@@ -2455,6 +2453,12 @@ class EmerotecaPlugin
             if ($base === '' || !$this->emerotecaTableExists('emeroteca_testate')) {
                 return $entries;
             }
+            // The section's path in the install's default locale (the one
+            // the core sitemap entries use), /emeroteca when none is given.
+            $section = $defaultLocale !== ''
+                ? \App\Support\RouteTranslator::getRouteForLocale('periodicals', $defaultLocale)
+                : \App\Support\RouteTranslator::route('periodicals');
+            $sectionUrl = $base . rtrim($section, '/');
 
             $testate = $this->fetchRows(
                 'SELECT id, updated_at FROM emeroteca_testate ORDER BY id LIMIT ' . self::SITEMAP_MAX_TESTATE
@@ -2471,7 +2475,7 @@ class EmerotecaPlugin
             }
 
             $entries[] = array_filter([
-                'loc'        => $base . '/emeroteca',
+                'loc'        => $sectionUrl,
                 'lastmod'    => $indexLastmod,
                 'changefreq' => 'weekly',
                 'priority'   => '0.6',
@@ -2483,7 +2487,7 @@ class EmerotecaPlugin
                     continue;
                 }
                 $entries[] = array_filter([
-                    'loc'        => $base . '/emeroteca/' . $id,
+                    'loc'        => $sectionUrl . '/' . $id,
                     'lastmod'    => isset($testata['updated_at']) ? (string) $testata['updated_at'] : null,
                     'changefreq' => 'monthly',
                     'priority'   => '0.5',
@@ -2492,7 +2496,7 @@ class EmerotecaPlugin
 
             if ($this->emerotecaTableExists('emeroteca_contributi')) {
                 foreach ($this->fetchRows('SELECT id, updated_at FROM emeroteca_contributi WHERE pubblico=1 ORDER BY id LIMIT ' . self::SITEMAP_MAX_CONTRIBUTI) as $article) {
-                    $entries[] = ['loc'=>$base . '/emeroteca/articolo/' . (int)$article['id'], 'lastmod'=>$article['updated_at'], 'changefreq'=>'monthly', 'priority'=>'0.4'];
+                    $entries[] = ['loc'=>$sectionUrl . '/articolo/' . (int)$article['id'], 'lastmod'=>$article['updated_at'], 'changefreq'=>'monthly', 'priority'=>'0.4'];
                 }
             }
             if ($this->emerotecaTableExists('emeroteca_fascicoli')) {
@@ -2507,7 +2511,7 @@ class EmerotecaPlugin
                         continue;
                     }
                     $entries[] = array_filter([
-                        'loc'        => $base . '/emeroteca/fascicolo/' . $id,
+                        'loc'        => $sectionUrl . '/fascicolo/' . $id,
                         'lastmod'    => isset($fascicolo['updated_at']) ? (string) $fascicolo['updated_at'] : null,
                         'changefreq' => 'yearly',
                         'priority'   => '0.3',
@@ -2562,7 +2566,7 @@ class EmerotecaPlugin
             if ($articles['total'] > 0) {
                 $suggestions[] = [
                     'label' => $this->translate('Articoli nell’emeroteca (%d)', $articles['total']),
-                    'url'   => $this->emerotecaPath('/emeroteca/articoli') . '?q=' . rawurlencode($needle),
+                    'url'   => $this->emerotecaPath(\App\Support\RouteTranslator::route('periodicals') . '/articoli') . '?q=' . rawurlencode($needle),
                     'items' => $articles['items'],
                     'total' => $articles['total'],
                 ];
@@ -2572,7 +2576,7 @@ class EmerotecaPlugin
             if ($mastheads['total'] > 0) {
                 $suggestions[] = [
                     'label' => $this->translate('Testate nell’emeroteca (%d)', $mastheads['total']),
-                    'url'   => $this->emerotecaPath('/emeroteca') . '?q=' . rawurlencode($needle),
+                    'url'   => $this->emerotecaPath(\App\Support\RouteTranslator::route('periodicals')) . '?q=' . rawurlencode($needle),
                     'items' => $mastheads['items'],
                     'total' => $mastheads['total'],
                 ];
@@ -2581,7 +2585,7 @@ class EmerotecaPlugin
                     'label' => function_exists('__')
                         ? (string) __('Emeroteca (testate e spoglio degli articoli)')
                         : 'Emeroteca (testate e spoglio degli articoli)',
-                    'url'   => $this->emerotecaPath('/emeroteca') . '?q=' . rawurlencode($needle),
+                    'url'   => $this->emerotecaPath(\App\Support\RouteTranslator::route('periodicals')) . '?q=' . rawurlencode($needle),
                 ];
             }
         } catch (\Throwable $e) {
@@ -2760,7 +2764,7 @@ class EmerotecaPlugin
             $items[] = [
                 'id'    => (int) $row['id'],
                 'label' => (string) $row['titolo'],
-                'url'   => $this->emerotecaPath('/emeroteca/articolo/' . (int) $row['id']),
+                'url'   => $this->emerotecaPath(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $row['id']),
                 'meta'  => implode(' · ', array_filter([
                     (string) ($row['autori'] ?? ''),
                     (string) ($row['contenitore_titolo'] ?? ''),
@@ -2888,7 +2892,7 @@ class EmerotecaPlugin
             $items[] = [
                 'id'    => (int) $row['id'],
                 'label' => (string) $row['titolo'],
-                'url'   => $this->emerotecaPath('/emeroteca/' . (int) $row['id']),
+                'url'   => $this->emerotecaPath(\App\Support\RouteTranslator::route('periodicals') . '/' . (int) $row['id']),
                 'meta'  => implode(' · ', array_filter([
                     (string) ($row['sottotitolo'] ?? ''),
                     ($row['issn'] ?? '') !== '' ? 'ISSN ' . (string) $row['issn'] : '',

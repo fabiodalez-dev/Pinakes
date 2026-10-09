@@ -102,7 +102,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e($club['name']) ?>
   </a>
 
@@ -177,7 +177,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
           <div class="mt-3 flex flex-col gap-2">
             <?php foreach ($options as $option): ?>
               <?php if (!in_array((int) $option['id'], $adminTiedIds, true)) { continue; } ?>
-              <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/pick-winner/' . (int) $option['id'])) ?>"
+              <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'] . '/pick-winner/' . (int) $option['id'])) ?>"
                     class="flex items-center justify-between gap-3"
                     onsubmit="return confirm(<?= $e(json_encode(__('Proclamare questo libro vincitore? Avanzerà nel workflow.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
@@ -192,7 +192,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
       </div>
     <?php endif; ?>
 
-    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/vote')) ?>" class="mt-4">
+    <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'] . '/vote')) ?>" class="mt-4">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
       <?php foreach ($options as $option): ?>
         <?php
@@ -296,7 +296,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             ? __('Concludere il turno corrente? Il libro ultimo classificato sarà eliminato.')
             : __('Chiudere la votazione adesso? Il libro più votato avanzerà nel workflow.');
       ?>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-4 pt-3 border-t"
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-4 pt-3 border-t"
             onsubmit="return confirm(<?= $e(json_encode($confirmMsg, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">

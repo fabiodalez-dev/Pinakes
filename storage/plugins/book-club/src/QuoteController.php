@@ -49,12 +49,12 @@ class QuoteController extends BaseController
     /** @param array<string, mixed> $club */
     private function mayUse(array $club): bool
     {
-        return $this->canView($club) && ($this->isActiveMember($club) || $this->canManage($club));
+        return $this->canSeeContent($club) && ($this->isActiveMember($club) || $this->canManage($club));
     }
 
     private function quotesPath(string $slug, string $tab = ''): string
     {
-        return '/book-club/' . $slug . '/quotes' . ($tab !== '' ? '?tab=' . $tab : '');
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/quotes' . ($tab !== '' ? '?tab=' . $tab : '');
     }
 
     /**

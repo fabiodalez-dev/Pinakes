@@ -524,7 +524,7 @@ class MobileApiController extends BaseController
         $error = null;
         $club = $this->repo->clubBySlug($slug);
         if ($club === null || (int) $club['is_active'] !== 1
-            || !Registry::clubEnabled($club, $this->module) || !$this->canView($club)) {
+            || !Registry::clubEnabled($club, $this->module) || !$this->canSeeContent($club)) {
             $error = fn(ResponseInterface $r): ResponseInterface =>
                 $this->fail($r, 'not_found', __('Club non trovato.'), 404);
             return null;

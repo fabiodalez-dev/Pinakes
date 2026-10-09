@@ -298,7 +298,7 @@ class GovernanceModule extends AbstractModule
         foreach ($books as $book) {
             $entityId = (int) $book['id'];
             $when = date('d/m/Y', (int) strtotime((string) $book['reading_ends']));
-            $link = absoluteUrl('/book-club/' . $club['slug']);
+            $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
             $subject = sprintf(
                 __('La lettura di "%s" per il club "%s" si conclude a breve'),
                 (string) $book['titolo'],
@@ -328,7 +328,7 @@ class GovernanceModule extends AbstractModule
                         (string) $book['titolo'],
                         $when
                     ),
-                    url('/book-club/' . $club['slug'])
+                    url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])
                 );
             }
         }
@@ -363,7 +363,7 @@ class GovernanceModule extends AbstractModule
         foreach ($polls as $poll) {
             $entityId = (int) $poll['id'];
             $when = date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']));
-            $pollPath = '/book-club/' . $club['slug'] . '/polls/' . $entityId;
+            $pollPath = \App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'] . '/polls/' . $entityId;
             $link = absoluteUrl($pollPath);
             $subject = sprintf(
                 __('La votazione "%s" del club "%s" si chiude a breve'),

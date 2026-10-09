@@ -80,7 +80,7 @@ include $corePartials . '/catalog-hero.php';
   <div class="flex flex-wrap -mx-3 gap-y-4">
     <?php foreach ($clubs as $club): ?>
       <div class="w-full px-3 md:w-1/2 lg:w-1/3">
-        <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-card bc-club-card mb-0">
+        <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'])) ?>" class="bc-card bc-club-card mb-0">
           <span class="bc-club-accent" style="background: <?= $e($club['color']) ?>"></span>
           <div class="flex items-center justify-between gap-2 mb-2">
             <h2><?= $e($club['name']) ?></h2>

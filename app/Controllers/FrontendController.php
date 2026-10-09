@@ -358,7 +358,7 @@ class FrontendController
         $total_pages = ceil($total_books / $limit);
 
         if ($mixed !== null) {
-            $articlePath = url('/emeroteca/articoli');
+            $articlePath = url(\App\Support\RouteTranslator::route('periodicals') . '/articoli');
             $externalSearchSuggestions = array_values(array_filter($externalSearchSuggestions,
                 static fn(array $suggestion): bool => !str_starts_with($suggestion['url'], $articlePath . '?')));
         }

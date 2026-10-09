@@ -47,9 +47,9 @@ foreach ($topProposers as $proposer) {
       </h1>
     </div>
     <div class="flex items-center gap-2">
-      <a href="<?= $e(url('/book-club/' . $slug . '/export.json')) ?>"
+      <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/export.json')) ?>"
          class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"><i class="fas fa-file-code mr-1"></i><?= $e(__('Esporta JSON')) ?></a>
-      <a href="<?= $e(url('/book-club/' . $slug . '/export.csv')) ?>"
+      <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/export.csv')) ?>"
          class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"><i class="fas fa-file-csv mr-1"></i><?= $e(__('Esporta CSV')) ?></a>
     </div>
   </div>

@@ -27,8 +27,8 @@ $heroTitle = __('Affinità e suggerimenti');
 $heroSubtitle = '';
 $breadcrumbItems = [
     ['label' => __('Home'), 'href' => url('/')],
-    ['label' => __('Club di lettura'), 'href' => url('/book-club')],
-    ['label' => (string) $club['name'], 'href' => url('/book-club/' . $slug)],
+    ['label' => __('Club di lettura'), 'href' => url(\App\Support\RouteTranslator::route('book_club'))],
+    ['label' => (string) $club['name'], 'href' => url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)],
     ['label' => $heroTitle],
 ];
 include $corePartials . '/catalog-hero.php';
@@ -80,7 +80,7 @@ include $corePartials . '/catalog-hero.php';
     </p>
 
     <?php if ($isMember): ?>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/affinity/optin')) ?>" class="flex flex-wrap items-center gap-3 mb-4 border px-3 py-3">
+      <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/affinity/optin')) ?>" class="flex flex-wrap items-center gap-3 mb-4 border px-3 py-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <span class="text-sm font-semibold" style="color: <?= $optedIn ? 'var(--success-color)' : 'var(--text-light)' ?>">
           <i class="fas <?= $optedIn ? 'fa-toggle-on' : 'fa-toggle-off' ?> mr-1"></i>
@@ -170,7 +170,7 @@ include $corePartials . '/catalog-hero.php';
         </div>
         <p class="bc-muted mb-0">
           <i class="fas fa-hand-point-right mr-1"></i><?= $e(__('Ti piace un titolo? Proponilo al club dalla pagina principale.')) ?>
-          <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="font-semibold"><?= $e(__('Vai alla pagina del club')) ?></a>
+          <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="font-semibold"><?= $e(__('Vai alla pagina del club')) ?></a>
         </p>
       <?php endif; ?>
     <?php endif; ?>

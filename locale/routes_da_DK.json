@@ -31,6 +31,8 @@
   "language_switch": "/sprog",
   "archives": "/arkiv",
   "archive_item": "/arkiv",
+  "periodicals": "/tidsskrifter",
+  "book_club": "/laeseklub",
   "bibframe.book": "/api/bibframe/book/{id}",
   "api_edge_availability": "/api/edge/availability"
 }

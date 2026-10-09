@@ -47,7 +47,7 @@ class AiController extends BaseController
 
     private function aiPath(string $slug): string
     {
-        return '/book-club/' . $slug . '/ai';
+        return \App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/ai';
     }
 
     /**

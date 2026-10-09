@@ -23,7 +23,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 $bookId = (int) $book['id'];
 $csrf = \App\Support\Csrf::ensureToken();
-$base = url('/book-club/' . $slug . '/reading/' . $bookId);
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/reading/' . $bookId);
 $unitLabels = [
     'chapter' => __('Capitolo'),
     'part' => __('Parte'),
@@ -60,7 +60,7 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
   </a>
 

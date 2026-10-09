@@ -163,7 +163,13 @@ try {
 }
 try {
     if (!$archivesAvailable && $publicPluginIsActive('archives') && $publicNavigationDb instanceof mysqli) {
-        $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
+        // Only a PUBLISHED unit makes the archive worth a menu entry; an
+        // Archives older than the publication flag has every unit public.
+        try {
+            $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL AND published = 1 LIMIT 1");
+        } catch (\mysqli_sql_exception $e) {
+            $unitCheck = $publicNavigationDb->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
+        }
         if ($unitCheck instanceof mysqli_result && $unitCheck->num_rows === 1) {
             $archivesAvailable = true;
         }
@@ -1576,7 +1582,10 @@ $htmlLang = substr($currentLocale, 0, 2);
       $publicNavItems[] = ['href' => $archivesRoute, 'label' => __('Archivio'), 'icon' => 'fa-archive', 'active' => $navPathActive((string) $archivesRoute)];
   }
   if ($emerotecaAvailable && ConfigStore::isInPublicMenu('emeroteca')) {
-      $publicNavItems[] = ['href' => '/emeroteca', 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive('/emeroteca')];
+      // Localized base of the 'periodicals' route key; the historical
+      // /emeroteca stays registered, so both spellings mark the item active.
+      $emerotecaRoute = \App\Support\RouteTranslator::route('periodicals');
+      $publicNavItems[] = ['href' => $emerotecaRoute, 'label' => __('Emeroteca'), 'icon' => 'fa-newspaper', 'active' => $navPathActive($emerotecaRoute) || $navPathActive('/emeroteca')];
   }
   if ($eventsEnabled) {
       // The localized path (/eventi in Italian); /events stays registered as

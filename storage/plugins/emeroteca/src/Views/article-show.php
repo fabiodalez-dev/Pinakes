@@ -108,7 +108,7 @@ $details = array_filter($details, static fn(string $v): bool => $v !== '');
     <div class="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-3">
       <div class="flex gap-3 w-full lg:w-auto">
         <?php if ($isPublic): ?>
-        <a href="<?= $e(url('/emeroteca/articolo/' . $id)) ?>" target="_blank" rel="noopener noreferrer" class="<?= $btnGhost ?> flex-1 lg:flex-none justify-center">
+        <a href="<?= $e(url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . $id)) ?>" target="_blank" rel="noopener noreferrer" class="<?= $btnGhost ?> flex-1 lg:flex-none justify-center">
           <i class="fas fa-eye"></i>
           <?= __('Vedi pagina pubblica') ?>
         </a>

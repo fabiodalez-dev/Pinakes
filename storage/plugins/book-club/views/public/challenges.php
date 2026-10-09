@@ -25,7 +25,7 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 $csrf = \App\Support\Csrf::ensureToken();
-$base = url('/book-club/' . $slug . '/challenges');
+$base = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/challenges');
 $metricLabels = [
     'books' => __('Libri finiti'),
     'pages' => __('Pagine lette'),
@@ -58,7 +58,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline">
     <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Torna al club')) ?>
   </a>
 

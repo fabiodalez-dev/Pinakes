@@ -71,7 +71,7 @@ $modeHelp = [
   .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:2px;flex:none}
 </style>
 <div class="container py-4">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
+  <a href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug)) ?>" class="bc-muted no-underline inline-flex items-center gap-2 mb-3">
     <i class="fas fa-arrow-left"></i><?= $e($club['name']) ?>
   </a>
 
@@ -92,7 +92,7 @@ $modeHelp = [
     <?php foreach ($openPolls as $poll): ?>
       <div class="bc-list-item items-center">
         <div>
-          <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+          <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
           <div class="bc-muted text-sm mt-1">
             <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
             <?php if ((string) $poll['mode'] === 'elimination'): ?>
@@ -122,7 +122,7 @@ $modeHelp = [
           <?php foreach ($closedPolls as $poll): ?>
             <div class="bc-list-item items-center">
               <div>
-                <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                <a class="font-semibold no-underline" style="color: var(--primary-color)" href="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
                 <div class="bc-muted text-sm mt-1">
                   <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
                   · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
@@ -185,7 +185,7 @@ $modeHelp = [
       <?php if (count($eligible) < 2): ?>
         <p class="bc-muted mb-0"><?= $e(__('Servono almeno due proposte per aprire una votazione.')) ?></p>
       <?php else: ?>
-        <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/new')) ?>" class="flex flex-col gap-3">
+        <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/polls/new')) ?>" class="flex flex-col gap-3">
           <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
           <input type="text" name="title" maxlength="190" placeholder="<?= $e(__('Titolo (es. Votazione autunno 2026)')) ?>"
                  class="form-input">

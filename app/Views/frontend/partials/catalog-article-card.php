@@ -30,13 +30,13 @@ if (!empty($book['author_credits']) && is_array($book['author_credits'])) {
 // else the free-text title as a search of the articles from that publication.
 $articleSource = [];
 if (!empty($book['testata_id']) && (string) ($book['testata_titolo'] ?? '') !== '') {
-    $articleSource = ['label' => (string) $book['testata_titolo'], 'href' => url('/emeroteca/' . (int) $book['testata_id'])];
+    $articleSource = ['label' => (string) $book['testata_titolo'], 'href' => url(\App\Support\RouteTranslator::route('periodicals') . '/' . (int) $book['testata_id'])];
 } elseif (trim((string) ($book['contenitore_titolo'] ?? '')) !== '') {
-    $articleSource = ['label' => (string) $book['contenitore_titolo'], 'href' => url('/emeroteca/articoli') . '?' . http_build_query(['pubblicazione' => (string) $book['contenitore_titolo']])];
+    $articleSource = ['label' => (string) $book['contenitore_titolo'], 'href' => url(\App\Support\RouteTranslator::route('periodicals') . '/articoli') . '?' . http_build_query(['pubblicazione' => (string) $book['contenitore_titolo']])];
 }
 $articleCard = [
     'id' => (int) $book['id'],
-    'url' => url('/emeroteca/articolo/' . (int) $book['id']),
+    'url' => url(\App\Support\RouteTranslator::route('periodicals') . '/articolo/' . (int) $book['id']),
     'title' => (string) ($book['titolo'] ?? ''),
     'cover' => ($book['copertina_url'] ?? '') !== '' ? absoluteUrl((string) $book['copertina_url']) : '',
     'subtitle' => (string) ($book['sottotitolo'] ?? ''),
