@@ -1176,7 +1176,7 @@ class DiscogsPlugin
         return [
             'name' => 'discogs',
             'display_name' => 'Music Scraper (Discogs, MusicBrainz, Deezer)',
-            'version' => '1.1.0',
+            'version' => '1.1.1',
             'description' => 'Scraping multi-sorgente di metadati musicali: Discogs, MusicBrainz + Cover Art Archive, Deezer.',
         ];
     }

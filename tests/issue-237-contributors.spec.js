@@ -188,8 +188,12 @@ test.describe.serial('Issue #237 — contributor roles and pseudonyms', () => {
     );
     expect(roleAwareSru.ok()).toBeTruthy();
     const roleAwareXml = await roleAwareSru.text();
-    expect(roleAwareXml).toContain(ILLUSTRATOR);
-    expect(roleAwareXml).toMatch(/tag="702"[\s\S]*?<subfield code="4">440<\/subfield>/);
+    // UNIMARC 70X enter a personal name under the surname: $a is the entry
+    // element (the last word of the name as stored), $b the rest.
+    const esc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = ILLUSTRATOR.split(' ');
+    const surname = parts.pop();
+    expect(roleAwareXml).toMatch(new RegExp(`tag="702"[^>]*>\\s*<subfield code="a">${esc(surname)}</subfield>\\s*<subfield code="b">${esc(parts.join(' '))}</subfield>[\\s\\S]*?<subfield code="4">440</subfield>`));
   });
 
   test('editing a book preserves an existing co-author role', async () => {

@@ -95,12 +95,25 @@ $collection = static function (callable $body): string {
     $xw->endDocument();
     return $xw->outputMemory();
 };
+// xmllint when the host has it (developer machines); otherwise libxml's own
+// validator through DOMDocument, the same engine (CI runners lack the CLI).
 $xmllint = static function (string $xml) use ($xsd): array {
-    $tmp = tempnam(sys_get_temp_dir(), 'marc21-');
-    file_put_contents($tmp, $xml);
-    exec('xmllint --noout --schema ' . escapeshellarg($xsd) . ' ' . escapeshellarg($tmp) . ' 2>&1', $out, $code);
-    unlink($tmp);
-    return [$code, implode("\n", $out)];
+    exec('command -v xmllint 2>/dev/null', $which, $whichCode);
+    if ($whichCode === 0 && $which !== []) {
+        $tmp = tempnam(sys_get_temp_dir(), 'marc21-');
+        file_put_contents($tmp, $xml);
+        exec('xmllint --noout --schema ' . escapeshellarg($xsd) . ' ' . escapeshellarg($tmp) . ' 2>&1', $out, $code);
+        unlink($tmp);
+        return [$code, implode("\n", $out)];
+    }
+    $prev = libxml_use_internal_errors(true);
+    libxml_clear_errors();
+    $doc = new DOMDocument();
+    $ok = $doc->loadXML($xml) && $doc->schemaValidate($xsd);
+    $errors = array_map(static fn(LibXMLError $e): string => trim($e->message) . ' (line ' . $e->line . ')', libxml_get_errors());
+    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+    return [$ok ? 0 : 1, implode("\n", $errors)];
 };
 $xpath = static function (string $xml): DOMXPath {
     $doc = new DOMDocument();
@@ -209,7 +222,7 @@ try {
         $call('writeArchivalUnitMarc21Record', $xw, $item, $itemAuth);
     });
     [$code, $out] = $xmllint($marc);
-    $check($code === 0, 'xmllint validates the MARC21 export against MARC21slim.xsd' . ($code === 0 ? '' : "\n" . $out));
+    $check($code === 0, 'the MARC21 export validates against MARC21slim.xsd (xmllint or libxml)' . ($code === 0 ? '' : "\n" . $out));
     $check($call('validateMarcXmlSchema', $marc) === [], 'the importer\'s strict XSD gate accepts the MARC21 export');
 
     $x = $xpath($marc);

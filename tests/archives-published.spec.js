@@ -61,7 +61,6 @@ function dbExec(sql) {
 const STAMP = Date.now();
 const REF = `E2E_PUB_${STAMP}`;
 const TITLE = `Fondo pubblicazione ${STAMP}`;
-const DOC_REL = `/uploads/archives/documents/e2e-pub-${STAMP}.pdf`;
 const DOC_NAME = `verbale è ${STAMP}.pdf`;
 
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'Missing E2E env (ADMIN_EMAIL/PASS, DB_*)');
@@ -73,6 +72,8 @@ test.describe.serial('Archives — published flag on public surfaces', () => {
     let page;
     let unitId = 0;
     let fileId = 0;
+    /** The stored path of the uploaded document (/uploads/archives/documents/…). */
+    let DOC_REL = '';
 
     /** Every public surface of the unit, fetched without a session. */
     async function publicStatuses(request) {
@@ -150,7 +151,8 @@ test.describe.serial('Archives — published flag on public surfaces', () => {
             }
             dbExec(`DELETE FROM archival_units WHERE reference_code = '${REF}'`);
         } catch { /* best-effort */ }
-        try { fs.unlinkSync(path.join(PUBLIC_DIR, DOC_REL)); } catch { /* already gone */ }
+        // Owned by the web server in CI: best effort only.
+        if (DOC_REL) { try { fs.unlinkSync(path.join(PUBLIC_DIR, DOC_REL)); } catch { /* not ours to delete */ } }
         await context?.close();
     });
 
@@ -170,15 +172,28 @@ test.describe.serial('Archives — published flag on public surfaces', () => {
         expect(unitId).toBeGreaterThan(0);
         expect(dbQuery(`SELECT published FROM archival_units WHERE id = ${unitId}`)).toBe('0');
 
-        // A real document on disk + its row, so the document route has
-        // something to stream once the unit is published.
-        const abs = path.join(PUBLIC_DIR, DOC_REL);
-        fs.mkdirSync(path.dirname(abs), { recursive: true });
-        fs.writeFileSync(abs, '%PDF-1.4\n% e2e published-flag fixture\n');
-        dbExec(`INSERT INTO archival_unit_files (unit_id, file_path, file_mime, original_filename, sort_order)
-                VALUES (${unitId}, '${DOC_REL}', 'application/pdf', '${DOC_NAME}', 1)`);
-        fileId = Number(dbQuery(`SELECT id FROM archival_unit_files WHERE unit_id = ${unitId} LIMIT 1`));
+        // A real document, uploaded through the admin form as a librarian
+        // does (the web server owns the upload folder; the test runner may
+        // not be able to write there), so the document route has something
+        // to stream once the unit is published.
+        await page.goto(`${BASE}/admin/archives/${unitId}`);
+        const upload = page.locator('form[action*="upload-document"]');
+        await upload.locator('input[name="document"]').setInputFiles({
+            name: DOC_NAME,
+            mimeType: 'application/pdf',
+            buffer: Buffer.from('%PDF-1.4\n% e2e published-flag fixture\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n'),
+        });
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+            upload.locator('button[type="submit"]').click(),
+        ]);
+        // One column per value: batch mode escapes a tab inside a value.
+        const row = dbQuery(`SELECT id, file_path, original_filename FROM archival_unit_files WHERE unit_id = ${unitId} ORDER BY id DESC LIMIT 1`).split('\t');
+        fileId = Number(row[0]);
+        DOC_REL = row[1] || '';
         expect(fileId).toBeGreaterThan(0);
+        expect(DOC_REL).toMatch(/^\/uploads\/archives\/documents\//);
+        expect(row[2]).toBe(DOC_NAME);
     });
 
     test('2. the admin still lists it, with a "Non pubblicata" badge', async () => {

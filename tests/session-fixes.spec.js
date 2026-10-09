@@ -153,8 +153,27 @@ test.describe.serial('App routing', () => {
 // ===========================================================================
 test.describe.serial('Book detail UI', () => {
   // 6. The goodlib external-search block is present on the book page.
-  test('goodlib "Cerca su" block is present', async ({ page }) => {
+  test('goodlib "Cerca su" block is present', async ({ page, browser }) => {
     test.skip(!bookUrl, 'no catalog book available');
+    test.skip(!process.env.E2E_ADMIN_EMAIL || !process.env.E2E_ADMIN_PASS, 'admin credentials needed to enable the block');
+    // GoodLib starts with the public block off (first-activation default):
+    // switch it on the way an operator does, with Project Gutenberg as source.
+    const admin = await (await browser.newContext()).newPage();
+    try {
+      await admin.goto(`${BASE}/accedi`);
+      await admin.fill('input[name="email"]', process.env.E2E_ADMIN_EMAIL);
+      await admin.fill('input[name="password"]', process.env.E2E_ADMIN_PASS);
+      await admin.locator('button[type="submit"]').click();
+      await admin.waitForURL(u => !u.pathname.includes('accedi'));
+      await admin.goto(`${BASE}/admin/plugins`);
+      await admin.getByRole('button', { name: 'Configura Fonti' }).click();
+      await admin.locator('#goodlib_gutenberg').check();
+      await admin.locator('#goodlib_frontend').check();
+      await admin.getByRole('button', { name: 'Salva' }).click();
+      await expect(admin.getByRole('dialog')).toContainText('Impostazioni GoodLib salvate correttamente.');
+    } finally {
+      await admin.context().close();
+    }
     await page.goto(bookUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await expect(page.locator('text=Cerca su:').first()).toBeVisible();
   });
