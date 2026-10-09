@@ -17,6 +17,8 @@ class GoodLibPlugin
     private ?\mysqli $db = null;
     private ?object $hookManager = null;
     private int $pluginId = 0;
+    /** @var array{anna_enabled: bool, zlib_enabled: bool, gutenberg_enabled: bool, show_frontend: bool, show_admin: bool, anna_domain: string, zlib_domain: string, gutenberg_domain: string}|null */
+    private ?array $settingsCache = null;
 
     /** @var array<string, array{icon: string, url_pattern: string, default_domain: string, mirrors: list<string>}> */
     private const SOURCES = [
@@ -109,13 +111,16 @@ class GoodLibPlugin
     {
         $this->registerHooks();
 
-        // Set default settings: all sources enabled, show in both frontend and admin
+        // Defaults on first activation: Project Gutenberg only, and the links
+        // only in the admin. Anna's Archive and Z-Library are shadow libraries:
+        // linking them from a public library site is the operator's explicit
+        // choice, one switch each in the settings.
         if ($this->db && $this->pluginId > 0) {
             if ($this->dbGetSetting('anna_enabled') === null) {
-                $this->dbSetSetting('anna_enabled', '1');
-                $this->dbSetSetting('zlib_enabled', '1');
+                $this->dbSetSetting('anna_enabled', '0');
+                $this->dbSetSetting('zlib_enabled', '0');
                 $this->dbSetSetting('gutenberg_enabled', '1');
-                $this->dbSetSetting('show_frontend', '1');
+                $this->dbSetSetting('show_frontend', '0');
                 $this->dbSetSetting('show_admin', '1');
                 $this->dbSetSetting('anna_domain', self::SOURCES['anna']['default_domain']);
                 $this->dbSetSetting('zlib_domain', self::SOURCES['zlib']['default_domain']);
@@ -224,6 +229,7 @@ class GoodLibPlugin
 
     private function dbSetSetting(string $key, string $value): bool
     {
+        $this->settingsCache = null;
         if (!$this->db || $this->pluginId === 0) {
             return false;
         }
@@ -440,11 +446,23 @@ class GoodLibPlugin
      */
     private function getSettings(): array
     {
+        // Read once per request: the book page asks for them several times.
+        if ($this->settingsCache !== null) {
+            return $this->settingsCache;
+        }
+        return $this->settingsCache = $this->loadSettings();
+    }
+
+    /**
+     * @return array{anna_enabled: bool, zlib_enabled: bool, gutenberg_enabled: bool, show_frontend: bool, show_admin: bool, anna_domain: string, zlib_domain: string, gutenberg_domain: string}
+     */
+    private function loadSettings(): array
+    {
         $defaults = [
-            'anna_enabled' => true,
-            'zlib_enabled' => true,
+            'anna_enabled' => false,
+            'zlib_enabled' => false,
             'gutenberg_enabled' => true,
-            'show_frontend' => true,
+            'show_frontend' => false,
             'show_admin' => true,
             'anna_domain' => self::SOURCES['anna']['default_domain'],
             'zlib_domain' => self::SOURCES['zlib']['default_domain'],
@@ -462,10 +480,10 @@ class GoodLibPlugin
         }
 
         return [
-            'anna_enabled' => ($all['anna_enabled'] ?? '1') === '1',
-            'zlib_enabled' => ($all['zlib_enabled'] ?? '1') === '1',
+            'anna_enabled' => ($all['anna_enabled'] ?? '0') === '1',
+            'zlib_enabled' => ($all['zlib_enabled'] ?? '0') === '1',
             'gutenberg_enabled' => ($all['gutenberg_enabled'] ?? '1') === '1',
-            'show_frontend' => ($all['show_frontend'] ?? '1') === '1',
+            'show_frontend' => ($all['show_frontend'] ?? '0') === '1',
             'show_admin' => ($all['show_admin'] ?? '1') === '1',
             'anna_domain' => !empty($all['anna_domain']) ? (string) $all['anna_domain'] : self::SOURCES['anna']['default_domain'],
             'zlib_domain' => !empty($all['zlib_domain']) ? (string) $all['zlib_domain'] : self::SOURCES['zlib']['default_domain'],

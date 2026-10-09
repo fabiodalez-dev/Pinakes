@@ -245,10 +245,13 @@ final class HttpClient
         } catch (GuzzleException|\RuntimeException $e) {
             // Transport-level failure (DNS / connection / TLS). Mirror the old
             // `curl_exec() === false` path: surface an empty, non-ok result.
+            // The query string can carry API keys (some providers only take
+            // them there): log the URL without it.
+            $loggedUrl = strtok($url, '?');
             SecureLogger::warning('HttpClient request failed', [
                 'method' => $method,
-                'url' => $url,
-                'error' => $e->getMessage(),
+                'url' => $loggedUrl !== false ? $loggedUrl : '',
+                'error' => preg_replace('/([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/i', '$1[redacted]', $e->getMessage()),
             ]);
 
             return ['ok' => false, 'status' => 0, 'body' => ''];

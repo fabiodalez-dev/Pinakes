@@ -121,8 +121,8 @@ echo "goodlib — badges layout + version bump\n";
 
 // 13. Plugin version was bumped (policy: any plugin change bumps the version).
 $pj = json_decode((string) file_get_contents($ROOT . '/storage/plugins/goodlib/plugin.json'), true);
-$check(is_array($pj) && ($pj['version'] ?? '') === '1.0.1',
-    "goodlib plugin.json version === '1.0.1'");
+$check(is_array($pj) && version_compare((string) ($pj['version'] ?? '0'), '1.0.1', '>='),
+    "goodlib plugin.json version >= '1.0.1'");
 
 // Render badges.php in isolation (stub __()).
 if (!function_exists('__')) { function __($s) { return $s; } }

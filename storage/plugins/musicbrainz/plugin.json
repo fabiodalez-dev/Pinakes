@@ -1,14 +1,14 @@
 {
   "name": "musicbrainz",
-  "display_name": "MusicBrainz + Cover Art Archive",
-  "description": "Integrazione con MusicBrainz e Cover Art Archive per metadati musicali. Cerca per barcode, fornisce artista, album, tracklist, etichetta, copertine HD. Open data, nessun token richiesto.",
-  "version": "1.0.0",
+  "display_name": "MusicBrainz (via Music Scraper)",
+  "description": "Informativo: le ricerche MusicBrainz e le copertine del Cover Art Archive sono svolte dal plugin Music Scraper (discogs), che vi ricorre quando Discogs non trova la pubblicazione. Questo plugin non aggiunge funzioni proprie: attiva Music Scraper.",
+  "version": "1.0.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://musicbrainz.org",
   "main_file": "wrapper.php",
   "requires_php": "8.0",
-  "requires_app": "0.5.0",
+  "requires_app": "0.7.0",
   "metadata": {
     "category": "scraping",
     "tags": [
@@ -23,34 +23,11 @@
       "https://musicbrainz.org/ws/2/release",
       "https://coverartarchive.org/release/{mbid}"
     ],
-    "hooks": [
-      {
-        "name": "scrape.sources",
-        "callback_method": "addMusicBrainzSource",
-        "description": "Adds MusicBrainz as a scraping source for music media",
-        "priority": 7
-      },
-      {
-        "name": "scrape.fetch.custom",
-        "callback_method": "fetchFromMusicBrainz",
-        "description": "Fetches metadata from MusicBrainz API by barcode",
-        "priority": 7
-      },
-      {
-        "name": "scrape.data.modify",
-        "callback_method": "enrichWithCoverArt",
-        "description": "Enriches data with Cover Art Archive covers",
-        "priority": 12
-      }
-    ],
     "features": [
-      "Ricerca per barcode (EAN/UPC)",
-      "Tracklist completa nella descrizione",
-      "Copertine HD da Cover Art Archive",
-      "Mappatura etichetta su editore",
-      "Supporto CD, vinile, cassette",
-      "Nessun token richiesto (open data)"
+      "Ricerca MusicBrainz e copertine Cover Art Archive svolte dal plugin Music Scraper (discogs)",
+      "Nessuna funzione autonoma"
     ],
-    "optional": true
+    "optional": true,
+    "informational": true
   }
 }

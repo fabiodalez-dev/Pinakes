@@ -687,11 +687,10 @@ class DiscogsPlugin
             $weightKg = round((float) $release['estimated_weight'] / 1000, 3);
         }
 
-        // Price
+        // Price: not taken. Discogs' lowest_price is a marketplace figure in the
+        // token owner's currency (USD by default) with no currency in the
+        // payload: stored as `prezzo` it read as euros on the book page.
         $price = null;
-        if (!empty($release['lowest_price']) && is_numeric($release['lowest_price'])) {
-            $price = (string) $release['lowest_price'];
-        }
 
         // Number of tracks
         $trackCount = 0;
@@ -726,6 +725,10 @@ class DiscogsPlugin
         if ($discogsNotes !== '') {
             $noteParts[] = $discogsNotes;
         }
+        // Discogs' API terms ask for visible attribution of the data: it stays
+        // with the record, in the notes shown on the book page.
+        $releaseId = (int) ($release['id'] ?? 0);
+        $noteParts[] = 'Data provided by Discogs' . ($releaseId > 0 ? ' — https://www.discogs.com/release/' . $releaseId : '');
         $noteVarie = implode("\n", $noteParts);
 
         // Discogs URL for sameAs
@@ -767,7 +770,7 @@ class DiscogsPlugin
             'peso' => $weightKg,
             'prezzo' => $price,
             'numero_pagine' => $trackCount > 0 ? (string) $trackCount : null,
-            'note_varie' => $noteVarie !== '' ? $noteVarie : null,
+            'note_varie' => $noteVarie,
             'physical_description' => $physicalDesc !== '' ? $physicalDesc : null,
             // Catalog number is recorded in note_varie ("Cat#: ...").
             // numero_inventario is reserved for the library's internal per-copy
@@ -942,15 +945,47 @@ class DiscogsPlugin
     private static float $lastRequestTime = 0.0;
     private static float $lastDeezerRequestTime = 0.0;
 
-    private function apiRequest(string $url, ?string $token = null): ?array
+    /**
+     * Wait until at least $minInterval seconds have passed since the last
+     * request to $host from ANY PHP worker: the timestamp lives in a locked
+     * file in the temp dir, so a CSV import spread over several FPM workers
+     * still respects Discogs' 25-60/min and MusicBrainz' strict 1/s.
+     * Falls back to the per-process timestamp when the file cannot be used.
+     */
+    private function throttleHost(string $host, float $minInterval, float &$processLast): void
     {
-        // Centralized rate limiting: 1s with token (60 req/min), 2.5s without (25 req/min)
-        $minInterval = ($token !== null && $token !== '') ? 1.0 : 2.5;
-        $elapsed = microtime(true) - self::$lastRequestTime;
-        if (self::$lastRequestTime > 0 && $elapsed < $minInterval) {
+        $file = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'pinakes-throttle-' . preg_replace('/[^a-z0-9.-]/', '', strtolower($host));
+        $handle = @fopen($file, 'c+');
+        if ($handle === false || !flock($handle, LOCK_EX)) {
+            if ($handle !== false) {
+                fclose($handle);
+            }
+            $elapsed = microtime(true) - $processLast;
+            if ($processLast > 0 && $elapsed < $minInterval) {
+                usleep((int) (($minInterval - $elapsed) * 1_000_000));
+            }
+            $processLast = microtime(true);
+            return;
+        }
+        $last = (float) trim((string) stream_get_contents($handle));
+        $elapsed = microtime(true) - $last;
+        if ($last > 0 && $elapsed < $minInterval) {
             usleep((int) (($minInterval - $elapsed) * 1_000_000));
         }
-        self::$lastRequestTime = microtime(true);
+        $processLast = microtime(true);
+        ftruncate($handle, 0);
+        rewind($handle);
+        fwrite($handle, sprintf('%.6F', $processLast));
+        fflush($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+
+    private function apiRequest(string $url, ?string $token = null): ?array
+    {
+        // 1s with token (60 req/min), 2.5s without (25 req/min), shared by all workers.
+        $minInterval = ($token !== null && $token !== '') ? 1.0 : 2.5;
+        $this->throttleHost('api.discogs.com', $minInterval, self::$lastRequestTime);
 
         $headers = [
             'Accept' => 'application/vnd.discogs.v2.discogs+json',
@@ -1467,12 +1502,8 @@ class DiscogsPlugin
      */
     private function musicBrainzRequest(string $url): ?array
     {
-        // MusicBrainz requires 1 req/s strictly
-        $elapsed = microtime(true) - self::$lastMbRequestTime;
-        if (self::$lastMbRequestTime > 0 && $elapsed < 1.1) {
-            usleep((int)((1.1 - $elapsed) * 1_000_000));
-        }
-        self::$lastMbRequestTime = microtime(true);
+        // MusicBrainz requires 1 req/s strictly, per IP: shared by all workers.
+        $this->throttleHost('musicbrainz.org', 1.1, self::$lastMbRequestTime);
 
         $res = \App\Support\HttpClient::get($url, [
             'Accept' => 'application/json',
@@ -1530,12 +1561,8 @@ class DiscogsPlugin
         $query = $artist !== '' ? $artist . ' ' . $title : $title;
         $url = 'https://api.deezer.com/search/album?q=' . urlencode($query) . '&limit=1';
 
-        // Elapsed-based rate limit — 1 second between Deezer requests
-        $elapsed = microtime(true) - self::$lastDeezerRequestTime;
-        if (self::$lastDeezerRequestTime > 0 && $elapsed < 1.0) {
-            usleep((int) ((1.0 - $elapsed) * 1_000_000));
-        }
-        self::$lastDeezerRequestTime = microtime(true);
+        // 1 second between Deezer requests, shared by all workers.
+        $this->throttleHost('api.deezer.com', 1.0, self::$lastDeezerRequestTime);
 
         $res = \App\Support\HttpClient::get($url, [], [
             'timeout'         => 10,

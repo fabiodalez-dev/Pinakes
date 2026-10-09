@@ -212,9 +212,10 @@ test.beforeAll(async ({ browser }) => {
         if (!pluginId) {
             const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
             const q = (value) => String(value ?? '').replace(/'/g, "''");
-            dbExec(`INSERT INTO plugins (name, display_name, version, is_active, directory, entry_point, requires_php, requires_app, settings, installed_at)
+            // Columns of the real `plugins` table (path/main_file/metadata).
+            dbExec(`INSERT INTO plugins (name, display_name, version, is_active, path, main_file, requires_php, requires_app, metadata, installed_at)
                     VALUES ('scraping-pro', '${q(manifest.display_name || manifest.name || 'Scraping Pro')}', '${q(manifest.version || '1.0.0')}', 0,
-                            'scraping-pro', '${q(manifest.entry_point || 'wrapper.php')}', '${q(manifest.requires_php || '7.4')}',
+                            'scraping-pro', '${q(manifest.main_file || manifest.entry_point || 'wrapper.php')}', '${q(manifest.requires_php || '7.4')}',
                             '${q(manifest.requires_app || '0.0.0')}', '{}', NOW())`);
             pluginId = Number(dbQuery("SELECT id FROM plugins WHERE name='scraping-pro' LIMIT 1"));
         }

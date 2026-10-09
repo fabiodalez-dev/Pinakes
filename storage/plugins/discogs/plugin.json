@@ -2,7 +2,7 @@
   "name": "discogs",
   "display_name": "Music Scraper (Discogs, MusicBrainz, Deezer)",
   "description": "Scraping multi-sorgente di metadati musicali: Discogs (barcode/titolo), MusicBrainz + Cover Art Archive (fallback barcode), Deezer (copertine HD). Supporta CD, LP, vinili, cassette.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.discogs.com",
