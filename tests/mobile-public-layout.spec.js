@@ -144,6 +144,55 @@ test.describe('Book page details', () => {
     expect(r.fullWidth).toBe(true);
     expect(r.wrapped).toEqual([]);
   });
+
+  // On a phone no row of the book page is left uneven: four facts (year,
+  // pages, format, ISBN) go two by two, not three and one; the share buttons
+  // and the citation actions one per row; the citation styles on one line.
+  // Each title keeps room above its buttons. 412px is a common large phone,
+  // where the facts used to fit three to a row.
+  for (const width of [390, 412]) {
+    test(`on a ${width}px phone every row of the book page is even`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE + '/catalogo?search=978', { waitUntil: 'networkidle' });
+      const hrefs = await page.locator('main a[href]').evaluateAll(as => [...new Set(as.map(a => a.getAttribute('href')).filter(h => /^\/[^/]+\/[^/]+\/\d+$/.test(h || '')))].slice(0, 8));
+      test.skip(hrefs.length === 0, 'no book in the catalogue');
+      let found = false;
+      for (const href of hrefs) {
+        await page.goto(new URL(href, BASE).href, { waitUntil: 'networkidle' });
+        if (await page.locator('.pk-quick > .pk-quick__item').count() === 4) { found = true; break; }
+      }
+      test.skip(!found, 'no book with year, pages, format and ISBN');
+      const r = await page.evaluate(() => {
+        const tops = (els) => els.filter((e) => e.offsetParent).map((e) => Math.round(e.getBoundingClientRect().top));
+        const rows = (t) => Object.values(t.reduce((m, y) => { m[y] = (m[y] || 0) + 1; return m; }, {}));
+        const gap = (title, first) => (title && first ? Math.round(first.getBoundingClientRect().top - title.getBoundingClientRect().bottom) : null);
+        const share = [...document.querySelectorAll('#book-share-card .social-share-btn')];
+        const actions = document.querySelector('.pk-citebox__actions');
+        const acts = actions ? [...actions.querySelectorAll('a, button')] : [];
+        const last = acts.filter((e) => e.offsetParent).pop();
+        const lastBox = last ? last.getBoundingClientRect() : null;
+        const clipper = last ? last.closest('#book-cite-card') : null;
+        return {
+          facts: rows(tops([...document.querySelectorAll('.pk-quick > .pk-quick__item')])),
+          share: rows(tops(share)),
+          shareGap: gap(document.querySelector('#book-share-card .card-header h6'), share.find((e) => e.offsetParent)),
+          tabs: rows(tops([...document.querySelectorAll('.pk-citebox__tab')])),
+          citeGap: gap(document.querySelector('#book-cite-card .card-header h6'), document.querySelector('.pk-citebox__tabs')),
+          actions: rows(tops(acts)),
+          lastActionClipped: !!(clipper && lastBox && getComputedStyle(clipper).overflow !== 'visible' && clipper.getBoundingClientRect().bottom <= lastBox.bottom + 0.5),
+          sideways: document.documentElement.scrollWidth > window.innerWidth,
+        };
+      });
+      expect(r.facts, 'four facts, two by two').toEqual([2, 2]);
+      if (r.share.length) expect(Math.max(...r.share), 'one share button per row').toBe(1);
+      if (r.shareGap !== null) expect(r.shareGap, 'room under "Condividi"').toBeGreaterThanOrEqual(8);
+      if (r.tabs.length) expect(r.tabs.length, 'the citation styles on one line').toBe(1);
+      if (r.citeGap !== null) expect(r.citeGap, 'room under "Cita questo libro"').toBeGreaterThanOrEqual(8);
+      if (r.actions.length) expect(Math.max(...r.actions), 'one citation action per row').toBe(1);
+      expect(r.lastActionClipped, 'the last citation button is not cut').toBe(false);
+      expect(r.sideways).toBe(false);
+    });
+  }
 });
 
 test.describe('Search boxes draw one border', () => {
