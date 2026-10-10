@@ -144,6 +144,94 @@ test.describe('Book page details', () => {
     expect(r.fullWidth).toBe(true);
     expect(r.wrapped).toEqual([]);
   });
+
+  // On a phone no row of the book page is left uneven: four facts (year,
+  // pages, format, ISBN) go two by two, not three and one; the share buttons
+  // and the citation actions one per row; the citation styles on one line.
+  // Each title keeps room above its buttons. 412px is a common large phone,
+  // where the facts used to fit three to a row.
+  for (const width of [390, 412]) {
+    test(`on a ${width}px phone every row of the book page is even`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE + '/catalogo?search=978', { waitUntil: 'networkidle' });
+      const hrefs = await page.locator('main a[href]').evaluateAll(as => [...new Set(as.map(a => a.getAttribute('href')).filter(h => /^\/[^/]+\/[^/]+\/\d+$/.test(h || '')))].slice(0, 8));
+      test.skip(hrefs.length === 0, 'no book in the catalogue');
+      let found = false;
+      for (const href of hrefs) {
+        await page.goto(new URL(href, BASE).href, { waitUntil: 'networkidle' });
+        if (await page.locator('.pk-quick > .pk-quick__item').count() === 4) { found = true; break; }
+      }
+      test.skip(!found, 'no book with year, pages, format and ISBN');
+      const r = await page.evaluate(() => {
+        const tops = (els) => els.filter((e) => e.offsetParent).map((e) => Math.round(e.getBoundingClientRect().top));
+        const rows = (t) => Object.values(t.reduce((m, y) => { m[y] = (m[y] || 0) + 1; return m; }, {}));
+        const gap = (title, first) => (title && first ? Math.round(first.getBoundingClientRect().top - title.getBoundingClientRect().bottom) : null);
+        const share = [...document.querySelectorAll('#book-share-card .social-share-btn')];
+        const actions = document.querySelector('.pk-citebox__actions');
+        const acts = actions ? [...actions.querySelectorAll('a, button')] : [];
+        const last = acts.filter((e) => e.offsetParent).pop();
+        const lastBox = last ? last.getBoundingClientRect() : null;
+        const clipper = last ? last.closest('#book-cite-card') : null;
+        return {
+          facts: rows(tops([...document.querySelectorAll('.pk-quick > .pk-quick__item')])),
+          share: rows(tops(share)),
+          shareGap: gap(document.querySelector('#book-share-card .card-header h6'), share.find((e) => e.offsetParent)),
+          tabs: rows(tops([...document.querySelectorAll('.pk-citebox__tab')])),
+          citeGap: gap(document.querySelector('#book-cite-card .card-header h6'), document.querySelector('.pk-citebox__tabs')),
+          actions: rows(tops(acts)),
+          lastActionClipped: !!(clipper && lastBox && getComputedStyle(clipper).overflow !== 'visible' && clipper.getBoundingClientRect().bottom <= lastBox.bottom + 0.5),
+          sideways: document.documentElement.scrollWidth > window.innerWidth,
+          // The availability ("Disponibile") and the buttons under it share one left edge.
+          availOffsets: (() => {
+            const badge = document.querySelector('.pk-availbox .availability-badge');
+            const btns = [...document.querySelectorAll('.pk-availbox .action-buttons .ui-button')].filter((e) => e.offsetParent);
+            return badge ? btns.map((b) => Math.round(Math.abs(b.getBoundingClientRect().left - badge.getBoundingClientRect().left))) : [];
+          })(),
+        };
+      });
+      expect(r.facts, 'four facts, two by two').toEqual([2, 2]);
+      if (r.share.length) expect(Math.max(...r.share), 'one share button per row').toBe(1);
+      if (r.shareGap !== null) expect(r.shareGap, 'room under "Condividi"').toBeGreaterThanOrEqual(8);
+      if (r.tabs.length) expect(r.tabs.length, 'the citation styles on one line').toBe(1);
+      if (r.citeGap !== null) expect(r.citeGap, 'room under "Cita questo libro"').toBeGreaterThanOrEqual(8);
+      if (r.actions.length) expect(Math.max(...r.actions), 'one citation action per row').toBe(1);
+      expect(r.lastActionClipped, 'the last citation button is not cut').toBe(false);
+      expect(r.sideways).toBe(false);
+      for (const off of r.availOffsets) expect(off, 'the buttons start where "Disponibile" starts').toBeLessThanOrEqual(1);
+    });
+
+    // Available or not ("Disponibile", "Non disponibile oggi"), the status and
+    // the buttons under it (Request a loan / Reserve, Favourites) start at the
+    // same left edge and fill the box: they used to be capped at 300px and
+    // centred, a step to the right of the status.
+    test(`on a ${width}px phone the availability lines up with its buttons`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(BASE + '/catalogo', { waitUntil: 'networkidle' });
+      const hrefs = await page.locator('main a[href]').evaluateAll(as => [...new Set(as.map(a => a.getAttribute('href')).filter(h => /^\/[^/]+\/[^/]+\/\d+$/.test(h || '')))].slice(0, 8));
+      test.skip(hrefs.length === 0, 'no book in the catalogue');
+      let checked = 0;
+      for (const href of hrefs) {
+        await page.goto(new URL(href, BASE).href, { waitUntil: 'networkidle' });
+        const m = await page.evaluate(() => {
+          const box = document.querySelector('.pk-availbox');
+          const badge = box && box.querySelector('.availability-badge');
+          const btns = box ? [...box.querySelectorAll('.action-buttons .ui-button')].filter((e) => e.offsetParent) : [];
+          if (!badge || btns.length === 0) return null;
+          const inner = box.getBoundingClientRect().right - parseFloat(getComputedStyle(box).paddingRight);
+          return {
+            state: badge.textContent.trim(),
+            left: btns.map((b) => Math.round(Math.abs(b.getBoundingClientRect().left - badge.getBoundingClientRect().left))),
+            right: btns.map((b) => Math.round(Math.abs(b.getBoundingClientRect().right - inner))),
+          };
+        });
+        if (!m) continue;
+        checked++;
+        for (const off of m.left) expect(off, `${m.state}: the buttons start where the status starts`).toBeLessThanOrEqual(1);
+        for (const off of m.right) expect(off, `${m.state}: the buttons fill the box`).toBeLessThanOrEqual(1);
+      }
+      test.skip(checked === 0, 'no book with loan buttons');
+    });
+  }
 });
 
 test.describe('Search boxes draw one border', () => {

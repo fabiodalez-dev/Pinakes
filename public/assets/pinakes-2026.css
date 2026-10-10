@@ -401,7 +401,10 @@ body.pk .pk-hero__title em { color: var(--pk-accent-ink); }
 body.pk .pk-search input { flex: 1; min-width: 0; border: 0; outline: none; font-size: 16px; background: transparent; color: var(--pk-ink); padding: 8px 0; box-shadow: none; }
 /* The field has no frame of its own: the whole search box shows the focus. */
 .pk-search:focus-within { border-color: var(--pk-focus); box-shadow: 0 0 0 1px var(--pk-focus), 0 12px 32px -18px color-mix(in srgb, var(--pk-accent-strong) 35%, transparent); }
-body.pk .pk-search input:focus-visible { outline: none; }
+/* The field draws nothing of its own when focused: the whole rounded box
+   already shows the focus (:focus-within above). A form-reset rule gave the
+   input a 1px accent ring, a second rectangle around the typed text. */
+body.pk .pk-search input:focus, body.pk .pk-search input:focus-visible { outline: none; box-shadow: none !important; border-color: transparent; }
 .pk-search button {
     min-height: 44px; padding: 12px 22px; border-radius: 11px; border: 0; background: var(--pk-button); color: var(--pk-button-text);
     font-weight: 600; font-size: 15px; cursor: pointer; transition: background-color .2s;
@@ -603,8 +606,14 @@ body.pk .pk-catalog-head .catalog-header-content { text-align: left; max-width: 
 
 .pk-catalog { padding: 0 0 88px; }
 .pk-catalog__layout { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
-.pk-filters { flex: 1 1 250px; max-width: 100%; position: sticky; top: 88px; }
-.pk-results { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
+/* The filters column has a width of its own: a quarter of the layout, 250 to
+   300px. It never grows to its content: a publisher named in a hundred
+   characters (shown with an ellipsis) still counted at full length in the
+   column's minimum width, which pushed the books under the filters. */
+.pk-filters { flex: 0 0 clamp(250px, 25%, 300px); min-width: 0; max-width: 100%; position: sticky; top: 88px; }
+/* A zero basis: the results never wrap under the filters on their own, only when the
+   filters take the full width below 860px. */
+.pk-results { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
 @media (max-width: 860px) { .pk-filters { position: static; flex-basis: 100%; } }
 
 body.pk :is(.pk-filters, .filters-panel) .filters-panel { background: none; border: 0; box-shadow: none; padding: 0; position: static; max-height: none; overflow: visible; }
@@ -975,7 +984,9 @@ body.pk .pk-availbox #btn-request-loan:disabled { opacity: .55; cursor: not-allo
 @media (max-width: 640px) {
     body.pk .pk-availbox { gap: 16px; }
     body.pk .pk-availbox .action-buttons { flex-direction: column; width: 100%; }
-    body.pk .pk-availbox .action-buttons .ui-button { width: 100%; justify-content: center; }
+    /* Full width, so the buttons start where "Disponibile" starts: book-detail.css
+       caps them at 300px and centres them inside the box. */
+    body.pk .pk-availbox .action-buttons .ui-button { width: 100%; max-width: none; justify-content: center; }
 }
 body.pk .pk-availbox .btn-fav-custom, body.pk .pk-availbox .action-buttons .btn-secondary {
     background: var(--pk-surface); color: var(--pk-ink); border: 1px solid var(--pk-line-2); font-weight: 500; padding: 13px 18px;
@@ -987,6 +998,10 @@ body.pk .pk-availbox .btn-fav-custom:hover { border-color: var(--pk-accent); bac
 body.pk .pk-availbox .btn-fav-custom.btn-danger { border-color: var(--pk-accent); color: var(--pk-accent-strong); background: var(--pk-accent-soft); }
 
 body.pk .pk-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); border-top: 1px solid var(--pk-line); border-bottom: 1px solid var(--pk-line); margin: 0; }
+/* Four facts are never three and one left alone: four in a row when they
+   fit (480px, four 120px columns), otherwise two by two. The clamp() picks
+   25% or 50% as the column minimum from the strip's own width. */
+body.pk .pk-quick:has(> .pk-quick__item:nth-child(4):last-child) { grid-template-columns: repeat(auto-fit, minmax(clamp(25%, (480px - 100%) * 999, 50%), 1fr)); }
 body.pk .pk-quick__item { padding: 16px 0; display: flex; flex-direction: column; gap: 4px; }
 body.pk .pk-quick dt { font-size: 12px; color: var(--pk-faint); text-transform: uppercase; letter-spacing: .06em; font-weight: 400; }
 body.pk .pk-quick dd { margin: 0; font-size: 15px; font-weight: 600; color: var(--pk-ink); overflow-wrap: anywhere; }
@@ -1071,7 +1086,9 @@ body.pk .pk-bookbody .keyword-chip:hover { background: var(--pk-accent-line); }
 body.pk .pk-bookbody__aside .card {
     padding: 22px; border-radius: 20px; background: var(--pk-surface); border: 1px solid var(--pk-line); box-shadow: none; margin: 0; z-index: auto;
 }
-body.pk .pk-bookbody__aside .card-header { padding: 0; margin: 0 0 8px; border: 0; background: none; }
+/* main.css forces `.card-header { margin: 0 !important }`: the space under a
+   card's title is padding, or the buttons sit right against it. */
+body.pk .pk-bookbody__aside .card-header { padding: 0 0 12px; margin: 0; border: 0; background: none; }
 body.pk .pk-bookbody__aside .card-header h6 { font: 600 12px/1.2 var(--pk-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--pk-muted); margin: 0; }
 body.pk .pk-bookbody__aside .card-header h6 i { color: var(--pk-faint); }
 body.pk .pk-bookbody__aside .card-body { padding: 0; }
@@ -1083,8 +1100,8 @@ body.pk .pk-bookbody__aside .book-status-inline { padding: 0; background: none; 
 
 /* Cite section */
 .pk-cite { padding: 0 0 80px; }
-body.pk .pk-cite #book-cite-card { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; }
-body.pk .pk-cite #book-cite-card > .card-header { padding: 0; margin: 0 0 18px; background: none; border: 0; }
+body.pk .pk-cite #book-cite-card { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; overflow: visible; }
+body.pk .pk-cite #book-cite-card > .card-header { padding: 0 0 18px; margin: 0; background: none; border: 0; }
 body.pk .pk-cite #book-cite-card > .card-header h6 { font-family: var(--pk-serif); font-weight: 500; font-size: 32px; letter-spacing: -.015em; color: var(--pk-ink); margin: 0; text-transform: none; }
 body.pk .pk-cite #book-cite-card > .card-header h6 i { font-size: 18px; color: var(--pk-faint); }
 body.pk .pk-cite #book-cite-card > .card-body { padding: 0; }
@@ -1095,6 +1112,15 @@ body.pk .pk-cite #book-cite-card > .card-body { padding: 0; }
 .pk-citebox__text { padding: 22px 24px; border-radius: 16px; background: var(--pk-surface); border: 1px solid var(--pk-line); font-family: var(--pk-serif); font-size: 18px; max-width: 880px; line-height: 1.5; color: var(--pk-ink-2); }
 .pk-citebox__actions { display: flex; gap: 8px; flex-wrap: wrap; }
 body.pk .pk-cite .cite-block { margin-top: 18px; }
+/* On a phone a row of buttons is never wrapped unevenly: the citation styles
+   stay on one line that scrolls sideways, the actions go one per row. */
+@media (max-width: 640px) {
+    .pk-citebox__tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: calc(-1 * var(--pk-gutter)); padding-right: var(--pk-gutter); scroll-snap-type: x proximity; }
+    .pk-citebox__tabs::-webkit-scrollbar { display: none; }
+    .pk-citebox__tab { flex: 0 0 auto; white-space: nowrap; scroll-snap-align: start; }
+    .pk-citebox__actions { flex-direction: column; }
+    .pk-citebox__actions > *, body.pk .pk-citebox__actions #cite-open { width: 100%; justify-content: center; }
+}
 
 /* Series and related */
 body.pk .book-series-section { padding: 0 0 56px; background: none; }
@@ -1446,6 +1472,11 @@ body.pk #book-share-card .social-share-btn:hover { border-color: var(--pk-accent
 body.pk #book-share-card .social-share-btn:hover i { color: inherit; }
 body.pk #book-share-card .social-share-btn__label { display: inline; }
 body.pk #book-share-card .card-body > div { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+@media (max-width: 640px) {
+    /* One share button per row on a phone, never three and two. */
+    body.pk #book-share-card .card-body > div { flex-direction: column; gap: 8px; }
+    body.pk #book-share-card .social-share-btn { width: 100%; justify-content: center; padding: 10px 14px; font-size: 14px; }
+}
 @media (max-width: 1023px) {
     /* book-detail.css centres the hero on small screens; the design keeps it left-aligned. */
     body.pk .pk-bookhero__info { text-align: left; }
@@ -1518,6 +1549,10 @@ body.pk.pk-hero-centered .pk-fan { display: none; }
     /* The back-to-top button and the cookie icon move above the bar. */
     body.pk-tabbar-on #scroll-to-top { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
     body.pk-tabbar-on #silktide-cookie-icon { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; transition: bottom .28s var(--pk-ease); }
+    /* The cookie banner too: at its own bottom: 16px it lay over the bar, and a
+       visitor who had not answered it yet tapped the banner instead of the
+       tab, which then needed a second tap. */
+    body.pk-tabbar-on #silktide-banner { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; max-height: calc(100vh - 92px - env(safe-area-inset-bottom, 0px)); transition: bottom .28s var(--pk-ease); }
 }
 @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
     .pk-tabbar, .pk-tabbar.is-visible { transition: none; }
