@@ -29,6 +29,15 @@ jobs:
   pullfrog:
     name: Pullfrog agent
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # Two bounded attempts plus checkout and cleanup.
+    env:
+      # Whether a second subscription token is configured. Only the presence is
+      # hoisted to job level, not the token: a step-level `if:` cannot read the
+      # `secrets` context at all — GitHub refuses to parse the whole workflow
+      # with `Unrecognized named-value: 'secrets'` — while it does read `env`.
+      # The provider keys deliberately stay on the agent steps, so a token is
+      # never in the environment of the checkout or of the final `run:`.
+      HAS_OAUTH_FALLBACK: ${{ secrets.PULLFROG_OAUTH_FALLBACK != '' }}
     permissions:
       # The action mints a short-lived OIDC token to prove this run's identity
       # to Pullfrog's own token service, which is how a Router or subscription
@@ -54,6 +63,11 @@ jobs:
           # unauthenticated fetch works.
           persist-credentials: false
       - name: Run agent
+        id: agent
+        # Held back rather than fatal: a failure here is the cue for the
+        # fallback step below. The final step restores the failure when no
+        # attempt succeeded, so a genuinely broken review still reports red.
+        continue-on-error: true
         # Pinned to a commit SHA rather than the documented `@v0`, which is a
         # tag that MOVES — it has already advanced through ninety v0.1.x
         # releases. This is the one action here that runs an agent with access
@@ -65,6 +79,7 @@ jobs:
         uses: pullfrog/pullfrog@0d318bef8c7cf7ae3f193ef32b2bc74e1d94b4d1 # v0.1.90
         with:
           prompt: ${{ inputs.prompt }}
+          timeout: 20m
           # REVIEW ONLY. `push` defaults to `enabled`, which lets the agent
           # push branches and open pull requests of its own. Every commit and
           # pull request in this repository is authored by its maintainer, so
@@ -127,3 +142,48 @@ jobs:
           # both limits are required — set them to the real limits of that model
           # OPENAI_COMPATIBLE_CONTEXT: "128000"
           # OPENAI_COMPATIBLE_MAX_OUTPUT: "16384"
+
+      # The action exposes result, not a structured failure code. One retry is
+      # therefore allowed after ANY failure, not only a 429. Each attempt is
+      # capped at 20m: deterministic errors can spend the fallback quota, and
+      # a late failure after posting can repeat a review. This bounded trade-off
+      # is deliberate; a failed review must never turn into a green no-op.
+      # The workflow OAuth token leads account OAuth tokens of the same kind.
+      # Verified in runtime 0.1.97: stable subscription sorting keeps workflow
+      # entries first. This does not claim API keys outrank subscriptions.
+      # https://github.com/pullfrog/pullfrog/blob/f0684f2c9286f321085978685f6cbe91d51d4233/utils/credentialPool.ts#L175-L187
+      # A per-account rate limit is not fixed by a second expression, only by a
+      # second attempt: the first credential has to be tried and seen to fail.
+      # Preserve the primary step's provider configuration for non-Claude
+      # models and replace only its OAuth token. Keys stay scoped to the two
+      # agent steps, never checkout or final failure reporting.
+      - name: Run agent with the fallback subscription token
+        id: agent_fallback
+        if: steps.agent.outcome == 'failure' && env.HAS_OAUTH_FALLBACK == 'true'
+        uses: pullfrog/pullfrog@0d318bef8c7cf7ae3f193ef32b2bc74e1d94b4d1 # v0.1.90
+        with:
+          prompt: ${{ inputs.prompt }}
+          timeout: 20m
+          push: disabled
+          shell: restricted
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.PULLFROG_OAUTH_FALLBACK }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY:
+            ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+          KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+          META_MODEL_API_KEY: ${{ secrets.META_MODEL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+
+      - name: Fail when no attempt succeeded
+        if: steps.agent.outcome == 'failure' && steps.agent_fallback.outcome != 'success'
+        run: |
+          echo "::error::The agent failed with the primary credential, and the fallback failed too or is not configured."
+          exit 1
