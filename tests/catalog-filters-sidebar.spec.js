@@ -52,10 +52,14 @@ test.describe.serial('Catalogue filters sidebar', () => {
         db(`DELETE FROM libri_editori WHERE editore_id = ${publisherId}`);
         db(`DELETE FROM editori WHERE id = ${publisherId}`);
       }
-    } catch { /* best effort */ }
+    } catch (e) {
+      console.warn('Seeded publisher not cleaned up:', e);
+    }
   });
 
-  for (const width of [1440, 1024]) {
+  // 862px: just above the 860px breakpoint, where filters + gap + a 520px results
+  // basis did not fit the row and the books still wrapped under the filters.
+  for (const width of [1440, 1024, 862]) {
     test(`at ${width}px the filters stay a sidebar beside the books`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle' });

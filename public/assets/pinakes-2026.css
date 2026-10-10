@@ -611,7 +611,9 @@ body.pk .pk-catalog-head .catalog-header-content { text-align: left; max-width: 
    characters (shown with an ellipsis) still counted at full length in the
    column's minimum width, which pushed the books under the filters. */
 .pk-filters { flex: 0 0 clamp(250px, 25%, 300px); min-width: 0; max-width: 100%; position: sticky; top: 88px; }
-.pk-results { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
+/* A zero basis: the results never wrap under the filters on their own, only when the
+   filters take the full width below 860px. */
+.pk-results { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
 @media (max-width: 860px) { .pk-filters { position: static; flex-basis: 100%; } }
 
 body.pk :is(.pk-filters, .filters-panel) .filters-panel { background: none; border: 0; box-shadow: none; padding: 0; position: static; max-height: none; overflow: visible; }

@@ -32,7 +32,13 @@ test.describe.serial('Tab bar with the cookie banner open', () => {
         admin.waitForLoadState('load'),
         admin.locator('form[action*="cookie-banner"] button[type="submit"]').first().click(),
       ]);
+      // A confirmation, when the page asks for one, is accepted as the administrator would.
+      const ok = admin.locator('.swal2-confirm');
+      if (await ok.isVisible().catch(() => false)) await ok.click();
     }
+    // The setting is what the form now shows after a fresh load, or the test would run on a guess.
+    await admin.goto(`${BASE}/admin/settings?tab=privacy`);
+    expect(await admin.locator('#cookie_banner_enabled').isChecked(), 'the banner setting was saved').toBe(on);
   }
 
   test.beforeAll(async ({ browser }) => {
@@ -48,7 +54,7 @@ test.describe.serial('Tab bar with the cookie banner open', () => {
   });
 
   test.afterAll(async () => {
-    try { if (wasOn !== null) await setBanner(wasOn); } catch { /* best effort */ }
+    try { if (wasOn !== null) await setBanner(wasOn); } catch (e) { console.warn('Cookie banner setting not restored:', e); }
     await admin?.close();
   });
 
