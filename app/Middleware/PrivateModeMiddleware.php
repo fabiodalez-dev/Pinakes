@@ -98,6 +98,13 @@ class PrivateModeMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        // The app opens Digital Library files with a signed link instead of a session.
+        // Let it reach ProtectedUploadController, which verifies the signature and the
+        // file's own visibility and answers 403 to anything forged or expired.
+        if (str_starts_with($path, '/uploads/digital/') && isset($request->getQueryParams()['pk_sig'])) {
+            return $handler->handle($request);
+        }
+
         // API consumers get a JSON 401; browsers are redirected to the login page.
         if (str_starts_with($path, '/api/')) {
             $res = new SlimResponse(401);

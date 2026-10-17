@@ -14,7 +14,16 @@ $rows = [
  ['url'=>'/uploads/digital/part-one.mp3','label'=>'Part one','kind'=>'audio'],
  ['url'=>'/uploads/digital/part-two.m4a','label'=>'Part two','kind'=>'audio'],
 ];
-check(Attachments::normalize($rows)===$rows,'PDF, ePub, supplementary document and two audio tracks retain order and labels');
+// Every row carries who may open it (issue #480); rows saved before that read as `inherit`.
+$expect=array_map(static fn(array $r): array => $r+['visibility'=>'inherit'], $rows);
+check(Attachments::normalize($rows)===$expect,'PDF, ePub, supplementary document and two audio tracks retain order and labels');
+$withVisibility=[['url'=>'/uploads/digital/a.pdf','label'=>'A','kind'=>'ebook','visibility'=>'loan'],['url'=>'/uploads/digital/b.mp3','label'=>'B','kind'=>'audio','visibility'=>'staff']];
+check(Attachments::normalize($withVisibility)===$withVisibility,'each attachment keeps the visibility it was saved with');
+check(Attachments::normalize([['url'=>'/uploads/digital/a.pdf','visibility'=>'']])[0]['visibility']==='inherit','a blank visibility follows the default');
+foreach (['everyone','admin',' public '] as $badVisibility) {
+ try { $n=Attachments::normalize([['url'=>'/uploads/digital/a.pdf','visibility'=>$badVisibility]]); check($badVisibility===' public ' && $n[0]['visibility']==='public','an unknown visibility is refused: '.$badVisibility); }
+ catch (InvalidArgumentException $e) { check($badVisibility!==' public ','an unknown visibility is refused: '.$badVisibility); }
+}
 check(count(Attachments::normalize([...$rows,$rows[0]]))===5,'duplicate URLs of the same kind are deduplicated');
 check(Attachments::normalize([['url'=>' ']])===[],'blank URLs remove rows');
 check(Attachments::normalize([['url'=>'/uploads/digital/book.pdf']])[0]['label']==='book.pdf','a filename supplies the default title');
@@ -30,7 +39,7 @@ $legacy=['file_url'=>'/uploads/digital/old.pdf','audio_url'=>'/uploads/digital/o
 check(count(Attachments::fromBook($legacy))===2,'legacy single-file records are readable without rewriting data');
 check(Attachments::fromBook(['file_url'=>'javascript:alert(1)'])===[],'unsafe legacy URLs are not displayed');
 $saved=Attachments::applySubmission($legacy,['digital_attachments_present'=>'1','digital_attachments'=>$rows]);
-check(Attachments::fromBook($saved)===$rows,'the saved JSON round trips every attachment');
+check(Attachments::fromBook($saved)===$expect,'the saved JSON round trips every attachment');
 check($saved['file_url']===$rows[0]['url'] && $saved['audio_url']===$rows[3]['url'],'older clients keep the first edition and audio track');
 $cleared=Attachments::applySubmission($saved,['digital_attachments_present'=>'1']);
 check(Attachments::fromBook($cleared)===[] && $cleared['file_url']==='' && $cleared['audio_url']==='','removing all rows cannot resurrect old single-file links');
@@ -60,7 +69,7 @@ foreach ($repaired as $stored=>$expected) {
  $resaved=Attachments::applySubmission($book,['digital_attachments_present'=>'1','digital_attachments'=>$shown]);
  check($resaved['file_url']===$expected,'saving the form unchanged keeps the repaired legacy link: '.$stored);
 }
-check(Attachments::fromBook(['file_url'=>'javascript:alert(1)'],true)===[['url'=>'javascript:alert(1)','label'=>'','kind'=>'ebook','invalid'=>true]],'the editor still shows an unreadable legacy link, marked invalid');
+check(Attachments::fromBook(['file_url'=>'javascript:alert(1)'],true)===[['url'=>'javascript:alert(1)','label'=>'','kind'=>'ebook','visibility'=>'inherit','invalid'=>true]],'the editor still shows an unreadable legacy link, marked invalid');
 try { Attachments::applySubmission(['file_url'=>'javascript:alert(1)'],['digital_attachments_present'=>'1','digital_attachments'=>[['url'=>'javascript:alert(1)','label'=>'','kind'=>'ebook']]]); check(false,'an unreadable legacy link is not saved silently'); }
 catch (InvalidArgumentException $e) { check(true,'an unreadable legacy link refuses the save instead of being blanked'); }
 $book=['file_url'=>'javascript:alert(1)'];
@@ -77,11 +86,13 @@ $external=['file_url'=>'/uploads/digital/replaced.pdf']+$saved;
 $read=Attachments::fromBook($external);
 check($read[0]['url']==='/uploads/digital/replaced.pdf' && $read[1]['url']===$rows[1]['url'] && count($read)===5,'an edition replaced outside the editor is shown instead of the stale one, other rows kept');
 check(Attachments::fromBook(['audio_url'=>'']+$saved)[3]['url']===$rows[4]['url'] && count(Attachments::fromBook(['audio_url'=>'']+$saved))===4,'an audio track cleared outside the editor is not resurrected');
-check(Attachments::fromBook(['file_url'=>'/uploads/digital/old.pdf','digital_attachments'=>null])===[['url'=>'/uploads/digital/old.pdf','label'=>'old.pdf','kind'=>'ebook']],'a record without the list still reads its column');
+check(Attachments::fromBook(['file_url'=>'/uploads/digital/old.pdf','digital_attachments'=>null])===[['url'=>'/uploads/digital/old.pdf','label'=>'old.pdf','kind'=>'ebook','visibility'=>'inherit']],'a record without the list still reads its column');
 // Badges and PDF reading.
 $supplementOnly=Attachments::applySubmission(['file_url'=>'','audio_url'=>''],['digital_attachments_present'=>'1','digital_attachments'=>[$rows[2]]]);
+unset($attachments); // the editor include above left its own list in scope
 ob_start();$book=$supplementOnly;include __DIR__.'/../storage/plugins/digital-library/views/badge-icons.php';$badge=(string)ob_get_clean();
 check(!str_contains($badge,'ebook-icon'),'a review alone does not advertise an eBook');
+unset($attachments);
 ob_start();$book=$saved;include __DIR__.'/../storage/plugins/digital-library/views/badge-icons.php';$badge=(string)ob_get_clean();
 check(str_contains($badge,'ebook-icon') && str_contains($badge,'audio-icon'),'an edition and a track still show both badges');
 check(!str_contains($html,'sandbox'),'PDFs are not sandboxed, which would stop the browser PDF viewer');
@@ -95,7 +106,7 @@ check(str_contains($readerHtml,"connect-src 'self' blob: data:") && !preg_match(
 // A root-relative path outside /uploads/ was stored and shown by the old single-file
 // field; after the upgrade it must still be shown and savable, not hidden or blocking.
 $legacyPath=Attachments::fromBook(['file_url'=>'/files/manual.pdf','digital_attachments'=>null]);
-check($legacyPath===[['url'=>'/files/manual.pdf','label'=>'manual.pdf','kind'=>'ebook']],'a legacy link to another path of this site is shown to readers');
+check($legacyPath===[['url'=>'/files/manual.pdf','label'=>'manual.pdf','kind'=>'ebook','visibility'=>'inherit']],'a legacy link to another path of this site is shown to readers');
 check(empty(Attachments::fromBook(['file_url'=>'/files/manual.pdf'],true)[0]['invalid']),'the editor does not mark it invalid, so the record can be saved');
 foreach (['/files/../secret','/files/%2e%2e/secret','/files/%5csecret','//evil.example/files/x'] as $bad) {
     try { Attachments::normalize([['url'=>$bad]]); check(false,'unsafe local path rejected: '.$bad); }

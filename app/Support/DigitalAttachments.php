@@ -11,7 +11,7 @@ final class DigitalAttachments
     /** Size of libri.file_url / libri.audio_url: a longer edition or track could not be mirrored there. */
     private const LEGACY_COLUMN_LENGTH = 255;
 
-    /** @return list<array{url:string,label:string,kind:string}> */
+    /** @return list<array{url:string,label:string,kind:string,visibility:string}> */
     public static function normalize(mixed $rows): array
     {
         if (!is_array($rows) || count($rows) > 100) {
@@ -21,7 +21,8 @@ final class DigitalAttachments
         $seen = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !is_string($row['url'] ?? null)
-                || !is_string($row['label'] ?? '') || !is_string($row['kind'] ?? 'ebook')) {
+                || !is_string($row['label'] ?? '') || !is_string($row['kind'] ?? 'ebook')
+                || !is_string($row['visibility'] ?? 'inherit')) {
                 throw new \InvalidArgumentException(__('Allegato digitale non valido.'));
             }
             $url = trim($row['url']);
@@ -49,10 +50,15 @@ final class DigitalAttachments
                 $label = mb_substr(rawurldecode(basename((string) parse_url($url, PHP_URL_PATH))), 0, 255);
                 if ($label === '') { $label = __('Allegato digitale'); }
             }
+            // Who may open it (DigitalAccess); `inherit` follows the library's default.
+            $visibility = trim($row['visibility'] ?? '') === '' ? 'inherit' : trim($row['visibility']);
+            if (!in_array($visibility, DigitalAccess::VISIBILITIES, true)) {
+                throw new \InvalidArgumentException(__('Visibilità dell’allegato digitale non valida.'));
+            }
             $key = $kind . "\0" . $url;
             if (isset($seen[$key])) { continue; }
             $seen[$key] = true;
-            $out[] = ['url' => $url, 'label' => $label, 'kind' => $kind];
+            $out[] = ['url' => $url, 'label' => $label, 'kind' => $kind, 'visibility' => $visibility];
         }
         return $out;
     }
@@ -69,7 +75,7 @@ final class DigitalAttachments
      * row instead of being dropped: the editor shows it, and the next save either fixes
      * it or refuses, rather than silently blanking the column.
      *
-     * @return list<array{url:string,label:string,kind:string,invalid?:true}>
+     * @return list<array{url:string,label:string,kind:string,visibility:string,invalid?:true}>
      */
     public static function fromBook(array $book, bool $forEditing = false): array
     {
@@ -131,8 +137,8 @@ final class DigitalAttachments
     }
 
     /**
-     * @param list<array{url:string,label:string,kind:string,invalid?:true}> $rows
-     * @return list<array{url:string,label:string,kind:string,invalid?:true}>
+     * @param list<array{url:string,label:string,kind:string,visibility:string,invalid?:true}> $rows
+     * @return list<array{url:string,label:string,kind:string,visibility:string,invalid?:true}>
      */
     private static function withLegacyValue(array $rows, string $kind, string $value, bool $forEditing, int $at): array
     {
@@ -142,7 +148,7 @@ final class DigitalAttachments
             if (!$forEditing) {
                 return $rows; // Unsafe legacy URLs are never rendered to readers.
             }
-            $row = [['url' => $value, 'label' => '', 'kind' => $kind, 'invalid' => true]];
+            $row = [['url' => $value, 'label' => '', 'kind' => $kind, 'visibility' => 'inherit', 'invalid' => true]];
         }
         if ($row === []) {
             return $rows;

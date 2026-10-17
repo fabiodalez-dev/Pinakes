@@ -1,6 +1,6 @@
 # Digital Library Plugin
 
-**Versione:** 1.4.0
+**Versione:** 1.5.0
 **Autore:** Pinakes Team
 **Licenza:** GPL-3.0
 
@@ -15,6 +15,26 @@ Il plugin **Digital Library** estende Pinakes con funzionalità avanzate per la 
 - **Più allegati per libro**: edizioni PDF/ePub, recensioni, articoli sul libro e più file audio, ciascuno con un titolo
 - **Compatibilità**: gli allegati esistenti restano disponibili; rimuovere un collegamento non elimina il file dal disco
 - 🏷️ **Icone nei badge** per indicare disponibilità contenuti
+
+## 🔒 Chi può aprire i file
+
+Ogni allegato ha una visibilità, scelta nella scheda del libro accanto all'URL:
+
+- **Predefinita**: segue l'impostazione del plugin (Admin → Plugin → Digital Library → Impostazioni), che parte da «Chiunque»;
+- **Chiunque**: anche senza accedere;
+- **Utenti registrati**: solo chi ha effettuato l'accesso;
+- **Solo amministratori e staff**: il file non compare nella scheda pubblica;
+- **Chi ha il libro in prestito**: amministratori, staff e l'utente con un prestito in corso di quel libro.
+
+Nella scheda pubblica un file riservato agli utenti registrati o a chi ha il prestito compare chiuso, con il motivo (si può nascondere dalle impostazioni). L'API pubblica e OAI-PMH, che non conoscono l'utente, ricevono solo i file aperti a chiunque. L'app riceve per ogni file `visibility` e `access`, e un link firmato valido 24 ore per i file che l'utente può aprire.
+
+Un link esterno (un file su un altro sito) segue la stessa visibilità nella scheda, ma Pinakes non lo serve e quindi non può impedire a chi ha l'indirizzo di aprirlo.
+
+## 📁 Dove sono i file
+
+I file caricati stanno in `storage/digital/`, fuori dalla cartella pubblica; l'indirizzo resta `/uploads/digital/<nome>` e ogni richiesta passa da Pinakes, che controlla i permessi e supporta le richieste parziali (Range) per audio e video. I file caricati con versioni precedenti in `public/uploads/digital/` vengono spostati da soli, un po' alla volta, dopo l'aggiornamento; il pulsante «Sposta ora» nelle impostazioni li sposta subito. Anche lì nessun file viene servito direttamente: `public/.htaccess` manda ogni indirizzo `/uploads/digital/` a Pinakes.
+
+Per i file grandi su un server dedicato si può lasciare il trasferimento al web server con la variabile `.env` `DIGITAL_LIBRARY_SENDFILE`: `apache` per mod_xsendfile (con `XSendFilePath` verso `storage/digital/`), oppure `nginx` con una `location /_pinakes_digital/` marcata `internal` e `alias` verso `storage/digital/`. Vale solo per i file già spostati in `storage/digital/`: quelli ancora nella vecchia cartella passano da PHP. LiteSpeed non è supportato in questa modalità (il suo `X-LiteSpeed-Location` accetta solo indirizzi dentro la cartella pubblica). Senza la variabile i file passano da PHP, che funziona ovunque.
 
 ## ✨ Caratteristiche Principali
 
@@ -68,7 +88,7 @@ Il plugin **Digital Library** estende Pinakes con funzionalità avanzate per la 
    - Il plugin registrerà automaticamente gli hooks
 
 4. **Verifica configurazione**:
-   - Controlla che `/public/uploads/digital/` sia scrivibile
+   - Controlla che `storage/digital/` sia scrivibile (è lì che vanno i file caricati)
    - Verifica che `.htaccess` contenga le regole CORS
 
 ## 📖 Guida all'Uso
@@ -176,8 +196,8 @@ Il file `.htaccess` deve contenere:
 
 **Soluzione**:
 ```bash
-chmod 755 public/uploads/digital/
-chown www-data:www-data public/uploads/digital/
+chmod 775 storage/digital/
+chown www-data:www-data storage/digital/
 ```
 
 ### Audio non riproduce su Safari

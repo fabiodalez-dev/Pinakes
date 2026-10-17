@@ -31,6 +31,7 @@ class BackupManager
     private const FILE_ROOTS = [
         'public/uploads',
         'storage/uploads/plugins',
+        'storage/digital',
     ];
 
     /** Hard cap for an uploaded restore archive (2 GB). */

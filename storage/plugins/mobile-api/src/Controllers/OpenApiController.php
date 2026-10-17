@@ -91,7 +91,13 @@ final class OpenApiController
             'genre_path' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['id' => ['type' => 'integer'], 'name' => ['type' => 'string']]]],
             'citations' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['key' => ['type' => 'string'], 'label' => ['type' => 'string'], 'text' => ['type' => 'string']]]],
             'ris_url' => ['type' => 'string'],
-            'digital_attachments' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['url' => ['type' => 'string'], 'label' => ['type' => 'string'], 'kind' => ['type' => 'string', 'enum' => ['ebook', 'audio', 'supplement']]]]]];
+            'digital_attachments' => ['type' => 'array', 'description' => 'Digital files of the record the caller may see. A file they may open has a url (a Digital Library file is signed for the caller and expires after 24 hours); one that needs a login or a loan has url null and says why in access. Staff-only files are not listed to other readers.', 'items' => ['type' => 'object', 'properties' => [
+                'url' => ['type' => ['string', 'null'], 'description' => 'null when the caller may not open the file yet (see access).'],
+                'label' => ['type' => 'string'],
+                'kind' => ['type' => 'string', 'enum' => ['ebook', 'audio', 'supplement']],
+                'visibility' => ['type' => 'string', 'enum' => ['public', 'users', 'staff', 'loan'], 'description' => 'Who may open the file, the library default already applied.'],
+                'access' => ['type' => 'string', 'enum' => ['granted', 'login_required', 'loan_required', 'staff_only']],
+            ]]]];
         $doc['paths']['/catalog/search']['get']['parameters'][] = ['name' => 'author_id', 'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1], 'description' => 'Shared author identity, including all credited roles.'];
         $doc['tags'][] = ['name' => 'collections', 'description' => 'Optional archives and library desiderata; inactive plugins return 404.'];
         $query = static fn(string $name, string $type = 'string'): array => ['name' => $name, 'in' => 'query', 'schema' => ['type' => $type]];
@@ -1288,9 +1294,9 @@ final class OpenApiController
                 'format'           => ['type' => 'string', 'nullable' => true],
                 'series'           => ['type' => 'string', 'nullable' => true],
                 'condition'        => ['type' => 'string', 'nullable' => true],
-                'audio_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
-                'has_audio'        => ['type' => 'boolean'],
-                'ebook_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'audio_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true, 'description' => 'The first audiobook the caller may open (signed), or null.'],
+                'has_audio'        => ['type' => 'boolean', 'description' => 'An audiobook exists, also when it is closed to the caller.'],
+                'ebook_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true, 'description' => 'The first digital edition the caller may open (signed), or null.'],
                 'ebook_format'     => ['type' => 'string', 'nullable' => true],
                 'has_ebook'        => ['type' => 'boolean'],
                 'genre'            => ['type' => 'object', 'nullable' => true, 'properties' => [

@@ -87,6 +87,9 @@ storage/uploads/*
 !storage/uploads/plugins/
 storage/uploads/plugins/*
 !storage/uploads/plugins/.gitkeep
+!storage/digital/
+storage/digital/*
+!storage/digital/.gitkeep
 !storage/backups/
 storage/backups/*
 !storage/backups/.gitkeep

@@ -217,8 +217,10 @@ return function (App $app): void {
     // (PrivateModeMiddleware) governs access. Public uploads (covers, events,
     // CMS, branding) are still served straight from disk by the web server and
     // never reach this route; the controller enforces realpath containment.
-    $app->get('/uploads/{path:.*}', function ($request, $response, $args) {
-        $controller = new \App\Controllers\ProtectedUploadController();
+    // HEAD as well: audio players probe a file before streaming it. The database lets
+    // the controller ask DigitalAccess who may open a Digital Library file.
+    $app->map(['GET', 'HEAD'], '/uploads/{path:.*}', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\ProtectedUploadController($app->getContainer()->get('db'));
         return $controller->serve($request, $response, $args);
     });
 

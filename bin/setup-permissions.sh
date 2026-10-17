@@ -180,7 +180,7 @@ echo ""
 WRITABLE_DIRS="
 storage storage/logs storage/cache storage/tmp storage/backups
 storage/calendar storage/sessions storage/rate_limits storage/plugins
-storage/uploads storage/uploads/plugins storage/uploads/cms
+storage/uploads storage/uploads/plugins storage/uploads/cms storage/digital
 public/uploads public/uploads/copertine public/uploads/autori
 public/uploads/settings public/uploads/events public/uploads/assets
 public/uploads/digital public/uploads/archives public/uploads/archives/covers

@@ -1,11 +1,11 @@
 {
   "name": "digital-library",
   "display_name": "Digital Library (eBooks/Audiobooks)",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "",
-  "description": "Gestione eBooks (PDF/ePub) e audiobooks con player integrato Green Audio Player e visualizzatore PDF inline. Consente upload, riproduzione e lettura di contenuti digitali direttamente nella biblioteca.",
+  "description": "Gestione eBooks (PDF/ePub) e audiobooks con player integrato Green Audio Player e visualizzatore PDF inline. Consente upload, riproduzione e lettura di contenuti digitali direttamente nella biblioteca, con una visibilità per ogni file (tutti, utenti registrati, solo staff, chi ha il libro in prestito) e i file conservati fuori dalla cartella pubblica.",
   "main_file": "wrapper.php",
   "requires_php": "8.0",
   "requires_app": "0.4.0",

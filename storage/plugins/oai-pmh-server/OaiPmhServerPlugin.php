@@ -2525,6 +2525,10 @@ class OaiPmhServerPlugin
         if ($asset === null && !empty($row['file_url'])) {
             $asset = ['url' => (string) $row['file_url'], 'filetype' => 'PDF'];
         }
+        // Harvesters are anonymous: a Digital Library file they may not open is left out (issue #480).
+        if ($asset !== null && \App\Support\DigitalAccess::anonymousUrl((string) ($asset['url'] ?? ''), $this->db) === null) {
+            $asset = null;
+        }
 
         // ── <gen> — General metadata (MAG 2.0.1: stprog, collection?, agency,
         // access_rights, completeness). stprog/collection are URIs; a plain

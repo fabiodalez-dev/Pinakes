@@ -453,12 +453,12 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 - **Retry logic** with exponential backoff
 - **Error logging** and debugging tools
 
-### 4. Digital Library (`digital-library-v1.4.1.zip`)
-- **eBook support** (PDF, ePub) with download tracking
+### 4. Digital Library (`digital-library-v1.5.0.zip`)
+- **eBook support** (PDF, ePub) with an in-page PDF reader
 - **Audiobook streaming** (MP3, M4A, OGG) with HTML5 player
 - **Per-item digital asset management** (unlimited files per book)
-- **Access control** (public, logged-in users only, specific roles)
-- **Usage statistics** and download history
+- **Access control per file**: everyone, signed-in readers, admin and staff only, or the reader who has the book on loan, with a library-wide default
+- **Protected storage**: files live outside the web root and every download goes through Pinakes, which checks who is asking; the mobile app gets signed links
 
 ### 5. Dewey Editor (`dewey-editor-v1.0.1.zip`)
 

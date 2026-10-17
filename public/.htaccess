@@ -64,7 +64,9 @@
     # %{REQUEST_URI} carries the extra prefix (an anchored ^/uploads/ would not
     # match there and would leak the private files). Private rule first so its
     # [L] wins before the public catch-all below.
-    RewriteRule ^uploads/(digital|archives/documents|storage)/ index.php [QSA,L]
+    # [NC]: on a case-insensitive disk /uploads/Digital/x is the same file as
+    # /uploads/digital/x, and must not slip past to the public rule below (#480).
+    RewriteRule ^uploads/(digital|archives/documents|storage)/ index.php [NC,QSA,L]
 
     # Allow direct access to the remaining PUBLIC static files in /uploads/
     # (covers, events, CMS images, branding).
@@ -91,7 +93,7 @@
         application/atom+xml application/xhtml+xml \
         image/svg+xml font/ttf font/otf font/woff
     # Don't re-compress already-compressed payloads
-    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp|ico|woff2?|gz|zip|epub|mp4|webm|mp3|m4a|ogg)$ no-gzip dont-vary
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp|ico|woff2?|gz|zip|epub|pdf|mp4|webm|mp3|m4a|ogg|wav)$ no-gzip dont-vary
 </IfModule>
 
 <IfModule mod_brotli.c>

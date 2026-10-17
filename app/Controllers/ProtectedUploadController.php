@@ -28,18 +28,32 @@ use Slim\Psr7\Stream;
  *   - dotfiles and empty segments are rejected.
  *
  * Streaming honours single HTTP Range requests so audio/video seeking keeps
- * working.
+ * working, and HEAD, ETag/Last-Modified revalidation and If-Range for players.
  */
 class ProtectedUploadController
 {
-    /** Allowed private upload roots, relative to public/uploads/. */
-    private const ALLOWED_ROOTS = ['digital', 'archives/documents', 'storage'];
+    /**
+     * Private upload roots served without a per-file check, relative to public/uploads/.
+     * Digital Library files are NOT here: they are reached only through the digital/
+     * branch, which asks DigitalAccess (issue #480).
+     */
+    private const ALLOWED_ROOTS = ['archives/documents', 'storage'];
 
     /** Read chunk size for bounded (closed-range) responses. */
     private const CHUNK = 262144; // 256 KiB
 
+    public function __construct(private readonly ?\mysqli $db = null)
+    {
+    }
+
     /**
      * Serve a private upload, honouring single-byte-range requests.
+     *
+     * Digital Library files (`/uploads/digital/<name>`) live in storage/digital/, outside
+     * the web root, with public/uploads/digital/ as the fallback for files not moved yet.
+     * Each request asks DigitalAccess who may open the file: an anonymous reader of a
+     * signed-in-only file goes to the login page, anyone else refused gets a 403. The app
+     * fetches with a signed link (pk_exp/pk_uid/pk_sig) instead of a session.
      *
      * The high cyclomatic/NPath count flagged by PHPMD is the inherent
      * byte-range state machine (full / open-ended / closed / suffix /
@@ -52,47 +66,75 @@ class ProtectedUploadController
     {
         $rel = (string) ($args['path'] ?? '');
 
-        // Reject obviously hostile inputs early (traversal, NUL, dotfiles).
+        // Reject obviously hostile inputs early (traversal, NUL, dotfiles, empty or
+        // dot segments): one path, one spelling, so "./digital/x" cannot take the
+        // branch that skips the Digital Library check.
         if ($rel === '' || str_contains($rel, "\0") || str_contains($rel, '..')) {
             return new SlimResponse(404);
         }
-
-        $uploadsRoot = realpath(dirname(__DIR__, 2) . '/public/uploads');
-        if ($uploadsRoot === false) {
-            return new SlimResponse(404);
-        }
-
-        $candidate = realpath($uploadsRoot . '/' . $rel);
-        if ($candidate === false || !is_file($candidate)) {
-            return new SlimResponse(404);
-        }
-
-        // Containment: the resolved file must live under an allowed private root.
-        $contained = false;
-        foreach (self::ALLOWED_ROOTS as $root) {
-            $base = realpath($uploadsRoot . '/' . $root);
-            if ($base !== false && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) {
-                $contained = true;
-                break;
+        foreach (explode('/', $rel) as $segment) {
+            if ($segment === '' || str_starts_with($segment, '.')) {
+                return new SlimResponse(404);
             }
         }
-        if (!$contained) {
+
+        $digitalName = null;
+        if (str_starts_with($rel, 'digital/')) {
+            $digitalName = substr($rel, strlen('digital/'));
+            // The same rule DigitalAccess matches records with: names from older versions
+            // (spaces, accented letters, a subfolder of the old folder) keep working.
+            if (!\App\Support\DigitalAccess::isValidName($digitalName)) {
+                return new SlimResponse(404);
+            }
+            $candidate = $this->digitalFile($digitalName);
+        } else {
+            $candidate = $this->privateUpload($rel);
+        }
+        if ($candidate === null) {
             return new SlimResponse(404);
+        }
+
+        if ($digitalName !== null) {
+            $refused = $this->authorize($request, $digitalName);
+            if ($refused !== null) {
+                return $refused;
+            }
+        }
+        // The decision is made: release the session lock before streaming, or every
+        // other page the reader opens waits for the whole audiobook to finish.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
         }
 
         $size = filesize($candidate);
-        $handle = fopen($candidate, 'rb');
-        if ($size === false || $handle === false) {
+        $mtime = filemtime($candidate);
+        if ($size === false) {
             return new SlimResponse(404);
         }
+        $etag = '"' . dechex($size) . '-' . dechex((int) $mtime) . '"';
+        $lastModified = gmdate('D, d M Y H:i:s', (int) $mtime) . ' GMT';
 
+        $download = ($request->getQueryParams()['download'] ?? '') === '1';
         $headers = [
             'Content-Type' => $this->contentType($candidate),
             'Accept-Ranges' => 'bytes',
             'Cache-Control' => 'private, max-age=0, must-revalidate',
+            'Vary' => 'Cookie',
+            'ETag' => $etag,
+            'Last-Modified' => $lastModified,
             'X-Content-Type-Options' => 'nosniff',
-            'Content-Disposition' => 'inline; filename="' . rawurlencode(basename($candidate)) . '"',
+            'Content-Disposition' => ($download ? 'attachment' : 'inline') . "; filename*=UTF-8''" . rawurlencode(basename($candidate)),
         ];
+
+        $ifNoneMatch = trim($request->getHeaderLine('If-None-Match'));
+        if ($ifNoneMatch !== '' ? in_array($etag, array_map('trim', explode(',', $ifNoneMatch)), true) || $ifNoneMatch === '*'
+            : $request->getHeaderLine('If-Modified-Since') === $lastModified) {
+            $res = new SlimResponse(304);
+            foreach (['ETag', 'Last-Modified', 'Cache-Control', 'Vary'] as $name) {
+                $res = $res->withHeader($name, $headers[$name]);
+            }
+            return $res;
+        }
 
         $start = 0;
         $end = $size - 1;
@@ -101,8 +143,11 @@ class ProtectedUploadController
         // Single byte range only. A multi-range header (e.g. "bytes=0-9,20-29")
         // does not match this pattern and intentionally falls through to a full
         // 200 response — RFC 7233 permits ignoring a Range we don't satisfy.
+        // An If-Range naming another version of the file also gets the full file.
         $range = $request->getHeaderLine('Range');
-        if ($range !== '' && preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m)) {
+        $ifRange = trim($request->getHeaderLine('If-Range'));
+        $rangeValid = $ifRange === '' || $ifRange === $etag || $ifRange === $lastModified;
+        if ($range !== '' && $rangeValid && preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m)) {
             $reqStart = $m[1] === '' ? null : (int) $m[1];
             $reqEnd = $m[2] === '' ? null : (int) $m[2];
 
@@ -117,7 +162,6 @@ class ProtectedUploadController
             }
 
             if ($start > $end || $start >= $size || $start < 0) {
-                fclose($handle);
                 return (new SlimResponse(416))->withHeader('Content-Range', "bytes */{$size}");
             }
 
@@ -128,13 +172,137 @@ class ProtectedUploadController
         $length = $end - $start + 1;
         $headers['Content-Length'] = (string) $length;
 
-        $body = $this->buildBody($handle, $start, $end, $size);
+        // The bytes must leave as they are on disk: compressed, Content-Length and
+        // Content-Range would no longer match what the client receives.
+        if (function_exists('ini_set')) {
+            @ini_set('zlib.output_compression', '0');
+        }
 
-        $res = new SlimResponse($status, null, $body);
+        $sendfile = $digitalName !== null && $status === 200 ? $this->sendfileHeader($candidate, $digitalName) : null;
+        if ($request->getMethod() === 'HEAD' || $sendfile !== null) {
+            $res = new SlimResponse($status);
+            if ($sendfile !== null) {
+                $res = $res->withHeader($sendfile[0], $sendfile[1]);
+            }
+        } else {
+            $handle = fopen($candidate, 'rb');
+            if ($handle === false) {
+                return new SlimResponse(404);
+            }
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(0);
+            }
+            $res = new SlimResponse($status, null, $this->buildBody($handle, $start, $end, $size));
+        }
         foreach ($headers as $name => $value) {
             $res = $res->withHeader($name, $value);
         }
         return $res;
+    }
+
+    /** A Digital Library file: storage/digital/ first, then the folder it lived in before. */
+    private function digitalFile(string $name): ?string
+    {
+        foreach ([\App\Support\DigitalStorage::targetDir(), \App\Support\DigitalStorage::legacyDir()] as $dir) {
+            $base = realpath($dir);
+            if ($base === false) {
+                continue;
+            }
+            $candidate = realpath($base . '/' . $name);
+            if ($candidate !== false && is_file($candidate) && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) {
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
+    /** Another private upload (archive documents, generic storage) under public/uploads/. */
+    private function privateUpload(string $rel): ?string
+    {
+        $uploadsRoot = realpath(dirname(__DIR__, 2) . '/public/uploads');
+        if ($uploadsRoot === false) {
+            return null;
+        }
+        $candidate = realpath($uploadsRoot . '/' . $rel);
+        if ($candidate === false || !is_file($candidate)) {
+            return null;
+        }
+        // Wherever the spelling led, a file that resolves into a Digital Library folder
+        // (a symlink, a case-insensitive disk) is served only by the checked branch.
+        foreach ([\App\Support\DigitalStorage::targetDir(), \App\Support\DigitalStorage::legacyDir()] as $digitalDir) {
+            $digitalBase = realpath($digitalDir);
+            if ($digitalBase !== false && str_starts_with(strtolower($candidate), strtolower($digitalBase . DIRECTORY_SEPARATOR))) {
+                return null;
+            }
+        }
+        // Containment: the resolved file must live under an allowed private root.
+        foreach (self::ALLOWED_ROOTS as $root) {
+            $base = realpath($uploadsRoot . '/' . $root);
+            if ($base !== false && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) {
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
+    /** Null when the viewer may open the file; otherwise the response that refuses it. */
+    private function authorize(Request $request, string $name): ?Response
+    {
+        if ($this->db === null) {
+            return new SlimResponse(403);
+        }
+        $query = $request->getQueryParams();
+        if (isset($query['pk_sig'])) {
+            $userId = \App\Support\DigitalAccess::verifySignature($name, $query, $this->db);
+            $viewer = $userId !== null ? \App\Support\DigitalAccess::signedViewer($userId, $this->db) : null;
+            if ($viewer === null) {
+                return new SlimResponse(403);
+            }
+        } else {
+            $user = $_SESSION['user'] ?? null;
+            $viewer = is_array($user) && (int) ($user['id'] ?? 0) > 0 ? $user : null;
+        }
+
+        $access = \App\Support\DigitalAccess::authorizeFile($name, $viewer, $this->db);
+        if ($access === \App\Support\DigitalAccess::GRANTED) {
+            return null;
+        }
+        if ($access === \App\Support\DigitalAccess::LOGIN_REQUIRED && $viewer === null) {
+            if (str_contains($request->getHeaderLine('Accept'), 'application/json')) {
+                return new SlimResponse(401);
+            }
+            $login = \App\Support\RouteTranslator::route('login') . '?return_url=' . rawurlencode(url(\App\Support\DigitalAccess::urlPathOf($name)));
+            return (new SlimResponse(302))->withHeader('Location', url($login))->withHeader('Cache-Control', 'no-store');
+        }
+        return (new SlimResponse(403))->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * DIGITAL_LIBRARY_SENDFILE (apache|nginx) hands the whole-file transfer to the web
+     * server once PHP has said yes. Off by default: whether the server honours the header
+     * cannot be detected from PHP, and an ignored header sends an empty file.
+     *
+     * Only for a file already in storage/digital/: that is the one folder the documented
+     * server setup exposes (nginx `alias`, mod_xsendfile's XSendFilePath), so a file still
+     * waiting in the old public folder streams through PHP instead of a 404. LiteSpeed is
+     * not offered: X-LiteSpeed-Location takes a URI under the document root, never a path
+     * outside it.
+     *
+     * @return array{0:string,1:string}|null
+     */
+    private function sendfileHeader(string $path, string $name): ?array
+    {
+        $mode = strtolower(trim((string) ($_ENV['DIGITAL_LIBRARY_SENDFILE'] ?? getenv('DIGITAL_LIBRARY_SENDFILE') ?: '')));
+        if ($mode !== 'apache' && $mode !== 'nginx') {
+            return null;
+        }
+        $storage = realpath(\App\Support\DigitalStorage::targetDir());
+        if ($storage === false || !str_starts_with($path, $storage . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+        return $mode === 'apache'
+            ? ['X-Sendfile', $path]
+            : ['X-Accel-Redirect', '/_pinakes_digital/' . implode('/', array_map('rawurlencode', explode('/', $name)))];
     }
 
     /**

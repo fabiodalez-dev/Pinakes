@@ -6,7 +6,9 @@
  */
 
 $book = $book ?? [];
-$attachmentKinds = array_column(\App\Support\DigitalAttachments::fromBook($book), 'kind');
+// The files this reader may open or is told about (DigitalLibraryPlugin::visibleAttachments).
+$attachments = $attachments ?? \App\Support\DigitalAttachments::fromBook($book);
+$attachmentKinds = array_column($attachments, 'kind');
 // A review or related article is not the digital edition: only an ebook earns the badge.
 $hasEbook = in_array('ebook', $attachmentKinds, true);
 $hasAudiobook = in_array('audio', $attachmentKinds, true);

@@ -15,7 +15,7 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.4.0
+ * @version 1.5.0
  */
 class DigitalLibraryPlugin
 {
@@ -43,6 +43,7 @@ class DigitalLibraryPlugin
     {
         $this->pluginId = $pluginId;
         $this->ensureHooksRegistered();
+        $this->ensureStorageMigrated();
     }
 
     /**
@@ -103,36 +104,24 @@ class DigitalLibraryPlugin
      */
     public function onActivate(): void
     {
-        // Create digital uploads directory if it doesn't exist
-        $uploadsDir = __DIR__ . '/../../../public/uploads/digital';
-        if (!is_dir($uploadsDir)) {
-            mkdir($uploadsDir, 0755, true);
-        }
-
-        // Create .htaccess for security
-        $htaccess = $uploadsDir . '/.htaccess';
-        if (!file_exists($htaccess)) {
-            file_put_contents($htaccess, implode("\n", [
-                '# Protect directory listing',
-                'Options -Indexes',
-                '# Deny execution of any server-side scripts',
-                '<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh)$">',
-                '    <IfModule mod_authz_core.c>',
-                '        Require all denied',
-                '    </IfModule>',
-                '    <IfModule mod_access_compat.c>',
-                '        Order Deny,Allow',
-                '        Deny from all',
-                '    </IfModule>',
-                '</FilesMatch>',
-                '',
-            ]));
-        }
-
         // Ensure the schema columns exist. Upgrades re-call onActivate() (not
         // onInstall()) for an already-active plugin, so the schema logic must
         // run here too — per the project's Plugin Schema Rule.
-        $this->ensureSchema();
+        $schema = $this->ensureSchema();
+        if ($schema['failed'] !== []) {
+            throw new \RuntimeException('[Digital Library] schema incomplete: ' . implode(', ', $schema['failed']));
+        }
+
+        // Files live in storage/digital/, outside the web root (issue #480). A folder that
+        // cannot be created yet is logged, not fatal: the files are still served, checked,
+        // from where they are, and the next request tries again.
+        try {
+            $this->storageDir();
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Digital Library] storage/digital not available', ['error' => $e->getMessage()]);
+        }
+        $this->releaseLegacyDir();
+        $this->migrateOnActivation();
 
         // Register hooks in database
         $this->registerHooks();
@@ -145,16 +134,76 @@ class DigitalLibraryPlugin
      * called from BOTH onActivate() and onInstall() so the schema is never
      * skipped on an upgrade of an already-active plugin. Widths match the
      * canonical installer/database/schema.sql definition (VARCHAR(255)).
+     *
+     * Public with the {created, failed} shape of the other schema-owning plugins, so
+     * the schema guard and the boot self-heal can run it and read the outcome.
+     *
+     * @return array{created: list<string>, failed: list<string>}
      */
-    private function ensureSchema(): void
+    public function ensureSchema(): array
     {
+        $outcome = ['created' => [], 'failed' => []];
         if (!$this->db) {
-            return;
+            return $outcome;
         }
 
         foreach (self::columnDefs() as $column => $alterSql) {
             $this->ensureColumn($column, $alterSql);
         }
+
+        // Which records list which file: a cache DigitalAccess fills on first use, so
+        // a range request of an audiobook is one key lookup instead of a catalogue scan.
+        try {
+            self::ensureIndexTable($this->db);
+            $outcome['created'][] = 'digital_library_files';
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Digital Library] CREATE TABLE digital_library_files failed: ' . $e->getMessage());
+            $outcome['failed'][] = 'digital_library_files';
+        }
+        return $outcome;
+    }
+
+    /**
+     * The index table DigitalAccess reads (in core, so it answers with the plugin off too).
+     * verified_at is a Unix time, like UNIX_TIMESTAMP(libri.updated_at): a DATETIME written
+     * with NOW() would follow the connection's time_zone, which RememberMeService switches
+     * to UTC in the middle of some requests, so two requests would disagree on "newer".
+     * A table of the earlier DATETIME shape (development builds only) is a cache: rebuilt.
+     */
+    public static function ensureIndexTable(\mysqli $db): void
+    {
+        $type = null;
+        $result = $db->query("SELECT DATA_TYPE FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'digital_library_files' AND COLUMN_NAME = 'verified_at'");
+        if ($result instanceof \mysqli_result) {
+            $row = $result->fetch_row();
+            $type = is_array($row) ? strtolower((string) $row[0]) : null;
+            $result->free();
+        }
+        if ($type !== null && $type !== 'bigint' && $db->query('DROP TABLE digital_library_files') === false) {
+            throw new \RuntimeException('digital_library_files rebuild failed: ' . $db->error);
+        }
+        $sql = 'CREATE TABLE IF NOT EXISTS digital_library_files (
+            file_name VARCHAR(255) NOT NULL,
+            libro_id INT NOT NULL,
+            verified_at BIGINT NOT NULL,
+            PRIMARY KEY (file_name, libro_id),
+            KEY idx_dlf_libro (libro_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+        if ($db->query($sql) === false) {
+            throw new \RuntimeException('CREATE TABLE digital_library_files failed: ' . $db->error);
+        }
+    }
+
+    /**
+     * Declared to PluginManager::bundledSchemaIncomplete(): an already-active plugin
+     * upgraded in place (stale-class trap) gets its index table on the next boot.
+     *
+     * @return list<string>
+     */
+    public function expectedTables(): array
+    {
+        return ['digital_library_files'];
     }
 
     /**
@@ -243,6 +292,12 @@ class DigitalLibraryPlugin
     {
         // Verify database columns exist (shared idempotent schema logic).
         $this->ensureSchema();
+        try {
+            $this->storageDir();
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Digital Library] storage/digital not available', ['error' => $e->getMessage()]);
+        }
+        $this->migrateOnActivation();
     }
 
     /**
@@ -255,6 +310,163 @@ class DigitalLibraryPlugin
 
         // Note: We don't drop the columns as they might contain data
         // Administrator can manually remove them if needed
+    }
+
+    // ========================================================================
+    // Protected storage (issue #480)
+    // ========================================================================
+
+    /** storage/digital, created with the writable-folder mode and shut to direct requests. */
+    private function storageDir(): string
+    {
+        return \App\Support\DigitalStorage::ensureDir(\App\Support\DigitalStorage::targetDir());
+    }
+
+    private function releaseLegacyDir(): void
+    {
+        \App\Support\DigitalStorage::releaseLegacyDir(\App\Support\DigitalStorage::legacyDir());
+    }
+
+    /**
+     * Move the files still in public/uploads/digital/ into storage/digital/ on ordinary
+     * requests after an upgrade. Runs from the NEW class (an upgrade through the admin UI
+     * still executes the old one), within a small budget so no page waits; the large
+     * copies across disks are left to the maintenance cron and to "Sposta ora". Until a
+     * file is moved it is served, through the same permission check, from where it was.
+     */
+    private function ensureStorageMigrated(): void
+    {
+        $legacy = \App\Support\DigitalStorage::legacyDir();
+        $target = \App\Support\DigitalStorage::targetDir();
+        if (\App\Support\DigitalStorage::migrationDone($legacy, $target)) {
+            return;
+        }
+        try {
+            // retryFailed false: a file that could not be moved is not retried (and
+            // re-hashed) on every page; the cron and "Sposta ora" try it again.
+            \App\Support\DigitalStorage::migrate($legacy, $target, 200, 3.0, \App\Support\DigitalStorage::REQUEST_COPY_BUDGET, false);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[Digital Library] storage migration deferred', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Activation (and installation) check: a plugin that was switched off during the
+     * upgrade to 0.8.6 never ran the move on page requests, so its files are still in
+     * public/uploads/digital/. Move them now, failed ones included, within a budget an
+     * admin request can afford; whatever is left is logged and finished by page requests,
+     * the cron and "Sposta ora". Never fatal: until moved, files are served, checked,
+     * from the old folder.
+     */
+    private function migrateOnActivation(): void
+    {
+        $legacy = \App\Support\DigitalStorage::legacyDir();
+        $target = \App\Support\DigitalStorage::targetDir();
+        try {
+            if (\App\Support\DigitalStorage::migrationDone($legacy, $target) && \App\Support\DigitalStorage::knownFailures($target) === 0) {
+                return;
+            }
+            $result = \App\Support\DigitalStorage::migrate($legacy, $target, PHP_INT_MAX, 20.0, 4 * \App\Support\DigitalStorage::REQUEST_COPY_BUDGET);
+            if ($result['remaining'] > 0 || $result['failed'] > 0) {
+                \App\Support\SecureLogger::warning('[Digital Library] files still in public/uploads/digital after activation', $result);
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[Digital Library] storage migration on activation deferred', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Hook maintenance.after_run (daily cron, and the maintenance pass the web runs):
+     * finish the move, including files too large for a page request.
+     */
+    public function onMaintenanceTick(): void
+    {
+        $legacy = \App\Support\DigitalStorage::legacyDir();
+        $target = \App\Support\DigitalStorage::targetDir();
+        // Files a page request gave up on are retried here, after the move is marked done.
+        if (\App\Support\DigitalStorage::migrationDone($legacy, $target) && \App\Support\DigitalStorage::knownFailures($target) === 0) {
+            return;
+        }
+        $cli = PHP_SAPI === 'cli';
+        if ($cli && function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+        try {
+            \App\Support\DigitalStorage::migrate($legacy, $target, PHP_INT_MAX, $cli ? 1800.0 : 10.0,
+                $cli ? PHP_INT_MAX : 4 * \App\Support\DigitalStorage::REQUEST_COPY_BUDGET);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[Digital Library] storage migration (maintenance) deferred', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * "Sposta ora" in the settings page: everything, without the page-request budget.
+     *
+     * @return array{moved:int, remaining:int, failed:int}
+     */
+    public function migrateLegacyFiles(int $maxFiles, float $maxSeconds, int $copyBudget = PHP_INT_MAX): array
+    {
+        return \App\Support\DigitalStorage::migrate(\App\Support\DigitalStorage::legacyDir(), \App\Support\DigitalStorage::targetDir(),
+            $maxFiles, $maxSeconds, $copyBudget);
+    }
+
+    /** @return array{public:int, storage:int, failed:int} files in the old folder, in storage/digital, and those that cannot be moved */
+    public function storageCounts(): array
+    {
+        return [
+            'public' => \App\Support\DigitalStorage::countFiles(\App\Support\DigitalStorage::legacyDir()),
+            'storage' => \App\Support\DigitalStorage::countFiles(\App\Support\DigitalStorage::targetDir()),
+            'failed' => \App\Support\DigitalStorage::knownFailures(\App\Support\DigitalStorage::targetDir()),
+        ];
+    }
+
+    // ========================================================================
+    // Settings page
+    // ========================================================================
+
+    public function hasSettingsPage(): bool
+    {
+        return true;
+    }
+
+    public function getSettingsViewPath(): string
+    {
+        return __DIR__ . '/views/settings.php';
+    }
+
+    /** @return array{default_visibility:string, show_locked_entries:string} */
+    public function getSettings(): array
+    {
+        if ($this->db === null) {
+            return ['default_visibility' => 'public', 'show_locked_entries' => '1'];
+        }
+        return [
+            'default_visibility' => \App\Support\DigitalAccess::defaultVisibility($this->db),
+            'show_locked_entries' => \App\Support\DigitalAccess::showLockedEntries($this->db) ? '1' : '0',
+        ];
+    }
+
+    /** @param array<string, mixed> $settings */
+    public function saveSettings(array $settings): bool
+    {
+        if ($this->db === null) {
+            return false;
+        }
+        $visibility = (string) ($settings['default_visibility'] ?? 'public');
+        if (!in_array($visibility, ['public', 'users', 'staff', 'loan'], true)) {
+            return false;
+        }
+        try {
+            $repo = new \App\Models\SettingsRepository($this->db);
+            $repo->set(\App\Support\DigitalAccess::CATEGORY, \App\Support\DigitalAccess::DEFAULT_KEY, $visibility);
+            $repo->set(\App\Support\DigitalAccess::CATEGORY, \App\Support\DigitalAccess::SHOW_LOCKED_KEY,
+                ($settings['show_locked_entries'] ?? '0') === '1' ? '1' : '0');
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Digital Library] saveSettings failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+        \App\Support\DigitalAccess::forgetDefault();
+        return true;
     }
 
     /**
@@ -313,6 +525,14 @@ class DigitalLibraryPlugin
                 'hook_name' => 'assets.head',
                 'callback_class' => 'DigitalLibraryPlugin',
                 'callback_method' => 'enqueueAssets',
+                'priority' => 10,
+                'is_active' => 1
+            ],
+            [
+                // Finishes moving old files into storage/digital (issue #480).
+                'hook_name' => 'maintenance.after_run',
+                'callback_class' => 'DigitalLibraryPlugin',
+                'callback_method' => 'onMaintenanceTick',
                 'priority' => 10,
                 'is_active' => 1
             ]
@@ -488,6 +708,7 @@ class DigitalLibraryPlugin
      */
     public function renderAdminFormFields(array $book): void
     {
+        $defaultVisibility = $this->getSettings()['default_visibility'];
         include __DIR__ . '/views/admin-form-fields.php';
     }
 
@@ -506,13 +727,59 @@ class DigitalLibraryPlugin
     }
 
     /**
+     * The attachments this reader may see on the page, each with its `access`: the ones
+     * they may open, plus (unless the settings hide them) the ones that need a login or
+     * a loan, listed with the reason. Staff-only files are never shown to anyone else.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function visibleAttachments(array $book): array
+    {
+        $attachments = \App\Support\DigitalAttachments::fromBook($book);
+        if ($this->db === null || $attachments === []) {
+            return array_map(static fn (array $a): array => $a + ['access' => \App\Support\DigitalAccess::GRANTED], $attachments);
+        }
+        $viewer = isset($_SESSION['user']) && is_array($_SESSION['user']) ? $_SESSION['user'] : null;
+        $showLocked = \App\Support\DigitalAccess::showLockedEntries($this->db);
+        $out = [];
+        foreach (\App\Support\DigitalAccess::forViewer($book, $attachments, $viewer, $this->db) as $attachment) {
+            if ($attachment['access'] === \App\Support\DigitalAccess::GRANTED
+                || ($showLocked && $attachment['access'] !== \App\Support\DigitalAccess::STAFF_ONLY)) {
+                $out[] = $attachment;
+            }
+        }
+        return $out;
+    }
+
+    /** @param list<array<string, mixed>> $attachments */
+    private static function granted(array $attachments): array
+    {
+        return array_values(array_filter($attachments, static fn (array $a): bool => $a['access'] === \App\Support\DigitalAccess::GRANTED));
+    }
+
+    /**
+     * The card list (every file in its own card, players inside) instead of the
+     * single-file buttons: several files, a related document, or a closed entry.
+     *
+     * @param list<array<string, mixed>> $attachments
+     */
+    private static function usesList(array $attachments): bool
+    {
+        return count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement'
+            || ($attachments !== [] && self::granted($attachments) === []);
+    }
+
+    /**
      * Render frontend download buttons
      * Hook: book.detail.digital_buttons
      */
     public function renderFrontendButtons(array $book): void
     {
-        $attachments = \App\Support\DigitalAttachments::fromBook($book);
-        if (count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement') {
+        $attachments = $this->visibleAttachments($book);
+        if ($attachments === []) {
+            return;
+        }
+        if (self::usesList($attachments)) {
             include __DIR__ . '/views/frontend-attachments.php';
             return;
         }
@@ -526,8 +793,8 @@ class DigitalLibraryPlugin
      */
     public function renderAudioPlayer(array $book): void
     {
-        $attachments = \App\Support\DigitalAttachments::fromBook($book);
-        if (count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement') { return; }
+        $attachments = $this->visibleAttachments($book);
+        if ($attachments === [] || self::usesList($attachments)) { return; }
         $book = $this->withPrimaryAttachment($book, $attachments);
         if (!empty($book['audio_url'])) {
             $this->enqueueAudioPlayerAssets();
@@ -541,8 +808,8 @@ class DigitalLibraryPlugin
      */
     public function renderPdfViewer(array $book): void
     {
-        $attachments = \App\Support\DigitalAttachments::fromBook($book);
-        if (count($attachments) > 1 || ($attachments[0]['kind'] ?? '') === 'supplement') { return; }
+        $attachments = $this->visibleAttachments($book);
+        if ($attachments === [] || self::usesList($attachments)) { return; }
         $book = $this->withPrimaryAttachment($book, $attachments);
         $fileUrl = (string) ($book['file_url'] ?? '');
         $filePath = (string) (parse_url($fileUrl, PHP_URL_PATH) ?? '');
@@ -557,6 +824,8 @@ class DigitalLibraryPlugin
      */
     public function renderBadgeIcons(array $book): void
     {
+        // Staff-only files do not advertise themselves on catalogue cards.
+        $attachments = $this->visibleAttachments($book);
         include __DIR__ . '/views/badge-icons.php';
     }
 
@@ -706,7 +975,7 @@ class DigitalLibraryPlugin
             return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
-        // Check the content BEFORE the file reaches the public uploads folder:
+        // Check the content BEFORE the file reaches the uploads folder:
         // moved first and checked after, a rejected file was briefly reachable
         // at its URL. The magic bytes are read from the upload's temp stream.
         try {
@@ -741,12 +1010,11 @@ class DigitalLibraryPlugin
             return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
-        $uploadsDir = realpath(__DIR__ . '/../../../public/uploads/digital');
-        if ($uploadsDir === false) {
-            $uploadsDir = __DIR__ . '/../../../public/uploads/digital';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
+        // Outside the web root: the URL below reaches it only through ProtectedUploadController.
+        try {
+            $uploadsDir = $this->storageDir();
+        } catch (\Throwable $e) {
+            return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
         }
 
         $safeName = $this->generateSafeFilename($clientFilename, $type);
@@ -754,6 +1022,8 @@ class DigitalLibraryPlugin
 
         try {
             $file->moveTo($targetPath);
+            // Readable by the web server, never executable, whatever the host's umask.
+            @chmod($targetPath, 0644);
         } catch (\Throwable $e) {
             return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
         }

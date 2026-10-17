@@ -1707,6 +1707,7 @@ HTACCESS;
             'storage/plugins',
             'storage/uploads',
             'storage/uploads/plugins',
+            'storage/digital',
             'storage/backups',
             'storage/tmp',
             'storage/sessions',

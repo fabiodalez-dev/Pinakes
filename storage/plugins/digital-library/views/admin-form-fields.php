@@ -4,6 +4,16 @@ use App\Support\HtmlHelper;
 $book = $book ?? [];
 $attachments = \App\Support\DigitalAttachments::fromBook($book, true);
 $attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Recensione o documento correlato'), 'audio' => __('Audiobook')];
+// Who may open each file (issue #480). `inherit` follows the default in the plugin settings.
+$visibilityNames = [
+    'public' => __('Chiunque'),
+    'users' => __('Utenti registrati'),
+    'staff' => __('Solo amministratori e staff'),
+    'loan' => __('Chi ha il libro in prestito'),
+];
+/** @var string $defaultVisibility set by DigitalLibraryPlugin::renderAdminFormFields() */
+$defaultVisibility = $defaultVisibility ?? 'public';
+$attachmentVisibilities = ['inherit' => sprintf(__('Predefinita (%s)'), $visibilityNames[$defaultVisibility] ?? $visibilityNames['public'])] + $visibilityNames;
 ?>
 <section class="digital-attachments-editor" aria-labelledby="digital-attachments-title">
     <h3 id="digital-attachments-title" class="form-section-title"><?= __('Contenuti Digitali') ?></h3>
@@ -19,6 +29,9 @@ $attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Rece
                 <?php foreach ($attachmentKinds as $kind => $label): ?><option value="<?= $kind ?>" <?= $attachment['kind'] === $kind ? 'selected' : '' ?>><?= HtmlHelper::e($label) ?></option><?php endforeach; ?>
             </select></label>
             <label><?= __('URL del file') ?><input class="form-input" name="digital_attachments[<?= $index ?>][url]" maxlength="2048" value="<?= HtmlHelper::e($attachment['url']) ?>"></label>
+            <label><?= __('Chi può aprirlo') ?><select class="form-input" name="digital_attachments[<?= $index ?>][visibility]">
+                <?php foreach ($attachmentVisibilities as $visibility => $label): ?><option value="<?= HtmlHelper::e($visibility) ?>" <?= $attachment['visibility'] === $visibility ? 'selected' : '' ?>><?= HtmlHelper::e($label) ?></option><?php endforeach; ?>
+            </select></label>
             <button type="button" class="ui-button btn-outline" data-remove-attachment><?= __('Rimuovi') ?></button>
             <?php if (!empty($attachment['invalid'])): ?>
             <p class="digital-attachment-invalid" role="alert"><?= __('Questo link salvato non è valido: correggilo o rimuovilo prima di salvare.') ?></p>
@@ -61,26 +74,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const attachmentRows = document.getElementById('digital-attachment-rows');
     let nextAttachment = <?= count($attachments) ?>;
-    const attachmentLabels = <?= json_encode(['label'=>__('Titolo allegato'), 'kind'=>__('Tipo di allegato'), 'url'=>__('URL del file'), 'remove'=>__('Rimuovi')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const attachmentLabels = <?= json_encode(['label'=>__('Titolo allegato'), 'kind'=>__('Tipo di allegato'), 'url'=>__('URL del file'), 'visibility'=>__('Chi può aprirlo'), 'remove'=>__('Rimuovi')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const attachmentKinds = <?= json_encode($attachmentKinds, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const attachmentVisibilities = <?= json_encode($attachmentVisibilities, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const addAttachment = (url = '', label = '', kind = 'ebook') => {
         const index = nextAttachment++;
         const row = document.createElement('div');
         row.className = 'digital-attachment-row';
         row.dataset.attachmentRow = '';
-        for (const field of ['label', 'kind', 'url']) {
+        for (const field of ['label', 'kind', 'url', 'visibility']) {
             const wrap = document.createElement('label');
             wrap.appendChild(document.createTextNode(attachmentLabels[field]));
-            const input = document.createElement(field === 'kind' ? 'select' : 'input');
+            const choices = field === 'kind' ? attachmentKinds : field === 'visibility' ? attachmentVisibilities : null;
+            const input = document.createElement(choices ? 'select' : 'input');
             input.className = 'form-input';
             input.name = `digital_attachments[${index}][${field}]`;
-            if (field === 'kind') {
-                for (const [value, text] of Object.entries(attachmentKinds)) {
+            if (choices) {
+                for (const [value, text] of Object.entries(choices)) {
                     const option = document.createElement('option');
                     option.value = value; option.textContent = text; input.appendChild(option);
                 }
             } else { input.maxLength = field === 'url' ? 2048 : 255; }
-            input.value = field === 'url' ? url : field === 'label' ? label : kind;
+            input.value = field === 'url' ? url : field === 'label' ? label : field === 'kind' ? kind : 'inherit';
             wrap.appendChild(input); row.appendChild(wrap);
         }
         const remove = document.createElement('button');

@@ -24,7 +24,7 @@ async function addRow(page, url, label, kind = 'ebook') {
   const row = page.locator('[data-attachment-row]').last();
   await row.locator('input[name$="[url]"]').fill(url);
   await row.locator('input[name$="[label]"]').fill(label);
-  await row.locator('select').selectOption(kind);
+  await row.locator('select[name$="[kind]"]').selectOption(kind);
 }
 async function submit(page) {
   await page.locator('#bookForm button[type=submit]').click();
@@ -51,7 +51,10 @@ test.describe.serial('Multiple digital contents (#445)', () => {
     if (pluginWasActive !== '') db(`UPDATE plugins SET is_active=${Number(pluginWasActive)} WHERE name='digital-library'`);
     for (const url of uploads) {
       if (/^\/uploads\/digital\/\d+_[a-f0-9]+\.(pdf|wav)$/.test(url)) {
-        fs.rmSync(path.join(__dirname, '../public', url), { force: true });
+        // Uploads live in storage/digital since #480; public/uploads/digital is the pre-#480 place.
+        const name = path.basename(url);
+        fs.rmSync(path.join(__dirname, '../storage/digital', name), { force: true });
+        fs.rmSync(path.join(__dirname, '../public/uploads/digital', name), { force: true });
       }
     }
   });
@@ -80,7 +83,7 @@ test.describe.serial('Multiple digital contents (#445)', () => {
     ]);
     await expect(page.locator('[data-attachment-row]')).toHaveCount(4, { timeout: 15000 });
     const confirm = page.locator('.swal2-confirm'); if (await confirm.isVisible()) await confirm.click();
-    await page.locator('[data-attachment-row]').last().locator('select').selectOption('supplement');
+    await page.locator('[data-attachment-row]').last().locator('select[name$="[kind]"]').selectOption('supplement');
     await page.locator('[data-attachment-row]').last().locator('input[name$="[label]"]').fill('A review <&>');
     await submit(page);
     await expect.poll(() => db(`SELECT JSON_LENGTH(digital_attachments) FROM libri WHERE id=${bookId}`)).toBe('4');
