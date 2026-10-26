@@ -323,12 +323,14 @@ final class SearchIndexBuilder
         foreach (self::searchTerms($searchQuery) as ['term' => $wordBase, 'exact' => $exact]) {
             if ($exact) {
                 // Quoted term (#501): FULLTEXT still narrows the rows — every
-                // indexable word must be present as a whole word, accent-folded —
-                // and the binary-collation LIKE then keeps only the exact
-                // spelling/phrase.
+                // indexable word must start a word, accent-folded, the same
+                // prefix rule an unquoted word follows — and the binary-collation
+                // LIKE then keeps only the exact spelling/phrase. Without the
+                // `*`, "haff" would demand the whole word "haff" and find
+                // nothing while the autocomplete above it lists Haffner.
                 foreach (self::fulltextTokens($wordBase) as $token) {
                     if (self::fulltextTermForWord($token) !== null) {
-                        $booleanTerms[] = '+' . $token;
+                        $booleanTerms[] = '+' . $token . '*';
                     }
                 }
                 $parts[] = ExactSearch::likeSql($column, true);
@@ -564,7 +566,9 @@ final class SearchIndexBuilder
      */
     private static function fulltextTokens(string $word): array
     {
-        if (preg_match_all('/[\p{L}\p{N}_]+/u', $word, $matches) !== 1) {
+        // Every token, not only a lone one: a quoted phrase needs each of its
+        // words (fulltextTermForWord() still rejects a multi-token word).
+        if (!preg_match_all('/[\p{L}\p{N}_]+/u', $word, $matches)) {
             return [];
         }
         return array_values(array_filter($matches[0], static fn(string $token): bool => $token !== ''));

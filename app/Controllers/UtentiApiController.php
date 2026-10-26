@@ -26,7 +26,7 @@ class UtentiApiController
 
         // Quoted value = exact spelling, accents included (#501).
         $search = $search_value !== ''
-            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera'], $search_value)
+            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)", "CONCAT(u.cognome, ' ', u.nome)"], $search_value)
             : null;
         if ($search !== null) {
             $where .= ' AND ' . $search['sql'];
@@ -181,7 +181,7 @@ class UtentiApiController
         $search_value = trim((string)($q['search_text'] ?? ($q['search_value'] ?? '')));
         // Quoted value = exact spelling, accents included (#501).
         $search = $search_value !== ''
-            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera'], $search_value)
+            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)", "CONCAT(u.cognome, ' ', u.nome)"], $search_value)
             : null;
         if ($search !== null) {
             $where .= ' AND ' . $search['sql'];

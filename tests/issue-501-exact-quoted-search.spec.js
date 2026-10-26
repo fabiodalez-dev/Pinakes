@@ -76,8 +76,8 @@ async function typeAndWait(page, selector, value, apiPath) {
   const reloaded = page.waitForResponse((r) => r.url().includes(apiPath) && r.status() === 200, { timeout: 15000 });
   await page.fill(selector, value);
   await reloaded;
-  // The table repaints after the JSON lands.
-  await page.waitForTimeout(300);
+  // No fixed sleep: every check below asserts a present title first, and
+  // Playwright's expectations wait for the repaint on their own.
 }
 
 test.describe.serial('#501 quoted search = exact spelling', () => {
@@ -147,7 +147,6 @@ test.describe.serial('#501 quoted search = exact spelling', () => {
       await page.fill('#search-input', value);
       await page.locator('#search-input').press('End');
       await done;
-      await page.waitForTimeout(300);
     };
 
     await search(`${TOKEN} haffner`);

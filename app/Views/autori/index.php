@@ -56,10 +56,10 @@ unset($workspaceHeader);
         <div class="entity-filter-grid author-filter-grid">
           <!-- Search Text -->
           <div>
-            <label class="form-label">
+            <label for="search_nome" class="form-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_nome" type="text" placeholder="<?= htmlspecialchars(__('Nome, pseudonimo, biografia...'), ENT_QUOTES, 'UTF-8') ?>"
+            <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" id="search_nome" type="text" placeholder="<?= htmlspecialchars(__('Nome, pseudonimo, biografia...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
       url: (window.BASE_PATH || '') + '/api/autori',
       type: 'GET',
       data: function(d) {
-        d.search_nome = document.getElementById('search_nome').value;
+        d.search_text = document.getElementById('search_nome').value;
         d.search_pseudonimo = document.getElementById('search_pseudonimo').value;
         d.search_nazionalita = document.getElementById('search_nazionalita').value;
         d.search_sito = document.getElementById('search_sito').value;

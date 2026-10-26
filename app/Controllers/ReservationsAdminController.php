@@ -35,15 +35,17 @@ class ReservationsAdminController
             $types .= 'i';
             $params[] = $utenteId;
         }
-        if ($libroId <= 0 && $qLibro !== '') {
-            $conds[] = 'l.titolo LIKE ?';
-            $types .= 's';
-            $params[] = '%' . $qLibro . '%';
-        }
-        if ($utenteId <= 0 && $qUtente !== '') {
-            $conds[] = "CONCAT(u.nome,' ',u.cognome) LIKE ?";
-            $types .= 's';
-            $params[] = '%' . $qUtente . '%';
+        // Quoted value = exact spelling, accents included (#501).
+        foreach ([
+            ['l.titolo', $libroId <= 0 ? $qLibro : ''],
+            ["CONCAT(u.nome,' ',u.cognome)", $utenteId <= 0 ? $qUtente : ''],
+        ] as [$expr, $value]) {
+            $cond = $value !== '' ? \App\Support\ExactSearch::filterCondition([$expr], $value) : null;
+            if ($cond !== null) {
+                $conds[] = $cond['sql'];
+                $types .= $cond['types'];
+                array_push($params, ...$cond['params']);
+            }
         }
         if ($conds) {
             $sql .= ' WHERE ' . implode(' AND ', $conds);
@@ -67,6 +69,14 @@ class ReservationsAdminController
                 }
             }
         }
+
+        // The view reads these names. They were never set, so the list always
+        // rendered empty and the filter boxes lost what had been typed.
+        $items = $rows;
+        $q_libro = $qLibro;
+        $q_utente = $qUtente;
+        $libro_id = $libroId;
+        $utente_id = $utenteId;
 
         ob_start();
         require __DIR__ . '/../Views/prenotazioni/index.php';

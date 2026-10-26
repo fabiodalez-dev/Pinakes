@@ -634,7 +634,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                       class="hidden sm:inline text-xs text-gray-600 transition-colors"><?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?></span>
                   </div>
                 </div>
-                <input type="text" id="global-search" aria-label="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>"
+                <input type="text" id="global-search" title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>"
                   class="w-full pl-12 pr-4 py-3 lg:py-3.5 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl shadow-sm hover:shadow-md focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all duration-200 placeholder:text-gray-400"
                   autocomplete="off">
 

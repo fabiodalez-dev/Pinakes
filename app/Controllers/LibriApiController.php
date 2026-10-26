@@ -49,12 +49,12 @@ class LibriApiController
             }
         }
         if ($search_isbn !== '') {
-            $where .= " AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?) ";
-            $isbnParam = '%' . $search_isbn . '%';
-            $params[] = $isbnParam;
-            $params[] = $isbnParam;
-            $params[] = $isbnParam;
-            $types .= 'sss';
+            $isbn = \App\Support\ExactSearch::filterCondition(['l.isbn10', 'l.isbn13', 'l.ean'], $search_isbn);
+            if ($isbn !== null) {
+                $where .= ' AND ' . $isbn['sql'];
+                array_push($params, ...$isbn['params']);
+                $types .= $isbn['types'];
+            }
         }
         if ($genere_id) {
             // Search both genere_id and sottogenere_id, plus children of the selected genre
@@ -137,9 +137,12 @@ class LibriApiController
             $types .= 'i';
         }
         if ($collana !== '') {
-            $where .= " AND l.collana LIKE ?";
-            $params[] = '%' . $collana . '%';
-            $types .= 's';
+            $series = \App\Support\ExactSearch::filterCondition(['l.collana'], $collana);
+            if ($series !== null) {
+                $where .= ' AND ' . $series['sql'];
+                array_push($params, ...$series['params']);
+                $types .= $series['types'];
+            }
         }
         if ($tipo_media !== '' && $this->hasColumn($db, 'tipo_media')) {
             if ($tipo_media === 'libro') {

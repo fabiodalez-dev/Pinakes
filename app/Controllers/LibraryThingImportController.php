@@ -1245,8 +1245,9 @@ class LibraryThingImportController
     // Reuse methods from CsvImportController
     private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
-        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
+        // Exact spelling first when the collation also admits "Haffner" for "Häffner" (#501).
+        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? ORDER BY " . \App\Support\ExactSearch::exactFirstSql('nome') . ", id LIMIT 1");
+        $stmt->bind_param('ss', $name, $name);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -2156,13 +2157,12 @@ class LibraryThingImportController
         $bindTypes = '';
         $bindValues = [];
 
-        if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
-            $searchParam = "%{$search}%";
-            for ($i = 0; $i < 6; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
+        // Quoted value = exact spelling, accents included (#501), as in the list.
+        $searchCond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', (string) $search);
+        if ($searchCond !== null) {
+            $whereClauses[] = $searchCond['sql'];
+            $bindTypes .= $searchCond['types'];
+            array_push($bindValues, ...$searchCond['params']);
         }
 
         if (!empty($stato)) {

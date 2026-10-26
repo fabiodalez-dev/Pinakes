@@ -138,7 +138,7 @@ unset($workspaceHeader);
             <label for="search_text" class="form-label books-filter-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_text" type="text" placeholder="<?= htmlspecialchars(__('Titolo, sottotitolo, descrizione...'), ENT_QUOTES, 'UTF-8') ?>"
+            <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" id="search_text" type="text" placeholder="<?= htmlspecialchars(__('Titolo, sottotitolo, descrizione...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
           </div>
 

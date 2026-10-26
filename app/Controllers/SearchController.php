@@ -91,9 +91,11 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows=[];
-        // Quoted value = exact spelling, accents included (#501).
+        // Quoted value = exact spelling, accents included (#501). The full
+        // name in either order is searched too, so "Mario Rossi" — what the
+        // label shows — finds Mario Rossi, as the mobile staff picker does.
         $search = $q !== ''
-            ? \App\Support\ExactSearch::filterCondition(['nome', 'cognome', 'telefono', 'email', 'codice_tessera'], $q)
+            ? \App\Support\ExactSearch::filterCondition(['nome', 'cognome', 'telefono', 'email', 'codice_tessera', "CONCAT(nome, ' ', cognome)", "CONCAT(cognome, ' ', nome)"], $q)
             : null;
         if ($search !== null) {
             $stmt = $db->prepare("
@@ -607,10 +609,10 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows=[];
-        if ($q !== '') {
-            $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, nome AS label FROM generi WHERE nome LIKE ? ORDER BY nome LIMIT 20");
-            $stmt->bind_param('s', $s);
+        $search = \App\Support\ExactSearch::filterCondition(['nome'], $q);
+        if ($search !== null) {
+            $stmt = $db->prepare("SELECT id, nome AS label FROM generi WHERE {$search['sql']} ORDER BY nome LIMIT 20");
+            $stmt->bind_param($search['types'], ...$search['params']);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -626,8 +628,8 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows = [];
-        if ($q !== '') {
-            $s = '%' . $q . '%';
+        $search = \App\Support\ExactSearch::filterCondition(['s.nome', 's.codice', 'CAST(m.numero_livello AS CHAR)'], $q);
+        if ($search !== null) {
             $stmt = $db->prepare("
                 SELECT p.id,
                        CONCAT(
@@ -638,11 +640,11 @@ class SearchController
                 FROM posizioni p
                 JOIN scaffali s ON p.scaffale_id = s.id
                 JOIN mensole m ON p.mensola_id = m.id
-                WHERE s.nome LIKE ? OR s.codice LIKE ? OR CAST(m.numero_livello AS CHAR) LIKE ?
+                WHERE {$search['sql']}
                 ORDER BY s.ordine, m.numero_livello
                 LIMIT 20
             ");
-            $stmt->bind_param('sss', $s, $s, $s);
+            $stmt->bind_param($search['types'], ...$search['params']);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {

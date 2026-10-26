@@ -283,8 +283,10 @@ class PublisherRepository
     {
         $name = trim($name);
         if ($name === '') return null;
-        $stmt = $this->db->prepare('SELECT id FROM editori WHERE nome = ? LIMIT 1');
-        $stmt->bind_param('s', $name);
+        // The collation folds accents, so "Häffner" also matches "Haffner";
+        // when both are on file the exact spelling wins (#501).
+        $stmt = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY ' . \App\Support\ExactSearch::exactFirstSql('nome') . ', id LIMIT 1');
+        $stmt->bind_param('ss', $name, $name);
         $stmt->execute();
         $stmt->bind_result($id);
         if ($stmt->fetch()) { return (int)$id; }

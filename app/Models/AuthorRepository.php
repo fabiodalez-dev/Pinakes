@@ -310,9 +310,14 @@ class AuthorRepository
         // Normalize the input name first (this is the key fix!)
         $normalizedInput = \App\Support\AuthorNormalizer::normalize($name);
 
+        // The collation folds accents, so `nome = ?` also admits "Haffner"
+        // for "Häffner". When both are on file the exact spelling must win
+        // (#501): order the byte-identical row first in every equality step.
+        $exactFirst = \App\Support\ExactSearch::exactFirstSql('nome');
+
         // First try exact match with normalized name
-        $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $normalizedInput);
+        $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? ORDER BY {$exactFirst}, id LIMIT 1");
+        $stmt->bind_param('ss', $normalizedInput, $normalizedInput);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();
@@ -323,8 +328,8 @@ class AuthorRepository
 
         // Also try the original name (in case DB has unnormalized entries)
         if ($normalizedInput !== $name) {
-            $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-            $stmt->bind_param('s', $name);
+            $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? ORDER BY {$exactFirst}, id LIMIT 1");
+            $stmt->bind_param('ss', $name, $name);
             $stmt->execute();
             $res = $stmt->get_result();
             $row = $res->fetch_assoc();
@@ -336,8 +341,8 @@ class AuthorRepository
 
         // Try case-insensitive match with normalized name
         $lowerNormalized = mb_strtolower($normalizedInput, 'UTF-8');
-        $stmt = $this->db->prepare("SELECT id FROM autori WHERE LOWER(nome) = ? LIMIT 1");
-        $stmt->bind_param('s', $lowerNormalized);
+        $stmt = $this->db->prepare("SELECT id FROM autori WHERE LOWER(nome) = ? ORDER BY (LOWER(nome) COLLATE utf8mb4_bin = ?) DESC, id LIMIT 1");
+        $stmt->bind_param('ss', $lowerNormalized, $lowerNormalized);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();

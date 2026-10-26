@@ -624,6 +624,7 @@ body.pk main :is(.pk-filters, .filters-panel) :is(.search-box, .pk-filter-search
     body.pk main :is(.pk-filters, .filters-panel) :is(.search-box, .pk-filter-search) input:not([type=checkbox], [type=radio]) { font-size: 16px; }
 }
 body.pk :is(.pk-filters, .filters-panel) .search-box:focus-within, body.pk :is(.pk-filters, .filters-panel) .pk-filter-search:focus-within { border-color: var(--pk-accent); }
+body.pk :is(.pk-filters, .filters-panel) .search-hint { margin: 6px 2px 0; font-size: 12px; line-height: 1.4; color: var(--pk-muted); }
 
 /* Authors, publishers, genres: a list of checkbox rows in a white box. */
 body.pk :is(.pk-filters, .filters-panel) #authors-filter, body.pk :is(.pk-filters, .filters-panel) #publishers-filter, body.pk :is(.pk-filters, .filters-panel) #genres-filter {

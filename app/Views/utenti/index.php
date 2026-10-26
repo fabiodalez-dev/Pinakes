@@ -193,7 +193,7 @@ unset($workspaceHeader);
               <i class="fas fa-search mr-1"></i>
               <?= __("Cerca testo") ?>
             </label>
-            <input id="search_text" placeholder="<?= htmlspecialchars(__('Nome, cognome, email...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
+            <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" id="search_text" placeholder="<?= htmlspecialchars(__('Nome, cognome, email...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
           </div>
 
           <div>

@@ -1488,8 +1488,9 @@ class CsvImportController
      */
     private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
-        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
+        // Exact spelling first when the collation also admits "Haffner" for "Häffner" (#501).
+        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? ORDER BY " . \App\Support\ExactSearch::exactFirstSql('nome') . ", id LIMIT 1");
+        $stmt->bind_param('ss', $name, $name);
         $stmt->execute();
         $result = $stmt->get_result();
 

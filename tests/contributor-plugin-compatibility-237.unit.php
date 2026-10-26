@@ -195,12 +195,17 @@ $check(str_contains($openApi, "'canonical_name'") && str_contains($openApi, "'co
 $frbr = $read('storage/plugins/frbr-lrm/OpereRepository.php') . $read('storage/plugins/frbr-lrm/EspressioniRepository.php');
 $check(str_contains($frbr, 'AuthorName::displaySql'), 'FRBR/LRM views use preferred display names');
 $archives = $read('storage/plugins/archives/ArchivesPlugin.php');
-$check(str_contains($archives, 'a.pseudonimo LIKE ?') && str_contains($archives, 'MATCH(a.nome)'), 'Archives UI searches pseudonyms while authority reconciliation remains canonical');
+$check(str_contains($archives, "ExactSearch::filterCondition(['a.nome', 'a.pseudonimo']") && str_contains($archives, 'MATCH(a.nome)'), 'Archives UI searches pseudonyms while authority reconciliation remains canonical');
 
 $frontend = $read('app/Controllers/FrontendController.php');
 $check(str_contains($frontend, 'la_match.autore_id IN') && str_contains($frontend, 'a_all.autore_id'), 'related-book matching keeps the complete creator list');
 $publicApi = $read('app/Controllers/PublicApiController.php');
-$check(str_contains($publicApi, "str_replace(['\\\\', '%', '_']") && str_contains($publicApi, 'ESCAPE'), 'public API treats author wildcard characters literally');
+$authorSearch = \App\Support\ExactSearch::filterCondition(['a.nome', 'a.pseudonimo'], '5%_\\');
+$check(str_contains($publicApi, "ExactSearch::filterCondition(['a.nome', 'a.pseudonimo']")
+    && $authorSearch !== null
+    && substr_count($authorSearch['sql'], 'ESCAPE ') === 2
+    && $authorSearch['params'] === [\App\Support\ExactSearch::likePattern('5%_\\'), \App\Support\ExactSearch::likePattern('5%_\\')],
+    'public API treats author wildcard characters literally through ExactSearch');
 
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} passed, {$failed} FAILED\n");
 exit($failed === 0 ? 0 : 1);

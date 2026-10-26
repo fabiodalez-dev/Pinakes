@@ -149,7 +149,7 @@ unset($workspaceHeader);
       <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Utente") ?> *</label>
       <div class="pk-copy-code-group mt-1 flex gap-2">
         <div class="relative flex-1">
-          <input type="text" id="utente_search" placeholder="<?= htmlspecialchars(__('Cerca per nome, cognome, telefono, email o tessera'), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
+          <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" type="text" id="utente_search" placeholder="<?= htmlspecialchars(__('Cerca per nome, cognome, telefono, email o tessera'), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
           <div id="utente_suggest" class="suggestions-box"></div>
         </div>
         <?php if ($meUserId > 0 && !$presetUserLocked): ?>
@@ -172,7 +172,7 @@ unset($workspaceHeader);
     <!-- Ricerca Libro -->
     <div class="relative">
       <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Libro") ?> *</label>
-      <input type="text" id="libro_search" placeholder="<?= htmlspecialchars(__('Cerca per titolo, ISBN o EAN'), ENT_QUOTES, 'UTF-8') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off" value="<?= htmlspecialchars($oldBookTitle, ENT_QUOTES, 'UTF-8') ?>">
+      <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" type="text" id="libro_search" placeholder="<?= htmlspecialchars(__('Cerca per titolo, ISBN o EAN'), ENT_QUOTES, 'UTF-8') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off" value="<?= htmlspecialchars($oldBookTitle, ENT_QUOTES, 'UTF-8') ?>">
       <div id="libro_suggest" class="suggestions-box"></div>
       <input type="hidden" name="libro_id" id="libro_id" value="<?= $oldBookId ?>" required />
       <!-- Availability indicator -->

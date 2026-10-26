@@ -483,9 +483,9 @@ class CollaneController
         // SEC2-1 + SEC1-5 (review): require min 2 chars and escape LIKE
         // wildcards so callers can't broaden the match with `%`/`_` or
         // probe single-char prefixes for enumeration.
-        if (mb_strlen($q) >= 2) {
-            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
-            $search = '%' . $escaped . '%';
+        ['term' => $term, 'exact' => $exact] = \App\Support\ExactSearch::parseFilter($q);
+        if (mb_strlen($term) >= 2) {
+            $search = \App\Support\ExactSearch::likePattern($term);
 
             $hasCollane = $this->hasCollaneTable($db);
             $sqlParts = [];
@@ -497,7 +497,7 @@ class CollaneController
                     continue; // no collane table — skip its sources
                 }
                 $col = $src['c'];
-                $where = "`{$col}` LIKE ? AND `{$col}` IS NOT NULL AND `{$col}` != ''";
+                $where = \App\Support\ExactSearch::likeSql("`{$col}`", $exact) . " AND `{$col}` IS NOT NULL AND `{$col}` != ''";
                 $types .= 's';
                 $binds[] = $search;
                 if ($src['t'] === 'libri') {
@@ -515,7 +515,7 @@ class CollaneController
             }
 
             if (!empty($sqlParts)) {
-                $sql = 'SELECT DISTINCT nome FROM (' . implode(' UNION ', $sqlParts)
+                $sql = 'SELECT DISTINCT nome COLLATE utf8mb4_bin AS nome FROM (' . implode(' UNION ALL ', $sqlParts)
                      . ') AS combined ORDER BY nome LIMIT 10';
                 $stmt = $db->prepare($sql);
                 if ($stmt) {

@@ -237,6 +237,7 @@ ob_start();
                         <div class="search-box">
                             <input type="text"
                                    id="search-input"
+                                   aria-describedby="search-hint"
                                    placeholder="<?= htmlspecialchars(__("Cerca titoli, autori, ISBN..."), ENT_QUOTES, 'UTF-8') ?>"
                                    value="<?= htmlspecialchars($filters['search'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                    onkeyup="debounceSearch(this.value)">
@@ -244,6 +245,7 @@ ob_start();
                                 <path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path>
                             </svg>
                         </div>
+                        <p class="search-hint" id="search-hint"><?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
 
                     <!-- Authors -->

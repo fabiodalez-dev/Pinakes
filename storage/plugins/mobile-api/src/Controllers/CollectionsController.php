@@ -138,10 +138,12 @@ final class CollectionsController
         $where = ['u.deleted_at IS NULL' . $this->publishedSql('u.')]; $values = [];
         if ($parent !== null) { $where[] = 'u.parent_id = ?'; $values[] = $parent; }
         elseif ($query === '' && $level === '' && $from === null && $to === null) { $where[] = 'u.parent_id IS NULL'; }
-        if ($query !== '') {
-            $where[] = "(u.reference_code LIKE ? ESCAPE '!' OR u.constructed_title LIKE ? ESCAPE '!' OR u.formal_title LIKE ? ESCAPE '!' OR u.scope_content LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND ar.authorised_form LIKE ? ESCAPE '!'))";
-            $pattern = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $query) . '%';
-            array_push($values, $pattern, $pattern, $pattern, $pattern, $pattern);
+        $search = \App\Support\ExactSearch::filterCondition(['u.reference_code', 'u.constructed_title', 'u.formal_title', 'u.scope_content'], $query);
+        if ($search !== null) {
+            ['exact' => $exact] = \App\Support\ExactSearch::parseFilter($query);
+            $where[] = '(' . $search['sql'] . ' OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND '
+                . \App\Support\ExactSearch::likeSql('ar.authorised_form', $exact) . '))';
+            array_push($values, ...[...$search['params'], $search['params'][0]]);
         }
         if ($level !== '') { $where[] = 'u.level = ?'; $values[] = $level; }
         if ($from !== null) { $where[] = 'u.date_start IS NOT NULL AND GREATEST(u.date_start, COALESCE(u.date_end, u.date_start)) >= ?'; $values[] = $from; }

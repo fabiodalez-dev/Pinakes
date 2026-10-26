@@ -38,6 +38,7 @@ final class ExactSearch
      */
     public static function tokenize(string $query): array
     {
+        $query = self::scrub($query);
         $q = '[' . preg_quote(self::QUOTES, '/') . ']';
         $parts = preg_split('/(' . $q . '[^' . preg_quote(self::QUOTES, '/') . ']*(?:' . $q . '|$))/u', $query, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
         if ($parts === false) {
@@ -62,17 +63,71 @@ final class ExactSearch
 
     /**
      * Parse a single-value column filter (admin list "Name" box): the whole
-     * value is one term, exact when it starts with a quote.
+     * value is one term, exact when it starts with a quote. Several quoted
+     * groups in the box (`"Thomas" "Mann"`) are joined into one phrase, so a
+     * quote never ends up inside the LIKE pattern as a literal character.
      *
      * @return array{term: string, exact: bool}
      */
     public static function parseFilter(string $value): array
     {
-        $value = trim($value);
+        $value = trim(self::scrub($value));
         if ($value !== '' && preg_match('/^[' . preg_quote(self::QUOTES, '/') . ']/u', $value) === 1) {
-            return ['term' => self::collapse(self::stripQuotes($value)), 'exact' => true];
+            $words = array_column(self::tokenize($value), 'term');
+            return ['term' => self::collapse(implode(' ', $words)), 'exact' => true];
         }
         return ['term' => $value, 'exact' => false];
+    }
+
+    /**
+     * WHERE fragment for "$expr is exactly $value": accents distinct, case
+     * ignored. For lookups by a name taken from a link (author page, publisher
+     * filter), where the collation would otherwise treat `Haffner` and
+     * `Häffner` as the same name. The plain `=` stays first so an index on
+     * $expr still narrows the rows; the binary comparison then drops the
+     * accent-folded matches.
+     *
+     * @return array{sql: string, params: list<string>, types: string}
+     */
+    public static function equalsCondition(string $expr, string $value): array
+    {
+        return [
+            'sql' => "({$expr} = ? AND LOWER({$expr}) COLLATE utf8mb4_bin = LOWER(?))",
+            'params' => [$value, $value],
+            'types' => 'ss',
+        ];
+    }
+
+    /**
+     * Same as equalsCondition() for a list of accepted values (IN).
+     *
+     * @param list<string> $values
+     * @return array{sql: string, params: list<string>, types: string}|null
+     */
+    public static function inCondition(string $expr, array $values): ?array
+    {
+        if ($values === []) {
+            return null;
+        }
+        $plain = implode(',', array_fill(0, count($values), '?'));
+        $lowered = implode(',', array_fill(0, count($values), 'LOWER(?)'));
+        return [
+            'sql' => "({$expr} IN ({$plain}) AND LOWER({$expr}) COLLATE utf8mb4_bin IN ({$lowered}))",
+            'params' => array_merge($values, $values),
+            'types' => str_repeat('s', 2 * count($values)),
+        ];
+    }
+
+    /**
+     * ORDER BY fragment that puts the exact spelling (accents included, case
+     * ignored) first among rows an accent-folding `$expr = ?` admitted. Bind
+     * the same value again. Used by find-by-name lookups so an existing
+     * `Häffner` wins over `Haffner` when both are on file, also when the
+     * incoming name differs only in case.
+     */
+    public static function exactFirstSql(string $expr): string
+    {
+        return "(LOWER({$expr}) COLLATE utf8mb4_bin = LOWER(?)) DESC";
     }
 
     /**
@@ -109,11 +164,15 @@ final class ExactSearch
      * @param list<string> $exprs
      * @return array{sql: string, params: list<string>, types: string}|null
      */
-    public static function wordsCondition(array $exprs, string $query): ?array
+    public static function wordsCondition(array $exprs, string $query, ?int $maxTerms = null): ?array
     {
         $sql = [];
         $params = [];
-        foreach (self::tokenize($query) as ['term' => $term, 'exact' => $exact]) {
+        $terms = self::tokenize($query);
+        if ($maxTerms !== null) {
+            $terms = array_slice($terms, 0, max(0, $maxTerms));
+        }
+        foreach ($terms as ['term' => $term, 'exact' => $exact]) {
             $or = [];
             foreach ($exprs as $expr) {
                 $or[] = self::likeSql($expr, $exact);
@@ -145,6 +204,16 @@ final class ExactSearch
     public static function likePattern(string $term): string
     {
         return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    /**
+     * Replace invalid UTF-8 so the /u regexes cannot fail. A failed split
+     * would yield no term at all, and "no term" means "no filter": a garbled
+     * query would then list the whole catalogue instead of nothing.
+     */
+    private static function scrub(string $value): string
+    {
+        return mb_check_encoding($value, 'UTF-8') ? $value : mb_scrub($value, 'UTF-8');
     }
 
     private static function stripQuotes(string $value): string
