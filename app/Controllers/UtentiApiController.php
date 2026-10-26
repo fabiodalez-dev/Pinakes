@@ -24,15 +24,14 @@ class UtentiApiController
         $params = [];
         $types = '';
 
-        if ($search_value !== '') {
-            $searchParam = "%$search_value%";
-            $where .= " AND (u.nome LIKE ?
-                          OR u.cognome LIKE ?
-                          OR u.email LIKE ?
-                          OR u.telefono LIKE ?
-                          OR u.codice_tessera LIKE ?)";
-            $params = array_fill(0, 5, $searchParam);
-            $types = 'sssss';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $search_value !== ''
+            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera'], $search_value)
+            : null;
+        if ($search !== null) {
+            $where .= ' AND ' . $search['sql'];
+            $params = $search['params'];
+            $types = $search['types'];
         }
 
         // Additional filters
@@ -180,11 +179,14 @@ class UtentiApiController
         $types = '';
 
         $search_value = trim((string)($q['search_text'] ?? ($q['search_value'] ?? '')));
-        if ($search_value !== '') {
-            $searchParam = "%$search_value%";
-            $where .= ' AND (u.nome LIKE ? OR u.cognome LIKE ? OR u.email LIKE ? OR u.telefono LIKE ? OR u.codice_tessera LIKE ?)';
-            $params = array_fill(0, 5, $searchParam);
-            $types = 'sssss';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $search_value !== ''
+            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera'], $search_value)
+            : null;
+        if ($search !== null) {
+            $where .= ' AND ' . $search['sql'];
+            $params = $search['params'];
+            $types = $search['types'];
         }
         $role = trim((string)($q['role_filter'] ?? ''));
         if ($role !== '') {

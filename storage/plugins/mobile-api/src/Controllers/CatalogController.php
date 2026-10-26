@@ -674,14 +674,16 @@ final class CatalogController
                 $bind[]  = (int) $author;
                 $types  .= 'i';
             } else {
-                $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
-                                         WHERE la_a.libro_id = l.id
-                                           AND la_a.ruolo IN ('principale', 'co-autore')
-                                           AND (a_a.nome LIKE ? ESCAPE '\\\\' OR a_a.pseudonimo LIKE ? ESCAPE '\\\\'))";
-                $authorLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $author) . '%';
-                $bind[]  = $authorLike;
-                $bind[]  = $authorLike;
-                $types  .= 'ss';
+                // Quoted value = exact spelling, accents included (#501).
+                $authorCond = \App\Support\ExactSearch::filterCondition(['a_a.nome', 'a_a.pseudonimo'], $author);
+                if ($authorCond !== null) {
+                    $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
+                                             WHERE la_a.libro_id = l.id
+                                               AND la_a.ruolo IN ('principale', 'co-autore')
+                                               AND {$authorCond['sql']})";
+                    array_push($bind, ...$authorCond['params']);
+                    $types .= $authorCond['types'];
+                }
             }
         }
 
@@ -699,15 +701,21 @@ final class CatalogController
                     $types .= 'i';
                 }
             } else {
-                $publisherLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $publisher) . '%';
-                $conditions[] = $hasJunction
-                    ? "(e.nome LIKE ? ESCAPE '\\\\' OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND e_p.nome LIKE ? ESCAPE '\\\\'))"
-                    : "e.nome LIKE ? ESCAPE '\\\\'";
-                $bind[] = $publisherLike;
-                $types .= 's';
-                if ($hasJunction) {
+                // Quoted value = exact spelling, accents included (#501).
+                ['term' => $publisherTerm, 'exact' => $publisherExact] = \App\Support\ExactSearch::parseFilter($publisher);
+                if ($publisherTerm !== '') {
+                    $publisherLike = \App\Support\ExactSearch::likePattern($publisherTerm);
+                    $primaryMatch = \App\Support\ExactSearch::likeSql('e.nome', $publisherExact);
+                    $conditions[] = $hasJunction
+                        ? "({$primaryMatch} OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND "
+                            . \App\Support\ExactSearch::likeSql('e_p.nome', $publisherExact) . '))'
+                        : $primaryMatch;
                     $bind[] = $publisherLike;
                     $types .= 's';
+                    if ($hasJunction) {
+                        $bind[] = $publisherLike;
+                        $types .= 's';
+                    }
                 }
             }
         }
