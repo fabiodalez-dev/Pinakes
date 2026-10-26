@@ -25,6 +25,9 @@ final class ExactSearch
     /** Straight and typographic quotes (mobile keyboards type „…“ and “…”). */
     private const QUOTES = '"“”„«»';
 
+    /** Most words a single filter box turns into separate conditions. */
+    public const MAX_FILTER_TERMS = 20;
+
     private function __construct()
     {
     }
@@ -148,7 +151,9 @@ final class ExactSearch
     {
         $tokens = self::tokenize($value);
         if (count($tokens) > 1 && in_array(true, array_column($tokens, 'exact'), true)) {
-            return self::wordsCondition($exprs, $value);
+            // Same budget as the other word searches: a pasted wall of words
+            // must not turn into thousands of placeholders.
+            return self::wordsCondition($exprs, $value, self::MAX_FILTER_TERMS);
         }
         ['term' => $term, 'exact' => $exact] = self::parseFilter($value);
         if ($term === '' || $exprs === []) {

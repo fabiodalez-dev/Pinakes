@@ -69,6 +69,8 @@ $same([6], $f('"mueller"'), 'a quoted value also searches the pseudonym column')
 $same([2], $f('rolf "häffner"'), 'a filter box mixing words keeps each word\'s rule (no literal quotes)');
 $same([2], $f('"häffner" rolf'), 'a filter box starting with a quote is not glued into one phrase');
 $same([1], $f('rolf "haffner"'), 'a mixed filter still keeps the umlaut out');
+$flood = \App\Support\ExactSearch::filterCondition(['nome', 'pseudonimo'], '"x" ' . str_repeat('word ', 5000));
+$same(\App\Support\ExactSearch::MAX_FILTER_TERMS * 2, count($flood['params']), 'a pasted wall of words in a filter box is capped, not one condition per word');
 
 $eq = E::equalsCondition('nome', 'rolf haffner');
 $same([1], Exact501::ids($db, 'zz501_core', $eq), 'equalsCondition matches the exact name, case ignored, accents distinct');
@@ -89,4 +91,4 @@ $same([], $f("\xff\xfe"), 'a garbled value matches nothing instead of every row'
 $limited = \App\Support\ExactSearch::wordsCondition(['nome'], '"thomas mann" other words', 1);
 $same(['%thomas mann%'], $limited['params'], 'a search budget counts a quoted phrase as one term');
 $same(null, \App\Support\ExactSearch::wordsCondition(['nome'], 'mann', 0), 'a zero search budget produces no invalid empty predicate');
-Exact501::finish(34);
+Exact501::finish(35);
