@@ -135,11 +135,21 @@ final class ExactSearch
      * (OR), honouring quotes via parseFilter(). Null when nothing is left to
      * match (e.g. the value was only a quote).
      *
+     * A box that mixes quoted and unquoted words (`archivio "haffner"`,
+     * `"haffner" archivio`) is not one phrase: every word must match, each
+     * with its own rule, as in wordsCondition(). Otherwise the quotes of a
+     * value that does not start with one would be searched as literal
+     * characters and find nothing.
+     *
      * @param list<string> $exprs
      * @return array{sql: string, params: list<string>, types: string}|null
      */
     public static function filterCondition(array $exprs, string $value): ?array
     {
+        $tokens = self::tokenize($value);
+        if (count($tokens) > 1 && in_array(true, array_column($tokens, 'exact'), true)) {
+            return self::wordsCondition($exprs, $value);
+        }
         ['term' => $term, 'exact' => $exact] = self::parseFilter($value);
         if ($term === '' || $exprs === []) {
             return null;

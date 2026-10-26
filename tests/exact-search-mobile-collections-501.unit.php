@@ -38,4 +38,14 @@ foreach(['haffner'=>[1,2],'"haffner"'=>[1],'"HÄFFNER"'=>[2],'%'=>[]] as $q=>$ex
         Exact501::same($expected,$found,"$label: $q");
     }
 }
-Exact501::finish(24);
+// CodeRabbit (PR #502): a query of quotes only must not drop the root-only
+// filter and return the whole archive; mixed words keep each word's own rule.
+foreach(['"'=>[],'""'=>[],'u1 "haffner"'=>[1],'"haffner" u1'=>[1],'u2 "haffner"'=>[],'u2 "häffner"'=>[2]] as $q=>$expected){
+    $request=(new ServerRequestFactory())->createServerRequest('GET','/')->withQueryParams(['q'=>$q]);
+    $response=$public->handle('archives',$request,new Response(),'archives');
+    Exact501::same(200,$response->getStatusCode(),"archive collection: $q returns 200");
+    $payload=json_decode((string)$response->getBody(),true,512,JSON_THROW_ON_ERROR);
+    $found=array_map('intval',array_column($payload['data'],'id'));sort($found);
+    Exact501::same($expected,$found,"archive collection: $q");
+}
+Exact501::finish(36);

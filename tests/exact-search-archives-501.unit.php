@@ -88,6 +88,14 @@ $same([6], $units('"haffner"'), '"haffner" excludes the umlaut');
 $same([3, 5], $units('"häffner"', 'u.id'), 'with authorities: a linked authority record counts, exactly');
 $same([3, 4, 5, 6], $units('haffner', 'u.id'), 'with authorities: unquoted matches every linked spelling');
 $same([], $units('"'), 'a lone quote does not match every unit');
+// CodeRabbit (PR #502): a quoted word next to plain words is not one phrase,
+// and quotes that do not open the query are not literal characters.
+$same([1], $units('die "brücke"'), 'mixed: plain word then quoted word, each with its own rule');
+$same([1], $units('"brücke" die'), 'mixed: quoted word first is not glued into one phrase');
+$same([2], $units('die "brucke"'), 'mixed: the quoted spelling still excludes the umlaut');
+$same([3], $units('"häffner" anna', 'u.id'), 'mixed with authorities: both words met by the linked record');
+$same([3], $units('disegni "häffner"', 'u.id'), 'mixed with authorities: one word in the unit, one in its authority');
+$same([], $units('disegni "haffner"', 'u.id'), 'mixed with authorities: the plain spelling is not the umlaut authority');
 
 // ── Catalogue archive box (frontend.catalog.archive_results) ──────────────
 $same([3, 5], $resultIds($plugin->getPublicArchiveResults([], '"häffner"')), 'catalogue box: quoted Häffner, authority included');
@@ -123,4 +131,4 @@ Exact501::exec($db,'INSERT INTO autori_authority_link VALUES (?,2),(?,1)',[$a1,$
 $reconciled=new ReflectionMethod($plugin,'searchReconciledAutori');
 $same([$a1],$resultIds($reconciled->invoke($plugin,"{$t} \"haffner\"",20)),'reconciled-author search keeps the plain spelling');
 $same([$a2],$resultIds($reconciled->invoke($plugin,"{$t} \"häffner\"",20)),'reconciled-author search keeps the umlaut spelling');
-Exact501::finish(33);
+Exact501::finish(39);

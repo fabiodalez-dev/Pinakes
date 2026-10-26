@@ -7,11 +7,15 @@
  * spelling; a quoted value finds only its exact spelling.
  */
 const { test, expect } = require('@playwright/test');
-const { createTempAdminUser, deleteTempAdminUser } = require('./helpers/e2e-fixtures');
+// e2e-fixtures throws while loading when the E2E environment is missing, so
+// it is required only when the suite is going to run; the skip reports why.
+const E2E_READY = Boolean(process.env.E2E_BASE_URL && process.env.E2E_DB_USER && process.env.E2E_DB_NAME
+  && (process.env.E2E_DB_HOST || process.env.E2E_DB_SOCKET));
+test.skip(!E2E_READY, 'E2E environment not configured (use /tmp/run-e2e.sh)');
+const { createTempAdminUser, deleteTempAdminUser } = E2E_READY ? require('./helpers/e2e-fixtures') : {};
 const { makeToken, seed, clean, login, typeAndWait, expectTitles } = require('./helpers/exact-search-501');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
-test.skip(!process.env.E2E_DB_USER || !process.env.E2E_DB_NAME, 'E2E database not configured (use /tmp/run-e2e.sh)');
 
 const enc = encodeURIComponent;
 

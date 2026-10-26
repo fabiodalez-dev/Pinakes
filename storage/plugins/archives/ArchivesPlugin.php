@@ -10980,23 +10980,52 @@ class ArchivesPlugin
      */
     private function archiveSearchCondition(string $q, ?string $unitIdExpr = null): array
     {
-        $columns = ['reference_code', 'constructed_title', 'formal_title', 'scope_content'];
-        ['term' => $term, 'exact' => $exact] = \App\Support\ExactSearch::parseFilter($q);
-        $exact = $exact && $term !== '';
-        $match = static fn(string $column): string => $exact
-            ? \App\Support\ExactSearch::likeSql($column, true)
-            : "{$column} LIKE ?";
-        $pattern = $exact ? \App\Support\ExactSearch::likePattern($term) : $this->archiveSearchPattern($q);
-        $sql = array_map($match, $columns);
+        // Qualify the unit columns when an alias is in play: inside the
+        // authority EXISTS below they must still resolve to the outer unit.
+        $prefix = $unitIdExpr !== null && str_contains($unitIdExpr, '.')
+            ? substr($unitIdExpr, 0, (int) strrpos($unitIdExpr, '.') + 1)
+            : '';
+        $columns = array_map(
+            static fn(string $column): string => $prefix . $column,
+            ['reference_code', 'constructed_title', 'formal_title', 'scope_content']
+        );
+        $authorityJoin = 'SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id'
+            . " WHERE aua.archival_unit_id = {$unitIdExpr} AND ar.deleted_at IS NULL AND ";
+
+        // Any quoted group: every term must match, each with its own rule —
+        // the same as the archive's other searches (wordsCondition), so
+        // `"haffner" archivio` and `archivio "haffner"` both mean
+        // "haffner exactly AND archivio", never one phrase or literal quotes.
+        if (in_array(true, array_column(\App\Support\ExactSearch::tokenize($q), 'exact'), true)) {
+            $own = \App\Support\ExactSearch::wordsCondition($columns, $q, 20);
+            if ($own !== null) {
+                if ($unitIdExpr === null) {
+                    return $own;
+                }
+                // A term may also be met by a linked authority record. One
+                // EXISTS holds the whole word list, so the link tables are
+                // referenced once whatever the number of terms.
+                $withAuthority = \App\Support\ExactSearch::wordsCondition([...$columns, 'ar.authorised_form'], $q, 20);
+                if ($withAuthority !== null) {
+                    return [
+                        'sql' => "({$own['sql']} OR EXISTS ({$authorityJoin}{$withAuthority['sql']}))",
+                        'params' => [...$own['params'], ...$withAuthority['params']],
+                        'types' => $own['types'] . $withAuthority['types'],
+                    ];
+                }
+            }
+        }
+
+        // Unquoted: one stemmed pattern ("disegno" also finds "disegni").
+        $pattern = $this->archiveSearchPattern($q);
+        $sql = array_map(static fn(string $column): string => "{$column} LIKE ?", $columns);
         if ($unitIdExpr !== null) {
-            $sql[] = 'EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id'
-                . " WHERE aua.archival_unit_id = {$unitIdExpr} AND ar.deleted_at IS NULL AND " . $match('ar.authorised_form') . ')';
-            $columns[] = 'ar.authorised_form';
+            $sql[] = "EXISTS ({$authorityJoin}ar.authorised_form LIKE ?)";
         }
         return [
             'sql' => '(' . implode(' OR ', $sql) . ')',
-            'params' => array_fill(0, count($columns), $pattern),
-            'types' => str_repeat('s', count($columns)),
+            'params' => array_fill(0, count($sql), $pattern),
+            'types' => str_repeat('s', count($sql)),
         ];
     }
 

@@ -76,6 +76,14 @@ $series = new App\Controllers\CollaneController();
 Exact501::same(["$t Haffner","$t Häffner"], $read($series,'searchApi',['q'=>"$t haffner"]), 'series suggestions preserve the two accented names');
 Exact501::same(["$t Häffner"], $read($series,'searchApi',['q'=>'"'.$t.' Häffner"']), 'series suggestions honour quotes');
 Exact501::same([], $read($series,'searchApi',['q'=>'""']), 'empty quoted series does not enumerate the collection');
+// CodeRabbit (PR #502): one suggestion per spelling ignoring case, and the
+// list sorted with the tolerant collation, not byte order (Ä after Z).
+$ids['libri'][] = Exact501::exec($db, 'INSERT INTO libri (titolo,collana) VALUES (?,?)', ["$t extra 1", "$t HAFFNER"]);
+$ids['libri'][] = Exact501::exec($db, 'INSERT INTO libri (titolo,collana) VALUES (?,?)', ["$t extra 2", "$t Ärger"]);
+$suggested = $read($series,'searchApi',['q'=>"$t haffner"]);
+Exact501::same(2, count($suggested), 'series suggestions merge names that differ only in case');
+Exact501::same(["$t haffner", "$t häffner"], array_values(array_unique(array_map('mb_strtolower', $suggested))), 'series suggestions keep the umlaut spelling apart');
+Exact501::same("$t Ärger", $read($series,'searchApi',['q'=>$t])[0] ?? null, 'series suggestions sort Ä with A, not after Z');
 $staff = new App\Plugins\MobileApi\Controllers\StaffEntitiesController($db);
 foreach (['searchAuthors'=>'autori','searchPublishers'=>'editori'] as $method=>$table) {
     foreach (["$t haffner"=>$ids[$table],$t.' "häffner"'=>[$ids[$table][1]]] as $value=>$expected) {
@@ -93,4 +101,4 @@ foreach (['societa'=>['501','502'],'"società"'=>['501'],'"societa"'=>['502']] a
     $response = $dewey->autocomplete($request(['q'=>$value]), new Response());
     Exact501::same($expected,array_column(json_decode((string)$response->getBody(),true),'code'),"Dewey picker: $value");
 }
-Exact501::finish(132);
+Exact501::finish(137);

@@ -515,8 +515,12 @@ class CollaneController
             }
 
             if (!empty($sqlParts)) {
-                $sql = 'SELECT DISTINCT nome COLLATE utf8mb4_bin AS nome FROM (' . implode(' UNION ALL ', $sqlParts)
-                     . ') AS combined ORDER BY nome LIMIT 10';
+                // One suggestion per spelling: accents keep "Brücke" and
+                // "Brucke" apart (#501), case does not ("Serie" = "serie", as
+                // UNION used to merge them). MIN(nome) keeps the column's
+                // tolerant collation, so the list sorts like the rest of the UI.
+                $sql = 'SELECT MIN(nome) AS nome FROM (' . implode(' UNION ALL ', $sqlParts)
+                     . ') AS combined GROUP BY LOWER(nome) COLLATE utf8mb4_bin ORDER BY nome LIMIT 10';
                 $stmt = $db->prepare($sql);
                 if ($stmt) {
                     $stmt->bind_param($types, ...$binds);

@@ -138,12 +138,21 @@ final class CollectionsController
         $where = ['u.deleted_at IS NULL' . $this->publishedSql('u.')]; $values = [];
         if ($parent !== null) { $where[] = 'u.parent_id = ?'; $values[] = $parent; }
         elseif ($query === '' && $level === '' && $from === null && $to === null) { $where[] = 'u.parent_id IS NULL'; }
-        $search = \App\Support\ExactSearch::filterCondition(['u.reference_code', 'u.constructed_title', 'u.formal_title', 'u.scope_content'], $query);
+        $unitColumns = ['u.reference_code', 'u.constructed_title', 'u.formal_title', 'u.scope_content'];
+        $search = \App\Support\ExactSearch::filterCondition($unitColumns, $query);
+        if ($query !== '' && $search === null) {
+            // Only quotes were typed: nothing to match yet. Without this the
+            // root-only filter above is skipped (the query is not empty) and
+            // the whole archive would come back.
+            return ResponseEnvelope::success($response, [], ['next_cursor' => null, 'total_count' => 0])->withHeader('Cache-Control', 'no-store');
+        }
         if ($search !== null) {
-            ['exact' => $exact] = \App\Support\ExactSearch::parseFilter($query);
+            // A linked authority record may meet the terms too, by the same
+            // rule (one EXISTS holds every term, see ArchivesPlugin).
+            $withAuthority = \App\Support\ExactSearch::filterCondition([...$unitColumns, 'ar.authorised_form'], $query) ?? $search;
             $where[] = '(' . $search['sql'] . ' OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND '
-                . \App\Support\ExactSearch::likeSql('ar.authorised_form', $exact) . '))';
-            array_push($values, ...[...$search['params'], $search['params'][0]]);
+                . $withAuthority['sql'] . '))';
+            array_push($values, ...$search['params'], ...$withAuthority['params']);
         }
         if ($level !== '') { $where[] = 'u.level = ?'; $values[] = $level; }
         if ($from !== null) { $where[] = 'u.date_start IS NOT NULL AND GREATEST(u.date_start, COALESCE(u.date_end, u.date_start)) >= ?'; $values[] = $from; }

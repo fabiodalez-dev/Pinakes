@@ -66,6 +66,9 @@ $same([3], $f('50%'), '% is a literal character, not a wildcard');
 $same([4], $f('a_b'), '_ is a literal character, not a one-letter wildcard');
 $same([5], $f('C:\\dir'), 'a backslash is a literal character');
 $same([6], $f('"mueller"'), 'a quoted value also searches the pseudonym column');
+$same([2], $f('rolf "häffner"'), 'a filter box mixing words keeps each word\'s rule (no literal quotes)');
+$same([2], $f('"häffner" rolf'), 'a filter box starting with a quote is not glued into one phrase');
+$same([1], $f('rolf "haffner"'), 'a mixed filter still keeps the umlaut out');
 
 $eq = E::equalsCondition('nome', 'rolf haffner');
 $same([1], Exact501::ids($db, 'zz501_core', $eq), 'equalsCondition matches the exact name, case ignored, accents distinct');
@@ -86,4 +89,4 @@ $same([], $f("\xff\xfe"), 'a garbled value matches nothing instead of every row'
 $limited = \App\Support\ExactSearch::wordsCondition(['nome'], '"thomas mann" other words', 1);
 $same(['%thomas mann%'], $limited['params'], 'a search budget counts a quoted phrase as one term');
 $same(null, \App\Support\ExactSearch::wordsCondition(['nome'], 'mann', 0), 'a zero search budget produces no invalid empty predicate');
-Exact501::finish(31);
+Exact501::finish(34);
