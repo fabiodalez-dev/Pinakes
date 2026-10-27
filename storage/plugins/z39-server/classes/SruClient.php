@@ -890,13 +890,7 @@ class SruClient
      */
     public static function pagesOf(string $extent, bool $anyNumber = true): string
     {
-        if (preg_match('/(\d+)\s*(?:p|pp|pages?|pagine|pag|s|sider|sidor|seiten|sivua|str|stron)(?![\p{L}])/iu', $extent, $m) === 1) {
-            return $m[1];
-        }
-        if ($anyNumber && preg_match('/(\d+)/', $extent, $m) === 1) {
-            return $m[1];
-        }
-        return '';
+        return \App\Support\Marc\ContributorSorter::pagesOf($extent, $anyNumber);
     }
 
     /**
@@ -909,13 +903,7 @@ class SruClient
      */
     public static function sortContributor(array &$book, array &$contributors, string $name, string $role): void
     {
-        if ($role === 'author') {
-            if (!in_array($name, $book['authors'], true)) {
-                $book['authors'][] = $name;
-            }
-        } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
-            $contributors[$role][] = $name;
-        }
+        \App\Support\Marc\ContributorSorter::sortContributor($book, $contributors, $name, $role);
     }
 
     /**
@@ -927,14 +915,7 @@ class SruClient
      */
     public static function applyContributors(array &$book, array $contributors): void
     {
-        if ($contributors['editor'] !== []) {
-            $book['editor'] = $contributors['editor'];
-        }
-        foreach (['translator', 'illustrator', 'colorist'] as $role) {
-            if ($contributors[$role] !== []) {
-                $book[$role] = $contributors[$role][0];
-            }
-        }
+        \App\Support\Marc\ContributorSorter::applyContributors($book, $contributors);
     }
 
     /**
