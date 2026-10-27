@@ -19,7 +19,7 @@ concurrency:
 jobs:
   regression:
     name: Browser regression shard ${{ matrix.shard }}/4
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -250,7 +250,7 @@ jobs:
 
   installer-locales:
     name: Fresh installer (${{ matrix.locale }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false

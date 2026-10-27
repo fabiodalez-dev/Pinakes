@@ -18,7 +18,7 @@ concurrency:
 jobs:
   browser-security:
     name: Packaged app · 3 browsers · axe-core · OWASP ZAP
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     permissions:
       contents: read # Build and scan the checked-out application.
