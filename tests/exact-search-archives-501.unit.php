@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Issue #501, part 7 of 9: the archives plugin. Its searches (admin list,
  * public listing, unified search, the catalogue's archive box, the author
- * picker) honour quotes like the book search: unquoted keeps the stemming
+ * picker, the relation typeahead) honour quotes like the book search: unquoted keeps the stemming
  * ("disegno" finds "disegni") and the accent folding, quoted is the exact
  * spelling with nothing trimmed.
  *
@@ -131,4 +131,31 @@ Exact501::exec($db,'INSERT INTO autori_authority_link VALUES (?,2),(?,1)',[$a1,$
 $reconciled=new ReflectionMethod($plugin,'searchReconciledAutori');
 $same([$a1],$resultIds($reconciled->invoke($plugin,"{$t} \"haffner\"",20)),'reconciled-author search keeps the plain spelling');
 $same([$a2],$resultIds($reconciled->invoke($plugin,"{$t} \"häffner\"",20)),'reconciled-author search keeps the umlaut spelling');
-Exact501::finish(39);
+
+// A quoted word next to a plain one on the dedicated archive bar: each word
+// keeps its own rule. (The unquoted bar runs on FULLTEXT, which TEMPORARY
+// tables cannot carry; its folding is covered by the E2E spec.)
+$unitSearch = new ReflectionMethod($plugin, 'searchArchivalUnits');
+$same([1], $resultIds($unitSearch->invoke($plugin, 'die "brücke"', 20)), 'archive searchArchivalUnits: mixed plain + quoted word, each with its own rule');
+
+// ── Relation typeahead (GET /api/archives/entities) ────────────────────────
+$db->query('ALTER TABLE authority_records ADD COLUMN ric_type VARCHAR(40) NULL');
+$entities = static function (string $type, string $q) use ($plugin, $resultIds): array {
+    $request = (new \Slim\Psr7\Factory\ServerRequestFactory())
+        ->createServerRequest('GET', '/api/archives/entities')
+        ->withQueryParams(['type' => $type, 'q' => $q]);
+    $response = $plugin->entitiesAutocompleteAction($request, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse());
+    $payload = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+    return $resultIds($payload['results']);
+};
+$same([1, 2], $entities('archival_unit', 'brücke'), 'relation typeahead: unquoted brücke finds both spellings, deleted unit left out');
+$same([1, 2], $entities('archival_unit', 'BRUCKE'), 'relation typeahead: unquoted ignores case and accents');
+$same([1], $entities('archival_unit', '"brücke"'), 'relation typeahead: "brücke" excludes Brucke');
+$same([2], $entities('archival_unit', '"brucke"'), 'relation typeahead: "brucke" excludes Brücke');
+$same([1], $entities('archival_unit', 'die "Brücke"'), 'relation typeahead: mixed plain + quoted word');
+$same([1], $entities('authority_record', '"häffner"'), 'relation typeahead: quoted authority keeps the umlaut');
+$same([2], $entities('authority_record', '"haffner"'), 'relation typeahead: quoted authority excludes the umlaut');
+$same([1, 2], $entities('authority_record', 'haffner'), 'relation typeahead: unquoted authority finds both spellings');
+$same([], $entities('archival_unit', '%'), 'relation typeahead: a bare % is a literal, not a wildcard');
+$same([], $entities('archival_unit', '""'), 'relation typeahead: only quotes match nothing');
+Exact501::finish(50);

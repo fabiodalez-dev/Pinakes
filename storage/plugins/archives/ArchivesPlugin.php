@@ -9564,19 +9564,28 @@ class ArchivesPlugin
             $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
-        // Escape LIKE wildcards (% _ \) in user input to prevent
-        // wildcard-injection enumeration (e.g. q=% returning everything).
-        $qEscaped = $q === '' ? '' : addcslashes($q, '%_\\');
-        $like = $q === '' ? '%' : '%' . $qEscaped . '%';
         // Column names are from a static map — safe to interpolate.
-        $sql = "SELECT id, `{$spec['label']}` AS label, `{$spec['extra']}` AS extra
+        // The label filter goes through ExactSearch: LIKE metacharacters are
+        // escaped (q=% cannot enumerate everything) and a quoted value is the
+        // exact spelling, accents included (#501). An empty q lists all rows.
+        $label = "`{$spec['label']}`";
+        $match = $q === '' ? null : \App\Support\ExactSearch::filterCondition([$label], $q);
+        if ($q !== '' && $match === null) {
+            // Only quotes typed: nothing left to match, so nothing matches.
+            $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+        $where = $match !== null ? $match['sql'] : '1=1';
+        $sql = "SELECT id, {$label} AS label, `{$spec['extra']}` AS extra
                   FROM `{$spec['table']}`
-                 WHERE `{$spec['label']}` LIKE ? AND deleted_at IS NULL
-                 ORDER BY `{$spec['label']}` ASC
+                 WHERE {$where} AND deleted_at IS NULL
+                 ORDER BY {$label} ASC
                  LIMIT 20";
         $stmt = $this->db->prepare($sql);
         if ($stmt !== false) {
-            $stmt->bind_param('s', $like);
+            if ($match !== null) {
+                $stmt->bind_param($match['types'], ...$match['params']);
+            }
             if ($stmt->execute()) {
                 $r = $stmt->get_result();
                 if ($r instanceof \mysqli_result) {
