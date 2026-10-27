@@ -74,7 +74,7 @@ class RelatorRoles
     private const TERMS = [
         'editor' => '(editor|editors|eds?|edited|edit|hrsg|herausgeber\w*|herausgegeben|red|redaktør|redaktor|redaktör|redacteur|rédacteur|redactor|redigeret|redigerad|redigert|curatore|curatrice|curat[oa]|a cura|cura di|éditeur scientifique|editeur scientifique|edición|edicion|ed lit)',
         'translator' => '(translat\w*|trans|tr|trad|traduttor\w*|tradott\w*|traduzione|traducteur|traductrice|traduit\w*|traduction|traductor\w*|traducid\w*|traducción|übers\w*|ubers\w*|oversætter\w*|oversat\w*|oversetter\w*|oversatt\w*|översätt\w*|översatt\w*|översättning|vertaler|vertaald|vertaling|tłumacz\w*|przeł\w*)',
-        'illustrator' => '(illustrat\w*|ill|illus|ilustrad\w*|ilustraci\w*|illustrateur|illustratrice|illustratore|illustré\w*|illustriert\w*|illustreret|illustrerad|illustrert|illustratør|illustratör|tegninger|tegnet af|drawings)',
+        'illustrator' => '(illustrat\w*|illustrazion\w*|ill|illus|ilustrad\w*|ilustraci\w*|illustrateur|illustratrice|illustratore|illustré\w*|illustriert\w*|illustreret|illustrerad|illustrert|illustratør|illustratör|tegninger|tegnet af|drawings)',
         'colorist' => '(colou?rist\w*|colou?red by|colou?rs by|kolorist\w*|colorista|coloriste|farvelægger|farvelagt)',
         'other' => '(introduction|introduced|preface|foreword|afterword|postface|commentary|supplementary|notes?|noter|efterskrift|annotat\w*|publisher|einleitung|vorwort|nachwort|kommentar\w*|anmerkungen|forord|efterord|indledning|kommenteret|förord|inledning|préface|présentation|introducción|prólogo|epílogo|introduzione|prefazione|postfazione|commento|editore|verlag|forlag|förlag|éditeur)',
     ];

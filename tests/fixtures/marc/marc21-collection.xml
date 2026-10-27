@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+  <record>
+    <leader>00000nam a2200000 i 4500</leader>
+    <controlfield tag="001">x1</controlfield>
+    <datafield tag="020" ind1=" " ind2=" ">
+      <subfield code="a">9780140449136</subfield>
+    </datafield>
+    <datafield tag="100" ind1="1" ind2=" ">
+      <subfield code="a">Dostoyevsky, Fyodor,</subfield>
+    </datafield>
+    <datafield tag="245" ind1="1" ind2="0">
+      <subfield code="a">Crime and punishment /</subfield>
+      <subfield code="c">Fyodor Dostoyevsky ; translated with an introduction and notes by David McDuff.</subfield>
+    </datafield>
+    <datafield tag="264" ind1=" " ind2="1">
+      <subfield code="a">London :</subfield>
+      <subfield code="b">Penguin,</subfield>
+      <subfield code="c">2003.</subfield>
+    </datafield>
+    <datafield tag="700" ind1="1" ind2=" ">
+      <subfield code="a">McDuff, David,</subfield>
+    </datafield>
+    <datafield tag="856" ind1="4" ind2="2">
+      <subfield code="u">https://covers.example.org/crime.jpeg</subfield>
+      <subfield code="q">image/jpeg</subfield>
+    </datafield>
+  </record>
+  <record>
+    <leader>00000nam a2200000 i 4500</leader>
+    <controlfield tag="001">x2</controlfield>
+    <datafield tag="245" ind1="0" ind2="0">
+      <subfield code="a">Ampersand &amp; &lt;angle&gt; &quot;quotes&quot;</subfield>
+    </datafield>
+  </record>
+</collection>

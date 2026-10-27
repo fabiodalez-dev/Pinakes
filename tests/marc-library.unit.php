@@ -1,0 +1,232 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * The shared MARC library (App\Support\Marc) on the files committed in
+ * tests/fixtures/marc (assembled by tests/helpers/marc-fixtures.php with a
+ * serializer of its own): ISO 2709 and MARCXML reading and writing, MARC-8,
+ * malformed records that must not stop the batch, round trips, format
+ * detection, and the MARC 21 / UNIMARC / danMARC2 mappings field by field.
+ *
+ * Run: php tests/marc-library.unit.php   (exit 0 iff every check passes)
+ */
+
+use App\Support\Marc\BookMarcBuilder;
+use App\Support\Marc\Danmarc2LibriMapper;
+use App\Support\Marc\Iso2709Reader;
+use App\Support\Marc\Iso2709Writer;
+use App\Support\Marc\Marc21LibriMapper;
+use App\Support\Marc\Marc8Decoder;
+use App\Support\Marc\MarcBookData;
+use App\Support\Marc\MarcFormat;
+use App\Support\Marc\MarcParseException;
+use App\Support\Marc\MarcReadError;
+use App\Support\Marc\MarcRecord;
+use App\Support\Marc\MarcXmlReader;
+use App\Support\Marc\MarcXmlWriter;
+use App\Support\Marc\UnimarcLibriMapper;
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+require_once $root . '/app/helpers.php';
+
+$fx = __DIR__ . '/fixtures/marc';
+$pass = 0;
+$fail = 0;
+$check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
+    if ($ok) {
+        $pass++;
+        echo "  OK   {$label}\n";
+    } else {
+        $fail++;
+        echo "  FAIL {$label}\n";
+    }
+};
+/** @return list<MarcRecord|MarcReadError> */
+$all = static fn (iterable $reader): array => array_values(iterator_to_array($reader, false));
+$records = static fn (array $items): array => array_values(array_filter($items, static fn ($r): bool => $r instanceof MarcRecord));
+$errors = static fn (array $items): array => array_values(array_filter($items, static fn ($r): bool => $r instanceof MarcReadError));
+
+echo "ISO 2709 — MARC 21 UTF-8\n";
+$utf8 = $all(Iso2709Reader::fromPath("$fx/marc21-utf8.mrc"));
+$check(count($utf8) === 3 && count($records($utf8)) === 3, '01 three records read');
+/** @var MarcRecord $rosa */
+$rosa = $utf8[0];
+$check($rosa->controlField('001') === 'ocm00001' && $rosa->controlField('003') === 'OCoLC', '02 control fields');
+$check($rosa->leader()[9] === 'a' && strlen($rosa->leader()) === 24, '03 leader kept, UTF-8 declared');
+$check($rosa->subfield('245', 'a') === 'Il nome della rosa :' && $rosa->first('245')?->ind2 === '4', '04 data field value and indicators');
+$check(count($rosa->fieldsByTag('700')) === 3 && $rosa->subfieldValues('020', 'a') === ['9788845292613 (brossura)', '8845292614'], '05 repeated fields and subfields in order');
+$check(($utf8[1])->subfield('245', 'a') === 'Ökologie der Straße /', '06 UTF-8 multibyte values intact');
+
+echo "Round trips\n";
+foreach (['marc21-utf8.mrc', 'unimarc-utf8.mrc'] as $file) {
+    $original = (string) file_get_contents("$fx/$file");
+    $read = $records($all(Iso2709Reader::fromPath("$fx/$file")));
+    $written = implode('', array_map([Iso2709Writer::class, 'serialize'], $read));
+    $check($written === $original, "07 {$file}: read → write reproduces the file byte for byte");
+    $reread = $records($all(Iso2709Reader::fromString($written)));
+    $check(array_map(static fn ($r) => $r->toArray(), $reread) === array_map(static fn ($r) => $r->toArray(), $read), "08 {$file}: read → write → read is identical");
+    $xmlWriter = new MarcXmlWriter($file === 'unimarc-utf8.mrc' ? MarcXmlWriter::NS_MARCXCHANGE : MarcXmlWriter::NS_MARC21);
+    $xmlWriter->startCollection();
+    foreach ($read as $r) {
+        $xmlWriter->writeRecord($r);
+    }
+    $xmlWriter->endCollection();
+    $fromXml = $records($all(MarcXmlReader::fromString($xmlWriter->output())));
+    $strip = static fn (array $a): array => ['leader' => $a['leader'], 'fields' => $a['fields']];
+    $check(array_map(static fn ($r) => $strip($r->toArray()), $fromXml) === array_map(static fn ($r) => $strip($r->toArray()), $read), "09 {$file}: ISO 2709 → MARCXML → read is identical");
+}
+$handle = fopen('php://memory', 'w+b');
+$stream = new Iso2709Writer($handle);
+foreach ($records($utf8) as $r) {
+    $stream->write($r);
+}
+rewind($handle);
+$check(stream_get_contents($handle) === file_get_contents("$fx/marc21-utf8.mrc"), '10 the streaming writer writes the same bytes');
+
+echo "MARC-8\n";
+$m8 = $all(Iso2709Reader::fromPath("$fx/marc21-marc8.mrc"));
+$check(count($m8) === 4, '11 four records, the failing one included');
+$check($m8[0] instanceof MarcRecord && $m8[0]->subfield('100', 'a') === 'García Márquez, Gabriel' && $m8[0]->subfield('245', 'a') === 'Cien años de soledad', '12 combining diacritics move after their letter and compose (NFC)');
+$check($m8[0] instanceof MarcRecord && $m8[0]->leader()[9] === 'a', '13 a decoded record says UTF-8 in leader/09');
+$check($m8[1] instanceof MarcRecord && $m8[1]->subfield('100', 'a') === 'Ørsted, Hans Christian' && $m8[1]->subfield('245', 'a') === 'Français et æsop © 2001 Łódź', '14 ANSEL spacing letters, cedilla and acute');
+$check($m8[2] instanceof MarcReadError && $m8[2]->position === 3 && str_contains($m8[2]->message, 'not supported'), '15 a Cyrillic escape is a per-record error');
+$check($m8[3] instanceof MarcRecord && $m8[3]->subfield('245', 'a') === 'Haüser und Gärten', '16 the record after the error is read');
+$check(Marc8Decoder::decode("\x88The\x89 end") === 'The end', '17 non-sorting markers are dropped');
+try {
+    Marc8Decoder::decode("bad \xBF byte");
+    $check(false, '18 an undefined ANSEL byte throws');
+} catch (MarcParseException) {
+    $check(true, '18 an undefined ANSEL byte throws');
+}
+$forced = $records($all(Iso2709Reader::fromPath("$fx/marc21-utf8.mrc", Iso2709Reader::ENCODING_UTF8)));
+$check(count($forced) === 3, '19 forced UTF-8 reads a UTF-8 file');
+
+echo "Malformed records\n";
+$bad = $all(Iso2709Reader::fromPath("$fx/malformed.mrc"));
+$check(count($bad) === 5 && count($errors($bad)) === 3 && count($records($bad)) === 2, '20 five records: three errors, two read');
+$check($bad[0] instanceof MarcRecord && $bad[4] instanceof MarcRecord && $bad[4]->subfield('245', 'a') === 'Il nome della rosa :', '21 the good records around the bad ones are intact');
+$check($bad[1] instanceof MarcReadError && str_contains($bad[1]->message, 'past the end') && $bad[1]->position === 2, '22 a directory pointing past the record is reported at its position');
+$check($bad[2] instanceof MarcReadError && $bad[3] instanceof MarcReadError && str_contains($bad[3]->message, 'multiple of 12'), '23 a short record and a broken directory are reported');
+$check($bad[1] instanceof MarcReadError && $bad[1]->excerpt !== '' && mb_check_encoding($bad[1]->excerpt, 'UTF-8'), '24 the error carries a printable excerpt');
+
+echo "Resuming at an offset\n";
+$reader = Iso2709Reader::fromPath("$fx/marc21-utf8.mrc");
+$first = [];
+foreach ($reader as $pos => $r) {
+    $first[] = $r;
+    if ($pos === 2) {
+        break;
+    }
+}
+$resumed = $all(Iso2709Reader::fromPath("$fx/marc21-utf8.mrc", Iso2709Reader::ENCODING_AUTO, $reader->offset(), 2));
+$check(count($resumed) === 1 && $resumed[0] instanceof MarcRecord && $resumed[0]->controlField('001') === 'ocm00003', '25 a reader resumed at offset() continues with the next record');
+$positions = array_keys(iterator_to_array(Iso2709Reader::fromPath("$fx/marc21-utf8.mrc", Iso2709Reader::ENCODING_AUTO, $reader->offset(), 2)));
+$check($positions === [3], '26 and numbers it as record 3');
+
+echo "MARCXML\n";
+$xml = $all(MarcXmlReader::fromPath("$fx/marc21-collection.xml"));
+$check(count($xml) === 2 && $xml[1] instanceof MarcRecord && $xml[1]->subfield('245', 'a') === 'Ampersand & <angle> "quotes"', '27 a collection is streamed, entities decoded');
+$sru = '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>2</numberOfRecords><records>'
+    . '<record><recordSchema>marcxml</recordSchema><recordData><record xmlns="http://www.loc.gov/MARC21/slim"><leader>00000nam a2200000 a 4500</leader><datafield tag="245" ind1="0" ind2="0"><subfield code="a">Uno</subfield></datafield></record></recordData></record>'
+    . '<record><recordData><mx:record xmlns:mx="info:lc/xmlns/marcxchange-v2" format="danMARC2" type="Bibliographic"><mx:leader>00000n    2200000   4500</mx:leader><mx:datafield tag="245" ind1="0" ind2="0"><mx:subfield code="a">Due</mx:subfield></mx:datafield></mx:record></recordData></record>'
+    . '</records></searchRetrieveResponse>';
+$inSru = $records($all(MarcXmlReader::fromString($sru)));
+$check(count($inSru) === 2 && $inSru[0]->subfield('245', 'a') === 'Uno' && $inSru[1]->subfield('245', 'a') === 'Due', '28 records inside an SRU envelope, envelope records skipped');
+$check($inSru[1]->format() === 'danMARC2' && MarcFormat::detectFlavour($inSru[1]) === MarcFormat::DANMARC2, '29 the MARCXchange format attribute is kept and recognised');
+$recordXml = '<record><leader>00000nam a2200000 a 4500</leader><datafield tag="245" ind1="0" ind2="0"><subfield code="a">' . str_repeat('x', 200) . '</subfield></datafield></record>';
+$broken = $all(MarcXmlReader::fromString('<collection>' . str_repeat($recordXml, 300) . '<record><datafield tag="245"'));
+$last = end($broken);
+$check(count($records($broken)) >= 290 && count($errors($broken)) === 1 && $last instanceof MarcReadError && str_contains($last->message, 'not well-formed'), '30 XML that breaks off yields the records before it and one error');
+$single = MarcXmlWriter::recordToXml($rosa);
+$check(($records($all(MarcXmlReader::fromString($single)))[0] ?? null)?->toArray()['fields'] === $rosa->toArray()['fields'], '31 a standalone record document reads back identical');
+
+echo "Format detection\n";
+$check(MarcFormat::containerOfFile("$fx/marc21-utf8.mrc") === MarcFormat::CONTAINER_ISO2709 && MarcFormat::containerOfFile("$fx/marc21-collection.xml") === MarcFormat::CONTAINER_XML, '32 container told from the first bytes');
+$check(MarcFormat::detectContainer("\xEF\xBB\xBF  <?xml") === MarcFormat::CONTAINER_XML && MarcFormat::detectContainer('titolo;autori') === null, '33 a BOM is skipped, a CSV is neither');
+$uni = $records($all(Iso2709Reader::fromPath("$fx/unimarc-utf8.mrc")));
+$check(MarcFormat::detectFlavour($rosa) === MarcFormat::MARC21 && MarcFormat::detectFlavour($uni[0]) === MarcFormat::UNIMARC, '34 MARC 21 by its 245, UNIMARC by its 200');
+$dan = new MarcRecord();
+$dan->addDataField('001', '0', '0', [['a', '12345678'], ['b', '870970']]);
+$check(MarcFormat::detectFlavour($dan) === MarcFormat::DANMARC2, '35 a 001 data field means danMARC2');
+$dan001 = Iso2709Reader::parse(substr(Iso2709Writer::serialize($dan), 0, -1));
+$check($dan001->first('001') !== null && !$dan001->first('001')->isControl(), '36 an ISO 2709 001 with subfields reads as a data field');
+
+echo "MARC 21 mapping\n";
+$m = (new Marc21LibriMapper())->map($rosa);
+$check($m['titolo'] === 'Il nome della rosa' && $m['sottotitolo'] === 'romanzo', '37 245 $a $b without ISBD punctuation');
+$check($m['autori'] === ['Eco, Umberto', 'Rossi, Mario'], '38 100 and a 700 joint author are the authors');
+$check($m['curatore'] === ['Ferré, Lùcia'] && $m['illustratore'] === ['Disegni, Ugo'], '39 700 roles from $4 (edt) and from the 245 $c statement (illustrazioni di)');
+$check($m['isbn13'] === '9788845292613' && $m['isbn10'] === '8845292614' && $m['ean'] === '4006381333931', '40 020 qualifier dropped; 024 EAN');
+$check($m['lingua'] === 'Italiano' && $m['classificazione_dewey'] === '853.914' && $m['lc_classification'] === 'PQ4865.C6 N6 1980', '41 041 language, 082 Dewey, 050 LC');
+$check($m['edizione'] !== '' && $m['luogo_pubblicazione'] === 'Milano' && $m['editori'] === ['Bompiani'] && $m['anno_pubblicazione'] === '1980', '42 250, 264 place, publisher, year in brackets');
+$check($m['numero_pagine'] === '503' && $m['dimensioni'] === '21 cm', '43 300 pages and dimensions');
+$check($m['collana'] === 'Tascabili Bompiani' && $m['numero_serie'] === '12', '44 490 series and number');
+$check(str_starts_with($m['descrizione'], 'Un monaco') && $m['parole_chiave'] === ['Monasteri', 'medioevo'], '45 520 summary, 650/653 keywords');
+$check($m['copertina_url'] === 'https://covers.example.org/rosa.jpg', '46 856 cover');
+$m2 = (new Marc21LibriMapper())->map($utf8[1]);
+$check($m2['isbn13'] === '9783161484100' && $m2['editori'] === ['Verlag Grün', 'Edition Blau'] && $m2['anno_pubblicazione'] === '2015', '47 260 with two publishers, c2015, hyphenated ISBN');
+$check($m2['traduttore'] === ['Øster, Zoë'] && $m2['autori'] === ['Müller, Jürgen'], '48 a translator named by the statement (übersetzt von) is not an author');
+$check($m2['numero_pagine'] === '288' && $m2['collana'] === 'Studien zur Stadt' && $m2['numero_serie'] === '7' && $m2['lingua'] === 'Deutsch', '49 "288 S.", 830 series when no 490, 008 language');
+$m3 = (new Marc21LibriMapper())->map($utf8[2]);
+$check($m3['titolo'] === 'Untitled anthology' && $m3['autori'] === [] && $m3['anno_pubblicazione'] === '1999', '50 a bare record: 008 year');
+$crime = (new Marc21LibriMapper())->map($xml[0]);
+$check($crime['autori'] === ['Dostoyevsky, Fyodor'] && $crime['traduttore'] === ['McDuff, David'] && $crime['copertina_url'] === 'https://covers.example.org/crime.jpeg', '51 "translated with an introduction" → translator; 856 $q image/jpeg');
+
+echo "UNIMARC mapping\n";
+$u = (new UnimarcLibriMapper())->map($uni[0]);
+$check($u['titolo'] === 'Se questo è un uomo' && $u['sottotitolo'] === 'testimonianza' && $u['isbn13'] === '9788806219499' && $u['ean'] === '8001234567894', '52 200, 010, 073');
+$check($u['autori'] === ['Primo Levi'] && $u['curatore'] === ['Marco Belpoliti'], '53 700 author; 702 $4 340 editor');
+$check($u['editori'] === ['Einaudi'] && $u['luogo_pubblicazione'] === 'Torino' && $u['anno_pubblicazione'] === '2014' && $u['lingua'] === 'Italiano', '54 210 place/publisher/year, 101 language');
+$check($u['numero_pagine'] === '220' && $u['dimensioni'] === '20 cm' && $u['collana'] === 'Super ET' && $u['numero_serie'] === '45', '55 215, 225');
+$check($u['classificazione_dewey'] === '940.5318' && $u['parole_chiave'] === ['Olocausto'] && str_starts_with($u['descrizione'], 'Il racconto'), '56 676, 606, 330');
+$check($u['copertina_url'] === 'https://covers.example.org/levi.png', '57 856 cover');
+$u2 = (new UnimarcLibriMapper())->map($uni[1]);
+$check($u2['isbn10'] === '2070360024' && $u2['editori'] === ['Gallimard'] && $u2['anno_pubblicazione'] === '1971' && $u2['traduttore'] === ['Matthew Ward'], '58 214 (UNIMARC 2014+), 702 $4 730 translator');
+
+echo "danMARC2 mapping\n";
+$dbc = $records($all(MarcXmlReader::fromPath(__DIR__ . '/fixtures/sru/dbc-opensearch-9788702272451.xml')));
+$hp = null;
+foreach ($dbc as $r) {
+    $d = (new Danmarc2LibriMapper())->map($r);
+    if ($d['titolo'] === 'Harry Potter og de vises sten') {
+        $hp = $d;
+        break;
+    }
+}
+$check($hp !== null && $hp['autori'] === ['Rowling, Joanne K.'] && $hp['traduttore'] === ['Hanna Lützen'], '59 danMARC2 through the existing reader: author and 720 translator');
+
+echo "Book → MARC → book\n";
+$row = [
+    'id' => 42, 'titolo' => 'Viaggio al centro', 'sottotitolo' => 'della terra', 'isbn13' => '9788845292613', 'isbn10' => '',
+    'ean' => '4006381333931', 'lingua' => 'Italiano', 'classificazione_dewey' => '843.8', 'lc_classification' => 'PQ2469',
+    'edizione' => 'Terza edizione', 'luogo_pubblicazione' => 'Roma', 'anno_pubblicazione' => 2001, 'numero_pagine' => 310,
+    'dimensioni' => '20 cm', 'collana' => 'Classici', 'numero_serie' => '9', 'descrizione' => '<p>Un viaggio.</p>',
+    'parole_chiave' => 'avventura, viaggi', 'copertina_url' => 'https://img.example.org/c.jpg',
+    'created_at' => '2024-01-01 00:00:00', 'updated_at' => '2024-01-02 00:00:00',
+];
+$authors = [['nome' => 'Jules Verne', 'ruolo' => 'principale'], ['nome' => 'Maria Traduce', 'ruolo' => 'traduttore']];
+$back = (new Marc21LibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize(BookMarcBuilder::marc21($row, $authors, [['nome' => 'Mursia']], null, true)))))[0]);
+$check($back['titolo'] === 'Viaggio al centro' && $back['autori'] === ['Jules Verne'] && $back['traduttore'] === ['Maria Traduce'] && $back['editori'] === ['Mursia'], '60 MARC 21 export maps back: title, author, translator, publisher');
+$check($back['isbn13'] === '9788845292613' && $back['ean'] === '4006381333931' && $back['lc_classification'] === 'PQ2469' && $back['copertina_url'] === 'https://img.example.org/c.jpg', '61 extended fields round trip: EAN, LC, cover');
+$check($back['anno_pubblicazione'] === '2001' && $back['numero_pagine'] === '310' && $back['collana'] === 'Classici' && $back['descrizione'] === 'Un viaggio.', '62 year, pages, series, plain summary');
+$backU = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize(BookMarcBuilder::unimarc($row, $authors, [['nome' => 'Mursia']], null, true)))))[0]);
+$check($backU['titolo'] === 'Viaggio al centro' && $backU['autori'] === ['Jules Verne'] && $backU['traduttore'] === ['Maria Traduce'] && $backU['classificazione_dewey'] === '843.8' && $backU['copertina_url'] === 'https://img.example.org/c.jpg', '63 UNIMARC export maps back, with 676 and 856');
+$plain = BookMarcBuilder::marc21($row, $authors, [], null, false);
+$check($plain->first('024') === null && $plain->first('856') === null && $plain->first('050') === null, '64 without $extended the record is the OAI one (no 024/050/856)');
+
+echo "Import row\n";
+$importRow = MarcBookData::toImportRow($m);
+$check($importRow['autori'] === 'Eco, Umberto;Rossi, Mario' && $importRow['editore'] === 'Bompiani' && $importRow['curatore'] === 'Ferré, Lùcia' && !array_key_exists('traduttore', $importRow), '65 names joined with ";", an absent role is not a column');
+$check($importRow['parole_chiave'] === 'Monasteri, medioevo' && $importRow['isbn13'] === '9788845292613', '66 keywords joined with ", "');
+
+echo "Writer limits\n";
+$long = new MarcRecord();
+$long->addDataField('520', ' ', ' ', [['a', str_repeat('è', 6000)]]);
+$serialized = Iso2709Writer::serialize($long);
+$reparsed = Iso2709Reader::parse(substr($serialized, 0, -1));
+$value = (string) $reparsed->subfield('520', 'a');
+$check(mb_check_encoding($value, 'UTF-8') && strlen($value) <= 9999 && strlen($value) > 9000, '67 a field over 9999 bytes is cut on a character boundary');
+
+echo "\n{$pass} PASS, {$fail} FAIL\n";
+exit($fail === 0 ? 0 : 1);

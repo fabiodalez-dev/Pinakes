@@ -52,7 +52,7 @@ final class MarcXmlReader implements \IteratorAggregate
             $more = $this->reader->read();
             while ($more) {
                 if ($this->reader->nodeType === \XMLReader::ELEMENT && $this->reader->localName === 'record') {
-                    $node = $this->reader->expand();
+                    $node = @$this->reader->expand();
                     if ($node instanceof \DOMElement && self::isMarcRecord($node)) {
                         $position++;
                         try {
