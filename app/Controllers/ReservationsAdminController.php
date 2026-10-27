@@ -136,7 +136,7 @@ class ReservationsAdminController
         }
         if ($end === '') {
             $loanDays = (new \App\Services\CirculationPolicy($db))->forReservation($id)->durationDays;
-            $end = \App\Services\CirculationPolicy::dueDateFor($start, $loanDays);
+            $end = \App\Services\CirculationPolicy::dueDateFor($start, $loanDays, $db);
         }
         // Normalize an inverted range on the reservation dates too (form can post
         // end < start), mirroring the data_*_richiesta clamp below (#252).
@@ -516,7 +516,7 @@ class ReservationsAdminController
             $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId)->durationDays;
             // The default duration starts from the requested start date, not
             // from today (critical for future reservations).
-            $dataScadenzaDate = \App\Services\CirculationPolicy::dueDateFor($dataPrenotazioneDate, $loanDays);
+            $dataScadenzaDate = \App\Services\CirculationPolicy::dueDateFor($dataPrenotazioneDate, $loanDays, $db);
             $dataScadenza = $dataScadenzaDate . ' 23:59:59';
         } else {
             $dataScadenzaDate = $dataScadenza; // Keep date only for loan period

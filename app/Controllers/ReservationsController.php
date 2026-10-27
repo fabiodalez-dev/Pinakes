@@ -306,11 +306,16 @@ class ReservationsController
             $endDate = \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $requestPolicy->requestDurationDays());
         }
 
-        $requestedDurationDays = (int) (new DateTime($startDate))->diff(new DateTime($endDate))->days;
-        if ($requestedDurationDays > $maxDurationDays) {
+        // The longest loan ends on the maximum day, moved forward like every
+        // due date when it falls on a closed day (closed days are not loan
+        // days); without closures this is start + maximum, as before.
+        if ($endDate > \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $maxDurationDays, $this->db)) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'max_duration_exceeded', 'message' => __('Il periodo richiesto supera la durata massima consentita di %d giorni', $maxDurationDays)]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        // Closures calendar: a return date on a closed day moves to the next
+        // open day (after the duration cap: closed days are not loan days).
+        $endDate = \App\Services\CirculationPolicy::dueDateFor($endDate, 0, $this->db);
 
         // Availability decision routes through CapacityService — the single
         // capacity authority — so this web loan-request gate matches the mobile
@@ -724,10 +729,19 @@ class ReservationsController
         $policy = $excludeUserId !== null
             ? $circulation->forLoan($excludeUserId, (int) $bookId)
             : $circulation->defaults();
+        // Closures calendar: closed days in the same horizon, so the request
+        // calendars can refuse them as a start/pickup day, plus enough days
+        // past it for the browser to move a proposed due date that falls on
+        // a closed day forward to the next open day (additive field).
+        $from = $startDate ?? \App\Support\DateHelper::today();
+        $closedHorizon = max(0, $days - 1) + max($policy->durationDays, $policy->maxRequestDays) + 31;
+        $closedDates = \App\Support\LibraryCalendar::forDb($this->db)
+            ->closedDatesBetween($from, \App\Support\LibraryCalendar::shift($from, $closedHorizon));
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
             'loan_duration_days' => $policy->requestDurationDays(),
             'max_loan_duration_days' => $policy->maxRequestDays,
             'staff_loan_duration_days' => $policy->durationDays,
+            'closed_dates' => $closedDates,
         ];
     }
 

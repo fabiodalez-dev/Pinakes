@@ -581,7 +581,7 @@ class UserActionsController
 
             $libroId = (int) $reservation['libro_id'];
             $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
-            $endDate = \App\Services\CirculationPolicy::dueDateFor($date, $loanDays);
+            $endDate = \App\Services\CirculationPolicy::dueDateFor($date, $loanDays, $db);
 
             // Lock book row first to serialize every capacity decision.
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
@@ -720,12 +720,12 @@ class UserActionsController
         $data_prestito = \App\Support\DateHelper::today();
         $circulation = new \App\Services\CirculationPolicy($db);
         $loanPolicy = $circulation->forLoan($utenteId, $libroId);
-        $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_prestito, $loanPolicy->requestDurationDays());
+        $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_prestito, $loanPolicy->requestDurationDays(), $db);
         // Optional return date (Mobile API 1.8.2): the app proposes the day
         // before a scheduled loan or reservation when the default would cross
         // it, exactly as the website calendar does. Bounded like the public
         // endpoint: a real day, not before the start, within the maximum.
-        $endOverride = $this->requestedEndDate($loanPolicy->maxRequestDays, $data, $data_prestito);
+        $endOverride = $this->requestedEndDate($loanPolicy->maxRequestDays, $data, $data_prestito, $db);
         if ($endOverride === false) {
             return $this->back($response, ['loan_error' => 'invalid_date']);
         }
@@ -733,7 +733,8 @@ class UserActionsController
             return $this->back($response, ['loan_error' => 'max_duration_exceeded']);
         }
         if ($endOverride !== null) {
-            $data_scadenza = $endOverride;
+            // A chosen return date on a closed day moves to the next open day.
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($endOverride, 0, $db);
         }
 
         // Use transaction + lock to prevent race conditions
@@ -984,9 +985,9 @@ class UserActionsController
         // Calculate date range for availability check
         $start = ($desired !== '') ? $desired : $today;
         $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
-        $end = \App\Services\CirculationPolicy::dueDateFor($start, $reservePolicy->requestDurationDays());
+        $end = \App\Services\CirculationPolicy::dueDateFor($start, $reservePolicy->requestDurationDays(), $db);
         // Optional return date (Mobile API 1.8.2), bounded as in loan().
-        $endOverride = $this->requestedEndDate($reservePolicy->maxRequestDays, $data, $start);
+        $endOverride = $this->requestedEndDate($reservePolicy->maxRequestDays, $data, $start, $db);
         if ($endOverride === false) {
             return $this->back($response, ['reserve_error' => 'invalid_date']);
         }
@@ -994,7 +995,8 @@ class UserActionsController
             return $this->back($response, ['reserve_error' => 'max_duration_exceeded']);
         }
         if ($endOverride !== null) {
-            $end = $endOverride;
+            // A chosen end date on a closed day moves to the next open day.
+            $end = \App\Services\CirculationPolicy::dueDateFor($endOverride, 0, $db);
         }
 
         // Start transaction for concurrency control
@@ -1136,7 +1138,7 @@ class UserActionsController
      * @param array<mixed> $data
      * @return string|false|null
      */
-    private function requestedEndDate(int $maxDays, array $data, string $startDate): string|false|null
+    private function requestedEndDate(int $maxDays, array $data, string $startDate, ?\mysqli $db = null): string|false|null
     {
         $raw = $data['end_date'] ?? null;
         if (!is_scalar($raw)) {
@@ -1149,8 +1151,10 @@ class UserActionsController
         if (!\App\Support\DateHelper::isISODateFormat($end) || $end < $startDate) {
             return false;
         }
-        $days = (int) (new \DateTimeImmutable($startDate))->diff(new \DateTimeImmutable($end))->days;
-        return $days > $maxDays ? 'max_duration_exceeded' : $end;
+        // The longest loan ends on the maximum day, moved forward like every
+        // due date when it falls on a closed day (closed days are not loan
+        // days); without closures this is start + maximum, as before.
+        return $end > \App\Services\CirculationPolicy::dueDateFor($startDate, $maxDays, $db) ? 'max_duration_exceeded' : $end;
     }
 
     private function back(Response $response, array $params): Response
