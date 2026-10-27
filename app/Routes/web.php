@@ -842,6 +842,43 @@ return function (App $app): void {
         return $controller->deleteApiKey($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Closures calendar (Admin Only): weekly closed days, closure intervals,
+    // holiday preset, ICS import. Every action re-checks mayConfigure() inline.
+    $app->get('/admin/calendar', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->index($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/weekdays', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->saveWeekdays($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/closures', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->store($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/closures/{id:\d+}/update', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->update($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/closures/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->delete($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/preset', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->importPreset($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/import-ics', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->importIcs($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Language Management Routes (Admin Only)
     $app->get('/admin/languages', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -3080,7 +3117,9 @@ return function (App $app): void {
                     'max_loan_duration_days' => $availability['max_loan_duration_days'] ?? null,
                     // Staff loan length for this borrower's patron type and
                     // this material (CirculationPolicy), for the admin form.
-                    'staff_loan_duration_days' => $availability['staff_loan_duration_days'] ?? null
+                    'staff_loan_duration_days' => $availability['staff_loan_duration_days'] ?? null,
+                    // Closures calendar: days the library is closed (not a start/pickup day).
+                    'closed_dates' => $availability['closed_dates'] ?? []
                 ]
             ];
             $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));

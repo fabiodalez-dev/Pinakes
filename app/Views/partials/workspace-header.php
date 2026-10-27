@@ -12,7 +12,7 @@ $workspacePath = substr($workspacePath, strlen(\App\Support\HtmlHelper::getBaseP
 $workspaceSection = match (true) {
     preg_match('#^/admin/(settings|languages|cms)(?:/|$)#', $workspacePath) === 1 => __('Impostazioni'),
     preg_match('#^/admin/(books|authors|publishers|genres|series|placement|inventory|opere|espressioni)#', $workspacePath) === 1 => __('Catalogo'),
-    preg_match('#^/admin/(loans|reservations|users)#', $workspacePath) === 1 => __('Circolazione'),
+    preg_match('#^/admin/(loans|reservations|users|calendar)#', $workspacePath) === 1 => __('Circolazione'),
     str_starts_with($workspacePath, '/admin/periodicals') => __('Emeroteca'),
     str_starts_with($workspacePath, '/admin/archives') => __('Archivi'),
     str_starts_with($workspacePath, '/admin/book-club') => __('Club di lettura'),
