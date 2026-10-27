@@ -99,8 +99,8 @@ class NotificationService {
      */
     private function expectedPickupDeadline(string $start, string $end): string
     {
-        $deadline = (new \DateTimeImmutable($start))->modify('+' . $this->pickupExpiryDays() . ' days')->format('Y-m-d');
-        return ($end !== '' && $end < $deadline) ? $end : $deadline;
+        // Open days only (closures calendar), as activateScheduledLoans() computes it.
+        return LibraryCalendar::pickupDeadline($this->db, $start, $this->pickupExpiryDays(), $end !== '' ? $end : null);
     }
 
     /**

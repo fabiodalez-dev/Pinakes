@@ -891,7 +891,7 @@ class NcipServerPlugin
         // Atomic checkout: lock the book row so concurrent requests serialize.
         $today = \App\Support\DateHelper::today();
         $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->durationDays;
-        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
+        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays, $this->db);
         $failureReason = null;
         $loanId  = $this->createLoanAtomic($itemId, $userId, $dueDate, (int) ($caller['id'] ?? 0), $failureReason);
 
@@ -1168,7 +1168,7 @@ class NcipServerPlugin
         // A request is capped like the website and app ones: the loan length,
         // but never past the longest request window of the patron type.
         $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->requestDurationDays();
-        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
+        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays, $this->db);
         $failureReason = 'db_error';
         $requestOutcome = $this->createRequestItemNcip(
             $itemId,
@@ -2796,7 +2796,7 @@ class NcipServerPlugin
             }
             $renewDays = $renewPolicy->renewalDays;
             $currentDue = (string) $loan['data_scadenza'];
-            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($currentDue, $renewDays);
+            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($currentDue, $renewDays, $this->db, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
 
             // #336 parity con PrestitiController::renew/bulkExtend: il giorno di
             // scadenza corrente è già detenuto da QUESTO prestito, quindi la
@@ -2812,7 +2812,7 @@ class NcipServerPlugin
                 $this->db->rollback();
                 $failureReason = 'no_capacity';
                 // Same figures the web renew() redirect carries (LoanWindow).
-                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked);
+                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db));
                 return null;
             }
 
@@ -2838,7 +2838,7 @@ class NcipServerPlugin
                     $this->db->rollback();
                     $failureReason = 'overlap';
                     // The loan's own copy is needed by a later loan: name that day.
-                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked);
+                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db));
                     return null;
                 }
             }

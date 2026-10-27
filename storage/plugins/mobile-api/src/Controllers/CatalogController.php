@@ -865,7 +865,7 @@ final class CatalogController
      * route GET /staff/books/{id}/availability (Mobile API 1.7.0).
      *
      * @param array<string, mixed> $avail
-     * @return array{total_copies:int, earliest_available:mixed, unavailable_dates:list<mixed>, days:list<array<string, mixed>>}
+     * @return array{total_copies:int, earliest_available:mixed, unavailable_dates:list<mixed>, closed_dates:list<mixed>, days:list<array<string, mixed>>}
      */
     public static function mapAvailability(array $avail): array
     {
@@ -873,6 +873,9 @@ final class CatalogController
             'total_copies'       => (int) ($avail['total_copies'] ?? 0),
             'earliest_available' => $avail['earliest_available'] ?? null,
             'unavailable_dates'  => array_values((array) ($avail['unavailable_dates'] ?? [])),
+            // Closures calendar (additive): days the library is closed, which
+            // cannot be a start/pickup day; a return date on one moves forward.
+            'closed_dates'       => array_values((array) ($avail['closed_dates'] ?? [])),
             'days'               => self::normalizeMobileAvailabilityDays(
                 array_values((array) ($avail['days'] ?? [])),
                 (int) ($avail['total_copies'] ?? 0)

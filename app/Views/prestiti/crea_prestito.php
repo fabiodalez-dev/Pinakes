@@ -401,6 +401,7 @@ unset($workspaceHeader);
 
       // Translations
       const i18n = {
+        closedDay: <?= json_encode(__("Biblioteca chiusa"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         noResults: <?= json_encode(__("Nessun risultato"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         available: <?= json_encode(__("Disponibile"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         notAvailable: <?= json_encode(__("Non disponibile ora"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
@@ -430,6 +431,19 @@ unset($workspaceHeader);
       // Once a borrower and a book are chosen, the availability answer carries
       // the duration of THAT patron type and material (staff_loan_duration_days).
       let effectiveLoanDays = defaultLoanDays;
+      // Closures calendar: days the library is closed. Disabled in both
+      // pickers (today stays selectable: a desk may record a loan while
+      // closed to the public); a proposed due date steps to an open day.
+      const closedDates = <?= json_encode(array_values($closedDates ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      const closedSet = new Set(closedDates);
+      const closedDisable = closedDates.filter(function(d) { return d !== appToday; });
+      function toOpenDay(isoDate, step) {
+        let day = isoDate;
+        for (let i = 0; i < 400 && closedSet.has(day); i++) {
+          day = addDaysToIso(day, step);
+        }
+        return day;
+      }
 
       function addDaysToIso(isoDate, days) {
         const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
@@ -467,9 +481,10 @@ unset($workspaceHeader);
           }
         }
         if (firstBlocked === null) {
-          return { endDate: addDaysToIso(startIso, defaultDays), maxDays: defaultDays, firstBlocked: null, capped: false };
+          return { endDate: toOpenDay(addDaysToIso(startIso, defaultDays), 1), maxDays: defaultDays, firstBlocked: null, capped: false };
         }
-        const endDate = addDaysToIso(firstBlocked, -1);
+        // Capped: stepping forward would run into the blocked day, so step back.
+        const endDate = toOpenDay(addDaysToIso(firstBlocked, -1), -1);
         return { endDate, maxDays: daysBetweenIso(startIso, endDate), firstBlocked, capped: true };
       }
 
@@ -552,6 +567,13 @@ unset($workspaceHeader);
 
         // Don't color past dates
         if (isoDate < today) {
+          return;
+        }
+
+        if (closedSet.has(isoDate) && isoDate !== today) {
+          dayElem.classList.add('closed-day');
+          dayElem.setAttribute('title', i18n.closedDay);
+          dayElem.style.textDecoration = 'line-through';
           return;
         }
 
@@ -655,6 +677,7 @@ unset($workspaceHeader);
         // swaps in the native date picker on mobile, which shows neither the
         // availability colours nor the occupied days.
         disableMobile: true,
+        disable: closedDisable,
         onDayCreate: colorCalendarDates,
         onChange: function(selectedDates, dateStr) {
           if (dateStr) {
@@ -682,6 +705,7 @@ unset($workspaceHeader);
         minDate: dataPrestitoEl.value || appToday,
         locale: localeObj || undefined,
         disableMobile: true,
+        disable: closedDisable,
         onDayCreate: colorCalendarDates
       });
 

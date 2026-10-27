@@ -69,17 +69,22 @@ final class CirculationPolicy
      * The final due date of a loan or renewal that starts (or is extended
      * from) $startYmd and lasts $days days.
      *
-     * Every due date in the application is computed here. The closures
-     * calendar hooks in at this point to move a date that falls on a closed
-     * day forward to the next open day.
+     * Every due date in the application is computed here. With a connection
+     * the closures calendar applies: a date that falls on a closed day moves
+     * forward to the next open day (plan §13, decision 7), including the
+     * closures of the copy's branch when $copiaId is known. A due date the
+     * staff or the reader typed goes through here with $days = 0, so it is
+     * moved by the same rule. Without closures (or without $db) the result is
+     * the plain calendar arithmetic of every release before 0.9.0.
      */
-    public static function dueDateFor(string $startYmd, int $days): string
+    public static function dueDateFor(string $startYmd, int $days, ?mysqli $db = null, ?int $copiaId = null): string
     {
         $start = \DateTimeImmutable::createFromFormat('!Y-m-d', substr($startYmd, 0, 10));
         if ($start === false) {
             $start = new \DateTimeImmutable($startYmd);
         }
-        return $start->modify('+' . max(0, $days) . ' days')->format('Y-m-d');
+        $due = $start->modify('+' . max(0, $days) . ' days')->format('Y-m-d');
+        return $db === null ? $due : \App\Support\LibraryCalendar::dueDate($db, $due, $copiaId);
     }
 
     /** Drop the per-request schema probe (tests that migrate a database mid-process). */

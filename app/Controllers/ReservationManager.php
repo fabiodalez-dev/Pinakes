@@ -460,7 +460,8 @@ class ReservationManager
     {
         $bookId = (int) $reservation['libro_id'];
         $startDate = $reservation['data_inizio_richiesta'];
-        $endDate = $reservation['data_fine_richiesta'];
+        // Closures calendar: the loan's due date moves to the next open day.
+        $endDate = \App\Services\CirculationPolicy::dueDateFor((string) $reservation['data_fine_richiesta'], 0, $this->db);
 
         // Always create as 'pendente' (attivo=0) - requires admin confirmation of physical pickup
         // Origin is 'prenotazione' to distinguish from manual requests

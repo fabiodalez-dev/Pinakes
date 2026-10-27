@@ -374,7 +374,8 @@ class LoanApprovalController
                 $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
                 // Base su $today (timezone applicativo) per coerenza con la
                 // classificazione immediato/futuro a cavallo della mezzanotte.
-                $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
+                // Open days only (closures calendar); identical to +N days without closures.
+                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays);
                 // Cap alla fine della finestra del prestito (L1): una deadline oltre
                 // data_scadenza permetterebbe di confermare il ritiro di un prestito
                 // già scaduto e terrebbe la copia impegnata oltre la finestra.

@@ -600,6 +600,7 @@ final class OpenApiController
                                         'total_copies'       => ['type' => 'integer'],
                                         'earliest_available' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                                         'unavailable_dates'  => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date']],
+                                        'closed_dates'       => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date'], 'description' => 'Days the library is closed (closures calendar): not selectable as a start/pickup day; a return date on one moves to the next open day.'],
                                         'days'               => ['type' => 'array', 'items' => [
                                             'type'       => 'object',
                                             'properties' => [

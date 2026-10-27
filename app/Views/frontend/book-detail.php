@@ -1641,7 +1641,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // proposed return date is the default duration, or the day before the
     // conflict when that comes first (`capped`, which is what the note under
     // the field explains).
-    function loanWindowFrom(startIso, availabilityByDate, defaultDays, maxDays) {
+    //
+    // Closures calendar: a return date on a day the library is closed moves
+    // forward to the next open day (the server applies the same rule, also to
+    // the maximum), and a return date capped by a conflict steps back to the
+    // last open day before it.
+    function toOpenDayIso(isoDate, step, closedSet) {
+      let day = isoDate;
+      for (let i = 0; i < 400 && closedSet && closedSet.has(day); i++) {
+        day = addDaysToIso(day, step);
+      }
+      return day;
+    }
+
+    // The day `days` open days after `startIso` (the pickup deadline rule of
+    // LibraryCalendar::pickupDeadline); plain calendar days without closures.
+    function addOpenDaysIso(startIso, days, closedSet) {
+      if (!closedSet || closedSet.size === 0) return addDaysToIso(startIso, days);
+      let day = startIso;
+      let counted = 0;
+      for (let i = 0; i < 1100 && counted < days; i++) {
+        day = addDaysToIso(day, 1);
+        if (!closedSet.has(day)) counted++;
+      }
+      return counted < days ? addDaysToIso(startIso, days) : day;
+    }
+
+    function loanWindowFrom(startIso, availabilityByDate, defaultDays, maxDays, closedSet) {
       const lookAhead = Math.max(defaultDays, maxDays || defaultDays);
       let firstBlocked = null;
       for (let i = 1; i <= lookAhead; i++) {
@@ -1652,8 +1678,10 @@ document.addEventListener('DOMContentLoaded', function() {
           break;
         }
       }
-      const maxEndDate = firstBlocked === null ? addDaysToIso(startIso, lookAhead) : addDaysToIso(firstBlocked, -1);
-      const defaultEnd = addDaysToIso(startIso, defaultDays);
+      const maxEndDate = firstBlocked === null
+        ? toOpenDayIso(addDaysToIso(startIso, lookAhead), 1, closedSet)
+        : toOpenDayIso(addDaysToIso(firstBlocked, -1), -1, closedSet);
+      const defaultEnd = toOpenDayIso(addDaysToIso(startIso, defaultDays), 1, closedSet);
       const capped = firstBlocked !== null && maxEndDate < defaultEnd;
       const endDate = capped ? maxEndDate : defaultEnd;
       return {
@@ -1701,6 +1729,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Fetch availability data for the calendar
         let disabledDates = [];
         let availabilityByDate = {};
+        // Closures calendar: days the library is closed. Not a start/pickup
+        // day; a return date on one is moved by the server to the next open day.
+        let closedDates = [];
 
         let maxAvailableDate = null;
         try {
@@ -1720,6 +1751,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
               }
               disabledDates = availData.availability.unavailable_dates || [];
+              closedDates = Array.isArray(availData.availability.closed_dates) ? availData.availability.closed_dates : [];
               if (availData.availability.earliest_available) {
                 const earliest = String(availData.availability.earliest_available);
                 suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliest) ? earliest : appToday;
@@ -1744,6 +1776,20 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch(e) {
           console.error('Error fetching availability:', e);
         }
+
+        const closedDaySet = new Set(closedDates);
+        // The suggested start must be an open day too.
+        if (closedDates.length > 0) {
+          const closedSet = new Set(closedDates);
+          const blockedSet = new Set(disabledDates);
+          let guard = 0;
+          while ((closedSet.has(suggestedDate) || blockedSet.has(suggestedDate)) && guard < 400) {
+            suggestedDate = addDaysToIso(suggestedDate, 1);
+            guard++;
+          }
+        }
+        const closedDayText = <?php echo json_encode(__('Biblioteca chiusa'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+        const closedStartText = <?php echo json_encode(__('La biblioteca è chiusa in questo giorno: scegli un altro giorno di inizio.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
 
         const formatDateIT = (dateStr) => {
           if (!dateStr) { return ''; }
@@ -1797,7 +1843,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // the maximum duration) and say so under the field; from a start with
         // no conflict ahead the note disappears.
         const applyLoanWindow = (startIso) => {
-          const loanWindow = loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays);
+          const loanWindow = loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet);
           if (endPicker) {
             endPicker.set('minDate', startIso);
             endPicker.set('maxDate', loanWindow.maxEndDate);
@@ -1812,7 +1858,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const startIso = (document.getElementById('swal-date-start') || {}).value || '';
           let text = blockedDayText(isoDate, state);
           if (/^\d{4}-\d{2}-\d{2}$/.test(startIso)) {
-            const loanWindow = loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays);
+            const loanWindow = loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet);
             if (loanWindow.firstBlocked !== null) {
               text += ' ' + windowText(loanWindow);
             }
@@ -1886,6 +1932,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const isoDate = fp.formatDate(dayElem.dateObj, 'Y-m-d');
                 const info = availabilityByDate[isoDate];
 
+                if (fp.element && fp.element.id === 'swal-date-start' && closedDates.includes(isoDate)) {
+                  dayElem.classList.add('closed-day', 'flatpickr-disabled');
+                  dayElem.setAttribute('aria-disabled', 'true');
+                  dayElem.setAttribute('title', closedDayText);
+                  dayElem.style.backgroundColor = '#f3f4f6';
+                  dayElem.style.borderColor = '#e5e7eb';
+                  dayElem.style.color = '#9ca3af';
+                  dayElem.style.textDecoration = 'line-through';
+                  return;
+                }
+
                 if (info) {
                   dayElem.classList.add(`${info.state}-day`);
                   if (info.state !== 'free') {
@@ -1923,6 +1980,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (window.flatpickr) {
               startPicker = window.flatpickr(startEl, {
                 ...baseOpts,
+                // A closed day cannot be the start (pickup) day.
+                disable: disabledDates.concat(closedDates),
                 onChange: function(selectedDates, dateStr, instance) {
                   if (selectedDates.length > 0 && dateStr) {
                     applyLoanWindow(dateStr);
@@ -1966,6 +2025,10 @@ document.addEventListener('DOMContentLoaded', function() {
               Swal.showValidationMessage(__('Seleziona una data di inizio'));
               return false;
             }
+            if (closedDates.includes(startDate)) {
+              Swal.showValidationMessage(closedStartText);
+              return false;
+            }
             // A return date past the first blocked day (or no return date, which
             // the server fills with the full default) would be refused anyway:
             // say how long the loan can be instead of sending it.
@@ -1973,12 +2036,12 @@ document.addEventListener('DOMContentLoaded', function() {
               Swal.showValidationMessage(endBeforeStartText);
               return false;
             }
-            const loanWindow = loanWindowFrom(startDate, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays);
+            const loanWindow = loanWindowFrom(startDate, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet);
             if (loanWindow.firstBlocked !== null && loanWindow.maxDays < 1) {
               Swal.showValidationMessage(noWindowText(loanWindow));
               return false;
             }
-            const effectiveEnd = endDate || addDaysToIso(startDate, defaultRequestLoanDays);
+            const effectiveEnd = endDate || toOpenDayIso(addDaysToIso(startDate, defaultRequestLoanDays), 1, closedDaySet);
             if (effectiveEnd > loanWindow.maxEndDate) {
               Swal.showValidationMessage(loanWindow.firstBlocked !== null ? loanLimitText(loanWindow) : maxDurationText);
               return false;
@@ -2011,7 +2074,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              const effectiveEndDate = formValues.endDate || addDaysToIso(formValues.startDate, defaultRequestLoanDays);
+              const effectiveEndDate = formValues.endDate || toOpenDayIso(addDaysToIso(formValues.startDate, defaultRequestLoanDays), 1, closedDaySet);
               const isWaitlistReservation = result.status === 'reserved';
               const rangeTemplate = isWaitlistReservation ? reservationRangeTpl : successRangeTpl;
               const successHtml = rangeTemplate
@@ -2022,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', function() {
               // A scheduled ('prenotato') loan is not awaiting pickup yet: branch
               // the footnote so it doesn't promise imminent pickup instructions.
               const isScheduled = result.loan_state === 'prenotato';
-              let pickupDeadline = addDaysToIso(formValues.startDate, pickupExpiryDays);
+              let pickupDeadline = addOpenDaysIso(formValues.startDate, pickupExpiryDays, closedDaySet);
               if (effectiveEndDate && effectiveEndDate < pickupDeadline) {
                 pickupDeadline = effectiveEndDate;
               }
