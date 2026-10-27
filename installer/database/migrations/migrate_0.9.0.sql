@@ -248,3 +248,24 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 -- ── end Circulation policy ──
+
+-- ── closures calendar ──
+-- calendario_chiusure: the days the library is closed (one row per interval,
+-- optionally every year, optionally for one branch). Due dates that fall on a
+-- closed day move to the next open day; pickup deadlines count open days.
+-- The weekly closed days live in system_settings (loans.closed_weekdays) and
+-- need no schema. Additive and idempotent: CREATE TABLE IF NOT EXISTS.
+CREATE TABLE IF NOT EXISTS `calendario_chiusure` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `data_inizio` date NOT NULL,
+  `data_fine` date NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `ricorrente_annuale` tinyint(1) NOT NULL DEFAULT '0',
+  `sede_id` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_calendario_chiusure_range` (`data_inizio`,`data_fine`),
+  KEY `idx_calendario_chiusure_sede` (`sede_id`),
+  CONSTRAINT `fk_calendario_chiusure_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ── end closures calendar ──

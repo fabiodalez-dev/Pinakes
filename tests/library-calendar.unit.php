@@ -1,0 +1,150 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * LibraryCalendar: closed weekdays, closure ranges, yearly recurrence,
+ * branch-specific closures, Easter over several years, DST, ICS import and
+ * the two loan funnels' pure arithmetic.
+ *
+ * Pure (no database). Run: php tests/library-calendar.unit.php
+ */
+
+use App\Support\LibraryCalendar;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$checks = 0;
+$failures = 0;
+$check = static function (bool $ok, string $label) use (&$checks, &$failures): void {
+    $checks++;
+    if ($ok) {
+        echo "OK   {$label}\n";
+    } else {
+        $failures++;
+        echo "FAIL {$label}\n";
+    }
+};
+$eq = static function ($actual, $expected, string $label) use ($check): void {
+    $check($actual === $expected, $label . ($actual === $expected ? '' : ' (got ' . var_export($actual, true) . ', expected ' . var_export($expected, true) . ')'));
+};
+
+// ── Zero config: every day open, every funnel is plain arithmetic ─────────
+$empty = new LibraryCalendar();
+$eq($empty->hasRules(), false, 'no rules configured');
+$eq($empty->isOpen('2026-12-25'), true, 'without rules Christmas is open');
+$eq($empty->nextOpenDay('2026-11-01'), '2026-11-01', 'without rules nextOpenDay is identity');
+$eq($empty->addOpenDays('2026-10-30', 3), '2026-11-02', 'without rules addOpenDays is +N calendar days');
+$eq($empty->closedDatesBetween('2026-01-01', '2026-12-31'), [], 'without rules no closed dates');
+$eq($empty->openDaysBetween('2026-10-01', '2026-10-31'), 30, 'without rules openDaysBetween is the day difference');
+
+// ── Weekly closed days ────────────────────────────────────────────────────
+$sundays = new LibraryCalendar([0]);
+$eq($sundays->isOpen('2026-11-01'), false, 'Sunday 2026-11-01 closed with closed_weekdays=0');
+$eq($sundays->isOpen('2026-11-02'), true, 'Monday open');
+$eq($sundays->nextOpenDay('2026-11-01'), '2026-11-02', 'Sunday shifts to Monday');
+$eq($sundays->shiftForward('2026-10-31'), '2026-10-31', 'an open Saturday does not move');
+$eq($sundays->previousOpenDay('2026-11-01'), '2026-10-31', 'previousOpenDay of Sunday is Saturday');
+$sunMon = new LibraryCalendar([0, 1]);
+$eq($sunMon->nextOpenDay('2026-11-01'), '2026-11-03', 'Sunday+Monday closed: Sunday shifts to Tuesday');
+$eq($sunMon->closedWeekdays(), [0, 1], 'closedWeekdays returns the sorted list');
+$eq(LibraryCalendar::parseWeekdays('1, 0,7,x,1,6'), [0, 1, 6], 'parseWeekdays drops invalid and duplicate values');
+$all = new LibraryCalendar([0, 1, 2, 3, 4, 5, 6]);
+$eq($all->hasRules(), false, 'seven closed weekdays are ignored (no day to move to)');
+
+// ── Closure ranges ────────────────────────────────────────────────────────
+$xmas = new LibraryCalendar([], [['data_inizio' => '2026-12-24', 'data_fine' => '2026-12-26', 'ricorrente_annuale' => 0, 'sede_id' => null]]);
+$eq($xmas->isOpen('2026-12-23'), true, 'day before the range open');
+$eq($xmas->isOpen('2026-12-24') || $xmas->isOpen('2026-12-25') || $xmas->isOpen('2026-12-26'), false, 'every day of the range closed');
+$eq($xmas->nextOpenDay('2026-12-25'), '2026-12-27', 'Dec 25 inside 24-26 shifts to Dec 27');
+$eq($xmas->isOpen('2027-12-25'), true, 'a non-recurring closure does not repeat next year');
+$eq($xmas->closedDatesBetween('2026-12-20', '2026-12-31'), ['2026-12-24', '2026-12-25', '2026-12-26'], 'closedDatesBetween lists the range');
+$eq($xmas->openDaysBetween('2026-12-20', '2026-12-31'), 8, 'openDaysBetween skips the 3 closed days (11 - 3)');
+$swapped = new LibraryCalendar([], [['start' => '2026-08-20', 'end' => '2026-08-10']]);
+$eq($swapped->isOpen('2026-08-15'), false, 'an inverted range is normalised');
+
+// ── Yearly recurrence ─────────────────────────────────────────────────────
+$yearly = new LibraryCalendar([], [
+    ['data_inizio' => '2020-08-10', 'data_fine' => '2020-08-20', 'ricorrente_annuale' => 1],
+    ['data_inizio' => '2025-12-31', 'data_fine' => '2026-01-02', 'ricorrente_annuale' => '1'],
+]);
+foreach ([2020, 2026, 2031] as $y) {
+    $eq($yearly->isOpen("{$y}-08-15"), false, "yearly Aug 10-20 closes Aug 15 in {$y}");
+    $eq($yearly->isOpen("{$y}-08-21"), true, "yearly Aug 10-20 leaves Aug 21 open in {$y}");
+}
+$eq($yearly->isOpen('2019-08-15'), false, 'a yearly closure applies to earlier years too');
+$eq($yearly->isOpen('2030-12-31') || $yearly->isOpen('2031-01-01') || $yearly->isOpen('2031-01-02'), false, 'a yearly span crossing New Year wraps');
+$eq($yearly->isOpen('2031-01-03'), true, 'the day after a wrapped yearly span is open');
+$eq($yearly->nextOpenDay('2030-12-31'), '2031-01-03', 'shift across a wrapped yearly span');
+$leap = new LibraryCalendar([], [['start' => '2024-02-29', 'end' => '2024-02-29', 'yearly' => true]]);
+$eq($leap->isOpen('2028-02-29'), false, 'a yearly Feb 29 closes Feb 29 in leap years');
+$eq($leap->isOpen('2027-03-01'), true, 'and does not close Mar 1 in other years');
+
+// ── Branch-specific vs all branches ───────────────────────────────────────
+$branches = new LibraryCalendar([], [
+    ['start' => '2026-11-10', 'end' => '2026-11-10', 'sede_id' => 2],
+    ['start' => '2026-11-11', 'end' => '2026-11-11', 'sede_id' => null],
+]);
+$eq($branches->isOpen('2026-11-10', 2), false, 'branch 2 closed on its own closure');
+$eq($branches->isOpen('2026-11-10', 3), true, 'branch 3 open on branch 2 closure');
+$eq($branches->isOpen('2026-11-10'), true, 'whole library open on a branch-only closure');
+$eq($branches->isOpen('2026-11-11', 2) || $branches->isOpen('2026-11-11', 3) || $branches->isOpen('2026-11-11'), false, 'an all-branch closure closes every branch');
+$eq($branches->nextOpenDay('2026-11-10', 2), '2026-11-12', 'branch 2 shifts over both closures');
+$eq($branches->closedDatesBetween('2026-11-09', '2026-11-12', 2), ['2026-11-10', '2026-11-11'], 'closedDatesBetween honours the branch');
+
+// ── Easter over several years ─────────────────────────────────────────────
+$known = ['2000' => '2000-04-23', '2008' => '2008-03-23', '2019' => '2019-04-21', '2024' => '2024-03-31', '2025' => '2025-04-20', '2026' => '2026-04-05', '2027' => '2027-03-28', '2038' => '2038-04-25', '2285' => '2285-03-22'];
+foreach ($known as $year => $date) {
+    $eq(LibraryCalendar::easterSunday((int) $year), $date, "Easter {$year}");
+}
+$h2026 = LibraryCalendar::italianHolidays(2026);
+$dates2026 = array_column($h2026, 'start');
+$eq(count($h2026), 12, 'Italian preset has 12 holidays');
+$eq(in_array('2026-04-06', $dates2026, true), true, 'Easter Monday 2026 is Apr 6');
+$eq(in_array('2026-06-02', $dates2026, true), true, 'Festa della Repubblica included');
+$easterRows = array_values(array_filter($h2026, static fn (array $r): bool => !$r['yearly']));
+$eq(count($easterRows), 2, 'only Easter and Easter Monday are dated for the year');
+$eq($dates2026, array_values(array_unique($dates2026)), 'preset dates are distinct');
+$sorted = $dates2026;
+sort($sorted);
+$eq($dates2026, $sorted, 'preset is sorted by date');
+
+// ── DST change (Europe/Rome: 2026-03-29 and 2026-10-25) ───────────────────
+$prevTz = date_default_timezone_get();
+foreach (['Europe/Rome', 'America/New_York', 'Pacific/Auckland', 'UTC'] as $tz) {
+    date_default_timezone_set($tz);
+    $eq(LibraryCalendar::shift('2026-03-28', 1), '2026-03-29', "DST spring: +1 day stays a day ({$tz})");
+    $eq(LibraryCalendar::shift('2026-03-29', 1), '2026-03-30', "DST spring day itself ({$tz})");
+    $eq(LibraryCalendar::shift('2026-10-24', 2), '2026-10-26', "DST autumn: +2 days ({$tz})");
+    $eq($sundays->isOpen('2026-10-25'), false, "the DST Sunday is still a Sunday ({$tz})");
+    $eq($sundays->nextOpenDay('2026-03-29'), '2026-03-30', "DST Sunday shifts to Monday ({$tz})");
+    $eq($sundays->addOpenDays('2026-10-23', 3), '2026-10-27', "3 open days from Fri across DST Sunday ({$tz})");
+}
+date_default_timezone_set($prevTz);
+
+// ── addOpenDays (pickup deadline arithmetic) ──────────────────────────────
+$eq($sundays->addOpenDays('2026-10-30', 3), '2026-11-03', 'Fri + 3 open days with Sundays closed = Tue');
+$eq($sundays->addOpenDays('2026-10-30', 0), '2026-10-30', '0 open days returns the start');
+$bridge = new LibraryCalendar([0], [['start' => '2026-12-24', 'end' => '2026-12-26']]);
+$eq($bridge->addOpenDays('2026-12-23', 3), '2026-12-30', 'pickup over Christmas and a Sunday counts only open days');
+
+// ── Integration-style: 14-day loans ───────────────────────────────────────
+// 2026-10-18 + 14 = 2026-11-01 (Sunday) → Monday.
+$eq($sundays->nextOpenDay(LibraryCalendar::shift('2026-10-18', 14)), '2026-11-02', '14-day loan ending Sunday moves to Monday');
+// 2026-12-11 + 14 = 2026-12-25, closure 24-26 → 27.
+$eq($xmas->nextOpenDay(LibraryCalendar::shift('2026-12-11', 14)), '2026-12-27', '14-day loan ending Dec 25 with 24-26 closed moves to Dec 27');
+
+// ── ICS ───────────────────────────────────────────────────────────────────
+$ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART;VALUE=DATE:20261224\r\nDTEND;VALUE=DATE:20261227\r\nSUMMARY:Chiusura\r\n  natalizia\\, sede\r\nEND:VEVENT\r\n"
+    . "BEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20260815\r\nRRULE:FREQ=YEARLY;BYMONTH=8\r\nSUMMARY:Ferragosto\r\nEND:VEVENT\r\n"
+    . "BEGIN:VEVENT\r\nDTSTART:20261102T090000Z\r\nDTEND:20261102T120000Z\r\nSUMMARY:Inventario\r\nEND:VEVENT\r\n"
+    . "BEGIN:VEVENT\r\nSUMMARY:no start\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+$parsed = LibraryCalendar::parseIcs($ics);
+$eq(count($parsed), 3, 'ICS: three events with a DTSTART');
+$eq($parsed[0], ['start' => '2026-12-24', 'end' => '2026-12-26', 'description' => 'Chiusura natalizia, sede', 'yearly' => false], 'ICS: all-day DTEND is exclusive, folded summary unescaped');
+$eq($parsed[1]['yearly'] && $parsed[1]['start'] === '2026-08-15' && $parsed[1]['end'] === '2026-08-15', true, 'ICS: RRULE FREQ=YEARLY recurs, no DTEND = one day');
+$eq([$parsed[2]['start'], $parsed[2]['end']], ['2026-11-02', '2026-11-02'], 'ICS: a timed event closes its day');
+$eq(LibraryCalendar::parseIcs('not a calendar'), [], 'ICS: garbage yields nothing');
+$eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
+
+echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";
+exit($failures === 0 ? 0 : 1);
