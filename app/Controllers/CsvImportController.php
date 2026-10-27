@@ -449,183 +449,9 @@ class CsvImportController
                 }
                 $parsedData = $this->parseCsvRow($row);
 
-                $db->begin_transaction();
-
-                // Resolve the target before creating any related entity. On an
-                // existing book an unchecked publisher/genre family must be a
-                // true no-op: creating an unlinked editor/genre from the CSV is
-                // still a catalogue mutation and leaves orphan rows behind.
-                $existingBookId = $this->findExistingBook($db, $parsedData);
-                $isExistingBook = $existingBookId !== null;
-
-                // A title is mandatory for new books and when the title family
-                // is selected. For a row matched by ID/ISBN/EAN with Titolo
-                // unchecked, however, a blank cell must be a true no-op: the
-                // existing NOT NULL title is restored by updateBook().
-                if (empty($parsedData['titolo']) && (!$isExistingBook || $updateFields['titolo'])) {
-                    throw new \Exception(__('Titolo mancante'));
-                }
-
-                // Resolve publisher(s). The exporter joins ALL publishers
-                // (primary + co-publishers from libri_editori, #143) into the
-                // single `editore` cell with ';'. Treating the whole cell as ONE
-                // publisher name created a bogus "A;B" editore on round-trip
-                // (#12): split it, first = primary, the rest = co-publishers.
-                $editorId = null;
-                $coPublisherIds = [];
-                $publisherCellHasMultiple = false;
-                if ((!$isExistingBook || $updateFields['publisher']) && !empty($parsedData['editore'])) {
-                    $publisherNames = array_values(array_filter(
-                        array_map('trim', explode(';', (string) $parsedData['editore'])),
-                        static fn (string $n): bool => $n !== ''
-                    ));
-                    $publisherCellHasMultiple = count($publisherNames) > 1;
-                    foreach ($publisherNames as $pIndex => $pName) {
-                        $publisherResult = $this->getOrCreatePublisher($db, $pName);
-                        if ($publisherResult['created']) {
-                            $importData['publishers_created']++;
-                        }
-                        if ($pIndex === 0) {
-                            $editorId = $publisherResult['id'];
-                        } elseif ((int) $publisherResult['id'] !== (int) $editorId) {
-                            $coPublisherIds[] = (int) $publisherResult['id'];
-                        }
-                    }
-                }
-
-                // Resolve genre, creating it when the CSV names a genre absent
-                // from the catalogue (#16). Previously getGenreId() only looked up
-                // existing rows and returned NULL for anything new — so a genre
-                // present in the export vanished on re-import — unlike the
-                // authors/publishers auto-create paths.
-                $genreId = (!$isExistingBook || $updateFields['genre'])
-                    ? $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData)
-                    : null;
-
-                // Upsert book
-                $upsertResult = $this->upsertBook(
-                    $db,
-                    $parsedData,
-                    $editorId,
-                    $genreId,
-                    $updateFields,
-                    $existingBookId
-                );
+                $upsertResult = $this->importParsedRow($db, $parsedData, $updateFields, $importData);
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
-
-                // #380: on an existing book each unchecked family is fully
-                // preserved. Created books always import everything.
-                $applyFamily = static function (string $family) use ($action, $updateFields): bool {
-                    return $action === 'created' || $updateFields[$family];
-                };
-
-                // Import the co-publishers (#12/#143) ONLY when the cell actually
-                // carried more than one publisher, so a single-publisher CSV never
-                // wipes co-publishers a librarian curated in the admin form.
-                if ($publisherCellHasMultiple && $applyFamily('publisher')) {
-                    $this->syncImportedCoPublishers($db, $bookId, $editorId, $coPublisherIds);
-                }
-
-                // Remove old PRINCIPAL author links if updating — scoped to
-                // ruolo='principale' so a re-import re-writes the authors the CSV
-                // owns without wiping co-author/illustrator/translator/curator/
-                // colorist ENTITY links (#237): every explicit contributor
-                // column is synchronized below with importer provenance. A
-                // blanket delete-all silently lost every contributor entity on
-                // each re-import.
-                // Only rewrite the principal links when the row actually carries
-                // an author. An EMPTY author cell must NOT wipe the existing
-                // principal authors — a blanket delete-when-updated left the book
-                // permanently authorless whenever a re-imported row omitted the
-                // author (#22).
-                // #380: with the Autori checkbox off, an existing book's
-                // principal links are fully preserved (no delete, no rewrite).
-                if ($action === 'updated' && $applyFamily('authors') && !empty($parsedData['autori'])) {
-                    $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
-                    $stmt->bind_param('i', $bookId);
-                    $stmt->execute();
-                    $stmt->close();
-                }
-
-                // Handle authors
-                if (!empty($parsedData['autori']) && $applyFamily('authors')) {
-                    $separator = strpos($parsedData['autori'], ';') !== false ? ';' : '|';
-                    $authors = array_map('trim', explode($separator, $parsedData['autori']));
-                    $authorOrder = 1;
-
-                    foreach ($authors as $authorName) {
-                        if (empty($authorName)) continue;
-
-                        $authorResult = $this->getOrCreateAuthor($db, $authorName);
-                        $authorId = $authorResult['id'];
-                        if ($authorResult['created']) {
-                            $importData['authors_created']++;
-                        }
-
-                        \App\Support\ContributorSync::persistImportedPrincipal(
-                            $db,
-                            $bookId,
-                            $authorId,
-                            $authorOrder
-                        );
-                        $authorOrder++;
-                    }
-                }
-
-                // Contributor roles are entities too (#237). Replace only
-                // links owned by the CSV importer and only for columns that
-                // were actually present. This distinction matters for old
-                // exports: an absent column must preserve existing data, while
-                // an explicit empty cell clears this importer's stale links.
-                $contributorValues = [];
-                foreach ([
-                    'co-autore' => 'co_autori',
-                    'traduttore' => 'traduttore',
-                    'illustratore' => 'illustratore',
-                    'curatore' => 'curatore',
-                    'colorista' => 'colorista',
-                ] as $role => $field) {
-                    if (($parsedData[$field . '_provided'] ?? false) === true) {
-                        $contributorValues[$role] = $parsedData[$field] ?? null;
-                    }
-                }
-                // #380: with the Contributori checkbox off, an existing book's
-                // contributor links are fully preserved (no sync at all).
-                if ($contributorValues !== [] && $applyFamily('contributors')) {
-                    $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
-                        $db,
-                        $bookId,
-                        $contributorValues,
-                        'csv'
-                    );
-                }
-
-                $db->commit();
-                \App\Support\ContentCache::deferBooksChanged();
-
-                if ($action === 'created') {
-                    $importData['imported']++;
-                } else {
-                    $importData['updated']++;
-                }
-
-                // Plugin hook: after book save. Fired OUTSIDE the per-row
-                // transaction (it just committed) because listeners such as the
-                // book-club external-proposal reconciler open their own
-                // transaction — nesting begin_transaction() would implicitly
-                // commit. Mirrors LibriController's create/edit dispatch so an
-                // imported book that matches an outstanding club proposal is
-                // reconciled at import time, not only on the next maintenance run.
-                // Isolated in its own try/catch: the row is already committed and
-                // counted, so a throwing listener must NOT reach the per-row catch
-                // below (which would rollback — a no-op here — and additionally
-                // record the committed row as a failed import, double-counting it).
-                try {
-                    \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
-                } catch (\Throwable $hookError) {
-                    \App\Support\SecureLogger::warning('[CsvImport] book.save.after listener failed (row already committed)', ['book_id' => $bookId, 'error' => $hookError->getMessage()]);
-                }
 
                 // Scraping (if enabled and ISBN exists)
                 if ($enableScraping && !empty($parsedData['isbn13'])) {
@@ -846,6 +672,250 @@ class CsvImportController
         ]));
 
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Provenance of the books this importer writes: 'csv' for the CSV import,
+     * 'marc' for the MARC bulk import and copy cataloguing, which reuse the
+     * row pipeline below. Recorded in the activity log and on the
+     * contributor links the importer owns.
+     */
+    private string $importSource = 'csv';
+
+    public function setImportSource(string $source): void
+    {
+        $this->importSource = $source;
+    }
+
+    /**
+     * The row pipeline of the CSV import, shared with the MARC bulk import and
+     * copy cataloguing: one book written in one transaction — publishers,
+     * genre, the book itself (insert, or update of the families selected in
+     * $updateFields), co-publishers, principal authors and contributor links
+     * — then the book.save.after hook. The counters in $importData (imported,
+     * updated, authors_created, publishers_created, genres_created) are
+     * advanced. On failure the transaction is rolled back and the exception
+     * rethrown, so the caller records the row as failed and goes on.
+     *
+     * @param array<string, mixed> $parsedData a row as parseCsvRow() returns it
+     * @param array<string, bool> $updateFields one entry per UPDATE_FIELD_FAMILIES family
+     * @param array<string, mixed> $importData
+     * @param int|null $existingBookId the book to update when $resolveExisting is false
+     * @param bool $resolveExisting true: match by ID/ISBN-13/EAN/title+author as the CSV import does
+     * @return array{id: int, action: string}
+     */
+    public function importParsedRow(
+        \mysqli $db,
+        array $parsedData,
+        array $updateFields,
+        array &$importData,
+        ?int $existingBookId = null,
+        bool $resolveExisting = true
+    ): array {
+        foreach (self::UPDATE_FIELD_FAMILIES as $family) {
+            $updateFields[$family] = (bool) ($updateFields[$family] ?? true);
+        }
+        foreach (['imported', 'updated', 'authors_created', 'publishers_created'] as $counter) {
+            $importData[$counter] = (int) ($importData[$counter] ?? 0);
+        }
+        $db->begin_transaction();
+        try {
+            // Resolve the target before creating any related entity. On an
+            // existing book an unchecked publisher/genre family must be a
+            // true no-op: creating an unlinked editor/genre from the CSV is
+            // still a catalogue mutation and leaves orphan rows behind.
+            if ($resolveExisting) {
+                $existingBookId = $this->findExistingBook($db, $parsedData);
+            }
+            $isExistingBook = $existingBookId !== null;
+
+            // A title is mandatory for new books and when the title family
+            // is selected. For a row matched by ID/ISBN/EAN with Titolo
+            // unchecked, however, a blank cell must be a true no-op: the
+            // existing NOT NULL title is restored by updateBook().
+            if (empty($parsedData['titolo']) && (!$isExistingBook || $updateFields['titolo'])) {
+                throw new \Exception(__('Titolo mancante'));
+            }
+
+            // Resolve publisher(s). The exporter joins ALL publishers
+            // (primary + co-publishers from libri_editori, #143) into the
+            // single `editore` cell with ';'. Treating the whole cell as ONE
+            // publisher name created a bogus "A;B" editore on round-trip
+            // (#12): split it, first = primary, the rest = co-publishers.
+            $editorId = null;
+            $coPublisherIds = [];
+            $publisherCellHasMultiple = false;
+            if ((!$isExistingBook || $updateFields['publisher']) && !empty($parsedData['editore'])) {
+                $publisherNames = array_values(array_filter(
+                    array_map('trim', explode(';', (string) $parsedData['editore'])),
+                    static fn (string $n): bool => $n !== ''
+                ));
+                $publisherCellHasMultiple = count($publisherNames) > 1;
+                foreach ($publisherNames as $pIndex => $pName) {
+                    $publisherResult = $this->getOrCreatePublisher($db, $pName);
+                    if ($publisherResult['created']) {
+                        $importData['publishers_created']++;
+                    }
+                    if ($pIndex === 0) {
+                        $editorId = $publisherResult['id'];
+                    } elseif ((int) $publisherResult['id'] !== (int) $editorId) {
+                        $coPublisherIds[] = (int) $publisherResult['id'];
+                    }
+                }
+            }
+
+            // Resolve genre, creating it when the CSV names a genre absent
+            // from the catalogue (#16). Previously getGenreId() only looked up
+            // existing rows and returned NULL for anything new — so a genre
+            // present in the export vanished on re-import — unlike the
+            // authors/publishers auto-create paths.
+            $genreId = (!$isExistingBook || $updateFields['genre'])
+                ? $this->getOrCreateGenre($db, $parsedData['genere'] ?? '', $importData)
+                : null;
+
+            // Upsert book
+            $upsertResult = $this->upsertBook(
+                $db,
+                $parsedData,
+                $editorId,
+                $genreId,
+                $updateFields,
+                $existingBookId
+            );
+            $bookId = $upsertResult['id'];
+            $action = $upsertResult['action'];
+
+            // #380: on an existing book each unchecked family is fully
+            // preserved. Created books always import everything.
+            $applyFamily = static function (string $family) use ($action, $updateFields): bool {
+                return $action === 'created' || $updateFields[$family];
+            };
+
+            // Import the co-publishers (#12/#143) ONLY when the cell actually
+            // carried more than one publisher, so a single-publisher CSV never
+            // wipes co-publishers a librarian curated in the admin form.
+            if ($publisherCellHasMultiple && $applyFamily('publisher')) {
+                $this->syncImportedCoPublishers($db, $bookId, $editorId, $coPublisherIds);
+            }
+
+            // Remove old PRINCIPAL author links if updating — scoped to
+            // ruolo='principale' so a re-import re-writes the authors the CSV
+            // owns without wiping co-author/illustrator/translator/curator/
+            // colorist ENTITY links (#237): every explicit contributor
+            // column is synchronized below with importer provenance. A
+            // blanket delete-all silently lost every contributor entity on
+            // each re-import.
+            // Only rewrite the principal links when the row actually carries
+            // an author. An EMPTY author cell must NOT wipe the existing
+            // principal authors — a blanket delete-when-updated left the book
+            // permanently authorless whenever a re-imported row omitted the
+            // author (#22).
+            // #380: with the Autori checkbox off, an existing book's
+            // principal links are fully preserved (no delete, no rewrite).
+            if ($action === 'updated' && $applyFamily('authors') && !empty($parsedData['autori'])) {
+                $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
+                $stmt->bind_param('i', $bookId);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            // Handle authors
+            if (!empty($parsedData['autori']) && $applyFamily('authors')) {
+                $separator = strpos($parsedData['autori'], ';') !== false ? ';' : '|';
+                $authors = array_map('trim', explode($separator, $parsedData['autori']));
+                $authorOrder = 1;
+
+                foreach ($authors as $authorName) {
+                    if (empty($authorName)) continue;
+
+                    $authorResult = $this->getOrCreateAuthor($db, $authorName);
+                    $authorId = $authorResult['id'];
+                    if ($authorResult['created']) {
+                        $importData['authors_created']++;
+                    }
+
+                    \App\Support\ContributorSync::persistImportedPrincipal(
+                        $db,
+                        $bookId,
+                        $authorId,
+                        $authorOrder
+                    );
+                    $authorOrder++;
+                }
+            }
+
+            // Contributor roles are entities too (#237). Replace only
+            // links owned by the CSV importer and only for columns that
+            // were actually present. This distinction matters for old
+            // exports: an absent column must preserve existing data, while
+            // an explicit empty cell clears this importer's stale links.
+            $contributorValues = [];
+            foreach ([
+                'co-autore' => 'co_autori',
+                'traduttore' => 'traduttore',
+                'illustratore' => 'illustratore',
+                'curatore' => 'curatore',
+                'colorista' => 'colorista',
+            ] as $role => $field) {
+                if (($parsedData[$field . '_provided'] ?? false) === true) {
+                    $contributorValues[$role] = $parsedData[$field] ?? null;
+                }
+            }
+            // #380: with the Contributori checkbox off, an existing book's
+            // contributor links are fully preserved (no sync at all).
+            if ($contributorValues !== [] && $applyFamily('contributors')) {
+                $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
+                    $db,
+                    $bookId,
+                    $contributorValues,
+                    $this->importSource
+                );
+            }
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            throw $e;
+        }
+        \App\Support\ContentCache::deferBooksChanged();
+
+        if ($action === 'created') {
+            $importData['imported']++;
+        } else {
+            $importData['updated']++;
+        }
+
+        // Plugin hook: after book save. Fired OUTSIDE the per-row
+        // transaction (it just committed) because listeners such as the
+        // book-club external-proposal reconciler open their own
+        // transaction — nesting begin_transaction() would implicitly
+        // commit. Mirrors LibriController's create/edit dispatch so an
+        // imported book that matches an outstanding club proposal is
+        // reconciled at import time, not only on the next maintenance run.
+        // Isolated in its own try/catch: the row is already committed and
+        // counted, so a throwing listener must NOT reach the per-row catch
+        // below (which would rollback — a no-op here — and additionally
+        // record the committed row as a failed import, double-counting it).
+        try {
+            \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
+        } catch (\Throwable $hookError) {
+            \App\Support\SecureLogger::warning('[' . $this->importSource . ' import] book.save.after listener failed (row already committed)', ['book_id' => $bookId, 'error' => $hookError->getMessage()]);
+        }
+
+        return ['id' => (int) $bookId, 'action' => (string) $action];
+    }
+
+    /**
+     * Normalise a canonical import row (the keys mapColumnHeaders() produces)
+     * into the book data importParsedRow() writes: ISBN/EAN validation, the
+     * language, the author list, the contributor columns.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    public function normalizeImportRow(array $row): array
+    {
+        return $this->parseCsvRow($row);
     }
 
     /**
@@ -1978,7 +2048,7 @@ class CsvImportController
             $activityBefore,
             $activityAfter,
             bookTitle: (string) ($activityAfter['titolo'] ?? $activityBefore['titolo'] ?? ''),
-            source: 'csv'
+            source: $this->importSource
         );
     }
 
@@ -2249,7 +2319,7 @@ class CsvImportController
             [],
             $activityAfter,
             bookTitle: (string) ($activityAfter['titolo'] ?? $titolo),
-            source: 'csv'
+            source: $this->importSource
         );
 
         return $bookId;
