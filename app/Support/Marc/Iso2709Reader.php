@@ -15,7 +15,8 @@ namespace App\Support\Marc;
  * reader moves on to the next record.
  *
  * Character coding (leader/09): 'a' is UTF-8; blank is MARC-8 in MARC 21. A
- * blank position on a record whose bytes are valid UTF-8 is read as UTF-8,
+ * blank position on a record whose bytes are valid UTF-8 (and carry no MARC-8
+ * escape sequence) is read as UTF-8,
  * since UNIMARC leaves the position undefined (its 100 $a says the coding)
  * and many exports leave it blank on UTF-8 data. A record decoded from MARC-8
  * comes out with leader/09 'a', which is what its values now are.
@@ -140,7 +141,8 @@ final class Iso2709Reader implements \IteratorAggregate
         $utf8 = match ($encoding) {
             self::ENCODING_UTF8 => true,
             self::ENCODING_MARC8 => false,
-            default => $leader[9] === 'a' || mb_check_encoding($raw, 'UTF-8'),
+            // An escape (0x1B) only occurs in MARC-8, where it switches sets.
+            default => $leader[9] === 'a' || (!str_contains($raw, "\x1B") && mb_check_encoding($raw, 'UTF-8')),
         };
         if ($encoding === self::ENCODING_UTF8 && !mb_check_encoding($raw, 'UTF-8')) {
             throw new MarcParseException('Record declares UTF-8 but is not valid UTF-8');
