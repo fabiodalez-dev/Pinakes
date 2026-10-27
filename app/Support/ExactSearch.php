@@ -83,6 +83,18 @@ final class ExactSearch
     }
 
     /**
+     * The name inside a value typed wholly in quotes (`"Rolf Häffner"`), or
+     * null for an unquoted value. Used where a name is SAVED rather than
+     * searched: quotes there mean "this exact spelling is a different
+     * person/publisher", and they are never part of the stored name.
+     */
+    public static function quotedValue(string $value): ?string
+    {
+        ['term' => $term, 'exact' => $exact] = self::parseFilter($value);
+        return $exact && $term !== '' ? $term : null;
+    }
+
+    /**
      * WHERE fragment for "$expr is exactly $value": accents distinct, case
      * ignored. For lookups by a name taken from a link (author page, publisher
      * filter), where the collation would otherwise treat `Haffner` and

@@ -83,4 +83,34 @@ $same($authorPlain, $authors->findByCanonicalName("{$given} Häffner"), 'author:
 $same($pubPlain, $publishers->findByName("Verlag {$given} Häffner"), 'publisher: with only Haffner on file, an incoming Häffner still reuses it (tolerant dedup kept)');
 $ok($authors->findByCanonicalName("{$given} Hoffner") === null, 'author: a different letter is never merged');
 
-Exact501::finish(25);
+// ── Quotes opt out of the tolerant fallback (Fabio, 2026-10-27) ─────────────
+// Only Haffner is on file now. Typed WITHOUT quotes, Häffner is still merged
+// into it (above). Typed IN quotes, it is that exact spelling: a different
+// person or publisher, created without the quotes.
+$nameOf = static fn(string $table, int $id): string => (string) $db->query("SELECT nome FROM {$table} WHERE id = {$id}")->fetch_column();
+$ok($authors->findByCanonicalName("\"{$given} Häffner\"") === null, 'author: quoted Häffner is not merged into Haffner');
+$same($authorPlain, $authors->findByCanonicalName("\"{$given} Haffner\""), 'author: quoted Haffner still finds Haffner');
+$same($authorPlain, $authors->findByCanonicalName('"' . mb_strtolower("{$given} haffner") . '"'), 'author: case is ignored inside quotes');
+$newAuthor = $authors->create(['nome' => "\"{$given} Häffner\""]);
+$same("{$given} Häffner", $nameOf('autori', $newAuthor), 'author: a quoted new name is stored without the quotes');
+$same($newAuthor, $authors->findByCanonicalName("\"{$given} Häffner\""), 'author: the quoted spelling now finds the new author');
+$same($newAuthor, $authors->findByCanonicalName("{$given} Häffner"), 'author: unquoted, the exact spelling wins once both exist');
+$same($newAuthor, $authors->findByCanonicalName("\"Häffner, {$given}\""), 'author: a quoted inverted name is canonicalised before the exact match');
+$ok($newAuthor !== $authorPlain, 'author: quoted and unquoted spellings are two people');
+
+$ok($publishers->findByName("\"Verlag {$given} Häffner\"") === null, 'publisher: quoted Häffner is not merged into Haffner');
+$newPublisher = $publishers->create(['nome' => "\"Verlag {$given} Häffner\""]);
+$same("Verlag {$given} Häffner", $nameOf('editori', $newPublisher), 'publisher: a quoted new name is stored without the quotes');
+$same($newPublisher, $publishers->findByName("\"Verlag {$given} Häffner\""), 'publisher: the quoted spelling now finds the new publisher');
+
+foreach ([\App\Controllers\CsvImportController::class => 'CSV import', \App\Controllers\LibraryThingImportController::class => 'LibraryThing import'] as $class => $label) {
+    $importer = (new \ReflectionClass($class))->newInstanceWithoutConstructor();
+    $getOrCreate = new \ReflectionMethod($importer, 'getOrCreatePublisher');
+    $first = $getOrCreate->invoke($importer, $db, "\"Verlag {$given} Höffner {$label}\"");
+    $ok($first['created'] === true && $nameOf('editori', (int) $first['id']) === "Verlag {$given} Höffner {$label}", "{$label}: a quoted publisher is created without quotes");
+    $same(['id' => $first['id'], 'created' => false], $getOrCreate->invoke($importer, $db, "\"Verlag {$given} Höffner {$label}\""), "{$label}: the same quoted publisher is reused, not duplicated");
+}
+$typed = $periodicals->resolve(["new:\"Verlag {$given} Hüffner\""]);
+$ok(count($typed) === 1 && $nameOf('editori', $typed[0]) === "Verlag {$given} Hüffner" && $typed[0] !== $pubPlain, 'periodicals: a quoted typed publisher is a new one, stored without quotes');
+
+Exact501::finish(41);

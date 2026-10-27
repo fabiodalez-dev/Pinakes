@@ -1245,17 +1245,13 @@ class LibraryThingImportController
     // Reuse methods from CsvImportController
     private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
-        // Exact spelling first when the collation also admits "Haffner" for "Häffner" (#501).
-        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? ORDER BY " . \App\Support\ExactSearch::exactFirstSql('nome') . ", id LIMIT 1");
-        $stmt->bind_param('ss', $name, $name);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($row = $result->fetch_assoc()) {
-            $stmt->close();
-            return ['id' => (int) $row['id'], 'created' => false];
+        // Same lookup as the book form: the exact spelling wins, and a name in
+        // quotes reuses only that spelling (#501). The quotes are not stored.
+        $existingId = (new \App\Models\PublisherRepository($db))->findByName($name);
+        if ($existingId !== null) {
+            return ['id' => $existingId, 'created' => false];
         }
-        $stmt->close();
+        $name = \App\Support\ExactSearch::quotedValue($name) ?? $name;
 
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
         $stmt->bind_param('s', $name);

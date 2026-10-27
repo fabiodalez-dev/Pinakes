@@ -137,6 +137,9 @@ class AuthorRepository
 
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
+        // Quotes typed around a new name mean "exact spelling" (#501); they
+        // are never part of the stored name.
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
         $pseudonimo = \App\Support\HtmlHelper::decode($data['pseudonimo'] ?? '');
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
@@ -300,11 +303,40 @@ class AuthorRepository
      * @param string $name Author name in any format
      * @return int|null Author ID if found, null otherwise
      */
+    /**
+     * Author written exactly like $name (accents distinct, case ignored), as
+     * typed or in canonical "Name Surname" form; null when there is none.
+     */
+    private function findByExactName(string $name): ?int
+    {
+        foreach (array_unique([$name, \App\Support\AuthorNormalizer::normalize($name)]) as $candidate) {
+            $match = \App\Support\ExactSearch::equalsCondition('nome', $candidate);
+            $stmt = $this->db->prepare("SELECT id FROM autori WHERE {$match['sql']} ORDER BY id LIMIT 1");
+            $stmt->bind_param($match['types'], ...$match['params']);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($row) {
+                return (int) $row['id'];
+            }
+        }
+        return null;
+    }
+
     public function findByCanonicalName(string $name): ?int
     {
         $name = trim($name);
         if ($name === '') {
             return null;
+        }
+
+        // A name typed in quotes asks for that exact spelling (#501): only an
+        // author written the same way (accents included, case ignored) is
+        // reused, and the accent-tolerant steps below are skipped, so
+        // "Häffner" in quotes becomes a new author when only Haffner exists.
+        $quoted = \App\Support\ExactSearch::quotedValue($name);
+        if ($quoted !== null) {
+            return $this->findByExactName($quoted);
         }
 
         // Normalize the input name first (this is the key fix!)
