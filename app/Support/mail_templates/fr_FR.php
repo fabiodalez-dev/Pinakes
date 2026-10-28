@@ -309,12 +309,12 @@ return [
 <p>Bonjour {{utente_nome}},</p>
 <p>le livre ci-dessous a été rendu après sa date d’échéance et une pénalité a été portée à votre compte.</p>
 <div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
-    <p><strong>Livre:</strong> {{libro_titolo}}</p>
-    <p><strong>Échéance:</strong> {{data_scadenza}}</p>
-    <p><strong>Rendu le:</strong> {{data_restituzione}}</p>
-    <p><strong>Jours de retard:</strong> {{giorni_ritardo}}</p>
-    <p><strong>Pénalité:</strong> {{multa}}</p>
-    <p><strong>Solde à régler:</strong> {{saldo}}</p>
+    <p><strong>Livre :</strong> {{libro_titolo}}</p>
+    <p><strong>Échéance :</strong> {{data_scadenza}}</p>
+    <p><strong>Rendu le :</strong> {{data_restituzione}}</p>
+    <p><strong>Jours de retard :</strong> {{giorni_ritardo}}</p>
+    <p><strong>Pénalité :</strong> {{multa}}</p>
+    <p><strong>Solde à régler :</strong> {{saldo}}</p>
 </div>
 <p>Vous pouvez régler le montant à l’accueil de la bibliothèque.</p>
 <p>Cordialement,<br>L’équipe de la bibliothèque</p>',

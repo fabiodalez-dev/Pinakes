@@ -600,7 +600,7 @@ final class OpenApiController
                                         'total_copies'       => ['type' => 'integer'],
                                         'earliest_available' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                                         'unavailable_dates'  => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date']],
-                                        'closed_dates'       => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date'], 'description' => 'Days the library is closed (closures calendar): not selectable as a start/pickup day; a return date on one moves to the next open day.'],
+                                        'closed_dates'       => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date'], 'description' => 'Days the library is closed (closures calendar): not selectable as a start/pickup day; a return date on one moves to the next open day (Mobile API 1.9.0).'],
                                         'days'               => ['type' => 'array', 'items' => [
                                             'type'       => 'object',
                                             'properties' => [
@@ -613,8 +613,8 @@ final class OpenApiController
                                         ]],
                                         'loan_duration_days' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Days POST /reservations adds to the chosen start to set the return date.'],
                                         'max_loan_duration_days' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Longest loan POST /reservations accepts through end_date (Mobile API 1.8.2).'],
-                                        'loanable' => ['type' => 'boolean', 'description' => 'False when the title is consultation only for this reader (patron type × material rule, or every copy kept for consultation): POST /reservations answers 409 not_loanable (Pinakes 0.9.0).'],
-                                        'reservations_enabled' => ['type' => 'boolean', 'description' => 'False when the reader\'s patron type does not allow waitlist reservations (409 reservations_disabled) (Pinakes 0.9.0).'],
+                                        'loanable' => ['type' => 'boolean', 'description' => 'False when the title is consultation only for this reader (patron type × material rule, or every copy kept for consultation): POST /reservations answers 409 not_loanable (Mobile API 1.9.0).'],
+                                        'reservations_enabled' => ['type' => 'boolean', 'description' => 'False when the reader\'s patron type does not allow waitlist reservations (409 reservations_disabled) (Mobile API 1.9.0).'],
                                     ],
                                 ]],
                             ]]],
@@ -775,7 +775,7 @@ final class OpenApiController
                         ],
                         '400' => ['$ref' => '#/components/responses/UnprocessableEntity'],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
-                        '409' => ['description' => 'Overlap or book unavailable. For not_available, when the start day is free but a scheduled loan or reservation begins inside the requested window, error.message names the longest loan still possible and meta carries max_duration_days, max_end_date and first_conflict_date (Mobile API 1.8.2) so the client can propose that return date. Circulation rules of the reader\'s patron type (Pinakes 0.9.0): max_loans_reached, media_limit_reached (limit for this material type), not_loanable (consultation only), reservations_disabled, reservation_limit_reached.', 'content' => $json],
+                        '409' => ['description' => 'Overlap or book unavailable. For not_available, when the start day is free but a scheduled loan or reservation begins inside the requested window, error.message names the longest loan still possible and meta carries max_duration_days, max_end_date and first_conflict_date (Mobile API 1.8.2) so the client can propose that return date. Circulation rules of the reader\'s patron type (Mobile API 1.9.0): max_loans_reached, media_limit_reached (limit for this material type), not_loanable (consultation only), reservations_disabled, reservation_limit_reached.', 'content' => $json],
                         '422' => ['description' => 'Invalid book id or date, or end_date beyond max_loan_duration_days (max_duration_exceeded).', 'content' => $json],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],
