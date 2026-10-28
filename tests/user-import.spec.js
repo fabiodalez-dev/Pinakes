@@ -3,7 +3,9 @@
 // User import from CSV (plan phase 7). A librarian uploads 20 rows — 17 new
 // readers, 2 duplicates (one email and one card code already in use) and 1 bad
 // row — checks the preview, fixes the column mapping by hand, runs the import
-// with invitations, and downloads the errors. Invitations are checked in
+// with invitations, and downloads the errors. The "Tipologia" column carries a
+// patron type code (in either case, one unknown, one empty) and is assigned by
+// code through PatronTypeImport. Invitations are checked in
 // Mailpit, filtered by this run's recipient domain (the inbox is shared).
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
@@ -61,8 +63,14 @@ const CUSTOM_LABEL = `Social${RUN}`;
 const EXISTING_EMAIL = `existing.${RUN}@${DOMAIN}`;
 const EXISTING_CODE = `ZEX${RUN_UP}`;
 const SECRET = 'Secret123!';
+const TYPE_CODE = `st${RUN}`;
+const TYPE_NAME = `Studenti ${RUN}`;
+const UNKNOWN_TYPE = `nessuna${RUN}`;
 
-/** 20 data rows: 17 valid, a duplicate email (line 6), a duplicate card code (line 13), a bad email (line 17). */
+/**
+ * 20 data rows: 17 valid, a duplicate email (line 6), a duplicate card code (line 13), a bad email (line 17).
+ * Patron type: readers 1-15 carry TYPE_CODE (upper case for the even ones), 16 none, 17 (line 21) an unknown code.
+ */
 function buildCsv() {
   const lines = [['Nome', 'Cognome', 'E-mail', 'Tel. cellulare', 'Data di nascita', 'Tessera', 'Password', CUSTOM_LABEL, 'Tipologia'].join(';')];
   let n = 0;
@@ -73,7 +81,8 @@ function buildCsv() {
     if (line === 17) { lines.push(['Sbagliata', 'Riga', 'not-an-email', '', '', '', SECRET, '', ''].join(';')); continue; }
     n++;
     const code = n % 2 === 0 ? `ZIM${RUN_UP}${n}` : '';
-    lines.push([`Imp${n}`, `Run${RUN}`, `imp${n}.${RUN}@${DOMAIN}`, `333000${String(n).padStart(4, '0')}`, `${String(n).padStart(2, '0')}/03/1990`, code, SECRET, `@imp${n}`, 'studente'].join(';'));
+    const type = n === 17 ? UNKNOWN_TYPE : n === 16 ? '' : (n % 2 === 0 ? TYPE_CODE.toUpperCase() : TYPE_CODE);
+    lines.push([`Imp${n}`, `Run${RUN}`, `imp${n}.${RUN}@${DOMAIN}`, `333000${String(n).padStart(4, '0')}`, `${String(n).padStart(2, '0')}/03/1990`, code, SECRET, `@imp${n}`, type].join(';'));
   }
   return lines.join('\n') + '\n';
 }
@@ -85,6 +94,7 @@ test.describe.serial('User import from CSV (phase 7)', () => {
   let context;
   let customId = 0;
   let existingId = 0;
+  let typeId = 0;
   let mailpit = false;
   /** @type {Record<string,string>} */
   const savedEmail = {};
@@ -98,6 +108,8 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     dbQuery(`INSERT INTO utenti (nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata)
              VALUES ('Gia', 'Presente', ${sqlStr(EXISTING_EMAIL)}, 'x', ${sqlStr(EXISTING_CODE)}, 'attivo', 'standard', 1)`);
     existingId = Number(dbQuery(`SELECT id FROM utenti WHERE email = ${sqlStr(EXISTING_EMAIL)}`));
+    dbQuery(`INSERT INTO tipologie_lettore (codice, nome, attiva, ordinamento) VALUES (${sqlStr(TYPE_CODE)}, ${sqlStr(TYPE_NAME)}, 1, 90)`);
+    typeId = Number(dbQuery(`SELECT id FROM tipologie_lettore WHERE codice = ${sqlStr(TYPE_CODE)}`));
 
     // Route the application mail to Mailpit for this suite, restored afterwards.
     for (const k of ['type', 'driver_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_username', 'smtp_password']) {
@@ -132,6 +144,7 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     dbQuery(`DELETE FROM utenti_campi_valori WHERE campo_id = ${customId}`);
     dbQuery(`DELETE FROM registrazione_campi WHERE id = ${customId}`);
     dbQuery(`DELETE FROM utenti WHERE email LIKE ${sqlStr(`%@${DOMAIN}`)}`);
+    if (typeId) dbQuery(`DELETE FROM tipologie_lettore WHERE id = ${typeId}`);
     dbQuery(`DELETE FROM import_logs WHERE file_name = ${sqlStr(path.basename(csvFile))}`);
     for (const [k, v] of Object.entries(savedEmail)) {
       if (v === '__absent__') dbQuery(`DELETE FROM system_settings WHERE category='email' AND setting_key=${sqlStr(k)}`);
@@ -174,9 +187,9 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     await expect(select(6)).toHaveValue(''); // Password: never mapped
     await expect(select(6).locator('option[value="password"]')).toHaveCount(0);
     await expect(select(7)).toHaveValue(`custom:${customId}`); // custom registration field
-    // Patron types do not exist on this installation: the column is not offered.
-    await expect(select(8)).toHaveValue('');
-    await expect(select(8).locator('option[value="tipologia"]')).toHaveCount(0);
+    // Patron types exist: the "Tipologia" header is recognised as the patron type code.
+    await expect(select(8).locator('option[value="tipologia"]')).toHaveCount(1);
+    await expect(select(8)).toHaveValue('tipologia');
 
     // Without an email column the import refuses to start.
     await select(2).selectOption('');
@@ -203,6 +216,11 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     await expect(page.locator('#user-import-errors tr[data-import-error="duplicate"]')).toHaveCount(2);
     await expect(page.locator('#user-import-errors tr[data-import-error="validation"]')).toHaveCount(1);
     await expect(page.locator('#user-import-errors tr[data-import-error="validation"]')).toContainText('17');
+    // The unknown patron type code is a warning: the reader is created with the default type.
+    const warning = page.locator('#user-import-errors tr[data-import-error="warning"]');
+    await expect(warning).toHaveCount(1);
+    await expect(warning).toContainText('21');
+    await expect(warning).toContainText(UNKNOWN_TYPE);
 
     // Database: 17 new readers, the existing one untouched, no duplicate rows.
     expect(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email LIKE ${sqlStr(`imp%.${RUN}@${DOMAIN}`)}`)).toBe('17');
@@ -245,12 +263,30 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     const file = await download.path();
     const csv = fs.readFileSync(String(file), 'utf-8');
     const rows = csv.trim().split(/\r?\n/).slice(1);
-    expect(rows.length).toBe(3);
+    expect(rows.length).toBe(4);
     expect(rows.find((r) => r.startsWith('6,'))).toContain('duplicate');
     expect(rows.find((r) => r.startsWith('13,'))).toContain('duplicate');
     expect(rows.find((r) => r.startsWith('17,'))).toContain('validation');
+    expect(rows.find((r) => r.startsWith('21,'))).toContain(UNKNOWN_TYPE);
     expect(csv).toContain(EXISTING_EMAIL);
     expect(csv).toContain(EXISTING_CODE);
+  });
+
+  test('the patron type column assigns the type by code, case-insensitively; empty and unknown codes keep the default', async () => {
+    // Readers 1-15: the code in lower (odd) and upper (even) case both resolve to the type.
+    expect(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email LIKE ${sqlStr(`imp%.${RUN}@${DOMAIN}`)} AND tipologia_id = ${typeId}`)).toBe('15');
+    expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE email = ${sqlStr(`imp16.${RUN}@${DOMAIN}`)}`)).toBe('NULL');
+    expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE email = ${sqlStr(`imp17.${RUN}@${DOMAIN}`)}`)).toBe('NULL');
+    expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE id = ${existingId}`)).toBe('NULL');
+
+    // The librarian sees it on the reader page: the imported type, or the default one.
+    const typed = dbQuery(`SELECT id FROM utenti WHERE email = ${sqlStr(`imp4.${RUN}@${DOMAIN}`)}`);
+    await page.goto(`${BASE}/admin/users/details/${typed}`);
+    await expect(page.getByTestId('patron-type-name')).toContainText(TYPE_NAME);
+    await expect(page.getByTestId('patron-type-name')).not.toContainText('predefinita');
+    const unknown = dbQuery(`SELECT id FROM utenti WHERE email = ${sqlStr(`imp17.${RUN}@${DOMAIN}`)}`);
+    await page.goto(`${BASE}/admin/users/details/${unknown}`);
+    await expect(page.getByTestId('patron-type-name')).toContainText('predefinita');
   });
 
   test('the run is in the import history as a users import', async () => {

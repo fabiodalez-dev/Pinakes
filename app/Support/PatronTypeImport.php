@@ -75,7 +75,10 @@ final class PatronTypeImport
     {
         if ($this->codes === null) {
             $this->codes = [];
-            $result = $this->db->query("SELECT id, codice FROM `{$this->typesTable}`");
+            // A deactivated type is not offered in the user form either, so
+            // its code does not resolve here: the reader keeps the default.
+            $active = $this->columnExists($this->typesTable, 'attiva') ? ' WHERE attiva = 1' : '';
+            $result = $this->db->query("SELECT id, codice FROM `{$this->typesTable}`{$active}");
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
                     $this->codes[mb_strtolower((string) $row['codice'], 'UTF-8')] = (int) $row['id'];
