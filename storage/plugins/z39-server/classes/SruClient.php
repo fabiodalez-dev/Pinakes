@@ -78,6 +78,166 @@ class SruClient
         return null;
     }
 
+    /** Search indexes the copy cataloguing page offers. */
+    public const SEARCH_INDEXES = ['title', 'author', 'isbn', 'issn', 'any'];
+
+    /** Default CQL index names (SRU context sets dc, bath, cql). */
+    private const DEFAULT_CQL_INDEXES = [
+        'title' => 'dc.title',
+        'author' => 'dc.creator',
+        'isbn' => 'bath.isbn',
+        'issn' => 'bath.issn',
+        'any' => 'cql.serverChoice',
+    ];
+
+    /**
+     * The CQL query for one search on one server: the server's own index name
+     * when its configuration maps one (`indexes`), else the standard one. A
+     * term with spaces or a server that wants it (`quote_search_terms`) is
+     * quoted, backslash-escaping embedded quotes per the CQL specification;
+     * an ISBN or ISSN is reduced to its digits.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function cqlFor(array $server, string $index, string $term): string
+    {
+        $index = in_array($index, self::SEARCH_INDEXES, true) ? $index : 'any';
+        $term = trim((string) preg_replace('/\s+/u', ' ', $term));
+        if ($index === 'isbn' || $index === 'issn') {
+            $term = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $term));
+        }
+        $indexes = is_array($server['indexes'] ?? null) ? $server['indexes'] : [];
+        $cqlIndex = trim((string) ($indexes[$index] ?? ''));
+        if ($cqlIndex === '') {
+            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index];
+        }
+        $quote = !empty($server['quote_search_terms']) || preg_match('/[\s"()=<>\/]/u', $term) === 1;
+        $value = $quote ? '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $term) . '"' : $term;
+        return $cqlIndex . '=' . $value;
+    }
+
+    /**
+     * Copy cataloguing: run one CQL query on every enabled server and return
+     * up to $max records from each, read with the shared MARC library.
+     *
+     * @return list<array{server: string, total: int, records: list<array<string, mixed>>, error: ?string}>
+     */
+    public function search(string $cql, int $max = 10): array
+    {
+        $out = [];
+        foreach ($this->servers as $server) {
+            if (empty($server['enabled']) || empty($server['url'])) {
+                continue;
+            }
+            $out[] = ['server' => (string) ($server['name'] ?? $server['url'])] + $this->searchServer($server, $cql, $max);
+        }
+        return $out;
+    }
+
+    /**
+     * One CQL query on one server. Each record comes back as its book data
+     * (MarcBookData shape), the MARC flavour it was read as and, for a MARC
+     * record, the record itself (MarcRecord::toArray()) for the detail view.
+     * A failing server answers with `error` instead of throwing.
+     *
+     * @param array<string, mixed> $server
+     * @return array{total: int, records: list<array<string, mixed>>, error: ?string}
+     */
+    public function searchServer(array $server, string $cql, int $max = 10): array
+    {
+        $max = max(1, min(50, $max));
+        $url = (string) ($server['url'] ?? '');
+        try {
+            if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+                throw new \RuntimeException('Invalid server URL');
+            }
+            $syntax = strtolower((string) ($server['syntax'] ?? 'marcxml'));
+            if ($syntax === 'dbc-opensearch') {
+                $params = ['action' => 'search', 'query' => $cql, 'outputType' => 'xml', 'objectFormat' => 'marcxchange', 'start' => 1, 'stepValue' => $max];
+            } else {
+                $params = [
+                    'operation' => 'searchRetrieve',
+                    'version' => (string) ($server['version'] ?? '1.1'),
+                    'query' => $cql,
+                    'recordSchema' => $syntax === 'danmarc2' ? 'marcxchange' : (string) ($server['syntax'] ?? 'marcxml'),
+                    'maximumRecords' => $max,
+                ];
+            }
+            static $lastRequest = [];
+            $this->enforceRateLimit($url, $lastRequest);
+            $xml = $this->fetchUrl($url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params));
+            if ($xml === null) {
+                return ['total' => 0, 'records' => [], 'error' => null];
+            }
+            return $this->readSearchResponse($xml, $syntax, $max);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[SruClient] search failed', ['server' => $server['name'] ?? $url, 'error' => $e->getMessage()]);
+            return ['total' => 0, 'records' => [], 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * @return array{total: int, records: list<array<string, mixed>>, error: ?string}
+     */
+    private function readSearchResponse(string $xml, string $syntax, int $max): array
+    {
+        $dom = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $dom->loadXML($xml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            throw new \RuntimeException('Invalid XML response');
+        }
+        $xpath = new DOMXPath($dom);
+        $diagnostic = $xpath->query("//*[local-name()='diagnostic']/*[local-name()='message'] | /*[local-name()='searchResponse']/*[local-name()='error']")->item(0);
+        if ($diagnostic !== null) {
+            throw new \RuntimeException(trim((string) $diagnostic->nodeValue));
+        }
+        $totalNode = $xpath->query("//*[local-name()='numberOfRecords'] | //*[local-name()='hitCount']")->item(0);
+        $records = [];
+
+        if ($syntax === 'dc' || $syntax === 'oai_dc') {
+            foreach ($xpath->query("//*[local-name()='recordData']") ?: [] as $recordData) {
+                if (count($records) >= $max) {
+                    break;
+                }
+                $single = new DOMDocument();
+                $single->appendChild($single->importNode($recordData, true));
+                $singleXpath = new DOMXPath($single);
+                $singleXpath->registerNamespace('dc', 'http://purl.org/dc/elements/1.1/');
+                $singleXpath->registerNamespace('oai_dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
+                $book = $this->parseDublinCore($singleXpath);
+                if ($book !== null) {
+                    unset($book['_isbns']);
+                    $records[] = ['flavour' => 'dc', 'marc' => null, 'data' => \App\Support\Marc\MarcBookData::fromScrape($book)];
+                }
+            }
+        } else {
+            foreach (\App\Support\Marc\MarcXmlReader::fromString($xml) as $item) {
+                if (count($records) >= $max) {
+                    break;
+                }
+                if (!$item instanceof \App\Support\Marc\MarcRecord) {
+                    continue;
+                }
+                $flavour = \App\Support\Marc\MarcFormat::detectFlavour($item);
+                if (in_array($syntax, ['danmarc2', 'dbc-opensearch'], true)) {
+                    $flavour = \App\Support\Marc\MarcFormat::DANMARC2;
+                } elseif (in_array($syntax, ['unimarc', 'unimarcxchange', 'unimarcxml'], true) && $flavour !== \App\Support\Marc\MarcFormat::DANMARC2) {
+                    $flavour = \App\Support\Marc\MarcFormat::UNIMARC;
+                }
+                $records[] = [
+                    'flavour' => $flavour,
+                    'marc' => $item->toArray(),
+                    'data' => \App\Support\Marc\MarcFormat::mapperFor($flavour)->map($item),
+                ];
+            }
+        }
+        $total = $totalNode !== null ? (int) $totalNode->nodeValue : count($records);
+        return ['total' => max($total, count($records)), 'records' => $records, 'error' => null];
+    }
+
     /**
      * Query server with retry logic
      */
