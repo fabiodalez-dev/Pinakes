@@ -3961,7 +3961,19 @@ class OaiPmhServerPlugin
         $publishers = $this->fetchPublishersForBook($id, !empty($row['editore_id']) ? (int) $row['editore_id'] : null);
         $genre      = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
 
-        $binary   = $this->bookToIso2709($row, $authors, $publishers, $genre);
+        try {
+            $binary = $this->bookToIso2709($row, $authors, $publishers, $genre);
+        } catch (\OverflowException) {
+            // Over the 99,999-byte ISO 2709 limit: the long free texts are
+            // shortened as the bulk MARC export does, else the record cannot
+            // be an ISO 2709 record at all.
+            try {
+                $binary = $this->bookToIso2709(\App\Controllers\MarcExportController::shortenTexts($row), $authors, $publishers, $genre);
+            } catch (\OverflowException $e) {
+                $response->getBody()->write(json_encode(['error' => true, 'message' => 'Record too long for ISO 2709: ' . $e->getMessage()]));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
+            }
+        }
         $filename = 'unimarc-' . $id . '.mrc';
 
         $response->getBody()->write($binary);
