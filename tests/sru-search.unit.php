@@ -66,6 +66,9 @@ $check(SruClient::cqlFor([], 'bogus', 'x') === 'cql.serverChoice="x"', '05 an un
 $check(SruClient::cqlFor([], 'title', "dell'arte") === 'dc.title="dell\'arte"', '05b a word with an apostrophe is quoted');
 $check(SruClient::cqlFor([], 'title', 'and') === 'dc.title="and"', '05c a CQL keyword used as a word is quoted');
 $check(SruClient::cqlFor(['quote_search_terms' => true], 'isbn', '88-452-9261-3') === 'bath.isbn="8845292613"', '05d an ISBN is quoted only when the server asks');
+$check(SruClient::cqlFor(['indexes' => ['any' => ['index' => 'woe', 'relation' => 'all']]], 'any', 'Kafka Prozess') === 'woe all "Kafka Prozess"', '05f an index mapped with a relation (DNB woe all)');
+$check(SruClient::cqlFor(['indexes' => ['any' => ['index' => 'woe', 'relation' => 'drop table']]], 'any', 'x') === 'woe="x"', '05g an unknown relation falls back to =');
+$check(SruClient::cqlFor(['indexes' => ['title' => ['index' => 'tit']]], 'title', 'x') === 'tit="x"', '05h the array form without a relation is =');
 foreach (["dell'arte", 'and', 'not', 'Eco'] as $word) {
     $parsed = true;
     try {
@@ -92,6 +95,18 @@ echo "Other answers\n";
 $diag = '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords><diagnostics><diagnostic xmlns="http://www.loc.gov/zing/srw/diagnostic/"><uri>info:srw/diagnostic/1/16</uri><message>Unsupported index</message></diagnostic></diagnostics></searchRetrieveResponse>';
 $bad = (new SearchFixtureClient([$server], $diag))->searchServer($server, 'q', 5);
 $check($bad['error'] === 'Unsupported index' && $bad['records'] === [], '12 an SRU diagnostic is the server\'s error, not an exception');
+// The BnF answers a surrogate diagnostic inside recordData for a hit it
+// cannot render ("erreur de traitement"): the other records are returned.
+$surrogate = '<?xml version="1.0"?><srw:searchRetrieveResponse xmlns:srw="http://www.loc.gov/zing/srw/"><srw:version>1.2</srw:version><srw:numberOfRecords>1495</srw:numberOfRecords><srw:records>'
+    . '<srw:record><srw:recordSchema>marcxchange</srw:recordSchema><srw:recordPacking>xml</srw:recordPacking><srw:recordData><srw:diagnostics><sd:diagnostic xmlns:sd="http://www.loc.gov/zing/srw/diagnostic/"><sd:uri>info:srw/diagnostic/1/131</sd:uri><sd:details>-20;</sd:details><sd:message>erreur de traitement</sd:message></sd:diagnostic></srw:diagnostics></srw:recordData><srw:recordPosition>1</srw:recordPosition></srw:record>'
+    . '<srw:record><srw:recordSchema>marcxchange</srw:recordSchema><srw:recordPacking>xml</srw:recordPacking><srw:recordData>' . $marcRecord('Le Petit Prince', '9782070612758', 'Saint-Exupéry, Antoine de') . '</srw:recordData><srw:recordPosition>2</srw:recordPosition></srw:record>'
+    . '<srw:record><srw:recordSchema>marcxchange</srw:recordSchema><srw:recordPacking>xml</srw:recordPacking><srw:recordData>' . $marcRecord('Il piccolo principe', '9788845292613', 'Saint-Exupéry, Antoine de') . '</srw:recordData><srw:recordPosition>3</srw:recordPosition></srw:record>'
+    . '</srw:records></srw:searchRetrieveResponse>';
+$partial = (new SearchFixtureClient([$server], $surrogate))->searchServer($server, 'q', 5);
+$check($partial['error'] === null && $partial['total'] === 1495 && array_map(static fn ($r) => $r['data']['titolo'], $partial['records']) === ['Le Petit Prince', 'Il piccolo principe'], '12b a surrogate diagnostic inside recordData skips that record, the others are returned');
+$ownError = '<?xml version="1.0" encoding="UTF-8"?><error><message>Invalid or missing API key</message></error>';
+$denied = (new SearchFixtureClient([$server], $ownError))->searchServer($server, 'q', 5);
+$check($denied['error'] === 'Invalid or missing API key' && $denied['records'] === [], '12c the <error> our own endpoint answers with is the server\'s error');
 $broken = (new SearchFixtureClient([$server], '<not xml'))->searchServer($server, 'q', 5);
 $check($broken['error'] !== null, '13 a response that is not XML is reported');
 $invalid = (new SearchFixtureClient([], $sru))->searchServer(['url' => 'ftp://x'], 'q', 5);
