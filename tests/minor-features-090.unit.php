@@ -9,6 +9,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 if (!function_exists('__')) { function __(string $s, mixed ...$a): string { return $a ? sprintf($s, ...$a) : $s; } }
 
 use App\Controllers\CatalogueCardController;
+use App\Controllers\MarcImportController;
 use App\Models\AttendanceRepository;
 use App\Models\SupplierRepository;
 use App\Support\CatalogueCard;
@@ -82,6 +83,9 @@ checkMinor(array_keys($s) === SupplierRepository::FIELDS, 'normalize() returns e
 checkMinor(SupplierRepository::invalidFields(['email' => 'not-an-email', 'sito_web' => 'not a url']) === ['email', 'sito_web'], 'the form is refused on an e-mail or website that is not one');
 checkMinor(SupplierRepository::invalidFields(['email' => ' ordini@example.org ', 'sito_web' => 'www.rossi.it']) === [] && SupplierRepository::invalidFields(['email' => '', 'sito_web' => null]) === [], 'a valid or blank e-mail and website pass');
 checkMinor(SupplierRepository::invalidFields(['sito_web' => 'javascript:alert(1)']) === ['sito_web'], 'a non-http website is refused, not silently dropped');
+
+checkMinor(MarcImportController::supplierApplies('created', 'skip') && MarcImportController::supplierApplies('created', 'fill') && MarcImportController::supplierApplies('updated', 'overwrite'), 'an import batch supplier goes on created books and on overwritten ones');
+checkMinor(!MarcImportController::supplierApplies('skipped', 'overwrite') && !MarcImportController::supplierApplies('updated', 'fill') && !MarcImportController::supplierApplies('updated', 'skip'), 'skipped duplicates and books only completed in their empty fields keep their supplier');
 
 // ── Visitor log helpers ──
 checkMinor(AttendanceRepository::shortName('Mario', 'rossi') === 'Mario R.' && AttendanceRepository::shortName('Cher', '') === 'Cher', 'kiosk names are shortened to the initial');

@@ -8679,5 +8679,8 @@
   "Disco per computer": "Disque informatique",
   "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Dernier récolement clôturé : « %s », %s. Récolements clôturés au total : %d.",
   "L'email del fornitore non è un indirizzo valido.": "L'e-mail du fournisseur n'est pas une adresse valide.",
-  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Le site web du fournisseur n'est pas une adresse valide : indiquez une URL http(s), par exemple https://www.exemple.fr."
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Le site web du fournisseur n'est pas une adresse valide : indiquez une URL http(s), par exemple https://www.exemple.fr.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Attribué aux nouveaux livres et, avec « Écraser », aux livres déjà présents. Les livres ignorés ou seulement complétés gardent leur fournisseur.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Attribué aux nouveaux livres créés par cette importation. Les livres déjà présents gardent leur fournisseur.",
+  "Fornitore non assegnato": "Fournisseur non attribué"
 }

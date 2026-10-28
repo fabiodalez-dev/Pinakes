@@ -8679,5 +8679,8 @@
   "Disco per computer": "Disco per computer",
   "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.",
   "L'email del fornitore non è un indirizzo valido.": "L'email del fornitore non è un indirizzo valido.",
-  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it."
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.",
+  "Fornitore non assegnato": "Fornitore non assegnato"
 }

@@ -8679,5 +8679,8 @@
   "Disco per computer": "Computerdisk",
   "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Zuletzt abgeschlossene Bestandsrevision: „%s“, %s. Abgeschlossene Bestandsrevisionen insgesamt: %d.",
   "L'email del fornitore non è un indirizzo valido.": "Die E-Mail-Adresse des Lieferanten ist ungültig.",
-  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Die Website des Lieferanten ist keine gültige Adresse: geben Sie eine http(s)-URL an, zum Beispiel https://www.beispiel.de."
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Die Website des Lieferanten ist keine gültige Adresse: geben Sie eine http(s)-URL an, zum Beispiel https://www.beispiel.de.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Wird den neuen Büchern und, mit „Überschreiben“, den bereits vorhandenen Büchern zugewiesen. Übersprungene oder nur ergänzte Bücher behalten ihren Lieferanten.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Wird den neuen Büchern zugewiesen, die dieser Import anlegt. Bereits vorhandene Bücher behalten ihren Lieferanten.",
+  "Fornitore non assegnato": "Lieferant nicht zugewiesen"
 }

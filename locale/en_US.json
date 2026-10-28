@@ -8679,5 +8679,8 @@
   "Disco per computer": "Computer disc",
   "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Last closed stocktake: “%s”, %s. Closed stocktakes in total: %d.",
   "L'email del fornitore non è un indirizzo valido.": "The supplier e-mail is not a valid address.",
-  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "The supplier website is not a valid address: enter an http(s) URL, for example https://www.example.org."
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "The supplier website is not a valid address: enter an http(s) URL, for example https://www.example.org.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Assigned to the new books and, with \"Overwrite\", to the books already in the catalogue. Skipped or merely completed books keep their supplier.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Assigned to the new books this import creates. Books already in the catalogue keep their supplier.",
+  "Fornitore non assegnato": "Supplier not assigned"
 }

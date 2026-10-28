@@ -8679,5 +8679,8 @@
   "Disco per computer": "Computerdisk",
   "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Senest afsluttede lageroptælling: »%s«, %s. Afsluttede lageroptællinger i alt: %d.",
   "L'email del fornitore non è un indirizzo valido.": "Leverandørens e-mail er ikke en gyldig adresse.",
-  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Leverandørens websted er ikke en gyldig adresse: angiv en http(s)-URL, for eksempel https://www.eksempel.dk."
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Leverandørens websted er ikke en gyldig adresse: angiv en http(s)-URL, for eksempel https://www.eksempel.dk.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Tildeles de nye bøger og, med \"Overskriv\", de bøger der allerede findes. Bøger der springes over eller kun udfyldes beholder deres leverandør.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Tildeles de nye bøger, som denne import opretter. Bøger der allerede findes beholder deres leverandør.",
+  "Fornitore non assegnato": "Leverandør ikke tildelt"
 }

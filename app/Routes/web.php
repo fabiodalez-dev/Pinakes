@@ -1451,9 +1451,10 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
 
     // CSV Import routes
-    $app->get('/admin/books/import', function ($request, $response) {
+    $app->get('/admin/books/import', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CsvImportController();
-        return $controller->showImportPage($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->showImportPage($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->get('/admin/books/import/example', function ($request, $response) {
@@ -1494,9 +1495,10 @@ return function (App $app): void {
     // MARC bulk import (ISO 2709 / MARCXML; MARC 21, UNIMARC, danMARC2) on
     // the CSV import infrastructure: upload + preview, then chunks. No
     // RateLimitMiddleware on /chunk for the same reason as the CSV chunk (#113).
-    $app->get('/admin/books/import/marc', function ($request, $response) {
+    $app->get('/admin/books/import/marc', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\MarcImportController();
-        return $controller->showImportPage($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->showImportPage($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/books/import/marc/upload', function ($request, $response) use ($app) {
