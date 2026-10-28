@@ -44,7 +44,9 @@ try {
     $db->query("ALTER TABLE {$table} MODIFY COLUMN import_type ENUM('csv','librarything','marc') NOT NULL COMMENT 'Type of import'");
     $run();
     $check(($type()['COLUMN_TYPE'] ?? '') === "enum('csv','librarything','marc','users')", 'a value added by another section is kept');
-    $check(str_contains((string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql'), "`import_type` enum('csv','librarything','users')"), 'fresh install includes the users value');
+    // Other 0.9.0 sections (marc) add values too: the fresh-install enum must
+    // start with the 0.8.9 values and contain users.
+    $check(preg_match("/`import_type` enum\\('csv','librarything'(?:,'[a-z_]+')*,'users'(?:,'[a-z_]+')*\\)/", (string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql')) === 1, 'fresh install includes the users value');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
     $check(version_compare('0.9.0', $version, '<='), 'release includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
