@@ -113,14 +113,48 @@ final class StatisticsSections
     }
 
     /**
-     * EXTENSION POINT — stocktake outcomes (found / missing / misplaced …).
-     * Filled by the stocktake branch; NULL hides the section.
+     * Stocktake outcomes (found / misplaced / on loan / missing) of the last
+     * closed session. A filter on statistics.section.stocktake still wins;
+     * NULL (no stocktake table, no closed session) hides the section.
      *
      * @return array{rows: list<array{label: string, value: int|float|string}>, note?: string}|null
      */
     public static function stocktakeOutcomes(mysqli $db): ?array
     {
-        return self::tableSection(Hooks::apply('statistics.section.stocktake', null, [$db]));
+        $hooked = self::tableSection(Hooks::apply('statistics.section.stocktake', null, [$db]));
+        if ($hooked !== null) {
+            return $hooked;
+        }
+        // Built-in provider: the outcomes of the most recently closed
+        // stocktake session. No stocktake table or no closed session hides
+        // the section.
+        $exists = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_sessioni' LIMIT 1");
+        if (!$exists instanceof \mysqli_result || $exists->num_rows === 0) {
+            return null;
+        }
+        $res = $db->query("SELECT id, nome, chiusa_il, (SELECT COUNT(*) FROM inventario_sessioni WHERE stato = 'chiusa') AS chiuse
+                           FROM inventario_sessioni WHERE stato = 'chiusa' ORDER BY chiusa_il DESC, id DESC LIMIT 1");
+        $last = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        if (!is_array($last)) {
+            return null;
+        }
+        $summary = (new \App\Services\StocktakeService($db))->summary((int) $last['id']);
+        return [
+            'rows' => [
+                ['label' => __('Copie attese'), 'value' => $summary['attese']],
+                ['label' => __('Trovata'), 'value' => $summary['trovate']],
+                ['label' => __('Fuori posto'), 'value' => $summary['fuori_posto']],
+                ['label' => __('In prestito'), 'value' => $summary['in_prestito']],
+                ['label' => __('Mancanti'), 'value' => $summary['mancanti']],
+                ['label' => __('Codici sconosciuti'), 'value' => $summary['sconosciute']],
+            ],
+            'note' => sprintf(
+                __('Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.'),
+                (string) $last['nome'],
+                format_date((string) $last['chiusa_il'], true, '/'),
+                (int) $last['chiuse']
+            ),
+        ];
     }
 
     /**

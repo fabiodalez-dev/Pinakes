@@ -1,7 +1,7 @@
 // @ts-check
 // /admin/statistics in 0.9.0: loans by material, visitors from the visitor
-// log, and the extension sections (patron types, fines, stocktake) hidden
-// until another feature provides them.
+// log, the outcomes of the last closed stocktake, and the extension
+// sections (patron types, fines) hidden until another feature provides them.
 const { test, expect } = require('@playwright/test');
 const h = require('./helpers/minor-features-090');
 
@@ -87,11 +87,53 @@ test.describe.serial('Statistics 0.9.0 sections', () => {
     await expect(page).toHaveURL(/\/admin\/attendance$/);
   });
 
-  test('5. Patron-type, fines and stocktake sections stay hidden until a feature provides them', async () => {
+  test('5. Patron-type and fines sections stay hidden until a feature provides them', async () => {
     await page.goto(`${h.BASE}/admin/statistics`);
     await expect(page.locator('#stats-loans-by-media')).toBeVisible();
-    for (const id of ['patron-types', 'fines', 'stocktake']) {
+    for (const id of ['patron-types', 'fines']) {
       await expect(page.locator(`#stats-${id}`)).toHaveCount(0);
+    }
+  });
+
+  test('6. The last closed stocktake shows its outcomes', async () => {
+    const name = `E2E Revisione statistiche ${STAMP}`;
+    const bookId = h.seedBook({ titolo: `E2E Statistiche revisione ${STAMP}` });
+    const copies = ['A', 'B', 'C'].map((suffix) => {
+      const code = `E2ESR${STAMP}${suffix}`.slice(0, 40);
+      h.dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, ${h.sqlString(code)}, 'disponibile')`);
+      return { code, id: parseInt(h.dbQuery(`SELECT id FROM copie WHERE numero_inventario = ${h.sqlString(code)}`), 10) };
+    });
+    let sessionId = 0;
+    try {
+      // Setup: a session closed now, three expected copies, one found, one
+      // misplaced, one never scanned, plus one unknown code.
+      h.dbQuery(`INSERT INTO inventario_sessioni (nome, stato, totale_attese, aperta_il, chiusa_il) VALUES (${h.sqlString(name)}, 'chiusa', 3, NOW() - INTERVAL 1 HOUR, NOW())`);
+      sessionId = parseInt(h.dbQuery(`SELECT MAX(id) FROM inventario_sessioni WHERE nome = ${h.sqlString(name)}`), 10);
+      h.dbQuery(`INSERT INTO inventario_attese (sessione_id, copia_id, stato_all_apertura) VALUES ${copies.map((c) => `(${sessionId}, ${c.id}, 'disponibile')`).join(', ')}`);
+      h.dbQuery(`INSERT INTO inventario_scansioni (sessione_id, copia_id, codice_letto, esito) VALUES
+                 (${sessionId}, ${copies[0].id}, ${h.sqlString(copies[0].code)}, 'trovata'),
+                 (${sessionId}, ${copies[1].id}, ${h.sqlString(copies[1].code)}, 'fuori_posto'),
+                 (${sessionId}, NULL, ${h.sqlString(`E2EUNKNOWN${STAMP}`)}, 'sconosciuta')`);
+      const closed = parseInt(h.dbQuery(`SELECT COUNT(*) FROM inventario_sessioni WHERE stato = 'chiusa'`), 10);
+
+      await page.goto(`${h.BASE}/admin/statistics`);
+      const section = page.locator('#stats-stocktake');
+      await expect(section).toBeVisible();
+      await expect(section.getByRole('heading', { name: 'Esiti delle revisioni inventariali' })).toBeVisible();
+      const value = (label) => section.locator('tr', { has: page.locator('td', { hasText: new RegExp(`^${label}$`) }) }).locator('td').nth(1);
+      await expect(value('Copie attese')).toHaveText('3');
+      await expect(value('Trovata')).toHaveText('1');
+      await expect(value('Fuori posto')).toHaveText('1');
+      await expect(value('In prestito')).toHaveText('0');
+      await expect(value('Mancanti')).toHaveText('1');
+      await expect(value('Codici sconosciuti')).toHaveText('1');
+      await expect(section).toContainText(`Ultima revisione chiusa: «${name}»`);
+      await expect(section).toContainText(`Revisioni chiuse in totale: ${closed}.`);
+    } finally {
+      if (sessionId > 0) {
+        try { h.dbQuery(`DELETE FROM inventario_sessioni WHERE id = ${sessionId}`); } catch (_) { /* cleanup */ }
+      }
+      h.deleteBooks([bookId]);
     }
   });
 });

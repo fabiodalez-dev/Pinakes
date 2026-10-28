@@ -8674,5 +8674,6 @@
   "Disco sonoro": "Audio disc",
   "Audiocassetta": "Audiocassette",
   "Videodisco": "Videodisc",
-  "Disco per computer": "Computer disc"
+  "Disco per computer": "Computer disc",
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Last closed stocktake: “%s”, %s. Closed stocktakes in total: %d."
 }
