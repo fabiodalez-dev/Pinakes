@@ -108,26 +108,33 @@ class SettingsRepository
     }
 
     /**
-     * Configured default loan duration. Invalid or missing values retain the
-     * historical 30-day fallback in every loan creation/update path.
+     * Configured default loan duration (global rule, no patron context).
+     *
+     * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).
      */
     public function loanDurationDays(): int
     {
-        $days = (int) ($this->get('loans', 'loan_duration_days', '30') ?? 30);
-        return $days >= 1 ? $days : 30;
+        return (new \App\Services\CirculationPolicy($this->db, $this))->defaults()->durationDays;
     }
 
-    /** Maximum duration of a reader's request, including an explicit end date. */
+    /**
+     * Maximum duration of a reader's request, including an explicit end date.
+     *
+     * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).
+     */
     public function maxLoanDurationDays(): int
     {
-        $days = (int) ($this->get('loans', 'max_loan_duration_days', '90') ?? 90);
-        return $days >= 1 ? $days : 90;
+        return (new \App\Services\CirculationPolicy($this->db, $this))->defaults()->maxRequestDays;
     }
 
-    /** Default for reader requests and their calendars; staff loans retain their own duration. */
+    /**
+     * Default for reader requests and their calendars; staff loans retain their own duration.
+     *
+     * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).
+     */
     public function requestLoanDurationDays(): int
     {
-        return min($this->loanDurationDays(), $this->maxLoanDurationDays());
+        return (new \App\Services\CirculationPolicy($this->db, $this))->defaults()->requestDurationDays();
     }
 
     /**

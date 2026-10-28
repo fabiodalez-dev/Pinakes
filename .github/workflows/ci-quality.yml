@@ -211,6 +211,25 @@ jobs:
       - name: Soft-delete guard (libri queries must include deleted_at IS NULL)
         run: python3 scripts/ci-check-soft-delete.py app storage/plugins installer
 
+      # ── Circulation rules single source ───────────────────────────────────
+      # Loan duration, request window, renewals and active-loan limits are read
+      # only through App\Services\CirculationPolicy (patron types and the rules
+      # matrix layer on top of the globals there). A direct read anywhere else
+      # would apply the global value on one channel and the patron's rule on
+      # another. SettingsController is the settings form itself.
+      - name: Circulation policy guard (loans rules read only via CirculationPolicy)
+        run: |
+          PATTERN="'loans',[[:space:]]*'(max_active_loans_per_user|max_renewals|loan_duration_days|max_loan_duration_days)'"
+          HITS=$(grep -rnE "$PATTERN" app storage/plugins cron public installer --include='*.php' \
+            | grep -v '^app/Services/CirculationPolicy.php:' \
+            | grep -v '^app/Controllers/SettingsController.php:' || true)
+          if [ -n "$HITS" ]; then
+            echo "✗ Direct read of a circulation setting outside CirculationPolicy:"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "✓ circulation settings read only through CirculationPolicy"
+
       # ── Autoloader safety ─────────────────────────────────────────────────
       - name: Autoloader phpstan-free
         run: |

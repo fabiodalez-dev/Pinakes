@@ -336,8 +336,9 @@ class LoanApprovalController
             // applicato solo alla creazione/richiesta, ma approvando più richieste pendenti
             // su libri diversi un admin poteva superarlo. Conta i prestiti attivi escluso
             // quello in approvazione; il lock sulla riga libro sopra serializza.
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
+            $circulation = new \App\Services\CirculationPolicy($db);
+            $approvalPolicy = $circulation->forExistingLoan($loanId);
+            if (!$approvalPolicy->loanable || $approvalPolicy->hasQuantityLimits()) {
                 // Serialize concurrent approvals for the SAME user on DIFFERENT books:
                 // the libri lock above only serializes this loan's book, so two
                 // parallel approvals could both read activeCount below the cap and
@@ -347,16 +348,15 @@ class LoanApprovalController
                 $userLockStmt->execute();
                 $userLockStmt->close();
 
-                $cntStmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE utente_id = ? AND id != ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('ii', $utenteId, $loanId);
-                $cntStmt->execute();
-                $activeCount = (int) ($cntStmt->get_result()->fetch_assoc()['c'] ?? 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
+                $limitError = $circulation->loanLimitError($approvalPolicy, $utenteId, $loanId);
+                if ($limitError !== null) {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
-                        'message' => __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti')
+                        'error' => $limitError,
+                        'message' => $limitError === 'max_loans_reached'
+                            ? __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti')
+                            : \App\Support\LoanEligibility::errorMessage($limitError),
                     ]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
                 }

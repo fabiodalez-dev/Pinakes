@@ -135,8 +135,8 @@ class ReservationsAdminController
             $start = $today;
         }
         if ($end === '') {
-            $loanDays = $this->loanDurationDays($db);
-            $end = (new \DateTimeImmutable($start))->modify("+{$loanDays} days")->format('Y-m-d');
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forReservation($id)->durationDays;
+            $end = \App\Services\CirculationPolicy::dueDateFor($start, $loanDays);
         }
         // Normalize an inverted range on the reservation dates too (form can post
         // end < start), mirroring the data_*_richiesta clamp below (#252).
@@ -454,7 +454,7 @@ class ReservationsAdminController
             }
         }
 
-        $defaultLoanDays = $this->loanDurationDays($db);
+        $defaultLoanDays = (new \App\Services\CirculationPolicy($db))->defaults()->durationDays;
 
         ob_start();
         $title = "Crea Prenotazione - Admin";
@@ -513,12 +513,10 @@ class ReservationsAdminController
         if (empty($dataScadenza)) {
             // Durata di default allineata all'impostazione admin loan_duration_days
             // (stesso valore mostrato dalla view), non più 30 giorni hardcoded.
-            $loanDays = $this->loanDurationDays($db);
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId)->durationDays;
             // The default duration starts from the requested start date, not
             // from today (critical for future reservations).
-            $dataScadenzaDate = (new \DateTimeImmutable($dataPrenotazioneDate))
-                ->modify("+{$loanDays} days")
-                ->format('Y-m-d');
+            $dataScadenzaDate = \App\Services\CirculationPolicy::dueDateFor($dataPrenotazioneDate, $loanDays);
             $dataScadenza = $dataScadenzaDate . ' 23:59:59';
         } else {
             $dataScadenzaDate = $dataScadenza; // Keep date only for loan period
@@ -658,17 +656,6 @@ class ReservationsAdminController
             $db->rollback();
             return $response->withHeader('Location', url('/admin/reservations/create') . '?error=save_failed')->withStatus(302);
         }
-    }
-
-    /**
-     * The configured loan duration in days (loans.loan_duration_days), with the
-     * canonical fallback to 30 for a missing or non-positive value. Centralizes
-     * the lookup previously duplicated in update(), store() and createForm().
-     */
-    private function loanDurationDays(mysqli $db): int
-    {
-        $days = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
-        return $days > 0 ? $days : 30;
     }
 
     private function reorderQueuePositions(mysqli $db, int $libroId): void

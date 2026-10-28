@@ -40,7 +40,8 @@ use mysqli;
  */
 final class CapacityService
 {
-    private ?int $maxActiveLoansPerUser = null;
+    /** Circulation rules, resolved once per instance (the settings rows are cached there). */
+    private ?CirculationPolicy $circulation = null;
 
     public function __construct(private mysqli $db) {}
 
@@ -441,7 +442,7 @@ final class CapacityService
         // loan limit. The reservation stays active and regains its FIFO priority
         // automatically once the account becomes eligible again.
         $today = \App\Support\DateHelper::today();
-        $maxLoans = $this->maxActiveLoansPerUser();
+        $circulation = $this->circulation ??= new CirculationPolicy($this->db);
         $sql = "SELECT GREATEST($rStart, ?) AS s, LEAST($rEnd, ?) AS e
                 FROM prenotazioni r
                 JOIN utenti u ON u.id = r.utente_id
@@ -453,7 +454,9 @@ final class CapacityService
                   AND $rEnd >= ?";
         $types = 'ssisss';
         $params = [$start, $end, $libroId, $today, $end, $start];
-        if ($maxLoans > 0) {
+        if ($circulation->anyTotalLoanLimit()) {
+            // Per-patron limit (CirculationPolicy; 0 = no limit for that patron).
+            $limitSql = $circulation->totalLoanLimitSql('u');
             // Future reservations reserve capacity against overlapping commitments.
             // Once they become promotable, promotion and approval enforce the total
             // active-loan cap (including future scheduled loans). Use the SHARED
@@ -463,23 +466,22 @@ final class CapacityService
             // today — the two predicates must stay identical by construction, or
             // an unpromotable-at-cap legacy head would keep occupying capacity
             // and freeze the queue (the very bug this branch fixes).
-            $sql .= " AND (
+            $sql .= " AND ({$limitSql} <= 0 OR (
                         SELECT COUNT(*)
                         FROM prestiti cap
                         WHERE cap.utente_id = r.utente_id
                           AND cap.attivo = 1
-                          AND cap.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
+                          AND cap.stato IN (" . CirculationPolicy::ACTIVE_LOAN_STATES_SQL . ")
                           AND (" . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
                           OR (cap.data_prestito <= $rEnd
                           AND (cap.stato = 'in_ritardo'
                                OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
                                OR cap.data_scadenza >= $rStart)))
-                      ) < ?";
-            $types .= 'sssi';
+                      ) < {$limitSql})";
+            $types .= 'sss';
             $params[] = $today;
             $params[] = $today;
             $params[] = $today;
-            $params[] = $maxLoans;
         }
         if ($excludeReservationId !== null) {
             $sql .= ' AND r.id <> ?';
@@ -502,16 +504,6 @@ final class CapacityService
             $params[] = $excludeReservationsAfterQueuePos;
         }
         return $this->fetchIntervals($sql, $types, $params);
-    }
-
-    private function maxActiveLoansPerUser(): int
-    {
-        if ($this->maxActiveLoansPerUser === null) {
-            $value = (new \App\Models\SettingsRepository($this->db))
-                ->get('loans', 'max_active_loans_per_user', '0');
-            $this->maxActiveLoansPerUser = max(0, (int) ($value ?? 0));
-        }
-        return $this->maxActiveLoansPerUser;
     }
 
     /**
