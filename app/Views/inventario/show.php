@@ -393,6 +393,7 @@ unset($workspaceHeader);
   var body = document.getElementById('inventory-scans-body');
   var busy = false;
   var queue = [];
+  var refreshing = null; // AbortController of the refresh in flight, if any
   var tones = { trovata: [880, 0.12], fuori_posto: [520, 0.25], in_prestito: [660, 0.25], fuori_ambito: [440, 0.3], duplicata: [330, 0.2], sconosciuta: [220, 0.45] };
   var feedbackClasses = {
     trovata: 'bg-green-50 border-green-200 text-green-800',
@@ -465,9 +466,16 @@ unset($workspaceHeader);
   }
 
   function refresh() {
-    return fetch(config.stateUrl + (config.mine ? '?mine=1' : ''), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+    // One refresh at a time: a poll, a scan and the "only mine" toggle each
+    // start one, and an older answer must not overwrite a newer state.
+    if (refreshing) { refreshing.abort(); }
+    var controller = new AbortController();
+    refreshing = controller;
+    return fetch(config.stateUrl + (config.mine ? '?mine=1' : ''), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin', signal: controller.signal })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        if (refreshing !== controller) { return; } // superseded after its body was read
+        refreshing = null;
         if (!data || !data.success) { return; }
         setCounters(data.summary);
         renderScans(data.scans || []);
@@ -476,7 +484,11 @@ unset($workspaceHeader);
           window.location.assign(config.pageUrl);
         }
       })
-      .catch(function () {});
+      .catch(function (e) {
+        if (refreshing === controller) { refreshing = null; }
+        // An aborted refresh was replaced by a newer one; a failed one is retried by the next poll.
+        if (e && e.name === 'AbortError') { return; }
+      });
   }
 
   function send(code) {
