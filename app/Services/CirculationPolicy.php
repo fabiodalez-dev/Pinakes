@@ -29,6 +29,9 @@ use mysqli;
  */
 final class CirculationPolicy
 {
+    // @include-soft-deleted: the two reads of libri here (the material of a
+    // title, the loans counted per material) must keep seeing a title archived
+    // while a copy is still out: its loan keeps its rules and still counts.
     /**
      * Loan states that occupy an active-loan slot. This is the exact set every
      * max-active-loans check has always counted (attivo = 1 in these states).
