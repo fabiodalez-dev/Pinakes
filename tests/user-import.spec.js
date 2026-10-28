@@ -10,6 +10,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { serverFileExists, listServerDir, writeServerFile } = require('./helpers/server-files');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ROOT = path.resolve(__dirname, '..');
@@ -275,17 +276,15 @@ test.describe.serial('User import from CSV (phase 7)', () => {
 
   test('"Annulla" on the preview deletes the uploaded copy, and stale copies are swept', async () => {
     const uploads = path.join(ROOT, 'writable', 'uploads');
-    const listCopies = () => (fs.existsSync(uploads) ? fs.readdirSync(uploads).filter((n) => /^user_import_[0-9a-f]+\.csv$/.test(n)) : []);
+    // writable/uploads belongs to the PHP user (www-data in CI).
+    const listCopies = () => listServerDir(uploads).filter((n) => /^user_import_[0-9a-f]+\.csv$/.test(n));
     // A copy left behind by an abandoned session two hours ago.
-    fs.mkdirSync(uploads, { recursive: true });
     const stale = path.join(uploads, `user_import_${'ab'.repeat(6)}${RUN.replace(/[^0-9a-f]/g, '').padEnd(12, '0').slice(0, 12)}.csv`);
-    fs.writeFileSync(stale, 'Nome;Email\n');
-    const old = new Date(Date.now() - 2 * 3600 * 1000);
-    fs.utimesSync(stale, old, old);
+    writeServerFile(stale, 'Nome;Email\n', new Date(Date.now() - 2 * 3600 * 1000));
 
     const before = new Set(listCopies());
     await page.goto(`${BASE}/admin/users/import`);
-    expect(fs.existsSync(stale), 'a copy untouched for over an hour is deleted when the page is opened').toBe(false);
+    expect(serverFileExists(stale), 'a copy untouched for over an hour is deleted when the page is opened').toBe(false);
 
     await page.locator('#user_import_file').setInputFiles(csvFile);
     await page.locator('#user-import-upload-btn').click();
@@ -296,7 +295,7 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     await page.locator('#user-import-cancel').click();
     await expect(page).toHaveURL(/\/admin\/users\/import$/);
     await expect(page.locator('#user_import_file')).toBeVisible();
-    expect(fs.existsSync(path.join(uploads, added[0])), 'cancelling the preview deletes the copy').toBe(false);
+    expect(serverFileExists(path.join(uploads, added[0])), 'cancelling the preview deletes the copy').toBe(false);
   });
 
   test('a failure after the account is created is a warning on a created row, not a failed row', async () => {

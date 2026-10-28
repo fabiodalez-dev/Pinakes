@@ -8,6 +8,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const { serverFileExists, readServerFile, removeServerFile } = require('./helpers/server-files');
 const os = require('os');
 const path = require('path');
 
@@ -92,7 +93,7 @@ test.describe.serial('Patron photo (phase 7)', () => {
     const stored = userId ? storedPhoto(userId) : '';
     if (stored) files.push(photoFile(stored));
     if (userId) dbQuery(`DELETE FROM utenti WHERE id = ${userId}`);
-    for (const f of files) { try { fs.unlinkSync(f); } catch { /* already gone */ } }
+    for (const f of files) removeServerFile(f);
   });
 
   test('"Scatta foto" captures a frame from the camera and saves it outside the web root', async ({ page }) => {
@@ -118,9 +119,9 @@ test.describe.serial('Patron photo (phase 7)', () => {
     const stored = storedPhoto(userId);
     expect(stored).toMatch(new RegExp(`^patron_photos/${userId}-[a-f0-9]{16}\\.jpg$`));
     const file = photoFile(stored);
-    expect(fs.existsSync(file)).toBe(true);
+    expect(serverFileExists(file)).toBe(true);
     // Re-encoded JPEG, not the browser upload as-is; portrait crop from the canvas.
-    const head = fs.readFileSync(file).subarray(0, 3);
+    const head = readServerFile(file).subarray(0, 3);
     expect(head.equals(Buffer.from([0xff, 0xd8, 0xff]))).toBe(true);
     // Nothing reachable under the public web root.
     const direct = await page.request.get(`${BASE}/storage/${stored}`, { maxRedirects: 0 });
@@ -174,8 +175,8 @@ test.describe.serial('Patron photo (phase 7)', () => {
     await expect(page.locator('#photo-status')).toHaveText('Foto salvata.', { timeout: 15000 });
     const after = storedPhoto(userId);
     expect(after).not.toBe(before);
-    expect(fs.existsSync(photoFile(before))).toBe(false); // the old file is gone
-    expect(fs.existsSync(photoFile(after))).toBe(true);
+    expect(serverFileExists(photoFile(before))).toBe(false); // the old file is gone
+    expect(serverFileExists(photoFile(after))).toBe(true);
     fs.unlinkSync(png);
 
     const fake = path.join(os.tmpdir(), `zph-${RUN}.jpg`);
@@ -197,7 +198,7 @@ test.describe.serial('Patron photo (phase 7)', () => {
     await expect(page.locator('#patron-photo-empty')).toBeVisible();
     await expect(page.locator('#patron-photo')).toHaveCount(0);
     expect(storedPhoto(userId)).toBe('');
-    expect(fs.existsSync(photoFile(stored))).toBe(false);
+    expect(serverFileExists(photoFile(stored))).toBe(false);
     const gone = await page.request.get(`${BASE}/admin/users/${userId}/photo`);
     expect(gone.status()).toBe(404);
   });
@@ -220,7 +221,7 @@ test.describe.serial('Patron photo (phase 7)', () => {
     await expect(page.locator('#photo-placeholder')).toBeVisible();
     await expect(page.locator('#photo-delete')).toBeHidden();
     expect(storedPhoto(userId)).toBe('');
-    expect(fs.existsSync(photoFile(stored))).toBe(false);
+    expect(serverFileExists(photoFile(stored))).toBe(false);
 
     // Saving the rest of the form afterwards leaves the photo state alone
     // (the address may be a required registration field on this install).
