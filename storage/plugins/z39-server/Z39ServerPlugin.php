@@ -736,21 +736,21 @@ class Z39ServerPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->copyCatalogingPageAction($request, $response);
-        })->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($adminMiddleware);
 
         $app->post('/admin/books/copy-cataloging/search', function (
             ServerRequestInterface $request,
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->copyCatalogingSearchAction($request, $response);
-        })->add($csrfMiddleware)->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
 
         $app->post('/admin/books/copy-cataloging/import', function (
             ServerRequestInterface $request,
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->copyCatalogingImportAction($request, $response);
-        })->add($csrfMiddleware)->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
 
         \App\Support\SecureLogger::debug('[Z39 Server Plugin] Routes registered', [
             'routes' => [

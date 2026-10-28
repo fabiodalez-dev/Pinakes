@@ -378,8 +378,10 @@ final class MarcBookImporter
             && $newType !== ''
             && $newType !== trim((string) ($existing['tipo_media'] ?? ''));
         $updates = [];
+        // RDA types module off: imports neither set nor clear the overrides.
+        $rdaOn = \App\Support\Features::enabled('rda_types');
         foreach (self::EXTRA_COLUMNS as $column => $length) {
-            if (!$hasColumn($column)) {
+            if (!$hasColumn($column) || (!$rdaOn && str_starts_with($column, 'rda_'))) {
                 continue;
             }
             $value = trim((string) ($data[$column] ?? ''));

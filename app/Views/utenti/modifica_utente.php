@@ -167,6 +167,7 @@ unset($workspaceHeader);
         <?php endif; ?>
       </section>
 
+      <?php if (\App\Support\Features::enabled('patron_cards')): // patron cards module: photo for the printed card ?>
       <section class="bg-white border border-gray-200 rounded-lg p-6 space-y-4" id="patron-photo-widget">
         <h2 class="text-lg font-medium text-gray-900"><?= __("Foto") ?></h2>
         <div class="flex flex-col sm:flex-row gap-6">
@@ -193,6 +194,7 @@ unset($workspaceHeader);
           </div>
         </div>
       </section>
+      <?php endif; ?>
 
       <section class="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <h2 class="text-lg font-medium text-gray-900"><?= __("Contatti e accesso") ?></h2>
@@ -272,6 +274,8 @@ unset($workspaceHeader);
   const actions = document.getElementById('photo-actions');
   const cameraActions = document.getElementById('photo-camera-actions');
   const deleteBtn = document.getElementById('photo-delete');
+  // Patron cards module off: no photo widget on the page.
+  if (!preview || !status) { return; }
   let stream = null;
 
   const say = (text, isError) => {

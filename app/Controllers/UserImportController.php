@@ -39,6 +39,9 @@ class UserImportController
 
     public function page(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }
@@ -64,6 +67,9 @@ class UserImportController
     /** A sample file with every recognised column. */
     public function example(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }
@@ -80,6 +86,9 @@ class UserImportController
 
     public function upload(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
+            return $off;
+        }
         @ini_set('display_errors', '0');
         if (!\App\Support\Permissions::can('users.manage')) {
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
@@ -167,6 +176,9 @@ class UserImportController
 
     public function start(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
+            return $off;
+        }
         @ini_set('display_errors', '0');
         if (!\App\Support\Permissions::can('users.manage')) {
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
@@ -203,6 +215,9 @@ class UserImportController
 
     public function chunk(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
+            return $off;
+        }
         @set_time_limit(300);
         @ini_set('display_errors', '0');
         if (!\App\Support\Permissions::can('users.manage')) {
@@ -519,6 +534,9 @@ class UserImportController
      */
     public function downloadErrors(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }

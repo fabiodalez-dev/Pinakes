@@ -828,6 +828,8 @@ class UsersController
         $ledgerAccrued = $ledger->accruedFines($id);
         $ledgerParams = \App\Services\FineParameters::forUser($db, $id);
         $ledgerCanManage = \App\Support\Permissions::can('loans.manage');
+        // Fines module off (Settings -> Loans): no Movimenti section.
+        $ledgerEnabled = \App\Services\PatronLedger::active($db);
 
         ob_start();
         require __DIR__ . '/../Views/utenti/dettagli_utente.php';

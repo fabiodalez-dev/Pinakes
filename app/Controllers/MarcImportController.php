@@ -42,9 +42,13 @@ class MarcImportController
 
     public function showImportPage(Request $request, Response $response, \mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('marc', $response)) !== null) {
+            return $off;
+        }
         ob_start();
         $title = __('Import MARC');
-        $fornitori = (new SupplierRepository($db))->options();
+        // Suppliers module off: no supplier select (and assignSupplier() writes nothing).
+        $fornitori = \App\Support\Features::enabled('suppliers') ? (new SupplierRepository($db))->options() : [];
         include __DIR__ . '/../Views/admin/marc_import.php';
         $content = (string) ob_get_clean();
         $response->getBody()->write($content);
@@ -56,6 +60,9 @@ class MarcImportController
      */
     public function upload(Request $request, Response $response, \mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('marc', $response)) !== null) {
+            return $off;
+        }
         @ini_set('display_errors', '0');
         @set_time_limit(300);
         $data = (array) $request->getParsedBody();
@@ -173,6 +180,9 @@ class MarcImportController
      */
     public function chunk(Request $request, Response $response, \mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('marc', $response)) !== null) {
+            return $off;
+        }
         @set_time_limit(600);
         @ini_set('display_errors', '0');
         $payload = json_decode((string) $request->getBody(), true);

@@ -233,10 +233,13 @@ class UserDashboardController
         $ledgerMovements = [];
         $ledgerAccrued = [];
         try {
-            $ledger = \App\Services\PatronLedger::forDb($db);
-            $ledgerBalanceCents = $ledger->balanceCents($userId);
-            $ledgerMovements = $ledger->movements($userId, 50);
-            $ledgerAccrued = $ledger->accruedFines($userId);
+            // Fines module off: no balance section at all (the rows stay).
+            if (\App\Services\PatronLedger::active($db)) {
+                $ledger = \App\Services\PatronLedger::forDb($db);
+                $ledgerBalanceCents = $ledger->balanceCents($userId);
+                $ledgerMovements = $ledger->movements($userId, 50);
+                $ledgerAccrued = $ledger->accruedFines($userId);
+            }
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('Patron ledger unavailable on the loans page', ['error' => $e->getMessage()]);
         }

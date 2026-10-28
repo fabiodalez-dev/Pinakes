@@ -271,10 +271,12 @@ unset($workspaceHeader);
                         </div>
                     </div>
 
+                    <?php if (\App\Support\Features::enabled('circulation_rules')): // patron type limits exist only with the module on ?>
                     <label class="flex items-center gap-3 text-lg text-gray-700">
                         <input type="checkbox" name="force_limits" value="1" id="force_limits" class="rounded border-gray-300">
                         <?= __("Ignora i limiti di prenotazione della tipologia del lettore") ?>
                     </label>
+                    <?php endif; ?>
 
                     <!-- Buttons -->
                     <div class="pk-form-actions flex items-center justify-between pt-12 border-t-2 border-gray-200">

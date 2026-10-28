@@ -2449,6 +2449,9 @@ class NotificationService {
      */
     public function sendFineChargedNotification(int $loanId): bool
     {
+        if (!\App\Services\PatronLedger::active($this->db)) {
+            return false;
+        }
         try {
             $enabled = (string) ((new \App\Models\SettingsRepository($this->db))->get('loans', \App\Services\FineParameters::SETTING_FINE_EMAIL, '0') ?? '0');
             if ($enabled !== '1') {

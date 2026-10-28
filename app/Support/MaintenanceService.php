@@ -348,7 +348,9 @@ class MaintenanceService
         // no setting the default retention applies.
         try {
             $attendance = new \App\Models\AttendanceRepository($this->db);
-            $results['attendance_purged'] = $attendance->isAvailable()
+            // Visitor log module off (Settings -> Modules): nothing is purged
+            // either, the rows wait for the module to be switched back on.
+            $results['attendance_purged'] = Features::enabled('visitor_log') && $attendance->isAvailable()
                 ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
                 : 0;
         } catch (\Throwable $e) {

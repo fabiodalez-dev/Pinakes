@@ -27,10 +27,12 @@ ob_start();
           <i class="fas fa-user-plus mr-2"></i>
           <?= __("Nuovo Utente") ?>
         </a>
+        <?php if (\App\Support\Features::enabled('user_import')): ?>
         <a href="<?= htmlspecialchars(url('/admin/users/import'), ENT_QUOTES, 'UTF-8') ?>" class="w-full px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300">
           <i class="fas fa-file-import mr-2"></i>
           <?= __("Importa CSV") ?>
         </a>
+        <?php endif; ?>
       </div>
     <?php
 $workspaceHeader['context'] = (string) ob_get_clean();
@@ -38,10 +40,12 @@ ob_start();
 ?>
 
         <div class="hidden md:flex items-center gap-3">
+          <?php if (\App\Support\Features::enabled('user_import')): ?>
           <a href="<?= htmlspecialchars(url('/admin/users/import'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-file-import mr-2"></i>
             <?= __("Importa CSV") ?>
           </a>
+          <?php endif; ?>
           <a href="<?= htmlspecialchars(url('/admin/users/create'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-user-plus mr-2"></i>
             <?= __("Nuovo Utente") ?>
@@ -335,12 +339,14 @@ unset($workspaceHeader);
       </button>
     </div>
     <div class="books-bulk-buttons">
+      <?php if (\App\Support\Features::enabled('patron_cards')): ?>
       <button id="bulk-cards-sheet" class="btn-primary">
         <i class="fas fa-id-card mr-2"></i><?= __("Stampa tessere (A4)") ?>
       </button>
       <button id="bulk-cards-single" class="btn-secondary">
         <i class="fas fa-id-card mr-2"></i><?= __("Stampa tessere singole") ?>
       </button>
+      <?php endif; ?>
     </div>
   </div>
 </div>
@@ -573,7 +579,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // Bulk selection → library cards PDF (same interaction as the books list).
   function updateBulkActionsBar() {
     document.getElementById('selected-count').textContent = selectedUsers.size;
-    document.getElementById('bulk-actions-bar').classList.toggle('hidden', selectedUsers.size === 0);
+    // The bar only carries the card printing actions (patron cards module).
+    document.getElementById('bulk-actions-bar').classList.toggle('hidden', selectedUsers.size === 0 || !document.getElementById('bulk-cards-sheet'));
   }
   document.getElementById('utenti-table').addEventListener('change', function(e) {
     if (!e.target.classList || !e.target.classList.contains('row-select')) return;
@@ -604,8 +611,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const ids = Array.from(selectedUsers).join(',');
     window.open((window.BASE_PATH || '') + '/admin/users/cards-pdf?format=' + format + '&ids=' + encodeURIComponent(ids), '_blank', 'noopener');
   }
-  document.getElementById('bulk-cards-sheet').addEventListener('click', () => openCards('sheet'));
-  document.getElementById('bulk-cards-single').addEventListener('click', () => openCards('single'));
+  document.getElementById('bulk-cards-sheet')?.addEventListener('click', () => openCards('sheet'));
+  document.getElementById('bulk-cards-single')?.addEventListener('click', () => openCards('single'));
 
   // Scroll shadow effect for mobile
   function initializeScrollShadow() {

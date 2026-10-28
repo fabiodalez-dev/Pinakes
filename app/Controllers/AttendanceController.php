@@ -19,6 +19,9 @@ class AttendanceController
 
     public function index(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         $repo = new AttendanceRepository($db);
         $days = $this->period($request);
         $data = [
@@ -45,6 +48,9 @@ class AttendanceController
 
     public function scan(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         $body = (array) $request->getParsedBody();
         $repo = new AttendanceRepository($db);
         $card = is_string($body['codice_tessera'] ?? null) ? $body['codice_tessera'] : '';
@@ -69,6 +75,9 @@ class AttendanceController
 
     public function guest(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         $body = (array) $request->getParsedBody();
         $repo = new AttendanceRepository($db);
         $name = is_string($body['nome_ospite'] ?? null) ? $body['nome_ospite'] : null;
@@ -86,6 +95,9 @@ class AttendanceController
     /** Retention setting. AdminAuthMiddleware admits staff: this one is admin-only. */
     public function saveSettings(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (!$this->isAdmin()) {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori.');
             return $this->back($response);
@@ -102,6 +114,9 @@ class AttendanceController
     /** Apply the retention now instead of waiting for the next maintenance run. */
     public function purge(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (!$this->isAdmin()) {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori.');
             return $this->back($response);
@@ -115,6 +130,9 @@ class AttendanceController
     /** Daily counts for the selected period as CSV. */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         $days = $this->period($request);
         $rows = (new AttendanceRepository($db))->dailyCounts($days);
         $out = fopen('php://temp', 'r+');

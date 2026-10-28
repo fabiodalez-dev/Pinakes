@@ -125,10 +125,12 @@ ob_start();
 ?><?= $display($name, __("Utente senza nome")); ?>
 
     <div class="flex items-center gap-3 shrink-0">
+        <?php if (\App\Support\Features::enabled('patron_cards')): ?>
         <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" id="print-card" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-id-card mr-2"></i>
             <?= __("Stampa tessera") ?>
         </a>
+        <?php endif; ?>
         <a href="<?= htmlspecialchars(url('/admin/loans/create?utente_id=' . $id), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-handshake mr-2"></i>
             <?= __("Nuovo Prestito") ?>
@@ -156,6 +158,7 @@ require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
 
+  <?php if (\App\Support\Features::enabled('patron_cards')): // patron cards module ?>
   <section class="bg-white border border-gray-200 rounded-lg p-6" id="patron-card-section">
     <h2 class="text-lg font-medium text-gray-900"><?= __("Foto e tessera") ?></h2>
     <div class="mt-4 flex flex-col sm:flex-row gap-6">
@@ -196,6 +199,7 @@ unset($workspaceHeader);
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
   <section class="bg-white border border-gray-200 rounded-lg p-6">
     <h2 class="text-lg font-medium text-gray-900"><?= __("Informazioni Personali") ?></h2>
@@ -443,7 +447,7 @@ unset($workspaceHeader);
     </div>
   </div>
 
-  <?php require __DIR__ . '/_movimenti.php'; ?>
+  <?php if (!empty($ledgerEnabled)) { require __DIR__ . '/_movimenti.php'; } ?>
 
   <?php if ($note !== ''): ?>
     <section class="bg-white border border-gray-200 rounded-lg p-6 mt-6">

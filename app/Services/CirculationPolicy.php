@@ -368,7 +368,7 @@ final class CirculationPolicy
     public function debtBlockError(int $userId): ?string
     {
         // No ledger table (code deployed before its migration): no balance, no block.
-        if (!PatronLedger::schemaReady($this->db)) {
+        if (!PatronLedger::active($this->db)) {
             return null;
         }
         $threshold = FineParameters::moneyToCents($this->forUser($userId)->debtBlockThreshold);
@@ -425,7 +425,7 @@ final class CirculationPolicy
     public function totalLoanLimitSql(string $userAlias): string
     {
         $global = (int) $this->globalLayer()['max_active_loans'];
-        if (!$this->schemaReady()) {
+        if (!$this->rulesActive()) {
             return (string) $global;
         }
         $default = $this->defaultTypeId() ?? 0;
@@ -457,7 +457,7 @@ final class CirculationPolicy
     {
         if ($this->types === null) {
             $this->types = [];
-            if ($this->schemaReady()) {
+            if ($this->rulesActive()) {
                 $result = $this->db->query('SELECT * FROM tipologie_lettore ORDER BY ordinamento ASC, nome ASC, id ASC');
                 if ($result instanceof \mysqli_result) {
                     while ($row = $result->fetch_assoc()) {
@@ -489,7 +489,7 @@ final class CirculationPolicy
     {
         if ($this->rules === null) {
             $this->rules = [];
-            if ($this->schemaReady()) {
+            if ($this->rulesActive()) {
                 $result = $this->db->query('SELECT * FROM regole_prestito');
                 if ($result instanceof \mysqli_result) {
                     while ($row = $result->fetch_assoc()) {
@@ -505,7 +505,7 @@ final class CirculationPolicy
     /** The patron type governing $userId: theirs, else the default one. */
     public function patronTypeOf(int $userId): ?int
     {
-        if (!$this->schemaReady()) {
+        if (!$this->rulesActive()) {
             return null;
         }
         if (!array_key_exists($userId, $this->userTypes)) {
@@ -626,7 +626,7 @@ final class CirculationPolicy
     /** Whether the copy is kept for in-house consultation only. */
     public function isConsultationCopy(int $copiaId): bool
     {
-        if (!$this->schemaReady()) {
+        if (!$this->rulesActive()) {
             return false;
         }
         $stmt = $this->db->prepare('SELECT solo_consultazione FROM copie WHERE id = ?');
@@ -644,7 +644,7 @@ final class CirculationPolicy
      */
     public function onlyConsultationCopies(int $libroId): bool
     {
-        if (!$this->schemaReady()) {
+        if (!$this->rulesActive()) {
             return false;
         }
         $stmt = $this->db->prepare(
@@ -668,10 +668,23 @@ final class CirculationPolicy
      */
     public function lendableCopySql(string $alias = 'c'): string
     {
-        if (!$this->schemaReady()) {
+        if (!$this->rulesActive()) {
             return '1 = 1';
         }
         return ($alias !== '' ? $alias . '.' : '') . 'solo_consultazione = 0';
+    }
+
+    /**
+     * Whether patron types, the rules matrix and consultation-only copies
+     * apply: their tables exist AND the module is on (Settings -> Loans,
+     * features.circulation_rules; also off in catalogue mode). Off, every
+     * rule is the global layer, exactly as before 0.9.0, on every channel
+     * at once (web, Mobile API, NCIP, maintenance), since they all resolve
+     * through this class. The data stays: switching back on restores it.
+     */
+    public function rulesActive(): bool
+    {
+        return \App\Support\Features::enabled('circulation_rules') && $this->schemaReady();
     }
 
     /**

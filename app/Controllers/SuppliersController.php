@@ -15,17 +15,26 @@ class SuppliersController
 {
     public function index(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         $fornitori = (new SupplierRepository($db))->listWithCounts();
         return $this->render($response, 'index.php', ['fornitori' => $fornitori]);
     }
 
     public function createForm(Request $request, Response $response): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         return $this->render($response, 'form.php', ['fornitore' => null]);
     }
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         $input = (array) $request->getParsedBody();
         $data = SupplierRepository::normalize($input);
         $error = $this->validationError($input, $data);
@@ -45,6 +54,9 @@ class SuppliersController
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         $fornitore = (new SupplierRepository($db))->getById($id);
         if ($fornitore === null) {
             return $response->withStatus(404);
@@ -54,6 +66,9 @@ class SuppliersController
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         $repo = new SupplierRepository($db);
         if ($repo->getById($id) === null) {
             return $response->withStatus(404);
@@ -77,6 +92,9 @@ class SuppliersController
 
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         try {
             if ((new SupplierRepository($db))->delete($id)) {
                 $_SESSION['success_message'] = __('Fornitore eliminato. I libri collegati non hanno più un fornitore.');

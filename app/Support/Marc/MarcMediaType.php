@@ -87,7 +87,9 @@ final class MarcMediaType
     public static function rdaCodes(array $row): array
     {
         [, , $content, $media, $carrier] = self::TYPES[self::normalise(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null)];
-        $own = static fn (string $key): string => strtolower(trim((string) ($row[$key] ?? '')));
+        // RDA types module off: the stored overrides are not applied.
+        $overridesOn = \App\Support\Features::enabled('rda_types');
+        $own = static fn (string $key): string => $overridesOn ? strtolower(trim((string) ($row[$key] ?? ''))) : '';
         return [
             'content' => $own('rda_content_type') !== '' ? $own('rda_content_type') : $content,
             'media' => $own('rda_media_type') !== '' ? $own('rda_media_type') : $media,

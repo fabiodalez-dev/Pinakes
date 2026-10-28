@@ -693,6 +693,24 @@ class MobileApiPlugin
                 return $handler->handle($request);
             };
 
+            // The fines module (Settings -> Loans) switched off: the reader's
+            // balance and movements are not available, in the same shape as
+            // the catalogue-mode refusal (the app hides the screen on it).
+            $finesGuard = function (
+                ServerRequestInterface $request,
+                \Psr\Http\Server\RequestHandlerInterface $handler
+            ): ResponseInterface {
+                if (!\App\Support\Features::enabled('fines')) {
+                    return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                        new \Slim\Psr7\Response(),
+                        'feature_disabled',
+                        __('Funzione non disponibile su questa istanza.'),
+                        404
+                    );
+                }
+                return $handler->handle($request);
+            };
+
             // ── User actions (loans / reservations / wishlist / profile / msg) ──
             // Every handler is bearer-authenticated and strictly scoped to the
             // token-resolved user; loan/reservation overlap + availability reuse
@@ -710,7 +728,7 @@ class MobileApiPlugin
                 ResponseInterface $response
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->myMovements($request, $response);
-            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
+            })->add($finesGuard)->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->get('/me/reservations', function (
                 ServerRequestInterface $request,

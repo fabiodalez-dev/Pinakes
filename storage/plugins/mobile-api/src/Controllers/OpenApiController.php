@@ -723,6 +723,7 @@ final class OpenApiController
                             ]]],
                         ]]]],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '404' => ['description' => 'feature_disabled: fines are switched off on this instance (features.fines false in /health) or catalogue mode is on.'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],
                 ],
@@ -1677,6 +1678,9 @@ final class OpenApiController
                         'messages'      => ['type' => 'boolean'],
                         'notifications' => ['type' => 'boolean'],
                         'push'          => ['type' => 'boolean'],
+                        'fines'             => ['type' => 'boolean', 'description' => 'Since 1.9.0: fines and the patron ledger are on (GET /me/movements answers). Absent on older servers: treat as false.'],
+                        'closures_calendar' => ['type' => 'boolean', 'description' => 'Since 1.9.0: the closures calendar is applied (availability closed_dates may be non-empty).'],
+                        'circulation_rules' => ['type' => 'boolean', 'description' => 'Since 1.9.0: patron types and the rules matrix apply (loanable / reservations_enabled may be false).'],
                     ],
                 ],
                 'catalogue_mode'       => [

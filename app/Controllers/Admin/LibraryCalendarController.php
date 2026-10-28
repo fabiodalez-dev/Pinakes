@@ -258,6 +258,9 @@ class LibraryCalendarController
 
     private function guard(Response $response): ?Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('closures_calendar', $response)) !== null) {
+            return $off;
+        }
         if (\App\Support\Permissions::mayConfigure()) {
             return null;
         }

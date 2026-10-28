@@ -186,10 +186,12 @@ ob_start();
             <?= __("Stampa etichetta") ?>
           </a>
           <!-- Scheda catalografica ISBD -->
+          <?php if (\App\Support\Features::enabled('catalogue_cards')): ?>
           <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/catalogue-card'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" id="catalogue-card-link" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-address-card"></i>
             <?= __("Scheda catalografica") ?>
           </a>
+          <?php endif; ?>
           <!-- Visualizza nel frontend -->
           <a href="<?php echo htmlspecialchars(book_url($libro), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-eye"></i>
@@ -594,7 +596,7 @@ unset($workspaceHeader);
             </div>
             <?php endif; ?>
             <?php
-            $bookSupplier = (!empty($libro['fornitore_id']) && isset($db) && $db instanceof \mysqli)
+            $bookSupplier = (!empty($libro['fornitore_id']) && isset($db) && $db instanceof \mysqli && \App\Support\Features::enabled('suppliers'))
                 ? (new \App\Models\SupplierRepository($db))->getById((int) $libro['fornitore_id'])
                 : null;
             ?>
@@ -611,10 +613,12 @@ unset($workspaceHeader);
                 $rdaParts[] = __(\App\Support\RdaTypes::label($rdaKind, $rdaCode));
             }
             ?>
+            <?php if (\App\Support\Features::enabled('rda_types')): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Tipologia RDA") ?></dt>
               <dd class="text-gray-900 font-medium" id="book-rda-types" data-rda="<?= htmlspecialchars(implode('/', $rdaEffective), ENT_QUOTES, 'UTF-8') ?>"><?php echo App\Support\HtmlHelper::e(implode(' · ', $rdaParts)); ?></dd>
             </div>
+            <?php endif; ?>
             <?php
             // Contributor roles as author entities (issue #237). Entities are the
             // single source of truth — no free-text fallback: the legacy columns
@@ -1178,7 +1182,7 @@ unset($workspaceHeader);
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">
-                  <?php if ((int) ($copia['solo_consultazione'] ?? 0) === 1): ?>
+                  <?php if ((int) ($copia['solo_consultazione'] ?? 0) === 1 && \App\Support\Features::enabled('circulation_rules')): ?>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mr-1" data-testid="copy-consultation-badge"><i class="fas fa-eye mr-1"></i><?= __("Solo consultazione") ?></span>
                   <?php endif; ?>
                   <?php echo App\Support\HtmlHelper::e($copia['note'] ?? '-'); ?>
@@ -1198,7 +1202,7 @@ unset($workspaceHeader);
                     $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
                     $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                     ?>
-                    <?php if (array_key_exists('solo_consultazione', $copia)): $copyConsultation = (int) $copia['solo_consultazione'] === 1; ?>
+                    <?php if (array_key_exists('solo_consultazione', $copia) && \App\Support\Features::enabled('circulation_rules')): $copyConsultation = (int) $copia['solo_consultazione'] === 1; ?>
                     <form method="post" action="<?= htmlspecialchars(url('/admin/books/copies/' . (int) $copia['id'] . '/consultation'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
                       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
                       <input type="hidden" name="solo_consultazione" value="<?= $copyConsultation ? '0' : '1' ?>">

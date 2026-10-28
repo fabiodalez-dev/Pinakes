@@ -413,6 +413,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= htmlspecialchars(__('es. 19.90'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
             </div>
           </div>
+          <?php if (\App\Support\Features::enabled('suppliers')): // optional module: off = the field is not posted, the stored supplier stays ?>
           <?php
           // Supplier (0.9.0). $fornitori is id => name, loaded by the controller.
           $supplierOptions = isset($fornitori) && is_array($fornitori) ? $fornitori : [];
@@ -433,6 +434,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               </p>
             </div>
           </div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -485,6 +487,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 21x14 cm'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
 
+          <?php if (\App\Support\Features::enabled('rda_types')): // optional module: off = the selects are not posted, stored overrides stay ?>
           <?php
           // RDA content / media / carrier (0.9.0): derived from tipo_media,
           // with an optional per-record override. The first option is the
@@ -538,6 +541,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             media.addEventListener('change', sync);
           })();
           </script>
+          <?php endif; ?>
 
           <?php
           // The id is cast, not passed through: handlers declare `?int $id`

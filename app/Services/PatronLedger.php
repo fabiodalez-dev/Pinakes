@@ -94,6 +94,18 @@ final class PatronLedger
         return self::$schemaReady[$key];
     }
 
+    /**
+     * Whether fines and the ledger apply: the table exists AND the fines
+     * module is on (Settings -> Loans, features.fines; also off in catalogue
+     * mode). Off, nothing is charged, nobody is blocked for debt and the
+     * movements are not shown; the rows already written stay, and
+     * prestiti.sanzione keeps being written as before 0.9.0.
+     */
+    public static function active(mysqli $db): bool
+    {
+        return \App\Support\Features::enabled('fines') && self::schemaReady($db);
+    }
+
     /** Drop the per-request schema probe (tests that migrate a database mid-process). */
     public static function resetSchemaCache(): void
     {
@@ -205,6 +217,9 @@ final class PatronLedger
      */
     public function chargeLateReturn(int $loanId, ?int $staffId = null): int
     {
+        if (!self::active($this->db)) {
+            return 0;
+        }
         $loan = $this->loanRow($loanId);
         if ($loan === null || (string) $loan['stato'] !== 'restituito' || empty($loan['data_restituzione'])) {
             return 0;
@@ -235,6 +250,11 @@ final class PatronLedger
      */
     public function chargeLossPenalty(int $loanId, ?int $staffId = null): int
     {
+        // Fines off: prestiti.sanzione alone, as before 0.9.0. The same key
+        // as the legacy backfill, which mirrors it once the module is back on.
+        if (!self::active($this->db)) {
+            return 0;
+        }
         $loan = $this->loanRow($loanId);
         if ($loan === null) {
             return 0;
@@ -381,6 +401,9 @@ final class PatronLedger
      */
     public function previewLateFine(int $loanId, ?string $returnDate = null): array
     {
+        if (!self::active($this->db)) {
+            return ['days' => 0, 'cents' => 0, 'enabled' => false];
+        }
         $loan = $this->loanRow($loanId);
         $params = FineParameters::forLoan($this->db, $loanId);
         if ($loan === null) {
@@ -403,6 +426,9 @@ final class PatronLedger
      */
     public function accruedFines(int $userId): array
     {
+        if (!self::active($this->db)) {
+            return [];
+        }
         $today = DateHelper::today();
         $stmt = $this->db->prepare(
             "SELECT p.id, p.data_scadenza, l.titolo, c.sede_id
@@ -449,7 +475,9 @@ final class PatronLedger
      */
     public function backfillLegacyPenalties(int $batch = 500, int $maxBatches = 1000): ?int
     {
-        if (!self::schemaReady($this->db)) {
+        // null also while the fines module is off: the scan is not recorded
+        // as done and runs when the module is switched back on.
+        if (!self::active($this->db)) {
             return null;
         }
         $written = 0;
@@ -485,6 +513,9 @@ final class PatronLedger
      */
     public function periodTotals(string $from, string $to): array
     {
+        if (!self::active($this->db)) {
+            return [];
+        }
         $fromTs = $from . ' 00:00:00';
         $toTs = $to . ' 23:59:59';
         $stmt = $this->db->prepare(

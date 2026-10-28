@@ -135,6 +135,9 @@ class CirculationSettingsController
      */
     private function guard(Response $response): ?Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('circulation_rules', $response)) !== null) {
+            return $off;
+        }
         if (\App\Support\Permissions::mayConfigure()) {
             return null;
         }
