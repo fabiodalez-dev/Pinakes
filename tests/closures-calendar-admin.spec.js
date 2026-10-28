@@ -1,7 +1,7 @@
 // @ts-check
 // Closures calendar, admin page /admin/calendar: a librarian manages the days
 // the library is closed — closures (add, edit, delete, yearly), the weekly
-// closed days, the Italian holidays preset and an ICS import — and checks the
+// closed days, the holiday preset (Italy) and an ICS import — and checks the
 // result in the monthly preview. DB only for setup and verification.
 //
 // Run: /tmp/run-e2e.sh tests/closures-calendar-admin.spec.js --config=tests/playwright.config.js --workers=1
@@ -42,6 +42,8 @@ function weekday(iso) {
 const RUN = Date.now().toString().slice(-7);
 const TAG = `E2E-CAL-${RUN}`;
 let startMaxId = 0;
+let prevHolidayRows = '';
+let prevHolidaySettings = '';
 let prevWeekdays = null;
 let sedeId = 0;
 let today = '';
@@ -83,6 +85,8 @@ test.describe('Closures calendar — admin page', () => {
 
   test.beforeAll(async ({ browser }) => {
     startMaxId = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
+    prevHolidayRows = db("SELECT IFNULL(GROUP_CONCAT(CONCAT_WS('|', id, IFNULL(regola_festivita,'-'), descrizione, attiva) ORDER BY id SEPARATOR ';'), '') FROM calendario_chiusure");
+    prevHolidaySettings = db("SELECT IFNULL(GROUP_CONCAT(CONCAT_WS('|', setting_key, setting_value) SEPARATOR ';'), '') FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
     prevWeekdays = db("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     db(`INSERT INTO sedi (nome) VALUES ('${TAG} Succursale')`);
@@ -96,6 +100,16 @@ test.describe('Closures calendar — admin page', () => {
 
   test.afterAll(async () => {
     db(`DELETE FROM calendario_chiusure WHERE id > ${startMaxId}`);
+    // The preset may have adopted older rows: put them back as they were.
+    for (const row of prevHolidayRows ? prevHolidayRows.split(';') : []) {
+      const [id, rule, description, active] = row.split('|');
+      db(`UPDATE calendario_chiusure SET regola_festivita=${rule === '-' ? 'NULL' : `'${rule}'`}, descrizione='${description.replace(/'/g, "''")}', attiva=${parseInt(active, 10)} WHERE id=${parseInt(id, 10)}`);
+    }
+    db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
+    for (const row of prevHolidaySettings ? prevHolidaySettings.split(';') : []) {
+      const [key, value] = row.split('|');
+      db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar','${key}','${value}')`);
+    }
     if (prevWeekdays === '') {
       db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     } else {
@@ -242,18 +256,18 @@ test.describe('Closures calendar — admin page', () => {
     await expect(page.locator(`a.nav-link[href$="/admin/calendar"]`).first()).toHaveCount(1);
   });
 
-  // ── Italian holidays preset ──────────────────────────────────────────────
+  // ── Holiday preset (Italy) ───────────────────────────────────────────────
   const presetYear = () => parseInt(today.slice(0, 4), 10) + 1;
+  const fixedItalian = "('01-01','01-06','04-25','05-01','06-02','08-15','11-01','12-08','12-25','12-26')";
 
-  test('Preset 1: importing the Italian holidays adds 10 yearly holidays plus Easter and Easter Monday', async () => {
-    await page.goto(`${BASE}/admin/calendar`);
-    await page.selectOption('#preset_year', String(presetYear()));
+  test('Preset 1: applying the Italian holidays adds the 10 fixed ones as yearly closures plus the movable ones per year', async () => {
+    await page.goto(`${BASE}/admin/calendar?holiday_country=IT#calendar-preset`);
+    await page.locator('[data-holiday-select="all"]').click();
     await submitAndLand(page, '#import-preset');
-    await expect(page.locator('body')).toContainText(/Festività nazionali importate/);
-    const count = parseInt(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE id > ${startMaxId} AND descrizione IN ('Natale','Santo Stefano','Capodanno','Epifania','Ferragosto','Ognissanti','Immacolata Concezione','Festa della Liberazione','Festa del Lavoro','Festa della Repubblica') AND ricorrente_annuale=1`), 10);
+    await expect(page.locator('body')).toContainText(/Festività applicate/);
+    expect(parseInt(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE regola_festivita LIKE 'IT:%' AND ricorrente_annuale=1 AND DATE_FORMAT(data_inizio,'%m-%d') IN ${fixedItalian}`), 10)).toBe(10);
     // Fixed holidays already present before this run are not duplicated.
-    expect(count).toBeLessThanOrEqual(10);
-    expect(parseInt(db("SELECT COUNT(DISTINCT DATE_FORMAT(data_inizio,'%m-%d')) FROM calendario_chiusure WHERE ricorrente_annuale=1 AND sede_id IS NULL AND DATE_FORMAT(data_inizio,'%m-%d') IN ('01-01','01-06','04-25','05-01','06-02','08-15','11-01','12-08','12-25','12-26')"), 10)).toBe(10);
+    expect(parseInt(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE ricorrente_annuale=1 AND sede_id IS NULL AND DATE_FORMAT(data_inizio,'%m-%d') IN ${fixedItalian}`), 10)).toBe(10);
   });
 
   test('Preset 2: Easter and Easter Monday are dated by the algorithm for that year', async () => {
@@ -267,12 +281,11 @@ test.describe('Closures calendar — admin page', () => {
     await expect(page.locator(`[data-calendar-day="${addDays(easter, 2)}"]`)).toHaveAttribute('data-closed', '0');
   });
 
-  test('Preset 3: importing the same year again adds nothing', async () => {
+  test('Preset 3: applying the same selection again adds nothing', async () => {
     const before = db('SELECT COUNT(*) FROM calendario_chiusure');
-    await page.goto(`${BASE}/admin/calendar`);
-    await page.selectOption('#preset_year', String(presetYear()));
+    await page.goto(`${BASE}/admin/calendar?holiday_country=IT#calendar-preset`);
     await submitAndLand(page, '#import-preset');
-    await expect(page.locator('body')).toContainText(/0 nuove chiusure/);
+    await expect(page.locator('body')).toContainText(/0 aggiunte, 0 rimosse/);
     expect(db('SELECT COUNT(*) FROM calendario_chiusure')).toBe(before);
   });
 
@@ -283,11 +296,12 @@ test.describe('Closures calendar — admin page', () => {
     await expect(page.locator(`[data-calendar-day="${farYear}-12-27"]`)).toHaveAttribute('data-closed', '0');
   });
 
-  test('Preset 5: the holidays appear in the list as recurring rows', async () => {
+  test('Preset 5: the holidays appear in the list as recurring holiday rows', async () => {
     await page.goto(`${BASE}/admin/calendar`);
     const row = page.locator('#calendar-closures tr', { hasText: 'Ferragosto' }).first();
     await expect(row).toContainText(/Ogni anno/);
     await expect(row).toContainText(/Tutte le sedi/);
+    await expect(row.locator('[data-badge="holiday"]')).toBeVisible();
   });
 
   // ── ICS import ───────────────────────────────────────────────────────────

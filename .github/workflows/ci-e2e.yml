@@ -423,6 +423,7 @@ jobs:
               tests/fines-closed-days.spec.js
               tests/fines-ledger.spec.js
               tests/fines-patron-types.spec.js
+              tests/holidays-preset.spec.js
               tests/stack-090-integration.spec.js
               tests/stack-090-review-fixes.spec.js
               tests/stack-090-zero-config.spec.js
