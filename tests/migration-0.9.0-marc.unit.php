@@ -49,7 +49,8 @@ try {
     $check($db->query("SELECT import_type FROM {$table} WHERE import_id='c'")->fetch_row()[0] === 'marc', 'a MARC import can be logged');
     $run();
     $check($type() === "enum('csv','librarything','marc')" && (int) $db->query("SELECT COUNT(*) FROM {$table}")->fetch_row()[0] === 3, 'a second run is a no-op');
-    $check(str_contains((string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql'), "`import_type` enum('csv','librarything','marc')"), 'fresh install has the marc value');
+    // Other 0.9.0 sections may add their own values after marc.
+    $check(preg_match("/`import_type` enum\\('csv','librarything','marc'[,)]/", (string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql')) === 1, 'fresh install has the marc value');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
     $check(version_compare('0.9.0', $version, '<='), 'the release includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
