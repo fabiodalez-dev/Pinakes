@@ -716,6 +716,85 @@ HTML,
     }
 
     /**
+     * Bodies a template shipped with BEFORE its current default, so an
+     * upgraded install's stored row can be told apart from a customised one:
+     * SettingsRepository::ensureEmailTemplates() moves a row that still
+     * equals one of them to the current default and leaves any other text
+     * alone. Empty for a template whose default never changed.
+     *
+     * loan_returned (0.9.0): the only change was the added `<p>{{multa}}</p>`
+     * line, so the previous in-code/mail_templates default is the current one
+     * without that line; the English, German and French installer seeds of
+     * the same template carried their own wording (and the {{user_name}} /
+     * {{book_title}} aliases), listed as they were shipped.
+     *
+     * @return list<string>
+     */
+    public static function retiredBodies(string $template, ?string $locale = null): array
+    {
+        if ($template !== 'loan_returned') {
+            return [];
+        }
+        $current = (string) (self::get($template, $locale)['body'] ?? '');
+        $bodies = [];
+        $previous = str_replace("<p>{{multa}}</p>\n", '', $current);
+        if ($previous !== $current) {
+            $bodies[] = $previous;
+        }
+        $seeds = [
+            'en_US' => <<<'HTML'
+<h2>Return Confirmed</h2>
+<p>Hello {{user_name}},</p>
+<p>We confirm the return of the following book. Thank you!</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Book:</strong> {{book_title}}</p>
+    <p><strong>Return date:</strong> {{data_restituzione}}</p>
+</div>
+<p>We hope you enjoyed the book. See you soon at the library!</p>
+<p>Best regards,<br>The Library Team</p>
+HTML,
+            'de_DE' => <<<'HTML'
+<h2>Rückgabe bestätigt</h2>
+<p>Guten Tag {{user_name}},</p>
+<p>wir bestätigen die Rückgabe des folgenden Buches. Vielen Dank!</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Buch:</strong> {{book_title}}</p>
+    <p><strong>Rückgabedatum:</strong> {{data_restituzione}}</p>
+</div>
+<p>Wir hoffen, die Lektüre hat Ihnen gefallen. Bis bald in der Bibliothek!</p>
+<p>Mit freundlichen Grüßen,<br>Das Bibliotheksteam</p>
+HTML,
+            'fr_FR' => <<<'HTML'
+<h2>Retour confirmé</h2>
+<p>Bonjour {{user_name}},</p>
+<p>Nous confirmons le retour du livre suivant. Merci !</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Livre :</strong> {{book_title}}</p>
+    <p><strong>Date de retour :</strong> {{data_restituzione}}</p>
+</div>
+<p>Nous espérons que la lecture vous a plu. À bientôt à la bibliothèque !</p>
+<p>Cordialement,<br>L'équipe de la bibliothèque</p>
+HTML,
+        ];
+        $key = self::shippedLocaleKey($locale);
+        if ($key !== null && isset($seeds[$key])) {
+            $bodies[] = $seeds[$key];
+        }
+        return $bodies;
+    }
+
+    /** The mail_templates file key ($locale → en_US/de_DE/fr_FR/da_DK), null for Italian or an unknown locale. */
+    private static function shippedLocaleKey(?string $locale): ?string
+    {
+        $locale = str_replace('-', '_', trim((string) $locale));
+        if ($locale === '' || str_starts_with($locale, 'it')) {
+            return null;
+        }
+        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'da' => 'da_DK', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR', 'da_DK' => 'da_DK'];
+        return $map[$locale] ?? ($map[substr($locale, 0, 2)] ?? null);
+    }
+
+    /**
      * #360: whether this locale has SHIPPED template texts — the in-code
      * Italian base or a mail_templates/<locale>.php override. Distinguishes a
      * genuinely translated default from all()'s silent Italian fallback for

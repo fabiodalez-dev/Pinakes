@@ -11,7 +11,11 @@ declare(strict_types=1);
  *  - a second run (and the PHP backfill) adds nothing; prestiti.sanzione is
  *    left untouched (it stays the mirror for emails and the activity log);
  *  - a penalty assessed after the upgrade is picked up by the maintenance
- *    backfill once, with the same key.
+ *    backfill once, with the same key;
+ *  - the stored loan_returned template of an upgraded install (the previous
+ *    shipped default, in-code or installer seed) gains the {{multa}} line
+ *    through SettingsRepository::ensureEmailTemplates(); a customised row is
+ *    left alone.
  *
  * Sandbox: <DB_NAME>_migfines, dropped at the end (override with MIG_SANDBOX_DB).
  * Run: php tests/migration-0.9.0-fines-ledger.unit.php (exit code is the verdict)
@@ -120,6 +124,57 @@ try {
     $check($ledger->backfillLegacyPenalties(1) === 1, 'a penalty the migration did not reach is converted by the backfill');
     $check($ledger->backfillLegacyPenalties() === 0 && $scalar("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:15'") === '1', '...exactly once');
     $check($ledger->chargeLossPenalty(15) === 0, 'the live path (same key) does not double it either');
+
+    echo "Email templates: {{multa}} reaches a stored loan_returned default (SettingsRepository::ensureEmailTemplates)\n";
+    $repo = new \App\Models\SettingsRepository($db);
+    $repo->ensureTables();
+    $defaults = static function (string $locale): array {
+        $out = [];
+        foreach (\App\Support\SettingsMailTemplates::all($locale) as $name => $meta) {
+            $out[$name] = ['subject' => $meta['subject'], 'body' => \App\Support\EmailLayout::normalizeContent((string) $meta['body']), 'description' => $meta['description'] ?? null];
+        }
+        return $out;
+    };
+    $seedRow = static function (string $locale, string $body, string $subject = 'Old subject') use ($db): void {
+        $stmt = $db->prepare("INSERT INTO email_templates (name, locale, subject, body, description, active) VALUES ('loan_returned', ?, ?, ?, 'seeded', 1)
+                              ON DUPLICATE KEY UPDATE subject = VALUES(subject), body = VALUES(body), description = VALUES(description), active = 1");
+        $stmt->bind_param('sss', $locale, $subject, $body);
+        $stmt->execute();
+        $stmt->close();
+    };
+    // The body of the installer seed of $locale (its SQL escapes decoded).
+    $installerSeed = static function (string $locale) use ($root): string {
+        $sql = (string) file_get_contents($root . '/installer/database/data_' . $locale . '.sql');
+        if (preg_match("/INSERT (?:IGNORE )?INTO `email_templates` VALUES \\(\\d+,'loan_returned','" . $locale . "','(?:[^'\\\\]|\\\\.|'')*','((?:[^'\\\\]|\\\\.|'')*)'/", $sql, $m) !== 1) {
+            return '';
+        }
+        $body = str_replace("''", "'", $m[1]);
+        return (string) preg_replace_callback('/\\\\(.)/', static fn (array $x): string => $x[1] === 'n' ? "\n" : $x[1], $body);
+    };
+    foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
+        $current = (string) $defaults($locale)['loan_returned']['body'];
+        $retired = \App\Support\SettingsMailTemplates::retiredBodies('loan_returned', $locale);
+        $check($retired !== [] && str_contains($current, '{{multa}}') && !str_contains(implode('', $retired), '{{multa}}'), "{$locale}: the current default carries {{multa}}, the retired bodies do not");
+        $seed = $installerSeed($locale);
+        $check($seed !== '' && in_array(trim(str_replace("<p>{{multa}}</p>\n", '', $seed)), array_map('trim', $retired), true), "{$locale}: the installer seed without its {{multa}} line is a retired body (what a pre-0.9.0 install stored)");
+        foreach ($retired as $i => $old) {
+            $seedRow($locale, $old);
+            $repo->ensureEmailTemplates($defaults($locale), $locale);
+            $row = $repo->getEmailTemplate('loan_returned', $locale);
+            $check(is_array($row) && trim((string) $row['body']) === trim($current) && str_contains((string) $row['body'], '{{multa}}'), "{$locale}: stored retired body #{$i} is moved to the current default");
+            $check(is_array($row) && (string) $row['subject'] === 'Old subject' && (string) $row['description'] === 'seeded', "{$locale}: subject and description of the row are kept");
+            $repo->ensureEmailTemplates($defaults($locale), $locale);
+            $again = $repo->getEmailTemplate('loan_returned', $locale);
+            $check(is_array($again) && (string) $again['body'] === (string) $row['body'], "{$locale}: a second pass changes nothing (idempotent)");
+        }
+        $custom = str_replace('</h2>', ' (customised)</h2>', (string) $retired[0]);
+        $seedRow($locale, $custom, 'My subject');
+        $repo->ensureEmailTemplates($defaults($locale), $locale);
+        $row = $repo->getEmailTemplate('loan_returned', $locale);
+        $check(is_array($row) && (string) $row['body'] === $custom && (string) $row['subject'] === 'My subject', "{$locale}: a customised body (one word away from the old default) is left alone");
+        $check(is_array($row) && !str_contains((string) $row['body'], '{{multa}}'), "{$locale}: ...and gets no {{multa}} added behind the administrator's back");
+    }
+    $check((int) $scalar("SELECT COUNT(*) FROM email_templates WHERE name = 'loan_returned'") === 5, 'one loan_returned row per locale after the passes');
 
     $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
     $check(str_contains($schema, 'CREATE TABLE `movimenti_lettore`') && str_contains($schema, 'UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`)'), 'fresh install (schema.sql) has the same table');
