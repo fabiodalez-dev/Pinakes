@@ -42,10 +42,13 @@ async function loginAsAdmin(page) {
   }
   await page.fill('input[name="email"]', ADMIN_EMAIL);
   await page.fill('input[name="password"]', ADMIN_PASS);
-  await Promise.all([
-    page.waitForURL(/\/admin\//, { timeout: 45000, waitUntil: 'domcontentloaded' }),
-    page.locator('button[type="submit"]').first().click(),
-  ]);
+  await page.locator('button[type="submit"]').first().click();
+  // The redirect target varies (dashboard, intended page): wait for the
+  // password field to go away rather than for one specific navigation.
+  await page.locator('input[name="password"]').waitFor({ state: 'detached', timeout: 45000 });
+  if (!/\/admin\//.test(page.url())) {
+    await page.goto(`${BASE}/admin/dashboard`);
+  }
 }
 
 /**
@@ -80,28 +83,43 @@ function deleteBooks(ids) {
 }
 
 /**
- * Text drawn in a TCPDF document. Content streams are zlib-compressed and
- * TCPDF writes Unicode text as UTF-16BE, so every stream is inflated and the
- * NUL high bytes of ASCII characters are dropped.
+ * Text drawn in a TCPDF document. TCPDF writes Unicode text as UTF-16BE
+ * strings inside `[(...)] TJ` operators, in content streams that may or may
+ * not be deflated. Every text string is decoded and the pieces are joined
+ * with a space, so a line wrapped at a space reads as the original phrase.
  */
 function pdfText(buffer) {
   const bin = buffer.toString('latin1');
-  let out = '';
-  const re = /stream\r?\n/g;
-  let m;
-  while ((m = re.exec(bin)) !== null) {
-    const start = m.index + m[0].length;
+  const streams = [];
+  let pos = 0;
+  for (;;) {
+    const open = bin.indexOf('stream', pos);
+    if (open < 0) break;
+    if (bin.slice(open - 3, open) === 'end') { pos = open + 6; continue; }
+    let start = open + 6;
+    if (bin[start] === '\r') start++;
+    if (bin[start] === '\n') start++;
     const end = bin.indexOf('endstream', start);
     if (end < 0) break;
-    const chunk = Buffer.from(bin.slice(start, end), 'latin1');
-    try {
-      out += zlib.inflateSync(chunk).toString('latin1');
-    } catch (_) {
-      // Not a deflated stream (fonts, images): ignore.
-    }
-    re.lastIndex = end;
+    const raw = Buffer.from(bin.slice(start, end), 'latin1');
+    let body;
+    try { body = zlib.inflateSync(raw).toString('latin1'); } catch (_) { body = raw.toString('latin1'); }
+    streams.push(body);
+    pos = end + 9;
   }
-  return out.replace(/\x00/g, '');
+  const pieces = [];
+  for (const body of streams) {
+    const re = /\[\((.*?)\)\]\s*TJ/gs;
+    let m;
+    while ((m = re.exec(body)) !== null) {
+      const unescaped = m[1].replace(/\\([()\\])/g, '$1').replace(/\\r/g, '\r');
+      const bytes = Buffer.from(unescaped, 'latin1');
+      let text = '';
+      for (let i = 0; i + 1 < bytes.length; i += 2) text += String.fromCharCode((bytes[i] << 8) | bytes[i + 1]);
+      pieces.push(text);
+    }
+  }
+  return pieces.join(' ').replace(/\s+/g, ' ');
 }
 
 function pdfPageCount(buffer) {
