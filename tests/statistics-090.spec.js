@@ -2,7 +2,7 @@
 // /admin/statistics in 0.9.0: loans by material, visitors from the visitor
 // log, the outcomes of the last closed stocktake, loans by patron type
 // (readers without a type count under the default type), and the fines
-// section hidden until the fines feature provides it.
+// section from the patron ledger (hidden with no fine and no movement).
 const { test, expect } = require('@playwright/test');
 const h = require('./helpers/minor-features-090');
 
@@ -88,11 +88,46 @@ test.describe.serial('Statistics 0.9.0 sections', () => {
     await expect(page).toHaveURL(/\/admin\/attendance$/);
   });
 
-  test('5. The fines section stays hidden until the fines feature provides it', async () => {
+  // Same rendering as FineParameters::format() for it_IT / EUR.
+  const euro = (cents) => {
+    const abs = Math.abs(cents);
+    const units = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${cents < 0 ? '-' : ''}${units},${String(abs % 100).padStart(2, '0')} €`;
+  };
+  const cents = (sql) => Math.round(Number(h.dbQuery(sql) || '0') * 100);
+  const fineValue = (label) => page.locator('#stats-fines tr', { hasText: label }).locator('td').last();
+
+  test('5. The fines section is hidden with no fine configured and an empty ledger', async () => {
+    const ledgerRows = parseInt(h.dbQuery('SELECT COUNT(*) FROM movimenti_lettore'), 10);
+    const configured = parseInt(h.dbQuery(`SELECT
+        (SELECT COUNT(*) FROM system_settings WHERE category = 'loans' AND setting_key = 'daily_fine' AND setting_value REGEXP '^[0-9]' AND CAST(REPLACE(setting_value, ',', '.') AS DECIMAL(10,2)) > 0)
+      + (SELECT COUNT(*) FROM tipologie_lettore WHERE multa_giornaliera > 0)
+      + (SELECT COUNT(*) FROM regole_prestito WHERE multa_giornaliera > 0)`), 10);
     await page.goto(`${h.BASE}/admin/statistics`);
     await expect(page.locator('#stats-loans-by-media')).toBeVisible();
-    await expect(page.locator('#stats-fines')).toHaveCount(0);
     await expect(page.locator('#stats-patron-types')).toBeVisible();
+    await expect(page.locator('#stats-fines')).toHaveCount(ledgerRows === 0 && configured === 0 ? 0 : 1);
+  });
+
+  test('5b. With ledger movements the fines section reports charged, collected and what readers owe', async () => {
+    // A late fine of 3.50 and a payment of 1.00 for the test reader (ledger setup only).
+    h.dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione) VALUES (${userId}, 'multa_ritardo', 3.50, 'E2E statistiche'), (${userId}, 'pagamento', -1.00, 'E2E statistiche')`);
+    try {
+      const period = "created_at >= DATE_ADD(DATE_SUB(CURDATE(), INTERVAL 12 MONTH), INTERVAL 1 DAY)";
+      const charged = cents(`SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore WHERE tipo IN ('multa_ritardo','addebito_perdita','addebito_danno','addebito_manuale') AND ${period}`);
+      const collected = cents(`SELECT COALESCE(-SUM(importo), 0) FROM movimenti_lettore WHERE tipo = 'pagamento' AND ${period}`);
+      const owed = cents('SELECT COALESCE(SUM(s), 0) FROM (SELECT SUM(importo) AS s FROM movimenti_lettore GROUP BY utente_id HAVING SUM(importo) > 0) d');
+      const debtors = h.dbQuery('SELECT COUNT(*) FROM (SELECT utente_id FROM movimenti_lettore GROUP BY utente_id HAVING SUM(importo) > 0) d');
+      expect(charged).toBeGreaterThanOrEqual(350);
+      await page.goto(`${h.BASE}/admin/statistics`);
+      await expect(page.locator('#stats-fines')).toBeVisible();
+      await expect(fineValue('Addebitato')).toHaveText(euro(charged));
+      await expect(fineValue('Incassato')).toHaveText(euro(collected));
+      await expect(fineValue('Saldo da incassare')).toHaveText(euro(owed));
+      await expect(fineValue('Lettori con saldo a debito')).toHaveText(debtors);
+    } finally {
+      h.dbQuery(`DELETE FROM movimenti_lettore WHERE utente_id = ${userId}`);
+    }
   });
 
   test('6. Loans by patron type: a typed reader counts under the type, an untyped one under the default type', async () => {

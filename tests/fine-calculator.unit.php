@@ -73,6 +73,14 @@ $check($sundaysClosed->lateFineCents($params('1', 1), '2026-10-10', '2026-10-12'
 $allClosed = new FineCalculator(static fn (string $d): bool => false);
 $check($allClosed->lateFineCents($params('1'), '2026-10-01', '2026-10-20') === 0, 'library closed the whole time: no fine');
 $check($sundaysClosed->daysLate('2026-10-10', '2026-10-10') === 0, 'calendar never consulted for an on-time return');
+// A closure of branch 7 only (2026-10-12..13): counted for other branches and the whole library.
+$branch7Closed = new FineCalculator(static fn (string $d, ?int $branch = null): bool => !($branch === 7 && $d >= '2026-10-12' && $d <= '2026-10-13'));
+$check($branch7Closed->daysLate('2026-10-10', '2026-10-15', 7) === 3 && $branch7Closed->daysLate('2026-10-10', '2026-10-15', 3) === 5 && $branch7Closed->daysLate('2026-10-10', '2026-10-15') === 5, 'branch closure: skipped only for the copy of that branch');
+$check($branch7Closed->lateFineCents($params('1'), '2026-10-10', '2026-10-15', 7) === 300, 'branch closure lowers the fine of that branch only');
+// The real calendar plugged in the same way PatronLedger::forDb() does.
+$calendar = new \App\Support\LibraryCalendar([0], [['start' => '2026-10-13', 'end' => '2026-10-14', 'yearly' => false, 'sede' => null], ['start' => '2020-10-16', 'end' => '2020-10-16', 'yearly' => true, 'sede' => null]]);
+$real = new FineCalculator(static fn (string $d, ?int $b = null): bool => $calendar->isOpen($d, $b));
+$check($real->daysLate('2026-10-10', '2026-10-20') === 5 && $real->daysLate('2026-10-10', '2026-10-20') === $calendar->openDaysBetween('2026-10-10', '2026-10-20'), 'LibraryCalendar: 10 days minus Sundays 11 and 18, closure 13-14 and yearly 16 = 5 open days, as openDaysBetween()');
 
 echo "F. Amounts\n";
 $check(FineParameters::toCents('2') === 200 && FineParameters::toCents('2.5') === 250 && FineParameters::toCents('2,05') === 205, 'toCents parses 2 / 2.5 / 2,05');

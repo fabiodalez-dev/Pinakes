@@ -9017,5 +9017,8 @@
   "Multa max": "Pénalité max",
   "Multa: %s/giorno": "Pénalité : %s/jour",
   "Blocco oltre %s": "Blocage au-delà de %s",
-  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Pénalité journalière 0 = aucune pénalité pour ce type ; seuil de blocage 0 = aucun blocage pour dette. Un champ vide hérite du réglage de l'onglet Emprunts."
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Pénalité journalière 0 = aucune pénalité pour ce type ; seuil de blocage 0 = aucun blocage pour dette. Un champ vide hérite du réglage de l'onglet Emprunts.",
+  "Saldo da incassare": "Solde à encaisser",
+  "Lettori con saldo a debito": "Lecteurs avec un solde débiteur",
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "12 derniers mois ; le solde à encaisser est celui d'aujourd'hui. Le détail mois par mois se trouve dans le rapport des pénalités plus bas."
 }

@@ -9017,5 +9017,8 @@
   "Multa max": "Max fine",
   "Multa: %s/giorno": "Fine: %s/day",
   "Blocco oltre %s": "Blocked above %s",
-  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Daily fine 0 = no fines for this type; block threshold 0 = no debt block. An empty field inherits the setting of the Loans tab."
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Daily fine 0 = no fines for this type; block threshold 0 = no debt block. An empty field inherits the setting of the Loans tab.",
+  "Saldo da incassare": "Outstanding balance",
+  "Lettori con saldo a debito": "Patrons with a debt",
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Last 12 months; the outstanding balance is today's. The month-by-month detail is in the fines report below."
 }
