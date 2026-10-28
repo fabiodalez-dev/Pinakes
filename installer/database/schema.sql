@@ -160,6 +160,7 @@ CREATE TABLE `copie` (
   `numero_inventario` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `stato` enum('disponibile','prestato','prenotato','manutenzione','in_restauro','perso','danneggiato','in_trasferimento') COLLATE utf8mb4_unicode_ci DEFAULT 'disponibile',
   `note` text COLLATE utf8mb4_unicode_ci,
+  `solo_consultazione` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1073,6 +1074,51 @@ CREATE TABLE IF NOT EXISTS `ruoli` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+CREATE TABLE IF NOT EXISTS `tipologie_lettore` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codice` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `max_prestiti` int DEFAULT NULL,
+  `durata_prestito_giorni` int DEFAULT NULL,
+  `max_durata_richiesta_giorni` int DEFAULT NULL,
+  `max_rinnovi` int DEFAULT NULL,
+  `giorni_rinnovo` int DEFAULT NULL,
+  `prenotazioni_abilitate` tinyint(1) NOT NULL DEFAULT '1',
+  `max_prenotazioni` int DEFAULT NULL,
+  `durata_tessera_giorni` int DEFAULT NULL,
+  `multa_giornaliera` decimal(10,2) DEFAULT NULL,
+  `giorni_tolleranza` int DEFAULT NULL,
+  `multa_massima_prestito` decimal(10,2) DEFAULT NULL,
+  `soglia_blocco_debito` decimal(10,2) DEFAULT NULL,
+  `predefinita` tinyint(1) NOT NULL DEFAULT '0',
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `ordinamento` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_tipologie_lettore_codice` (`codice`),
+  KEY `idx_tipologie_lettore_ordinamento` (`ordinamento`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `regole_prestito` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tipologia_id` int NOT NULL DEFAULT '0',
+  `tipo_media` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '*',
+  `prestabile` tinyint(1) DEFAULT NULL,
+  `max_prestiti` int DEFAULT NULL,
+  `durata_prestito_giorni` int DEFAULT NULL,
+  `max_rinnovi` int DEFAULT NULL,
+  `giorni_rinnovo` int DEFAULT NULL,
+  `multa_giornaliera` decimal(10,2) DEFAULT NULL,
+  `multa_massima_prestito` decimal(10,2) DEFAULT NULL,
+  `giorni_tolleranza` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_regole_prestito_tipologia_media` (`tipologia_id`,`tipo_media`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `utenti` (
   `id` int NOT NULL AUTO_INCREMENT,
   `codice_tessera` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1098,6 +1144,7 @@ CREATE TABLE `utenti` (
   `data_accettazione_privacy` datetime DEFAULT NULL COMMENT 'UTC timestamp of privacy acceptance',
   `privacy_policy_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Version of accepted privacy policy',
   `locale` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 'it_IT',
+  `tipologia_id` int DEFAULT NULL,
   `token_verifica_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `data_token_verifica` datetime DEFAULT NULL,
   `token_reset_password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1116,7 +1163,9 @@ CREATE TABLE `utenti` (
   KEY `idx_utenti_data_ultimo_accesso` (`data_ultimo_accesso`),
   KEY `idx_tipo_utente` (`tipo_utente`),
   KEY `idx_utenti_ruolo` (`ruolo_id`),
-  CONSTRAINT `fk_utenti_ruolo` FOREIGN KEY (`ruolo_id`) REFERENCES `ruoli` (`id`) ON DELETE RESTRICT
+  KEY `idx_utenti_tipologia` (`tipologia_id`),
+  CONSTRAINT `fk_utenti_ruolo` FOREIGN KEY (`ruolo_id`) REFERENCES `ruoli` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_utenti_tipologia` FOREIGN KEY (`tipologia_id`) REFERENCES `tipologie_lettore` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

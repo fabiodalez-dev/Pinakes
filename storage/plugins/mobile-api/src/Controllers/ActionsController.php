@@ -1231,6 +1231,13 @@ final class ActionsController
                 return ResponseEnvelope::error($response, 'not_available', __('Il libro non è disponibile per il periodo richiesto.'), 409);
             case 'max_loans_reached':
                 return ResponseEnvelope::error($response, 'max_loans_reached', __('Hai raggiunto il numero massimo di prestiti attivi.'), 409);
+            // Circulation rules of the patron type (Pinakes 0.9.0): additive
+            // codes; older apps still show the server message.
+            case 'media_limit_reached':
+            case 'not_loanable':
+            case 'reservations_disabled':
+            case 'reservation_limit_reached':
+                return ResponseEnvelope::error($response, $code, \App\Support\LoanEligibility::errorMessage($code), 409);
             case 'not_eligible':
                 // Guardia di idoneità M7 (utente sospeso o tessera scaduta):
                 // condizione permanente lato utente, mai un errore server.

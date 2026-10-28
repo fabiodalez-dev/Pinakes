@@ -1182,6 +1182,7 @@ class NcipServerPlugin
                 'ineligible'  => 'user-ineligible-to-request',
                 'max_loans'   => 'user-ineligible-to-request',
                 'not_loanable' => 'request-item-does-not-circulate',
+                'reservation_limit', 'reservations_disabled' => 'user-ineligible-to-request',
                 default       => 'temporary-processing-failure',
             };
             SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $failureReason);
@@ -1956,6 +1957,7 @@ class NcipServerPlugin
                 "SELECT c.id FROM copie c
                  WHERE c.libro_id = ?
                    AND c.stato IN ('disponibile','prenotato')
+                   AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
                    AND NOT EXISTS (
                        SELECT 1 FROM prestiti p
                        WHERE p.copia_id = c.id
@@ -2114,6 +2116,21 @@ class NcipServerPlugin
             // core patron entry point. If the only capacity depends on an
             // earlier return, persist a real FIFO reservation instead of a
             // bare pending loan that staff approval would inevitably reject.
+            // Patron type rules before the gate: consultation-only material
+            // is neither lent nor queued, and the reservation limit counts
+            // queue reservations plus requests awaiting approval.
+            $requestPolicy = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $bookId);
+            if (!$requestPolicy->loanable) {
+                $failureReason = 'not_loanable';
+                $this->db->rollback();
+                return null;
+            }
+            if ((new \App\Services\CirculationPolicy($this->db))->reservationLimitError($requestPolicy->user, $userId, queue: false) !== null) {
+                $failureReason = 'reservation_limit';
+                $this->db->rollback();
+                return null;
+            }
+
             $routing = (new \App\Services\LoanRequestGate($this->db))->route(
                 $bookId,
                 $userId,
@@ -2122,6 +2139,11 @@ class NcipServerPlugin
                 inCallerTransaction: true
             );
             if ($routing->isReservation()) {
+                if (!$requestPolicy->user->reservationsEnabled) {
+                    $failureReason = 'reservations_disabled';
+                    $this->db->rollback();
+                    return null;
+                }
                 $reservationId = (int) $routing->reservationId;
                 if (!$this->insertTransactionRecord(
                     'RequestItem',

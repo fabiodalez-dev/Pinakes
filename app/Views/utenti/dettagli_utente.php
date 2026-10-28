@@ -286,8 +286,52 @@ unset($workspaceHeader);
           <?= !empty($dataUltimoAccesso) ? format_date($dataUltimoAccesso, true, '/') : '—'; ?>
         </dd>
       </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Tipologia lettore") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1" data-testid="patron-type-name">
+          <?= HtmlHelper::e($patronTypeName ?? __('Standard')); ?>
+          <?php if (empty($patronTypeIsOwn)): ?><span class="text-xs text-gray-500">(<?= __("predefinita") ?>)</span><?php endif; ?>
+        </dd>
+      </div>
     </dl>
   </section>
+
+  <?php if (isset($patronPolicy) && in_array($ruolo, ['standard', 'premium'], true)): ?>
+  <section class="bg-white border border-gray-200 rounded-lg p-6" data-testid="patron-effective-rules">
+    <h2 class="text-lg font-medium text-gray-900"><?= __("Regole di circolazione") ?></h2>
+    <dl class="mt-4 grid gap-4 sm:grid-cols-2">
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Prestiti attivi massimi") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= $patronPolicy->maxActiveLoans > 0 ? (int) $patronPolicy->maxActiveLoans : __('Nessun limite') ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Durata prestito (giorni)") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= (int) $patronPolicy->durationDays ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Durata massima richiedibile (giorni)") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= (int) $patronPolicy->maxRequestDays ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Rinnovi massimi") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= (int) $patronPolicy->maxRenewals ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Prenotazioni") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1">
+          <?= !$patronPolicy->user->reservationsEnabled
+              ? __('Prenotazioni disattivate')
+              : ($patronPolicy->user->maxReservations > 0 ? sprintf(__('Massimo %d'), $patronPolicy->user->maxReservations) : __('Nessun limite')) ?>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Durata tessera (giorni)") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= $patronPolicy->user->cardDurationDays !== null ? (int) $patronPolicy->user->cardDurationDays : '—' ?></dd>
+      </div>
+    </dl>
+    <p class="text-xs text-gray-500 mt-3"><?= __("Le regole per tipo di materiale (Impostazioni → Circolazione) possono ridurre questi valori per singoli materiali.") ?></p>
+  </section>
+  <?php endif; ?>
 
   <?php if ($stato === 'sospeso'): ?>
   <!-- Approval Actions -->

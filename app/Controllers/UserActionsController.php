@@ -820,9 +820,24 @@ class UserActionsController
             // Checked BEFORE the max-active-loans cap, mirroring
             // createReservation: a waitlist reservation does not consume an
             // active-loan slot until promotion.
+            // Circulation rules of the patron type, under the user lock
+            // (same order as createReservation): consultation-only material,
+            // then the reservation limit (queue + requests awaiting approval).
+            $policyError = !$loanPolicy->loanable
+                ? 'not_loanable'
+                : $circulation->reservationLimitError($loanPolicy->user, $utenteId, queue: false);
+            if ($policyError !== null) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => $policyError]);
+            }
+
             $routing = (new \App\Services\LoanRequestGate($db))
                 ->route($libroId, $utenteId, $data_prestito, $data_scadenza, inCallerTransaction: true);
             if ($routing->isReservation()) {
+                if (!$loanPolicy->user->reservationsEnabled) {
+                    $db->rollback();
+                    return $this->back($response, ['loan_error' => 'reservations_disabled']);
+                }
                 $db->commit();
                 // Reuse the reserve() success contract: the frontend already
                 // renders reserve_success as "queued in the waitlist".
@@ -1027,6 +1042,15 @@ class UserActionsController
             if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
                 $db->rollback();
                 return $this->back($response, ['reserve_error' => 'not_eligible']);
+            }
+
+            // Circulation rules of the patron type, under the user lock.
+            $policyError = !$reservePolicy->loanable
+                ? 'not_loanable'
+                : (new \App\Services\CirculationPolicy($db))->reservationLimitError($reservePolicy->user, $utenteId, queue: true);
+            if ($policyError !== null) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => $policyError]);
             }
 
             // Canonical peak-capacity decision (same service as admin create,

@@ -14,4 +14,5 @@ return [
     'sharing' => ['group' => __('Sito e sistema'), 'label' => __('Condivisione'), 'description' => __('Personalizza le anteprime e i contenuti condivisi dal sito.'), 'icon' => 'fa-share-alt'],
     'advanced' => ['group' => __('Sito e sistema'), 'label' => __('Avanzate'), 'description' => __('Gestisci integrazioni e configurazioni avanzate del sistema.'), 'icon' => 'fa-cogs'],
     'loans' => ['group' => __('Biblioteca'), 'label' => __('Prestiti'), 'description' => __('Configura le regole e le automazioni della circolazione.'), 'icon' => 'fa-book-open'],
+    'circulation' => ['group' => __('Biblioteca'), 'label' => __('Circolazione'), 'description' => __('Tipologie di lettore e regole di prestito per tipo di materiale.'), 'icon' => 'fa-id-badge'],
 ];

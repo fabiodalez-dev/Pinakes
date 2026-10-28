@@ -601,6 +601,19 @@ class ReservationsAdminController
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=' . rawurlencode($eligibilityError))->withStatus(302);
             }
 
+            // Circulation rules of the patron type, under the user lock.
+            // Consultation-only material is never queued; the reservation
+            // limits can be overridden by the staff with an explicit flag.
+            $circulation = new \App\Services\CirculationPolicy($db);
+            $reservationPolicy = $circulation->forLoan($utenteId, $libroId);
+            $policyError = !$reservationPolicy->loanable
+                ? 'not_loanable'
+                : (($data['force_limits'] ?? '') === '1' ? null : $circulation->reservationLimitError($reservationPolicy->user, $utenteId, queue: true));
+            if ($policyError !== null) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=' . $policyError)->withStatus(302);
+            }
+
             // Capacity gate (the decision): a waitlist reservation occupies one
             // capacity unit for its promised period, so reject it when the book is
             // already at capacity for that window (counting other commitments).

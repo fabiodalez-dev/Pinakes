@@ -154,3 +154,88 @@ PREPARE pci_stmt FROM @pci_sql;
 EXECUTE pci_stmt;
 DEALLOCATE PREPARE pci_stmt;
 -- ── end patron-cards-import ──
+
+-- ── Circulation policy: patron types, rules matrix, consultation-only copies ──
+-- Patron types (tipologie_lettore) decide the circulation rules; the role
+-- (utenti.tipo_utente) keeps deciding permissions. Every rule column is NULL =
+-- inherit, so the seeded "Standard" type changes nothing (zero-config
+-- equivalence). No user is touched: utenti.tipologia_id NULL = default type.
+CREATE TABLE IF NOT EXISTS `tipologie_lettore` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codice` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `max_prestiti` int DEFAULT NULL,
+  `durata_prestito_giorni` int DEFAULT NULL,
+  `max_durata_richiesta_giorni` int DEFAULT NULL,
+  `max_rinnovi` int DEFAULT NULL,
+  `giorni_rinnovo` int DEFAULT NULL,
+  `prenotazioni_abilitate` tinyint(1) NOT NULL DEFAULT '1',
+  `max_prenotazioni` int DEFAULT NULL,
+  `durata_tessera_giorni` int DEFAULT NULL,
+  `multa_giornaliera` decimal(10,2) DEFAULT NULL,
+  `giorni_tolleranza` int DEFAULT NULL,
+  `multa_massima_prestito` decimal(10,2) DEFAULT NULL,
+  `soglia_blocco_debito` decimal(10,2) DEFAULT NULL,
+  `predefinita` tinyint(1) NOT NULL DEFAULT '0',
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `ordinamento` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_tipologie_lettore_codice` (`codice`),
+  KEY `idx_tipologie_lettore_ordinamento` (`ordinamento`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Exceptions of the matrix patron type x material (libri.tipo_media).
+-- Sentinels instead of NULL keep the UNIQUE key effective: tipologia_id 0 =
+-- every patron type, tipo_media '*' = every material.
+CREATE TABLE IF NOT EXISTS `regole_prestito` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tipologia_id` int NOT NULL DEFAULT '0',
+  `tipo_media` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '*',
+  `prestabile` tinyint(1) DEFAULT NULL,
+  `max_prestiti` int DEFAULT NULL,
+  `durata_prestito_giorni` int DEFAULT NULL,
+  `max_rinnovi` int DEFAULT NULL,
+  `giorni_rinnovo` int DEFAULT NULL,
+  `multa_giornaliera` decimal(10,2) DEFAULT NULL,
+  `multa_massima_prestito` decimal(10,2) DEFAULT NULL,
+  `giorni_tolleranza` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_regole_prestito_tipologia_media` (`tipologia_id`,`tipo_media`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The default patron type, inheriting every rule from the global settings.
+-- Seeded only into an empty table: an existing set of types is never touched.
+INSERT INTO `tipologie_lettore` (`codice`, `nome`, `predefinita`, `ordinamento`)
+SELECT 'standard', 'Standard', 1, 0 FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `tipologie_lettore`);
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND COLUMN_NAME = 'tipologia_id');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `utenti` ADD COLUMN `tipologia_id` int DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND INDEX_NAME = 'idx_utenti_tipologia');
+SET @sql = IF(@idx_exists = 0, 'ALTER TABLE `utenti` ADD KEY `idx_utenti_tipologia` (`tipologia_id`)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND CONSTRAINT_NAME = 'fk_utenti_tipologia' AND CONSTRAINT_TYPE = 'FOREIGN KEY');
+SET @sql = IF(@fk_exists = 0, 'ALTER TABLE `utenti` ADD CONSTRAINT `fk_utenti_tipologia` FOREIGN KEY (`tipologia_id`) REFERENCES `tipologie_lettore` (`id`) ON DELETE SET NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- A single copy kept for in-house consultation (SLiMS "no loan" item status).
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'copie' AND COLUMN_NAME = 'solo_consultazione');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `copie` ADD COLUMN `solo_consultazione` tinyint(1) NOT NULL DEFAULT ''0''', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- ── end Circulation policy ──

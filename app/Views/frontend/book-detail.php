@@ -624,11 +624,23 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 <?php // No loan, reservation or favourite for a book the library does not own. ?>
                 <?php if (!$isCatalogueMode && empty($book['is_desiderata'])): ?>
                 <div class="action-buttons pk-availbox__actions" id="book-action-buttons">
+                    <?php if (!empty($consultationOnly)): ?>
+                    <?php // Consultation-only material for this reader (CirculationPolicy): no request. ?>
+                    <span id="consultation-only" class="ui-button btn-outline-primary px-8 py-4 text-base" role="status" aria-disabled="true">
+                        <i class="fas fa-eye mr-2"></i><span><?= __("Solo consultazione") ?></span>
+                    </span>
+                    <?php elseif (isset($viewerReservationsEnabled) && !$viewerReservationsEnabled && !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) <= 0): ?>
+                    <?php // No copy today and no reservations for this patron type: nothing to request. ?>
+                    <span id="reservations-disabled" class="ui-button btn-outline-primary px-8 py-4 text-base" role="status" aria-disabled="true">
+                        <i class="fas fa-ban mr-2"></i><span><?= __("Prenotazioni non disponibili per il tuo profilo") ?></span>
+                    </span>
+                    <?php else: ?>
                     <!-- Always show the calendar to choose dates -->
                     <button id="btn-request-loan" type="button" class="ui-button <?= !$edgeCacheEnabled && ($book['copie_disponibili'] ?? 0) > 0 ? 'btn-primary' : 'btn-outline-primary' ?> px-8 py-4 text-base" data-libro-id="<?= (int)($book['id'] ?? 0) ?>"<?= !$edgeCacheEnabled && $nothingInCirculation ? ' disabled' : '' ?><?= $edgeCacheEnabled ? ' data-live-book-id="' . (int) $book['id'] . '" data-live-role="action" data-live-pending="1"' : '' ?>>
                         <i class="fas fa-<?= $edgeCacheEnabled ? 'circle-notch' : ((($book['copie_disponibili'] ?? 0) > 0) ? 'book-reader' : ($nothingInCirculation ? 'ban' : 'calendar-alt')) ?> mr-2"></i>
                         <span data-live-label><?= $edgeCacheEnabled ? __('Verifica disponibilità') : ((($book['copie_disponibili'] ?? 0) > 0) ? __('Richiedi Prestito') : ($nothingInCirculation ? __('Momentaneamente non prenotabile') : __('Prenota Quando Disponibile'))) ?></span>
                     </button>
+                    <?php endif; ?>
                     <?php $isLogged = !empty($_SESSION['user'] ?? null); ?>
                     <?php if ($isLogged): ?>
                       <button id="btn-fav" type="button" class="ui-button btn-secondary px-8 py-4 text-base btn-fav-custom" data-libro-id="<?= (int)($book['id'] ?? 0) ?>">
@@ -698,8 +710,8 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                               <?= htmlspecialchars(\App\Support\LoanWindow::explainFromParams($_GET) ?? __('Nessuna copia disponibile per il periodo richiesto.'), ENT_QUOTES, 'UTF-8') ?>
                             <?php elseif ($loanErrorKey === 'max_duration_exceeded'): ?>
                               <?= htmlspecialchars(__('Il periodo richiesto supera la durata massima consentita.'), ENT_QUOTES, 'UTF-8') ?>
-                            <?php elseif ($loanErrorKey === 'max_loans_reached'): ?>
-                              <?= __('Hai raggiunto il numero massimo di prestiti attivi consentiti') ?>
+                            <?php elseif (in_array($loanErrorKey, ['max_loans_reached', 'media_limit_reached', 'not_loanable', 'reservation_limit_reached', 'reservations_disabled'], true)): ?>
+                              <?= htmlspecialchars(\App\Support\LoanEligibility::errorMessage($loanErrorKey), ENT_QUOTES, 'UTF-8') ?>
                             <?php else: ?>
                               <?= __('Errore nella richiesta di prestito.') ?>
                             <?php endif; ?>
@@ -720,7 +732,10 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                                   'invalid_date' => __('Data non valida.'),
                                   'past_date' => __('La data non può essere nel passato.'),
                                   'not_available' => \App\Support\LoanWindow::explainFromParams($_GET) ?? __('Nessuna copia disponibile per il periodo richiesto.'),
-                                  'max_duration_exceeded' => __('Il periodo richiesto supera la durata massima consentita.')
+                                  'max_duration_exceeded' => __('Il periodo richiesto supera la durata massima consentita.'),
+                                  'not_loanable' => \App\Support\LoanEligibility::errorMessage('not_loanable'),
+                                  'reservations_disabled' => \App\Support\LoanEligibility::errorMessage('reservations_disabled'),
+                                  'reservation_limit_reached' => \App\Support\LoanEligibility::errorMessage('reservation_limit_reached'),
                               ];
                               // Defense-in-depth: the values are __() translations from
                               // the i18n catalog (app-controlled), and unknown keys fall

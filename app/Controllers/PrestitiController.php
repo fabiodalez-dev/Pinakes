@@ -447,6 +447,12 @@ class PrestitiController
 
                 $forcedCopyId = (int) $codeRow['id'];
 
+                // A copy kept for in-house consultation is never lent.
+                if ((new \App\Services\CirculationPolicy($db))->isConsultationCopy($forcedCopyId)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=not_loanable')->withStatus(302);
+                }
+
                 // Multiple open rows for one borrower/title must represent
                 // different physical items even when their date windows do not
                 // overlap. The book lock makes this early snapshot race-safe.
@@ -515,6 +521,7 @@ class PrestitiController
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti own
                         WHERE own.copia_id = c.id
