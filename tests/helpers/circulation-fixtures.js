@@ -151,13 +151,14 @@ async function createTypeViaUi(page, fields, opts = {}) {
 }
 
 /** Fill one matrix cell and save the matrix. */
-async function setMatrixCell(page, typeId, media, { loanable, max, duration, renewals } = {}) {
+async function setMatrixCell(page, typeId, media, { loanable, max, duration, renewals, renewalDays } = {}) {
   await openCirculationTab(page);
   const prefix = `#rule-${typeId}-${media}`;
   if (loanable !== undefined) await page.locator(`${prefix}-loanable`).selectOption(String(loanable));
   if (max !== undefined) await page.locator(`${prefix}-max`).fill(String(max));
   if (duration !== undefined) await page.locator(`${prefix}-duration`).fill(String(duration));
   if (renewals !== undefined) await page.locator(`${prefix}-renewals`).fill(String(renewals));
+  if (renewalDays !== undefined) await page.locator(`${prefix}-renewal_days`).fill(String(renewalDays));
   await page.locator('[data-testid="circulation-matrix-form"] button[type="submit"]').click();
   await page.waitForURL((u) => u.searchParams.get('tab') === 'circulation');
 }

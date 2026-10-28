@@ -34,6 +34,7 @@ class CirculationSettingsController
         'max' => ['max_prestiti', 0, 1000],
         'duration' => ['durata_prestito_giorni', 1, 3650],
         'renewals' => ['max_rinnovi', 0, 100],
+        'renewal_days' => ['giorni_rinnovo', 1, 3650],
     ];
 
     private const TAB_URL = '/admin/settings?tab=circulation';
@@ -70,6 +71,7 @@ class CirculationSettingsController
                     'max' => $resolved->maxActiveForMedia,
                     'duration' => $resolved->durationDays,
                     'renewals' => $resolved->maxRenewals,
+                    'renewal_days' => $resolved->renewalDays,
                 ];
             }
         }
@@ -332,19 +334,23 @@ class CirculationSettingsController
             $db->begin_transaction();
             $delete = $db->prepare('DELETE FROM regole_prestito WHERE tipologia_id = ? AND tipo_media = ?');
             $upsert = $db->prepare(
-                'INSERT INTO regole_prestito (tipologia_id, tipo_media, prestabile, max_prestiti, durata_prestito_giorni, max_rinnovi)
-                 VALUES (?, ?, ?, ?, ?, ?)
+                'INSERT INTO regole_prestito (tipologia_id, tipo_media, prestabile, max_prestiti, durata_prestito_giorni, max_rinnovi, giorni_rinnovo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE prestabile = VALUES(prestabile), max_prestiti = VALUES(max_prestiti),
-                     durata_prestito_giorni = VALUES(durata_prestito_giorni), max_rinnovi = VALUES(max_rinnovi)'
+                     durata_prestito_giorni = VALUES(durata_prestito_giorni), max_rinnovi = VALUES(max_rinnovi),
+                     giorni_rinnovo = VALUES(giorni_rinnovo)'
             );
             $existing = $policy->rules();
             foreach ($rows as $key => $row) {
                 $typeId = (int) $row['tipologia_id'];
                 $m = (string) $row['tipo_media'];
                 $empty = $row['prestabile'] === null && $row['max_prestiti'] === null
-                    && $row['durata_prestito_giorni'] === null && $row['max_rinnovi'] === null;
+                    && $row['durata_prestito_giorni'] === null && $row['max_rinnovi'] === null
+                    && $row['giorni_rinnovo'] === null;
+                // Fine columns are not edited here yet: a cell that carries
+                // one is kept even when every edited field is emptied.
                 $hasOtherFields = isset($existing[$key]) && (
-                    $existing[$key]['giorni_rinnovo'] !== null || $existing[$key]['multa_giornaliera'] !== null
+                    $existing[$key]['multa_giornaliera'] !== null
                     || $existing[$key]['multa_massima_prestito'] !== null || $existing[$key]['giorni_tolleranza'] !== null
                 );
                 if ($empty && !$hasOtherFields) {
@@ -356,7 +362,8 @@ class CirculationSettingsController
                 $max = $row['max_prestiti'];
                 $duration = $row['durata_prestito_giorni'];
                 $renewals = $row['max_rinnovi'];
-                $upsert->bind_param('isiiii', $typeId, $m, $loanable, $max, $duration, $renewals);
+                $renewalDays = $row['giorni_rinnovo'];
+                $upsert->bind_param('isiiiii', $typeId, $m, $loanable, $max, $duration, $renewals, $renewalDays);
                 $upsert->execute();
             }
             $delete->close();

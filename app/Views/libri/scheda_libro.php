@@ -10,6 +10,8 @@ $libro = $libro ?? [];
 // on this flag. Default to false so a code path that includes this view without
 // setting it can never leak PII to a non-admin/staff viewer (finding F2).
 $isAdminOrStaff = $isAdminOrStaff ?? false;
+// Days a renewal of the active loan adds (CirculationPolicy, set by the controller).
+$renewalDays = isset($renewalDays) ? max(1, (int) $renewalDays) : 14;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 // i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
 $seriesTypeLabels = \App\Support\SeriesLabels::types();
@@ -403,7 +405,7 @@ unset($workspaceHeader);
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars(url('/admin/books/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
               <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
-                <i class="fas fa-redo-alt"></i> <?= __("Rinnova prestito (+14 giorni)") ?>
+                <i class="fas fa-redo-alt"></i> <?= htmlspecialchars(sprintf(__('Rinnova prestito (+%d giorni)'), $renewalDays), ENT_QUOTES, 'UTF-8') ?>
               </button>
             </form>
             <?php elseif ($isLate): ?>
@@ -1842,7 +1844,7 @@ unset($workspaceHeader);
         e.preventDefault();
         Swal.fire({
           title: __('Rinnova prestito?'),
-          text: __('La scadenza verrà estesa di 14 giorni'),
+          text: <?= json_encode(sprintf(__('La scadenza verrà estesa di %d giorni'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
           icon:'question',
           showCancelButton:true,
           confirmButtonText: __('Rinnova'),
@@ -1851,7 +1853,7 @@ unset($workspaceHeader);
         }).then(r=>{ if(r.isConfirmed) e.target.submit(); });
         return false;
       }
-      return confirm(__('Rinnovare il prestito? La scadenza verrà estesa di 14 giorni.'));
+      return confirm(<?= json_encode(sprintf(__('Rinnovare il prestito? La scadenza verrà estesa di %d giorni.'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
     }
   </script>
 

@@ -567,9 +567,11 @@ class LibriController
         // (CirculationPolicy, which also validates a non-numeric stored value
         // back to the default 3), the global one when nothing is on loan.
         $circulation = new \App\Services\CirculationPolicy($db);
-        $maxRenewals = !empty($activeLoan['id'])
-            ? $circulation->forExistingLoan((int) $activeLoan['id'])->maxRenewals
-            : $circulation->defaults()->maxRenewals;
+        $activeLoanPolicy = !empty($activeLoan['id'])
+            ? $circulation->forExistingLoan((int) $activeLoan['id'])
+            : $circulation->defaults();
+        $maxRenewals = $activeLoanPolicy->maxRenewals;
+        $renewalDays = $activeLoanPolicy->renewalDays;
 
         // Issue #374: the audit timeline is staff-only. This route is also
         // reachable by patrons, so do not even query audit/operator data unless
