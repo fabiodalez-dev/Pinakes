@@ -81,8 +81,8 @@ final class CopyCataloging
     {
         $out = [];
         $urls = [];
-        foreach (array_values($this->configured) as $i => $server) {
-            if (!is_array($server) || empty($server['url'])) {
+        foreach ($this->configured as $i => $server) {
+            if (empty($server['url'])) {
                 continue;
             }
             $server['name'] = (string) ($server['name'] ?? $server['url']);
