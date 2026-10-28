@@ -28,6 +28,9 @@ use App\Support\Marc\UnimarcLibriMapper;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
+// The module under test is on, whatever features.* says in the database
+// this runs against (Settings → Modules / Loans).
+\App\Support\Features::override('rda_types', true);
 require_once $root . '/app/helpers.php';
 
 $fx = __DIR__ . '/fixtures/marc';

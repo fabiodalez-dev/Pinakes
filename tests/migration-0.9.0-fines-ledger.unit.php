@@ -25,6 +25,9 @@ use App\Services\PatronLedger;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
+// The module under test is on, whatever features.* says in the database
+// this runs against (Settings → Modules / Loans).
+\App\Support\Features::override('fines', true);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $passed = 0;
