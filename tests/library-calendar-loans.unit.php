@@ -11,6 +11,7 @@ declare(strict_types=1);
  * Run: php tests/library-calendar-loans.unit.php
  */
 
+use App\Services\CirculationPolicy;
 use App\Support\DateHelper;
 use App\Support\LibraryCalendar;
 use App\Support\LoanWindow;
@@ -110,6 +111,15 @@ while ((int) (new DateTimeImmutable($sunday))->format('w') !== 0) {
 $start = $shift($sunday, -14);
 $check(LibraryCalendar::dueDate($db, $shift($start, 14)) === $shift($sunday, 1), "14-day loan from {$start} ending Sunday {$sunday} moves to Monday");
 
+// ── CirculationPolicy::dueDateFor() is the funnel every due date goes through
+$check(CirculationPolicy::dueDateFor($start, 14, $db) === $shift($sunday, 1), 'dueDateFor with the connection: 14 days ending Sunday move to Monday');
+$check(CirculationPolicy::dueDateFor($start, 14) === $sunday, 'dueDateFor without a connection is plain arithmetic');
+$check(CirculationPolicy::dueDateFor($sunday, 0, $db) === $shift($sunday, 1), 'dueDateFor(typed date, 0) moves a typed Sunday to Monday');
+$check(CirculationPolicy::dueDateFor($shift($sunday, -10), 10, $db) === $shift($sunday, 1), 'a 10-day patron-type duration ending Sunday moves to Monday');
+$check(CirculationPolicy::dueDateFor($shift($sunday, 1), 0, $db) === $shift($sunday, 1), 'dueDateFor leaves an open day alone');
+$setWeekdays('');
+$check(CirculationPolicy::dueDateFor($start, 14, $db) === $sunday, 'dueDateFor with no closures equals the historical arithmetic');
+
 // ── Ending Dec 25 with 24–26 closed → 27 ─────────────────────────────────
 $setWeekdays('');
 $year = (int) substr($today, 0, 4) + 1;
@@ -137,6 +147,7 @@ $branchDay = $shift($today, 40);
 $addClosure($branchDay, $branchDay, $sedeId);
 $check(LibraryCalendar::dueDate($db, $branchDay, $copyId) === $shift($branchDay, 1), "a closure of the copy's branch moves its due date");
 $check(LibraryCalendar::dueDate($db, $branchDay) === $branchDay, 'the same closure does not move a loan without that branch');
+$check(CirculationPolicy::dueDateFor($shift($branchDay, -7), 7, $db, $copyId) === $shift($branchDay, 1), "dueDateFor applies the copy's branch closures when the copy is known");
 
 // ── Renewal cap steps back to an open day ─────────────────────────────────
 $clearClosures();
