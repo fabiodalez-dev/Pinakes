@@ -1757,16 +1757,21 @@ class SettingsController
 
         // Plan §7: fines and debt block. Amounts accept a decimal comma; an
         // empty or malformed value is stored as '' (= disabled), never coerced
-        // into a number the operator did not type.
-        foreach (['daily_fine', 'fine_max_per_loan', 'debt_block_threshold'] as $amountKey) {
-            $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
-            $cents = \App\Services\FineParameters::toCents($raw);
-            $repository->set('loans', $amountKey, $cents !== null && $cents > 0 ? \App\Services\FineParameters::centsToDecimal($cents) : '');
+        // into a number the operator did not type. They are money policy:
+        // staff may save the rest of this tab, but these keys stay as they
+        // are unless an administrator saves them (AdminAuthMiddleware admits
+        // staff, so the check is here).
+        if (\App\Support\Permissions::mayConfigure()) {
+            foreach (['daily_fine', 'fine_max_per_loan', 'debt_block_threshold'] as $amountKey) {
+                $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
+                $cents = \App\Services\FineParameters::toCents($raw);
+                $repository->set('loans', $amountKey, $cents !== null && $cents > 0 ? \App\Services\FineParameters::centsToDecimal($cents) : '');
+            }
+            $repository->set('loans', 'fine_grace_days', (string) min(365, max(0, (int) ($data['fine_grace_days'] ?? 0))));
+            $fineEmail = isset($data['fine_charged_email']) && is_scalar($data['fine_charged_email'])
+                && (string) $data['fine_charged_email'] === '1';
+            $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
         }
-        $repository->set('loans', 'fine_grace_days', (string) min(365, max(0, (int) ($data['fine_grace_days'] ?? 0))));
-        $fineEmail = isset($data['fine_charged_email']) && is_scalar($data['fine_charged_email'])
-            && (string) $data['fine_charged_email'] === '1';
-        $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
         // this. Validate against the canonical identifier list — an invalid or

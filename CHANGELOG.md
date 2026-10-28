@@ -57,6 +57,7 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 - **Reports and email.** Statistics: charged, collected, waived and reversed per month with CSV export. Return email: new placeholder `{{multa}}` (empty when nothing was charged). New optional email "Multa per ritardo addebitata" (`fine_charged`), off by default.
 - **Mobile API 1.9.0** (requires 0.9.0): `GET /me/movements` with balance, movements and accruing fines; `debt_block` arrives as `not_eligible` with `meta.reason`.
 - `app.currency` is now read from the database too (it was a code default only).
+- **Fine settings are administrators only.** Staff can still save the Loans tab, but the daily fine, grace days, cap per loan, debt threshold and fine email stay as they are unless an administrator changes them; the fields are read-only for staff.
 
 ### Migration
 

@@ -9029,5 +9029,6 @@
   "Saldo da incassare": "Offener Saldo",
   "Lettori con saldo a debito": "Leser mit offenem Saldo",
   "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Letzte 12 Monate; der offene Saldo ist der heutige. Die Aufstellung Monat für Monat steht im Gebührenbericht weiter unten.",
-  "Movimenti %1$d–%2$d di %3$d": "Buchungen %1$d–%2$d von %3$d"
+  "Movimenti %1$d–%2$d di %3$d": "Buchungen %1$d–%2$d von %3$d",
+  "Solo gli amministratori possono modificare multe e soglia di blocco.": "Nur Administratoren können Gebühren und die Sperrschwelle ändern."
 }

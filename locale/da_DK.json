@@ -9029,5 +9029,6 @@
   "Saldo da incassare": "Udestående saldo",
   "Lettori con saldo a debito": "Lånere med gæld",
   "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Seneste 12 måneder; den udestående saldo er dagens. Måned for måned står i gebyrrapporten længere nede.",
-  "Movimenti %1$d–%2$d di %3$d": "Posteringer %1$d–%2$d af %3$d"
+  "Movimenti %1$d–%2$d di %3$d": "Posteringer %1$d–%2$d af %3$d",
+  "Solo gli amministratori possono modificare multe e soglia di blocco.": "Kun administratorer kan ændre gebyrer og spærregrænsen."
 }

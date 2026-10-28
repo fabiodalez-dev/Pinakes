@@ -437,6 +437,7 @@
     </div>
 
     <!-- Plan §7: late fines, patron ledger, debt block -->
+    <?php $finesLocked = !\App\Support\Permissions::mayConfigure(); // money policy: administrators only ?>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">
         <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
@@ -452,6 +453,14 @@
             </div>
           </div>
         </div>
+        <?php if ($finesLocked): ?>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4" data-testid="fines-admin-only">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-lock text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700"><?= __("Solo gli amministratori possono modificare multe e soglia di blocco.") ?></div>
+          </div>
+        </div>
+        <?php endif; ?>
       </div>
       <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
@@ -463,6 +472,7 @@
                    inputmode="decimal"
                    id="daily_fine"
                    name="daily_fine"
+                   <?= $finesLocked ? 'disabled' : '' ?>
                    pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
                    placeholder="0"
                    value="<?php echo htmlspecialchars((string) ($loansSettings['daily_fine'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
@@ -482,6 +492,7 @@
             <input type="number"
                    id="fine_grace_days"
                    name="fine_grace_days"
+                   <?= $finesLocked ? 'disabled' : '' ?>
                    min="0"
                    max="365"
                    value="<?php echo (int) ($loansSettings['fine_grace_days'] ?? 0); ?>"
@@ -502,6 +513,7 @@
                    inputmode="decimal"
                    id="fine_max_per_loan"
                    name="fine_max_per_loan"
+                   <?= $finesLocked ? 'disabled' : '' ?>
                    pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
                    placeholder="0"
                    value="<?php echo htmlspecialchars((string) ($loansSettings['fine_max_per_loan'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
@@ -522,6 +534,7 @@
                    inputmode="decimal"
                    id="debt_block_threshold"
                    name="debt_block_threshold"
+                   <?= $finesLocked ? 'disabled' : '' ?>
                    pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
                    placeholder="0"
                    value="<?php echo htmlspecialchars((string) ($loansSettings['debt_block_threshold'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
@@ -542,6 +555,7 @@
             <input type="checkbox"
                    id="fine_charged_email"
                    name="fine_charged_email"
+                   <?= $finesLocked ? 'disabled' : '' ?>
                    value="1"
                    aria-labelledby="fine_charged_email_label"
                    aria-describedby="fine_charged_email_desc"

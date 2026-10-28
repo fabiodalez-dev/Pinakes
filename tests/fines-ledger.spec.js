@@ -30,7 +30,7 @@ const RUN = Date.now().toString(36);
 const PATRON_EMAIL = `zz-fines-${RUN}@test.local`;
 const PATRON_PASS = 'Test1234!';
 const TITLE_PREFIX = `ZZ_FINES_${RUN}`;
-const SETTING_KEYS = ['daily_fine', 'fine_grace_days', 'fine_max_per_loan', 'debt_block_threshold', 'fine_charged_email'];
+const SETTING_KEYS = ['daily_fine', 'fine_grace_days', 'fine_max_per_loan', 'debt_block_threshold', 'fine_charged_email', 'max_renewals'];
 const EMAIL_KEYS = ['type', 'driver_mode', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_username', 'smtp_password', 'from_email', 'from_name'];
 
 function dbQuery(sql) {
@@ -475,5 +475,39 @@ test.describe.serial('Fines and patron ledger', () => {
     await expect(page.locator('#ledger-movements tbody tr')).toHaveCount(total - 200);
     await page.locator('[data-ledger-prev]').click();
     await expect(page.locator('#ledger-movements tbody tr')).toHaveCount(200);
+  });
+
+  test('17. staff saving the loans tab cannot change fines or the debt threshold', async ({ browser }) => {
+    const email = `zz-fines-staff-${RUN}@test.local`;
+    dbQuery(`DELETE FROM utenti WHERE email='${email}'`);
+    dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, privacy_accettata) VALUES ('${`ZZS${RUN}`.slice(0, 20)}', 'Zz', 'Staff', '${email}', '${esc(phpHash(PATRON_PASS))}', 'attivo', 1, 'staff', 1)`);
+    const before = { daily: readSetting('loans', 'daily_fine'), threshold: readSetting('loans', 'debt_block_threshold') };
+    const staff = await browser.newPage();
+    try {
+      await staff.goto(`${BASE}/accedi`);
+      await staff.fill('input[name="email"]', email);
+      await staff.fill('input[name="password"]', PATRON_PASS);
+      await staff.locator('button[type="submit"]').click();
+      await staff.waitForURL((u) => !u.toString().includes('/accedi'), { timeout: 30000 });
+      await staff.goto(`${BASE}/admin/settings?tab=loans`);
+      await expect(staff.locator('[data-testid="fines-admin-only"]')).toBeVisible();
+      await expect(staff.locator('#daily_fine')).toBeDisabled();
+      await expect(staff.locator('#debt_block_threshold')).toBeDisabled();
+      // A hand-built POST with fine values is ignored for those keys only.
+      const form = staff.locator('form[action$="/admin/settings/loans"]');
+      const fields = await form.evaluate((f) => Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (f)).entries()));
+      const r = await staff.request.post(`${BASE}/admin/settings/loans`, { form: { ...fields, daily_fine: '9,99', debt_block_threshold: '1', max_renewals: '7' }, maxRedirects: 0 });
+      expect(r.status()).toBe(302);
+      expect(readSetting('loans', 'daily_fine')).toBe(before.daily);
+      expect(readSetting('loans', 'debt_block_threshold')).toBe(before.threshold);
+      expect(readSetting('loans', 'max_renewals')).toBe('7');
+    } finally {
+      await staff.close();
+      dbQuery(`DELETE FROM utenti WHERE email='${email}'`);
+    }
+    // The administrator sees the fields enabled.
+    await page.goto(`${BASE}/admin/settings?tab=loans`);
+    await expect(page.locator('#daily_fine')).toBeEnabled();
+    await expect(page.locator('[data-testid="fines-admin-only"]')).toHaveCount(0);
   });
 });
