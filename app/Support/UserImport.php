@@ -57,7 +57,18 @@ final class UserImport
         'data_scadenza_tessera' => ['datascadenzatessera', 'scadenzatessera', 'scadenza', 'expiry', 'expirydate', 'cardexpiry', 'expires', 'ablaufdatum', 'gultigbis', 'datedexpiration', 'udlobsdato'],
         'note_utente' => ['noteutente', 'note', 'notes', 'notizen', 'noter', 'noteinterne'],
         'locale' => ['locale', 'lingua', 'language', 'sprache', 'langue', 'sprog'],
-        'tipologia' => ['tipologia', 'tipologialettore', 'patrontype', 'membertype', 'readertype', 'lesertyp', 'typedelecteur', 'lanertype'],
+        'tipologia' => ['tipologia', 'tipologialettore', 'patrontype', 'membertype', 'readertype', 'lesertyp', 'leserkategorie', 'typedelecteur', 'categoriedelecteur', 'lanertype', 'lanerkategori'],
+    ];
+
+    /**
+     * Header spellings that name the patron type CODE column of the users CSV
+     * export ("Codice tipologia lettore" in the five languages). They map to
+     * `tipologia` like the name column, but guessMapping() prefers them: an
+     * export carries both columns and must re-import by code, which is exact
+     * even when two types share a name.
+     */
+    private const PREFERRED_ALIASES = [
+        'tipologia' => ['codicetipologia', 'codicetipologialettore', 'tipologiacodice', 'tipologialettorecodice', 'patrontypecode', 'typecode', 'membertypecode', 'readertypecode', 'lesertypcode', 'codederleserkategorie', 'leserkategoriecode', 'codetypedelecteur', 'codedelacategoriedelecteur', 'lanertypekode', 'lanerkategorikode', 'kodeforlanerkategori'],
     ];
 
     /**
@@ -85,7 +96,7 @@ final class UserImport
             'locale' => __('Lingua dell\'interfaccia'),
         ];
         if ($withPatronType) {
-            $fields['tipologia'] = __('Tipologia lettore (codice)');
+            $fields['tipologia'] = __('Tipologia lettore (codice o nome)');
         }
         foreach ($customDefinitions as $def) {
             $fields['custom:' . $def['id']] = $def['etichetta'];
@@ -137,7 +148,10 @@ final class UserImport
 
     /**
      * Suggested mapping: column index => field key ('' = ignore). Each field is
-     * proposed for one column at most (the first that matches).
+     * proposed for one column at most: the first that matches, except that a
+     * PREFERRED_ALIASES spelling wins over any other wherever it stands (the
+     * users export has the patron type name and then its code; the code is
+     * the column that re-imports exactly).
      *
      * @param list<string> $headers
      * @param array<string,string> $targetFields from targetFields()
@@ -157,21 +171,38 @@ final class UserImport
             // installation carries localized headers).
             $byAlias[self::normalizeHeader($targetFields[$field])] ??= $field;
         }
+        $preferred = [];
+        foreach (self::PREFERRED_ALIASES as $field => $aliases) {
+            if (!isset($targetFields[$field])) {
+                continue;
+            }
+            foreach ($aliases as $alias) {
+                $byAlias[$alias] ??= $field;
+                if ($byAlias[$alias] === $field) {
+                    $preferred[$alias] = true;
+                }
+            }
+        }
         foreach ($targetFields as $key => $label) {
             if (str_starts_with($key, 'custom:')) {
                 $byAlias[self::normalizeHeader($label)] ??= $key;
             }
         }
-        $mapping = [];
+        $mapping = array_fill_keys(array_keys($headers), '');
         $taken = [];
-        foreach ($headers as $i => $header) {
-            $norm = self::normalizeHeader((string) $header);
-            $field = $byAlias[$norm] ?? '';
-            if ($field !== '' && !isset($taken[$field])) {
-                $mapping[$i] = $field;
-                $taken[$field] = true;
-            } else {
-                $mapping[$i] = '';
+        // Two passes: the preferred spellings take their field first, then
+        // the other headers take what is left, in file order.
+        foreach ([true, false] as $preferredPass) {
+            foreach ($headers as $i => $header) {
+                $norm = self::normalizeHeader((string) $header);
+                if (isset($preferred[$norm]) !== $preferredPass) {
+                    continue;
+                }
+                $field = $byAlias[$norm] ?? '';
+                if ($field !== '' && !isset($taken[$field])) {
+                    $mapping[$i] = $field;
+                    $taken[$field] = true;
+                }
             }
         }
         return $mapping;
