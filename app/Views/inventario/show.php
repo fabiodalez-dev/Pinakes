@@ -59,6 +59,9 @@ ob_start();
             <?php if (!empty($session['sede_nome'])): ?>· <?= __("Sede") ?>: <?= htmlspecialchars((string) $session['sede_nome'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
           </p>
           <p class="text-xs text-gray-500 mt-1" id="inventory-filter"><i class="fas fa-filter mr-1"></i><?= htmlspecialchars($filterLabels !== [] ? implode(' · ', $filterLabels) : __('Tutto il catalogo'), ENT_QUOTES, 'UTF-8') ?></p>
+          <?php if (trim((string) ($session['note'] ?? '')) !== ''): ?>
+          <p class="text-xs text-gray-500 mt-1"><i class="fas fa-sticky-note mr-1"></i><?= htmlspecialchars((string) $session['note'], ENT_QUOTES, 'UTF-8') ?></p>
+          <?php endif; ?>
         </div>
       </div>
     <?php
