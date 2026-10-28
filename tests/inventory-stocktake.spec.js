@@ -325,7 +325,7 @@ test('7. the PDF and CSV reports download with the expected content', async ({ p
   expect(byCode[code('A4')].slice(0, 3)).toEqual(['Mancante', code('A4'), `${TAG} B1`]);
   expect(byCode[code('A2')][0]).toBe('Fuori posto');
   expect(byCode[code('A2')][4]).toBe(`[${TAG}X] Stocktake X`);
-  expect(byCode[code('L1')][0]).toBe('In prestito');
+  expect(byCode[code('L1')][0]).toBe('In prestito o in attesa di ritiro');
   expect(byCode[`${TAG}-NOPE`][0]).toBe('Codice sconosciuto');
   expect(byCode[code('Y1')][0]).toBe('Fuori ambito');
   expect(rows.filter((r) => r[0] === 'Trovata').map((r) => r[1]).sort()).toEqual([code('A1'), code('A3')]);

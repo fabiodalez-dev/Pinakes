@@ -380,7 +380,7 @@ unset($workspaceHeader);
           'unknown' => __('Il codice non corrisponde a nessuna copia a catalogo.'),
           'duplicate' => __('Questa copia è già stata registrata in questa revisione.'),
           'outOfScope' => __('La copia esiste ma non rientra nel filtro della revisione.'),
-          'onLoan' => __('La copia risulta in prestito: verifica il prestito.'),
+          'onLoan' => __('La copia risulta in prestito o in attesa di ritiro: verifica il prestito.'),
           'closed' => __('La revisione è stata chiusa da un altro operatore.'),
       ],
   ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;

@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "The code does not match any copy in the catalogue.",
   "Questa copia è già stata registrata in questa revisione.": "This copy was already recorded in this stocktake.",
   "La copia esiste ma non rientra nel filtro della revisione.": "The copy exists but is outside the stocktake's filter.",
-  "La copia risulta in prestito: verifica il prestito.": "The copy is recorded as on loan: check the loan.",
   "La revisione è stata chiusa da un altro operatore.": "The stocktake was closed by another operator.",
   "Revisore inventario": "Stocktake reviewer",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Starting profile for taking part in stocktakes: open a session and scan copies, without changing the catalogue or declaring copies lost.",
@@ -8497,5 +8496,7 @@
   "Copia dichiarata persa in revisione inventariale": "Copy declared lost in a stocktake",
   "Revisione inventariale aperta": "Stocktake opened",
   "Revisione inventariale chiusa": "Stocktake closed",
-  "Revisione inventariale annullata": "Stocktake cancelled"
+  "Revisione inventariale annullata": "Stocktake cancelled",
+  "In prestito o in attesa di ritiro": "On loan or awaiting pickup",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan."
 }
