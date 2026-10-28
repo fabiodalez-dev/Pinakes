@@ -8490,6 +8490,7 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "The code does not match any copy in the catalogue.",
   "Questa copia è già stata registrata in questa revisione.": "This copy was already recorded in this stocktake.",
   "La copia esiste ma non rientra nel filtro della revisione.": "The copy exists but is outside the stocktake's filter.",
+  "La copia risulta persa o fuori circolazione, ma è stata ritrovata: aggiornane lo stato.": "The copy is recorded as lost or out of circulation, but it has turned up: update its state.",
   "La revisione è stata chiusa da un altro operatore.": "The stocktake was closed by another operator.",
   "Revisore inventario": "Stocktake reviewer",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Starting profile for taking part in stocktakes: open a session and scan copies, without changing the catalogue or declaring copies lost.",

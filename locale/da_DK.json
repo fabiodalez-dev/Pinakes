@@ -8490,6 +8490,7 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Koden svarer ikke til noget eksemplar i kataloget.",
   "Questa copia è già stata registrata in questa revisione.": "Dette eksemplar er allerede registreret i denne optælling.",
   "La copia esiste ma non rientra nel filtro della revisione.": "Eksemplaret findes, men er uden for optællingens filter.",
+  "La copia risulta persa o fuori circolazione, ma è stata ritrovata: aggiornane lo stato.": "Eksemplaret er registreret som tabt eller ude af cirkulation, men er dukket op igen: opdater dets status.",
   "La revisione è stata chiusa da un altro operatore.": "Optællingen er lukket af en anden medarbejder.",
   "Revisore inventario": "Optællingsmedarbejder",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Startprofil til at deltage i lageroptællinger: åbne en session og scanne eksemplarer uden at ændre kataloget eller erklære eksemplarer tabt.",

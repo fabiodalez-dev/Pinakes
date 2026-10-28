@@ -380,6 +380,7 @@ unset($workspaceHeader);
           'unknown' => __('Il codice non corrisponde a nessuna copia a catalogo.'),
           'duplicate' => __('Questa copia è già stata registrata in questa revisione.'),
           'outOfScope' => __('La copia esiste ma non rientra nel filtro della revisione.'),
+          'offShelf' => __('La copia risulta persa o fuori circolazione, ma è stata ritrovata: aggiornane lo stato.'),
           'onLoan' => __('La copia risulta in prestito o in attesa di ritiro: verifica il prestito.'),
           'closed' => __('La revisione è stata chiusa da un altro operatore.'),
       ],
@@ -444,7 +445,7 @@ unset($workspaceHeader);
     if (result.esito === 'fuori_posto' && result.scaffale_atteso) { parts.push(config.i18n.expectedShelf + ': ' + result.scaffale_atteso); }
     if (result.esito === 'sconosciuta') { parts.push(config.i18n.unknown); }
     if (result.esito === 'duplicata') { parts.push(config.i18n.duplicate); }
-    if (result.esito === 'fuori_ambito') { parts.push(config.i18n.outOfScope); }
+    if (result.esito === 'fuori_ambito') { parts.push(result.fuori_circolazione ? config.i18n.offShelf + ' (' + result.stato_copia + ')' : config.i18n.outOfScope); }
     if (result.esito === 'in_prestito') { parts.push(config.i18n.onLoan); }
     return parts.join(' · ');
   }

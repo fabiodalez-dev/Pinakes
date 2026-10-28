@@ -8490,6 +8490,7 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Der Code entspricht keinem Exemplar im Katalog.",
   "Questa copia è già stata registrata in questa revisione.": "Dieses Exemplar wurde in dieser Revision bereits erfasst.",
   "La copia esiste ma non rientra nel filtro della revisione.": "Das Exemplar existiert, liegt aber außerhalb des Filters der Revision.",
+  "La copia risulta persa o fuori circolazione, ma è stata ritrovata: aggiornane lo stato.": "Das Exemplar ist als verloren oder außer Umlauf erfasst, wurde aber wiedergefunden: Aktualisiere seinen Status.",
   "La revisione è stata chiusa da un altro operatore.": "Die Revision wurde von einem anderen Mitarbeiter geschlossen.",
   "Revisore inventario": "Bestandsprüfer",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Ausgangsprofil für die Teilnahme an Bestandsrevisionen: eine Sitzung eröffnen und Exemplare scannen, ohne den Katalog zu ändern oder Exemplare als verloren zu erklären.",
