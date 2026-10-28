@@ -113,13 +113,34 @@ class CirculationSettingsController
         return $out;
     }
 
+    /**
+     * Patron types and the rules matrix are library policy: administrators
+     * only (or a custom role with settings.manage), like the closures
+     * calendar. AdminAuthMiddleware admits staff too, so every action checks
+     * it inline.
+     */
+    private function guard(Response $response): ?Response
+    {
+        if (\App\Support\Permissions::mayConfigure()) {
+            return null;
+        }
+        $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+        return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+    }
+
     public function index(Request $request, Response $response): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         $policy = new CirculationPolicy($db);
         $type = $policy->types()[$id] ?? null;
         if ($type === null) {
@@ -140,6 +161,9 @@ class CirculationSettingsController
 
     public function createType(Request $request, Response $response, mysqli $db): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         $data = (array) ($request->getParsedBody() ?? []);
         $fields = $this->typeFields($data, null);
         if (is_string($fields)) {
@@ -176,6 +200,9 @@ class CirculationSettingsController
 
     public function updateType(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         $data = (array) ($request->getParsedBody() ?? []);
         $policy = new CirculationPolicy($db);
         $current = $policy->types()[$id] ?? null;
@@ -214,6 +241,9 @@ class CirculationSettingsController
 
     public function deleteType(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         $policy = new CirculationPolicy($db);
         $type = $policy->types()[$id] ?? null;
         if ($type === null) {
@@ -250,6 +280,9 @@ class CirculationSettingsController
 
     public function setDefault(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         if (!isset((new CirculationPolicy($db))->types()[$id])) {
             $_SESSION['error_message'] = __('Tipologia lettore non trovata.');
             return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
@@ -270,6 +303,9 @@ class CirculationSettingsController
     /** Move a type one place up or down in the display order. */
     public function moveType(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         $data = (array) ($request->getParsedBody() ?? []);
         $direction = ($data['direction'] ?? '') === 'up' ? -1 : 1;
         $ids = array_keys((new CirculationPolicy($db))->types());
@@ -300,6 +336,9 @@ class CirculationSettingsController
     /** Save the whole matrix: an all-empty cell removes its rule. */
     public function saveRules(Request $request, Response $response, mysqli $db): Response
     {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
         $data = (array) ($request->getParsedBody() ?? []);
         $policy = new CirculationPolicy($db);
         if (!$policy->schemaReady()) {
