@@ -281,6 +281,32 @@ CREATE TABLE IF NOT EXISTS `calendario_chiusure` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- ── end closures calendar ──
 
+-- ── holiday presets ──
+-- calendario_chiusure.regola_festivita: the holiday rule ("CC:rule", e.g.
+-- "DE:fronleichnam") a preset row stands for; NULL = a closure added by hand
+-- or from an ICS file, which the presets never change. attiva: 0 keeps a
+-- closure stored but ignored by the calendar (a yearly closure switched off
+-- without deleting it). The choice itself (country, region, ticked rules) is
+-- in system_settings (calendar.holiday_*), written on the first apply: no
+-- seed. Former Italian preset rows are adopted by the first apply, not here.
+-- Guarded on information_schema, so the section is idempotent.
+SET @hp_col = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure' AND COLUMN_NAME = 'regola_festivita');
+SET @hp_sql = IF(@hp_col = 0, 'ALTER TABLE `calendario_chiusure` ADD COLUMN `regola_festivita` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `sede_id`', 'SELECT 1');
+PREPARE hp_stmt FROM @hp_sql;
+EXECUTE hp_stmt;
+DEALLOCATE PREPARE hp_stmt;
+SET @hp_col = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure' AND COLUMN_NAME = 'attiva');
+SET @hp_sql = IF(@hp_col = 0, 'ALTER TABLE `calendario_chiusure` ADD COLUMN `attiva` tinyint(1) NOT NULL DEFAULT ''1'' AFTER `regola_festivita`', 'SELECT 1');
+PREPARE hp_stmt FROM @hp_sql;
+EXECUTE hp_stmt;
+DEALLOCATE PREPARE hp_stmt;
+SET @hp_idx = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure' AND INDEX_NAME = 'idx_calendario_chiusure_regola');
+SET @hp_sql = IF(@hp_idx = 0, 'ALTER TABLE `calendario_chiusure` ADD KEY `idx_calendario_chiusure_regola` (`regola_festivita`)', 'SELECT 1');
+PREPARE hp_stmt FROM @hp_sql;
+EXECUTE hp_stmt;
+DEALLOCATE PREPARE hp_stmt;
+-- ── end holiday presets ──
+
 -- ── fines-ledger (Phase 4: fines, patron ledger, debt block) ──
 -- movimenti_lettore is an append-only patron ledger: the balance is SUM(importo),
 -- positive = debt, negative = payment/waiver. chiave_idempotenza keeps a charge

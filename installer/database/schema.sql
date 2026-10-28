@@ -115,10 +115,13 @@ CREATE TABLE `calendario_chiusure` (
   `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `ricorrente_annuale` tinyint(1) NOT NULL DEFAULT '0',
   `sede_id` int DEFAULT NULL,
+  `regola_festivita` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_calendario_chiusure_range` (`data_inizio`,`data_fine`),
   KEY `idx_calendario_chiusure_sede` (`sede_id`),
+  KEY `idx_calendario_chiusure_regola` (`regola_festivita`),
   CONSTRAINT `fk_calendario_chiusure_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

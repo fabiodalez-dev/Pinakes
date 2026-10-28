@@ -442,34 +442,22 @@ final class LibraryCalendar
     }
 
     /**
-     * Italian national holidays for $year. Fixed dates recur every year;
-     * Easter and Easter Monday move, so they are dated for that year only.
+     * Italian national holidays for $year, from the Italy preset
+     * (Holidays\HolidayRules): fixed dates recur every year, movable ones
+     * (Easter, Easter Monday) and those that did not always exist are dated
+     * for that year only. Names are the Italian ones the preset stores.
      *
      * @return list<array{start: string, end: string, description: string, yearly: bool}>
      */
     public static function italianHolidays(int $year): array
     {
-        $fixed = [
-            '01-01' => __('Capodanno'),
-            '01-06' => __('Epifania'),
-            '04-25' => __('Festa della Liberazione'),
-            '05-01' => __('Festa del Lavoro'),
-            '06-02' => __('Festa della Repubblica'),
-            '08-15' => __('Ferragosto'),
-            '11-01' => __('Ognissanti'),
-            '12-08' => __('Immacolata Concezione'),
-            '12-25' => __('Natale'),
-            '12-26' => __('Santo Stefano'),
-        ];
         $holidays = [];
-        foreach ($fixed as $monthDay => $label) {
-            $date = sprintf('%04d-%s', $year, $monthDay);
-            $holidays[] = ['start' => $date, 'end' => $date, 'description' => $label, 'yearly' => true];
+        foreach (Holidays\HolidayCalculator::forYear('IT', '', $year) as $holiday) {
+            if ($holiday['date'] === null) {
+                continue;
+            }
+            $holidays[] = ['start' => $holiday['date'], 'end' => $holiday['date'], 'description' => $holiday['name'], 'yearly' => $holiday['yearly']];
         }
-        $easter = self::easterSunday($year);
-        $holidays[] = ['start' => $easter, 'end' => $easter, 'description' => __('Pasqua'), 'yearly' => false];
-        $monday = self::shift($easter, 1);
-        $holidays[] = ['start' => $monday, 'end' => $monday, 'description' => __("Lunedì dell'Angelo (Pasquetta)"), 'yearly' => false];
         usort($holidays, static fn (array $x, array $y): int => strcmp($x['start'], $y['start']));
         return $holidays;
     }
@@ -674,7 +662,12 @@ final class LibraryCalendar
             if ($exists === false || $exists->num_rows === 0) {
                 return [];
             }
-            $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure');
+            // A closure switched off (attiva = 0) stays stored but closes
+            // nothing. Before the holiday-presets section of the migration
+            // the column is missing and every row counts, as before.
+            $hasActive = $db->query("SHOW COLUMNS FROM calendario_chiusure LIKE 'attiva'");
+            $filter = ($hasActive instanceof \mysqli_result && $hasActive->num_rows > 0) ? ' WHERE attiva = 1' : '';
+            $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure' . $filter);
             return $result === false ? [] : $result->fetch_all(MYSQLI_ASSOC);
         } catch (\Throwable $e) {
             SecureLogger::warning('LibraryCalendar: closures not readable: ' . $e->getMessage());
