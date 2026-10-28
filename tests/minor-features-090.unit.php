@@ -29,7 +29,8 @@ checkMinor(RdaTypes::normalize('content', 'nc') === null, 'a code from another v
 $book = ['tipo_media' => 'libro', 'rda_carrier_type' => 'cr', 'rda_media_type' => 'c', 'rda_content_type' => null];
 checkMinor(RdaTypes::overrides($book) === ['media' => 'c', 'carrier' => 'cr'], 'overrides() lists only the stored overrides');
 checkMinor(RdaTypes::effective($book) === ['content' => 'txt', 'media' => 'c', 'carrier' => 'cr'], 'effective() mixes overrides over the derived triple');
-checkMinor(RdaTypes::overrides(['tipo_media' => 'dvd']) === [], 'a record without overrides has none (BIBFRAME keeps its historical output)');
+checkMinor(RdaTypes::overrides(['tipo_media' => 'dvd']) === [], 'a record without overrides has none');
+checkMinor(RdaTypes::effective(['tipo_media' => 'dvd']) === ['content' => 'tdi', 'media' => 'v', 'carrier' => 'vd'] && RdaTypes::effective(['tipo_media' => 'libro']) === ['content' => 'txt', 'media' => 'n', 'carrier' => 'nc'], 'without an override BIBFRAME emits the derived triple: a book keeps txt/n/nc, a DVD gets its real types');
 checkMinor(RdaTypes::uri('carrier', 'cr') === 'http://id.loc.gov/vocabulary/carriers/cr' && RdaTypes::uri('content', 'txt') === 'http://id.loc.gov/vocabulary/contentTypes/txt', 'codes map to id.loc.gov URIs');
 foreach (RdaTypes::kinds() as $kind) {
     foreach (array_keys(MediaLabelsKeys()) as $media) {
