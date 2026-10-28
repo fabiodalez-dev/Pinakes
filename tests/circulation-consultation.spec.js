@@ -174,6 +174,8 @@ test.describe.serial('Consultation-only copy (single copy flag)', () => {
     F.dbQuery(`UPDATE copie SET stato='disponibile' WHERE libro_id=${title.id}`);
     await toggleCopy(title.copyIds[1]);
     expect(F.dbInt(`SELECT SUM(solo_consultazione) FROM copie WHERE libro_id=${title.id}`)).toBe(2);
+    // The reader page is still signed in as the previous test's viewer.
+    await reader.context().clearCookies();
     await F.loginAs(reader, patron.email, patron.password);
     await reader.goto(`${F.BASE}/libro/${title.id}`);
     await expect(reader.locator('#consultation-only')).toBeVisible();
