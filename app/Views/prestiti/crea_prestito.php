@@ -106,6 +106,12 @@ unset($workspaceHeader);
         case 'max_loans_reached':
           echo __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti. Restituisci un libro prima di crearne un altro.');
           break;
+        case 'media_limit_reached':
+          echo __('L\'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.');
+          break;
+        case 'not_loanable':
+          echo __('Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.');
+          break;
         case 'copy_not_found':
           echo __('Nessuna copia trovata con questo codice inventario.');
           break;
@@ -421,7 +427,9 @@ unset($workspaceHeader);
       const defaultLoanDays = <?= (int) $defaultLoanDays ?>;
       // Staff use the configured duration; availability.loan_duration_days is
       // the reader default, which may be shortened by the reader's maximum.
-      const effectiveLoanDays = defaultLoanDays;
+      // Once a borrower and a book are chosen, the availability answer carries
+      // the duration of THAT patron type and material (staff_loan_duration_days).
+      let effectiveLoanDays = defaultLoanDays;
 
       function addDaysToIso(isoDate, days) {
         const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
@@ -475,7 +483,7 @@ unset($workspaceHeader);
       // typed is never replaced by a later availability fetch; one this code
       // proposed follows the new subject (another book or borrower may have no
       // conflict, or a different one).
-      let autoProposedEnd = null;
+      let autoProposedEnd = <?= json_encode($oldDataScadenza === '' ? ($defaultDataScadenza ?? null) : null, JSON_HEX_TAG) ?>;
       function setLoanLimitHint(text) {
         const hint = document.getElementById('data_scadenza_hint');
         if (!hint) return;
@@ -768,6 +776,8 @@ unset($workspaceHeader);
             if (requestId !== availabilityRequestId) return;
 
             if (data.success && data.availability) {
+              const staffDays = parseInt(data.availability.staff_loan_duration_days, 10);
+              effectiveLoanDays = Number.isFinite(staffDays) && staffDays > 0 ? staffDays : defaultLoanDays;
               const blockedByReservation = data.availability.has_active_reservation === true;
               // Build availabilityByDate map (same structure as frontend)
               availabilityByDate = {};

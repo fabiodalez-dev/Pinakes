@@ -408,11 +408,39 @@ class ReservationsController
             // capacity-free pending loan be created. The gate runs inside THIS
             // transaction (inCallerTransaction: true) under the canonical book
             // lock taken above.
+            // Circulation rules of the patron type, under the user lock:
+            // consultation-only material is neither lent nor queued, and the
+            // reservation limit counts queue reservations plus requests
+            // awaiting approval (CirculationPolicy).
+            $policyError = !$requestPolicy->loanable
+                ? 'not_loanable'
+                : $circulation->reservationLimitError($requestPolicy->user, $userId, queue: false);
+            if ($policyError !== null) {
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => $policyError,
+                    'message' => \App\Support\LoanEligibility::errorMessage($policyError),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
             $routing = (new \App\Services\LoanRequestGate($this->db))
                 ->route($bookId, $userId, $startDate, $endDate, inCallerTransaction: true);
             $assignableCopyId = $routing->assignableCopyId;
 
             if ($routing->isReservation()) {
+                // The gate queued the request: refused for a patron type
+                // without reservations (the row is rolled back with the rest).
+                if (!$requestPolicy->user->reservationsEnabled) {
+                    $this->db->rollback();
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'error' => 'reservations_disabled',
+                        'message' => \App\Support\LoanEligibility::errorMessage('reservations_disabled'),
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+                }
                 $reservationId = (int) $routing->reservationId;
                 $this->db->commit();
 
@@ -699,6 +727,7 @@ class ReservationsController
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
             'loan_duration_days' => $policy->requestDurationDays(),
             'max_loan_duration_days' => $policy->maxRequestDays,
+            'staff_loan_duration_days' => $policy->durationDays,
         ];
     }
 
@@ -793,6 +822,7 @@ class ReservationsController
                 SELECT COUNT(*) as total FROM copie
                 WHERE libro_id = ?
                 AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('') . "
             ");
             $stmt->bind_param('i', $bookId);
             $stmt->execute();

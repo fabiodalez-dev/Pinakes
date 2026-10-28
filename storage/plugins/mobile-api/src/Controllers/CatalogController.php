@@ -845,6 +845,12 @@ final class CatalogController
                     // Upper bound POST /reservations accepts for end_date (Mobile API 1.8.2).
                     'max_loan_duration_days' => (int) ($avail['max_loan_duration_days'] ?? 90),
                 ];
+            // The reader's circulation rules for this title (Pinakes 0.9.0,
+            // additive): consultation-only material is not requestable and a
+            // patron type without reservations cannot join the waitlist.
+            $viewer = (new \App\Services\CirculationPolicy($this->db))->forViewer($userId > 0 ? $userId : null, $bookId);
+            $data['loanable'] = $viewer->loanable;
+            $data['reservations_enabled'] = $viewer->user->reservationsEnabled;
 
             return ResponseEnvelope::success($response, $data, []);
         } catch (\Throwable $e) {

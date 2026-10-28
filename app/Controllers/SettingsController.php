@@ -80,6 +80,8 @@ class SettingsController
         $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
+        // Patron types and rules matrix (Settings → Circulation).
+        $circulationData = CirculationSettingsController::viewData($db);
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
         // Custom registration fields (issue #255) — edited from the email tab's
@@ -114,6 +116,7 @@ class SettingsController
             'eventsHeaderDefaults',
             'advancedSettings',
             'loansSettings',
+            'circulationData',
             'contactMessages',
             'activeTab',
             'db',

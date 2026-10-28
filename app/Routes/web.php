@@ -777,6 +777,46 @@ return function (App $app): void {
         return $controller->updateLoansSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Circulation policy: patron types and rules matrix (Settings → Circulation)
+    $app->get('/admin/settings/circulation', function ($request, $response) {
+        return (new \App\Controllers\CirculationSettingsController())->index($request, $response);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->createType($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/settings/circulation/types/{id:\d+}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->editForm($request, $response, $db, (int) $args['id']);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->updateType($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->deleteType($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}/default', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->setDefault($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}/move', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->moveType($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/rules', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->saveRules($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API Settings Routes
     $app->post('/admin/settings/api/toggle', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -1730,6 +1770,12 @@ return function (App $app): void {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
         return $controller->updateCopy($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/copies/{id:\d+}/consultation', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\CopyController();
+        $db = $app->getContainer()->get('db');
+        return $controller->toggleConsultation($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/books/copies/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
@@ -3026,7 +3072,10 @@ return function (App $app): void {
                     // page, admin loan and reservation forms): the configured
                     // default, capped by the maximum the request endpoints enforce.
                     'loan_duration_days' => $availability['loan_duration_days'] ?? null,
-                    'max_loan_duration_days' => $availability['max_loan_duration_days'] ?? null
+                    'max_loan_duration_days' => $availability['max_loan_duration_days'] ?? null,
+                    // Staff loan length for this borrower's patron type and
+                    // this material (CirculationPolicy), for the admin form.
+                    'staff_loan_duration_days' => $availability['staff_loan_duration_days'] ?? null
                 ]
             ];
             $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));

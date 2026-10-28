@@ -64,7 +64,8 @@ final class CapacityService
             $stmt = $this->db->prepare(
                 "SELECT COUNT(*) AS total FROM copie
                  WHERE libro_id = ?
-                   AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')"
+                   AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')
+                   AND " . ($this->circulation ??= new CirculationPolicy($this->db))->lendableCopySql('') . ""
             );
             $stmt->bind_param('i', $libroId);
             $stmt->execute();

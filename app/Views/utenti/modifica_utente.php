@@ -107,6 +107,7 @@ unset($workspaceHeader);
               <option value="scaduto" <?= $stato === 'scaduto' ? 'selected' : ''; ?>><?= __("Scaduto") ?></option>
             </select>
           </div>
+          <?php require __DIR__ . '/tipologia-lettore.php'; ?>
         </div>
       </section>
 
@@ -233,6 +234,12 @@ unset($workspaceHeader);
           <div>
             <label for="data_scadenza_tessera" class="block text-sm font-medium text-gray-700"><?= __("Scadenza tessera") ?></label>
             <input type="date" id="data_scadenza_tessera" name="data_scadenza_tessera" value="<?= $dataScadenzaTessera; ?>" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
+          </div>
+          <div class="md:col-span-2">
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" id="card_auto" name="card_auto" value="1" class="rounded border-gray-300">
+              <?= __("Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata)") ?>
+            </label>
           </div>
         </div>
       </section>

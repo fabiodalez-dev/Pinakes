@@ -488,6 +488,7 @@ class ReservationManager
                 SELECT c.id FROM copie c
                 WHERE c.libro_id = ?
                 AND c.stato IN ('disponibile', 'prenotato')
+                AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
                 AND NOT EXISTS (
                     SELECT 1 FROM prestiti own
                     WHERE own.copia_id = c.id
@@ -926,6 +927,7 @@ class ReservationManager
             $totalStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM copie
                 WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                  AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('') . "
             ");
             $totalStmt->bind_param('i', $bookId);
             $totalStmt->execute();

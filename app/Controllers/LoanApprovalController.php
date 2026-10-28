@@ -399,6 +399,7 @@ class LoanApprovalController
                     WHERE c.id = ?
                     AND c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -455,6 +456,7 @@ class LoanApprovalController
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
                     AND c.stato IN ('disponibile', 'prenotato')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti own
                         WHERE own.copia_id = c.id

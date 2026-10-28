@@ -404,4 +404,7 @@ INSERT INTO `languages` (`code`, `name`, `native_name`, `flag_emoji`, `is_defaul
 ON DUPLICATE KEY UPDATE name = VALUES(name), native_name = VALUES(native_name), flag_emoji = VALUES(flag_emoji), translation_file = VALUES(translation_file), total_keys = VALUES(total_keys), translated_keys = VALUES(translated_keys), completion_percentage = VALUES(completion_percentage), is_active = VALUES(is_active), is_default = VALUES(is_default);
 
 
+-- Default patron type (circulation policy): inherits every rule from the loans settings.
+INSERT INTO `tipologie_lettore` (`codice`, `nome`, `predefinita`, `ordinamento`) VALUES ('standard', 'Standard', 1, 0);
+
 SET FOREIGN_KEY_CHECKS=1;

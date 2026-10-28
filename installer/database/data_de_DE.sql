@@ -399,4 +399,7 @@ INSERT IGNORE INTO `themes` (`name`, `slug`, `version`, `author`, `description`,
 ('Coral Warm', 'coral-warm', '1.0.0', 'Pinakes Team', 'Warme und einladende Korallentöne für eine gemütliche Atmosphäre', 0, '{"colors": {"primary": "#f43f5e", "secondary": "#9f1239", "button": "#fb7185", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}'),
 ('Navy Classic', 'navy-classic', '1.0.0', 'Pinakes Team', 'Klassisches und zeitloses Marineblau für einen institutionellen Look', 0, '{"colors": {"primary": "#1e40af", "secondary": "#1e3a8a", "button": "#3b82f6", "button_text": "#ffffff"}, "typography": {"font_family": "system-ui, sans-serif", "font_size_base": "16px"}, "logo": {"url": "", "width": "auto", "height": "50px"}, "advanced": {"custom_css": "", "custom_js": ""}}');
 
+-- Default patron type (circulation policy): inherits every rule from the loans settings.
+INSERT INTO `tipologie_lettore` (`codice`, `nome`, `predefinita`, `ordinamento`) VALUES ('standard', 'Standard', 1, 0);
+
 SET FOREIGN_KEY_CHECKS=1;

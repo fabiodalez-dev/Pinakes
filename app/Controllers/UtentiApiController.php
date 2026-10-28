@@ -53,6 +53,12 @@ class UtentiApiController
             $params[] = $createdFrom;
             $types .= 's';
         }
+        $patronType = \App\Support\PatronTypeAssignment::filterCondition($db, $q['patron_type_filter'] ?? '', 'u.tipologia_id');
+        if ($patronType !== null) {
+            $where .= ' AND ' . $patronType['sql'] . ' ';
+            array_push($params, ...$patronType['params']);
+            $types .= $patronType['types'];
+        }
 
         // Count total records with prepared statement
         $total_sql = 'SELECT COUNT(*) AS c FROM utenti WHERE 1=1' . \App\Support\Permissions::accountScopeSql();
@@ -206,6 +212,12 @@ class UtentiApiController
             $where .= ' AND DATE(u.created_at) >= ? ';
             $params[] = $createdFrom;
             $types .= 's';
+        }
+        $patronType = \App\Support\PatronTypeAssignment::filterCondition($db, $q['patron_type_filter'] ?? '', 'u.tipologia_id');
+        if ($patronType !== null) {
+            $where .= ' AND ' . $patronType['sql'] . ' ';
+            array_push($params, ...$patronType['params']);
+            $types .= $patronType['types'];
         }
 
         // Unfiltered total for the header summary ("N filtered out of M total").

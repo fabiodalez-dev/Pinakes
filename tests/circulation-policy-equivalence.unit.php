@@ -120,7 +120,11 @@ foreach ($grid['loan_duration_days'] as $duration) {
                 $user = $policy->forUser(1);
                 $check($user->maxActiveLoans === $old['max_loans_clamped']($settings), "user limit {$tag}");
                 $check($user->reservationsEnabled === true && $user->maxReservations === 0 && $user->cardDurationDays === null, "user reservations/card unchanged {$tag}");
-                $check($policy->totalLoanLimitSql('u') === (string) $old['max_loans_clamped']($settings), "SQL limit {$tag}");
+                // The SQL form of the limit (queue promotion, capacity) evaluates
+                // to the same number for a patron of the inheriting default type.
+                $limitSql = $policy->totalLoanLimitSql('u');
+                $evaluated = (int) $db->query("SELECT {$limitSql} FROM (SELECT NULL AS tipologia_id) u")->fetch_row()[0];
+                $check($evaluated === $old['max_loans_clamped']($settings), "SQL limit {$tag}");
                 $check($policy->anyTotalLoanLimit() === ($old['max_loans_clamped']($settings) > 0), "SQL limit gate {$tag}");
                 // The deprecated SettingsRepository helpers delegate and keep their numbers.
                 $check($settings->loanDurationDays() === $old['duration']($settings), "deprecated loanDurationDays {$tag}");

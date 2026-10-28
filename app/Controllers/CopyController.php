@@ -346,6 +346,107 @@ class CopyController
     }
 
     /**
+     * Mark a copy as kept for in-house consultation (never lent) or make it
+     * lendable again (copie.solo_consultazione). Refused while the copy is
+     * held by a loan, a pickup or a copy-bound request: those commitments
+     * were promised on this copy. Making it lendable promotes the queue.
+     */
+    public function toggleConsultation(Request $request, Response $response, mysqli $db, int $copyId): Response
+    {
+        $data = (array) $request->getParsedBody();
+        $consultation = ($data['solo_consultazione'] ?? '') === '1' ? 1 : 0;
+        $policy = new \App\Services\CirculationPolicy($db);
+        if (!$policy->schemaReady()) {
+            $_SESSION['error_message'] = __('Le tabelle della circolazione non sono ancora state create: completa l\'aggiornamento del database.');
+            return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
+        }
+        $stmt = $db->prepare('SELECT libro_id, numero_inventario, solo_consultazione FROM copie WHERE id = ?');
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $copy = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$copy) {
+            $_SESSION['error_message'] = __('Copia non trovata.');
+            return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
+        }
+        $libroId = (int) $copy['libro_id'];
+        if ((int) $copy['solo_consultazione'] === $consultation) {
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+        }
+
+        $db->begin_transaction();
+        try {
+            // Canonical lock order: the book row first, then the copy.
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+            $lockBook->bind_param('i', $libroId);
+            $lockBook->execute();
+            $bookLocked = (bool) $lockBook->get_result()->fetch_row();
+            $lockBook->close();
+            if (!$bookLocked) {
+                $db->rollback();
+                $_SESSION['error_message'] = __('Libro non trovato o non più disponibile.');
+                return $response->withHeader('Location', $this->safeReferer())->withStatus(302);
+            }
+            $lockCopy = $db->prepare('SELECT id FROM copie WHERE id = ? FOR UPDATE');
+            $lockCopy->bind_param('i', $copyId);
+            $lockCopy->execute();
+            $lockCopy->close();
+            if ($consultation === 1 && $this->isCopyHeld($db, $copyId)) {
+                $db->rollback();
+                $_SESSION['error_message'] = __('La copia è impegnata da un prestito, un ritiro o una richiesta: chiudili prima di riservarla alla consultazione.');
+                return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+            }
+            $update = $db->prepare('UPDATE copie SET solo_consultazione = ? WHERE id = ?');
+            $update->bind_param('ii', $consultation, $copyId);
+            $update->execute();
+            $update->close();
+
+            $reservationManager = null;
+            if ($consultation === 0) {
+                // One more lendable copy: promote every reservation it can serve.
+                $reservationManager = new \App\Controllers\ReservationManager($db);
+                $reservationManager->setExternalTransaction(true);
+                for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($libroId); $guard++) {
+                    // Promote every date-eligible reservation allowed by capacity.
+                }
+            }
+            $integrity = new \App\Support\DataIntegrity($db);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Impossibile ricalcolare la disponibilità del libro.');
+            }
+            $db->commit();
+            if ($reservationManager !== null) {
+                try {
+                    $reservationManager->flushDeferredNotifications();
+                } catch (\Throwable $e) {
+                    SecureLogger::warning(__('Invio notifica cambio stato copia fallito'), ['error' => $e->getMessage()]);
+                }
+            }
+        } catch (\Throwable $e) {
+            $db->rollback();
+            SecureLogger::error('[Copies] consultation flag update failed', ['copia_id' => $copyId, 'error' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Impossibile aggiornare la copia senza lasciare dati incoerenti. Nessuna modifica è stata salvata.');
+            return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+        }
+
+        \App\Support\ActivityLog::recordBookEvent(
+            $db,
+            $libroId,
+            'aggiornamento',
+            'copy',
+            'copy.updated',
+            ['numero_inventario' => $copy['numero_inventario'] ?? null, 'solo_consultazione' => (int) $copy['solo_consultazione']],
+            ['numero_inventario' => $copy['numero_inventario'] ?? null, 'solo_consultazione' => $consultation],
+            entityId: $copyId,
+            source: 'manual'
+        );
+        $_SESSION['success_message'] = $consultation === 1
+            ? __('La copia è ora solo in consultazione.')
+            : __('La copia è di nuovo prestabile.');
+        return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+    }
+
+    /**
      * Crea una o più copie fisiche per un libro, direttamente dalla scheda.
      *
      * A copy is never *created* in a loan state here — 'prestato'/'prenotato'
