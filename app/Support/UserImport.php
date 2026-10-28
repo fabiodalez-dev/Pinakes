@@ -352,7 +352,7 @@ final class UserImport
             return ['text' => $bytes, 'converted' => false];
         }
         $text = mb_convert_encoding($bytes, 'UTF-8', 'Windows-1252');
-        if (!is_string($text) || !mb_check_encoding($text, 'UTF-8')) {
+        if (!mb_check_encoding($text, 'UTF-8')) {
             $text = mb_scrub($bytes, 'UTF-8');
         }
         return ['text' => $text, 'converted' => true];
