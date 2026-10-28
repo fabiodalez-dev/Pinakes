@@ -3,7 +3,7 @@
 // Files are generated per run (tests/helpers/marc-fixtures.php), so titles and
 // ISBNs never collide with an earlier run; afterAll removes what the run made.
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
+const { listServerDir, readServerFile, writeServerFile } = require('./helpers/server-files');
 const path = require('path');
 const { BASE, ROOT, dbQuery, sqlEscape, loginAsAdmin, marcFile, cleanupRun, uploadForPreview, confirmImport } = require('./helpers/marc-e2e');
 
@@ -60,15 +60,18 @@ test.describe.serial('MARC bulk import', () => {
   test('a staged file that ends early stops the import with an error instead of looping', async ({ page }) => {
     test.setTimeout(120000);
     await loginAsAdmin(page);
+    // writable/uploads belongs to the PHP user (www-data in CI).
     const uploads = path.join(ROOT, 'writable', 'uploads');
-    const staged = () => fs.readdirSync(uploads).filter((n) => n.startsWith('marc_import_') && n.endsWith('.jsonl'))
-      .map((n) => path.join(uploads, n)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    const staged = () => listServerDir(uploads).filter((n) => n.startsWith('marc_import_') && n.endsWith('.jsonl'));
+    const before = new Set(staged());
     const upload = await uploadForPreview(page, marcFile(RUN + 'T', 20, 'mrc'));
     expect(upload.total_rows).toBe(20);
+    const added = staged().filter((n) => !before.has(n));
+    expect(added.length, 'the upload stages one file').toBe(1);
     // Cut the staged copy to its first three records, as a full disk or a
     // cleanup run would leave it.
-    const file = staged()[0];
-    fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').split('\n').slice(0, 3).join('\n') + '\n');
+    const file = path.join(uploads, added[0]);
+    writeServerFile(file, readServerFile(file).toString('utf-8').split('\n').slice(0, 3).join('\n') + '\n');
     let chunks = 0;
     page.on('request', (r) => { if (r.url().includes('/admin/books/import/marc/chunk')) chunks++; });
     await page.click('#confirmImportBtn');
