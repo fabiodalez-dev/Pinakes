@@ -359,25 +359,52 @@ final class UserImport
     }
 
     /**
-     * Delimiter of a CSV sample: the most frequent of ";", "," and TAB, or null
-     * when none occurs.
+     * Delimiter of a CSV sample (the header and the first few lines): the one
+     * of ";", "," and TAB that splits the lines into columns most consistently,
+     * or null when none splits the header at all.
+     *
+     * Each candidate is judged by the structure it yields, not by how often it
+     * occurs: a ";" file whose addresses hold commas ("Via Roma 1, int. 3,
+     * 00100 Roma") has more commas than semicolons, yet only ";" gives every
+     * line the header's column count. Quoted fields are respected as the
+     * reader respects them (enclosure '"', no escape character), so a comma
+     * inside "…" never counts. The candidate whose column count is shared by
+     * the largest share of the data lines wins; the wider one on a tie.
      *
      * @param list<string|false> $lines
      */
     public static function detectDelimiter(array $lines): ?string
     {
-        $candidates = [';' => 0, ',' => 0, "\t" => 0];
+        $sample = [];
         foreach ($lines as $line) {
-            if (!is_string($line)) {
-                continue;
-            }
-            foreach (array_keys($candidates) as $delimiter) {
-                $candidates[$delimiter] += substr_count($line, $delimiter);
+            if (is_string($line) && trim($line) !== '') {
+                $sample[] = rtrim($line, "\r\n");
             }
         }
-        arsort($candidates);
-        $best = (string) array_key_first($candidates);
-        return $candidates[$best] > 0 ? $best : null;
+        if ($sample === []) {
+            return null;
+        }
+        $header = array_shift($sample);
+        $best = null;
+        $bestScore = [0.0, 1];
+        foreach ([';', ',', "\t"] as $delimiter) {
+            $columns = count(str_getcsv($header, $delimiter, '"', ''));
+            if ($columns < 2) {
+                continue;
+            }
+            $matching = 0;
+            foreach ($sample as $line) {
+                if (count(str_getcsv($line, $delimiter, '"', '')) === $columns) {
+                    $matching++;
+                }
+            }
+            $score = [$sample === [] ? 1.0 : $matching / count($sample), $columns];
+            if ($score > $bestScore) {
+                $best = $delimiter;
+                $bestScore = $score;
+            }
+        }
+        return $best;
     }
 
     /** A CSV cell as trimmed text, with the export's formula-escape apostrophe undone. */

@@ -78,6 +78,11 @@ $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', '', '', str_repe
 $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', 'M'], $map, $defs, $locales, ['sesso' => false, 'cod_fiscale' => false])['record']['sesso'] === null, 'a hidden profile field is not collected');
 $check(UserImport::parseDate('2026-12-31') === '2026-12-31' && UserImport::parseDate('31.12.2026') === '2026-12-31' && UserImport::parseDate('12/31/2026') === null, 'date spellings: ISO, dotted, day-first only');
 $check(UserImport::detectDelimiter(["a;b;c\n", "1;2;3\n"]) === ';' && UserImport::detectDelimiter(["a,b\n"]) === ',' && UserImport::detectDelimiter(["abc\n"]) === null, 'delimiter detection');
+$check(UserImport::detectDelimiter(["Nome;Cognome;Indirizzo\n", "Mario;Rossi;Via Roma 1, int. 3, scala B, piano 2, 00100 Roma\n", "Anna;Bianchi;Piazza Dante 5, int. 1, scala A, 20100 Milano, MI\n"]) === ';', 'a ";" file whose addresses hold more commas than there are separators is still a ";" file');
+$check(UserImport::detectDelimiter(["Nome,Cognome,Note\n", "\"Rossi, Mario\",x,\"a;b;c\"\n", "\"Bianchi; Anna\",y,\"d;e\"\n"]) === ',', 'a "," file with quoted fields full of semicolons is a "," file: a separator inside quotes never counts');
+$check(UserImport::detectDelimiter(["Nome\tCognome\tNote\n", "a\tb\tc, d; e\n"]) === "\t", 'a TAB file is a TAB file whatever its cells hold');
+$check(UserImport::detectDelimiter(["Nome\n", "Mario\n", "Anna\n"]) === null && UserImport::detectDelimiter([]) === null && UserImport::detectDelimiter([false]) === null, 'one column, or nothing, is no delimiter');
+$check(UserImport::detectDelimiter(["Nome;Cognome;E-mail\n"]) === ';' && UserImport::detectDelimiter(["Nome;Cognome;E-mail\n", ""]) === ';', 'a header alone tells the delimiter when it has more than one column');
 
 // ── UserImport: file encoding ───────────────────────────────────────────
 $u = UserImport::toUtf8("\xEF\xBB\xBFNome;Cognome\nCaff\xC3\xA8;Rossi\n");
