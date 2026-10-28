@@ -96,6 +96,7 @@ class MarcImportController
 
         $total = 0;
         $unreadable = 0;
+        $truncated = false;
         $preview = [];
         $importer = new MarcBookImporter($db, $mode, false);
         $csv = new CsvImportController();
@@ -105,6 +106,7 @@ class MarcImportController
                 : Iso2709Reader::fromPath($tmp, $encoding);
             foreach ($reader as $position => $item) {
                 if ($total >= self::MAX_RECORDS) {
+                    $truncated = true;
                     break;
                 }
                 $total++;
@@ -145,6 +147,7 @@ class MarcImportController
             'success' => true,
             'total_rows' => $total,
             'unreadable' => $unreadable,
+            'truncated' => $truncated ? sprintf(__('Il file contiene più di %d record: vengono importati solo i primi %d'), self::MAX_RECORDS, self::MAX_RECORDS) : null,
             'container' => $container,
             'chunk_size' => !empty($data['download_covers']) ? 2 : self::CHUNK_SIZE,
             'preview' => $preview,

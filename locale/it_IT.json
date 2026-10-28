@@ -8562,5 +8562,6 @@
   "Termine di ricerca": "Termine di ricerca",
   "Trascina qui il file MARC o %{browse}": "Trascina qui il file MARC o %{browse}",
   "Tutti i campi": "Tutti i campi",
-  "UNIMARC (.mrc)": "UNIMARC (.mrc)"
+  "UNIMARC (.mrc)": "UNIMARC (.mrc)",
+  "Il file contiene più di %d record: vengono importati solo i primi %d": "Il file contiene più di %d record: vengono importati solo i primi %d"
 }

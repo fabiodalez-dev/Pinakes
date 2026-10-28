@@ -367,6 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderPreview(data) {
         let summary = fmt(T.records, data.total_rows);
         if (data.unreadable > 0) summary += ' — ' + fmt(T.unreadable, data.unreadable);
+        if (data.truncated) summary += ' — ' + data.truncated;
         document.getElementById('marc-preview-summary').textContent = summary;
         const rows = (data.preview || []).map((r) => {
             if (r.error) {

@@ -8562,5 +8562,6 @@
   "Termine di ricerca": "Søgeord",
   "Trascina qui il file MARC o %{browse}": "Træk MARC-filen hertil eller %{browse}",
   "Tutti i campi": "Alle felter",
-  "UNIMARC (.mrc)": "UNIMARC (.mrc)"
+  "UNIMARC (.mrc)": "UNIMARC (.mrc)",
+  "Il file contiene più di %d record: vengono importati solo i primi %d": "Filen indeholder mere end %d poster: kun de første %d importeres"
 }
