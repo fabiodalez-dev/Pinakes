@@ -126,13 +126,6 @@ class UserActionsController
         }
         $stmt->close();
 
-        // Balance and movements (plan §7): the reader's own ledger, plus the
-        // fines accruing today on overdue loans (not written until the return).
-        $ledger = new \App\Services\PatronLedger($db);
-        $ledgerBalanceCents = $ledger->balanceCents($uid);
-        $ledgerMovements = $ledger->movements($uid, 50);
-        $ledgerAccrued = $ledger->accruedFines($uid);
-
         $title = 'I miei prestiti - Biblioteca';
         ob_start();
         require __DIR__ . '/../Views/profile/reservations.php';

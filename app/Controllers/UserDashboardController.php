@@ -227,6 +227,20 @@ class UserDashboardController
             error_log('Prenotazioni error: ' . $e->getMessage());
         }
 
+        // Balance and movements (plan §7): the reader's own ledger, plus the
+        // fines accruing today on overdue loans (not written until the return).
+        $ledgerBalanceCents = 0;
+        $ledgerMovements = [];
+        $ledgerAccrued = [];
+        try {
+            $ledger = new \App\Services\PatronLedger($db);
+            $ledgerBalanceCents = $ledger->balanceCents($userId);
+            $ledgerMovements = $ledger->movements($userId, 50);
+            $ledgerAccrued = $ledger->accruedFines($userId);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('Patron ledger unavailable on the loans page', ['error' => $e->getMessage()]);
+        }
+
         // Render view
         ob_start();
         $title = 'Le Mie Prenotazioni - Biblioteca';
