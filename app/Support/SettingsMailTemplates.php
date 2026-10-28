@@ -469,7 +469,7 @@ HTML,
                 'label' => __('Restituzione confermata'),
                 'description' => __("Inviata all'utente quando un prestito viene registrato come restituito."),
                 'subject' => '✅ Restituzione confermata',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'data_restituzione'],
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_restituzione', 'multa'],
                 'body' => <<<'HTML'
 <h2>Restituzione confermata</h2>
 <p>Ciao {{utente_nome}},</p>
@@ -499,6 +499,27 @@ HTML,
     <p><strong>Importo registrato:</strong> {{sanzione}}</p>
 </div>
 <p>Per qualsiasi chiarimento contatta la biblioteca.</p>
+HTML,
+            ],
+            'fine_charged' => [
+                'label' => __('Multa per ritardo addebitata'),
+                'description' => __("Inviata al lettore quando la restituzione in ritardo genera una multa. Si attiva in Impostazioni → Prestiti → Multe."),
+                'subject' => '💶 Multa per ritardo: {{multa}}',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_scadenza', 'data_restituzione', 'giorni_ritardo', 'multa', 'saldo'],
+                'body' => <<<'HTML'
+<h2>Multa per ritardo nella restituzione</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>il libro seguente è stato restituito dopo la scadenza e ti è stata addebitata una multa.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Scadenza:</strong> {{data_scadenza}}</p>
+    <p><strong>Restituito il:</strong> {{data_restituzione}}</p>
+    <p><strong>Giorni di ritardo:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Multa:</strong> {{multa}}</p>
+    <p><strong>Saldo da pagare:</strong> {{saldo}}</p>
+</div>
+<p>Puoi saldare l'importo al banco della biblioteca.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
             ],
             'reservation_expired' => [
