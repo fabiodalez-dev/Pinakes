@@ -65,28 +65,41 @@ final class ExactSearch
     }
 
     /**
-     * Parse a single-value column filter (admin list "Name" box): the whole
-     * value is one term, exact when it starts with a quote. Several quoted
-     * groups in the box (`"Thomas" "Mann"`) are joined into one phrase, so a
-     * quote never ends up inside the LIKE pattern as a literal character.
+     * Parse a single-value column filter (admin list "Name" box) into ONE
+     * term, for callers that can only bind one pattern (prefix ordering,
+     * in-PHP matching). The value is exact only when it is quoted as a
+     * whole: every token is a quoted group (`"Häffner"`, `"Thomas" "Mann"`,
+     * the groups joined into one phrase). A value that mixes quoted and
+     * unquoted words (`"häffner" rolf`) is not one exact phrase: it comes
+     * back tolerant, with the quotes dropped so they are never searched as
+     * literal characters. Callers that can bind one condition per word use
+     * filterCondition(), which keeps each word's own rule.
      *
      * @return array{term: string, exact: bool}
      */
     public static function parseFilter(string $value): array
     {
         $value = trim(self::scrub($value));
-        if ($value !== '' && preg_match('/^[' . preg_quote(self::QUOTES, '/') . ']/u', $value) === 1) {
-            $words = array_column(self::tokenize($value), 'term');
-            return ['term' => self::collapse(implode(' ', $words)), 'exact' => true];
+        $tokens = self::tokenize($value);
+        if ($tokens === []) {
+            // Only quotes (or nothing): no term, so no filter.
+            return ['term' => self::hasQuote($value) ? '' : $value, 'exact' => self::hasQuote($value)];
         }
-        return ['term' => $value, 'exact' => false];
+        if (!self::hasQuote($value)) {
+            return ['term' => $value, 'exact' => false];
+        }
+        $words = self::collapse(implode(' ', array_column($tokens, 'term')));
+        $wholeQuoted = !in_array(false, array_column($tokens, 'exact'), true);
+        return ['term' => $words, 'exact' => $wholeQuoted];
     }
 
     /**
      * The name inside a value typed wholly in quotes (`"Rolf Häffner"`), or
-     * null for an unquoted value. Used where a name is SAVED rather than
-     * searched: quotes there mean "this exact spelling is a different
-     * person/publisher", and they are never part of the stored name.
+     * null otherwise. Used where a name is SAVED rather than searched: quotes
+     * there mean "this exact spelling is a different person/publisher", and
+     * they are never part of the stored name. A name that only contains a
+     * quoted part (`"Il Mulino", Bologna`, `"Pippo" Inzaghi`) is not quoted
+     * as a whole and is kept exactly as typed.
      */
     public static function quotedValue(string $value): ?string
     {
@@ -241,6 +254,11 @@ final class ExactSearch
     private static function scrub(string $value): string
     {
         return mb_check_encoding($value, 'UTF-8') ? $value : mb_scrub($value, 'UTF-8');
+    }
+
+    private static function hasQuote(string $value): bool
+    {
+        return preg_match('/[' . preg_quote(self::QUOTES, '/') . ']/u', $value) === 1;
     }
 
     private static function stripQuotes(string $value): string

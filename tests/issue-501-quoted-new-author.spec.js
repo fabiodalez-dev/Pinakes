@@ -65,8 +65,16 @@ test.describe.serial('#501 quoted new author = separate person', () => {
     await authorInput.click();
     await authorInput.fill(typedAuthor);
     await expect(authorInput).toHaveValue(typedAuthor);
+    // Enter is the picker's contract for "use what I typed" (#74): it commits
+    // the typed text even while a similar existing author is highlighted, so
+    // it is the only action that covers both the existing and the new name.
+    // The chip text then proves which choice was taken, independent of when
+    // the server suggestions arrived: a highlighted "Haffner" picked instead
+    // of the typed "Häffner" fails here.
     await authorInput.press('Enter');
-    await expect(page.locator('.choices__list--multiple .choices__item').first()).toBeVisible({ timeout: 10000 });
+    const chip = page.locator('.choices__list--multiple .choices__item').first();
+    await expect(chip).toBeVisible({ timeout: 10000 });
+    await expect(chip).toContainText(typedAuthor.replace(/["“”„«»]/g, ''));
     const genre = page.locator('#radice_select');
     if (await genre.count()) {
       await page.waitForFunction(() => {

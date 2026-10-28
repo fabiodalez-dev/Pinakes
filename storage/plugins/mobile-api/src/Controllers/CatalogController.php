@@ -702,19 +702,18 @@ final class CatalogController
                 }
             } else {
                 // Quoted value = exact spelling, accents included (#501).
-                ['term' => $publisherTerm, 'exact' => $publisherExact] = \App\Support\ExactSearch::parseFilter($publisher);
-                if ($publisherTerm !== '') {
-                    $publisherLike = \App\Support\ExactSearch::likePattern($publisherTerm);
-                    $primaryMatch = \App\Support\ExactSearch::likeSql('e.nome', $publisherExact);
+                // A mixed value (`"häffner" verlag`) keeps each word's rule.
+                $primaryCond = \App\Support\ExactSearch::filterCondition(['e.nome'], $publisher);
+                $linkedCond = \App\Support\ExactSearch::filterCondition(['e_p.nome'], $publisher);
+                if ($primaryCond !== null && $linkedCond !== null) {
                     $conditions[] = $hasJunction
-                        ? "({$primaryMatch} OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND "
-                            . \App\Support\ExactSearch::likeSql('e_p.nome', $publisherExact) . '))'
-                        : $primaryMatch;
-                    $bind[] = $publisherLike;
-                    $types .= 's';
+                        ? "({$primaryCond['sql']} OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND {$linkedCond['sql']}))"
+                        : $primaryCond['sql'];
+                    array_push($bind, ...$primaryCond['params']);
+                    $types .= $primaryCond['types'];
                     if ($hasJunction) {
-                        $bind[] = $publisherLike;
-                        $types .= 's';
+                        array_push($bind, ...$linkedCond['params']);
+                        $types .= $linkedCond['types'];
                     }
                 }
             }

@@ -121,5 +121,9 @@ $same([$bookUmlaut], $catalogIds(['publisher' => "\"Verlag {$t} Häffner\""]), '
 $same([$bookUmlaut], $catalogIds(['author' => (string) $ids['autori'][1]]), 'mobile catalogue: a numeric author id is still an id, not a name');
 $same([$bookUmlaut], $catalogIds(['q' => "{$t} \"brücke\""]), 'mobile catalogue: a quoted word in q follows the book search rule');
 $same([$bookPlain, $bookUmlaut], $catalogIds(['publisher' => '"']), 'mobile catalogue: a lone quote adds no publisher filter');
+// A publisher box mixing words and quotes keeps each word's rule, as the
+// author box does; it used to become one phrase, or a literal quote.
+$same([$bookUmlaut], $catalogIds(['publisher' => '"häffner" verlag']), 'mobile catalogue: a mixed publisher value is not glued into one phrase');
+$same([$bookPlain], $catalogIds(['publisher' => 'verlag "haffner"']), 'mobile catalogue: a quoted word after a plain one stays exact');
 
-Exact501::finish(25);
+Exact501::finish(27);

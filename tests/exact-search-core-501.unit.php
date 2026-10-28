@@ -35,7 +35,18 @@ $ok(count($garbled) === 2 && $garbled[1]['term'] === 'haffner', 'invalid UTF-8 i
 $same(['term' => 'Haffner', 'exact' => true], E::parseFilter('  "Haffner"  '), 'a quoted filter value is exact and trimmed');
 $same(['term' => 'van der Berg', 'exact' => false], E::parseFilter('van der Berg'), 'an unquoted filter value stays one tolerant term');
 $same(['term' => 'Thomas Mann', 'exact' => true], E::parseFilter('"Thomas" "Mann"'), 'several quoted groups in one box become one phrase without literal quotes');
-$same(['term' => 'Haffner"', 'exact' => false], E::parseFilter('Haffner"'), 'a value that does not start with a quote is matched as typed');
+$same(['term' => 'Haffner', 'exact' => false], E::parseFilter('Haffner"'), 'a stray trailing quote is dropped, never searched as a literal character');
+$same(['term' => 'häffner rolf', 'exact' => false], E::parseFilter('"häffner" rolf'), 'a value that only STARTS with a quote is not exact as a whole');
+$same(['term' => 'rolf häffner', 'exact' => false], E::parseFilter('rolf "häffner"'), 'a quoted word after a plain one does not make the value exact either');
+$same(['term' => '', 'exact' => true], E::parseFilter('"'), 'a lone quote leaves no term');
+// quotedValue(): only a name quoted AS A WHOLE loses its quotes when saved.
+$same('Rolf Häffner', E::quotedValue('"Rolf Häffner"'), 'a name typed wholly in quotes is saved without them');
+$same('Thomas Mann', E::quotedValue('"Thomas" "Mann"'), 'several quoted groups and nothing else still count as wholly quoted');
+$same(null, E::quotedValue('"Il Mulino", Bologna'), 'a name with text after the closing quote is kept as typed');
+$same(null, E::quotedValue('"Pippo" Inzaghi'), 'a quoted nickname inside a name is kept as typed');
+$same(null, E::quotedValue('Edizioni «La Scala»'), 'guillemets inside a publisher name are kept as typed');
+$same(null, E::quotedValue('Haffner'), 'an unquoted name is not a quoted value');
+$same(null, E::quotedValue('"'), 'a lone quote is not a name');
 $ok(E::filterCondition(['a.nome'], '"') === null, 'a lone quote adds no filter');
 $cond = E::filterCondition(['a.nome', 'a.pseudonimo'], '"x"');
 $ok($cond !== null && count($cond['params']) === 2 && $cond['types'] === 'ss', 'one bound pattern per searched column');
@@ -91,4 +102,4 @@ $same([], $f("\xff\xfe"), 'a garbled value matches nothing instead of every row'
 $limited = \App\Support\ExactSearch::wordsCondition(['nome'], '"thomas mann" other words', 1);
 $same(['%thomas mann%'], $limited['params'], 'a search budget counts a quoted phrase as one term');
 $same(null, \App\Support\ExactSearch::wordsCondition(['nome'], 'mann', 0), 'a zero search budget produces no invalid empty predicate');
-Exact501::finish(35);
+Exact501::finish(45);

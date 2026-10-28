@@ -72,6 +72,11 @@ $genres = new App\Controllers\GeneriApiController();
 foreach (["$t haffner" => $ids['generi'], '"'.$t.' Häffner"' => [$ids['generi'][1]]] as $value=>$expected) {
     Exact501::same($expected, $myIds($read($genres,'search',['q'=>$value]),'generi'), "book-form genre picker: $value");
 }
+// Pullfrog (PR #502): a box mixing words and quotes binds one value per word;
+// the genre picker used to pass a fixed 'ssi' and threw ArgumentCountError.
+foreach ([$t.' "häffner"' => [$ids['generi'][1]], '"häffner" '.$t => [$ids['generi'][1]]] as $value=>$expected) {
+    Exact501::same($expected, $myIds($read($genres,'search',['q'=>$value]),'generi'), "book-form genre picker, mixed words: $value");
+}
 $series = new App\Controllers\CollaneController();
 Exact501::same(["$t Haffner","$t Häffner"], $read($series,'searchApi',['q'=>"$t haffner"]), 'series suggestions preserve the two accented names');
 Exact501::same(["$t Häffner"], $read($series,'searchApi',['q'=>'"'.$t.' Häffner"']), 'series suggestions honour quotes');
@@ -101,4 +106,4 @@ foreach (['societa'=>['501','502'],'"società"'=>['501'],'"societa"'=>['502']] a
     $response = $dewey->autocomplete($request(['q'=>$value]), new Response());
     Exact501::same($expected,array_column(json_decode((string)$response->getBody(),true),'code'),"Dewey picker: $value");
 }
-Exact501::finish(137);
+Exact501::finish(141);

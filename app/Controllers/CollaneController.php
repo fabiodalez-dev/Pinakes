@@ -518,9 +518,12 @@ class CollaneController
                 // One suggestion per spelling: accents keep "Brücke" and
                 // "Brucke" apart (#501), case does not ("Serie" = "serie", as
                 // UNION used to merge them). MIN(nome) keeps the column's
-                // tolerant collation, so the list sorts like the rest of the UI.
+                // tolerant collation, so the list sorts like the rest of the UI;
+                // that collation ties "Haffner" with "Häffner", so the binary
+                // spelling breaks the tie and the order is the same on every
+                // server.
                 $sql = 'SELECT MIN(nome) AS nome FROM (' . implode(' UNION ALL ', $sqlParts)
-                     . ') AS combined GROUP BY LOWER(nome) COLLATE utf8mb4_bin ORDER BY nome LIMIT 10';
+                     . ') AS combined GROUP BY LOWER(nome) COLLATE utf8mb4_bin ORDER BY nome, MIN(nome) COLLATE utf8mb4_bin LIMIT 10';
                 $stmt = $db->prepare($sql);
                 if ($stmt) {
                     $stmt->bind_param($types, ...$binds);

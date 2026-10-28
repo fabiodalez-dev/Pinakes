@@ -138,4 +138,81 @@ $same([1, 2, 3, 4, 5, 7, 8, 9, 10, 11], $articles('"'), 'a lone quote adds no se
 $same([], $articles("\xff\xfe"), 'a garbled query matches no article');
 $same([], $articles('!!!'), 'a query of punctuation only matches no article, like the book search');
 
-Exact501::finish(26);
+// ── Periodicals list: the author filter box (ContributionService) ─────────
+// Pullfrog (PR #502): the linked-author EXISTS used to bind only the first
+// word of a mixed value, so `"häffner" rolf` admitted any article linked to
+// a Häffner, and `T "häffner"` matched both spellings through the token.
+require_once dirname(__DIR__) . '/storage/plugins/emeroteca/src/Services/ContributionService.php';
+$authorBox = static function (string $value) use ($db, $real, $labels): array {
+    $cond = \App\Plugins\Emeroteca\Services\ContributionService::filterConditions(['autore' => $value], true);
+    $sql = 'SELECT c.id FROM emeroteca_contributi c WHERE c.id IN (' . implode(',', $real) . ')' . ($cond !== null ? ' AND ' . $cond['sql'] : '') . ' ORDER BY c.id';
+    $stmt = $db->prepare($sql);
+    if ($cond !== null) {
+        $stmt->bind_param($cond['types'], ...$cond['params']);
+    }
+    $stmt->execute();
+    $found = array_map(static fn(array $r): int => $labels[(int) $r['id']], $stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+    sort($found);
+    return $found;
+};
+$same([7], $authorBox("\"häffner\" {$t}"), 'author box: every word of a mixed value must match the linked author');
+$same([7], $authorBox("{$t} \"häffner\""), 'author box: the quoted word keeps the umlaut out of the linked branch too');
+$same([], $authorBox('"häffner" rolf'), 'author box: a linked Häffner without the other word does not answer');
+$same([2], $authorBox('anna "häffner"'), 'author box: the written credit follows the same per-word rule');
+$same([1, 8], $authorBox('"haffner"'), 'author box: a wholly quoted value is exact, written or linked');
+
+// ── Catalogue hint for articles indexed inside an issue (EmerotecaPlugin) ──
+// The probe must answer as the destination does (testataSearchCondition):
+// one arm per word, each with its own rule. It used to take the whole query
+// as one term, so `rolf "häffner"` lit the hint through MATCH's folding and
+// `"anna" T` (exact phrase "anna T") never did.
+$probeMinimal = [
+    'emeroteca_fascicoli' => "id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        annata_id INT NULL,
+        numero VARCHAR(50) NOT NULL,
+        stato VARCHAR(20) NOT NULL DEFAULT 'posseduto'",
+    'emeroteca_articoli' => 'id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        fascicolo_id INT NOT NULL,
+        titolo VARCHAR(500) NOT NULL,
+        autori VARCHAR(1000) NULL,
+        keywords VARCHAR(1000) NULL,
+        FULLTEXT KEY ft_zz501 (titolo, autori, keywords)',
+];
+$probeCreated = [];
+$probeRows = ['emeroteca_articoli' => [], 'emeroteca_fascicoli' => [], 'emeroteca_annate' => [], 'emeroteca_testate' => []];
+foreach ($probeMinimal as $table => $columns) {
+    if ($db->query("SHOW TABLES LIKE '{$table}'")->num_rows === 0) {
+        $db->query("CREATE TABLE `{$table}` ({$columns}) {$charset}");
+        $probeCreated[] = $table;
+    }
+}
+Exact501::onCleanup(static function () use ($db, &$probeRows, $probeCreated): void {
+    foreach ($probeRows as $table => $rowIds) {
+        if ($rowIds !== [] && !in_array($table, $probeCreated, true)) {
+            $db->query("DELETE FROM `{$table}` WHERE id IN (" . implode(',', $rowIds) . ')');
+        }
+    }
+    foreach (array_reverse($probeCreated) as $table) {
+        $db->query("DROP TABLE IF EXISTS `{$table}`");
+    }
+});
+$annata = null;
+if (!in_array('emeroteca_fascicoli', $probeCreated, true)) {
+    // The real issue table hangs off a year and a masthead (foreign keys).
+    $testataId = $probeRows['emeroteca_testate'][] = Exact501::exec($db, 'INSERT INTO emeroteca_testate (titolo) VALUES (?)', ["{$t} Testata"]);
+    $annata = $probeRows['emeroteca_annate'][] = Exact501::exec($db, 'INSERT INTO emeroteca_annate (testata_id, anno) VALUES (?, 2001)', [$testataId]);
+}
+$issue = $probeRows['emeroteca_fascicoli'][] = Exact501::exec($db, 'INSERT INTO emeroteca_fascicoli (annata_id, numero) VALUES (?, ?)', [$annata, '1']);
+$probeRows['emeroteca_articoli'][] = Exact501::exec($db, 'INSERT INTO emeroteca_articoli (fascicolo_id, titolo, autori) VALUES (?, ?, ?)', [$issue, "{$t} Spoglio", 'Rolf Haffner']);
+$probeRows['emeroteca_articoli'][] = Exact501::exec($db, 'INSERT INTO emeroteca_articoli (fascicolo_id, titolo, autori) VALUES (?, ?, ?)', [$issue, "{$t} Spoglio zwei", 'Anna Häffner']);
+require_once dirname(__DIR__) . '/storage/plugins/emeroteca/EmerotecaPlugin.php';
+$plugin = (new \ReflectionClass(\EmerotecaPlugin::class))->newInstanceWithoutConstructor();
+(new \ReflectionProperty(\EmerotecaPlugin::class, 'db'))->setValue($plugin, $db);
+$probe = new \ReflectionMethod(\EmerotecaPlugin::class, 'emerotecaIndexedArticleMatches');
+$same(true, $probe->invoke($plugin, "{$t} spoglio"), 'issue hint: plain words still find an indexed article');
+$same(true, $probe->invoke($plugin, "\"anna\" {$t}"), 'issue hint: a value starting with a quote is not glued into one phrase');
+$same(false, $probe->invoke($plugin, "rolf {$t} \"häffner\""), 'issue hint: the quoted word keeps the folded Haffner out');
+$same(true, $probe->invoke($plugin, "rolf {$t} \"haffner\""), 'issue hint: the exact spelling with the other words answers');
+$same(false, $probe->invoke($plugin, '"'), 'issue hint: a lone quote is no term');
+
+Exact501::finish(36);

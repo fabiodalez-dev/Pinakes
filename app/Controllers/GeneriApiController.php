@@ -31,9 +31,10 @@ class GeneriApiController
                     g.nome
                 LIMIT ?
             ");
-            $searchTerm = $search['params'][0];
-            $exactMatch = substr(\App\Support\ExactSearch::likePattern($term), 1);
-            $stmt->bind_param('ssi', $searchTerm, $exactMatch, $limit);
+            // The WHERE holds one placeholder per word when the box mixes
+            // words and quotes (`storia "arte"`): bind whatever it carries.
+            $prefixPattern = substr(\App\Support\ExactSearch::likePattern($term), 1);
+            $stmt->bind_param($search['types'] . 'si', ...[...$search['params'], $prefixPattern, $limit]);
             $stmt->execute();
             $result = $stmt->get_result();
 

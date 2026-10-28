@@ -2938,18 +2938,24 @@ class EmerotecaPlugin
             || !$this->emerotecaTableExists('emeroteca_fascicoli')) {
             return false;
         }
-        ['term' => $needle, 'exact' => $exact] = \App\Support\ExactSearch::parseFilter($term);
-        if ($needle === '') { return false; }
-        $pattern = $this->likePattern($needle);
-        $match = static fn(string $column): string => \App\Support\ExactSearch::likeSql($column, $exact);
-        $indexed = $exact
-            ? 'LOWER(ar.titolo) COLLATE utf8mb4_bin = LOWER(?)'
-            : 'MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)';
+        // One arm per word, as the destination's testataSearchCondition():
+        // a mixed query (`"häffner" rolf`) keeps each word's own rule.
+        $arms = [];
+        $params = [];
+        foreach (array_slice(\App\Support\ExactSearch::tokenize(mb_substr($term, 0, 200)), 0, 20) as ['term' => $needle, 'exact' => $exact]) {
+            $pattern = $this->likePattern($needle);
+            $match = static fn(string $column): string => \App\Support\ExactSearch::likeSql($column, $exact);
+            $indexed = $exact
+                ? 'LOWER(ar.titolo) COLLATE utf8mb4_bin = LOWER(?)'
+                : 'MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)';
+            $arms[] = '(' . $indexed . ' OR ' . $match('ar.titolo') . ' OR ' . $match('ar.autori') . ' OR ' . $match('ar.keywords') . ')';
+            array_push($params, $needle, $pattern, $pattern, $pattern);
+        }
+        if ($arms === []) { return false; }
         return $this->emerotecaRows(
             "SELECT 1 FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
-             WHERE f.stato <> 'scartato' AND (" . $indexed . ' OR ' . $match('ar.titolo')
-                . ' OR ' . $match('ar.autori') . ' OR ' . $match('ar.keywords') . ') LIMIT 1',
-            'ssss', [$needle, $pattern, $pattern, $pattern]
+             WHERE f.stato <> 'scartato' AND " . implode(' AND ', $arms) . ' LIMIT 1',
+            str_repeat('s', count($params)), $params
         ) !== [];
     }
 
