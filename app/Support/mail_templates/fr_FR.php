@@ -328,6 +328,7 @@ return [
     <p><strong>Livre :</strong> {{libro_titolo}}</p>
     <p><strong>Date de retour :</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Nous espérons que cette lecture vous a plu. À très bientôt à la bibliothèque !</p>
 <p>Cordialement,<br>L\'équipe de la bibliothèque</p>',
     ],

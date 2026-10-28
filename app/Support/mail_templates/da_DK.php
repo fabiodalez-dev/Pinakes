@@ -339,6 +339,7 @@ return [
     <p><strong>Bog:</strong> {{libro_titolo}}</p>
     <p><strong>Afleveringsdato:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Vi håber, du nød læsningen. Vi ses snart på biblioteket!</p>
 <p>Med venlig hilsen,<br>Bibliotekets team</p>',
     ],

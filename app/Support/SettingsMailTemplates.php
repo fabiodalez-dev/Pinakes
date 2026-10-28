@@ -478,6 +478,7 @@ HTML,
     <p><strong>Libro:</strong> {{libro_titolo}}</p>
     <p><strong>Data restituzione:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Speriamo che la lettura ti sia piaciuta. A presto in biblioteca!</p>
 <p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,

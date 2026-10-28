@@ -2427,9 +2427,11 @@ class NotificationService {
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
                 'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $recipientLocale),
+                // Empty when nothing was charged, so the line vanishes from the
+                // email of an install without fines (zero-config equivalence).
                 'multa' => $lateFineCents > 0
-                    ? \App\Services\FineParameters::format($lateFineCents, $recipientLocale)
-                    : $this->translateInLocale('Nessuna multa', $recipientLocale),
+                    ? $this->translateInLocale('Multa per ritardo', $recipientLocale) . ': ' . \App\Services\FineParameters::format($lateFineCents, $recipientLocale)
+                    : '',
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);
