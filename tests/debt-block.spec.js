@@ -233,7 +233,10 @@ test.describe.serial('Debt block', () => {
     const out = execFileSync('php', ['-r', `
       require 'vendor/autoload.php';
       $env = Dotenv\\Dotenv::parse(file_get_contents('.env'));
-      $db = new mysqli(null, $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], 0, $env['DB_SOCKET'] ?? null);
+      $sock = $env['DB_SOCKET'] ?? '';
+      $db = ($sock !== '' && file_exists($sock))
+        ? new mysqli(null, $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], 0, $sock)
+        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306));
       $db->set_charset('utf8mb4');
       App\\Support\\DateHelper::synchronizeDatabaseSession($db);
       echo (new App\\Controllers\\ReservationManager($db))->processBookAvailability(${state.bookFree}) ? 'promoted' : 'kept';
