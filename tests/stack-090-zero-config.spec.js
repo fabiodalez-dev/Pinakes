@@ -62,18 +62,6 @@ function addDays(iso, days) {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
-/** Rows of a table as tab-separated lines, to put back verbatim afterwards. */
-function stash(table) {
-  const cols = F.dbQuery(`SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='${table}'`);
-  const select = cols.split(',').map((c) => `QUOTE(\`${c}\`)`).join(", ',', ");
-  const rows = F.dbQuery(`SELECT CONCAT(${select}) FROM ${table}`).split('\n').filter(Boolean);
-  return { cols, rows };
-}
-function unstash(table, s) {
-  F.dbQuery(`DELETE FROM ${table}`);
-  for (const values of s.rows) F.dbQuery(`INSERT INTO ${table} (${s.cols}) VALUES (${values})`);
-}
-
 /** A title with one copy lent to $patron, lent 20 days ago and due $late days ago. */
 function overdueLoan(patron, book, late) {
   const copyId = book.copyIds[0];
@@ -91,6 +79,8 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
   let closures;
   let rules;
   let emailSettings;
+  let ncipWasActive = true;
+  let mobileWasActive = true;
   let gate = null;
   let reader;
   let debtor;
@@ -103,9 +93,9 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
 
   test.beforeAll(async ({ browser }) => {
     for (const k of LOAN_SETTINGS) saved[k] = readSetting('loans', k);
-    closures = stash('calendario_chiusure');
-    rules = stash('regole_prestito');
-    emailSettings = F.dbQuery("SELECT CONCAT(QUOTE(setting_key), ',', QUOTE(setting_value)) FROM system_settings WHERE category='email'").split('\n').filter(Boolean);
+    closures = F.stashRows('calendario_chiusure');
+    rules = F.stashRows('regole_prestito');
+    emailSettings = F.stashRows('system_settings', "category='email'");
     F.dbQuery('DELETE FROM calendario_chiusure');
     F.dbQuery('DELETE FROM regole_prestito');
     for (const k of ['daily_fine', 'fine_max_per_loan', 'debt_block_threshold']) writeSetting('loans', k, '');
@@ -124,6 +114,7 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
     F.dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES (${debtor.id}, 'addebito_manuale', 50.00, 'Tessera smarrita', NOW())`);
     for (const key of ['desk', 'renew', 'request', 'late', 'web', 'app', 'ncip']) books[key] = F.createTitle(`${PREFIX}-${key}`);
 
+    mobileWasActive = F.pluginActive('mobile-api');
     const helper = await browser.newPage();
     gate = await M.ensureMobileApiReady(helper);
     await helper.close();
@@ -132,41 +123,41 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
     admin = await adminCtx.newPage();
     admin.on('response', (r) => { if (r.status() >= 500) errors.push(`${r.status()} ${r.url()}`); });
     await F.loginAsAdmin(admin);
-    const ncipId = F.dbInt("SELECT id FROM plugins WHERE name='ncip-server' LIMIT 1");
-    if (ncipId > 0 && F.dbQuery(`SELECT is_active FROM plugins WHERE id=${ncipId}`) !== '1') {
-      await admin.goto(`${F.BASE}/admin/plugins`);
-      await admin.evaluate(async (pid) => {
-        const fd = new FormData();
-        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
-        await fetch(`${window.location.origin}${window.BASE_PATH || ''}/admin/plugins/${pid}/activate`, { method: 'POST', body: fd });
-      }, ncipId);
-    }
+    ncipWasActive = F.pluginActive('ncip-server');
+    await F.setPluginActive(admin, 'ncip-server', true);
   });
 
   test.afterEach(() => { expect(errors.splice(0), 'no HTTP 5xx').toEqual([]); });
 
   test.afterAll(async () => {
-    for (const k of LOAN_SETTINGS) writeSetting('loans', k, saved[k]);
-    unstash('calendario_chiusure', closures);
-    unstash('regole_prestito', rules);
-    if (emailSettings.length) {
-      F.dbQuery("DELETE FROM system_settings WHERE category='email'");
-      for (const pair of emailSettings) F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('email', ${pair})`);
-    }
-    clearConfigCache();
-    for (const p of [reader, debtor]) {
-      if (!p) continue;
-      try { F.dbQuery(`DELETE FROM mobile_app_tokens WHERE user_id=${p.id}`); } catch { /* no token table */ }
-    }
-    const ids = Object.values(books).map((b) => b.id);
-    if (ids.length) {
-      try { F.dbQuery(`DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids.join(',')}))`); } catch { /* */ }
-      try { F.dbQuery(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${ids.join(',')})`); } catch { /* */ }
-    }
-    F.deleteTitles(ids);
-    F.deletePatrons([reader?.id, debtor?.id]);
-    M.restoreGate(gate);
-    await adminCtx?.close();
+    // Independent restore steps: one failing must not leave the others undone.
+    await F.runAll([
+      () => { for (const k of LOAN_SETTINGS) writeSetting('loans', k, saved[k]); },
+      () => F.unstashRows(closures),
+      () => F.unstashRows(rules),
+      // Always reset the category: an install with no email rows gets none back.
+      () => F.unstashRows(emailSettings),
+      () => clearConfigCache(),
+      () => {
+        for (const p of [reader, debtor]) {
+          if (!p) continue;
+          try { F.dbQuery(`DELETE FROM mobile_app_tokens WHERE user_id=${p.id}`); } catch { /* no token table */ }
+        }
+      },
+      () => {
+        const ids = Object.values(books).map((b) => b.id);
+        if (ids.length) {
+          try { F.dbQuery(`DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids.join(',')}))`); } catch { /* */ }
+          try { F.dbQuery(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${ids.join(',')})`); } catch { /* */ }
+        }
+        F.deleteTitles(ids);
+      },
+      () => F.deletePatrons([reader?.id, debtor?.id]),
+      () => M.restoreGate(gate),
+      async () => { if (admin && !ncipWasActive) await F.setPluginActive(admin, 'ncip-server', false); },
+      async () => { if (admin && !mobileWasActive) await F.setPluginActive(admin, 'mobile-api', false); },
+      async () => { await adminCtx?.close(); },
+    ]);
   });
 
   test('1. the settings, calendar and circulation pages show nothing configured', async () => {

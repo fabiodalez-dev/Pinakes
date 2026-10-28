@@ -264,6 +264,9 @@ test.describe.serial('C. stocktake and copies recorded out of circulation', () =
     const sessions = F.dbQuery(`SELECT id FROM inventario_sessioni WHERE nome LIKE ${S(TAG + '%')}`).split('\n').filter(Boolean);
     if (sessions.length) {
       F.dbQuery(`DELETE FROM log_modifiche WHERE tabella='inventario_sessioni' AND record_id IN (${sessions.join(',')})`);
+      // Children first, in FK order, without relying on ON DELETE CASCADE.
+      F.dbQuery(`DELETE FROM inventario_scansioni WHERE sessione_id IN (${sessions.join(',')})`);
+      F.dbQuery(`DELETE FROM inventario_attese WHERE sessione_id IN (${sessions.join(',')})`);
       F.dbQuery(`DELETE FROM inventario_sessioni WHERE id IN (${sessions.join(',')})`);
     }
     if (fx.book) {

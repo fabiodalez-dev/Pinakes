@@ -97,7 +97,9 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
   /** @type {import('@playwright/test').Page} */ let admin;
   let adminCtx;
   const saved = {};
-  let savedClosures = [];
+  let savedClosures = null;
+  let ncipWasActive = true;
+  let mobileWasActive = true;
   let gate = null;
   let typeId = 0;
   let reader;
@@ -109,7 +111,7 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
 
   test.beforeAll(async ({ browser }) => {
     for (const k of LOAN_SETTINGS) saved[k] = readSetting(k);
-    savedClosures = F.dbQuery("SELECT CONCAT_WS(0x1f, id, data_inizio, data_fine, ricorrente_annuale, IFNULL(sede_id, ''), IFNULL(descrizione, '')) FROM calendario_chiusure").split('\n').filter(Boolean);
+    savedClosures = F.stashRows('calendario_chiusure');
     F.dbQuery('DELETE FROM calendario_chiusure');
     // Global fines and threshold empty: only the patron type charges and blocks.
     for (const k of ['daily_fine', 'fine_max_per_loan', 'debt_block_threshold']) restoreSetting(k, '');
@@ -124,6 +126,7 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
     plain = F.createPatron(`INP${RUN}`, { password: PASS });
     for (const key of ['desk', 'web', 'app', 'ncip', 'plain']) books[key] = F.createTitle(`${PREFIX}-${key}`);
 
+    mobileWasActive = F.pluginActive('mobile-api');
     const helper = await browser.newPage();
     gate = await M.ensureMobileApiReady(helper);
     await helper.close();
@@ -134,40 +137,39 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
     admin = await adminCtx.newPage();
     admin.on('response', (r) => { if (r.status() >= 500) errors.push(`${r.status()} ${r.url()}`); });
     await F.loginAsAdmin(admin);
-    if (F.dbQuery(`SELECT is_active FROM plugins WHERE id=${ncipId}`) !== '1') {
-      await admin.goto(`${F.BASE}/admin/plugins`);
-      await admin.evaluate(async (pid) => {
-        const fd = new FormData();
-        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
-        await fetch(`${window.location.origin}${window.BASE_PATH || ''}/admin/plugins/${pid}/activate`, { method: 'POST', body: fd });
-      }, ncipId);
-    }
+    ncipWasActive = F.pluginActive('ncip-server');
+    await F.setPluginActive(admin, 'ncip-server', true);
   });
 
   test.afterEach(() => { expect(errors.splice(0), 'no HTTP 5xx').toEqual([]); });
 
   test.afterAll(async () => {
-    for (const k of LOAN_SETTINGS) restoreSetting(k, saved[k]);
-    clearConfigCache();
-    F.dbQuery('DELETE FROM calendario_chiusure');
-    for (const line of savedClosures) {
-      const [id, start, end, yearly, sede, description] = line.split('\x1f');
-      F.dbQuery(`INSERT INTO calendario_chiusure (id, data_inizio, data_fine, ricorrente_annuale, sede_id, descrizione) VALUES (${Number(id)}, '${start}', '${end}', ${Number(yearly)}, ${sede === '' ? 'NULL' : Number(sede)}, ${F.sqlStr(description)})`);
-    }
-    for (const p of [reader, plain]) {
-      if (!p) continue;
-      try { F.dbQuery(`DELETE FROM mobile_app_tokens WHERE user_id=${p.id}`); } catch { /* no token table */ }
-    }
-    const ids = Object.values(books).map((b) => b.id);
-    if (ids.length) {
-      try { F.dbQuery(`DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids.join(',')}))`); } catch { /* */ }
-      try { F.dbQuery(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${ids.join(',')})`); } catch { /* */ }
-    }
-    F.deleteTitles(ids);
-    F.deletePatrons([reader?.id, plain?.id]);
-    F.deleteTypes(PREFIX);
-    M.restoreGate(gate);
-    await adminCtx?.close();
+    // Independent restore steps: one failing must not leave the others undone.
+    await F.runAll([
+      () => { for (const k of LOAN_SETTINGS) restoreSetting(k, saved[k]); },
+      () => clearConfigCache(),
+      () => F.unstashRows(savedClosures),
+      () => {
+        for (const p of [reader, plain]) {
+          if (!p) continue;
+          try { F.dbQuery(`DELETE FROM mobile_app_tokens WHERE user_id=${p.id}`); } catch { /* no token table */ }
+        }
+      },
+      () => {
+        const ids = Object.values(books).map((b) => b.id);
+        if (ids.length) {
+          try { F.dbQuery(`DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids.join(',')}))`); } catch { /* */ }
+          try { F.dbQuery(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${ids.join(',')})`); } catch { /* */ }
+        }
+        F.deleteTitles(ids);
+      },
+      () => F.deletePatrons([reader?.id, plain?.id]),
+      () => F.deleteTypes(PREFIX),
+      () => M.restoreGate(gate),
+      async () => { if (admin && !ncipWasActive) await F.setPluginActive(admin, 'ncip-server', false); },
+      async () => { if (admin && !mobileWasActive) await F.setPluginActive(admin, 'mobile-api', false); },
+      async () => { await adminCtx?.close(); },
+    ]);
   });
 
   test('1. the librarian creates a patron type with its own loan length, daily fine and debt threshold', async () => {
