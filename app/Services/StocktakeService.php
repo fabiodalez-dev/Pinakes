@@ -42,9 +42,12 @@ final class StocktakeService
      * on the pickup shelf for one, by its own state or by an active loan row.
      * Such a copy is where the loan desk put it, so it is never declared lost
      * (a copy marked lost would also have its hold moved to another copy).
+     * A scheduled loan (prestiti 'prenotato') is not in the bucket: the copy
+     * stays on its shelf until MaintenanceService activates the pickup, and
+     * only then does the copy itself become 'prenotato'.
      */
     private const ON_LOAN_COPY_STATES = ['prestato', 'prenotato'];
-    private const ON_LOAN_LOAN_STATES = ['in_corso', 'in_ritardo', 'prenotato', 'da_ritirare'];
+    private const ON_LOAN_LOAN_STATES = ['in_corso', 'in_ritardo', 'da_ritirare'];
 
     /**
      * Copies nobody expects on a shelf when the session opens: they are left
