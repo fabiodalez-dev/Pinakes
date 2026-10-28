@@ -6850,6 +6850,7 @@
   "Auto-approva le richieste": "Auto-approve requests",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Skip manual approval for new loans requested by patrons.",
   "Prestito approvato. Il libro è in attesa di ritiro.": "Loan approved. The book is awaiting pickup.",
+  "Prestito approvato: potrai ritirare il libro dal %s.": "Loan approved: you can pick up the book from %s.",
   "Stile interfaccia": "Interface style",
   "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Change the public site's composition. CMS content, hero background, colors, and features remain unchanged.",
   "Un solo frontend": "One shared frontend",

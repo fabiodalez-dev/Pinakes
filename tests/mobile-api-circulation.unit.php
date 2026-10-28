@@ -171,6 +171,19 @@ foreach ([[400, 409, 'conflict'], [409, 409, 'conflict'], [403, 409, 'not_eligib
     }
 }
 
+// The reader's request (POST /reservations → UserActionsController::loan()):
+// the status the app gets is the persisted state, not "approved = da_ritirare".
+echo "\nD2. Reader request state from the loan() redirect\n";
+$check(CirculationOutcome::requestState(['loan_request_success' => '1', 'auto_approved' => '0', 'loan_state' => '']) === 'pendente', 'not auto-approved → pendente');
+$check(CirculationOutcome::requestState(['loan_request_success' => '1']) === 'pendente', 'no auto_approved key → pendente');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => 'da_ritirare']) === 'da_ritirare', 'approved, starts today → da_ritirare');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => 'prenotato']) === 'prenotato', 'approved, library closed today → prenotato (starts on the next open day)');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => '']) === 'da_ritirare', 'approved without a state → da_ritirare (fallback)');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => 'in_corso']) === 'da_ritirare', 'approved with an unexpected state → da_ritirare');
+$check(CirculationOutcome::requestState(['auto_approved' => '0', 'loan_state' => 'prenotato']) === 'pendente', 'a state without approval is still pendente');
+$openApi = (string) file_get_contents(__DIR__ . '/../storage/plugins/mobile-api/src/Controllers/OpenApiController.php');
+$check(str_contains($openApi, "'enum' => ['pendente', 'da_ritirare', 'prenotato']"), 'the OpenAPI status enum of POST /reservations lists prenotato');
+
 // ── E. Health flags ──────────────────────────────────────────────────────────
 echo "\nE. staff_* flags only for mounted areas\n";
 $Areas = \App\Plugins\MobileApi\Support\StaffAreas::class;

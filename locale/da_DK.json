@@ -6850,6 +6850,7 @@
   "Auto-approva le richieste": "Godkend anmodninger automatisk",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Spring manuel godkendelse over for nye lån, som brugerne anmoder om.",
   "Prestito approvato. Il libro è in attesa di ritiro.": "Lånet er godkendt. Bogen afventer afhentning.",
+  "Prestito approvato: potrai ritirare il libro dal %s.": "Lånet er godkendt: du kan afhente bogen fra %s.",
   "Stile interfaccia": "Grænsefladestil",
   "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Skift opbygningen af det offentlige websted. CMS-indhold, hero-baggrund, farver og funktioner forbliver uændrede.",
   "Un solo frontend": "Én fælles grænseflade",

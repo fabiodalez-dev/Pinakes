@@ -6850,6 +6850,7 @@
   "Auto-approva le richieste": "Auto-approva le richieste",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.",
   "Prestito approvato. Il libro è in attesa di ritiro.": "Prestito approvato. Il libro è in attesa di ritiro.",
+  "Prestito approvato: potrai ritirare il libro dal %s.": "Prestito approvato: potrai ritirare il libro dal %s.",
   "Stile interfaccia": "Stile interfaccia",
   "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.",
   "Un solo frontend": "Un solo frontend",

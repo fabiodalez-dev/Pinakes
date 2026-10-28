@@ -6850,6 +6850,7 @@
   "Auto-approva le richieste": "Anfragen automatisch genehmigen",
   "Disattiva la fase di approvazione manuale per i nuovi prestiti richiesti dagli utenti.": "Überspringt die manuelle Genehmigung neuer Ausleihanfragen.",
   "Prestito approvato. Il libro è in attesa di ritiro.": "Ausleihe genehmigt. Das Buch wartet auf Abholung.",
+  "Prestito approvato: potrai ritirare il libro dal %s.": "Ausleihe genehmigt: Sie können das Buch ab dem %s abholen.",
   "Stile interfaccia": "Oberflächenstil",
   "Cambia la composizione del sito pubblico. Contenuti CMS, sfondo hero, colori e funzionalità restano invariati.": "Ändert den Aufbau der öffentlichen Website. CMS-Inhalte, Hero-Hintergrund, Farben und Funktionen bleiben unverändert.",
   "Un solo frontend": "Eine gemeinsame Oberfläche",
