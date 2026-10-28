@@ -442,16 +442,28 @@ final class StocktakeService
         $outcome = self::classify($copyId !== null, $alreadyScanned, is_array($expected), $onLoan, $expectedShelf, $scanShelf);
 
         $storedCopyId = in_array($outcome, ['sconosciuta', 'duplicata'], true) ? null : $copyId;
+        // The scan is written under a shared lock on the session row. close()
+        // and cancel() flip the state with an UPDATE that waits for that lock,
+        // so a scan either lands before the session leaves 'aperta' (and close()
+        // sees it before marking copies lost) or is refused afterwards.
+        $this->db->begin_transaction();
         try {
-            $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
-        } catch (\mysqli_sql_exception $e) {
-            // Two operators scanned the same copy at the same instant: the UNIQUE
-            // (sessione_id, copia_id) let one win, the other is a duplicate.
-            if ($e->getCode() !== 1062 || $storedCopyId === null) {
-                throw $e;
+            $this->lockOpenSession($sessionId);
+            try {
+                $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
+            } catch (\mysqli_sql_exception $e) {
+                // Two operators scanned the same copy at the same instant: the UNIQUE
+                // (sessione_id, copia_id) let one win, the other is a duplicate.
+                if ($e->getCode() !== 1062 || $storedCopyId === null) {
+                    throw $e;
+                }
+                $outcome = 'duplicata';
+                $this->insertScan($sessionId, null, $code, $outcome, $operatorId);
             }
-            $outcome = 'duplicata';
-            $this->insertScan($sessionId, null, $code, $outcome, $operatorId);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
         }
 
         return [
@@ -464,6 +476,42 @@ final class StocktakeService
             'scaffale_atteso' => $expectedShelf !== null ? $this->shelfLabel($expectedShelf) : '',
             'stato_copia' => is_array($copy) ? (string) $copy['stato'] : '',
         ];
+    }
+
+    private function lockOpenSession(int $sessionId): void
+    {
+        $stmt = $this->db->prepare('SELECT stato FROM inventario_sessioni WHERE id = ? LOCK IN SHARE MODE');
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $sessionId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        if ($row === null || $row[0] !== 'aperta') {
+            throw new \DomainException(__('La revisione non è più aperta: non si possono registrare altre scansioni.'));
+        }
+    }
+
+    /**
+     * Move an open session to $state in one conditional UPDATE. Only the caller
+     * whose UPDATE changes the row may go on: a concurrent close or cancel that
+     * lost the race gets a DomainException and must not touch anything.
+     */
+    private function claimTransition(int $sessionId, string $state, ?int $operatorId): void
+    {
+        $stmt = $this->db->prepare("UPDATE inventario_sessioni SET stato = ?, chiusa_da = ?, chiusa_il = NOW() WHERE id = ? AND stato = 'aperta'");
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('sii', $state, $operatorId, $sessionId);
+        $stmt->execute();
+        $claimed = $stmt->affected_rows === 1;
+        $stmt->close();
+        if (!$claimed) {
+            $this->assertOpen($sessionId); // "not found" when the row is gone
+            throw new \DomainException(__('La revisione non è più aperta: non si possono registrare altre scansioni.'));
+        }
     }
 
     private function insertScan(int $sessionId, ?int $copyId, string $code, string $outcome, ?int $operatorId): void
@@ -540,15 +588,26 @@ final class StocktakeService
         }
         $stmt->close();
 
-        $unscannedOnLoan = 0;
-        $missing = 0;
-        foreach ($this->unscannedExpected($sessionId) as $row) {
-            if ((int) $row['in_prestito'] === 1) {
-                $unscannedOnLoan++;
-            } else {
-                $missing++;
-            }
+        // Counted in SQL: the scan page asks for this on every scan and every
+        // poll, so it must not pull the unscanned rows into PHP. A deleted copy
+        // (c.stato NULL) is not on loan and stays among the missing ones.
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) AS n, COALESCE(SUM(t.in_prestito), 0) AS lent FROM ('
+            . "SELECT COALESCE(c.stato = 'prestato' OR EXISTS (SELECT 1 FROM prestiti p WHERE p.copia_id = a.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo')), 0) AS in_prestito "
+            . 'FROM inventario_attese a '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            . 'LEFT JOIN copie c ON c.id = a.copia_id '
+            . 'WHERE a.sessione_id = ? AND s.id IS NULL) t'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
         }
+        $stmt->bind_param('i', $sessionId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $unscannedOnLoan = (int) ($row['lent'] ?? 0);
+        $missing = (int) ($row['n'] ?? 0) - $unscannedOnLoan;
 
         return [
             'attese' => $this->expectedCount($sessionId),
@@ -675,7 +734,10 @@ final class StocktakeService
      */
     public function close(int $sessionId, bool $markLost, ?int $operatorId): array
     {
-        $this->assertOpen($sessionId);
+        // Claim the session first: from here on scans are refused, and a
+        // concurrent cancel or second close cannot also succeed. Marking copies
+        // lost reads inventario_scansioni, not the session state.
+        $this->claimTransition($sessionId, 'chiusa', $operatorId);
         $marked = 0;
         $failed = 0;
 
@@ -705,13 +767,6 @@ final class StocktakeService
         }
 
         $summary = $this->summary($sessionId);
-        $stmt = $this->db->prepare("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_da = ?, chiusa_il = NOW() WHERE id = ? AND stato = 'aperta'");
-        if ($stmt === false) {
-            throw new \RuntimeException($this->db->error);
-        }
-        $stmt->bind_param('ii', $operatorId, $sessionId);
-        $stmt->execute();
-        $stmt->close();
 
         ActivityLog::recordEntityEvent($this->db, 'inventario_sessioni', $sessionId, 'inventory.closed', [], [
             'azione_mancanti' => $markLost ? 'perso' : 'nessuna',
@@ -835,14 +890,7 @@ final class StocktakeService
 
     public function cancel(int $sessionId, ?int $operatorId): void
     {
-        $this->assertOpen($sessionId);
-        $stmt = $this->db->prepare("UPDATE inventario_sessioni SET stato = 'annullata', chiusa_da = ?, chiusa_il = NOW() WHERE id = ? AND stato = 'aperta'");
-        if ($stmt === false) {
-            throw new \RuntimeException($this->db->error);
-        }
-        $stmt->bind_param('ii', $operatorId, $sessionId);
-        $stmt->execute();
-        $stmt->close();
+        $this->claimTransition($sessionId, 'annullata', $operatorId);
         ActivityLog::recordEntityEvent($this->db, 'inventario_sessioni', $sessionId, 'inventory.cancelled', [], [], 'aggiornamento', 'inventory', $operatorId);
     }
 }

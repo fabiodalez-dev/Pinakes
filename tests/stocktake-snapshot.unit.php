@@ -47,6 +47,7 @@ $p = 'ZZST' . $run;
 $shelves = [];
 $books = [];
 $sessionIds = [];
+$triggers = [];
 try {
     foreach (['X', 'Y'] as $tag) {
         $db->query("INSERT INTO scaffali (codice, nome, lettera) VALUES ('{$p}{$tag}', 'Stocktake {$tag}', '{$tag}')");
@@ -103,7 +104,16 @@ try {
     $categories = array_count_values(array_column($service->reportRows($sessionId), 'categoria'));
     $check(($categories['mancante'] ?? 0) === 2 && ($categories['trovata'] ?? 0) === 1 && ($categories['in_prestito'] ?? 0) === 1, 'the report rows list the same buckets');
 
+    // Probe: record the session state at the instant a copy turns 'perso'.
+    // close() must claim the session before it marks anything, so scans that
+    // arrive while copies are being marked are refused (review #504).
+    $probe = 'zzst_probe_' . strtolower($run);
+    $db->query("SET @zzst_session = {$sessionId}, @zzst_state_at_lost = NULL");
+    $db->query("CREATE TRIGGER {$probe} BEFORE UPDATE ON copie FOR EACH ROW BEGIN IF NEW.stato = 'perso' AND OLD.stato <> 'perso' AND @zzst_state_at_lost IS NULL THEN SET @zzst_state_at_lost = (SELECT stato FROM inventario_sessioni WHERE id = @zzst_session); END IF; END");
+    $triggers[] = $probe;
     $result = $service->close($sessionId, true, null);
+    $db->query("DROP TRIGGER IF EXISTS {$probe}");
+    $check($one('SELECT @zzst_state_at_lost') === 'chiusa', 'the session is already closed when the first copy is marked lost');
     $check($result === ['marked' => 1, 'failed' => 0], 'closing with "mark lost" marks only C6 (C2 no longer exists, C3 is lent)');
     $check($one("SELECT stato FROM copie WHERE id = {$c6}") === 'perso', 'C6 is now lost');
     $check($one("SELECT stato FROM copie WHERE id = {$c1}") === 'disponibile' && $one("SELECT stato FROM copie WHERE id = {$c3}") === 'prestato', 'found and lent copies are untouched');
@@ -126,8 +136,46 @@ try {
     $service->cancel($second, null);
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'cancelling leaves every copy as it was');
 
+    // A close or cancel that loses the race against another transition does nothing.
+    $refused = static function (callable $fn): bool {
+        try {
+            $fn();
+            return false;
+        } catch (DomainException) {
+            return true;
+        }
+    };
+    $check($refused(static fn () => $service->close($second, true, null)), 'closing a cancelled session is refused');
+    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'the refused close marks nothing and keeps the cancelled state');
+    $check($refused(static fn () => $service->cancel($sessionId, null)), 'cancelling a closed session is refused');
+    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$sessionId}") === 'chiusa', 'the closed session stays closed');
+    $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'inventario_sessioni' AND record_id IN ({$sessionId}, {$second}) AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) IN ('inventory.closed', 'inventory.cancelled')") === 2, 'only the winning transitions are logged');
+
+    // A scan in flight while another connection is closing the session waits
+    // for the close instead of landing on a closed session.
+    $third = $service->open('ZZST3 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $third;
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->begin_transaction();
+    $other->query("UPDATE inventario_sessioni SET stato = 'chiusa' WHERE id = {$third} AND stato = 'aperta'");
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    try {
+        $service->scan($third, "{$p}-C5", null, null);
+        $blocked = false;
+    } catch (\Throwable) {
+        $blocked = true;
+    }
+    $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+    $other->commit();
+    $other->close();
+    $check($blocked && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$third}") === 0, 'a scan racing a pending close is not recorded');
+    $check($refused(static fn () => $service->scan($third, "{$p}-C5", null, null)), 'once the close commits the scan is refused');
+
     echo "SUCCESS {$checks} stocktake snapshot checks\n";
 } finally {
+    foreach ($triggers as $trigger) {
+        $db->query("DROP TRIGGER IF EXISTS {$trigger}");
+    }
     foreach ($sessionIds as $sid) {
         $db->query("DELETE FROM log_modifiche WHERE tabella = 'inventario_sessioni' AND record_id = {$sid}");
         $db->query("DELETE FROM inventario_sessioni WHERE id = {$sid}");
