@@ -297,15 +297,13 @@ class ReservationsController
 
         // Configurable duration cap (anti-DoS): applies both to an explicit
         // end_date and to the default end computed from loan_duration_days.
-        $settings = new \App\Models\SettingsRepository($this->db);
-        $maxDurationDays = $settings->maxLoanDurationDays();
+        $circulation = new \App\Services\CirculationPolicy($this->db);
+        $requestPolicy = $circulation->forLoan($userId, (int) $bookId);
+        $maxDurationDays = $requestPolicy->maxRequestDays;
 
         // If no end date specified, set it using the configured loan duration (fallback: 30 days)
         if (!$endDate) {
-            $loanDays = $settings->requestLoanDurationDays();
-            $endDateTime = new DateTime($startDate);
-            $endDateTime->modify("+{$loanDays} days");
-            $endDate = $endDateTime->format('Y-m-d');
+            $endDate = \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $requestPolicy->requestDurationDays());
         }
 
         $requestedDurationDays = (int) (new DateTime($startDate))->diff(new DateTime($endDate))->days;
@@ -433,19 +431,17 @@ class ReservationsController
             // A real waitlist reservation is intentionally handled above: like
             // UserActionsController::reserve(), it does not consume an active-
             // loan slot until promotion.
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $cntStmt = $this->db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('i', $userId);
-                $cntStmt->execute();
-                $cntResult = $cntStmt->get_result();
-                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
-                    $this->db->rollback();
-                    $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai raggiunto il numero massimo di prestiti attivi consentiti')]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
-                }
+            $limitError = $circulation->loanLimitError($requestPolicy, $userId);
+            if ($limitError !== null) {
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => $limitError,
+                    'message' => $limitError === 'max_loans_reached'
+                        ? __('Hai raggiunto il numero massimo di prestiti attivi consentiti')
+                        : \App\Support\LoanEligibility::errorMessage($limitError),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
             }
 
             // Read the setting while the canonical book lock is still held. With
@@ -696,10 +692,13 @@ class ReservationsController
         // The durations every calendar proposes with (public book page, admin
         // loan and reservation forms, the app): the configured default, capped
         // by the maximum the request endpoints enforce, from one source.
-        $settings = new \App\Models\SettingsRepository($this->db);
+        $circulation = new \App\Services\CirculationPolicy($this->db);
+        $policy = $excludeUserId !== null
+            ? $circulation->forLoan($excludeUserId, (int) $bookId)
+            : $circulation->defaults();
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
-            'loan_duration_days' => $settings->requestLoanDurationDays(),
-            'max_loan_duration_days' => $settings->maxLoanDurationDays(),
+            'loan_duration_days' => $policy->requestDurationDays(),
+            'max_loan_duration_days' => $policy->maxRequestDays,
         ];
     }
 

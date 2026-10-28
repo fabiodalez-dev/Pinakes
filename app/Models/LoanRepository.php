@@ -99,8 +99,8 @@ class LoanRepository
             // Fallback dalla setting di durata prestito: il vecchio +14gg
             // hardcoded era metà del default seminato (30) e ignorava la
             // configurazione dell'admin — stesso fix M5b già applicato a renew().
-            $loanDays = (new SettingsRepository($this->db))->loanDurationDays();
-            $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+            $policy = (new \App\Services\CirculationPolicy($this->db))->forExistingLoan($id, $utente_id > 0 ? $utente_id : null);
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor((string) $data_prestito, $policy->durationDays);
         }
         $processed_by = $data['processed_by'] ?? null;
         $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);

@@ -561,8 +561,6 @@ class UserActionsController
 
         $uid = (int) $user['id'];
         $startDate = $date;
-        $loanDays = (new \App\Models\SettingsRepository($db))->requestLoanDurationDays();
-        $endDate = (new \DateTimeImmutable($date))->modify("+{$loanDays} days")->format('Y-m-d');
 
         $db->begin_transaction();
 
@@ -582,6 +580,8 @@ class UserActionsController
             }
 
             $libroId = (int) $reservation['libro_id'];
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
+            $endDate = \App\Services\CirculationPolicy::dueDateFor($date, $loanDays);
 
             // Lock book row first to serialize every capacity decision.
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
@@ -718,13 +718,14 @@ class UserActionsController
         // library runs in a local zone, so a raw date('Y-m-d') near midnight
         // would date the request to the wrong day.
         $data_prestito = \App\Support\DateHelper::today();
-        $loanDays = (new \App\Models\SettingsRepository($db))->requestLoanDurationDays();
-        $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+        $circulation = new \App\Services\CirculationPolicy($db);
+        $loanPolicy = $circulation->forLoan($utenteId, $libroId);
+        $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_prestito, $loanPolicy->requestDurationDays());
         // Optional return date (Mobile API 1.8.2): the app proposes the day
         // before a scheduled loan or reservation when the default would cross
         // it, exactly as the website calendar does. Bounded like the public
         // endpoint: a real day, not before the start, within the maximum.
-        $endOverride = $this->requestedEndDate($db, $data, $data_prestito);
+        $endOverride = $this->requestedEndDate($loanPolicy->maxRequestDays, $data, $data_prestito);
         if ($endOverride === false) {
             return $this->back($response, ['loan_error' => 'invalid_date']);
         }
@@ -831,19 +832,12 @@ class UserActionsController
                 ]);
             }
 
-            // Enforce max active loans per user (admin setting; 0 = no limit)
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('i', $utenteId);
-                $cntStmt->execute();
-                $cntResult = $cntStmt->get_result();
-                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
-                    $db->rollback();
-                    return $this->back($response, ['loan_error' => 'max_loans_reached']);
-                }
+            // Circulation limits of this patron and title (CirculationPolicy;
+            // 0 = no limit), counted under the user lock.
+            $limitError = $circulation->loanLimitError($loanPolicy, $utenteId);
+            if ($limitError !== null) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => $limitError]);
             }
 
             // Capture the setting while the canonical book/copy locks are still
@@ -974,10 +968,10 @@ class UserActionsController
 
         // Calculate date range for availability check
         $start = ($desired !== '') ? $desired : $today;
-        $loanDays = (new \App\Models\SettingsRepository($db))->requestLoanDurationDays();
-        $end = (new \DateTimeImmutable($start))->modify("+{$loanDays} days")->format('Y-m-d');
+        $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
+        $end = \App\Services\CirculationPolicy::dueDateFor($start, $reservePolicy->requestDurationDays());
         // Optional return date (Mobile API 1.8.2), bounded as in loan().
-        $endOverride = $this->requestedEndDate($db, $data, $start);
+        $endOverride = $this->requestedEndDate($reservePolicy->maxRequestDays, $data, $start);
         if ($endOverride === false) {
             return $this->back($response, ['reserve_error' => 'invalid_date']);
         }
@@ -1118,7 +1112,7 @@ class UserActionsController
      * @param array<mixed> $data
      * @return string|false|null
      */
-    private function requestedEndDate(mysqli $db, array $data, string $startDate): string|false|null
+    private function requestedEndDate(int $maxDays, array $data, string $startDate): string|false|null
     {
         $raw = $data['end_date'] ?? null;
         if (!is_scalar($raw)) {
@@ -1131,7 +1125,6 @@ class UserActionsController
         if (!\App\Support\DateHelper::isISODateFormat($end) || $end < $startDate) {
             return false;
         }
-        $maxDays = (new \App\Models\SettingsRepository($db))->maxLoanDurationDays();
         $days = (int) (new \DateTimeImmutable($startDate))->diff(new \DateTimeImmutable($end))->days;
         return $days > $maxDays ? 'max_duration_exceeded' : $end;
     }
