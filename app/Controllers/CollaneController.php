@@ -483,10 +483,15 @@ class CollaneController
         // SEC2-1 + SEC1-5 (review): require min 2 chars and escape LIKE
         // wildcards so callers can't broaden the match with `%`/`_` or
         // probe single-char prefixes for enumeration.
-        // Each word keeps its own rule (`Mont "Häffner"`): the condition
-        // comes from filterCondition(), one per word, so the minimum applies
-        // to every word: `"a" b` must not probe single characters either.
-        $words = array_column(\App\Support\ExactSearch::tokenize($q), 'term');
+        // Each word keeps its own rule (`Mont "Häffner"`): with a quoted word
+        // filterCondition() builds one condition per word, so the minimum
+        // applies to every word (`"a" b` must not probe single characters).
+        // Unquoted input is still one phrase pattern (`%I Meridiani%`), so it
+        // is measured as a whole and a one-letter article does not block it.
+        $tokens = \App\Support\ExactSearch::tokenize($q);
+        $words = in_array(true, array_column($tokens, 'exact'), true)
+            ? array_column($tokens, 'term')
+            : [\App\Support\ExactSearch::parseFilter($q)['term']];
         $longEnough = $words !== [] && min(array_map('mb_strlen', $words)) >= 2;
         if ($longEnough) {
 
