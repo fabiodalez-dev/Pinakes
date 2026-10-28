@@ -29,7 +29,7 @@ $ledgerCsrf = App\Support\Csrf::ensureToken();
 // The ledger routes (/admin/users/{id}/ledger/*) need loans.manage
 // (Permissions::permissionForPath): the forms, the buttons and the receipt
 // links are rendered only for whoever may reach them.
-$ledgerCanManage = ($ledgerCanManage ?? false) && App\Support\Permissions::can('loans.manage');
+$ledgerCanManage = $ledgerCanManage && App\Support\Permissions::can('loans.manage');
 ?>
   <!-- Movimenti (patron ledger) -->
   <div class="bg-white shadow-sm rounded-2xl border border-slate-200 mt-6" id="movimenti">
