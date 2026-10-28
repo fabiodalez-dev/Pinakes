@@ -57,3 +57,15 @@ CREATE TABLE IF NOT EXISTS `inventario_scansioni` (
 INSERT IGNORE INTO ruoli (nome, permessi) VALUES
 ('Revisore inventario', '["backend.access","inventory.manage"]');
 -- ── end Inventory stocktake ──
+
+-- ── MARC bulk import / copy cataloguing ──
+-- import_logs.import_type gains 'marc': the MARC bulk import and copy
+-- cataloguing record their runs in the import history like the CSV and
+-- LibraryThing imports. The enum keeps its existing values in order.
+SET @marc_has_type = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'import_logs' AND COLUMN_NAME = 'import_type');
+SET @marc_has_value = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'import_logs' AND COLUMN_NAME = 'import_type' AND COLUMN_TYPE LIKE '%''marc''%');
+SET @sql = IF(@marc_has_type = 1 AND @marc_has_value = 0, 'ALTER TABLE import_logs MODIFY COLUMN import_type ENUM(''csv'',''librarything'',''marc'') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT ''Type of import''', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- ── end MARC bulk import / copy cataloguing ──

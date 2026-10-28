@@ -98,6 +98,35 @@ if ($mode === 'e2e') {
     $bytes = $kind === 'xml' ? "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<collection xmlns=\"http://www.loc.gov/MARC21/slim\">\n" : '';
     for ($i = $first; $i < $first + $count; $i++) {
         [, $fields] = e2eMarc21($run, $i, (string) ($seed * 100 + $i));
+        if ($kind === 'malformed') {
+            // every third record has a directory that points past its end
+            $record = iso('00000nam a2200000 i 4500', $fields);
+            $bytes .= $i % 3 === 0 ? substr_replace($record, '9999', 24 + 3, 4) : $record;
+            continue;
+        }
+        if ($kind === 'marc8') {
+            // MARC-8: "Città" with a combining grave before the a; record 2 switches to Cyrillic
+            $n = str_pad((string) $i, 2, '0', STR_PAD_LEFT);
+            $title = $i === $first + 1 ? "Titolo \x1B(N{$run} {$n}" : "Citt\xE1a MARC8 {$run} {$n}";
+            $bytes .= iso('00000nam  2200000   4500', [
+                ['001', "M8{$run}{$n}"],
+                ['020', ' ', ' ', [['a', isbn13('978' . str_pad((string) ($seed * 100 + 50 + $i), 9, '0', STR_PAD_LEFT))]]],
+                ['100', '1', ' ', [['a', "M\xE8uller{$run}, J\xE8urgen"]]],
+                ['245', '1', '0', [['a', $title]]],
+                ['264', ' ', '1', [['b', "Edizioni{$run}"], ['c', '1999']]],
+            ]);
+            continue;
+        }
+        if ($kind === 'authors') {
+            $n = str_pad((string) $i, 2, '0', STR_PAD_LEFT);
+            $bytes .= iso('00000nam a2200000 i 4500', [
+                ['020', ' ', ' ', [['a', isbn13('978' . str_pad((string) ($seed * 100 + 80 + $i), 9, '0', STR_PAD_LEFT))]]],
+                ['100', '1', ' ', [['a', "Häffner{$run}, Jürgen"]]],
+                ['245', '1', '0', [['a', "Libro esatto {$run} {$n}"]]],
+                ['264', ' ', '1', [['b', "Röss{$run}"], ['c', '2020']]],
+            ]);
+            continue;
+        }
         if ($kind === 'xml') {
             $bytes .= xmlRecord('00000nam a2200000 i 4500', $fields);
         } elseif ($kind === 'unimarc') {
