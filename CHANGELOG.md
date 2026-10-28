@@ -51,6 +51,16 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 - `migrate_0.9.0.sql`, section "patron-cards-import": `import_logs.import_type` gains the value `users`; the new enum is computed from the current one, so `marc` and any value added by another section are kept.
 - `migrate_0.9.0.sql`, section "Circulation policy": creates `tipologie_lettore` and `regole_prestito`, seeds the default "Standard" type with every rule NULL, adds `utenti.tipologia_id` (FK `ON DELETE SET NULL`), `utenti.card_expiry_warning_sent_for` and `copie.solo_consultazione`. Idempotent; no existing row changes.
 
+### Closures calendar
+- **The library's closed days.** A new admin page, Admin → Calendario chiusure (`/admin/calendar`, also linked from Settings → Loans), holds the weekly closed days (`loans.closed_weekdays`) and the closures: single days or periods, once or every year, for every branch or for one. The Italian national holidays come with one click (fixed holidays as yearly closures, Easter and Easter Monday computed for the chosen year), any other calendar can be imported from an ICS file, and a monthly preview shows which days are open.
+- **Due dates land on an open day.** The shift lives in `CirculationPolicy::dueDateFor()`, so the per-patron-type durations and renewal days of the circulation policy land on an open day too. A due date that falls on a closed day moves to the next open day: admin loans (proposed and saved), loan edits, reader requests from the website and the app, reservations and their promotion to a loan, renewals and bulk extensions, NCIP CheckOut, RequestItem and RenewItem. A refused renewal proposes the last open day before the conflict.
+- **Pickup days are open days.** The pickup deadline counts only the days the library is open, and the nightly sweep expires no pickup and no scheduled loan on a closed day; a deadline that fell on a day closed afterwards lasts until the next open day.
+- **The request calendars know the closed days.** On the book page and in the admin loan form a closed day cannot be picked as the start; the availability payload carries `closed_dates`, on the website and in the Mobile API `GET /catalog/books/{id}/availability` (additive field).
+- With no closed weekday and no closure configured every date is computed exactly as before.
+
+#### Migration
+- `migrate_0.9.0.sql` (section "closures calendar") creates `calendario_chiusure`, additive and idempotent.
+
 ## [0.8.9]
 
 ### Security
