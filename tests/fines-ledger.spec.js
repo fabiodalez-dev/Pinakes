@@ -558,7 +558,9 @@ test.describe.serial('Fines and patron ledger', () => {
 
       // loans.manage added (the role is re-read on every request): the desk forms appear and work.
       dbQuery(`UPDATE utenti SET ruolo_id=${deskRole} WHERE id=${operatorId}`);
-      await operator.goto(`${BASE}/admin/users/details/${state.patronId}#movimenti`);
+      // A fresh load: the same URL with only a #hash would not re-render the page.
+      await operator.goto(`${BASE}/admin/users/details/${state.patronId}`);
+      await operator.reload();
       await expect(operator.locator('#ledger-payment-form')).toBeVisible();
       await operator.fill('#ledger_pay_amount', '1,00');
       await operator.selectOption('#ledger_pay_method', 'contanti');

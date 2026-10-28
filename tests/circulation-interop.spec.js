@@ -142,7 +142,7 @@ test.describe.serial('Patron-type rules on the Mobile API and NCIP', () => {
       expect(F.dbInt(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${ctx.kid.id}`)).toBe(0);
 
       // An open loan of the child (made before the debt): the renewal is refused the same way.
-      F.dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, origine) VALUES (${ctx.book1.id}, ${ctx.book1.copyIds[0]}, ${ctx.kid.id}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 10 DAY), 'in_corso', 1, 'diretto')`);
+      F.dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, origine) VALUES (${ctx.book1.id}, ${ctx.book1.copyIds[0]}, ${ctx.kid.id}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 10 DAY), 'in_corso', 1, 'ncip')`);
       F.dbQuery(`UPDATE copie SET stato='prestato' WHERE id=${ctx.book1.copyIds[0]}`);
       const loanId = F.dbInt(`SELECT id FROM prestiti WHERE utente_id=${ctx.kid.id} AND libro_id=${ctx.book1.id} AND attivo=1`);
       const due = F.dbQuery(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`);
