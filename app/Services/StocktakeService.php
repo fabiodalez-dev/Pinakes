@@ -387,7 +387,7 @@ final class StocktakeService
     /**
      * Record one scanned or typed code.
      *
-     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string}
+     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool}
      */
     public function scan(int $sessionId, string $rawCode, ?int $operatorId, ?int $scanShelf = null): array
     {
@@ -426,7 +426,12 @@ final class StocktakeService
     }
 
     /**
-     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string}
+     * `fuori_circolazione` flags a copy recorded as lost, damaged or away
+     * (OFF_SHELF_STATES): such a copy is left out of the snapshot, so a scan of
+     * it is out of scope, but the operator must be told it turned up rather
+     * than that it is outside the filter.
+     *
+     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool}
      */
     private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf): array
     {
@@ -507,6 +512,7 @@ final class StocktakeService
             'collocazione' => is_array($copy) ? (string) ($copy['collocazione'] ?? '') : '',
             'scaffale_atteso' => $expectedShelf !== null ? $this->shelfLabel($expectedShelf) : '',
             'stato_copia' => is_array($copy) ? (string) $copy['stato'] : '',
+            'fuori_circolazione' => is_array($copy) && in_array((string) $copy['stato'], self::OFF_SHELF_STATES, true),
         ];
     }
 

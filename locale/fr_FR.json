@@ -8489,6 +8489,7 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Le code ne correspond à aucun exemplaire du catalogue.",
   "Questa copia è già stata registrata in questa revisione.": "Cet exemplaire a déjà été enregistré dans ce récolement.",
   "La copia esiste ma non rientra nel filtro della revisione.": "L'exemplaire existe mais n'entre pas dans le filtre du récolement.",
+  "La copia risulta persa o fuori circolazione, ma è stata ritrovata: aggiornane lo stato.": "L'exemplaire est enregistré comme perdu ou hors circulation, mais il a été retrouvé : mettez à jour son état.",
   "La revisione è stata chiusa da un altro operatore.": "Le récolement a été clôturé par un autre opérateur.",
   "Revisore inventario": "Agent de récolement",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Profil de départ pour participer aux récolements : ouvrir une session et scanner les exemplaires, sans modifier le catalogue ni déclarer des exemplaires perdus.",
