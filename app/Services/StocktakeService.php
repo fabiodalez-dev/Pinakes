@@ -840,20 +840,23 @@ final class StocktakeService
      */
     public function close(int $sessionId, bool $markLost, ?int $operatorId): array
     {
-        // Claim the session first: from here on scans are refused, and a
-        // concurrent cancel or second close cannot also succeed. Marking copies
-        // lost reads inventario_scansioni, not the session state.
-        $this->claimTransition($sessionId, 'chiusa', $operatorId);
-        // The scans are final now, and no loan desk event after this instant
-        // may move a copy between buckets: the report of a closed session is
-        // what it was at close.
-        $this->freezeOutcomes($sessionId);
+        // Publish the closed state and its frozen report together. Scans and
+        // competing transitions wait on the session lock until commit; if the
+        // snapshot fails, rollback leaves the session open for a retry.
+        $this->db->begin_transaction();
+        try {
+            $this->claimTransition($sessionId, 'chiusa', $operatorId);
+            $this->freezeOutcomes($sessionId);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
         $marked = 0;
         $failed = 0;
 
         if ($markLost) {
             $byBook = [];
-            $lost = [];
             foreach ($this->unscannedExpected($sessionId, true) as $row) {
                 if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['titolo'] === null) {
                     continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
@@ -867,7 +870,6 @@ final class StocktakeService
                 try {
                     $lostInBook = $this->markBookCopiesLost($bookId, $copies, $sessionId, $operatorId);
                     $marked += count($lostInBook);
-                    $lost = array_merge($lost, $lostInBook);
                 } catch (\Throwable $e) {
                     $failed += count($copies);
                     SecureLogger::error('[Stocktake] marking missing copies as lost failed', [
@@ -877,7 +879,6 @@ final class StocktakeService
                     ]);
                 }
             }
-            $this->markFrozenLost($sessionId, $lost);
         }
 
         $summary = $this->summary($sessionId);
@@ -1020,6 +1021,9 @@ final class StocktakeService
             if ($changed !== [] && !(new DataIntegrity($this->db))->recalculateBookAvailability($bookId, insideTransaction: true)) {
                 throw new \RuntimeException('Book availability recalculation failed');
             }
+            // Keep the historical outcome in the same transaction as the copy
+            // state, hold reassignment and availability it describes.
+            $this->markFrozenLost($sessionId, array_map(static fn (array $copy): int => (int) $copy['id'], $changed));
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
