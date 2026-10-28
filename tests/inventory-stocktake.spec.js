@@ -386,3 +386,19 @@ test('9. a session can be cancelled: it stays listed as cancelled and refuses sc
   expect(refused.status()).toBe(422);
   expect(Number(dbQuery(`SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id=${id}`))).toBe(0);
 });
+
+test('10. a copy recorded as lost that turns up is reported as found again, not as outside the filter', async ({ page }) => {
+  // P1 is already lost: it is left out of every snapshot, so a scan of it is out of scope (review #504).
+  dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${fx.books.B1}, ${S(code('P1'))}, 'perso')`);
+  fx.copies.P1 = Number(dbQuery(`SELECT id FROM copie WHERE numero_inventario=${S(code('P1'))}`));
+  await login(page, ADMIN);
+  const id = await openSession(page, `${TAG} ritrovata`, fx.shelfX);
+  expect(Number(dbQuery(`SELECT COUNT(*) FROM inventario_attese WHERE sessione_id=${id} AND copia_id=${fx.copies.P1}`))).toBe(0);
+  expect(await scan(page, code('Y1'))).toBe('fuori_ambito');
+  await expect(page.locator('#inventory-feedback')).toContainText('non rientra nel filtro della revisione');
+  expect(await scan(page, code('P1'))).toBe('fuori_ambito');
+  await expect(page.locator('#inventory-feedback')).toContainText('risulta persa o fuori circolazione, ma è stata ritrovata');
+  await expect(page.locator('#inventory-feedback')).toContainText('(perso)');
+  await expect(page.locator('#inventory-feedback')).not.toContainText('non rientra nel filtro della revisione');
+  expect(copyState('P1')).toBe('perso');
+});

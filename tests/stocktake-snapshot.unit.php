@@ -105,7 +105,8 @@ try {
 
     $x = $shelves['X'];
     $check($service->scan($sessionId, "{$p}-C1\r", null, $x)['esito'] === 'trovata', 'C1 scanned on shelf X is found although its book was moved since');
-    $check($service->scan($sessionId, "{$p}-C5", null, $x)['esito'] === 'fuori_ambito', 'a copy added after opening is out of scope');
+    $c5Scan = $service->scan($sessionId, "{$p}-C5", null, $x);
+    $check($c5Scan['esito'] === 'fuori_ambito' && $c5Scan['fuori_circolazione'] === false, 'a copy added after opening is out of scope, and not flagged as out of circulation');
     $check($service->scan($sessionId, "{$p}-C4", null, $x)['esito'] === 'sconosciuta', 'a copy of a book removed from the catalogue is unknown');
     $check($service->scan($sessionId, "{$p}-NOPE", null, $x)['esito'] === 'sconosciuta', 'an unknown code is unknown');
     $check($service->scan($sessionId, strtolower("{$p}-c1"), null, $x)['esito'] === 'duplicata', 'scanning C1 again (any case) is a duplicate');
@@ -156,6 +157,10 @@ try {
     $check((int) $one("SELECT totale_attese FROM inventario_sessioni WHERE id = {$second}") === 3, 'a collocation range opens on B2 alone (C3, C5, C7)');
     $import = $service->importCodes($second, StocktakeService::parseCodeList("codice\n{$p}-C5\n{$p}-C5\n{$p}-C1\n{$p}-C7\n"), null, null);
     $check($import['total'] === 4 && $import['outcomes']['trovata'] === 1 && $import['outcomes']['duplicata'] === 1 && $import['outcomes']['fuori_ambito'] === 1 && $import['outcomes']['in_prestito'] === 1, 'an uploaded list is classified line by line; a copy waiting for pickup is reported with the lent ones');
+    // A copy recorded as lost is outside every snapshot; when it turns up the
+    // operator is told it was found, not that it is outside the filter (review #504).
+    $c9Scan = $service->scan($second, "{$p}-C9", null, null);
+    $check($c9Scan['esito'] === 'fuori_ambito' && $c9Scan['fuori_circolazione'] === true && $c9Scan['stato_copia'] === 'perso', 'a lost copy that turns up is flagged as out of circulation with its recorded state');
     $service->cancel($second, null);
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'cancelling leaves every copy as it was');
 
