@@ -498,7 +498,7 @@ unset($workspaceHeader);
       // typed is never replaced by a later availability fetch; one this code
       // proposed follows the new subject (another book or borrower may have no
       // conflict, or a different one).
-      let autoProposedEnd = <?= json_encode($oldDataScadenza === '' ? ($defaultDataScadenza ?? null) : null, JSON_HEX_TAG) ?>;
+      let autoProposedEnd = <?= json_encode($oldDataScadenza === '' ? ($defaultDataScadenza ?? null) : null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       function setLoanLimitHint(text) {
         const hint = document.getElementById('data_scadenza_hint');
         if (!hint) return;

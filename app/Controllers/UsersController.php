@@ -181,8 +181,13 @@ class UsersController
         // librarian typed wins. (The edit form opts in explicitly and
         // recomputes, see update().)
         $patronTypeId = \App\Support\PatronTypeAssignment::fromSubmission($db, $data);
-        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto']) && $dataScadenzaInput === '') {
-            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId);
+        // The form pre-fills a 5-year date as a suggestion and flags it
+        // (card_expiry_prefilled=1) until the librarian edits the field: that
+        // date is not "typed", the type's card duration replaces it, and it
+        // stays when the type has no card duration.
+        $expiryTyped = $dataScadenzaInput !== '' && (string) ($data['card_expiry_prefilled'] ?? '0') !== '1';
+        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto']) && !$expiryTyped) {
+            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId) ?? $dataScadenzaTessera;
         }
 
         $stato = (string) ($data['stato'] ?? ($isAdmin ? 'attivo' : 'attivo'));
