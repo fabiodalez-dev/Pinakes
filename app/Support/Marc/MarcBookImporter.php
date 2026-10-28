@@ -25,6 +25,11 @@ use App\Controllers\CsvImportController;
  *   overwrite  every field the record carries replaces the book's; a field
  *              the record does not carry is kept
  *
+ * The format and the price are never read from a record. The media type
+ * (leader/06) is: in overwrite mode it replaces the book's, in fill mode it
+ * is left, since a book always has one (libri.tipo_media is NOT NULL with
+ * the default 'libro').
+ *
  * The columns the CSV pipeline does not write (place of publication,
  * dimensions, LC classification, ISSN, the book's own RDA codes) and the
  * cover (856) follow the same mode.
@@ -298,10 +303,17 @@ final class MarcBookImporter
             }
             $families[$family] = array_intersect_key(array_flip(self::FAMILY_COLUMNS[$family]), $empty) !== [];
         }
-        // Never from a MARC record: the format and the price.
+        // Never from a MARC record: the format and the price. The media type
+        // is its own family of the pipeline, apart from the format (which the
+        // CSV import derives from the row): in overwrite mode a record that
+        // carries one sets it; in fill mode it is left, because a book always
+        // has a media type (libri.tipo_media is NOT NULL, default 'libro'),
+        // so the family never has an empty column to fill.
         foreach (['formato', 'prezzo'] as $family) {
             $families[$family] = false;
         }
+        $families['tipo_media'] = $mode === self::MODE_OVERWRITE
+            && trim((string) ($data['tipo_media'] ?? '')) !== '';
         foreach (self::FAMILY_COLUMNS as $family => $columns) {
             foreach ($columns as $column) {
                 if ($column === 'editore_id' || $column === 'genere_id') {

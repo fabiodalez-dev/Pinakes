@@ -127,6 +127,13 @@ test.describe.serial('Patron types CRUD', () => {
     expect(text).toMatch(/Tipologia lettore|Patron type/);
     expect(text).toContain(patron.email);
     expect(text).toContain(`Studenti ${RUN}`);
+    // The type code stands right after the name, so the file re-imports by code.
+    const header = text.replace(/^\uFEFF/, '').split(/\r?\n/)[0].split(';').map((h) => h.replace(/^"|"$/g, ''));
+    const nameCol = header.findIndex((h) => /^(Tipologia lettore|Patron type)$/.test(h));
+    expect(nameCol).toBeGreaterThan(0);
+    expect(header[nameCol + 1]).toMatch(/^(Codice tipologia lettore|Patron type code)$/);
+    const row = text.split(/\r?\n/).find((l) => l.includes(patron.email)) || '';
+    expect(row.split(';')[nameCol + 1].replace(/^"|"$/g, '')).toBe(`${PREFIX}-stud`);
   });
 
   test('deleting a type moves its patrons back to the default type', async () => {

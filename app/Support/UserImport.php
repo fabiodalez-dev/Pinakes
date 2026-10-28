@@ -57,7 +57,18 @@ final class UserImport
         'data_scadenza_tessera' => ['datascadenzatessera', 'scadenzatessera', 'scadenza', 'expiry', 'expirydate', 'cardexpiry', 'expires', 'ablaufdatum', 'gultigbis', 'datedexpiration', 'udlobsdato'],
         'note_utente' => ['noteutente', 'note', 'notes', 'notizen', 'noter', 'noteinterne'],
         'locale' => ['locale', 'lingua', 'language', 'sprache', 'langue', 'sprog'],
-        'tipologia' => ['tipologia', 'tipologialettore', 'patrontype', 'membertype', 'readertype', 'lesertyp', 'typedelecteur', 'lanertype'],
+        'tipologia' => ['tipologia', 'tipologialettore', 'patrontype', 'membertype', 'readertype', 'lesertyp', 'leserkategorie', 'typedelecteur', 'categoriedelecteur', 'lanertype', 'lanerkategori'],
+    ];
+
+    /**
+     * Header spellings that name the patron type CODE column of the users CSV
+     * export ("Codice tipologia lettore" in the five languages). They map to
+     * `tipologia` like the name column, but guessMapping() prefers them: an
+     * export carries both columns and must re-import by code, which is exact
+     * even when two types share a name.
+     */
+    private const PREFERRED_ALIASES = [
+        'tipologia' => ['codicetipologia', 'codicetipologialettore', 'tipologiacodice', 'tipologialettorecodice', 'patrontypecode', 'typecode', 'membertypecode', 'readertypecode', 'lesertypcode', 'codederleserkategorie', 'leserkategoriecode', 'codetypedelecteur', 'codedelacategoriedelecteur', 'lanertypekode', 'lanerkategorikode', 'kodeforlanerkategori'],
     ];
 
     /**
@@ -85,7 +96,7 @@ final class UserImport
             'locale' => __('Lingua dell\'interfaccia'),
         ];
         if ($withPatronType) {
-            $fields['tipologia'] = __('Tipologia lettore (codice)');
+            $fields['tipologia'] = __('Tipologia lettore (codice o nome)');
         }
         foreach ($customDefinitions as $def) {
             $fields['custom:' . $def['id']] = $def['etichetta'];
@@ -137,7 +148,10 @@ final class UserImport
 
     /**
      * Suggested mapping: column index => field key ('' = ignore). Each field is
-     * proposed for one column at most (the first that matches).
+     * proposed for one column at most: the first that matches, except that a
+     * PREFERRED_ALIASES spelling wins over any other wherever it stands (the
+     * users export has the patron type name and then its code; the code is
+     * the column that re-imports exactly).
      *
      * @param list<string> $headers
      * @param array<string,string> $targetFields from targetFields()
@@ -157,21 +171,38 @@ final class UserImport
             // installation carries localized headers).
             $byAlias[self::normalizeHeader($targetFields[$field])] ??= $field;
         }
+        $preferred = [];
+        foreach (self::PREFERRED_ALIASES as $field => $aliases) {
+            if (!isset($targetFields[$field])) {
+                continue;
+            }
+            foreach ($aliases as $alias) {
+                $byAlias[$alias] ??= $field;
+                if ($byAlias[$alias] === $field) {
+                    $preferred[$alias] = true;
+                }
+            }
+        }
         foreach ($targetFields as $key => $label) {
             if (str_starts_with($key, 'custom:')) {
                 $byAlias[self::normalizeHeader($label)] ??= $key;
             }
         }
-        $mapping = [];
+        $mapping = array_fill_keys(array_keys($headers), '');
         $taken = [];
-        foreach ($headers as $i => $header) {
-            $norm = self::normalizeHeader((string) $header);
-            $field = $byAlias[$norm] ?? '';
-            if ($field !== '' && !isset($taken[$field])) {
-                $mapping[$i] = $field;
-                $taken[$field] = true;
-            } else {
-                $mapping[$i] = '';
+        // Two passes: the preferred spellings take their field first, then
+        // the other headers take what is left, in file order.
+        foreach ([true, false] as $preferredPass) {
+            foreach ($headers as $i => $header) {
+                $norm = self::normalizeHeader((string) $header);
+                if (isset($preferred[$norm]) !== $preferredPass) {
+                    continue;
+                }
+                $field = $byAlias[$norm] ?? '';
+                if ($field !== '' && !isset($taken[$field])) {
+                    $mapping[$i] = $field;
+                    $taken[$field] = true;
+                }
             }
         }
         return $mapping;
@@ -359,25 +390,52 @@ final class UserImport
     }
 
     /**
-     * Delimiter of a CSV sample: the most frequent of ";", "," and TAB, or null
-     * when none occurs.
+     * Delimiter of a CSV sample (the header and the first few lines): the one
+     * of ";", "," and TAB that splits the lines into columns most consistently,
+     * or null when none splits the header at all.
+     *
+     * Each candidate is judged by the structure it yields, not by how often it
+     * occurs: a ";" file whose addresses hold commas ("Via Roma 1, int. 3,
+     * 00100 Roma") has more commas than semicolons, yet only ";" gives every
+     * line the header's column count. Quoted fields are respected as the
+     * reader respects them (enclosure '"', no escape character), so a comma
+     * inside "…" never counts. The candidate whose column count is shared by
+     * the largest share of the data lines wins; the wider one on a tie.
      *
      * @param list<string|false> $lines
      */
     public static function detectDelimiter(array $lines): ?string
     {
-        $candidates = [';' => 0, ',' => 0, "\t" => 0];
+        $sample = [];
         foreach ($lines as $line) {
-            if (!is_string($line)) {
-                continue;
-            }
-            foreach (array_keys($candidates) as $delimiter) {
-                $candidates[$delimiter] += substr_count($line, $delimiter);
+            if (is_string($line) && trim($line) !== '') {
+                $sample[] = rtrim($line, "\r\n");
             }
         }
-        arsort($candidates);
-        $best = (string) array_key_first($candidates);
-        return $candidates[$best] > 0 ? $best : null;
+        if ($sample === []) {
+            return null;
+        }
+        $header = array_shift($sample);
+        $best = null;
+        $bestScore = [0.0, 1];
+        foreach ([';', ',', "\t"] as $delimiter) {
+            $columns = count(str_getcsv($header, $delimiter, '"', ''));
+            if ($columns < 2) {
+                continue;
+            }
+            $matching = 0;
+            foreach ($sample as $line) {
+                if (count(str_getcsv($line, $delimiter, '"', '')) === $columns) {
+                    $matching++;
+                }
+            }
+            $score = [$sample === [] ? 1.0 : $matching / count($sample), $columns];
+            if ($score > $bestScore) {
+                $best = $delimiter;
+                $bestScore = $score;
+            }
+        }
+        return $best;
     }
 
     /** A CSV cell as trimmed text, with the export's formula-escape apostrophe undone. */
