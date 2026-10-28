@@ -25,9 +25,17 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
-## What's New in v0.8.9
+## What's New in v0.9.0
 
-**Search Console verification, a pickup reminder, and an SEO pass.** Settings → Advanced has a field for the `<meta>` verification tags of Google, Bing and the other search engines ([#497](https://github.com/fabiodalez-dev/Pinakes/pull/497)). Readers get a reminder before the pickup deadline passes, "Loan approved" can say how many days they have to pick the book up, and the staff is told when a pickup expires ([#498](https://github.com/fabiodalez-dev/Pinakes/pull/498)); the new approval text ships to new installations only, existing ones keep their template and can add `{{giorni_ritiro}}` and `{{scadenza_ritiro}}`. The 404 page is no longer indexed, empty pages past the last one answer 404, structured data and the sitemap are more complete, and the loan request calendar fills its row. One additive migration (`migrate_0.8.9.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Stocktake, MARC in and out, and the circulation tools of a full library system.** One additive migration (`migrate_0.9.0.sql`); an installation that never opens the new pages and settings behaves exactly as before. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+
+- **Inventory stocktake** (`/admin/inventory`): sessions over a bookcase, shelf, genre or collocation range, scanning by barcode reader, camera or uploaded list, a live found / misplaced / on loan / missing report with PDF and CSV, and an optional "mark missing as lost" reserved to administrators.
+- **MARC bulk import and export, copy cataloguing**: ISO 2709 and MARCXML (MARC 21, UNIMARC, danMARC2, MARC-8) imported in chunks with a preview, the catalogue or a selection exported as MARC 21, MARCXML or UNIMARC, and records searched and imported from other catalogues over SRU.
+- **Visitor log, catalogue cards, suppliers and RDA types**: a kiosk visitor log with GDPR retention, ISBD catalogue cards as PDF, a suppliers register linked to books, RDA content/media/carrier overrides, and new statistics sections.
+- **Library cards and user import**: printable patron cards (CR80 or A4 sheets, Code128 or QR), patron photo from the webcam, and user import from CSV with column mapping.
+- **Patron types and circulation rules**: loan duration, renewals, request window and limits per patron type and material, from one circulation policy.
+- **Closures calendar**: weekly closed days and closures; due dates and pickup deadlines move to the next open day.
+- **Fines and patron ledger**: optional late fines with grace days and a cap, an append-only ledger with payments, waivers and receipts, and an optional debt block.
 
 ---
 
@@ -53,13 +61,13 @@ The showcase contains 50 catalogue books, 8 desiderata, 3 periodicals with 10 is
 
 Highlights of the two releases before the current one are below; the README never lists more than the last three versions. The full version-by-version history lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
+### v0.8.9
+
+**Search Console verification, a pickup reminder, and an SEO pass.** Settings → Advanced has a field for the `<meta>` verification tags of Google, Bing and the other search engines ([#497](https://github.com/fabiodalez-dev/Pinakes/pull/497)). Readers get a reminder before the pickup deadline passes, "Loan approved" can say how many days they have to pick the book up, and the staff is told when a pickup expires ([#498](https://github.com/fabiodalez-dev/Pinakes/pull/498)); the new approval text ships to new installations only, existing ones keep their template and can add `{{giorni_ritiro}}` and `{{scadenza_ritiro}}`. The 404 page is no longer indexed, empty pages past the last one answer 404, structured data and the sitemap are more complete, and the loan request calendar fills its row. One additive migration (`migrate_0.8.9.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+
 ### v0.8.8
 
 **A French sentence that now includes the last day of a loan.** "retour avant le D" left out the return day the server still accepts; it now says "retour au plus tard le D" ([#490](https://github.com/fabiodalez-dev/Pinakes/pull/490)). No migration.
-
-### v0.8.7
-
-**A security notice for PHP, loan windows that explain themselves, and Desiderata codes that follow the book.** CVE-2026-109618 and CVE-2026-109619 are in the PHP runtime, not in Pinakes: the dashboard and the updates page tell administrators when their server's PHP is older than 8.5.12, 8.4.27, 8.3.36 or 8.2.35 ([#491](https://github.com/fabiodalez-dev/Pinakes/issues/491)). Loan requests stop before a scheduled loan and say the longest possible loan ([#490](https://github.com/fabiodalez-dev/Pinakes/pull/490)), renewals say until when they are possible ([#493](https://github.com/fabiodalez-dev/Pinakes/pull/493)), and Desiderata copies get the book's inventory prefix ([#494](https://github.com/fabiodalez-dev/Pinakes/pull/494)). No migration; see **[CHANGELOG.md](CHANGELOG.md)**.
 
 Older releases are in **[CHANGELOG.md](CHANGELOG.md)**.
 
