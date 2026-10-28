@@ -216,7 +216,7 @@ class ReservationManager
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ? AND r.stato = 'attiva'
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
-                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "{$materialRefusedSql}
+                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db) . "{$materialRefusedSql}
                 AND ({$limitSql} <= 0 OR (
                     SELECT COUNT(*)
                     FROM prestiti cap

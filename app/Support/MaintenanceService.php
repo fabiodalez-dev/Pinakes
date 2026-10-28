@@ -182,11 +182,14 @@ class MaintenanceService
         // 0.9.0 (plan §7): convert any prestiti.sanzione the migration's
         // batches did not reach into ledger rows. Marker-guarded so the scan
         // runs until it completes once; new penalties are written live with
-        // the same idempotency key.
+        // the same idempotency key. The marker is written only after a scan
+        // that ran to the end: with the ledger table still missing (code
+        // deployed before its migration) the backfill returns null and a
+        // failed batch throws, so the next pass tries again.
         try {
             $settingsRepo = new \App\Models\SettingsRepository($this->db);
-            if ($settingsRepo->get('loans', 'legacy_penalties_backfilled', '0') !== '1') {
-                \App\Services\PatronLedger::forDb($this->db)->backfillLegacyPenalties();
+            if ($settingsRepo->get('loans', 'legacy_penalties_backfilled', '0') !== '1'
+                && \App\Services\PatronLedger::forDb($this->db)->backfillLegacyPenalties() !== null) {
                 $settingsRepo->set('loans', 'legacy_penalties_backfilled', '1');
             }
         } catch (\Throwable $e) {
@@ -1106,7 +1109,7 @@ class MaintenanceService
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
             AND " . \App\Support\LoanEligibility::promotableReservationWhere('p') . "
-            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
+            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db) . "
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 

@@ -146,9 +146,11 @@ class LoanEligibility
      * setting) inside the fragment, so no caller has to bind an extra value:
      * with no threshold anywhere the predicate is the pre-0.9.0 one. The
      * balance subquery is served by the covering index
-     * movimenti_lettore(utente_id, importo).
+     * movimenti_lettore(utente_id, importo). $db is probed once per request
+     * for the 0.9.0 tables (code ships before its migration runs): without
+     * the ledger table the fragment carries no debt predicate at all.
      */
-    public static function eligibleUserWhere(string $alias): string
+    public static function eligibleUserWhere(string $alias, \mysqli $db): string
     {
         return "(
                     {$alias}.stato = 'attivo'
@@ -157,7 +159,7 @@ class LoanEligibility
                         OR {$alias}.data_scadenza_tessera IS NULL
                         OR {$alias}.data_scadenza_tessera >= ?
                     )
-                    AND " . self::debtBlockSql($alias) . "
+                    AND " . self::debtBlockSql($alias, $db) . "
                 )";
     }
 
@@ -168,30 +170,42 @@ class LoanEligibility
      * Threshold, first non-NULL of: the patron's own type, the default type
      * (first predefinita = 1 in display order, as CirculationPolicy::types()),
      * the global loans.debt_block_threshold when it is a well-formed amount.
-     * A threshold of NULL or 0 never blocks.
+     * A threshold of NULL or 0 never blocks. With no movimenti_lettore table
+     * (PatronLedger::schemaReady()) nobody has a balance: "1 = 1".
      */
-    public static function debtBlockSql(string $alias): string
+    public static function debtBlockSql(string $alias, \mysqli $db): string
     {
-        $threshold = self::debtThresholdSql($alias);
+        if (!\App\Services\PatronLedger::schemaReady($db)) {
+            return '1 = 1';
+        }
+        $threshold = self::debtThresholdSql($alias, $db);
         return "(
                         COALESCE({$threshold}, 0) <= 0
                         OR " . \App\Services\PatronLedger::balanceSql($alias . '.id') . " <= {$threshold}
                     )";
     }
 
-    /** SQL expression for the debt threshold that applies to the `utenti` row $alias (NULL = none). */
-    public static function debtThresholdSql(string $alias): string
+    /**
+     * SQL expression for the debt threshold that applies to the `utenti` row
+     * $alias (NULL = none). Without the patron type tables
+     * (CirculationPolicy::schemaReady()) only the global setting applies.
+     */
+    public static function debtThresholdSql(string $alias, \mysqli $db): string
     {
+        $global = "(SELECT CAST(REPLACE(dbt_g.setting_value, ',', '.') AS DECIMAL(10,2)) FROM system_settings dbt_g
+                          WHERE dbt_g.category = 'loans' AND dbt_g.setting_key = 'debt_block_threshold'
+                            AND dbt_g.setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2}){0,1}$'
+                          LIMIT 1)";
+        if (!(new \App\Services\CirculationPolicy($db))->schemaReady()) {
+            return $global;
+        }
         return "COALESCE(
                         (SELECT dbt_t.soglia_blocco_debito FROM tipologie_lettore dbt_t
                           WHERE dbt_t.id = COALESCE(
                               (SELECT dbt_o.id FROM tipologie_lettore dbt_o WHERE dbt_o.id = {$alias}.tipologia_id),
                               (SELECT dbt_d.id FROM tipologie_lettore dbt_d WHERE dbt_d.predefinita = 1
                                 ORDER BY dbt_d.ordinamento ASC, dbt_d.nome ASC, dbt_d.id ASC LIMIT 1))),
-                        (SELECT CAST(REPLACE(dbt_g.setting_value, ',', '.') AS DECIMAL(10,2)) FROM system_settings dbt_g
-                          WHERE dbt_g.category = 'loans' AND dbt_g.setting_key = 'debt_block_threshold'
-                            AND dbt_g.setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2}){0,1}$'
-                          LIMIT 1)
+                        {$global}
                     )";
     }
 }

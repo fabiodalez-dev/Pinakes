@@ -67,7 +67,7 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 - `migrate_0.9.0.sql`, section "patron-cards-import": `import_logs.import_type` gains the value `users`; the new enum is computed from the current one, so `marc` and any value added by another section are kept.
 - `migrate_0.9.0.sql`, section "Circulation policy": creates `tipologie_lettore` and `regole_prestito`, seeds the default "Standard" type with every rule NULL, adds `utenti.tipologia_id` (FK `ON DELETE SET NULL`), `utenti.card_expiry_warning_sent_for` and `copie.solo_consultazione`. Idempotent; no existing row changes.
 - `migrate_0.9.0.sql`, section "closures calendar": creates `calendario_chiusure` (closure intervals, optional yearly recurrence and branch, FK to `sedi` ON DELETE CASCADE); the weekly closed days are the setting `loans.closed_weekdays`, no schema. Additive and idempotent.
-- `migrate_0.9.0.sql`, section "fines-ledger": creates `movimenti_lettore` and converts every existing `prestiti.sanzione > 0` into one charge (`addebito_perdita` for a lost copy, `addebito_danno` otherwise, key `penalty:<loan>`), in batches; maintenance converts anything past the batches. `prestiti.sanzione` stays and is still written.
+- `migrate_0.9.0.sql`, section "fines-ledger": creates `movimenti_lettore` and converts every existing `prestiti.sanzione > 0` into one charge (`addebito_perdita` for a lost copy, `addebito_danno` otherwise, key `penalty:<loan>`), in batches; maintenance converts anything past the batches and records the scan as complete only once the table exists and a pass has run to the end. Until the migration has run, the queue selection and the eligibility check carry no debt predicate. `prestiti.sanzione` stays and is still written.
 
 ## [0.8.9]
 

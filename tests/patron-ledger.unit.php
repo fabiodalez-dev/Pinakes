@@ -111,7 +111,7 @@ $newLoan = static function (int $userId, string $start, string $due) use ($db, $
 };
 $count = static fn (string $where): int => (int) $db->query("SELECT COUNT(*) FROM movimenti_lettore WHERE {$where}")->fetch_row()[0];
 $sqlEligible = static function (int $userId) use ($db, $today): bool {
-    $stmt = $db->prepare('SELECT COUNT(*) FROM utenti u WHERE u.id = ? AND ' . LoanEligibility::eligibleUserWhere('u'));
+    $stmt = $db->prepare('SELECT COUNT(*) FROM utenti u WHERE u.id = ? AND ' . LoanEligibility::eligibleUserWhere('u', $db));
     $stmt->bind_param('is', $userId, $today);
     $stmt->execute();
     $n = (int) $stmt->get_result()->fetch_row()[0];
@@ -224,10 +224,10 @@ try {
     $check(
         // A non-constant user row: with u.id = <const> the optimizer folds the
         // whole predicate before execution and the plan shows no subquery.
-        str_contains($plan("SELECT u.id FROM utenti u WHERE u.email LIKE 'zz-ledger%' AND " . str_replace('?', "'{$today}'", LoanEligibility::eligibleUserWhere('u'))), 'idx_movimenti_utente'),
+        str_contains($plan("SELECT u.id FROM utenti u WHERE u.email LIKE 'zz-ledger%' AND " . str_replace('?', "'{$today}'", LoanEligibility::eligibleUserWhere('u', $db))), 'idx_movimenti_utente'),
         'inside eligibleUserWhere the ledger is read through idx_movimenti_utente (EXPLAIN)'
     );
-    $check(substr_count(LoanEligibility::eligibleUserWhere('u'), '?') === 1, 'the fragment still needs exactly ONE placeholder');
+    $check(substr_count(LoanEligibility::eligibleUserWhere('u', $db), '?') === 1, 'the fragment still needs exactly ONE placeholder');
 
     echo "E. Zero config\n";
     foreach ($settingKeys as $k) {

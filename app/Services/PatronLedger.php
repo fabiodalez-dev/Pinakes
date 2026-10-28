@@ -41,6 +41,9 @@ final class PatronLedger
     /** Largest single amount an operator may type (DECIMAL(10,2) headroom). */
     public const MAX_AMOUNT_CENTS = 99999999;
 
+    /** @var array<string, bool> one probe per connection and request (as CirculationPolicy::schemaReady()) */
+    private static array $schemaReady = [];
+
     private mysqli $db;
     private FineCalculator $calculator;
 
@@ -68,6 +71,33 @@ final class PatronLedger
         return new self($db, new FineCalculator(
             static fn (string $ymd, ?int $branchId = null): bool => $calendar->isOpen($ymd, $branchId)
         ));
+    }
+
+    /**
+     * Whether movimenti_lettore exists. Code ships before its migration runs
+     * during an upgrade: until then there is no balance, so no debt block in
+     * SQL or PHP, and nothing for the maintenance backfill to do.
+     */
+    public static function schemaReady(mysqli $db): bool
+    {
+        $key = (string) spl_object_id($db);
+        if (!array_key_exists($key, self::$schemaReady)) {
+            $ready = false;
+            try {
+                $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'");
+                $ready = $result instanceof \mysqli_result && (int) ($result->fetch_row()[0] ?? 0) === 1;
+            } catch (\Throwable) {
+                $ready = false;
+            }
+            self::$schemaReady[$key] = $ready;
+        }
+        return self::$schemaReady[$key];
+    }
+
+    /** Drop the per-request schema probe (tests that migrate a database mid-process). */
+    public static function resetSchemaCache(): void
+    {
+        self::$schemaReady = [];
     }
 
     /** SQL expression for a patron's balance; $userIdExpr is a fixed column reference. */
@@ -413,10 +443,15 @@ final class PatronLedger
      * past its batch limit) into ledger rows, $batch loans per transaction.
      * Same key as the migration, so it never doubles an amount.
      *
-     * @return int movements written
+     * @return int|null movements written; null when the ledger table does not
+     *                  exist yet (the 0.9.0 migration has not run), so the
+     *                  caller does not record the scan as completed
      */
-    public function backfillLegacyPenalties(int $batch = 500, int $maxBatches = 1000): int
+    public function backfillLegacyPenalties(int $batch = 500, int $maxBatches = 1000): ?int
     {
+        if (!self::schemaReady($this->db)) {
+            return null;
+        }
         $written = 0;
         $batch = max(1, min(5000, $batch));
         $sql = "INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, creato_da, created_at, chiave_idempotenza)
@@ -431,7 +466,8 @@ final class PatronLedger
                 ON DUPLICATE KEY UPDATE movimenti_lettore.id = movimenti_lettore.id";
         for ($i = 0; $i < $maxBatches; $i++) {
             if (!$this->db->query($sql)) {
-                break;
+                // Not "done": the caller must not record the scan as completed.
+                throw new \RuntimeException('Legacy penalty backfill failed: ' . $this->db->error);
             }
             $affected = $this->db->affected_rows;
             if ($affected <= 0) {

@@ -367,6 +367,10 @@ final class CirculationPolicy
      */
     public function debtBlockError(int $userId): ?string
     {
+        // No ledger table (code deployed before its migration): no balance, no block.
+        if (!PatronLedger::schemaReady($this->db)) {
+            return null;
+        }
         $threshold = FineParameters::moneyToCents($this->forUser($userId)->debtBlockThreshold);
         if ($threshold === null || $threshold <= 0) {
             return null;

@@ -98,7 +98,16 @@ try {
         (14, 2, 'restituito',   4.00, NULL, NULL)");
 
     $check($scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'") === '0', 'pre-upgrade: no ledger table');
+    // Code deployed before its migration: no debt predicate, no backfill "done".
+    $check(!PatronLedger::schemaReady($db) && (new PatronLedger($db))->backfillLegacyPenalties() === null, 'pre-upgrade: the backfill reports the missing table (null), so maintenance keeps its marker unset');
+    $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
+    $check(!str_contains($fragment, 'movimenti_lettore') && str_contains($fragment, '1 = 1') && substr_count($fragment, '?') === 1, 'pre-upgrade: eligibleUserWhere() carries no debt predicate and still needs ONE placeholder');
     $runMigration();
+    PatronLedger::resetSchemaCache();
+    \App\Services\CirculationPolicy::resetSchemaCache();
+    $check(PatronLedger::schemaReady($db), 'after the migration the ledger probe says ready');
+    $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
+    $check(str_contains($fragment, 'movimenti_lettore') && !str_contains($fragment, 'tipologie_lettore') && str_contains($fragment, 'debt_block_threshold'), 'with the ledger but no patron type tables the debt predicate reads the global threshold only');
     $check($scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'") === '1', 'the migration creates movimenti_lettore');
     $check($scalar("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore' AND INDEX_NAME = 'uniq_movimenti_chiave' AND NON_UNIQUE = 0") === '1', 'idempotency key is UNIQUE');
     $check($scalar("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore' AND INDEX_NAME = 'idx_movimenti_utente'") === 'utente_id,importo', 'covering index on (utente_id, importo)');
