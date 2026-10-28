@@ -4,7 +4,8 @@ declare(strict_types=1);
 /**
  * Run the REAL "closures calendar" section of migrate_0.9.0.sql, twice,
  * against a sandbox database seeded with the 0.8.9 schema (the schema.sql of
- * the last release, read from git), and check its effect and idempotency.
+ * the last release, read from git; the 0.8.9 `sedi` table alone in a shallow
+ * clone), and check its effect and idempotency.
  *
  * Needs a user allowed to create the sandbox database (E2E_MIG_DB, default
  * "<DB_NAME>_migtest_cal"). Run: php tests/migration-0.9.0-closures-calendar.unit.php
@@ -32,11 +33,34 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
 };
 
 // The 0.8.9 schema: the last released schema.sql, so "old" really is old.
+// A shallow CI clone has neither the tag nor the commit; the section only
+// depends on `sedi` (its foreign key), so the 0.8.9 definition of that table,
+// verbatim, is the seed there.
 $oldSchema = shell_exec('git -C ' . escapeshellarg($root) . ' show v0.8.9:installer/database/schema.sql 2>/dev/null')
     ?: shell_exec('git -C ' . escapeshellarg($root) . ' show 12f05750:installer/database/schema.sql 2>/dev/null');
 if (!is_string($oldSchema) || !str_contains($oldSchema, 'CREATE TABLE `sedi`')) {
-    fwrite(STDERR, "cannot read the 0.8.9 schema from git\n");
-    exit(1);
+    echo "0.8.9 schema.sql not in the local git history: seeding the 0.8.9 `sedi` table\n";
+    $oldSchema = <<<'SQL'
+CREATE TABLE `sedi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Nome della sede (es. Sede Centrale, Succursale Nord)',
+  `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Codice identificativo della sede',
+  `indirizzo` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `citta` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cap` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provincia` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orari_apertura` text COLLATE utf8mb4_unicode_ci COMMENT 'Orari di apertura in formato libero',
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_codice` (`codice`),
+  KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Sedi della biblioteca (per sistemi multi-sede)';
+SQL;
 }
 
 $migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
