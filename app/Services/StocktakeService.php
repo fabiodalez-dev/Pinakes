@@ -21,10 +21,18 @@ use mysqli;
  * found, misplaced, on loan (lent, or waiting on the pickup shelf) or missing.
  * Unknown codes, copies outside the filter and repeated scans are counted on
  * the side.
+ *
+ * While the session is open the bucket of an unscanned copy follows the loan
+ * desk (a return makes it missing, a loan makes it on loan). Closing writes
+ * the bucket of every expected copy into inventario_attese.esito_chiusura,
+ * and from then on the report, its exports and the counters read that column:
+ * what the stocktake found is what it keeps saying.
  */
 final class StocktakeService
 {
     public const OUTCOMES = ['trovata', 'fuori_posto', 'in_prestito', 'sconosciuta', 'duplicata', 'fuori_ambito'];
+    /** inventario_attese.esito_chiusura: the bucket of an expected copy, frozen at close. */
+    public const CLOSE_OUTCOMES = ['trovata', 'fuori_posto', 'in_prestito', 'mancante', 'persa'];
     public const MEDIA_TYPES = ['libro', 'disco', 'audiolibro', 'dvd', 'altro'];
     public const MAX_CODE_LENGTH = 100;
     public const MAX_UPLOAD_CODES = 5000;
@@ -607,10 +615,33 @@ final class StocktakeService
     }
 
     /**
-     * Live counters. The four buckets of the expected copies always add up to
-     * the snapshot size: found + misplaced + on loan + missing = expected.
+     * A closed session reports the buckets frozen at close. A session closed
+     * before esito_chiusura existed still has NULL rows and keeps the live
+     * computation, as does an open or cancelled one.
+     */
+    private function isFrozen(int $sessionId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM inventario_sessioni s WHERE s.id = ? AND s.stato <> 'aperta' "
+            . 'AND NOT EXISTS (SELECT 1 FROM inventario_attese a WHERE a.sessione_id = s.id AND a.esito_chiusura IS NULL)'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $sessionId);
+        $stmt->execute();
+        $frozen = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $frozen;
+    }
+
+    /**
+     * Counters. The four buckets of the expected copies always add up to the
+     * snapshot size: found + misplaced + on loan + missing = expected. They
+     * are live while the session is open and frozen once it is closed; `perse`
+     * is the part of `mancanti` the close marked lost (0 while open).
      *
-     * @return array{attese:int,trovate:int,fuori_posto:int,in_prestito:int,mancanti:int,sconosciute:int,fuori_ambito:int,duplicate:int,scansioni:int,mie:int}
+     * @return array{attese:int,trovate:int,fuori_posto:int,in_prestito:int,mancanti:int,perse:int,sconosciute:int,fuori_ambito:int,duplicate:int,scansioni:int,mie:int}
      */
     public function summary(int $sessionId, ?int $operatorId = null): array
     {
@@ -629,33 +660,60 @@ final class StocktakeService
         }
         $stmt->close();
 
-        // Counted in SQL: the scan page asks for this on every scan and every
-        // poll, so it must not pull the unscanned rows into PHP. A deleted copy
-        // (c.stato NULL) is not on loan and stays among the missing ones.
-        $stmt = $this->db->prepare(
-            'SELECT COUNT(*) AS n, COALESCE(SUM(t.in_prestito), 0) AS lent FROM ('
-            . 'SELECT COALESCE(' . self::onLoanSql() . ', 0) AS in_prestito '
-            . 'FROM inventario_attese a '
-            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
-            . 'LEFT JOIN copie c ON c.id = a.copia_id '
-            . 'WHERE a.sessione_id = ? AND s.id IS NULL) t'
-        );
-        if ($stmt === false) {
-            throw new \RuntimeException($this->db->error);
+        if ($this->isFrozen($sessionId)) {
+            $frozen = array_fill_keys(self::CLOSE_OUTCOMES, 0);
+            $stmt = $this->db->prepare('SELECT esito_chiusura, COUNT(*) AS n FROM inventario_attese WHERE sessione_id = ? GROUP BY esito_chiusura');
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('i', $sessionId);
+            $stmt->execute();
+            foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+                $outcome = (string) $row['esito_chiusura'];
+                if (isset($frozen[$outcome])) {
+                    $frozen[$outcome] = (int) $row['n'];
+                }
+            }
+            $stmt->close();
+            $found = $frozen['trovata'];
+            $misplaced = $frozen['fuori_posto'];
+            $onLoan = $frozen['in_prestito'];
+            $lost = $frozen['persa'];
+            $missing = $frozen['mancante'] + $lost;
+        } else {
+            // Counted in SQL: the scan page asks for this on every scan and every
+            // poll, so it must not pull the unscanned rows into PHP. A deleted copy
+            // (c.stato NULL) is not on loan and stays among the missing ones.
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) AS n, COALESCE(SUM(t.in_prestito), 0) AS lent FROM ('
+                . 'SELECT COALESCE(' . self::onLoanSql() . ', 0) AS in_prestito '
+                . 'FROM inventario_attese a '
+                . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+                . 'LEFT JOIN copie c ON c.id = a.copia_id '
+                . 'WHERE a.sessione_id = ? AND s.id IS NULL) t'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('i', $sessionId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            $unscannedOnLoan = (int) ($row['lent'] ?? 0);
+            $found = $counts['trovata'];
+            $misplaced = $counts['fuori_posto'];
+            $onLoan = $counts['in_prestito'] + $unscannedOnLoan;
+            $lost = 0;
+            $missing = (int) ($row['n'] ?? 0) - $unscannedOnLoan;
         }
-        $stmt->bind_param('i', $sessionId);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        $unscannedOnLoan = (int) ($row['lent'] ?? 0);
-        $missing = (int) ($row['n'] ?? 0) - $unscannedOnLoan;
 
         return [
             'attese' => $this->expectedCount($sessionId),
-            'trovate' => $counts['trovata'],
-            'fuori_posto' => $counts['fuori_posto'],
-            'in_prestito' => $counts['in_prestito'] + $unscannedOnLoan,
+            'trovate' => $found,
+            'fuori_posto' => $misplaced,
+            'in_prestito' => $onLoan,
             'mancanti' => $missing,
+            'perse' => $lost,
             'sconosciute' => $counts['sconosciuta'],
             'fuori_ambito' => $counts['fuori_ambito'],
             'duplicate' => $counts['duplicata'],
@@ -665,16 +723,18 @@ final class StocktakeService
     }
 
     /**
-     * Expected copies nobody scanned, with their current loan status.
+     * Expected copies nobody scanned. `in_prestito` is their loan status right
+     * now, or with $frozen the one recorded at close (esito_chiusura); every
+     * other column is the copy as it is today.
      *
      * @return list<array<string,mixed>>
      */
-    private function unscannedExpected(int $sessionId): array
+    private function unscannedExpected(int $sessionId, bool $frozen = false): array
     {
         $stmt = $this->db->prepare(
-            'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, c.numero_inventario, c.stato AS stato_attuale, c.libro_id, '
+            'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, c.numero_inventario, c.stato AS stato_attuale, c.libro_id, '
             . 'l.titolo, l.collocazione, '
-            . self::onLoanSql() . ' AS in_prestito '
+            . ($frozen ? "(a.esito_chiusura = 'in_prestito')" : self::onLoanSql()) . ' AS in_prestito '
             . 'FROM inventario_attese a '
             . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
             . 'LEFT JOIN copie c ON c.id = a.copia_id '
@@ -696,13 +756,16 @@ final class StocktakeService
     /**
      * Full report rows: every expected copy with its bucket, plus the scans
      * that are not about an expected copy (unknown, out of scope, duplicate).
+     * On a closed session the bucket is the one frozen at close; a copy the
+     * close marked lost stays a `mancante` row, with `stato_copia` saying
+     * 'perso'. `stato_copia` is always the copy's state today.
      *
      * @return list<array{categoria:string,codice:string,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
      */
     public function reportRows(int $sessionId): array
     {
         $rows = [];
-        foreach ($this->unscannedExpected($sessionId) as $row) {
+        foreach ($this->unscannedExpected($sessionId, $this->isFrozen($sessionId)) as $row) {
             $rows[] = [
                 'categoria' => (int) $row['in_prestito'] === 1 ? 'in_prestito' : 'mancante',
                 'codice' => (string) ($row['numero_inventario'] ?? ('#' . (int) $row['copia_id'])),
@@ -765,11 +828,13 @@ final class StocktakeService
     }
 
     /**
-     * Close the session. With $markLost every missing copy that is not already
-     * explained by its state (lent or waiting for pickup, damaged, lost, at the
-     * restorer's, in transit, in maintenance) becomes 'perso', one book per transaction, with the same
-     * hold reassignment and availability recalculation as a manual change of
-     * a copy's state, and an ActivityLog entry per copy.
+     * Close the session: claim it, freeze the bucket of every expected copy
+     * in inventario_attese.esito_chiusura, then with $markLost turn every
+     * missing copy that is not already explained by its state (lent or waiting
+     * for pickup, damaged, lost, at the restorer's, in transit, in maintenance)
+     * into 'perso', one book per transaction, with the same hold reassignment
+     * and availability recalculation as a manual change of a copy's state and
+     * an ActivityLog entry per copy. Those copies are frozen as 'persa'.
      *
      * @return array{marked:int,failed:int}
      */
@@ -779,12 +844,17 @@ final class StocktakeService
         // concurrent cancel or second close cannot also succeed. Marking copies
         // lost reads inventario_scansioni, not the session state.
         $this->claimTransition($sessionId, 'chiusa', $operatorId);
+        // The scans are final now, and no loan desk event after this instant
+        // may move a copy between buckets: the report of a closed session is
+        // what it was at close.
+        $this->freezeOutcomes($sessionId);
         $marked = 0;
         $failed = 0;
 
         if ($markLost) {
             $byBook = [];
-            foreach ($this->unscannedExpected($sessionId) as $row) {
+            $lost = [];
+            foreach ($this->unscannedExpected($sessionId, true) as $row) {
                 if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['titolo'] === null) {
                     continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
                 }
@@ -795,7 +865,9 @@ final class StocktakeService
             }
             foreach ($byBook as $bookId => $copies) {
                 try {
-                    $marked += $this->markBookCopiesLost($bookId, $copies, $sessionId, $operatorId);
+                    $lostInBook = $this->markBookCopiesLost($bookId, $copies, $sessionId, $operatorId);
+                    $marked += count($lostInBook);
+                    $lost = array_merge($lost, $lostInBook);
                 } catch (\Throwable $e) {
                     $failed += count($copies);
                     SecureLogger::error('[Stocktake] marking missing copies as lost failed', [
@@ -805,6 +877,7 @@ final class StocktakeService
                     ]);
                 }
             }
+            $this->markFrozenLost($sessionId, $lost);
         }
 
         $summary = $this->summary($sessionId);
@@ -819,9 +892,57 @@ final class StocktakeService
     }
 
     /**
-     * @param list<array<string,mixed>> $copies
+     * Write each expected copy's bucket into esito_chiusura in one statement:
+     * the scan outcome for a scanned copy (one scan per copy: UNIQUE
+     * sessione_id, copia_id), else on loan or missing as of this instant. A
+     * copy that no longer exists (c.stato NULL) is missing. close() marks the
+     * copies it declares lost afterwards.
      */
-    private function markBookCopiesLost(int $bookId, array $copies, int $sessionId, ?int $operatorId): int
+    private function freezeOutcomes(int $sessionId): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE inventario_attese a '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            . 'LEFT JOIN copie c ON c.id = a.copia_id '
+            . 'SET a.esito_chiusura = CASE '
+            . "WHEN s.esito IN ('trovata','fuori_posto','in_prestito') THEN s.esito "
+            . 'WHEN COALESCE(' . self::onLoanSql() . ", 0) = 1 THEN 'in_prestito' "
+            . "ELSE 'mancante' END "
+            . 'WHERE a.sessione_id = ?'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $sessionId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    /**
+     * The copies this close turned into 'perso' leave the frozen 'mancante'
+     * bucket for 'persa'; the report keeps counting them among the missing.
+     *
+     * @param list<int> $copyIds
+     */
+    private function markFrozenLost(int $sessionId, array $copyIds): void
+    {
+        foreach (array_chunk($copyIds, 500) as $chunk) {
+            $ids = implode(',', array_map('intval', $chunk));
+            $stmt = $this->db->prepare("UPDATE inventario_attese SET esito_chiusura = 'persa' WHERE sessione_id = ? AND copia_id IN ({$ids})");
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('i', $sessionId);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $copies
+     * @return list<int> ids of the copies now marked lost
+     */
+    private function markBookCopiesLost(int $bookId, array $copies, int $sessionId, ?int $operatorId): array
     {
         $reassignment = new ReservationReassignmentService($this->db);
         $reassignment->setExternalTransaction(true);
@@ -839,7 +960,7 @@ final class StocktakeService
             $lock->close();
             if (!$bookLocked) {
                 $this->db->rollback();
-                return 0;
+                return [];
             }
 
             foreach ($copies as $copy) {
@@ -926,7 +1047,7 @@ final class StocktakeService
                 'inventory'
             );
         }
-        return count($changed);
+        return array_map(static fn (array $copy): int => (int) $copy['id'], $changed);
     }
 
     public function cancel(int $sessionId, ?int $operatorId): void
