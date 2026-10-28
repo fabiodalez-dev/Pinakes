@@ -1627,6 +1627,7 @@ CREATE TABLE `inventario_attese` (
   `copia_id` int NOT NULL,
   `scaffale_atteso` int DEFAULT NULL,
   `stato_all_apertura` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`sessione_id`,`copia_id`),
   KEY `idx_inventario_attese_copia` (`copia_id`),
   CONSTRAINT `fk_inventario_attese_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE

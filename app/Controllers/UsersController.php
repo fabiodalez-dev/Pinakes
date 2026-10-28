@@ -1172,6 +1172,7 @@ class UsersController
             __('Stato'),
             __('Tipo Utente'),
             __('Tipologia lettore'),
+            __('Codice tipologia lettore'),
             __('Codice Fiscale'),
             __('Note Utente'),
             __('Email Verificata'),
@@ -1204,6 +1205,9 @@ class UsersController
                 $utente['stato'] ?? '',
                 $utente['tipo_utente'] ?? '',
                 \App\Support\PatronTypeAssignment::nameOf($db, $utente['tipologia_id'] ?? null),
+                // The code beside the name: the import resolves by code first,
+                // so this file re-imports exactly where the same types exist.
+                \App\Support\PatronTypeAssignment::codeOf($db, $utente['tipologia_id'] ?? null),
                 $utente['cod_fiscale'] ?? '',
                 $utente['note_utente'] ?? '',
                 ($utente['email_verificata'] ?? 0) == 1 ? 'Sì' : 'No',

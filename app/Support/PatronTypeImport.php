@@ -13,8 +13,14 @@ use mysqli;
  * against that contract but stands on its own: when the table, its `codice`
  * column or `utenti.tipologia_id` is missing, available() is false, the import
  * does not offer the column, and assign() is a no-op. Once the patron types
- * schema exists the very same code starts assigning the type by its code, with
- * no other change to the import.
+ * schema exists the very same code starts assigning the type, with no other
+ * change to the import.
+ *
+ * A value of the patron type column resolves by the type's `codice` first,
+ * then by its `nome` (both trimmed and case-insensitive, active types only):
+ * the users CSV export writes the name and the code, a hand-made file may
+ * carry either. A name shared by two active types never resolves, the import
+ * does not guess between them.
  *
  * The table and column names are constructor parameters only so the unit test
  * can run against sandbox tables.
@@ -23,6 +29,8 @@ final class PatronTypeImport
 {
     /** @var array<string,int>|null code (lowercase) => id */
     private ?array $codes = null;
+    /** @var array<string,int|null> name (lowercase) => id, null when two active types share the name */
+    private array $names = [];
     private ?bool $available = null;
 
     public function __construct(
@@ -45,19 +53,19 @@ final class PatronTypeImport
     }
 
     /**
-     * Assign the patron type with code $code to the user.
+     * Assign the patron type whose code, or else whose name, is $value to the user.
      *
-     * @return 'skipped'|'assigned'|'unknown' skipped = nothing to do (no code,
-     *         or no patron types schema); unknown = the code matches no type,
-     *         so the reader keeps the default type
+     * @return 'skipped'|'assigned'|'unknown' skipped = nothing to do (no value,
+     *         or no patron types schema); unknown = the value matches no type
+     *         by code or by name, so the reader keeps the default type
      */
-    public function assign(int $userId, ?string $code): string
+    public function assign(int $userId, ?string $value): string
     {
-        $code = trim((string) $code);
-        if ($code === '' || $userId <= 0 || !$this->available()) {
+        $value = trim((string) $value);
+        if ($value === '' || $userId <= 0 || !$this->available()) {
             return 'skipped';
         }
-        $typeId = $this->idFor($code);
+        $typeId = $this->idFor($value);
         if ($typeId === null) {
             return 'unknown';
         }
@@ -71,22 +79,46 @@ final class PatronTypeImport
         return 'assigned';
     }
 
-    private function idFor(string $code): ?int
+    private function idFor(string $value): ?int
     {
-        if ($this->codes === null) {
-            $this->codes = [];
-            // A deactivated type is not offered in the user form either, so
-            // its code does not resolve here: the reader keeps the default.
-            $active = $this->columnExists($this->typesTable, 'attiva') ? ' WHERE attiva = 1' : '';
-            $result = $this->db->query("SELECT id, codice FROM `{$this->typesTable}`{$active}");
-            if ($result instanceof \mysqli_result) {
-                while ($row = $result->fetch_assoc()) {
-                    $this->codes[mb_strtolower((string) $row['codice'], 'UTF-8')] = (int) $row['id'];
-                }
-                $result->free();
+        $this->load();
+        $key = self::key($value);
+        return $this->codes[$key] ?? $this->names[$key] ?? null;
+    }
+
+    /** Read the active types once: their codes, and their names where the table has them. */
+    private function load(): void
+    {
+        if ($this->codes !== null) {
+            return;
+        }
+        $this->codes = [];
+        $this->names = [];
+        // A deactivated type is not offered in the user form either, so
+        // neither its code nor its name resolves here: the reader keeps the default.
+        $active = $this->columnExists($this->typesTable, 'attiva') ? ' WHERE attiva = 1' : '';
+        $withName = $this->columnExists($this->typesTable, 'nome');
+        $columns = $withName ? 'id, codice, nome' : 'id, codice';
+        $result = $this->db->query("SELECT {$columns} FROM `{$this->typesTable}`{$active}");
+        if (!($result instanceof \mysqli_result)) {
+            return;
+        }
+        while ($row = $result->fetch_assoc()) {
+            $id = (int) $row['id'];
+            $this->codes[self::key((string) $row['codice'])] = $id;
+            $name = $withName ? self::key((string) $row['nome']) : '';
+            if ($name !== '') {
+                // Two active types with one name: neither is chosen.
+                $this->names[$name] = array_key_exists($name, $this->names) ? null : $id;
             }
         }
-        return $this->codes[mb_strtolower($code, 'UTF-8')] ?? null;
+        $result->free();
+    }
+
+    /** The lookup key of a code or a name: trimmed, lower case. */
+    private static function key(string $value): string
+    {
+        return mb_strtolower(trim($value), 'UTF-8');
     }
 
     private function columnExists(string $table, string $column): bool

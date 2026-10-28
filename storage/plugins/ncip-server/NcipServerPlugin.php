@@ -889,6 +889,8 @@ class NcipServerPlugin
         }
 
         // Atomic checkout: lock the book row so concurrent requests serialize.
+        // The due date is the library-wide one; createLoanAtomic() moves it
+        // with the closures of the chosen copy's branch and hands it back.
         $today = \App\Support\DateHelper::today();
         $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->durationDays;
         $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays, $this->db);
@@ -1858,9 +1860,13 @@ class NcipServerPlugin
      * terminal — 'not_found' | 'duplicate' | 'ineligible' | 'max_loans' |
      * 'no_capacity' | 'no_copy'; transient/retryable — 'invalid_due' | 'db_error'.
      *
+     * $dueDate is the due date computed for the library as a whole; the copy
+     * is chosen only here, so a closure of its branch can move it (same rule
+     * as the staff desk). On success it holds the date stored on the loan.
+     *
      * @param-out string $failureReason
      */
-    private function createLoanAtomic(int $bookId, int $userId, string $dueDate, int $processedBy, ?string &$failureReason = null): ?int
+    private function createLoanAtomic(int $bookId, int $userId, string &$dueDate, int $processedBy, ?string &$failureReason = null): ?int
     {
         $failureReason = 'db_error';
         $this->db->begin_transaction();
@@ -1997,6 +2003,41 @@ class NcipServerPlugin
                 return null;
             }
             $copyId = (int) $copyRow['id'];
+
+            // The copy is known only now: a due date closed at its branch moves
+            // to the branch's next open day, as PrestitiController::store() does
+            // for a desk loan, and the longer window is checked again, for the
+            // title's capacity and for the copy's own commitments (the copy was
+            // selected free up to the shorter date only). Both locks are held.
+            $branchDue = \App\Services\CirculationPolicy::dueDateFor($dueDate, 0, $this->db, $copyId);
+            if ($branchDue !== $dueDate) {
+                if (!$capacity->hasFreeCapacity($bookId, $today, $branchDue)) {
+                    $failureReason = 'no_capacity';
+                    $this->db->rollback();
+                    return null;
+                }
+                $busy = $this->db->prepare(
+                    "SELECT 1 FROM prestiti p
+                     WHERE p.copia_id = ?
+                       AND p.data_prestito <= ?
+                       AND (p.stato = 'in_ritardo'
+                            OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                            OR p.data_scadenza >= ?)
+                       AND ((p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                            OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL))
+                     LIMIT 1 FOR UPDATE"
+                );
+                $busy->bind_param('isss', $copyId, $branchDue, $today, $today);
+                $busy->execute();
+                $copyBusy = (bool) $busy->get_result()->fetch_row();
+                $busy->close();
+                if ($copyBusy) {
+                    $failureReason = 'no_copy';
+                    $this->db->rollback();
+                    return null;
+                }
+                $dueDate = $branchDue;
+            }
 
             $ins   = $this->db->prepare(
                 "INSERT INTO prestiti
