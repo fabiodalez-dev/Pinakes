@@ -2,7 +2,6 @@
 /** @var string $activeTab */
 /** @var string $csrfToken */
 /** @var array{types: array<int, array<string, mixed>>, defaultTypeId: ?int, media: array<string, string>, rules: array<string, array<string, mixed>>, inherited: array<string, array<string, mixed>>, globals: array<string, mixed>, userCounts: array<int, int>, effective: array<int, \App\Services\Circulation\LoanPolicy>} $circulationData */
-use App\Support\HtmlHelper;
 
 $cTypes = $circulationData['types'];
 $cMedia = $circulationData['media'];
@@ -78,7 +77,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
             <tr class="hover:bg-gray-50" data-type-code="<?= htmlspecialchars((string) $cType['codice'], ENT_QUOTES, 'UTF-8') ?>">
               <td class="px-6 py-4">
                 <div class="text-sm font-medium text-gray-900">
-                  <?= HtmlHelper::e((string) $cType['nome']) ?>
+                  <?= htmlspecialchars((string) ((string) $cType['nome']), ENT_QUOTES, 'UTF-8') ?>
                   <?php if ((int) $cType['predefinita'] === 1): ?>
                   <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800" data-testid="default-type-badge"><?= __("Predefinita") ?></span>
                   <?php endif; ?>
@@ -86,7 +85,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                   <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><?= __("Disattivata") ?></span>
                   <?php endif; ?>
                 </div>
-                <div class="text-sm text-gray-500"><?= HtmlHelper::e((string) $cType['codice']) ?></div>
+                <div class="text-sm text-gray-500"><?= htmlspecialchars((string) ((string) $cType['codice']), ENT_QUOTES, 'UTF-8') ?></div>
               </td>
               <td class="px-6 py-4 text-sm text-gray-700">
                 <?= sprintf(__('%s prestiti · %d giorni · %d rinnovi'), $cEff->maxActiveLoans > 0 ? (string) $cEff->maxActiveLoans : '∞', $cEff->durationDays, $cEff->maxRenewals) ?>
@@ -145,14 +144,14 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                 <tr>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Tipologia") ?></th>
                   <?php foreach ($cMedia as $cMediaLabel): ?>
-                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= HtmlHelper::e($cMediaLabel) ?></th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= htmlspecialchars((string) ($cMediaLabel), ENT_QUOTES, 'UTF-8') ?></th>
                   <?php endforeach; ?>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
                 <?php foreach ([0 => ['nome' => __('Tutte le tipologie')]] + $cTypes as $cTypeId => $cType): ?>
                 <tr data-matrix-row="<?= (int) $cTypeId ?>">
-                  <td class="px-6 py-4 text-sm font-medium text-gray-900 align-top whitespace-nowrap"><?= HtmlHelper::e((string) $cType['nome']) ?></td>
+                  <td class="px-6 py-4 text-sm font-medium text-gray-900 align-top whitespace-nowrap"><?= htmlspecialchars((string) ((string) $cType['nome']), ENT_QUOTES, 'UTF-8') ?></td>
                   <?php foreach ($cMedia as $cM => $cMediaLabel):
                       $cKey = (int) $cTypeId . '|' . $cM;
                       $cRule = $cRules[$cKey] ?? [];
@@ -163,15 +162,15 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                   ?>
                   <td class="px-3 py-2 align-top" data-matrix-cell="<?= htmlspecialchars($cKey, ENT_QUOTES, 'UTF-8') ?>">
                     <div class="space-y-1">
-                      <label for="<?= $cId ?>-loanable" class="sr-only"><?= HtmlHelper::e($cMediaLabel . ' — ' . __('Prestabile')) ?></label>
+                      <label for="<?= $cId ?>-loanable" class="sr-only"><?= htmlspecialchars((string) ($cMediaLabel . ' — ' . __('Prestabile')), ENT_QUOTES, 'UTF-8') ?></label>
                       <select id="<?= $cId ?>-loanable" name="<?= $cName ?>[loanable]" class="block w-28 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2">
-                        <option value=""><?= HtmlHelper::e(sprintf(__('Eredita (%s)'), $cInh['loanable'] ? __('prestabile') : __('consultazione'))) ?></option>
+                        <option value=""><?= htmlspecialchars((string) (sprintf(__('Eredita (%s)'), $cInh['loanable'] ? __('prestabile') : __('consultazione'))), ENT_QUOTES, 'UTF-8') ?></option>
                         <option value="1" <?= $cLoanable === '1' ? 'selected' : '' ?>><?= __("Prestabile") ?></option>
                         <option value="0" <?= $cLoanable === '0' ? 'selected' : '' ?>><?= __("Solo consultazione") ?></option>
                       </select>
                       <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']], 'renewal_days' => [__('Gg/rinnovo'), 'giorni_rinnovo', (string) $cInh['renewal_days']], 'grace' => [__('Tolleranza'), 'giorni_tolleranza', (string) $cInh['grace']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
                       <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
-                        <span class="w-16"><?= HtmlHelper::e($cLabel) ?></span>
+                        <span class="w-16"><?= htmlspecialchars((string) ($cLabel), ENT_QUOTES, 'UTF-8') ?></span>
                         <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
                       </label>
                       <?php endforeach; ?>
