@@ -76,18 +76,21 @@ try {
     // C7 is on the pickup shelf for a reader: 'prenotato' with a 'da_ritirare' loan. C8 gets damaged during the stocktake.
     $c7 = $addCopy($b2, 'C7', 'prenotato');
     $c8 = $addCopy($b1, 'C8');
+    // C9 and C10 are already out of circulation when the session opens: nobody expects them on the shelf.
+    $c9 = $addCopy($b1, 'C9', 'perso');
+    $c10 = $addCopy($b1, 'C10', 'in_restauro');
     $db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata, privacy_accettata, locale) VALUES ('{$p}', 'Reader', '{$p}', '{$p}@stocktake.test.local', 'x', 'standard', 'attivo', 1, 1, 'it_IT')");
     $borrowerId = (int) $db->insert_id;
     $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, pickup_deadline, stato, origine, attivo) VALUES ({$b2}, {$c7}, {$borrowerId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'da_ritirare', 'prenotazione', 1)");
     $holdId = (int) $db->insert_id;
-    $db->query("UPDATE libri SET copie_totali = 4, copie_disponibili = 4 WHERE id = {$b1}");
+    $db->query("UPDATE libri SET copie_totali = 6, copie_disponibili = 4 WHERE id = {$b1}");
     $db->query("UPDATE libri SET copie_totali = 2, copie_disponibili = 0 WHERE id = {$b2}");
 
     $service = new StocktakeService($db);
     $sessionId = $service->open('ZZST ' . $run, null, ['scaffale_id' => (string) $shelves['X']], null);
     $sessionIds[] = $sessionId;
     $check((int) $one("SELECT totale_attese FROM inventario_sessioni WHERE id = {$sessionId}") === 6, 'the snapshot holds the six copies on shelf X');
-    $check($one("SELECT GROUP_CONCAT(copia_id ORDER BY copia_id) FROM inventario_attese WHERE sessione_id = {$sessionId}") === implode(',', [$c1, $c2, $c6, $c3, $c7, $c8]), 'exactly the shelf-X copies are expected');
+    $check($one("SELECT GROUP_CONCAT(copia_id ORDER BY copia_id) FROM inventario_attese WHERE sessione_id = {$sessionId}") === implode(',', [$c1, $c2, $c6, $c3, $c7, $c8]), 'exactly the shelf-X copies are expected: a copy already lost or at the restorer\'s at opening is not');
     $check($one("SELECT stato_all_apertura FROM inventario_attese WHERE sessione_id = {$sessionId} AND copia_id = {$c3}") === 'prestato' && $one("SELECT stato_all_apertura FROM inventario_attese WHERE sessione_id = {$sessionId} AND copia_id = {$c7}") === 'prenotato', 'the snapshot records each copy state at opening');
 
     // Catalogue edits after opening must not change what the session expects.
@@ -130,7 +133,7 @@ try {
     $check($one("SELECT stato FROM copie WHERE id = {$c6}") === 'perso', 'C6 is now lost');
     $check($one("SELECT stato FROM copie WHERE id = {$c1}") === 'disponibile' && $one("SELECT stato FROM copie WHERE id = {$c3}") === 'prestato', 'found and lent copies are untouched');
     $check($one("SELECT stato FROM copie WHERE id = {$c7}") === 'prenotato' && $one("SELECT CONCAT(stato, ':', attivo, ':', copia_id) FROM prestiti WHERE id = {$holdId}") === "da_ritirare:1:{$c7}", 'the copy on the pickup shelf keeps its state and its hold is not reassigned');
-    $check($one("SELECT stato FROM copie WHERE id = {$c8}") === 'danneggiato', 'a damaged copy is not overwritten to lost');
+    $check($one("SELECT stato FROM copie WHERE id = {$c8}") === 'danneggiato' && $one("SELECT stato FROM copie WHERE id = {$c9}") === 'perso' && $one("SELECT stato FROM copie WHERE id = {$c10}") === 'in_restauro', 'a damaged copy is not overwritten to lost; copies out of circulation at opening are untouched');
     $check((int) $one("SELECT copie_disponibili FROM libri WHERE id = {$b1}") === 1, 'book availability is recalculated (1 of the 3 remaining copies)');
     $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$b1} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 1, 'an ActivityLog entry records the copy declared lost');
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$sessionId}") === 'chiusa', 'the session is closed');

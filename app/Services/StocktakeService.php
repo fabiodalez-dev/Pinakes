@@ -46,6 +46,14 @@ final class StocktakeService
     private const ON_LOAN_COPY_STATES = ['prestato', 'prenotato'];
     private const ON_LOAN_LOAN_STATES = ['in_corso', 'in_ritardo', 'prenotato', 'da_ritirare'];
 
+    /**
+     * Copies nobody expects on a shelf when the session opens: they are left
+     * out of the snapshot, otherwise they would be "missing" for the whole
+     * session with nothing the close could do about them. Lent copies and
+     * copies waiting for pickup stay in: they have a bucket of their own.
+     */
+    private const OFF_SHELF_STATES = ['perso', 'danneggiato', 'in_restauro', 'in_trasferimento', 'manutenzione'];
+
     public function __construct(private mysqli $db)
     {
     }
@@ -166,7 +174,9 @@ final class StocktakeService
     }
 
     /**
-     * Open a session and freeze the copies it expects to find.
+     * Open a session and freeze the copies it expects to find: those matching
+     * the filter, of books still in the catalogue, that are not already out of
+     * circulation (OFF_SHELF_STATES).
      *
      * @param array<string,mixed> $filter
      */
@@ -199,7 +209,7 @@ final class StocktakeService
             $sql = 'INSERT INTO inventario_attese (sessione_id, copia_id, scaffale_atteso, stato_all_apertura) '
                 . 'SELECT ?, c.id, l.scaffale_id, c.stato FROM copie c '
                 . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
-                . 'WHERE 1 = 1' . $where;
+                . 'WHERE c.stato NOT IN (' . self::sqlList(self::OFF_SHELF_STATES) . ')' . $where;
             $stmt = $this->db->prepare($sql);
             if ($stmt === false) {
                 throw new \RuntimeException($this->db->error);
