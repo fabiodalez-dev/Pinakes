@@ -9025,5 +9025,8 @@
   "Multa max": "Multa max",
   "Multa: %s/giorno": "Multa: %s/giorno",
   "Blocco oltre %s": "Blocco oltre %s",
-  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti."
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.",
+  "Saldo da incassare": "Saldo da incassare",
+  "Lettori con saldo a debito": "Lettori con saldo a debito",
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso."
 }

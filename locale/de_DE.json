@@ -9025,5 +9025,8 @@
   "Multa max": "Max. Gebühr",
   "Multa: %s/giorno": "Gebühr: %s/Tag",
   "Blocco oltre %s": "Sperre über %s",
-  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Tagesgebühr 0 = keine Gebühren für diesen Typ; Sperrschwelle 0 = keine Sperre wegen Schulden. Ein leeres Feld übernimmt die Einstellung des Tabs Ausleihen."
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Tagesgebühr 0 = keine Gebühren für diesen Typ; Sperrschwelle 0 = keine Sperre wegen Schulden. Ein leeres Feld übernimmt die Einstellung des Tabs Ausleihen.",
+  "Saldo da incassare": "Offener Saldo",
+  "Lettori con saldo a debito": "Leser mit offenem Saldo",
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Letzte 12 Monate; der offene Saldo ist der heutige. Die Aufstellung Monat für Monat steht im Gebührenbericht weiter unten."
 }

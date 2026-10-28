@@ -9025,5 +9025,8 @@
   "Multa max": "Maks. gebyr",
   "Multa: %s/giorno": "Gebyr: %s/dag",
   "Blocco oltre %s": "Spærring over %s",
-  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Dagsgebyr 0 = ingen gebyrer for denne type; spærregrænse 0 = ingen spærring for gæld. Et tomt felt arver indstillingen fra fanen Lån."
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Dagsgebyr 0 = ingen gebyrer for denne type; spærregrænse 0 = ingen spærring for gæld. Et tomt felt arver indstillingen fra fanen Lån.",
+  "Saldo da incassare": "Udestående saldo",
+  "Lettori con saldo a debito": "Lånere med gæld",
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Seneste 12 måneder; den udestående saldo er dagens. Måned for måned står i gebyrrapporten længere nede."
 }

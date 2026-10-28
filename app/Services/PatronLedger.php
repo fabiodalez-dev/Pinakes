@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Support\DateHelper;
+use App\Support\LibraryCalendar;
 use mysqli;
 
 /**
@@ -50,10 +51,16 @@ final class PatronLedger
      */
     public static function forDb(mysqli $db): self
     {
-        // Every calendar day counts until a closures calendar exists.
-        // Stack hook: the closures calendar passes its "is open day" callable
-        // here: new FineCalculator(static fn (string $ymd): bool => ...).
-        return new self($db, new FineCalculator());
+        // Closed days (weekly closed days, closures, yearly closures, closures
+        // of the copy's branch) are not late days (plan §13, decision 5). With
+        // no calendar configured every day counts, exactly as before.
+        $calendar = LibraryCalendar::forDb($db);
+        if (!$calendar->hasRules()) {
+            return new self($db, new FineCalculator());
+        }
+        return new self($db, new FineCalculator(
+            static fn (string $ymd, ?int $branchId = null): bool => $calendar->isOpen($ymd, $branchId)
+        ));
     }
 
     /** SQL expression for a patron's balance; $userIdExpr is a fixed column reference. */
@@ -154,11 +161,12 @@ final class PatronLedger
             return 0;
         }
         $params = FineParameters::forLoan($this->db, $loanId);
-        $cents = $this->calculator->lateFineCents($params, (string) $loan['data_scadenza'], (string) $loan['data_restituzione']);
+        $branch = self::branchOf($loan);
+        $cents = $this->calculator->lateFineCents($params, (string) $loan['data_scadenza'], (string) $loan['data_restituzione'], $branch);
         if ($cents <= 0) {
             return 0;
         }
-        $days = $this->calculator->daysLate((string) $loan['data_scadenza'], (string) $loan['data_restituzione']);
+        $days = $this->calculator->daysLate((string) $loan['data_scadenza'], (string) $loan['data_restituzione'], $branch);
         $id = $this->insert(
             (int) $loan['utente_id'],
             $loanId,
@@ -295,9 +303,10 @@ final class PatronLedger
             return ['days' => 0, 'cents' => 0, 'enabled' => $params->finesEnabled()];
         }
         $date = $returnDate ?? DateHelper::today();
+        $branch = self::branchOf($loan);
         return [
-            'days' => $this->calculator->daysLate((string) $loan['data_scadenza'], $date),
-            'cents' => $this->calculator->lateFineCents($params, (string) $loan['data_scadenza'], $date),
+            'days' => $this->calculator->daysLate((string) $loan['data_scadenza'], $date, $branch),
+            'cents' => $this->calculator->lateFineCents($params, (string) $loan['data_scadenza'], $date, $branch),
             'enabled' => $params->finesEnabled(),
         ];
     }
@@ -312,9 +321,10 @@ final class PatronLedger
     {
         $today = DateHelper::today();
         $stmt = $this->db->prepare(
-            "SELECT p.id, p.data_scadenza, l.titolo
+            "SELECT p.id, p.data_scadenza, l.titolo, c.sede_id
                FROM prestiti p
                LEFT JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN copie c ON c.id = p.copia_id
               WHERE p.utente_id = ? AND p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo')
                 AND p.data_scadenza < ?
               ORDER BY p.data_scadenza ASC"
@@ -328,7 +338,8 @@ final class PatronLedger
         foreach ($rows as $row) {
             $loanId = (int) $row['id'];
             $params = FineParameters::forLoan($this->db, $loanId);
-            $cents = $this->calculator->lateFineCents($params, (string) $row['data_scadenza'], $today);
+            $branch = self::branchOf($row);
+            $cents = $this->calculator->lateFineCents($params, (string) $row['data_scadenza'], $today, $branch);
             if ($cents <= 0) {
                 continue;
             }
@@ -336,7 +347,7 @@ final class PatronLedger
                 'loan_id' => $loanId,
                 'titolo' => (string) ($row['titolo'] ?? ''),
                 'data_scadenza' => (string) $row['data_scadenza'],
-                'days' => $this->calculator->daysLate((string) $row['data_scadenza'], $today),
+                'days' => $this->calculator->daysLate((string) $row['data_scadenza'], $today, $branch),
                 'cents' => $cents,
             ];
         }
@@ -483,10 +494,24 @@ final class PatronLedger
         return $affected === 1 ? $newId : null;
     }
 
+    /**
+     * Branch of the loaned copy (its branch closures do not count as late days).
+     *
+     * @param array<string, mixed> $loan
+     */
+    private static function branchOf(array $loan): ?int
+    {
+        return isset($loan['sede_id']) ? (int) $loan['sede_id'] : null;
+    }
+
     /** @return array<string, mixed>|null */
     private function loanRow(int $loanId): ?array
     {
-        $stmt = $this->db->prepare('SELECT id, utente_id, stato, data_scadenza, data_restituzione, sanzione FROM prestiti WHERE id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT p.id, p.utente_id, p.stato, p.data_scadenza, p.data_restituzione, p.sanzione, c.sede_id
+               FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+              WHERE p.id = ?'
+        );
         $stmt->bind_param('i', $loanId);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();

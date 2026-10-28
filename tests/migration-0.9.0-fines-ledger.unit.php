@@ -69,10 +69,12 @@ $scalar = static fn (string $q): string => (string) ($db->query($q)->fetch_row()
 try {
     $check($section !== '' && str_contains($section, 'movimenti_lettore'), 'the migration has a delimited fines-ledger section');
 
-    // 0.8.9 shape of the two referenced tables (only the columns the migration reads).
+    // 0.8.9 shape of the referenced tables (only the columns the migration and
+    // the ledger read; copie.sede_id is the copy's branch for closed days).
     $db->query("CREATE TABLE utenti (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, email VARCHAR(255) NOT NULL) ENGINE=InnoDB");
+    $db->query("CREATE TABLE copie (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, sede_id INT DEFAULT NULL) ENGINE=InnoDB");
     $db->query("CREATE TABLE prestiti (
-        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, utente_id INT NOT NULL,
+        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, utente_id INT NOT NULL, copia_id INT DEFAULT NULL,
         stato ENUM('pendente','prenotato','da_ritirare','in_corso','restituito','in_ritardo','perso','danneggiato','annullato','scaduto') DEFAULT 'pendente',
         data_scadenza DATE DEFAULT NULL, sanzione DECIMAL(10,2) DEFAULT '0.00', data_restituzione DATE DEFAULT NULL, processed_by INT DEFAULT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
