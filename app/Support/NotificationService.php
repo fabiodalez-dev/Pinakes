@@ -34,6 +34,8 @@ class NotificationService {
         // Serialized by a connection-scoped lock and acknowledged through
         // pickup_reminder_sent_for: an outbox copy would send it twice.
         'loan_pickup_reminder',
+        // Acknowledged through utenti.card_expiry_warning_sent_for.
+        'card_expiring',
     ];
 
     /**
@@ -822,6 +824,110 @@ class NotificationService {
     }
 
     /**
+     * Warn patrons whose library card expires within
+     * loans.card_expiry_warning_days (0 = off, the default).
+     *
+     * Only standard/premium accounts (admin and staff have no card) that are
+     * active and have an email. The expiry date is acknowledged in
+     * utenti.card_expiry_warning_sent_for only after delivery: it goes out
+     * once per expiry, and a renewed card (new date) re-arms it. An advisory
+     * lock per patron serializes concurrent cron/HTTP workers.
+     */
+    public function sendCardExpiryWarnings(): int {
+        $warningDays = max(0, min(365, (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'card_expiry_warning_days', '0') ?? 0)));
+        if ($warningDays <= 0 || !(new \App\Services\CirculationPolicy($this->db))->schemaReady()) {
+            return 0;
+        }
+        $hasFlag = $this->db->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND COLUMN_NAME = 'card_expiry_warning_sent_for'");
+        if (!$hasFlag instanceof \mysqli_result || (int) ($hasFlag->fetch_row()[0] ?? 0) === 0) {
+            return 0;
+        }
+
+        $sentCount = 0;
+        try {
+            $today = DateHelper::today();
+            $lastDay = (new \DateTimeImmutable($today))->modify('+' . $warningDays . ' days')->format('Y-m-d');
+            $eligibleSql = "
+                SELECT id, email, data_scadenza_tessera, codice_tessera,
+                       CONCAT(nome, ' ', cognome) AS utente_nome
+                FROM utenti
+                WHERE stato = 'attivo'
+                  AND tipo_utente IN ('standard', 'premium')
+                  AND data_scadenza_tessera IS NOT NULL
+                  AND data_scadenza_tessera >= ? AND data_scadenza_tessera <= ?
+                  AND (card_expiry_warning_sent_for IS NULL OR card_expiry_warning_sent_for <> data_scadenza_tessera)
+                  AND email IS NOT NULL AND TRIM(email) <> ''
+            ";
+            $stmt = $this->db->prepare($eligibleSql);
+            $stmt->bind_param('ss', $today, $lastDay);
+            $stmt->execute();
+            $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            $database = (string) $this->db->query('SELECT DATABASE()')->fetch_row()[0];
+            $lockPrefix = 'pinakes_card_expiry_' . substr(hash('sha256', $database), 0, 24) . '_';
+            foreach ($users as $user) {
+                $userId = (int) $user['id'];
+                $lockName = $lockPrefix . $userId;
+                $locked = false;
+                try {
+                    $claim = $this->db->prepare('SELECT GET_LOCK(?, 0)');
+                    $claim->bind_param('s', $lockName);
+                    $claim->execute();
+                    $locked = (int) $claim->get_result()->fetch_row()[0] === 1;
+                    $claim->close();
+                    if (!$locked) {
+                        continue;
+                    }
+                    // Re-read under the lock: another worker may have sent it,
+                    // or the desk may have renewed the card meanwhile.
+                    $fresh = $this->db->prepare($eligibleSql . ' AND id = ?');
+                    $fresh->bind_param('ssi', $today, $lastDay, $userId);
+                    $fresh->execute();
+                    $user = $fresh->get_result()->fetch_assoc();
+                    $fresh->close();
+                    if (!$user) {
+                        continue;
+                    }
+                    $expiry = (string) $user['data_scadenza_tessera'];
+                    $recipientLocale = $this->resolveRecipientLocale((string) $user['email']);
+                    $daysLeft = (int) (new \DateTimeImmutable($today))->diff(new \DateTimeImmutable($expiry))->days;
+                    $sent = $this->sendWithRetry((string) $user['email'], 'card_expiring', [
+                        'utente_nome' => $user['utente_nome'],
+                        'codice_tessera' => (string) $user['codice_tessera'],
+                        'data_scadenza_tessera' => $this->formatEmailDate($expiry, false, $recipientLocale),
+                        'giorni_rimasti' => $daysLeft === 0 ? $this->translateInLocale('oggi', $recipientLocale) : (string) $daysLeft,
+                    ]);
+                    if ($sent) {
+                        $ack = $this->db->prepare('UPDATE utenti SET card_expiry_warning_sent_for = ? WHERE id = ? AND data_scadenza_tessera = ?');
+                        $ack->bind_param('sis', $expiry, $userId, $expiry);
+                        $ack->execute();
+                        $ack->close();
+                        $sentCount++;
+                    }
+                } catch (\Throwable $e) {
+                    SecureLogger::error("Failed to send card expiry warning for user {$userId}: " . $e->getMessage());
+                } finally {
+                    if ($locked) {
+                        try {
+                            $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+                            $release->bind_param('s', $lockName);
+                            $release->execute();
+                            $release->close();
+                        } catch (\Throwable $releaseError) {
+                            SecureLogger::error("Failed to release card expiry lock for user {$userId}: " . $releaseError->getMessage());
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('Failed to send card expiry warnings: ' . $e->getMessage());
+        }
+
+        return $sentCount;
+    }
+
+    /**
      * Reminder to collect a book that is waiting for pickup, sent
      * loans.pickup_reminder_days before the pickup deadline (0 = off).
      *
@@ -1430,6 +1536,7 @@ class NotificationService {
             'overdue_notifications' => 0,
             'loan_recalls' => 0,
             'pickup_reminders' => 0,
+            'card_expiry_warnings' => 0,
             'wishlist_notifications' => 0,
             'errors' => []
         ];
@@ -1445,6 +1552,7 @@ class NotificationService {
             // recall query requires overdue_notification_sent = 1.
             $results['loan_recalls'] = $this->sendLoanRecalls();
             $results['pickup_reminders'] = $this->sendPickupReminders();
+            $results['card_expiry_warnings'] = $this->sendCardExpiryWarnings();
             $results['wishlist_notifications'] = $this->checkAndNotifyWishlistAvailability();
 
         } catch (\Throwable $e) {

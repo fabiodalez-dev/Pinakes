@@ -55,7 +55,7 @@ if (preg_match('/CREATE TABLE `utenti` \((.*?)\n\) ENGINE=InnoDB[^;]*;/s', $sche
     exit(1);
 }
 $lines = array_filter(explode("\n", $m[1]), static fn (string $line): bool =>
-    !preg_match('/`ruolo_id`|`accesso_digitale`|idx_utenti_ruolo|fk_utenti_ruolo/', $line));
+    !preg_match('/`ruolo_id`|`accesso_digitale`|idx_utenti_ruolo|fk_utenti_ruolo|`tipologia_id`|idx_utenti_tipologia|fk_utenti_tipologia|`card_expiry_warning_sent_for`/', $line));
 $body = rtrim(implode("\n", $lines));
 $body = rtrim($body, ',');
 $db->query("CREATE TABLE `{$users}` ({$body}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");

@@ -199,6 +199,38 @@
       </div>
     </div>
 
+    <!-- Card expiry warning (circulation policy) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-id-card text-gray-500"></i>
+          <?= __("Avviso scadenza tessera") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.") ?></p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div>
+          <label for="card_expiry_warning_days" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Avviso scadenza tessera: giorni prima della scadenza") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="number"
+                   id="card_expiry_warning_days"
+                   name="card_expiry_warning_days"
+                   min="0"
+                   max="365"
+                   value="<?php echo (int) ($loansSettings['card_expiry_warning_days'] ?? 0); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= __("giorni") ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0") ?>
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Max renewals -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

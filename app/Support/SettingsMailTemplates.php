@@ -432,6 +432,22 @@ HTML,
 <p>Buona lettura!</p>
 HTML,
             ],
+            'card_expiring' => [
+                'label' => __('Tessera in scadenza'),
+                'description' => __("Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata)."),
+                'subject' => '🪪 La tua tessera scade il {{data_scadenza_tessera}}',
+                'placeholders' => ['utente_nome', 'codice_tessera', 'data_scadenza_tessera', 'giorni_rimasti'],
+                'body' => <<<'HTML'
+<h2>La tua tessera sta per scadere</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>la tua tessera della biblioteca (n. {{codice_tessera}}) scade il <strong>{{data_scadenza_tessera}}</strong> (giorni rimasti: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Dopo la scadenza non potrai più chiedere prestiti né prenotare libri finché la tessera non viene rinnovata.</p>
+</div>
+<p>Per rinnovarla rivolgiti al banco della biblioteca durante gli orari di apertura.</p>
+<p>A presto!</p>
+HTML,
+            ],
             'loan_pickup_cancelled' => [
                 'label' => __('Ritiro annullato'),
                 'description' => __("Inviata quando un ritiro viene annullato dall'amministratore."),

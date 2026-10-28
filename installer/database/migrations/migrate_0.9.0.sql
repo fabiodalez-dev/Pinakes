@@ -238,4 +238,12 @@ SET @sql = IF(@col_exists = 0, 'ALTER TABLE `copie` ADD COLUMN `solo_consultazio
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+-- Card-expiry warning (loans.card_expiry_warning_days): the expiry date the
+-- warning was sent for, so it goes out once per expiry and a renewed card
+-- re-arms it. NULL = never warned.
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND COLUMN_NAME = 'card_expiry_warning_sent_for');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `utenti` ADD COLUMN `card_expiry_warning_sent_for` date DEFAULT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 -- ── end Circulation policy ──

@@ -8865,5 +8865,15 @@
   "Prenotazioni non disponibili per il tuo profilo": "Reserveringer er ikke tilgængelige for din profil",
   "L'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.": "Låneren har nået det maksimale antal lån, som lånerkategorien tillader for denne materialetype.",
   "Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.": "Dette materiale (eller det angivne eksemplar) er kun til brug på stedet for denne lånerkategori.",
-  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Lånerkategorier og udlånsregler pr. materialetype."
+  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Lånerkategorier og udlånsregler pr. materialetype.",
+  "Avviso scadenza tessera": "Varsel om kortudløb",
+  "Avviso scadenza tessera: giorni prima della scadenza": "Varsel om kortudløb: dage før udløb",
+  "Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.": "Låneren får en e-mail, når kortet snart udløber, så det kan fornyes, før vedkommende ikke længere kan låne.",
+  "Impossibile rinnovare la tessera di questo account.": "Kortet for denne konto kan ikke fornyes.",
+  "Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata).": "Sendes nogle dage før lånerens kort udløber. Antallet af dages varsel angives under Indstillinger → Udlån (0 = slået fra).",
+  "Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0": "Sendes én gang pr. udløbsdato af det planlagte notifikationsjob (skabelonen «Kort udløber snart»). 0 slår varslet fra. Standard: 0",
+  "Rinnova tessera": "Forny kort",
+  "Rinnovare la tessera fino al %s?": "Forny kortet til den %s?",
+  "Tessera in scadenza": "Kort udløber snart",
+  "Tessera rinnovata fino al %s.": "Kortet er fornyet til den %s."
 }

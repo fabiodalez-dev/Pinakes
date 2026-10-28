@@ -905,6 +905,9 @@ class UsersController
         }
         $stmt->close();
 
+        // Card validity from the patron type, when it sets one.
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+
         // Invia email di attivazione con link di verifica
         $notifier = new NotificationService($db);
         $notifier->sendUserActivationWithVerification($userId, $token);
@@ -963,6 +966,9 @@ class UsersController
         }
         $stmt->close();
 
+        // Card validity from the patron type, when it sets one.
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+
         // Invia email di benvenuto
         $notifier = new NotificationService($db);
         $notifier->sendUserAccountApproved($userId);
@@ -972,6 +978,41 @@ class UsersController
             'Location',
             "/admin/users/details/{$userId}?success=activated_directly"
         )->withStatus(302);
+    }
+
+    /**
+     * "Rinnova tessera": new expiry = today + the patron type's card duration
+     * (365 days when the type sets none); an expired account is reactivated.
+     */
+    public function renewCard(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardAdminStaff($response)) {
+            return $guard;
+        }
+        $stmt = $db->prepare('SELECT * FROM utenti WHERE id = ? LIMIT 1');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$user) {
+            return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
+        }
+        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
+            && !\App\Support\UserRoleAssignment::canEdit($user)) {
+            return $response->withStatus(403);
+        }
+        try {
+            $expiry = \App\Support\PatronTypeAssignment::renewCard($db, $id);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Users] card renewal failed for user ' . $id, ['error' => $e->getMessage()]);
+            $expiry = null;
+        }
+        if ($expiry === null) {
+            $_SESSION['error_message'] = __('Impossibile rinnovare la tessera di questo account.');
+        } else {
+            $_SESSION['success_message'] = sprintf(__('Tessera rinnovata fino al %s.'), format_date($expiry, false, '/'));
+        }
+        return $response->withHeader('Location', url('/admin/users/details/' . $id))->withStatus(302);
     }
 
     /**

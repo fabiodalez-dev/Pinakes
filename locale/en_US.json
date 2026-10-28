@@ -8865,5 +8865,15 @@
   "Prenotazioni non disponibili per il tuo profilo": "Reservations are not available for your profile",
   "L'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.": "The patron has reached the maximum number of loans their patron type allows for this material type.",
   "Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.": "This material (or the given copy) is for consultation only for this patron's type.",
-  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Patron types and loan rules per material type."
+  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Patron types and loan rules per material type.",
+  "Avviso scadenza tessera": "Card expiry warning",
+  "Avviso scadenza tessera: giorni prima della scadenza": "Card expiry warning: days before the expiry",
+  "Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.": "The patron receives an email when their card is about to expire, so they can renew it before they can no longer borrow.",
+  "Impossibile rinnovare la tessera di questo account.": "This account's card cannot be renewed.",
+  "Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata).": "Sent a few days before the patron's card expires. The days of notice are set in Settings → Loans (0 = off).",
+  "Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0": "Sent once per expiry by the scheduled notifications job (template «Card expiring»). 0 turns the warning off. Default: 0",
+  "Rinnova tessera": "Renew card",
+  "Rinnovare la tessera fino al %s?": "Renew the card until %s?",
+  "Tessera in scadenza": "Card expiring",
+  "Tessera rinnovata fino al %s.": "Card renewed until %s."
 }

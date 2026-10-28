@@ -194,6 +194,17 @@ return [
 <p>Wenn du es nicht mehr brauchst, kannst du die Ausleihe auf der Seite „Reservierungen“ deines Kontos stornieren: Das Buch geht dann sofort an jemand anderen.</p>
 <p>Viel Freude beim Lesen!</p>',
     ],
+    'card_expiring' => [
+        'subject' => '🪪 Dein Bibliotheksausweis läuft am {{data_scadenza_tessera}} ab',
+        'body' => '<h2>Dein Bibliotheksausweis läuft bald ab</h2>
+<p>Hallo {{utente_nome}},</p>
+<p>dein Bibliotheksausweis (Nr. {{codice_tessera}}) läuft am <strong>{{data_scadenza_tessera}}</strong> ab (verbleibende Tage: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Nach dem Ablauf kannst du keine Bücher mehr ausleihen oder vormerken, bis der Ausweis verlängert wird.</p>
+</div>
+<p>Zum Verlängern wende dich während der Öffnungszeiten an die Theke der Bibliothek.</p>
+<p>Bis bald!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Abholung storniert',
         'body' => '<h2>Abholung storniert</h2>

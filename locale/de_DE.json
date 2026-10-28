@@ -8865,5 +8865,15 @@
   "Prenotazioni non disponibili per il tuo profilo": "Vormerkungen sind für dein Profil nicht verfügbar",
   "L'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.": "Die Person hat die Höchstzahl an Ausleihen erreicht, die ihre Leserkategorie für diese Medienart erlaubt.",
   "Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.": "Dieses Medium (oder das angegebene Exemplar) ist für die Kategorie dieser Person nur zur Einsichtnahme.",
-  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Leserkategorien und Ausleihregeln pro Medienart."
+  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Leserkategorien und Ausleihregeln pro Medienart.",
+  "Avviso scadenza tessera": "Hinweis zum Ausweisablauf",
+  "Avviso scadenza tessera: giorni prima della scadenza": "Hinweis zum Ausweisablauf: Tage vor dem Ablauf",
+  "Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.": "Die Person erhält eine E-Mail, wenn ihr Ausweis bald abläuft, damit sie ihn verlängern kann, bevor sie nichts mehr ausleihen kann.",
+  "Impossibile rinnovare la tessera di questo account.": "Der Ausweis dieses Kontos kann nicht verlängert werden.",
+  "Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata).": "Wird einige Tage vor dem Ablauf des Leserausweises gesendet. Die Vorlauftage werden unter Einstellungen → Ausleihen festgelegt (0 = aus).",
+  "Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0": "Wird pro Ablaufdatum einmal vom geplanten Benachrichtigungsprozess gesendet (Vorlage „Ausweis läuft ab“). 0 schaltet den Hinweis aus. Standard: 0",
+  "Rinnova tessera": "Ausweis verlängern",
+  "Rinnovare la tessera fino al %s?": "Ausweis bis zum %s verlängern?",
+  "Tessera in scadenza": "Ausweis läuft ab",
+  "Tessera rinnovata fino al %s.": "Ausweis bis zum %s verlängert."
 }

@@ -1316,6 +1316,11 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->approveAndSendActivation($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/renew-card', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\UsersController())->renewCard($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/users/{id:\d+}/activate-directly', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');

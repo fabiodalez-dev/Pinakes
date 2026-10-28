@@ -8865,5 +8865,15 @@
   "Prenotazioni non disponibili per il tuo profilo": "Prenotazioni non disponibili per il tuo profilo",
   "L'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.": "L'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.",
   "Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.": "Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.",
-  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Tipologie di lettore e regole di prestito per tipo di materiale."
+  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Tipologie di lettore e regole di prestito per tipo di materiale.",
+  "Avviso scadenza tessera": "Avviso scadenza tessera",
+  "Avviso scadenza tessera: giorni prima della scadenza": "Avviso scadenza tessera: giorni prima della scadenza",
+  "Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.": "Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.",
+  "Impossibile rinnovare la tessera di questo account.": "Impossibile rinnovare la tessera di questo account.",
+  "Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata).": "Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata).",
+  "Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0": "Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0",
+  "Rinnova tessera": "Rinnova tessera",
+  "Rinnovare la tessera fino al %s?": "Rinnovare la tessera fino al %s?",
+  "Tessera in scadenza": "Tessera in scadenza",
+  "Tessera rinnovata fino al %s.": "Tessera rinnovata fino al %s."
 }

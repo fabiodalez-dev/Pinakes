@@ -1145,6 +1145,7 @@ CREATE TABLE `utenti` (
   `privacy_policy_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Version of accepted privacy policy',
   `locale` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 'it_IT',
   `tipologia_id` int DEFAULT NULL,
+  `card_expiry_warning_sent_for` date DEFAULT NULL,
   `token_verifica_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `data_token_verifica` datetime DEFAULT NULL,
   `token_reset_password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

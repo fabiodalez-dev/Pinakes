@@ -194,6 +194,17 @@ return [
 <p>Si vous n’en avez plus besoin, vous pouvez annuler le prêt depuis la page « Réservations » de votre compte : le livre passera aussitôt à quelqu’un d’autre.</p>
 <p>Bonne lecture !</p>',
     ],
+    'card_expiring' => [
+        'subject' => '🪪 Votre carte de bibliothèque expire le {{data_scadenza_tessera}}',
+        'body' => '<h2>Votre carte de bibliothèque va expirer</h2>
+<p>Bonjour {{utente_nome}},</p>
+<p>votre carte de bibliothèque (n° {{codice_tessera}}) expire le <strong>{{data_scadenza_tessera}}</strong> (jours restants : {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Après l\'expiration, vous ne pourrez plus emprunter ni réserver de livres tant que la carte n\'aura pas été renouvelée.</p>
+</div>
+<p>Pour la renouveler, adressez-vous à l\'accueil de la bibliothèque pendant les heures d\'ouverture.</p>
+<p>À bientôt !</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Retrait annulé',
         'body' => '<h2>Retrait annulé</h2>
