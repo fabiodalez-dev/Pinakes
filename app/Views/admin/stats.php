@@ -381,6 +381,85 @@ unset($workspaceHeader);
       </div>
     </div>
   </div>
+
+  <!-- Fines report (plan §7) -->
+  <?php
+    $finesTotals = ['addebitato' => 0, 'incassato' => 0, 'condonato' => 0, 'stornato' => 0];
+    foreach (($finesByMonth ?? []) as $finesRow) {
+        foreach ($finesTotals as $finesKey => $finesValue) {
+            $finesTotals[$finesKey] = $finesValue + (int) $finesRow[$finesKey];
+        }
+    }
+    $finesCsvUrl = url('/admin/statistics/fines.csv') . '?' . http_build_query(['fines_from' => $finesFrom ?? '', 'fines_to' => $finesTo ?? '']);
+  ?>
+  <div class="grid grid-cols-1 gap-6 mt-6" id="fines-report">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-coins text-gray-900"></i>
+          <?= __("Multe e pagamenti") ?>
+        </h2>
+      </div>
+      <div class="card-body">
+        <form method="GET" action="<?= htmlspecialchars(url('/admin/statistics'), ENT_QUOTES, 'UTF-8') ?>" class="flex flex-wrap items-end gap-4 mb-4">
+          <div>
+            <label for="fines_from" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Dal") ?></label>
+            <input type="date" id="fines_from" name="fines_from" value="<?= htmlspecialchars((string) ($finesFrom ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2">
+          </div>
+          <div>
+            <label for="fines_to" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Al") ?></label>
+            <input type="date" id="fines_to" name="fines_to" value="<?= htmlspecialchars((string) ($finesTo ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2">
+          </div>
+          <button type="submit" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+            <i class="fas fa-filter mr-2"></i><?= __("Aggiorna") ?>
+          </button>
+          <a href="<?= htmlspecialchars($finesCsvUrl, ENT_QUOTES, 'UTF-8') ?>" id="fines-csv-link" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
+            <i class="fas fa-file-csv mr-2"></i><?= __("Esporta CSV") ?>
+          </a>
+        </form>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200" id="fines-report-table">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Mese") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Addebitato") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Incassato") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Condonato") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Stornato") ?></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php if (empty($finesByMonth)): ?>
+              <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                  <i class="fas fa-coins text-4xl text-gray-300 mb-3"></i>
+                  <p><?= __("Nessun movimento nel periodo") ?></p>
+                </td>
+              </tr>
+              <?php else: ?>
+                <?php foreach ($finesByMonth as $finesRow): ?>
+                <tr class="hover:bg-gray-50 transition-colors">
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= htmlspecialchars((string) $finesRow['mese'], ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900"><?= htmlspecialchars(\App\Services\FineParameters::format((int) $finesRow['addebitato']), ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900"><?= htmlspecialchars(\App\Services\FineParameters::format((int) $finesRow['incassato']), ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900"><?= htmlspecialchars(\App\Services\FineParameters::format((int) $finesRow['condonato']), ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900"><?= htmlspecialchars(\App\Services\FineParameters::format((int) $finesRow['stornato']), ENT_QUOTES, 'UTF-8') ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <tr class="bg-gray-50">
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?= __("Totale") ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900" data-fines-total="addebitato"><?= htmlspecialchars(\App\Services\FineParameters::format($finesTotals['addebitato']), ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900" data-fines-total="incassato"><?= htmlspecialchars(\App\Services\FineParameters::format($finesTotals['incassato']), ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900" data-fines-total="condonato"><?= htmlspecialchars(\App\Services\FineParameters::format($finesTotals['condonato']), ENT_QUOTES, 'UTF-8') ?></td>
+                  <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900" data-fines-total="stornato"><?= htmlspecialchars(\App\Services\FineParameters::format($finesTotals['stornato']), ENT_QUOTES, 'UTF-8') ?></td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- Chart.js is loaded from vendor.bundle.js (window.Chart) -->

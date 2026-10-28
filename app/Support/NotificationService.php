@@ -2419,15 +2419,78 @@ class NotificationService {
                 return false;
             }
 
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+            // {{multa}} (plan §7): the late fine left on this loan after any
+            // waiver, or a localised "no fine" when nothing was charged.
+            $lateFineCents = (new \App\Services\PatronLedger($this->db))->lateFineNetCents($loanId);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
+                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $recipientLocale),
+                'multa' => $lateFineCents > 0
+                    ? \App\Services\FineParameters::format($lateFineCents, $recipientLocale)
+                    : $this->translateInLocale('Nessuna multa', $recipientLocale),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan returned notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Late fine charged on return (plan §7). Off by default: sent only when
+     * Settings → Loans → Fines → "email the reader" is on and the loan still
+     * carries a late fine (a fine waived at the desk sends nothing).
+     */
+    public function sendFineChargedNotification(int $loanId): bool
+    {
+        try {
+            $enabled = (string) ((new \App\Models\SettingsRepository($this->db))->get('loans', \App\Services\FineParameters::SETTING_FINE_EMAIL, '0') ?? '0');
+            if ($enabled !== '1') {
+                return false;
+            }
+            $ledger = new \App\Services\PatronLedger($this->db);
+            $fineCents = $ledger->lateFineNetCents($loanId);
+            if ($fineCents <= 0) {
+                return false;
+            }
+            $stmt = $this->db->prepare("
+                SELECT p.utente_id, p.data_scadenza, p.data_restituzione,
+                       l.titolo AS libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                       u.email AS utente_email
+                FROM prestiti p
+                -- CI-SOFT-DELETE-EXEMPT: the fine notice must reach the reader even for an archived title.
+                JOIN libri l ON l.id = p.libro_id
+                JOIN utenti u ON u.id = p.utente_id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $loan = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$loan || empty($loan['utente_email'])) {
+                return false;
+            }
+            $email = (string) $loan['utente_email'];
+            $locale = $this->resolveRecipientLocale($email);
+            $due = (string) $loan['data_scadenza'];
+            $returned = (string) ($loan['data_restituzione'] ?: DateHelper::today());
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_scadenza' => $this->formatEmailDate($due, false, $locale),
+                'data_restituzione' => $this->formatEmailDate($returned, false, $locale),
+                'giorni_ritardo' => (string) $ledger->lateFineDays($loanId),
+                'multa' => \App\Services\FineParameters::format($fineCents, $locale),
+                'saldo' => \App\Services\FineParameters::format(max(0, $ledger->balanceCents((int) $loan['utente_id'])), $locale),
+            ];
+
+            return $this->sendWithRetry($email, 'fine_charged', $variables);
+        } catch (\Throwable $e) {
+            SecureLogger::error('Failed to send fine charged notification: ' . $e->getMessage());
             return false;
         }
     }

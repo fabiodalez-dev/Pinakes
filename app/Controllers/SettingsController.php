@@ -1675,7 +1675,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1696,6 +1696,13 @@ class SettingsController
             'recall_max_count'         => (int) ($repository->get('loans', 'recall_max_count', '3') ?? 3),
             // App-wide clock for due dates and automatisms (DateHelper reads it).
             'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
+            // Plan §7: fines and debt block. Empty string = not set (disabled).
+            'daily_fine'               => (string) ($repository->get('loans', 'daily_fine', '') ?? ''),
+            'fine_grace_days'          => (int) ($repository->get('loans', 'fine_grace_days', '0') ?? 0),
+            'fine_max_per_loan'        => (string) ($repository->get('loans', 'fine_max_per_loan', '') ?? ''),
+            'debt_block_threshold'     => (string) ($repository->get('loans', 'debt_block_threshold', '') ?? ''),
+            'fine_charged_email'       => (string) ($repository->get('loans', 'fine_charged_email', '0') ?? '0') === '1',
+            'currency'                 => \App\Services\FineParameters::currency(),
         ];
     }
 
@@ -1747,6 +1754,19 @@ class SettingsController
         $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
         $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
         $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
+
+        // Plan §7: fines and debt block. Amounts accept a decimal comma; an
+        // empty or malformed value is stored as '' (= disabled), never coerced
+        // into a number the operator did not type.
+        foreach (['daily_fine', 'fine_max_per_loan', 'debt_block_threshold'] as $amountKey) {
+            $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
+            $cents = \App\Services\FineParameters::toCents($raw);
+            $repository->set('loans', $amountKey, $cents !== null && $cents > 0 ? \App\Services\FineParameters::centsToDecimal($cents) : '');
+        }
+        $repository->set('loans', 'fine_grace_days', (string) min(365, max(0, (int) ($data['fine_grace_days'] ?? 0))));
+        $fineEmail = isset($data['fine_charged_email']) && is_scalar($data['fine_charged_email'])
+            && (string) $data['fine_charged_email'] === '1';
+        $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
         // this. Validate against the canonical identifier list — an invalid or

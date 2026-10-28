@@ -303,6 +303,22 @@ return [
 </ul>
 <p><a href="{{approve_url}}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Anfrage verwalten</a></p>',
     ],
+    'fine_charged' => [
+        'subject' => '💶 Gebühr für verspätete Rückgabe: {{multa}}',
+        'body' => '<h2>Gebühr für verspätete Rückgabe</h2>
+<p>Hallo {{utente_nome}},</p>
+<p>das folgende Buch wurde nach Ablauf der Leihfrist zurückgegeben, dafür wurde dir eine Gebühr berechnet.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Buch:</strong> {{libro_titolo}}</p>
+    <p><strong>Fällig am:</strong> {{data_scadenza}}</p>
+    <p><strong>Zurückgegeben am:</strong> {{data_restituzione}}</p>
+    <p><strong>Tage Verspätung:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Gebühr:</strong> {{multa}}</p>
+    <p><strong>Offener Betrag:</strong> {{saldo}}</p>
+</div>
+<p>Du kannst den Betrag an der Ausleihtheke begleichen.</p>
+<p>Viele Grüße<br>Dein Bibliotheksteam</p>',
+    ],
     'loan_returned' => [
         'subject' => '✅ Rückgabe bestätigt',
         'body' => '<h2>Rückgabe bestätigt</h2>

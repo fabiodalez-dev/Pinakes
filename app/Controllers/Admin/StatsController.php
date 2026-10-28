@@ -114,6 +114,9 @@ class StatsController
         $visitors = \App\Support\StatisticsSections::visitors($db, 30);
         $loansByMedia = \App\Support\StatisticsSections::loansByMediaType($db);
         $extraSections = \App\Support\StatisticsSections::extensions($db);
+        // Fines report (plan §7): charged / collected / waived per month.
+        [$finesFrom, $finesTo] = self::finesPeriod($request);
+        $finesByMonth = (new \App\Services\PatronLedger($db))->periodTotals($finesFrom, $finesTo);
 
         $title = 'Statistiche Prestiti';
 
@@ -127,5 +130,62 @@ class StatsController
 
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /** CSV of the fines report for the selected period. */
+    public function finesCsv(Request $request, Response $response, \mysqli $db): Response
+    {
+        [$from, $to] = self::finesPeriod($request);
+        $rows = (new \App\Services\PatronLedger($db))->periodTotals($from, $to);
+        $currency = \App\Services\FineParameters::currency();
+        $out = fopen('php://temp', 'r+');
+        fputcsv($out, [__('Mese'), __('Addebitato') . ' (' . $currency . ')', __('Incassato') . ' (' . $currency . ')', __('Condonato') . ' (' . $currency . ')', __('Stornato') . ' (' . $currency . ')'], ',', '"', '');
+        $sum = ['addebitato' => 0, 'incassato' => 0, 'condonato' => 0, 'stornato' => 0];
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['mese'],
+                \App\Services\FineParameters::centsToDecimal($row['addebitato']),
+                \App\Services\FineParameters::centsToDecimal($row['incassato']),
+                \App\Services\FineParameters::centsToDecimal($row['condonato']),
+                \App\Services\FineParameters::centsToDecimal($row['stornato']),
+            ], ',', '"', '');
+            foreach ($sum as $k => $v) {
+                $sum[$k] = $v + $row[$k];
+            }
+        }
+        fputcsv($out, [
+            __('Totale'),
+            \App\Services\FineParameters::centsToDecimal($sum['addebitato']),
+            \App\Services\FineParameters::centsToDecimal($sum['incassato']),
+            \App\Services\FineParameters::centsToDecimal($sum['condonato']),
+            \App\Services\FineParameters::centsToDecimal($sum['stornato']),
+        ], ',', '"', '');
+        rewind($out);
+        $csv = "\xEF\xBB\xBF" . (string) stream_get_contents($out);
+        fclose($out);
+        $filename = 'multe_' . $from . '_' . $to . '.csv';
+        $response->getBody()->write($csv);
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
+
+    /**
+     * Report period from ?fines_from / ?fines_to (Y-m-d); default: the last
+     * twelve months up to today, in the application timezone.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function finesPeriod(Request $request): array
+    {
+        $q = $request->getQueryParams();
+        $today = \App\Support\DateHelper::today();
+        $to = is_string($q['fines_to'] ?? null) && \App\Support\DateHelper::isISODateFormat($q['fines_to']) ? $q['fines_to'] : $today;
+        $defaultFrom = (new \DateTimeImmutable($to))->modify('first day of this month')->modify('-11 months')->format('Y-m-d');
+        $from = is_string($q['fines_from'] ?? null) && \App\Support\DateHelper::isISODateFormat($q['fines_from']) ? $q['fines_from'] : $defaultFrom;
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+        return [$from, $to];
     }
 }
