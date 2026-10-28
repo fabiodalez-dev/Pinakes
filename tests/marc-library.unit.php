@@ -279,6 +279,10 @@ $lcgft->addDataField('655', ' ', '7', [['a', 'Detective and mystery fiction.'], 
 $lcgft->addDataField('655', ' ', '4', [['a', 'Thrillers.']]);
 $check((new Marc21LibriMapper())->map($lcgft)['genere'] === '', '67r a 655 of another scheme, or without $2, is not imported as the genre');
 
+$entities = BookMarcBuilder::marc21(['descrizione' => '<p>Tom &amp; Jerry</p><p>Vol. &laquo;2&raquo;</p>'] + $row, $authors, [], null);
+$check($entities->subfield('520', 'a') === "Tom & Jerry\n\nVol. «2»", '67s the summary decodes the entities of the rich description');
+$check(BookMarcBuilder::marc21(['descrizione' => '<p>x</p>', 'descrizione_plain' => 'Plain &amp; kept'] + $row, $authors, [], null)->subfield('520', 'a') === 'Plain &amp; kept', '67t the stored plain projection is taken as it is');
+
 echo "Import row\n";
 $importRow = MarcBookData::toImportRow($m);
 $check($importRow['autori'] === 'Eco, Umberto;Rossi, Mario' && $importRow['editore'] === 'Bompiani' && $importRow['curatore'] === 'Ferré, Lùcia' && !array_key_exists('traduttore', $importRow), '65 names joined with ";", an absent role is not a column');

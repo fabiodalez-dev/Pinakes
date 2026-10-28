@@ -531,15 +531,21 @@ final class BookMarcBuilder
     }
 
     /**
-     * The summary as plain text; null when the book has none (a description
-     * that is only markup still yields the empty summary it always did).
+     * The summary as plain text: the stored plain projection, else the rich
+     * description with its markup removed and its entities decoded ("Tom
+     * &amp; Jerry" is Tom & Jerry); null when the book has none (a
+     * description that is only markup still yields the empty summary it
+     * always did).
      *
      * @param array<string, mixed> $row
      */
     private static function plainDescription(array $row): ?string
     {
-        $desc = !empty($row['descrizione_plain']) ? $row['descrizione_plain'] : ($row['descrizione'] ?? '');
-        return $desc !== '' ? strip_tags((string) $desc) : null;
+        if (!empty($row['descrizione_plain'])) {
+            return (string) $row['descrizione_plain'];
+        }
+        $desc = (string) ($row['descrizione'] ?? '');
+        return $desc !== '' ? (string) \App\Support\DescriptionText::toPlain($desc) : null;
     }
 
     /**
