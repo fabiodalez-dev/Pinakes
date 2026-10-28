@@ -38,10 +38,16 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     [$key, $value] = explode('=', $line, 2);
     $env[trim($key)] = trim(trim($value), "\"'");
 }
-$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+// Socket when one is configured and present (local dev), TCP otherwise (CI).
+$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
+$useSocket = $socket !== '' && file_exists($socket);
 $sandbox = getenv('MIG_SANDBOX_DB') ?: ((getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? 'pinakes')) . '_migfines');
 try {
-    $db = new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), null, 0, $socket);
+    $user = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
+    $pass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
+    $db = $useSocket
+        ? new mysqli(null, $user, $pass, null, 0, $socket)
+        : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), $user, $pass, null, (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $db->set_charset('utf8mb4');
     $db->query("DROP DATABASE IF EXISTS `{$sandbox}`");
     $db->query("CREATE DATABASE `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
