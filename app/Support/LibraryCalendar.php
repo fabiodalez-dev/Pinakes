@@ -45,6 +45,9 @@ final class LibraryCalendar
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
     private static array $instances = [];
 
+    /** @var array<int, ?int> branchOfCopy() memo: copy id => sede_id (null when none) */
+    private array $copyBranches = [];
+
     /**
      * @param list<int>|array<int, int> $closedWeekdays 0 = Sunday … 6 = Saturday
      * @param list<array{data_inizio?: string, data_fine?: string, start?: string, end?: string, ricorrente_annuale?: int|string|bool, yearly?: bool, sede_id?: int|string|null, sede?: int|null}> $closures
@@ -609,12 +612,25 @@ final class LibraryCalendar
         }
     }
 
-    /** The branch (copie.sede_id) of a copy, null when unknown or none. */
+    /**
+     * The branch (copie.sede_id) of a copy, null when unknown or none. One
+     * query per copy and connection: the answer is kept on the forDb()
+     * calendar, which reset() discards with it.
+     */
     public static function branchOfCopy(\mysqli $db, ?int $copiaId): ?int
     {
         if ($copiaId === null || $copiaId <= 0) {
             return null;
         }
+        $calendar = self::forDb($db);
+        if (array_key_exists($copiaId, $calendar->copyBranches)) {
+            return $calendar->copyBranches[$copiaId];
+        }
+        return $calendar->copyBranches[$copiaId] = self::queryBranchOfCopy($db, $copiaId);
+    }
+
+    private static function queryBranchOfCopy(\mysqli $db, int $copiaId): ?int
+    {
         try {
             $stmt = $db->prepare('SELECT sede_id FROM copie WHERE id = ?');
             if ($stmt === false) {
