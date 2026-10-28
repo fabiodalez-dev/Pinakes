@@ -8889,5 +8889,7 @@
   "Gg/rinnovo": "Gg/rinnovo",
   "Rinnova prestito (+%d giorni)": "Rinnova prestito (+%d giorni)",
   "La scadenza verrà estesa di %d giorni": "La scadenza verrà estesa di %d giorni",
-  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Rinnovare il prestito? La scadenza verrà estesa di %d giorni."
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.",
+  "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.",
+  "Utente importato, ma la scadenza della tessera non è stata calcolata.": "Utente importato, ma la scadenza della tessera non è stata calcolata."
 }

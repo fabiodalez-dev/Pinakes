@@ -13,6 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { serverFileExists, listServerDir, writeServerFile } = require('./helpers/server-files');
+const { appDateOffsetISO } = require('./helpers/app-date');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ROOT = path.resolve(__dirname, '..');
@@ -65,24 +66,28 @@ const EXISTING_CODE = `ZEX${RUN_UP}`;
 const SECRET = 'Secret123!';
 const TYPE_CODE = `st${RUN}`;
 const TYPE_NAME = `Studenti ${RUN}`;
+const TYPE_CARD_DAYS = 200;
 const UNKNOWN_TYPE = `nessuna${RUN}`;
+const MANUAL_EXPIRY = '2031-12-31';
 
 /**
  * 20 data rows: 17 valid, a duplicate email (line 6), a duplicate card code (line 13), a bad email (line 17).
  * Patron type: readers 1-15 carry TYPE_CODE (upper case for the even ones), 16 none, 17 (line 21) an unknown code.
+ * Card expiry: only reader 3 carries one (MANUAL_EXPIRY); every other row leaves the column empty.
  */
 function buildCsv() {
-  const lines = [['Nome', 'Cognome', 'E-mail', 'Tel. cellulare', 'Data di nascita', 'Tessera', 'Password', CUSTOM_LABEL, 'Tipologia'].join(';')];
+  const lines = [['Nome', 'Cognome', 'E-mail', 'Tel. cellulare', 'Data di nascita', 'Tessera', 'Password', CUSTOM_LABEL, 'Tipologia', 'Scadenza tessera'].join(';')];
   let n = 0;
   for (let row = 1; row <= 20; row++) {
     const line = row + 1;
-    if (line === 6) { lines.push(['Doppia', 'Email', EXISTING_EMAIL, '', '', '', SECRET, '', ''].join(';')); continue; }
-    if (line === 13) { lines.push(['Doppio', 'Codice', `dupcode.${RUN}@${DOMAIN}`, '', '', EXISTING_CODE, SECRET, '', ''].join(';')); continue; }
-    if (line === 17) { lines.push(['Sbagliata', 'Riga', 'not-an-email', '', '', '', SECRET, '', ''].join(';')); continue; }
+    if (line === 6) { lines.push(['Doppia', 'Email', EXISTING_EMAIL, '', '', '', SECRET, '', '', ''].join(';')); continue; }
+    if (line === 13) { lines.push(['Doppio', 'Codice', `dupcode.${RUN}@${DOMAIN}`, '', '', EXISTING_CODE, SECRET, '', '', ''].join(';')); continue; }
+    if (line === 17) { lines.push(['Sbagliata', 'Riga', 'not-an-email', '', '', '', SECRET, '', '', ''].join(';')); continue; }
     n++;
     const code = n % 2 === 0 ? `ZIM${RUN_UP}${n}` : '';
     const type = n === 17 ? UNKNOWN_TYPE : n === 16 ? '' : (n % 2 === 0 ? TYPE_CODE.toUpperCase() : TYPE_CODE);
-    lines.push([`Imp${n}`, `Run${RUN}`, `imp${n}.${RUN}@${DOMAIN}`, `333000${String(n).padStart(4, '0')}`, `${String(n).padStart(2, '0')}/03/1990`, code, SECRET, `@imp${n}`, type].join(';'));
+    const expiry = n === 3 ? MANUAL_EXPIRY : '';
+    lines.push([`Imp${n}`, `Run${RUN}`, `imp${n}.${RUN}@${DOMAIN}`, `333000${String(n).padStart(4, '0')}`, `${String(n).padStart(2, '0')}/03/1990`, code, SECRET, `@imp${n}`, type, expiry].join(';'));
   }
   return lines.join('\n') + '\n';
 }
@@ -108,7 +113,8 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     dbQuery(`INSERT INTO utenti (nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata)
              VALUES ('Gia', 'Presente', ${sqlStr(EXISTING_EMAIL)}, 'x', ${sqlStr(EXISTING_CODE)}, 'attivo', 'standard', 1)`);
     existingId = Number(dbQuery(`SELECT id FROM utenti WHERE email = ${sqlStr(EXISTING_EMAIL)}`));
-    dbQuery(`INSERT INTO tipologie_lettore (codice, nome, attiva, ordinamento) VALUES (${sqlStr(TYPE_CODE)}, ${sqlStr(TYPE_NAME)}, 1, 90)`);
+    // The type carries a card duration: imported readers of this type get today + TYPE_CARD_DAYS.
+    dbQuery(`INSERT INTO tipologie_lettore (codice, nome, attiva, ordinamento, durata_tessera_giorni) VALUES (${sqlStr(TYPE_CODE)}, ${sqlStr(TYPE_NAME)}, 1, 90, ${TYPE_CARD_DAYS})`);
     typeId = Number(dbQuery(`SELECT id FROM tipologie_lettore WHERE codice = ${sqlStr(TYPE_CODE)}`));
 
     // Route the application mail to Mailpit for this suite, restored afterwards.
@@ -190,6 +196,7 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     // Patron types exist: the "Tipologia" header is recognised as the patron type code.
     await expect(select(8).locator('option[value="tipologia"]')).toHaveCount(1);
     await expect(select(8)).toHaveValue('tipologia');
+    await expect(select(9)).toHaveValue('data_scadenza_tessera');
 
     // Without an email column the import refuses to start.
     await select(2).selectOption('');
@@ -287,6 +294,20 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     const unknown = dbQuery(`SELECT id FROM utenti WHERE email = ${sqlStr(`imp17.${RUN}@${DOMAIN}`)}`);
     await page.goto(`${BASE}/admin/users/details/${unknown}`);
     await expect(page.getByTestId('patron-type-name')).toContainText('predefinita');
+  });
+
+  test('the card expiry follows the patron type duration unless the CSV gives one', async () => {
+    // Readers of the 200-day type without an expiry in the file: today + 200.
+    const typedExpiry = appDateOffsetISO(TYPE_CARD_DAYS);
+    expect(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email LIKE ${sqlStr(`imp%.${RUN}@${DOMAIN}`)} AND tipologia_id = ${typeId} AND data_scadenza_tessera = ${sqlStr(typedExpiry)}`)).toBe('14');
+    // The explicit date in the CSV wins over the type duration.
+    expect(dbQuery(`SELECT IFNULL(data_scadenza_tessera,'NULL') FROM utenti WHERE email = ${sqlStr(`imp3.${RUN}@${DOMAIN}`)}`)).toBe(MANUAL_EXPIRY);
+    // Readers on the default type (no code, unknown code) get its duration, or no expiry when it has none.
+    const defaultDays = dbQuery('SELECT IFNULL(durata_tessera_giorni, \'\') FROM tipologie_lettore WHERE predefinita = 1 LIMIT 1');
+    const expected = defaultDays === '' ? 'NULL' : appDateOffsetISO(Number(defaultDays));
+    for (const n of [16, 17]) {
+      expect(dbQuery(`SELECT IFNULL(data_scadenza_tessera,'NULL') FROM utenti WHERE email = ${sqlStr(`imp${n}.${RUN}@${DOMAIN}`)}`), `reader ${n}`).toBe(expected);
+    }
   });
 
   test('the run is in the import history as a users import', async () => {

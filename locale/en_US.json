@@ -8889,5 +8889,7 @@
   "Gg/rinnovo": "Days/renewal",
   "Rinnova prestito (+%d giorni)": "Renew loan (+%d days)",
   "La scadenza verrà estesa di %d giorni": "The due date will be extended by %d days",
-  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Renew loan? The due date will be extended by %d days."
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Renew loan? The due date will be extended by %d days.",
+  "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Without a card expiry in the file, the date is computed from the card duration of the patron type (the one given or the default one); an expiry present in the CSV takes precedence.",
+  "Utente importato, ma la scadenza della tessera non è stata calcolata.": "User imported, but the card expiry could not be computed."
 }

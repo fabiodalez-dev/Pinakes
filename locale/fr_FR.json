@@ -8889,5 +8889,7 @@
   "Gg/rinnovo": "J./renouv.",
   "Rinnova prestito (+%d giorni)": "Renouveler l'emprunt (+%d jours)",
   "La scadenza verrà estesa di %d giorni": "La date d'échéance sera prolongée de %d jours",
-  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Renouveler l'emprunt ? La date d'échéance sera prolongée de %d jours."
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Renouveler l'emprunt ? La date d'échéance sera prolongée de %d jours.",
+  "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Sans date d'expiration de la carte dans le fichier, la date est calculée à partir de la durée de carte du type de lecteur (celui indiqué ou celui par défaut) ; une expiration présente dans le CSV a la priorité.",
+  "Utente importato, ma la scadenza della tessera non è stata calcolata.": "Utilisateur importé, mais l'expiration de la carte n'a pas pu être calculée."
 }
