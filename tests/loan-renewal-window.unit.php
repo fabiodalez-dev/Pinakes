@@ -284,7 +284,8 @@ $check(str_contains($outcomeSrc, 'LoanWindow::explainRenewalFromParams($details)
     && substr_count($staffSrc, 'self::windowDetails($outcome)') === 2,
     '12 the Mobile API carries the figures in meta on renew and bulk extend, and accepts new_due_date');
 $ncipSrc = (string) file_get_contents($root . '/storage/plugins/ncip-server/NcipServerPlugin.php');
-$check(str_contains($ncipSrc, 'LoanWindow::renewalCap($currentDue, $blocked)')
+// The closures calendar (0.9.0) passes the calendar as a further argument.
+$check(str_contains($ncipSrc, 'LoanWindow::renewalCap($currentDue, $blocked')
     && str_contains($ncipSrc, 'renewal possible at most until'),
     '13 NCIP RenewItem names until when the renewal is still possible in its ProblemDetail');
 
