@@ -1165,7 +1165,9 @@ class NcipServerPlugin
 
         $requestId = (string) ($message?->RequestId->RequestIdentifierValue ?? '');
         $today = \App\Support\DateHelper::today();
-        $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->durationDays;
+        // A request is capped like the website and app ones: the loan length,
+        // but never past the longest request window of the patron type.
+        $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->requestDurationDays();
         $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
         $failureReason = 'db_error';
         $requestOutcome = $this->createRequestItemNcip(

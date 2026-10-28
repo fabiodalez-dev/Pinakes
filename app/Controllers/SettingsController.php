@@ -1716,8 +1716,8 @@ class SettingsController
         // blocks every renewal) — it is NOT "unlimited".
         $loanDurationDays = min(3650, max(1, (int) ($data['loan_duration_days'] ?? 30)));         // 1 day … 10 years
         $pickupExpiryDays = min(30,   max(1, (int) ($data['pickup_expiry_days'] ?? 3)));          // 1 … 30 days (matches the loans-tab input max)
-        $pickupReminderDays = min(30, max(0, (int) ($data['pickup_reminder_days'] ?? 2)));
-        $cardExpiryWarningDays = min(365, max(0, (int) ($data['card_expiry_warning_days'] ?? 0))); // 0 (off) … 365 days before the card expires        // 0 (off) … 30 days before the pickup deadline
+        $pickupReminderDays = min(30, max(0, (int) ($data['pickup_reminder_days'] ?? 2)));        // 0 (off) … 30 days before the pickup deadline
+        $cardExpiryWarningDays = min(365, max(0, (int) ($data['card_expiry_warning_days'] ?? 0))); // 0 (off) … 365 days before the card expires
         $maxRenewals      = min(100,  max(0, (int) ($data['max_renewals'] ?? 3)));                // 0 … 100
         $maxActiveLoans   = min(1000, max(0, (int) ($data['max_active_loans_per_user'] ?? 0)));   // 0 (unlimited) … 1000
         $maxLoanDuration  = min(3650, max(1, (int) ($data['max_loan_duration_days'] ?? 90)));     // 1 day … 10 years (reservation-window cap enforced by ReservationsController)

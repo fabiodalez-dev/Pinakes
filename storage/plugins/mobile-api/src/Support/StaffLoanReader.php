@@ -257,10 +257,13 @@ final class StaffLoanReader
         if (!isset($r['utente_id'], $r['libro_id'])) {
             return $this->maxRenewals();
         }
-        return $this->circulation()->forLoan(
-            (int) $r['utente_id'],
-            (int) $r['libro_id'],
-            isset($r['copia_id']) ? (int) $r['copia_id'] : null
+        // The renewal limit depends on the patron type and the material only
+        // (a consultation copy changes whether it is lent, not how often it is
+        // renewed), and both lookups are memoised per list: no per-row copy query.
+        $circulation = $this->circulation();
+        return $circulation->forType(
+            $circulation->patronTypeOf((int) $r['utente_id']),
+            $circulation->mediaOf((int) $r['libro_id'])
         )->maxRenewals;
     }
 
