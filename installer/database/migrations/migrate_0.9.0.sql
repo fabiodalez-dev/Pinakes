@@ -142,3 +142,15 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 -- ── end minor features ──
+
+-- ── patron-cards-import ──
+-- The user CSV import writes its run into import_logs like the book imports do,
+-- so the import_type enum gains a users value. The new type is computed from the
+-- current COLUMN_TYPE instead of being spelled out, which keeps any value another
+-- section of this file (or a future release) has already added to the enum.
+SET @pci_type = (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'import_logs' AND COLUMN_NAME = 'import_type');
+SET @pci_sql = IF(@pci_type IS NOT NULL AND LOCATE('''users''', @pci_type) = 0, CONCAT('ALTER TABLE import_logs MODIFY COLUMN import_type ', LEFT(@pci_type, CHAR_LENGTH(@pci_type) - 1), ',''users'') NOT NULL COMMENT ''Type of import'''), 'SELECT 1');
+PREPARE pci_stmt FROM @pci_sql;
+EXECUTE pci_stmt;
+DEALLOCATE PREPARE pci_stmt;
+-- ── end patron-cards-import ──
