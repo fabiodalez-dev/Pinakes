@@ -156,7 +156,14 @@ final class LibraryCalendar
      * stored in prestiti.pickup_deadline, so every check that reads it (pickup
      * confirmation, the reader's cancellation, the expiry sweep, the expired
      * badges) applies the same rule. A deadline whose next open day is already
-     * past is left to the expiry sweep. Returns the number of pickups moved.
+     * past is left to the expiry sweep.
+     *
+     * The deadline never passes the loan's due date (prestiti.data_scadenza):
+     * pickupDeadline() caps it there on creation, and confirmPickup() refuses
+     * a pickup after the loan window, so an extension past it would promise a
+     * day the desk cannot honour. The due date of an existing loan is not
+     * moved here; when the cap leaves nothing to add the row is left alone.
+     * Returns the number of pickups moved.
      */
     public static function extendPickupDeadlines(\mysqli $db): int
     {
@@ -166,7 +173,7 @@ final class LibraryCalendar
         }
         $today = DateHelper::today();
         $result = $db->query(
-            "SELECT p.id, p.pickup_deadline, c.sede_id
+            "SELECT p.id, p.pickup_deadline, p.data_scadenza, c.sede_id
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.stato = 'da_ritirare' AND p.attivo = 1 AND p.pickup_deadline IS NOT NULL"
@@ -185,7 +192,11 @@ final class LibraryCalendar
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
             $next = $calendar->nextOpenDay($deadline, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
-            if ($next === $deadline || $next < $today) {
+            $dueDate = $row['data_scadenza'] !== null ? substr((string) $row['data_scadenza'], 0, 10) : '';
+            if (DateHelper::isISODateFormat($dueDate) && $next > $dueDate) {
+                $next = $dueDate;
+            }
+            if ($next <= $deadline || $next < $today) {
                 continue;
             }
             $id = (int) $row['id'];

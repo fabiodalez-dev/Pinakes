@@ -206,6 +206,26 @@ $check($deadlineOf($pickupLoan) === $today, 'the stored deadline is the next ope
 $maintenance->checkExpiredPickups();
 $check($stateOf($pickupLoan) === 'da_ritirare', 'a deadline on a later-declared closed day lasts until the next open day (today)');
 $check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'a second save moves nothing (idempotent)');
+
+// The extension never passes the loan's due date (confirmPickup() refuses a
+// pickup after the loan window), and the due date itself is not moved.
+$clearClosures();
+$pickupDue = $shift($today, 3);
+$db->query("UPDATE prestiti SET pickup_deadline = '{$pickupDue}', data_scadenza = '{$pickupDue}' WHERE id = {$pickupLoan}");
+$addClosure($pickupDue, $shift($pickupDue, 2));
+$check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'a deadline equal to the due date is left alone when the due date is closed');
+$check($deadlineOf($pickupLoan) === $pickupDue, 'its stored deadline still is the due date');
+$clearClosures();
+$db->query("UPDATE prestiti SET pickup_deadline = '{$shift($pickupDue, -1)}' WHERE id = {$pickupLoan}");
+$addClosure($shift($pickupDue, -1), $shift($pickupDue, 2));
+$check(LibraryCalendar::extendPickupDeadlines($db) >= 1, 'a deadline the day before the due date, closed through after it, moves');
+$check($deadlineOf($pickupLoan) === $pickupDue, 'and stops at the due date, not at the next open day');
+$check((string) $db->query("SELECT data_scadenza FROM prestiti WHERE id = {$pickupLoan}")->fetch_row()[0] === $pickupDue, 'the due date of the existing loan is not moved');
+$clearClosures();
+$db->query("UPDATE prestiti SET pickup_deadline = '{$shift($pickupDue, -1)}', data_scadenza = '{$shift($pickupDue, 5)}' WHERE id = {$pickupLoan}");
+$addClosure($shift($pickupDue, -1), $pickupDue);
+$check(LibraryCalendar::extendPickupDeadlines($db) >= 1 && $deadlineOf($pickupLoan) === $shift($pickupDue, 1), 'with room before the due date the deadline moves to the next open day as before');
+$db->query("UPDATE prestiti SET pickup_deadline = '{$yesterday}', data_scadenza = '{$loanEnd}' WHERE id = {$pickupLoan}");
 $clearClosures();
 $db->query("UPDATE prestiti SET pickup_deadline = '{$yesterday}' WHERE id = {$pickupLoan}");
 $check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'without closures no deadline moves');
