@@ -324,4 +324,40 @@ test.describe('Public holiday presets', () => {
     await submitAndLand(page, '#import-preset');
     await expect(page.locator('body')).toContainText(/Festività applicate: 0 aggiunte, 0 rimosse|Holidays applied: 0 added, 0 removed/);
   });
+
+  test('10. the United Kingdom always works on a nation: Scotland has 2 January and St Andrew, not Easter Monday', async () => {
+    await chooseCountry(page, 'GB');
+    // No "national holidays only" choice: England and Wales is the default nation.
+    await expect(page.locator('#holiday_region')).toHaveValue('ENG');
+    await expect(page.locator('#holiday_region option[value=""]')).toHaveCount(0);
+    await expect(box(page, 'GB:easter_monday')).toHaveCount(1);
+    await Promise.all([page.waitForURL(/holiday_region=SCT/), page.selectOption('#holiday_region', 'SCT')]);
+    await expect(box(page, 'GB:easter_monday')).toHaveCount(0);
+    await expect(box(page, 'GB:second_january')).toHaveCount(1);
+    const andrew = /** @type {string} */ (await holidayDate(page, 'GB:st_andrew'));
+    // 30 November, or the Monday after when it falls on a weekend.
+    expect([`${year}-11-30`, `${year}-12-01`, `${year}-12-02`]).toContain(andrew);
+    expect([0, 6]).not.toContain(weekday(andrew));
+  });
+
+  test('11. a holiday abolished before the preview year is listed as not held that year (Store bededag in Denmark)', async () => {
+    await chooseCountry(page, 'DK');
+    const row = page.locator('[data-holiday-row="DK:store_bededag"]');
+    await expect(row).toContainText(/non prevista nel|not held in/);
+    expect(await holidayDate(page, 'DK:store_bededag')).toBe('');
+    // Customary days start unticked, statutory ones ticked.
+    await expect(box(page, 'DK:juleaftensdag')).not.toBeChecked();
+    await expect(box(page, 'DK:grundlovsdag')).toBeChecked();
+    await expect(page.locator('[data-holiday-row="DK:juleaftensdag"]')).toContainText(/facoltativa|optional/);
+  });
+
+  test('12. France: Alsace-Moselle adds Good Friday and St Stephen to the national list', async () => {
+    await chooseCountry(page, 'FR');
+    const national = await page.locator('input[data-holiday-rule]').count();
+    await expect(box(page, 'FR:vendredi_saint')).toHaveCount(0);
+    await Promise.all([page.waitForURL(/holiday_region=ALM/), page.selectOption('#holiday_region', 'ALM')]);
+    await expect(page.locator('input[data-holiday-rule]')).toHaveCount(national + 2);
+    expect(await holidayDate(page, 'FR:vendredi_saint')).toBe(addDays(easter(year), -2));
+    expect(await holidayDate(page, 'FR:saint_etienne')).toBe(`${year}-12-26`);
+  });
 });
