@@ -40,14 +40,19 @@ final class CopyCataloging
             'version' => '1.2',
             'syntax' => 'unimarcxchange',
             'quote_search_terms' => true,
-            'indexes' => ['isbn' => 'bib.isbn', 'issn' => 'bib.issn', 'title' => 'bib.title', 'author' => 'bib.author', 'any' => 'bib.anywhere'],
+            // bib.fuzzyIsbn matches either form of the ISBN (bib.isbn only
+            // the one the record carries: "2070612759" finds nothing while
+            // "9782070612758" does).
+            'indexes' => ['isbn' => 'bib.fuzzyIsbn', 'issn' => 'bib.issn', 'title' => 'bib.title', 'author' => 'bib.author', 'any' => 'bib.anywhere'],
         ],
         'dnb' => [
             'name' => 'DNB - Deutsche Nationalbibliothek',
             'url' => 'https://services.dnb.de/sru/dnb',
             'version' => '1.1',
             'syntax' => 'MARC21-xml',
-            'indexes' => ['isbn' => 'num', 'issn' => 'num', 'title' => 'tit', 'author' => 'per', 'any' => 'woe'],
+            // woe="Kafka Prozess" finds nothing (an exact phrase in a word
+            // index); woe all "Kafka Prozess" finds every record with both.
+            'indexes' => ['isbn' => 'num', 'issn' => 'num', 'title' => 'tit', 'author' => 'per', 'any' => ['index' => 'woe', 'relation' => 'all']],
         ],
         'k10plus' => [
             'name' => 'K10plus (GBV)',
