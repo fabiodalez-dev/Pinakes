@@ -1767,8 +1767,11 @@ class CsvImportController
             $firstAuthor = $authorsArray[0];
 
             if ($firstAuthor !== '') {
-                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi")
+                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi").
+                // A name in quotes keeps them through normalize() (#501); they
+                // are never part of a stored name, so compare without them.
                 $normalizedAuthor = \App\Support\AuthorNormalizer::normalize($firstAuthor);
+                $normalizedAuthor = \App\Support\ExactSearch::quotedValue($normalizedAuthor) ?? $normalizedAuthor;
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l

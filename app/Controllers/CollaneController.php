@@ -484,9 +484,11 @@ class CollaneController
         // wildcards so callers can't broaden the match with `%`/`_` or
         // probe single-char prefixes for enumeration.
         // Each word keeps its own rule (`Mont "Häffner"`): the condition
-        // comes from filterCondition(); parseFilter() only measures the input.
-        ['term' => $term] = \App\Support\ExactSearch::parseFilter($q);
-        if (mb_strlen($term) >= 2) {
+        // comes from filterCondition(), one per word, so the minimum applies
+        // to every word: `"a" b` must not probe single characters either.
+        $words = array_column(\App\Support\ExactSearch::tokenize($q), 'term');
+        $longEnough = $words !== [] && min(array_map('mb_strlen', $words)) >= 2;
+        if ($longEnough) {
 
             $hasCollane = $this->hasCollaneTable($db);
             $sqlParts = [];

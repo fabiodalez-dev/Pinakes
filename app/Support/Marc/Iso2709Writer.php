@@ -34,15 +34,20 @@ final class Iso2709Writer
         $this->handle = $handle;
     }
 
-    public function write(MarcRecord $record): void
+    /** @param list<string>|null $warnings collects a note for each field that had to be cut */
+    public function write(MarcRecord $record, ?array &$warnings = null): void
     {
         if (!is_resource($this->handle)) {
             throw new \LogicException('Iso2709Writer has no stream to write to');
         }
-        fwrite($this->handle, self::serialize($record));
+        fwrite($this->handle, self::serialize($record, $warnings));
     }
 
-    public static function serialize(MarcRecord $record): string
+    /**
+     * @param list<string>|null $warnings collects a note for each field that had to be cut
+     * @throws \OverflowException when the record exceeds 99,999 bytes
+     */
+    public static function serialize(MarcRecord $record, ?array &$warnings = null): string
     {
         $directory = '';
         $fieldData = '';
@@ -56,7 +61,11 @@ final class Iso2709Writer
                     $content .= self::SUBFIELD_DELIMITER . $code . $value;
                 }
             }
-            $content = self::fitField($content) . self::FIELD_TERMINATOR;
+            $fitted = self::fitField($content);
+            if ($fitted !== $content && $warnings !== null) {
+                $warnings[] = sprintf('field %s of %d bytes cut to %d (ISO 2709 field limit)', $field->tag, strlen($content), strlen($fitted));
+            }
+            $content = $fitted . self::FIELD_TERMINATOR;
             $length = strlen($content);
             $directory .= str_pad(substr($field->tag, 0, 3), 3, '0', STR_PAD_LEFT)
                 . sprintf('%04d', $length)
@@ -82,15 +91,28 @@ final class Iso2709Writer
     }
 
     /**
-     * A field longer than the directory can describe is cut on a UTF-8
-     * character boundary (a long summary is the usual case) rather than
-     * producing a record no reader can open.
+     * A field longer than the directory can describe is cut, rather than
+     * producing a record no reader can open: at the last subfield boundary
+     * that fits, so every subfield kept is whole; when the first subfield
+     * alone is too long (a long summary is the usual case) inside it, on a
+     * UTF-8 character boundary.
      */
     private static function fitField(string $content): string
     {
         $limit = self::MAX_FIELD_LENGTH - 1; // the field terminator counts
         if (strlen($content) <= $limit) {
             return $content;
+        }
+        // Subfield starts after the first one (offset 2 holds the first
+        // delimiter, right after the indicators).
+        $cut = 0;
+        $offset = strpos($content, self::SUBFIELD_DELIMITER, 3);
+        while ($offset !== false && $offset <= $limit) {
+            $cut = $offset;
+            $offset = strpos($content, self::SUBFIELD_DELIMITER, $offset + 1);
+        }
+        if ($cut > 0) {
+            return substr($content, 0, $cut);
         }
         return mb_strcut($content, 0, $limit, 'UTF-8');
     }

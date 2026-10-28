@@ -90,12 +90,20 @@ class SruClient
         'any' => 'cql.serverChoice',
     ];
 
+    /** CQL relations a server configuration may ask for on an index. */
+    private const CQL_RELATIONS = ['=', '==', 'all', 'any', 'adj', 'exact'];
+
     /**
      * The CQL query for one search on one server: the server's own index name
      * when its configuration maps one (`indexes`), else the standard one.
      * Text terms are always quoted, backslash-escaping embedded quotes per the
      * CQL specification; an ISBN or ISSN is reduced to its digits and sent
      * bare unless the server wants it quoted (`quote_search_terms`).
+     *
+     * An index is mapped as a name (`'any' => 'woe'`, searched with `=`) or
+     * with the relation the server needs (`'any' => ['index' => 'woe',
+     * 'relation' => 'all']`): the DNB's `woe="Kafka Prozess"` finds nothing,
+     * `woe all "Kafka Prozess"` finds every record with both words.
      *
      * @param array<string, mixed> $server
      */
@@ -106,8 +114,7 @@ class SruClient
         if ($index === 'isbn' || $index === 'issn') {
             $term = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $term));
         }
-        $indexes = is_array($server['indexes'] ?? null) ? $server['indexes'] : [];
-        $cqlIndex = trim((string) ($indexes[$index] ?? ''));
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
         if ($cqlIndex === '') {
             $cqlIndex = self::DEFAULT_CQL_INDEXES[$index];
         }
@@ -116,7 +123,28 @@ class SruClient
         // digits of an ISBN or ISSN go bare, unless the server asks otherwise.
         $quote = !in_array($index, ['isbn', 'issn'], true) || !empty($server['quote_search_terms']);
         $value = $quote ? '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $term) . '"' : $term;
-        return $cqlIndex . '=' . $value;
+        return $cqlIndex . ($relation === '=' ? '=' : ' ' . $relation . ' ') . $value;
+    }
+
+    /**
+     * The CQL index name and relation a server configuration maps one of
+     * SEARCH_INDEXES to: '' and '=' when it maps none.
+     *
+     * @param array<string, mixed> $server
+     * @return array{0: string, 1: string}
+     */
+    public static function indexSpec(array $server, string $index): array
+    {
+        $indexes = is_array($server['indexes'] ?? null) ? $server['indexes'] : [];
+        $spec = $indexes[$index] ?? '';
+        if (is_array($spec)) {
+            $relation = strtolower(trim((string) ($spec['relation'] ?? '=')));
+            return [
+                trim((string) ($spec['index'] ?? '')),
+                in_array($relation, self::CQL_RELATIONS, true) ? $relation : '=',
+            ];
+        }
+        return [trim((string) $spec), '='];
     }
 
     /**
@@ -193,7 +221,17 @@ class SruClient
             throw new \RuntimeException('Invalid XML response');
         }
         $xpath = new DOMXPath($dom);
-        $diagnostic = $xpath->query("//*[local-name()='diagnostic']/*[local-name()='message'] | /*[local-name()='searchResponse']/*[local-name()='error']")->item(0);
+        // Only a diagnostic of the response itself ends the search: the
+        // <diagnostics> element directly under the root, or the <error>
+        // our own endpoint and some servers answer with. A diagnostic inside
+        // a record's <recordData> (a surrogate: the BnF answers "erreur de
+        // traitement" for one hit of many) only means that record cannot be
+        // read; the MARC reader below skips it, the others are returned.
+        $diagnostic = $xpath->query(
+            "/*/*[local-name()='diagnostics']/*[local-name()='diagnostic']/*[local-name()='message']"
+            . " | /*[local-name()='error']/*[local-name()='message']"
+            . " | /*[local-name()='searchResponse']/*[local-name()='error']"
+        )->item(0);
         if ($diagnostic !== null) {
             throw new \RuntimeException(trim((string) $diagnostic->nodeValue));
         }
@@ -379,12 +417,11 @@ class SruClient
         $recordSchema = strtolower($server['syntax'] ?? 'marcxml');
 
         // Build CQL query with custom index mapping
-        $cqlIndex = $index;
-        if (isset($server['indexes'][$index])) {
-            $cqlIndex = $server['indexes'][$index];
-        } elseif ($index === 'isbn') {
-            $cqlIndex = 'isbn';
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        if ($cqlIndex === '') {
+            $cqlIndex = $index;
         }
+        $relation = $relation === '=' ? '=' : ' ' . $relation . ' ';
 
         // Build query parameters
         // quote_search_terms: some servers (e.g. BNF) require the term wrapped in CQL quotes.
@@ -395,7 +432,7 @@ class SruClient
         $params = [
             'operation' => 'searchRetrieve',
             'version' => $version,
-            'query' => $cqlIndex . '=' . $quotedTerm,
+            'query' => $cqlIndex . $relation . $quotedTerm,
             'recordSchema' => $recordSchema,
             'maximumRecords' => 1
         ];
@@ -410,7 +447,7 @@ class SruClient
         if ($recordSchema === 'dbc-opensearch') {
             $params = [
                 'action' => 'search',
-                'query' => ($cqlIndex === 'isbn' ? 'term.isbn' : $cqlIndex) . '=' . $quotedTerm,
+                'query' => ($cqlIndex === 'isbn' ? 'term.isbn' : $cqlIndex) . $relation . $quotedTerm,
                 'outputType' => 'xml',
                 'objectFormat' => 'marcxchange',
                 'start' => 1,

@@ -110,7 +110,28 @@ foreach ([\App\Controllers\CsvImportController::class => 'CSV import', \App\Cont
     $ok($first['created'] === true && $nameOf('editori', (int) $first['id']) === "Verlag {$given} Höffner {$label}", "{$label}: a quoted publisher is created without quotes");
     $same(['id' => $first['id'], 'created' => false], $getOrCreate->invoke($importer, $db, "\"Verlag {$given} Höffner {$label}\""), "{$label}: the same quoted publisher is reused, not duplicated");
 }
+// A LibraryThing row normalises its names before the lookup. A quoted
+// inverted name must come out canonical WITH the quotes around the whole name
+// (`"Given Höffner"`, never `Given" "Höffner`), so the exact lookup still
+// applies and the stored author has no quote characters.
+$lt = (new \ReflectionClass(\App\Controllers\LibraryThingImportController::class))->newInstanceWithoutConstructor();
+$ltRow = (new \ReflectionMethod($lt, 'parseLibraryThingRow'))->invoke($lt, [
+    'Title' => 'Quoted names',
+    'Primary Author' => "\"Höffner, {$given}\"",
+    'Secondary Author' => "\"Hüffner, {$given}\"",
+    'Secondary Author Roles' => 'Translator',
+]);
+$same("\"{$given} Höffner\"", $ltRow['autori'], 'LibraryThing import: a quoted inverted primary author is canonicalised inside the quotes');
+$same("\"{$given} Hüffner\"", $ltRow['traduttore'] ?? null, 'LibraryThing import: a quoted inverted translator is canonicalised inside the quotes too');
+$ltAuthor = new \ReflectionMethod($lt, 'getOrCreateAuthor');
+$ltFirst = $ltAuthor->invoke($lt, $db, $ltRow['autori']);
+$ltName = $nameOf('autori', (int) $ltFirst['id']);
+$ok($ltFirst['created'] === true && $ltName === "{$given} Höffner" && !str_contains($ltName, '"'), 'LibraryThing import: the quoted author is stored without quote characters');
+$same(['id' => $ltFirst['id'], 'created' => false], $ltAuthor->invoke($lt, $db, $ltRow['autori']), 'LibraryThing import: the same quoted author is reused, not duplicated');
+$ltTranslator = \App\Support\ContributorSync::resolveNameIds($db, (string) $ltRow['traduttore']);
+$ok($ltTranslator['created'] === 1 && $nameOf('autori', $ltTranslator['ids'][0]) === "{$given} Hüffner", 'LibraryThing import: a quoted translator reaches ContributorSync and is stored without quotes');
+
 $typed = $periodicals->resolve(["new:\"Verlag {$given} Hüffner\""]);
 $ok(count($typed) === 1 && $nameOf('editori', $typed[0]) === "Verlag {$given} Hüffner" && $typed[0] !== $pubPlain, 'periodicals: a quoted typed publisher is a new one, stored without quotes');
 
-Exact501::finish(41);
+Exact501::finish(46);

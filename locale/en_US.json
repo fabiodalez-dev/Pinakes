@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "The code does not match any copy in the catalogue.",
   "Questa copia è già stata registrata in questa revisione.": "This copy was already recorded in this stocktake.",
   "La copia esiste ma non rientra nel filtro della revisione.": "The copy exists but is outside the stocktake's filter.",
-  "La copia risulta in prestito: verifica il prestito.": "The copy is recorded as on loan: check the loan.",
   "La revisione è stata chiusa da un altro operatore.": "The stocktake was closed by another operator.",
   "Revisore inventario": "Stocktake reviewer",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Starting profile for taking part in stocktakes: open a session and scan copies, without changing the catalogue or declaring copies lost.",
@@ -8682,5 +8681,8 @@
   "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "The supplier website is not a valid address: enter an http(s) URL, for example https://www.example.org.",
   "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Assigned to the new books and, with \"Overwrite\", to the books already in the catalogue. Skipped or merely completed books keep their supplier.",
   "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Assigned to the new books this import creates. Books already in the catalogue keep their supplier.",
-  "Fornitore non assegnato": "Supplier not assigned"
+  "Fornitore non assegnato": "Supplier not assigned",
+  "In prestito o in attesa di ritiro": "On loan or awaiting pickup",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2."
 }
