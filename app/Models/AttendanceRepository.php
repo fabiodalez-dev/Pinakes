@@ -249,7 +249,9 @@ class AttendanceRepository
     public static function normalizeRetention(mixed $raw): int
     {
         $days = filter_var($raw, FILTER_VALIDATE_INT);
-        if ($days === false) {
+        // Not a number, or negative: the prudent default, never 0 (= keep
+        // forever), so a typo cannot switch the GDPR purge off.
+        if ($days === false || $days < 0) {
             return self::DEFAULT_RETENTION_DAYS;
         }
         return max(0, min(self::MAX_RETENTION_DAYS, $days));

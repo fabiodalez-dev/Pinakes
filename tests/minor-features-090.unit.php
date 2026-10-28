@@ -81,7 +81,7 @@ checkMinor(array_keys($s) === SupplierRepository::FIELDS, 'normalize() returns e
 // ── Visitor log helpers ──
 checkMinor(AttendanceRepository::shortName('Mario', 'rossi') === 'Mario R.' && AttendanceRepository::shortName('Cher', '') === 'Cher', 'kiosk names are shortened to the initial');
 checkMinor(AttendanceRepository::normalizeRetention('30') === 30 && AttendanceRepository::normalizeRetention('0') === 0, 'retention accepts days and 0 (keep forever)');
-checkMinor(AttendanceRepository::normalizeRetention('-5') === 0 && AttendanceRepository::normalizeRetention('999999') === AttendanceRepository::MAX_RETENTION_DAYS, 'retention is clamped');
+checkMinor(AttendanceRepository::normalizeRetention('-5') === AttendanceRepository::DEFAULT_RETENTION_DAYS && AttendanceRepository::normalizeRetention('999999') === AttendanceRepository::MAX_RETENTION_DAYS, 'retention is clamped; a negative value falls back to the default, never to "keep forever"');
 checkMinor(AttendanceRepository::normalizeRetention('abc') === AttendanceRepository::DEFAULT_RETENTION_DAYS, 'non-numeric retention falls back to the default');
 checkMinor(AttendanceRepository::clampDays(0) === 1 && AttendanceRepository::clampDays(10000) === 366, 'statistics period is clamped');
 
