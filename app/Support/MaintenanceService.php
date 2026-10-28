@@ -992,7 +992,7 @@ class MaintenanceService
                 // restava ritirabile (e la copia bloccata) oltre la fine del
                 // prestito stesso.
                 // Open days only (closures calendar); identical to +N days without closures.
-                $pickupDeadline = LibraryCalendar::pickupDeadline($this->db, $today, $pickupDays);
+                $pickupDeadline = LibraryCalendar::pickupDeadline($this->db, $today, $pickupDays, null, $copiaId);
                 if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $pickupDeadline) {
                     $pickupDeadline = $loan['data_scadenza'];
                 }

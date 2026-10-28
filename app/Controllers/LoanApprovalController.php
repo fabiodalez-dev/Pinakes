@@ -603,6 +603,14 @@ class LoanApprovalController
                 throw new \RuntimeException(__('Impossibile aggiornare lo stato della copia'));
             }
 
+            // The pickup days count the open days of the chosen copy's branch.
+            if ($pickupDeadline !== null) {
+                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays, null, (int) $selectedCopy['id']);
+                if ($dataScadenza !== null && $dataScadenza !== '' && $pickupDeadline > $dataScadenza) {
+                    $pickupDeadline = $dataScadenza;
+                }
+            }
+
             // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile
             if ($pickupDeadline !== null) {
                 $stmt = $db->prepare("

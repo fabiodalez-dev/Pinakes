@@ -578,6 +578,19 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
             }
 
+            // The copy is known only now: a due date closed at its branch moves
+            // to the branch's next open day, and the longer window is checked
+            // again for capacity (the copy overlap check below uses it too).
+            $branchDue = \App\Services\CirculationPolicy::dueDateFor($data_scadenza, 0, $db, (int) $selectedCopy['id']);
+            if ($branchDue !== $data_scadenza) {
+                $branchCapacity = new \App\Services\CapacityService($db);
+                if (!$branchCapacity->hasFreeCapacity($libro_id, $data_prestito, $branchDue)) {
+                    $db->rollback();
+                    return $this->noCapacityRedirect($response, $branchCapacity, $libro_id, $data_prestito, $branchDue);
+                }
+                $data_scadenza = $branchDue;
+            }
+
             // Race condition check to prevent double-booking
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
@@ -654,7 +667,7 @@ class PrestitiController
                     $settingsRepo = new \App\Models\SettingsRepository($db);
                     $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
                     // Open days only (closures calendar); identical to +N days without closures.
-                    $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays);
+                    $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays, null, (int) $selectedCopy['id']);
                     // Cap alla fine della finestra del prestito (L1), come
                     // approveLoan/activateScheduledLoans: una deadline oltre
                     // data_scadenza permetterebbe di confermare il ritiro di un
@@ -1268,7 +1281,7 @@ class PrestitiController
                     $pickupRecalc->close();
                 } elseif ((string) $locked['stato'] === 'da_ritirare') {
                     $pickupDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'pickup_expiry_days', '3') ?? 3);
-                    $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $todayApp, $pickupDays);
+                    $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $todayApp, $pickupDays, null, !empty($locked['copia_id']) ? (int) $locked['copia_id'] : null);
                     if ($pickupDeadline > $newScadenza) {
                         $pickupDeadline = $newScadenza;
                     }
