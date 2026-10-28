@@ -173,6 +173,23 @@ $check($m3['titolo'] === 'Untitled anthology' && $m3['autori'] === [] && $m3['an
 $crime = (new Marc21LibriMapper())->map($xml[0]);
 $check($crime['autori'] === ['Dostoyevsky, Fyodor'] && $crime['traduttore'] === ['McDuff, David'] && $crime['copertina_url'] === 'https://covers.example.org/crime.jpeg', '51 "translated with an introduction" → translator; 856 $q image/jpeg');
 
+$deweyOf = static function (string $value): string {
+    $r = new MarcRecord();
+    $r->addDataField('082', '0', '4', [['a', $value], ['2', '23']]);
+    return (new Marc21LibriMapper())->map($r)['classificazione_dewey'];
+};
+$check($deweyOf('891.73/3') === '891.733' && $deweyOf('813/.54') === '813.54' && $deweyOf("823'.912") === '823.912' && $deweyOf('[Fic]') === '' && $deweyOf('853.914') === '853.914', '51a 082 prime marks (/ and \') are dropped, [Fic] is no number');
+$corp = new MarcRecord();
+$corp->addDataField('110', '2', ' ', [['a', 'United States.'], ['b', 'Congress.'], ['b', 'Senate.']]);
+$corp->addDataField('245', '1', '0', [['a', 'Report']]);
+$corp->addDataField('710', '2', ' ', [['a', 'Istituto nazionale di statistica,'], ['e', 'editor.'], ['4', 'edt']]);
+$corp->addDataField('711', '2', ' ', [['a', 'Convegno di studi'], ['d', '(1998 : Roma)']]);
+$corp->addDataField('710', '2', ' ', [['a', 'Einaudi,'], ['e', 'publisher.'], ['4', 'pbl']]);
+$corp->addDataField('710', '2', ' ', [['a', 'Some body'], ['t', 'A work']]);
+$c = (new Marc21LibriMapper())->map($corp);
+$check($c['autori'] === ['United States. Congress. Senate', 'Convegno di studi'], '51b 110 $a $b joined and a 711 meeting are authors; a publisher (710 $4 pbl) and a name-title entry are not');
+$check($c['curatore'] === ['Istituto nazionale di statistica'], '51c a 710 with $4 edt is the editor');
+
 echo "UNIMARC mapping\n";
 $u = (new UnimarcLibriMapper())->map($uni[0]);
 $check($u['titolo'] === 'Se questo è un uomo' && $u['sottotitolo'] === 'testimonianza' && $u['isbn13'] === '9788806219499' && $u['ean'] === '8001234567894', '52 200, 010, 073');

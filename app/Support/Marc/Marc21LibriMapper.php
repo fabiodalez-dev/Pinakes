@@ -17,6 +17,8 @@ use App\Support\PublicationPlace;
  *       else the 245 $c statement of responsibility (RelatorRoles, the same
  *       reading the SRU client and danMARC2 use): editors, translators,
  *       illustrators and colorists go to their own columns, the rest stay authors
+ *   110 / 111 $a $b corporate body or meeting as the main entry, 710 / 711 as
+ *       added entries, with the same roles
  *   245 $a title, $b rest of title                  250 $a edition
  *   260 / 264 $a place, $b publishers, $c year (else 008/07-10)
  *   300 $a pages, $c dimensions                     490 $a $v series (else 830)
@@ -32,6 +34,25 @@ final class Marc21LibriMapper implements MarcLibriMapper
         'illustrator' => 'illustratore',
         'colorist' => 'colorista',
     ];
+
+    /**
+     * The name of a name entry: a person's $a; a corporate body's or
+     * meeting's $a with its subordinate units ($b), "United States. Congress".
+     */
+    private static function entryName(MarcField $field): string
+    {
+        $name = MarcBookData::cleanName($field->subfield('a'));
+        if (!in_array($field->tag, ['110', '111', '710', '711'], true)) {
+            return $name;
+        }
+        $parts = [];
+        foreach (array_merge([$name], array_map([MarcBookData::class, 'cleanName'], $field->subfieldValues('b'))) as $part) {
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+        return implode('. ', $parts);
+    }
 
     public function map(MarcRecord $record): array
     {
@@ -58,27 +79,33 @@ final class Marc21LibriMapper implements MarcLibriMapper
                 $contributors[$column][] = $name;
             }
         };
-        foreach ($record->fieldsByTag('100') as $field) {
-            $name = MarcBookData::cleanName($field->subfield('a'));
-            $codes = $field->subfieldValues('4');
-            $term = $field->subfieldValues('e');
-            // The main entry is the author unless its own relator says otherwise.
-            $role = ($codes === [] && $term === [])
-                ? 'author'
-                : RelatorRoles::resolve($codes, $term === [] ? null : implode(' ', $term), null, $name, 'marc21');
-            $file($name, $role === 'other' ? 'author' : $role);
+        // Main entry: a person (100), a corporate body (110) or a meeting
+        // (111); added entries the same way (700, 710, 711).
+        foreach (['100', '110', '111'] as $tag) {
+            foreach ($record->fieldsByTag($tag) as $field) {
+                $name = self::entryName($field);
+                $codes = $field->subfieldValues('4');
+                $term = $field->subfieldValues('e');
+                // The main entry is the author unless its own relator says otherwise.
+                $role = ($codes === [] && $term === [])
+                    ? 'author'
+                    : RelatorRoles::resolve($codes, $term === [] ? null : implode(' ', $term), null, $name, 'marc21');
+                $file($name, $role === 'other' ? 'author' : $role);
+            }
         }
-        foreach ($record->fieldsByTag('700') as $field) {
-            if ($field->subfield('t') !== null) {
-                continue; // a name-title entry is a work, not a person's part
+        foreach (['700', '710', '711'] as $tag) {
+            foreach ($record->fieldsByTag($tag) as $field) {
+                if ($field->subfield('t') !== null) {
+                    continue; // a name-title entry is a work, not a person's part
+                }
+                $name = self::entryName($field);
+                if ($name === '') {
+                    continue;
+                }
+                $term = $field->subfieldValues('e');
+                $role = RelatorRoles::resolve($field->subfieldValues('4'), $term === [] ? null : implode(' ', $term), $statement, $name, 'marc21');
+                $file($name, $role);
             }
-            $name = MarcBookData::cleanName($field->subfield('a'));
-            if ($name === '') {
-                continue;
-            }
-            $term = $field->subfieldValues('e');
-            $role = RelatorRoles::resolve($field->subfieldValues('4'), $term === [] ? null : implode(' ', $term), $statement, $name, 'marc21');
-            $file($name, $role);
         }
         $data['autori'] = $authors;
         foreach ($contributors as $column => $names) {
@@ -137,7 +164,9 @@ final class Marc21LibriMapper implements MarcLibriMapper
         }
         $data['parole_chiave'] = $keywords;
 
-        $dewey = (string) $record->subfield('082', 'a');
+        // 082 $a with its prime marks removed: "891.73/3" is 891.733,
+        // "813/.54" is 813.54; "[Fic]" is no number.
+        $dewey = str_replace(['/', "'"], '', (string) $record->subfield('082', 'a'));
         if (preg_match('/(\d{3}(?:\.\d+)?)/', $dewey, $m) === 1) {
             $data['classificazione_dewey'] = $m[1];
         }
