@@ -4,6 +4,8 @@
  */
 $title = "Libri";
 $libri = $data['libri'];
+$fornitoriFilter = $data['fornitori'] ?? [];
+$fornitoreUrl = (int) ($_GET['fornitore'] ?? 0);
 ?>
 <!-- Enhanced Books Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
@@ -326,6 +328,19 @@ unset($workspaceHeader);
             <input id="acq_to" type="date"
                    class="form-input" />
           </div>
+
+          <!-- Supplier -->
+          <div>
+            <label for="fornitore_filter" class="form-label books-filter-label">
+              <i class="fas fa-truck mr-1"></i><?= __("Fornitore") ?>
+            </label>
+            <select id="fornitore_filter" class="form-input">
+              <option value=""><?= __("Tutti i fornitori") ?></option>
+              <?php foreach ($fornitoriFilter as $fid => $fname): ?>
+                <option value="<?= (int) $fid ?>" <?= $fornitoreUrl === (int) $fid ? 'selected' : '' ?>><?= App\Support\HtmlHelper::e($fname) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -389,6 +404,9 @@ unset($workspaceHeader);
           </button>
           <button id="bulk-export-marc" class="btn-secondary">
             <i class="fas fa-file-code mr-2"></i><?= __("Esporta in MARC") ?>
+          </button>
+          <button id="bulk-catalogue-cards" class="btn-secondary">
+            <i class="fas fa-address-card mr-2"></i><?= __("Schede catalografiche") ?>
           </button>
           <button id="bulk-assign-collana" class="btn-secondary">
             <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
@@ -685,7 +703,8 @@ document.addEventListener('DOMContentLoaded', function() {
           anno_from: document.getElementById('anno_from').value,
           anno_to: document.getElementById('anno_to').value,
           collana: collanaFilter,
-          tipo_media: document.getElementById('tipo_media_filter').value
+          tipo_media: document.getElementById('tipo_media_filter').value,
+          fornitore_filter: document.getElementById('fornitore_filter')?.value || 0
         };
       },
       dataSrc: function(json) {
@@ -903,7 +922,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateActiveFilters();
   });
 
-  ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
+  ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'fornitore_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', reloadDebounced);
@@ -939,6 +958,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const tipoMedia = document.getElementById('tipo_media_filter').value;
     if (tipoMedia) filters.push({ key: 'tipo_media_filter', label: `${<?= json_encode(__("Tipo Media"), JSON_HEX_TAG) ?>}: ${tipoMedia}`, icon: 'fa-compact-disc' });
 
+    const fornitoreSel = document.getElementById('fornitore_filter');
+    if (fornitoreSel && fornitoreSel.value) {
+      filters.push({ key: 'fornitore_filter', label: `${<?= json_encode(__("Fornitore"), JSON_HEX_TAG) ?>}: ${fornitoreSel.options[fornitoreSel.selectedIndex].text}`, icon: 'fa-truck' });
+    }
+
     const genere = document.getElementById('filter_genere').value;
     if (genere && document.getElementById('genere_id').value) {
       filters.push({ key: 'genere', label: `${<?= json_encode(__("Genere"), JSON_HEX_TAG) ?>}: ${genere}`, icon: 'fa-tags' });
@@ -967,6 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (key === 'editore') { document.getElementById('filter_editore').value = ''; document.getElementById('editore_filter').value = ''; }
     else if (key === 'stato_filter') document.getElementById('stato_filter').value = '';
     else if (key === 'tipo_media_filter') document.getElementById('tipo_media_filter').value = '';
+    else if (key === 'fornitore_filter') document.getElementById('fornitore_filter').value = '';
     else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; genereUrlFilter = 0; sottogenereUrlFilter = 0; }
     table.ajax.reload();
     updateActiveFilters();
@@ -974,7 +999,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Clear all filters
   document.getElementById('clear-filters').addEventListener('click', function() {
-    ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
+    ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'fornitore_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -1467,6 +1492,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Bulk ISBD catalogue cards (PDF, one card per page)
+  document.getElementById('bulk-catalogue-cards').addEventListener('click', function() {
+    if (selectedBooks.size === 0) return;
+    const ids = Array.from(selectedBooks).join(',');
+    window.open(`${window.BASE_PATH}/admin/books/catalogue-cards?ids=${encodeURIComponent(ids)}`, '_blank', 'noopener');
+  });
+
   // Bulk export
   document.getElementById('bulk-export').addEventListener('click', function() {
     if (selectedBooks.size === 0) return;
@@ -1833,7 +1865,7 @@ table#libri-table { border: 1px solid #e5e7eb; width: 100% !important; }
   .books-filter-grid > #clear-filters,
   .books-recent-searches { flex: 0 0 auto; }
   .books-recent-searches > button { width: auto; }
-  .books-bulk-buttons { grid-template-columns: repeat(4, auto); }
+  .books-bulk-buttons { grid-template-columns: repeat(3, auto); }
 }
 
 .books-scroll-hint { display: none; }

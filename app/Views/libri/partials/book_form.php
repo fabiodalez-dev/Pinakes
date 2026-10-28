@@ -413,6 +413,26 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= htmlspecialchars(__('es. 19.90'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
             </div>
           </div>
+          <?php
+          // Supplier (0.9.0). $fornitori is id => name, loaded by the controller.
+          $supplierOptions = isset($fornitori) && is_array($fornitori) ? $fornitori : [];
+          $currentSupplier = (int) ($book['fornitore_id'] ?? 0);
+          ?>
+          <div class="form-grid-3 mt-4">
+            <div>
+              <label for="fornitore_id" class="form-label"><?= __("Fornitore") ?></label>
+              <select id="fornitore_id" name="fornitore_id" class="form-input">
+                <option value=""><?= __("Nessun fornitore") ?></option>
+                <?php foreach ($supplierOptions as $supplierId => $supplierName): ?>
+                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= HtmlHelper::e($supplierName) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p class="text-xs text-gray-500 mt-1">
+                <?= __("Da chi è stato acquistato il libro.") ?>
+                <a class="underline" href="<?= htmlspecialchars(url('/admin/suppliers'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Gestisci fornitori") ?></a>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -464,6 +484,60 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <label for="dimensioni" class="form-label"><?= __("Dimensioni") ?></label>
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 21x14 cm'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
+
+          <?php
+          // RDA content / media / carrier (0.9.0): derived from tipo_media,
+          // with an optional per-record override. The first option is the
+          // derived value; the script below keeps its label in sync with the
+          // media type select.
+          $rdaDerived = \App\Support\RdaTypes::derive($book['tipo_media'] ?? 'libro');
+          $rdaDerivedByMedia = [];
+          foreach (array_keys(\App\Support\MediaLabels::allTypes()) as $mediaKey) {
+              foreach (\App\Support\RdaTypes::derive($mediaKey) as $rdaKind => $rdaCode) {
+                  $rdaDerivedByMedia[$mediaKey][$rdaKind] = __(\App\Support\RdaTypes::label($rdaKind, $rdaCode)) . ' (' . $rdaCode . ')';
+              }
+          }
+          $rdaKindLabels = [
+              \App\Support\RdaTypes::KIND_CONTENT => __('Tipo di contenuto RDA'),
+              \App\Support\RdaTypes::KIND_MEDIA => __('Tipo di mediazione RDA'),
+              \App\Support\RdaTypes::KIND_CARRIER => __('Tipo di supporto RDA'),
+          ];
+          ?>
+          <div class="mt-4" id="rda-types">
+            <p class="form-label mb-1"><?= __("Tipologia RDA") ?></p>
+            <p class="text-xs text-gray-500 mb-2"><?= __("Ricavata dal tipo media. Scegli un valore solo se questa risorsa fa eccezione.") ?></p>
+            <div class="form-grid-3">
+              <?php foreach (\App\Support\RdaTypes::COLUMNS as $rdaKind => $rdaColumn): $rdaCurrent = \App\Support\RdaTypes::normalize($rdaKind, $book[$rdaColumn] ?? null); ?>
+                <div>
+                  <label for="<?= htmlspecialchars($rdaColumn, ENT_QUOTES, 'UTF-8') ?>" class="form-label"><?= htmlspecialchars($rdaKindLabels[$rdaKind], ENT_QUOTES, 'UTF-8') ?></label>
+                  <select id="<?= htmlspecialchars($rdaColumn, ENT_QUOTES, 'UTF-8') ?>" name="<?= htmlspecialchars($rdaColumn, ENT_QUOTES, 'UTF-8') ?>" class="form-input" data-rda-kind="<?= htmlspecialchars($rdaKind, ENT_QUOTES, 'UTF-8') ?>">
+                    <option value="" data-rda-derived><?= htmlspecialchars(sprintf(__('Automatico: %s'), __(\App\Support\RdaTypes::label($rdaKind, $rdaDerived[$rdaKind])) . ' (' . $rdaDerived[$rdaKind] . ')'), ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php foreach (\App\Support\RdaTypes::options($rdaKind) as $rdaCode => $rdaLabel): ?>
+                      <option value="<?= htmlspecialchars($rdaCode, ENT_QUOTES, 'UTF-8') ?>" <?= $rdaCurrent === $rdaCode ? 'selected' : '' ?>><?= htmlspecialchars(__($rdaLabel) . ' (' . $rdaCode . ')', ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <script>
+          (function () {
+            const derived = <?= json_encode($rdaDerivedByMedia, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const prefix = <?= json_encode(__('Automatico: %s'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const media = document.getElementById('tipo_media');
+            if (!media) { return; }
+            const sync = function () {
+              const row = derived[media.value] || derived.libro || {};
+              document.querySelectorAll('#rda-types select[data-rda-kind]').forEach(function (select) {
+                const opt = select.querySelector('option[data-rda-derived]');
+                if (opt && row[select.dataset.rdaKind]) {
+                  opt.textContent = prefix.replace('%s', row[select.dataset.rdaKind]);
+                }
+              });
+            };
+            media.addEventListener('change', sync);
+          })();
+          </script>
 
           <?php
           // The id is cast, not passed through: handlers declare `?int $id`

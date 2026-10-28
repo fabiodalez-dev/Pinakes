@@ -1,0 +1,114 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Support;
+
+use mysqli;
+
+/**
+ * Book-form fields added in 0.9.0 that live beside the core record:
+ * the supplier (`libri.fornitore_id`) and the RDA content/media/carrier
+ * overrides (`libri.rda_*_type`).
+ *
+ * They are written after the core save, and only for the keys the request
+ * actually carries: the book form always posts them, while CSV/LibraryThing
+ * imports, the mobile API and plugins do not, so those paths leave the stored
+ * values untouched.
+ */
+final class CataloguingExtras
+{
+    /** @var array<string, bool> */
+    private static array $columnCache = [];
+
+    /**
+     * Persist the supplier and RDA overrides present in a form submission.
+     *
+     * @param array<string, mixed> $data raw form data
+     */
+    public static function save(mysqli $db, int $bookId, array $data): void
+    {
+        $set = [];
+        $types = '';
+        $values = [];
+
+        if (array_key_exists('fornitore_id', $data) && self::hasColumn($db, 'fornitore_id')) {
+            $supplierId = self::existingSupplierId($db, $data['fornitore_id']);
+            if ($supplierId === null) {
+                $set[] = 'fornitore_id = NULL';
+            } else {
+                $set[] = 'fornitore_id = ?';
+                $types .= 'i';
+                $values[] = $supplierId;
+            }
+        }
+
+        foreach (RdaTypes::COLUMNS as $kind => $column) {
+            if (!array_key_exists($column, $data) || !self::hasColumn($db, $column)) {
+                continue;
+            }
+            $code = RdaTypes::normalize($kind, $data[$column]);
+            if ($code === null) {
+                $set[] = "{$column} = NULL";
+            } else {
+                $set[] = "{$column} = ?";
+                $types .= 's';
+                $values[] = $code;
+            }
+        }
+
+        if ($set === []) {
+            return;
+        }
+
+        $sql = 'UPDATE libri SET ' . implode(', ', $set) . ' WHERE id = ? AND deleted_at IS NULL';
+        $types .= 'i';
+        $values[] = $bookId;
+        $stmt = $db->prepare($sql);
+        if ($stmt === false) {
+            throw new \RuntimeException('Unable to prepare the cataloguing extras update');
+        }
+        try {
+            $stmt->bind_param($types, ...$values);
+            $stmt->execute();
+        } finally {
+            $stmt->close();
+        }
+    }
+
+    /** A submitted supplier id that exists, or NULL ("no supplier"). */
+    private static function existingSupplierId(mysqli $db, mixed $raw): ?int
+    {
+        $id = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) {
+            return null;
+        }
+        $stmt = $db->prepare('SELECT id FROM fornitori WHERE id = ?');
+        if ($stmt === false) {
+            return null;
+        }
+        try {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+        } finally {
+            $stmt->close();
+        }
+        return $row ? (int) $row['id'] : null;
+    }
+
+    private static function hasColumn(mysqli $db, string $column): bool
+    {
+        if (!array_key_exists($column, self::$columnCache)) {
+            $stmt = $db->prepare("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = ?");
+            $exists = false;
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $column);
+                $stmt->execute();
+                $exists = (int) ($stmt->get_result()->fetch_assoc()['c'] ?? 0) > 0;
+                $stmt->close();
+            }
+            self::$columnCache[$column] = $exists;
+        }
+        return self::$columnCache[$column];
+    }
+}
