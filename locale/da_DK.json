@@ -8891,5 +8891,6 @@
   "La scadenza verrà estesa di %d giorni": "Fristen forlænges med %d dage",
   "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Vil du fornye lånet? Udløbsdatoen udvides med %d dage.",
   "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Uden udløbsdato for kortet i filen beregnes datoen ud fra lånertypens kortvarighed (den angivne eller standardtypen); en udløbsdato i CSV-filen har forrang.",
-  "Utente importato, ma la scadenza della tessera non è stata calcolata.": "Bruger importeret, men kortets udløbsdato kunne ikke beregnes."
+  "Utente importato, ma la scadenza della tessera non è stata calcolata.": "Bruger importeret, men kortets udløbsdato kunne ikke beregnes.",
+  "Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)": "Beregn udløbsdatoen ud fra lånertypens kortvarighed (hvis angivet, og hvis datoen ovenfor er tom)"
 }

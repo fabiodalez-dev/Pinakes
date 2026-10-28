@@ -103,6 +103,13 @@ test.describe.serial('Card duration, renewal and expiry warning', () => {
     expect(cardOf(id)).toBe(manual);
   });
 
+  test('with "calcola" left ticked (the default), a date typed by the librarian still wins', async () => {
+    const manual = F.appDateOffsetISO(50);
+    const id = await createUserViaForm(admin, { email: `${PREFIX}-a4@circ.test`, surname: `CDD${RUN}`, typeId: yearType, manualExpiry: manual });
+    users.push(id);
+    expect(cardOf(id)).toBe(manual);
+  });
+
   test('editing a patron to a 30-day type with "calcola" recomputes the card', async () => {
     const id = users[0];
     await admin.goto(`${F.BASE}/admin/users/edit/${id}`);

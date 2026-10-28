@@ -176,10 +176,13 @@ class UsersController
             $dataScadenzaTessera = $dataScadenzaInput !== '' ? $dataScadenzaInput : null;
         }
         // Patron type (circulation rules) and, when asked, the card expiry it
-        // implies (today + the type's card duration).
+        // implies (today + the type's card duration). The checkbox is ticked
+        // by default on this form, so it fills an empty date only: a date the
+        // librarian typed wins. (The edit form opts in explicitly and
+        // recomputes, see update().)
         $patronTypeId = \App\Support\PatronTypeAssignment::fromSubmission($db, $data);
-        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto'])) {
-            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId) ?? $dataScadenzaTessera;
+        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto']) && $dataScadenzaInput === '') {
+            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId);
         }
 
         $stato = (string) ($data['stato'] ?? ($isAdmin ? 'attivo' : 'attivo'));
