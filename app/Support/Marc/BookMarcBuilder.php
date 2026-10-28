@@ -203,12 +203,14 @@ final class BookMarcBuilder
             $record->addDataField('520', ' ', ' ', [['a', $desc]]);
         }
 
-        // 650 — Subject: genre, then keywords
-        if ($genre !== null && !empty($genre['nome'])) {
-            $record->addDataField('650', ' ', '4', [['a', (string) $genre['nome']]]);
-        }
+        // 650 — Subject: the keywords (source not specified)
         foreach (self::keywords($row) as $kw) {
             $record->addDataField('650', ' ', '4', [['a', $kw]]);
+        }
+        // 655 — Genre, as the catalogue's own term (ind2 7, $2 local), so an
+        // import tells it from a keyword.
+        if ($genre !== null && !empty($genre['nome'])) {
+            $record->addDataField('655', ' ', '7', [['a', (string) $genre['nome']], ['2', 'local']]);
         }
 
         // 700 — legacy contributors not already represented by entities.

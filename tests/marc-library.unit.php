@@ -263,6 +263,22 @@ $check($mapped['tipo_media'] === '' && ($mapped['rda_content_type'] ?? '') === '
 $check((new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize(BookMarcBuilder::unimarc($row + ['tipo_media' => 'audiolibro'], $authors, [], null)))))[0])['tipo_media'] === 'audiolibro', '67m UNIMARC export → import keeps the media type');
 $check(MarcBookData::toImportRow($backDvd)['tipo_media'] === 'dvd', '67n the import row carries tipo_media');
 
+echo "Genre round trip\n";
+$withGenre = BookMarcBuilder::marc21($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
+$check($withGenre->first('655')?->ind2 === '7' && $withGenre->subfield('655', 'a') === 'Narrativa' && $withGenre->subfield('655', '2') === 'local' && $withGenre->subfieldValues('650', 'a') === ['avventura', 'viaggi'], '67o the genre is a 655 _7 $2 local, the keywords stay 650 _4');
+$xmlOut = new MarcXmlWriter(MarcXmlWriter::NS_MARC21);
+$xmlOut->startCollection();
+$xmlOut->writeRecord($withGenre);
+$xmlOut->endCollection();
+$backGenre = (new Marc21LibriMapper())->map($records($all(MarcXmlReader::fromString($xmlOut->output())))[0]);
+$check($backGenre['genere'] === 'Narrativa' && $backGenre['parole_chiave'] === ['avventura', 'viaggi'], '67p builder → MARCXML → reader → mapper: the genre comes back as the genre, not as a keyword');
+$check(MarcBookData::toImportRow($backGenre)['genere'] === 'Narrativa', '67q the import row carries the genre');
+$lcgft = new MarcRecord();
+$lcgft->addDataField('245', '0', '0', [['a', 'A novel']]);
+$lcgft->addDataField('655', ' ', '7', [['a', 'Detective and mystery fiction.'], ['2', 'lcgft']]);
+$lcgft->addDataField('655', ' ', '4', [['a', 'Thrillers.']]);
+$check((new Marc21LibriMapper())->map($lcgft)['genere'] === '', '67r a 655 of another scheme, or without $2, is not imported as the genre');
+
 echo "Import row\n";
 $importRow = MarcBookData::toImportRow($m);
 $check($importRow['autori'] === 'Eco, Umberto;Rossi, Mario' && $importRow['editore'] === 'Bompiani' && $importRow['curatore'] === 'Ferré, Lùcia' && !array_key_exists('traduttore', $importRow), '65 names joined with ";", an absent role is not a column');

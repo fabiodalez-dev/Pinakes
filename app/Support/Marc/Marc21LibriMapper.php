@@ -23,6 +23,7 @@ use App\Support\PublicationPlace;
  *   260 / 264 $a place, $b publishers, $c year (else 008/07-10)
  *   300 $a pages, $c dimensions                     490 $a $v series (else 830)
  *   520 $a summary   650 / 651 / 653 $a keywords    856 $u cover image
+ *   655 $a genre, only with $2 local (the catalogue's own term)
  *   leader/06 (and 336 $b) media type; 336 / 337 / 338 $b RDA codes the media
  *       type does not imply
  */
@@ -163,6 +164,17 @@ final class Marc21LibriMapper implements MarcLibriMapper
             }
         }
         $data['parole_chiave'] = $keywords;
+        // The genre: a 655 the exporting catalogue marked as its own term
+        // ($2 local, as this one writes). Any other 655 (LCGFT, RBMS...) is a
+        // form heading of a scheme the catalogue has no genre for.
+        foreach ($record->fieldsByTag('655') as $field) {
+            if (strtolower(trim((string) $field->subfield('2'))) === 'local') {
+                $data['genere'] = MarcBookData::clean($field->subfield('a'), ' /:;=,.');
+                if ($data['genere'] !== '') {
+                    break;
+                }
+            }
+        }
 
         // 082 $a with its prime marks removed: "891.73/3" is 891.733,
         // "813/.54" is 813.54; "[Fic]" is no number.
