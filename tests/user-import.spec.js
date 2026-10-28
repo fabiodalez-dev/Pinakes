@@ -298,6 +298,36 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     expect(serverFileExists(path.join(uploads, added[0])), 'cancelling the preview deletes the copy').toBe(false);
   });
 
+  test('a CSV saved as Windows-1252 is converted on upload: the preview shows "Caffè" and the reader is created with that spelling', async () => {
+    test.setTimeout(120_000);
+    const file = path.join(os.tmpdir(), `utenti-1252-${RUN}.csv`);
+    const email = `caffe.${RUN}@${DOMAIN}`;
+    // "Caffè" as Excel on Windows writes it: è is the single byte 0xE8, not UTF-8.
+    fs.writeFileSync(file, Buffer.concat([
+      Buffer.from('Nome;Cognome;E-mail\n'),
+      Buffer.from([0x43, 0x61, 0x66, 0x66, 0xe8]),
+      Buffer.from(`;Latino;${email}\n`),
+    ]));
+    try {
+      await page.goto(`${BASE}/admin/users/import`);
+      await page.locator('#user_import_file').setInputFiles(file);
+      await page.locator('#user-import-upload-btn').click();
+      await expect(page.locator('#user-import-step-mapping')).toBeVisible();
+      await expect(page.locator('#user-import-notice')).toBeVisible();
+      await expect(page.locator('#user-import-notice')).toContainText('Windows-1252');
+      await expect(page.locator('#user-import-preview tbody tr').first()).toContainText('Caffè');
+      await page.locator('#user-import-start').click();
+      await expect(page.locator('#user-import-summary')).toBeVisible({ timeout: 60_000 });
+      await expect(page.locator('[data-import-count="created"]')).toHaveText('1');
+      await expect(page.locator('[data-import-count="failed"]')).toHaveText('0');
+      // UTF-8 bytes of "Caffè" in the database, whatever the mysql client's own charset.
+      expect(dbQuery(`SELECT HEX(nome) FROM utenti WHERE email = ${sqlStr(email)}`)).toBe('43616666C3A8');
+    } finally {
+      dbQuery(`DELETE FROM import_logs WHERE file_name = ${sqlStr(path.basename(file))}`);
+      try { fs.unlinkSync(file); } catch { /* gone */ }
+    }
+  });
+
   test('a failure after the account is created is a warning on a created row, not a failed row', async () => {
     test.setTimeout(120_000);
     const trigger = `zz_ui_probe_${RUN.replace(/[^a-z0-9]/gi, '')}`;

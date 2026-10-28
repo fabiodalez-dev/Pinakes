@@ -69,6 +69,14 @@ $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', 'M'], $map, $def
 $check(UserImport::parseDate('2026-12-31') === '2026-12-31' && UserImport::parseDate('31.12.2026') === '2026-12-31' && UserImport::parseDate('12/31/2026') === null, 'date spellings: ISO, dotted, day-first only');
 $check(UserImport::detectDelimiter(["a;b;c\n", "1;2;3\n"]) === ';' && UserImport::detectDelimiter(["a,b\n"]) === ',' && UserImport::detectDelimiter(["abc\n"]) === null, 'delimiter detection');
 
+// ── UserImport: file encoding ───────────────────────────────────────────
+$u = UserImport::toUtf8("\xEF\xBB\xBFNome;Cognome\nCaff\xC3\xA8;Rossi\n");
+$check($u['converted'] === false && $u['text'] === "Nome;Cognome\nCaff\xC3\xA8;Rossi\n", 'a UTF-8 file loses its BOM and is otherwise untouched');
+$u = UserImport::toUtf8("Nome;Cognome\nCaff\xE8;M\xFCller \x80\n");
+$check($u['converted'] === true && $u['text'] === "Nome;Cognome\nCaffè;Müller €\n", 'a Windows-1252 file (Excel on Windows) is converted: è, ü and the euro sign survive');
+$check(mb_check_encoding(UserImport::toUtf8("ok\xFF\xFE\xC0")['text'], 'UTF-8'), 'whatever the bytes, the result is valid UTF-8');
+$check(UserImport::toUtf8('plain ascii')['converted'] === false, 'ASCII is UTF-8 already: nothing to report');
+
 // ── Card settings ───────────────────────────────────────────────────────
 $d = PatronCardSettings::sanitize([]);
 $check($d['layout'] === 'classic' && $d['code_type'] === 'code128' && $d['format'] === 'single', 'an empty form falls back to the default layout, code and format');

@@ -99,6 +99,9 @@ unset($workspaceHeader);
             <?= __("Anteprima e mappatura colonne") ?>
           </h2>
           <p class="text-sm text-gray-600 mb-4"><span id="user-import-file-name" class="font-medium"></span> — <span id="user-import-row-count"></span></p>
+          <div id="user-import-notice" class="mb-4 p-3 bg-amber-50 text-amber-800 rounded-lg border border-amber-200 text-sm hidden" role="status">
+            <i class="fas fa-info-circle mr-1"></i><span id="user-import-notice-text"></span>
+          </div>
           <div class="overflow-x-auto border border-gray-200 rounded-lg">
             <table class="w-full text-sm" id="user-import-preview">
               <thead class="bg-gray-50 border-b border-gray-200"></thead>
@@ -251,6 +254,8 @@ unset($workspaceHeader);
     state.fields = data.fields;
     $('user-import-file-name').textContent = data.file_name;
     $('user-import-row-count').textContent = fmt(T.rows, data.total_rows);
+    $('user-import-notice-text').textContent = data.notice || '';
+    $('user-import-notice').classList.toggle('hidden', !data.notice);
     const thead = document.querySelector('#user-import-preview thead');
     const tbody = document.querySelector('#user-import-preview tbody');
     let head = '<tr>';

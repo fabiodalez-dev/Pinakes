@@ -8758,6 +8758,7 @@
   "— Ignora colonna —": "— Ignorér kolonne —",
   "Caricamento del file...": "Uploader filen...",
   "%d righe da importare": "%d rækker at importere",
+  "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.": "Filen var ikke UTF-8 og er blevet konverteret fra Windows-1252: tjek de accentuerede bogstaver i forhåndsvisningen.",
   "%d di %d righe elaborate": "%d af %d rækker behandlet",
   "Errore di rete. Riprova.": "Netværksfejl. Prøv igen.",
   "Duplicato": "Dublet",

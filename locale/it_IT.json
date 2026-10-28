@@ -8758,6 +8758,7 @@
   "— Ignora colonna —": "— Ignora colonna —",
   "Caricamento del file...": "Caricamento del file...",
   "%d righe da importare": "%d righe da importare",
+  "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.": "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.",
   "%d di %d righe elaborate": "%d di %d righe elaborate",
   "Errore di rete. Riprova.": "Errore di rete. Riprova.",
   "Duplicato": "Duplicato",

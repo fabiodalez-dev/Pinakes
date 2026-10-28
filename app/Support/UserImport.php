@@ -306,6 +306,30 @@ final class UserImport
     }
 
     /**
+     * The uploaded bytes as UTF-8. A BOM is dropped. A file that is not valid
+     * UTF-8 — a spreadsheet saved as "CSV" on Windows writes the system code
+     * page — is read as Windows-1252, the superset of ISO-8859-1 such exports
+     * fall under; "Caffè" then keeps its accent instead of breaking the JSON
+     * preview. Whatever comes back is valid UTF-8.
+     *
+     * @return array{text: string, converted: bool}
+     */
+    public static function toUtf8(string $bytes): array
+    {
+        if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+            $bytes = substr($bytes, 3);
+        }
+        if (mb_check_encoding($bytes, 'UTF-8')) {
+            return ['text' => $bytes, 'converted' => false];
+        }
+        $text = mb_convert_encoding($bytes, 'UTF-8', 'Windows-1252');
+        if (!is_string($text) || !mb_check_encoding($text, 'UTF-8')) {
+            $text = mb_scrub($bytes, 'UTF-8');
+        }
+        return ['text' => $text, 'converted' => true];
+    }
+
+    /**
      * Delimiter of a CSV sample: the most frequent of ";", "," and TAB, or null
      * when none occurs.
      *

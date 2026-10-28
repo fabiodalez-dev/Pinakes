@@ -8758,6 +8758,7 @@
   "— Ignora colonna —": "— Spalte ignorieren —",
   "Caricamento del file...": "Datei wird hochgeladen...",
   "%d righe da importare": "%d Zeilen zu importieren",
+  "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.": "Die Datei war nicht UTF-8 und wurde aus Windows-1252 umgewandelt: prüfen Sie die Umlaute und Akzente in der Vorschau.",
   "%d di %d righe elaborate": "%d von %d Zeilen verarbeitet",
   "Errore di rete. Riprova.": "Netzwerkfehler. Bitte erneut versuchen.",
   "Duplicato": "Duplikat",
