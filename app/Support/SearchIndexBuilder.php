@@ -392,7 +392,18 @@ final class SearchIndexBuilder
 
         foreach (self::searchTerms($searchQuery) as ['term' => $wordBase, 'exact' => $exact]) {
             $like = self::likePattern($wordBase);
-            $m = static fn(string $expr): string => ExactSearch::likeSql($expr, $exact);
+            // A quoted term must also START a word, as on the FULLTEXT path
+            // (`+token*`): "haffner" in quotes must not answer for Schaffner.
+            // The exact LIKE keeps the spelling, the REGEXP the word start;
+            // both compare the lowered value under the binary collation.
+            $wordStart = '(^|[^[:alnum:]])' . preg_quote(mb_strtolower($wordBase, 'UTF-8'));
+            $exprCount = 0;
+            $m = static function (string $expr) use ($exact, &$exprCount): string {
+                $exprCount++;
+                return $exact
+                    ? '(' . ExactSearch::likeSql($expr, true) . " AND LOWER({$expr}) COLLATE utf8mb4_bin REGEXP ?)"
+                    : ExactSearch::likeSql($expr, false);
+            };
             $bookIdExpr = $prefix . 'id';
             $publisherIdExpr = $prefix . 'editore_id';
             $parts[] = '(' . $m("{$prefix}titolo")
@@ -408,10 +419,13 @@ final class SearchIndexBuilder
                     ? " OR EXISTS (SELECT 1 FROM libri_editori le JOIN editori e2 ON e2.id = le.editore_id WHERE le.libro_id = {$bookIdExpr} AND " . $m('e2.nome') . ')'
                     : '')
                 . ')';
-            $paramsPerWord = $hasJunction ? 10 : 9;
-            for ($i = 0; $i < $paramsPerWord; $i++) {
+            for ($i = 0; $i < $exprCount; $i++) {
                 $params[] = $like;
                 $types .= 's';
+                if ($exact) {
+                    $params[] = $wordStart;
+                    $types .= 's';
+                }
             }
         }
 

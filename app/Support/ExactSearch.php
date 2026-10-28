@@ -163,11 +163,13 @@ final class ExactSearch
      * (OR), honouring quotes via parseFilter(). Null when nothing is left to
      * match (e.g. the value was only a quote).
      *
-     * A box that mixes quoted and unquoted words (`archivio "haffner"`,
-     * `"haffner" archivio`) is not one phrase: every word must match, each
-     * with its own rule, as in wordsCondition(). Otherwise the quotes of a
-     * value that does not start with one would be searched as literal
-     * characters and find nothing.
+     * A box with more than one term is not one phrase: every term must
+     * match, each with its own rule, as in wordsCondition() and the main
+     * search box. That covers mixed words (`archivio "haffner"`) and several
+     * quoted groups alike: `"Thomas" "Mann"` is two exact words in any
+     * order, exactly as in the book search, and `"Thomas Mann"` is the
+     * phrase. parseFilter() joins the groups only for callers that can bind
+     * a single pattern.
      *
      * @param list<string> $exprs
      * @return array{sql: string, params: list<string>, types: string}|null

@@ -81,6 +81,10 @@ $series = new App\Controllers\CollaneController();
 Exact501::same(["$t Haffner","$t Häffner"], $read($series,'searchApi',['q'=>"$t haffner"]), 'series suggestions preserve the two accented names');
 Exact501::same(["$t Häffner"], $read($series,'searchApi',['q'=>'"'.$t.' Häffner"']), 'series suggestions honour quotes');
 Exact501::same([], $read($series,'searchApi',['q'=>'""']), 'empty quoted series does not enumerate the collection');
+// CodeRabbit (PR #502): the series picker took a mixed value as one tolerant
+// phrase, so `T "häffner"` also suggested Haffner and `"häffner" T` nothing.
+Exact501::same(["$t Häffner"], $read($series,'searchApi',['q'=>$t.' "häffner"']), 'series suggestions: a quoted word after a plain one stays exact');
+Exact501::same(["$t Häffner"], $read($series,'searchApi',['q'=>'"häffner" '.$t]), 'series suggestions: the words may come in any order');
 // CodeRabbit (PR #502): one suggestion per spelling ignoring case, and the
 // list sorted with the tolerant collation, not byte order (Ä after Z).
 $ids['libri'][] = Exact501::exec($db, 'INSERT INTO libri (titolo,collana) VALUES (?,?)', ["$t extra 1", "$t HAFFNER"]);
@@ -106,4 +110,4 @@ foreach (['societa'=>['501','502'],'"società"'=>['501'],'"societa"'=>['502']] a
     $response = $dewey->autocomplete($request(['q'=>$value]), new Response());
     Exact501::same($expected,array_column(json_decode((string)$response->getBody(),true),'code'),"Dewey picker: $value");
 }
-Exact501::finish(141);
+Exact501::finish(145);

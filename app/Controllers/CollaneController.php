@@ -483,9 +483,10 @@ class CollaneController
         // SEC2-1 + SEC1-5 (review): require min 2 chars and escape LIKE
         // wildcards so callers can't broaden the match with `%`/`_` or
         // probe single-char prefixes for enumeration.
-        ['term' => $term, 'exact' => $exact] = \App\Support\ExactSearch::parseFilter($q);
+        // Each word keeps its own rule (`Mont "Häffner"`): the condition
+        // comes from filterCondition(); parseFilter() only measures the input.
+        ['term' => $term] = \App\Support\ExactSearch::parseFilter($q);
         if (mb_strlen($term) >= 2) {
-            $search = \App\Support\ExactSearch::likePattern($term);
 
             $hasCollane = $this->hasCollaneTable($db);
             $sqlParts = [];
@@ -497,9 +498,13 @@ class CollaneController
                     continue; // no collane table — skip its sources
                 }
                 $col = $src['c'];
-                $where = \App\Support\ExactSearch::likeSql("`{$col}`", $exact) . " AND `{$col}` IS NOT NULL AND `{$col}` != ''";
-                $types .= 's';
-                $binds[] = $search;
+                $condition = \App\Support\ExactSearch::filterCondition(["`{$col}`"], $q);
+                if ($condition === null) {
+                    continue;
+                }
+                $where = $condition['sql'] . " AND `{$col}` IS NOT NULL AND `{$col}` != ''";
+                $types .= $condition['types'];
+                array_push($binds, ...$condition['params']);
                 if ($src['t'] === 'libri') {
                     $where .= ' AND deleted_at IS NULL';
                 }
