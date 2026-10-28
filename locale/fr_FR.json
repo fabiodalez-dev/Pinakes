@@ -8861,7 +8861,7 @@
   "Rendi predefinita": "Définir par défaut",
   "Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.": "Supprimer cette catégorie ? Ses lecteurs passeront à la catégorie par défaut.",
   "Regole per tipo di materiale": "Règles par type de support",
-  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Exceptions par catégorie de lecteur et type de support : possibilité de prêt, prêts maximum de ce support (en plus de la limite totale), durée et renouvellements. Les valeurs en gris sont héritées ; saisissez une valeur seulement là où une exception est nécessaire.",
+  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Exceptions par catégorie de lecteur et type de support : possibilité de prêt, prêts maximum de ce support (en plus de la limite totale), durée, renouvellements et jours par renouvellement. Les valeurs en gris sont héritées ; saisissez une valeur seulement là où une exception est nécessaire.",
   "Eredita (%s)": "Hériter (%s)",
   "prestabile": "empruntable",
   "consultazione": "consultation",
@@ -8883,5 +8883,11 @@
   "Rinnova tessera": "Renouveler la carte",
   "Rinnovare la tessera fino al %s?": "Renouveler la carte jusqu'au %s ?",
   "Tessera in scadenza": "Carte bientôt expirée",
-  "Tessera rinnovata fino al %s.": "Carte renouvelée jusqu'au %s."
+  "Tessera rinnovata fino al %s.": "Carte renouvelée jusqu'au %s.",
+  "Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.": "12 derniers mois. Les lecteurs sans type sont comptés dans « %s », le type par défaut.",
+  "Ultimi 12 mesi.": "12 derniers mois.",
+  "Gg/rinnovo": "J./renouv.",
+  "Rinnova prestito (+%d giorni)": "Renouveler l'emprunt (+%d jours)",
+  "La scadenza verrà estesa di %d giorni": "La date d'échéance sera prolongée de %d jours",
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Renouveler l'emprunt ? La date d'échéance sera prolongée de %d jours."
 }
