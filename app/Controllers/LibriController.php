@@ -400,6 +400,14 @@ class LibriController
 
         ob_start();
         $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
+        // Copy cataloguing (SRU search) is served by the z39-server plugin.
+        $copyCatalogingAvailable = false;
+        try {
+            $pluginRow = $db->query("SELECT is_active FROM plugins WHERE name = 'z39-server' LIMIT 1");
+            $copyCatalogingAvailable = $pluginRow instanceof \mysqli_result && (int) ($pluginRow->fetch_row()[0] ?? 0) === 1;
+        } catch (\Throwable) {
+            $copyCatalogingAvailable = false;
+        }
         $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName];
         // extract($data);
         require __DIR__ . '/../Views/libri/index.php';
