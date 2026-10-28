@@ -53,7 +53,7 @@ final class UserImport
         'data_nascita' => ['datanascita', 'datadinascita', 'birthdate', 'dateofbirth', 'birthday', 'geburtsdatum', 'datedenaissance', 'fodselsdato'],
         'sesso' => ['sesso', 'gender', 'sex', 'geschlecht', 'sexe', 'kon'],
         'cod_fiscale' => ['codfiscale', 'codicefiscale', 'cf', 'taxcode', 'fiscalcode', 'steuernummer', 'codefiscal'],
-        'codice_tessera' => ['codicetessera', 'tessera', 'card', 'cardnumber', 'cardcode', 'librarycard', 'barcode', 'ausweisnummer', 'ausweis', 'numerodecarte', 'kortnummer', 'lanerkort'],
+        'codice_tessera' => ['codicetessera', 'tessera', 'card', 'cardnumber', 'cardcode', 'librarycard', 'barcode', 'ausweisnummer', 'ausweis', 'numerodecarte', 'ndecarte', 'kortnummer', 'lanerkort'],
         'data_scadenza_tessera' => ['datascadenzatessera', 'scadenzatessera', 'scadenza', 'expiry', 'expirydate', 'cardexpiry', 'expires', 'ablaufdatum', 'gultigbis', 'datedexpiration', 'udlobsdato'],
         'note_utente' => ['noteutente', 'note', 'notes', 'notizen', 'noter', 'noteinterne'],
         'locale' => ['locale', 'lingua', 'language', 'sprache', 'langue', 'sprog'],
@@ -109,6 +109,9 @@ final class UserImport
         'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u',
         'ý' => 'y', 'ÿ' => 'y',
         'ß' => 'ss',
+        // Abbreviated card headers ("Nº de carte") must not depend on whether
+        // iconv transliterates the ordinal indicator as "o" or drops it.
+        'º' => '',
         'À' => 'a', 'Á' => 'a', 'Â' => 'a', 'Ä' => 'a', 'Ã' => 'a', 'Å' => 'a', 'Æ' => 'ae',
         'Ç' => 'c',
         'È' => 'e', 'É' => 'e', 'Ê' => 'e', 'Ë' => 'e',
