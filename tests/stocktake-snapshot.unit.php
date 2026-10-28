@@ -12,6 +12,7 @@ declare(strict_types=1);
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/app/helpers.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 use App\Services\StocktakeService;
@@ -170,6 +171,18 @@ try {
     $other->close();
     $check($blocked && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$third}") === 0, 'a scan racing a pending close is not recorded');
     $check($refused(static fn () => $service->scan($third, "{$p}-C5", null, null)), 'once the close commits the scan is refused');
+
+    // Closing with "mark lost" from the page must run to the end: the session
+    // is claimed first, so a request cut off halfway could not be retried.
+    $fourth = $service->open('ZZST4 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $fourth;
+    ignore_user_abort(false);
+    $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
+    $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fourth . '/close')
+        ->withParsedBody(['azione_mancanti' => 'perso']);
+    (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $fourth);
+    $check(ignore_user_abort() === 1, 'a mark-lost close keeps running if the browser goes away');
+    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$fourth}") === 'chiusa', 'and closes the session');
 
     echo "SUCCESS {$checks} stocktake snapshot checks\n";
 } finally {

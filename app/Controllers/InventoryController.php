@@ -301,6 +301,13 @@ class InventoryController
             $_SESSION['error_message'] = __('Solo un amministratore può chiudere la revisione segnando come perse le copie mancanti.');
             return $this->redirect($response, $back)->withStatus(302);
         }
+        if ($markLost) {
+            // The session is claimed before the copies are marked, so a close
+            // cut off halfway cannot be retried from the page: let it finish
+            // even on a whole-catalogue session or if the browser goes away.
+            @set_time_limit(0);
+            ignore_user_abort(true);
+        }
         try {
             $result = (new StocktakeService($db))->close($id, $markLost, $this->operatorId());
         } catch (\DomainException $e) {
