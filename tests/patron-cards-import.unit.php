@@ -48,6 +48,13 @@ $guess = UserImport::guessMapping(['Vorname', 'Nachname', 'E-Mail', 'Geburtsdatu
 $check($guess === [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'data_nascita', 4 => 'sesso'], 'German headers are recognised');
 $withTypes = UserImport::targetFields([], true);
 $check(UserImport::guessMapping(['Patron type'], $withTypes) === [0 => 'tipologia'], 'a patron type column is recognised once the schema exists');
+$check(UserImport::guessMapping(['Leserkategorie'], $withTypes) === [0 => 'tipologia'] && UserImport::guessMapping(['Catégorie de lecteur'], $withTypes) === [0 => 'tipologia'] && UserImport::guessMapping(['Lånerkategori'], $withTypes) === [0 => 'tipologia'], 'the translated name column of the users export is recognised');
+// The users export carries the type name and then its code: the code column
+// is the one mapped, wherever it stands, since it re-imports exactly.
+$check(UserImport::guessMapping(['Tipologia lettore', 'Codice tipologia lettore'], $withTypes) === [0 => '', 1 => 'tipologia'], 'the patron type code column wins over the name column that precedes it');
+$check(UserImport::guessMapping(['Patron type code', 'Patron type'], $withTypes) === [0 => 'tipologia', 1 => ''], 'the patron type code column wins when it comes first too');
+$check(UserImport::guessMapping(['Code der Leserkategorie'], $withTypes) === [0 => 'tipologia'] && UserImport::guessMapping(['Code de la catégorie de lecteur'], $withTypes) === [0 => 'tipologia'] && UserImport::guessMapping(['Lånerkategorikode'], $withTypes) === [0 => 'tipologia'], 'the translated code column of the users export is recognised');
+$check(UserImport::guessMapping(['Codice tipologia lettore'], UserImport::targetFields([], false)) === [0 => ''], 'the code column is not offered while the patron types schema is missing');
 
 $v = UserImport::validateMapping(['0' => 'nome', '2' => 'email', '1' => ''], $fields, 3);
 $check($v['error'] === null && $v['mapping'] === [0 => 'nome', 2 => 'email'], 'a valid mapping is kept, ignored columns dropped');
@@ -78,6 +85,11 @@ $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', '', '', str_repe
 $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', 'M'], $map, $defs, $locales, ['sesso' => false, 'cod_fiscale' => false])['record']['sesso'] === null, 'a hidden profile field is not collected');
 $check(UserImport::parseDate('2026-12-31') === '2026-12-31' && UserImport::parseDate('31.12.2026') === '2026-12-31' && UserImport::parseDate('12/31/2026') === null, 'date spellings: ISO, dotted, day-first only');
 $check(UserImport::detectDelimiter(["a;b;c\n", "1;2;3\n"]) === ';' && UserImport::detectDelimiter(["a,b\n"]) === ',' && UserImport::detectDelimiter(["abc\n"]) === null, 'delimiter detection');
+$check(UserImport::detectDelimiter(["Nome;Cognome;Indirizzo\n", "Mario;Rossi;Via Roma 1, int. 3, scala B, piano 2, 00100 Roma\n", "Anna;Bianchi;Piazza Dante 5, int. 1, scala A, 20100 Milano, MI\n"]) === ';', 'a ";" file whose addresses hold more commas than there are separators is still a ";" file');
+$check(UserImport::detectDelimiter(["Nome,Cognome,Note\n", "\"Rossi, Mario\",x,\"a;b;c\"\n", "\"Bianchi; Anna\",y,\"d;e\"\n"]) === ',', 'a "," file with quoted fields full of semicolons is a "," file: a separator inside quotes never counts');
+$check(UserImport::detectDelimiter(["Nome\tCognome\tNote\n", "a\tb\tc, d; e\n"]) === "\t", 'a TAB file is a TAB file whatever its cells hold');
+$check(UserImport::detectDelimiter(["Nome\n", "Mario\n", "Anna\n"]) === null && UserImport::detectDelimiter([]) === null && UserImport::detectDelimiter([false]) === null, 'one column, or nothing, is no delimiter');
+$check(UserImport::detectDelimiter(["Nome;Cognome;E-mail\n"]) === ';' && UserImport::detectDelimiter(["Nome;Cognome;E-mail\n", ""]) === ';', 'a header alone tells the delimiter when it has more than one column');
 
 // ── UserImport: file encoding ───────────────────────────────────────────
 $u = UserImport::toUtf8("\xEF\xBB\xBFNome;Cognome\nCaff\xC3\xA8;Rossi\n");
@@ -143,6 +155,29 @@ try {
     $db->query("ALTER TABLE {$types} ADD COLUMN attiva TINYINT(1) NOT NULL DEFAULT 1");
     $db->query("INSERT INTO {$types} (codice, attiva) VALUES ('ritirata', 0)");
     $check((new PatronTypeImport($db, $types, $users))->assign(1, 'ritirata') === 'unknown' && (int) $db->query("SELECT tipologia_id FROM {$users} WHERE id = 1")->fetch_row()[0] === $studentId, 'a deactivated type is not assigned, the reader keeps its type');
+
+    // With a name column the value resolves by code first, then by name.
+    $db->query("ALTER TABLE {$types} ADD COLUMN nome VARCHAR(100) NOT NULL DEFAULT ''");
+    $db->query("UPDATE {$types} SET nome = CASE codice WHEN 'standard' THEN 'Standard' WHEN 'studente' THEN 'Studenti' ELSE 'Ritirata' END");
+    $standardId = (int) $db->query("SELECT id FROM {$types} WHERE codice = 'standard'")->fetch_row()[0];
+    $typeOfReader = static fn (): int => (int) $db->query("SELECT tipologia_id FROM {$users} WHERE id = 1")->fetch_row()[0];
+    $byName = new PatronTypeImport($db, $types, $users);
+    $check($byName->assign(1, 'Standard') === 'assigned' && $typeOfReader() === $standardId, 'the type name is resolved when the code does not match');
+    $check($byName->assign(1, ' STUDENTI ') === 'assigned' && $typeOfReader() === $studentId, 'the name is matched trimmed and case-insensitively');
+    $check($byName->assign(1, 'standard') === 'assigned' && $typeOfReader() === $standardId && $byName->assign(1, 'STUDENTE') === 'assigned' && $typeOfReader() === $studentId, 'the code keeps resolving on the same instance');
+    $check($byName->assign(1, 'Ritirata') === 'unknown' && $typeOfReader() === $studentId, 'the name of a deactivated type does not resolve either');
+    $check($byName->assign(1, 'docenti') === 'unknown' && $typeOfReader() === $studentId, 'a value that is neither a code nor a name is still unknown');
+    // A type named like another type's code: the code wins.
+    $db->query("INSERT INTO {$types} (codice, nome) VALUES ('prof', 'Studente')");
+    $profId = (int) $db->query("SELECT id FROM {$types} WHERE codice = 'prof'")->fetch_row()[0];
+    $codeFirst = new PatronTypeImport($db, $types, $users);
+    $check($codeFirst->assign(1, 'Studente') === 'assigned' && $typeOfReader() === $studentId, 'a value matching one type by code and another by name goes by the code');
+    $check($codeFirst->assign(1, 'prof') === 'assigned' && $typeOfReader() === $profId, 'the type named like a code is still reachable by its own code');
+    // Two active types with one name: the import does not guess between them.
+    $db->query("INSERT INTO {$types} (codice, nome) VALUES ('ext', 'Studenti')");
+    $shared = new PatronTypeImport($db, $types, $users);
+    $check($shared->assign(1, 'Studenti') === 'unknown' && $typeOfReader() === $profId, 'a name shared by two active types resolves neither');
+    $check($shared->assign(1, 'ext') === 'assigned' && $typeOfReader() !== $studentId && $typeOfReader() !== $profId, 'each of them is still reachable by code');
 
     // Patron photo against one scratch reader.
     $email = 'zz-pci-' . $suffix . '@example.invalid';

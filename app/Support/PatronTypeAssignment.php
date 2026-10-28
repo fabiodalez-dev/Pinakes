@@ -105,11 +105,27 @@ final class PatronTypeAssignment
      */
     public static function nameOf(mysqli $db, mixed $typeId): string
     {
+        return self::fieldOf($db, $typeId, 'nome');
+    }
+
+    /**
+     * Code of a stored patron type (null/unknown = the default type). The
+     * users CSV export writes it beside the name: the import resolves a type
+     * by its code first, so an export re-imports exactly on an installation
+     * with the same types, even when two of them share a name.
+     */
+    public static function codeOf(mysqli $db, mixed $typeId): string
+    {
+        return self::fieldOf($db, $typeId, 'codice');
+    }
+
+    private static function fieldOf(mysqli $db, mixed $typeId, string $field): string
+    {
         $policy = new CirculationPolicy($db);
         $types = $policy->types();
         $id = is_numeric($typeId) ? (int) $typeId : null;
         $id = $id !== null && isset($types[$id]) ? $id : $policy->defaultTypeId();
-        return $id !== null ? (string) $types[$id]['nome'] : '';
+        return $id !== null ? (string) ($types[$id][$field] ?? '') : '';
     }
 
     /** Card validity used by "Rinnova tessera" when the patron type sets none. */

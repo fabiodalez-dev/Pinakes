@@ -10,7 +10,10 @@ declare(strict_types=1);
  *  - a re-import full of duplicates lists at most MAX_LISTED_DUPLICATES of
  *    them in the session state and the import log;
  *  - in fill mode a family is written as soon as one of its columns is empty
- *    and no field the book has is overwritten.
+ *    and no field the book has is overwritten;
+ *  - overwrite mode updates the media type of an existing book (a DVD record
+ *    matched to a printed book makes it a DVD) and never its format or price;
+ *    fill mode leaves the media type, since a book always has one.
  *
  * The database part touches only the book it creates (title prefixed ZZMR)
  * and removes it with the probe trigger.
@@ -95,13 +98,13 @@ $existing = [
     'anno_pubblicazione' => null, 'lingua' => 'Italiano', 'edizione' => '', 'numero_pagine' => null,
     'collana' => 'Serie', 'numero_serie' => '', 'classificazione_dewey' => '', 'parole_chiave' => 'old',
     'descrizione' => '', 'editore_id' => 5, 'genere_id' => null, 'traduttore' => 'Old Translator', 'illustratore' => '',
-    'curatore' => '', '_principal_authors' => 1,
+    'curatore' => '', 'formato' => 'cartaceo', 'tipo_media' => 'libro', 'prezzo' => null, '_principal_authors' => 1,
 ];
 $data = \App\Support\Marc\MarcBookData::empty();
 $data = [
     'titolo' => 'New title', 'isbn13' => '9780140449136', 'isbn10' => '0140449132', 'collana' => 'Altra', 'numero_serie' => '3',
     'traduttore' => ['New Translator'], 'illustratore' => ['Ill Ustrator'], 'autori' => ['Some Author'], 'editori' => ['Pub'],
-    'genere' => 'Narrativa', 'anno_pubblicazione' => '2001', 'parole_chiave' => ['new'],
+    'genere' => 'Narrativa', 'anno_pubblicazione' => '2001', 'parole_chiave' => ['new'], 'tipo_media' => 'dvd',
 ] + $data;
 $csv = new \App\Controllers\CsvImportController();
 $parsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($data));
@@ -111,11 +114,14 @@ $check($fill['collana'] === true && $row['collana'] === 'Serie' && $row['numero_
 $check($fill['contributors'] === true && $row['traduttore'] === 'Old Translator' && $row['illustratore'] === 'Ill Ustrator', 'fill: the illustrator is filled, the translator kept');
 $check($fill['titolo'] === false && $fill['keywords'] === false && $fill['authors'] === false && $fill['publisher'] === false, 'fill: title, keywords, authors and publisher the book has are not touched');
 $check($fill['anno'] === true && $fill['genre'] === true && $fill['sottotitolo'] === false && $fill['formato'] === false, 'fill: an empty year and genre are filled; a family the record does not carry, and the format, are not');
+$check($fill['tipo_media'] === false, 'fill: the media type of a book is left (a book always has one)');
 [$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $data, $parsed, $existing);
 $check($over['isbn'] === true && $over['titolo'] === true && $row['isbn13'] === '9780140449136' && $row['titolo'] === 'New title' && $row['traduttore'] === 'New Translator', 'overwrite: the record\'s values replace the book\'s');
+$check($over['tipo_media'] === true && $row['tipo_media'] === 'dvd' && $over['formato'] === false && $over['prezzo'] === false, 'overwrite: a DVD record updates the media type of a printed book; the format and the price are not written');
 $partial = ['isbn13' => '9780140449136', 'titolo' => 'New title'] + \App\Support\Marc\MarcBookData::empty();
 [$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial)), ['isbn10' => '8845292614', 'traduttore' => 'Old Translator'] + $existing);
 $check($row['isbn10'] === '8845292614' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value');
+$check($over['tipo_media'] === false, 'overwrite: a record without a media type leaves the book\'s');
 
 // 4. Post-commit failures are warnings, not failed records.
 $envFile = $root . '/.env';
@@ -157,6 +163,36 @@ if (!is_file($envFile)) {
             $stmt->execute();
             $check((int) $stmt->get_result()->fetch_row()[0] === 1, 'the book is in the catalogue, matching the report');
             $stmt->close();
+
+            // 5. Overwrite mode updates the media type of an existing book and
+            //    leaves its format alone; fill mode leaves the media type.
+            $twelve = '979' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+            $sum = 0;
+            for ($i = 0; $i < 12; $i++) {
+                $sum += (int) $twelve[$i] * ($i % 2 === 0 ? 1 : 3);
+            }
+            $isbn = $twelve . ((10 - $sum % 10) % 10);
+            $mediaTitle = 'ZZMR' . $run . ' media type';
+            $counters = [];
+            $warnings = [];
+            $created = (new MarcBookImporter($db, MarcBookImporter::MODE_SKIP, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn], $counters, $warnings);
+            $mediaId = (int) ($created['id'] ?? 0);
+            $mediaRow = static function () use ($db, $mediaId): array {
+                $stmt = $db->prepare('SELECT tipo_media, formato, prezzo FROM libri WHERE id = ?');
+                $stmt->bind_param('i', $mediaId);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc() ?: [];
+                $stmt->close();
+                return $row;
+            };
+            $before = $mediaRow();
+            $check(($created['action'] ?? '') === 'created' && ($before['tipo_media'] ?? '') === 'libro' && ($before['formato'] ?? '') === 'cartaceo', 'a record with no media type creates a printed book');
+            $updated = (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'tipo_media' => 'dvd'], $counters, $warnings);
+            $after = $mediaRow();
+            $check(($updated['action'] ?? '') === 'updated' && ($after['tipo_media'] ?? '') === 'dvd', 'overwrite: the DVD record makes the book a DVD');
+            $check(($after['formato'] ?? '') === ($before['formato'] ?? '') && ($after['prezzo'] ?? null) === ($before['prezzo'] ?? null), 'overwrite: the format and the price are left as they were');
+            (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'tipo_media' => 'libro'], $counters, $warnings);
+            $check(($mediaRow()['tipo_media'] ?? '') === 'dvd', 'fill: the media type the book has is left');
         } finally {
             $db->query("DROP TRIGGER IF EXISTS {$trigger}");
             $like = 'ZZMR' . $run . '%';

@@ -72,7 +72,8 @@ const MANUAL_EXPIRY = '2031-12-31';
 
 /**
  * 20 data rows: 17 valid, a duplicate email (line 6), a duplicate card code (line 13), a bad email (line 17).
- * Patron type: readers 1-15 carry TYPE_CODE (upper case for the even ones), 16 none, 17 (line 21) an unknown code.
+ * Patron type: readers 1-15 carry the type, as its name (every third one, TYPE_NAME) or as TYPE_CODE
+ * (upper case for the even ones, lower case otherwise); 16 none, 17 (line 21) an unknown value.
  * Card expiry: only reader 3 carries one (MANUAL_EXPIRY); every other row leaves the column empty.
  */
 function buildCsv() {
@@ -85,7 +86,7 @@ function buildCsv() {
     if (line === 17) { lines.push(['Sbagliata', 'Riga', 'not-an-email', '', '', '', SECRET, '', '', ''].join(';')); continue; }
     n++;
     const code = n % 2 === 0 ? `ZIM${RUN_UP}${n}` : '';
-    const type = n === 17 ? UNKNOWN_TYPE : n === 16 ? '' : (n % 2 === 0 ? TYPE_CODE.toUpperCase() : TYPE_CODE);
+    const type = n === 17 ? UNKNOWN_TYPE : n === 16 ? '' : n % 3 === 0 ? TYPE_NAME : (n % 2 === 0 ? TYPE_CODE.toUpperCase() : TYPE_CODE);
     const expiry = n === 3 ? MANUAL_EXPIRY : '';
     lines.push([`Imp${n}`, `Run${RUN}`, `imp${n}.${RUN}@${DOMAIN}`, `333000${String(n).padStart(4, '0')}`, `${String(n).padStart(2, '0')}/03/1990`, code, SECRET, `@imp${n}`, type, expiry].join(';'));
   }
@@ -193,7 +194,7 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     await expect(select(6)).toHaveValue(''); // Password: never mapped
     await expect(select(6).locator('option[value="password"]')).toHaveCount(0);
     await expect(select(7)).toHaveValue(`custom:${customId}`); // custom registration field
-    // Patron types exist: the "Tipologia" header is recognised as the patron type code.
+    // Patron types exist: the "Tipologia" header is recognised as the patron type (code or name).
     await expect(select(8).locator('option[value="tipologia"]')).toHaveCount(1);
     await expect(select(8)).toHaveValue('tipologia');
     await expect(select(9)).toHaveValue('data_scadenza_tessera');
@@ -223,7 +224,7 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     await expect(page.locator('#user-import-errors tr[data-import-error="duplicate"]')).toHaveCount(2);
     await expect(page.locator('#user-import-errors tr[data-import-error="validation"]')).toHaveCount(1);
     await expect(page.locator('#user-import-errors tr[data-import-error="validation"]')).toContainText('17');
-    // The unknown patron type code is a warning: the reader is created with the default type.
+    // The unknown patron type (neither a code nor a name) is a warning: the reader is created with the default type.
     const warning = page.locator('#user-import-errors tr[data-import-error="warning"]');
     await expect(warning).toHaveCount(1);
     await expect(warning).toContainText('21');
@@ -279,9 +280,12 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     expect(csv).toContain(EXISTING_CODE);
   });
 
-  test('the patron type column assigns the type by code, case-insensitively; empty and unknown codes keep the default', async () => {
-    // Readers 1-15: the code in lower (odd) and upper (even) case both resolve to the type.
+  test('the patron type column assigns the type by code or by name, case-insensitively; empty and unknown values keep the default', async () => {
+    // Readers 1-15: the code in lower (odd) and upper (even) case, and the name (every third), all resolve to the type.
     expect(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email LIKE ${sqlStr(`imp%.${RUN}@${DOMAIN}`)} AND tipologia_id = ${typeId}`)).toBe('15');
+    for (const n of [3, 6, 15]) {
+      expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE email = ${sqlStr(`imp${n}.${RUN}@${DOMAIN}`)}`), `reader ${n} by name`).toBe(String(typeId));
+    }
     expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE email = ${sqlStr(`imp16.${RUN}@${DOMAIN}`)}`)).toBe('NULL');
     expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE email = ${sqlStr(`imp17.${RUN}@${DOMAIN}`)}`)).toBe('NULL');
     expect(dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE id = ${existingId}`)).toBe('NULL');
@@ -381,6 +385,27 @@ test.describe.serial('User import from CSV (phase 7)', () => {
       expect(dbQuery(`SELECT HEX(nome) FROM utenti WHERE email = ${sqlStr(email)}`)).toBe('43616666C3A8');
     } finally {
       dbQuery(`DELETE FROM import_logs WHERE file_name = ${sqlStr(path.basename(file))}`);
+      try { fs.unlinkSync(file); } catch { /* gone */ }
+    }
+  });
+
+  test('a ";" CSV whose addresses hold more commas than semicolons is still read with ";": the preview has every column and the address is one cell', async () => {
+    const file = path.join(os.tmpdir(), `utenti-indirizzi-${RUN}.csv`);
+    // Three ";" per line against five commas per address: counting characters would pick ",".
+    fs.writeFileSync(file, [['Nome', 'Cognome', 'E-mail', 'Indirizzo'].join(';'),
+      ['Viale', 'Uno', `viale1.${RUN}@${DOMAIN}`, 'Via Roma 1, int. 3, scala B, piano 2, 00100 Roma, RM'].join(';'),
+      ['Viale', 'Due', `viale2.${RUN}@${DOMAIN}`, 'Piazza Dante 5, int. 1, scala A, piano 1, 20100 Milano, MI'].join(';')].join('\n') + '\n');
+    try {
+      await page.goto(`${BASE}/admin/users/import`);
+      await page.locator('#user_import_file').setInputFiles(file);
+      await page.locator('#user-import-upload-btn').click();
+      await expect(page.locator('#user-import-step-mapping')).toBeVisible();
+      await expect(page.locator('#user-import-row-count')).toHaveText('2 righe da importare');
+      await expect(page.locator('#user-import-preview thead tr').first().locator('th')).toHaveCount(4);
+      await expect(page.locator('select[data-import-column="3"]')).toHaveValue('indirizzo');
+      await expect(page.locator('#user-import-preview tbody tr').first()).toContainText('Via Roma 1, int. 3, scala B, piano 2, 00100 Roma, RM');
+      await page.locator('#user-import-cancel').click();
+    } finally {
       try { fs.unlinkSync(file); } catch { /* gone */ }
     }
   });
