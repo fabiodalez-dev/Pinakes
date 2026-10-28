@@ -50,6 +50,15 @@ const assets = [
         name: 'Sortable.js',
         from: 'node_modules/sortablejs',
         to: 'public/assets/vendor/sortablejs'
+    },
+    {
+        // The editor the app loads (assetUrl('tinymce/tinymce.min.js')).
+        // Copying it here keeps the committed copy on the locked version:
+        // the "git diff --exit-code -- public/assets" gates fail when a
+        // tinymce bump is not followed by the refreshed files.
+        name: 'TinyMCE',
+        from: 'node_modules/tinymce',
+        to: 'public/assets/tinymce'
     }
 ];
 
