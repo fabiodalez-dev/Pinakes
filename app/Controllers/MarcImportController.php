@@ -225,6 +225,13 @@ class MarcImportController
             }
             $offset = ftell($handle);
             fclose($handle);
+            if ($processed === $start) {
+                // The staged file ended before total_rows (truncated or replaced):
+                // answering "success" with the same position would make the
+                // page ask for this chunk forever.
+                \App\Support\SecureLogger::warning('[MARC import] staging file ended early', ['processed' => $processed, 'total' => (int) $state['total_rows']]);
+                return $this->json($response, ['success' => false, 'error' => __('Il file caricato è incompleto: import interrotto.')], 500);
+            }
             $state['offset'] = $offset === false ? (int) $state['offset'] : $offset;
             $state['processed'] = $processed;
             $state['counters'] = $counters;

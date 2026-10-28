@@ -67,7 +67,9 @@ final class CopyCataloging
         private array $configured,
         private bool $sbnEnabled,
         private bool $localServerEnabled,
-        private int $timeout = 15
+        private int $timeout = 15,
+        /** @var (\Closure(array<string, mixed>): SruClient)|null test seam: the client for one server */
+        private ?\Closure $clientFactory = null
     ) {
     }
 
@@ -137,13 +139,19 @@ final class CopyCataloging
                 continue;
             }
             $server = $servers[$key];
+            if (count($stored) >= self::MAX_RESULTS) {
+                // The results are full: the server is listed as not queried,
+                // not silently dropped from the report.
+                $report[] = ['key' => $key, 'name' => (string) $server['name'], 'total' => 0, 'count' => 0, 'error' => sprintf(__('Limite di %d risultati raggiunto: catalogo non interrogato.'), self::MAX_RESULTS)];
+                continue;
+            }
             $answer = $key === 'sbn'
                 ? $this->searchSbn($index, $term, $max)
                 : $this->client($server)->searchServer($server, SruClient::cqlFor($server, $index, $term), $max);
             $report[] = ['key' => $key, 'name' => (string) $server['name'], 'total' => $answer['total'], 'count' => count($answer['records']), 'error' => $answer['error']];
             foreach ($answer['records'] as $n => $record) {
                 if (count($stored) >= self::MAX_RESULTS) {
-                    break 2;
+                    break;
                 }
                 $id = substr(hash('sha256', $key . '|' . $n . '|' . json_encode($record['data'])), 0, 16);
                 $data = (array) $record['data'];
@@ -250,6 +258,9 @@ final class CopyCataloging
     /** @param array<string, mixed> $server */
     private function client(array $server): SruClient
     {
+        if ($this->clientFactory !== null) {
+            return ($this->clientFactory)($server);
+        }
         $client = new LocalSruClient([$server], $this->db, $this->pluginId);
         $client->setOptions(['timeout' => $this->timeout]);
         return $client;

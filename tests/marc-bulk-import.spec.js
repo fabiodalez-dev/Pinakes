@@ -3,7 +3,9 @@
 // Files are generated per run (tests/helpers/marc-fixtures.php), so titles and
 // ISBNs never collide with an earlier run; afterAll removes what the run made.
 const { test, expect } = require('@playwright/test');
-const { BASE, dbQuery, sqlEscape, loginAsAdmin, marcFile, cleanupRun, uploadForPreview, confirmImport } = require('./helpers/marc-e2e');
+const fs = require('fs');
+const path = require('path');
+const { BASE, ROOT, dbQuery, sqlEscape, loginAsAdmin, marcFile, cleanupRun, uploadForPreview, confirmImport } = require('./helpers/marc-e2e');
 
 const RUN = 'MI' + Date.now().toString(36);
 const SKIP = !process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_NAME;
@@ -53,6 +55,27 @@ test.describe.serial('MARC bulk import', () => {
     await expect(page.locator('#books-table, #table-view').first()).toContainText(`Libro MARC ${RUN} 07`, { timeout: 15000 });
     await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(`Libro MARC ${RUN} 07`)}`);
     await expect(page.locator('main, body').first()).toContainText(`Libro MARC ${RUN} 07`, { timeout: 15000 });
+  });
+
+  test('a staged file that ends early stops the import with an error instead of looping', async ({ page }) => {
+    test.setTimeout(120000);
+    await loginAsAdmin(page);
+    const uploads = path.join(ROOT, 'writable', 'uploads');
+    const staged = () => fs.readdirSync(uploads).filter((n) => n.startsWith('marc_import_') && n.endsWith('.jsonl'))
+      .map((n) => path.join(uploads, n)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    const upload = await uploadForPreview(page, marcFile(RUN + 'T', 20, 'mrc'));
+    expect(upload.total_rows).toBe(20);
+    // Cut the staged copy to its first three records, as a full disk or a
+    // cleanup run would leave it.
+    const file = staged()[0];
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').split('\n').slice(0, 3).join('\n') + '\n');
+    let chunks = 0;
+    page.on('request', (r) => { if (r.url().includes('/admin/books/import/marc/chunk')) chunks++; });
+    await page.click('#confirmImportBtn');
+    await expect(page.locator('.swal2-popup')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.swal2-popup')).toContainText('incompleto');
+    expect(chunks, 'the page stops asking for chunks').toBeLessThanOrEqual(2);
+    expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE '%${RUN}T%' AND deleted_at IS NULL`)).toBe('3');
   });
 
   test('a MARCXML collection imports the same way', async ({ page }) => {

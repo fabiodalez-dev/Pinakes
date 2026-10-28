@@ -14,6 +14,13 @@ use Plugins\Z39Server\Classes\SruClient;
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 require_once $root . '/storage/plugins/z39-server/classes/SruClient.php';
+require_once $root . '/storage/plugins/z39-server/classes/Exceptions/CQLException.php';
+require_once $root . '/storage/plugins/z39-server/classes/Exceptions/DatabaseException.php';
+require_once $root . '/storage/plugins/z39-server/classes/Exceptions/InvalidCQLSyntaxException.php';
+require_once $root . '/storage/plugins/z39-server/classes/Exceptions/SRUQueryException.php';
+require_once $root . '/storage/plugins/z39-server/classes/Exceptions/UnsupportedIndexException.php';
+require_once $root . '/storage/plugins/z39-server/classes/Exceptions/UnsupportedRelationException.php';
+require_once $root . '/storage/plugins/z39-server/classes/CQLParser.php';
 
 $pass = 0;
 $fail = 0;
@@ -52,10 +59,22 @@ $server = ['name' => 'Fixture', 'url' => 'https://sru.example.org/sru', 'version
 
 echo "CQL\n";
 $check(SruClient::cqlFor($server, 'title', 'il nome della rosa') === 'bib.title="il nome della rosa"', '01 the server\'s own index, a multi-word term quoted');
-$check(SruClient::cqlFor($server, 'author', 'Eco') === 'dc.creator=Eco', '02 the standard index when the server maps none');
+$check(SruClient::cqlFor($server, 'author', 'Eco') === 'dc.creator="Eco"', '02 the standard index when the server maps none');
 $check(SruClient::cqlFor(['indexes' => ['isbn' => 'alma.isbn']], 'isbn', '978-88-452-9261-3') === 'alma.isbn=9788845292613', '03 an ISBN is reduced to its digits');
 $check(SruClient::cqlFor([], 'any', 'say "hi"') === 'cql.serverChoice="say \\"hi\\""', '04 embedded quotes are escaped');
-$check(SruClient::cqlFor([], 'bogus', 'x') === 'cql.serverChoice=x', '05 an unknown index falls back to all fields');
+$check(SruClient::cqlFor([], 'bogus', 'x') === 'cql.serverChoice="x"', '05 an unknown index falls back to all fields');
+$check(SruClient::cqlFor([], 'title', "dell'arte") === 'dc.title="dell\'arte"', '05b a word with an apostrophe is quoted');
+$check(SruClient::cqlFor([], 'title', 'and') === 'dc.title="and"', '05c a CQL keyword used as a word is quoted');
+$check(SruClient::cqlFor(['quote_search_terms' => true], 'isbn', '88-452-9261-3') === 'bath.isbn="8845292613"', '05d an ISBN is quoted only when the server asks');
+foreach (["dell'arte", 'and', 'not', 'Eco'] as $word) {
+    $parsed = true;
+    try {
+        (new \Z39Server\CQLParser())->parse(SruClient::cqlFor([], 'title', $word));
+    } catch (Throwable) {
+        $parsed = false;
+    }
+    $check($parsed, "05e the local CQL parser accepts the query for '{$word}'");
+}
 
 echo "searchServer\n";
 $client = new SearchFixtureClient([$server], $sru);

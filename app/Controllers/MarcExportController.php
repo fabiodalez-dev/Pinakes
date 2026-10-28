@@ -34,7 +34,7 @@ class MarcExportController
         $ids = null;
         if (array_key_exists('ids', $params)) {
             $raw = is_string($params['ids']) ? $params['ids'] : '';
-            $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $raw)), static fn (int $id): bool => $id > 0)));
+            $ids = self::parseIds($raw);
             if (count($ids) > self::MAX_SELECTED) {
                 $_SESSION['error_message'] = sprintf(
                     __('Selezione troppo grande per l\'esportazione: %d libri (massimo 1000). Riduci la selezione e riprova.'),
@@ -88,14 +88,64 @@ class MarcExportController
             }
             try {
                 yield Iso2709Writer::serialize($record);
-            } catch (\OverflowException $e) {
-                \App\Support\SecureLogger::warning('[MARC export] record too long for ISO 2709, skipped', ['book_id' => $row['id'] ?? null]);
+            } catch (\OverflowException) {
+                // Over 99,999 bytes: the long free texts (description, notes)
+                // are shortened so the book is still in the file, not dropped.
+                $short = self::shortenTexts($row);
+                $record = $format === 'unimarc'
+                    ? BookMarcBuilder::unimarc($short, $authors, $publishers, $genre, true)
+                    : BookMarcBuilder::marc21($short, $authors, $publishers, $genre, true);
+                try {
+                    yield Iso2709Writer::serialize($record);
+                    \App\Support\SecureLogger::warning('[MARC export] record over the ISO 2709 limit, long texts shortened', ['book_id' => $row['id'] ?? null]);
+                } catch (\OverflowException) {
+                    \App\Support\SecureLogger::error('[MARC export] record too long for ISO 2709 even shortened, skipped', ['book_id' => $row['id'] ?? null]);
+                }
             }
         }
         if ($xml !== null) {
             $xml->endCollection();
             yield $xml->output();
         }
+    }
+
+    /**
+     * Book ids from a comma-separated list: only tokens made of digits count
+     * ("12abc" is not book 12), positive, first-seen order, no duplicates.
+     *
+     * @return list<int>
+     */
+    public static function parseIds(string $raw): array
+    {
+        $ids = [];
+        foreach (explode(',', $raw) as $token) {
+            $token = trim($token);
+            if ($token === '' || !ctype_digit($token)) {
+                continue;
+            }
+            $id = (int) $token;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        return array_values($ids);
+    }
+
+    /**
+     * A copy of the book row with every text longer than 1000 characters
+     * cut there, for a record that would not fit ISO 2709 otherwise.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    public static function shortenTexts(array $row): array
+    {
+        foreach ($row as $key => $value) {
+            if (is_string($value) && mb_strlen($value) > 1000) {
+                $row[$key] = rtrim(mb_substr($value, 0, 1000)) . '…';
+            }
+        }
+        return $row;
     }
 
     /**

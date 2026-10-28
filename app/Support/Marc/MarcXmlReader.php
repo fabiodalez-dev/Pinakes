@@ -49,25 +49,41 @@ final class MarcXmlReader implements \IteratorAggregate
         $previous = libxml_use_internal_errors(true);
         $position = 0;
         try {
+            // libxml's error buffer is global: only this reader's errors may
+            // decide that the file is not well-formed.
+            libxml_clear_errors();
+            /** @var list<\LibXMLError> $own */
+            $own = [];
             $more = $this->reader->read();
             while ($more) {
                 if ($this->reader->nodeType === \XMLReader::ELEMENT && $this->reader->localName === 'record') {
                     $node = @$this->reader->expand();
                     if ($node instanceof \DOMElement && self::isMarcRecord($node)) {
                         $position++;
+                        // Keep what the reader itself reported so far (it parses
+                        // ahead), then let the consumer run between the yields.
+                        $own = array_merge($own, libxml_get_errors());
                         try {
                             yield $position => self::toRecord($node);
                         } catch (MarcParseException $e) {
                             yield $position => new MarcReadError($position, $e->getMessage(), MarcReadError::excerptOf((string) $node->textContent));
                         }
+                        // The consumer ran between the yields (a mapper may
+                        // parse XML of its own): drop what it left behind.
+                        libxml_clear_errors();
                         $more = $this->reader->next();
                         continue;
                     }
                 }
                 $more = $this->reader->read();
             }
-            $error = libxml_get_last_error();
-            if ($error !== false && $error->level >= LIBXML_ERR_ERROR) {
+            $error = null;
+            foreach (array_merge($own, libxml_get_errors()) as $candidate) {
+                if ($candidate->level >= LIBXML_ERR_ERROR) {
+                    $error = $candidate;
+                }
+            }
+            if ($error !== null) {
                 yield $position + 1 => new MarcReadError(
                     $position + 1,
                     sprintf('XML is not well-formed at line %d: %s', $error->line, trim($error->message))

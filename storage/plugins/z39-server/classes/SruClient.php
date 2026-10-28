@@ -92,10 +92,10 @@ class SruClient
 
     /**
      * The CQL query for one search on one server: the server's own index name
-     * when its configuration maps one (`indexes`), else the standard one. A
-     * term with spaces or a server that wants it (`quote_search_terms`) is
-     * quoted, backslash-escaping embedded quotes per the CQL specification;
-     * an ISBN or ISSN is reduced to its digits.
+     * when its configuration maps one (`indexes`), else the standard one.
+     * Text terms are always quoted, backslash-escaping embedded quotes per the
+     * CQL specification; an ISBN or ISSN is reduced to its digits and sent
+     * bare unless the server wants it quoted (`quote_search_terms`).
      *
      * @param array<string, mixed> $server
      */
@@ -111,7 +111,10 @@ class SruClient
         if ($cqlIndex === '') {
             $cqlIndex = self::DEFAULT_CQL_INDEXES[$index];
         }
-        $quote = !empty($server['quote_search_terms']) || preg_match('/[\s"()=<>\/]/u', $term) === 1;
+        // Words are always quoted: a bare term with an apostrophe (dell'arte)
+        // or equal to a CQL keyword (and, or, not) is not valid CQL. Only the
+        // digits of an ISBN or ISSN go bare, unless the server asks otherwise.
+        $quote = !in_array($index, ['isbn', 'issn'], true) || !empty($server['quote_search_terms']);
         $value = $quote ? '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $term) . '"' : $term;
         return $cqlIndex . '=' . $value;
     }

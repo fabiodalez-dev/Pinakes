@@ -14,6 +14,8 @@ const SKIP = !process.env.E2E_ADMIN_EMAIL || !process.env.E2E_DB_NAME;
 let coverFile = null;
 let createdCovers = [];
 let isbn02 = '';
+/** import_logs rows written by this run's copy-cataloguing imports (named after the servers, not the run). */
+const importIds = [];
 
 async function openPage(page) {
   await page.goto(`${BASE}/admin/books/copy-cataloging`);
@@ -38,6 +40,7 @@ async function importSelected(page, duplicates = 'skip') {
   const answered = page.waitForResponse((r) => r.url().includes('/admin/books/copy-cataloging/import'));
   await page.click('#copyImportBtn');
   const json = await (await answered).json();
+  if (json && json.import_id) importIds.push(String(json.import_id));
   await expect(page.locator('#copy-import-result')).toBeVisible();
   return json;
 }
@@ -45,6 +48,9 @@ async function importSelected(page, duplicates = 'skip') {
 test.describe.serial('Copy cataloging', () => {
   test.skip(SKIP, 'E2E credentials not set');
   test.afterAll(() => {
+    if (importIds.length) {
+      dbQuery(`DELETE FROM import_logs WHERE import_id IN (${importIds.map((id) => `'${sqlEscape(id)}'`).join(',')})`);
+    }
     cleanupRun(RUN);
     for (const f of [coverFile, ...createdCovers]) if (f && fs.existsSync(f)) fs.unlinkSync(f);
   });

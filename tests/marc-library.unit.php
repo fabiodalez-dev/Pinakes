@@ -228,5 +228,77 @@ $reparsed = Iso2709Reader::parse(substr($serialized, 0, -1));
 $value = (string) $reparsed->subfield('520', 'a');
 $check(mb_check_encoding($value, 'UTF-8') && strlen($value) <= 9999 && strlen($value) > 9000, '67 a field over 9999 bytes is cut on a character boundary');
 
+echo "Encoding of ISO 2709 records\n";
+// A record labelled UTF-8 (leader/09 = a) whose bytes are MARC-8: the title
+// "Caffe" with ANSEL 0xE2 (acute) before the last letter, as a MARC-8 catalogue writes it.
+$mislabelled = new MarcRecord();
+$mislabelled->addDataField('245', '0', '0', [['a', 'CaffXe']]);
+$raw = substr(Iso2709Writer::serialize($mislabelled), 0, -1);
+$raw[9] = 'a';
+$raw = str_replace('CaffXe', "Caff\xE2e", $raw);
+$threw = static function (callable $fn): bool {
+    try {
+        $fn();
+        return false;
+    } catch (MarcParseException) {
+        return true;
+    }
+};
+$check($threw(static fn () => Iso2709Reader::parse($raw)), '68 auto: leader/09 = a with invalid UTF-8 is reported, not passed through');
+$check($threw(static fn () => Iso2709Reader::parse($raw, Iso2709Reader::ENCODING_UTF8)), '69 forced UTF-8 refuses invalid UTF-8');
+$asMarc8 = null;
+try {
+    $asMarc8 = Iso2709Reader::parse($raw, Iso2709Reader::ENCODING_MARC8);
+} catch (MarcParseException) {
+}
+$check($asMarc8 !== null && $asMarc8->subfield('245', 'a') === 'Caffé', '70 forced MARC-8 reads a record mislabelled leader/09 = a');
+$good = new MarcRecord();
+$good->addDataField('245', '0', '0', [['a', 'Caffè']]);
+$check(Iso2709Reader::parse(substr(Iso2709Writer::serialize($good), 0, -1))->subfield('245', 'a') === 'Caffè', '71 auto: valid UTF-8 labelled a is read as is');
+
+echo "Export selection and oversized records\n";
+$check(\App\Controllers\MarcExportController::parseIds('12abc, 7,7, 0,-3, 9 ,x') === [7, 9], '72 export ids: only all-digit tokens, positive, unique ("12abc" is not book 12)');
+$huge = ['id' => 1, 'titolo' => 'T', 'descrizione' => str_repeat('parola ', 3000),
+    'parole_chiave' => implode(', ', array_map(static fn (int $i): string => 'soggetto ' . str_repeat('x', 200) . " {$i}", range(1, 600)))];
+$check($threwOverflow = (static function () use ($huge): bool {
+    try {
+        Iso2709Writer::serialize(BookMarcBuilder::marc21($huge, [], [], null, true));
+        return false;
+    } catch (\OverflowException) {
+        return true;
+    }
+})(), '73 a book with huge free texts does not fit one ISO 2709 record');
+$fits = true;
+try {
+    Iso2709Writer::serialize(BookMarcBuilder::marc21(\App\Controllers\MarcExportController::shortenTexts($huge), [], [], null, true));
+} catch (\OverflowException) {
+    $fits = false;
+}
+$check($fits, '74 with its long texts shortened the same book is exported instead of dropped');
+
+echo "Language names round trip\n";
+$roundTrip = true;
+foreach (['ita', 'eng', 'fre', 'ger', 'rus', 'chi', 'jpn', 'fin', 'gre', 'lat', 'ice', 'cze', 'hun', 'rum', 'tur', 'heb', 'kor', 'tha', 'grc', 'nor'] as $code) {
+    $back = \App\Support\Marc\MarcLanguage::codeFor(\App\Support\Marc\MarcLanguage::nameFor($code));
+    if ($back !== $code) {
+        $roundTrip = false;
+        echo "       {$code} -> " . var_export($back, true) . "\n";
+    }
+}
+$check($roundTrip, '75 every stored language name maps back to its MARC code (import -> export keeps the language)');
+$check(\App\Support\Marc\MarcLanguage::marcCodeOf('Русский') === 'rus' && \App\Support\Marc\MarcLanguage::codeFor('Klingon') === null, '76 a native name is found, an unknown one stays unknown');
+
+echo "MARCXML reader and the global libxml error buffer\n";
+$xmlDoc = '<?xml version="1.0" encoding="UTF-8"?><collection xmlns="http://www.loc.gov/MARC21/slim">'
+    . str_repeat('<record><leader>00000nam a2200000 a 4500</leader><datafield tag="245" ind1="0" ind2="0"><subfield code="a">Uno</subfield></datafield></record>', 2)
+    . '</collection>';
+$items = [];
+foreach (MarcXmlReader::fromString($xmlDoc) as $item) {
+    $items[] = $item;
+    // A consumer that parses broken XML of its own between two records.
+    @(new DOMDocument())->loadXML('<broken>');
+}
+$check(count($items) === 2 && !array_filter($items, static fn ($i): bool => $i instanceof MarcReadError), '77 a well-formed file stays error-free when the consumer leaves libxml errors behind');
+
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

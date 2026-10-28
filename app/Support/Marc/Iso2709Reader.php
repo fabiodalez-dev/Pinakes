@@ -138,17 +138,23 @@ final class Iso2709Reader implements \IteratorAggregate
             throw new MarcParseException('Directory length is not a multiple of 12');
         }
 
-        $utf8 = match ($encoding) {
-            self::ENCODING_UTF8 => true,
-            self::ENCODING_MARC8 => false,
+        $validUtf8 = mb_check_encoding($raw, 'UTF-8');
+        if ($encoding === self::ENCODING_MARC8) {
+            // The override exists for MARC-8 records mislabelled leader/09 = a.
+            $utf8 = false;
+        } elseif ($encoding === self::ENCODING_UTF8) {
+            if (!$validUtf8) {
+                throw new MarcParseException('Record declares UTF-8 but is not valid UTF-8');
+            }
+            $utf8 = true;
+        } elseif ($leader[9] === 'a') {
+            if (!$validUtf8) {
+                throw new MarcParseException('Record declares UTF-8 (leader/09 = a) but is not valid UTF-8');
+            }
+            $utf8 = true;
+        } else {
             // An escape (0x1B) only occurs in MARC-8, where it switches sets.
-            default => $leader[9] === 'a' || (!str_contains($raw, "\x1B") && mb_check_encoding($raw, 'UTF-8')),
-        };
-        if ($encoding === self::ENCODING_UTF8 && !mb_check_encoding($raw, 'UTF-8')) {
-            throw new MarcParseException('Record declares UTF-8 but is not valid UTF-8');
-        }
-        if (!$utf8 && $leader[9] === 'a') {
-            throw new MarcParseException('Record declares UTF-8 (leader/09 = a) but is not valid UTF-8');
+            $utf8 = !str_contains($raw, "\x1B") && $validUtf8;
         }
         $decode = $utf8
             ? static fn (string $s): string => $s

@@ -410,6 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then((r) => r.json())
                 .then((data) => {
                     if (!data.success) { showError(data.error || T.invalid); return; }
+                    if (!data.complete && data.processed <= current) { showError(T.invalid); return; } // no progress: never loop
                     current = data.processed;
                     if (data.complete) { finish(data); } else { next(); }
                 })

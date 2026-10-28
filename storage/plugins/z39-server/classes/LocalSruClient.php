@@ -30,7 +30,7 @@ final class LocalSruClient extends SruClient
             return false;
         }
         return strcasecmp((string) $own['host'], (string) $target['host']) === 0
-            && (int) ($own['port'] ?? 0) === (int) ($target['port'] ?? 0)
+            && \App\Support\Marc\MarcCoverFetcher::effectivePort($own) === \App\Support\Marc\MarcCoverFetcher::effectivePort($target)
             && rtrim((string) ($own['path'] ?? ''), '/') === rtrim((string) ($target['path'] ?? ''), '/');
     }
 

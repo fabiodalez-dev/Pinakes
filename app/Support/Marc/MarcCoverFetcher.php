@@ -42,7 +42,7 @@ final class MarcCoverFetcher
         $base = parse_url(function_exists('absoluteUrl') ? \absoluteUrl('/') : '');
         if (!is_array($base) || !isset($base['host'])
             || strcasecmp((string) $base['host'], (string) $parts['host']) !== 0
-            || (int) ($base['port'] ?? 0) !== (int) ($parts['port'] ?? 0)
+            || self::effectivePort($base) !== self::effectivePort($parts)
         ) {
             return null;
         }
@@ -59,6 +59,24 @@ final class MarcCoverFetcher
         }
         $file = self::coversDir() . '/' . $name;
         return is_file($file) ? $file : null;
+    }
+
+    /**
+     * The port a parse_url() result points at: the explicit one, else the
+     * scheme's default, so https://host and https://host:443 are the same.
+     *
+     * @param array<string, mixed> $parts
+     */
+    public static function effectivePort(array $parts): int
+    {
+        if (isset($parts['port'])) {
+            return (int) $parts['port'];
+        }
+        return match (strtolower((string) ($parts['scheme'] ?? ''))) {
+            'https' => 443,
+            'http' => 80,
+            default => 0,
+        };
     }
 
     private function copyLocal(string $file): string

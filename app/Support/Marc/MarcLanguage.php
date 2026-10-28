@@ -62,7 +62,17 @@ final class MarcLanguage
             'catalano' => 'cat', 'català' => 'cat', 'catalan' => 'cat', 'ca' => 'cat', 'cat' => 'cat',
         ];
         $key = mb_strtolower(trim($lang));
-        return $map[$key] ?? null;
+        if (isset($map[$key])) {
+            return $map[$key];
+        }
+        // Every name nameFor() stores (Русский, 中文, Suomi, Latina...) maps
+        // back: NAMES lists the B form of a B/T pair first.
+        foreach (self::NAMES as $code => $name) {
+            if (mb_strtolower($name) === $key) {
+                return $code;
+            }
+        }
+        return null;
     }
 
     /**
