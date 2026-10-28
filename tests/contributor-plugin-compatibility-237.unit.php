@@ -114,29 +114,33 @@ $check(str_contains($unimarcXml, 'tag="702"')
     'SRU UNIMARC behavior exports translator as 702 with relator 730');
 
 $oai = $read('storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php');
-$check(str_contains($oai, "? 'creator' : 'contributor'") && str_contains($oai, "? (\$index === \$primaryCreatorIndex ? '700' : '701') : '702'"), 'OAI Dublin Core and UNIMARC preserve creator/contributor semantics');
-$check(str_contains($oai, 'private function primaryCreatorIndex')
-    && str_contains($oai, "if (\$role === 'principale')")
+// The OAI server's MARC 21 / UNIMARC records come from the shared builder
+// (App\Support\Marc\BookMarcBuilder), which the bulk MARC export also uses.
+$marcBuilder = $read('app/Support/Marc/BookMarcBuilder.php');
+$check(str_contains($oai, "? 'creator' : 'contributor'") && str_contains($marcBuilder, "? (\$index === \$primaryCreatorIndex ? '700' : '701') : '702'") && str_contains($oai, 'BookMarcBuilder::unimarc('), 'OAI Dublin Core and UNIMARC preserve creator/contributor semantics');
+$check(str_contains($marcBuilder, 'public static function primaryCreatorIndex')
+    && str_contains($marcBuilder, "if (\$role === 'principale')")
+    && !str_contains($marcBuilder, "\$authors[0]['nome']")
     && !str_contains($oai, "\$authors[0]['nome']"),
     'OAI MARC/UNIMARC main responsibility is role-driven, never array-position-driven');
 $check(substr_count($oai, "CASE la.ruolo WHEN 'principale' THEN 0 WHEN 'co-autore' THEN 1 ELSE 2 END") >= 1
     && substr_count($oai, "CASE la.ruolo WHEN \\'principale\\' THEN 0 WHEN \\'co-autore\\' THEN 1 ELSE 2 END") >= 1,
     'OAI batch and single-record fetches sort principal creators first');
-$check(str_contains($oai, "'traduttore'   => '730'") && str_contains($oai, "'illustratore' => '440'") && str_contains($oai, "'colorista'    => '410'"), 'OAI UNIMARC mappings use the standard relator codes');
+$check(str_contains($marcBuilder, "'traduttore'   => '730'") && str_contains($marcBuilder, "'illustratore' => '440'") && str_contains($marcBuilder, "'colorista'    => '410'"), 'OAI UNIMARC mappings use the standard relator codes');
 require_once $root . '/storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php';
 $oaiReflection = new ReflectionClass(\App\Plugins\OaiPmhServer\OaiPmhServerPlugin::class);
 $oaiInstance = $oaiReflection->newInstanceWithoutConstructor();
-$primaryCreatorIndex = $oaiReflection->getMethod('primaryCreatorIndex');
-$check($primaryCreatorIndex->invoke($oaiInstance, [
+$primaryCreatorIndex = new ReflectionMethod(\App\Support\Marc\BookMarcBuilder::class, 'primaryCreatorIndex');
+$check($primaryCreatorIndex->invoke(null, [
     ['nome' => 'Translator', 'ruolo' => 'traduttore'],
     ['nome' => 'Coauthor', 'ruolo' => 'co-autore'],
     ['nome' => 'Principal', 'ruolo' => 'principale'],
 ]) === 2, 'OAI role selection finds a principal even when it is last');
-$check($primaryCreatorIndex->invoke($oaiInstance, [
+$check($primaryCreatorIndex->invoke(null, [
     ['nome' => 'Illustrator', 'ruolo' => 'illustratore'],
     ['nome' => 'Coauthor', 'ruolo' => 'co-autore'],
 ]) === 1, 'OAI role selection falls back to a co-author when no principal exists');
-$check($primaryCreatorIndex->invoke($oaiInstance, [
+$check($primaryCreatorIndex->invoke(null, [
     ['nome' => 'Translator', 'ruolo' => 'traduttore'],
 ]) === null, 'OAI contributors never become the main creator');
 $writeMarc = $oaiReflection->getMethod('writeBookMarcXml');
