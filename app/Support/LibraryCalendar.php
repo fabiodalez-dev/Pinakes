@@ -134,6 +134,54 @@ final class LibraryCalendar
         return $deadline;
     }
 
+    /**
+     * After a calendar change: a pickup still waiting whose deadline now falls
+     * on a closed day (of the copy's branch) lasts until the next open day,
+     * because the reader never had that day to come in. The new deadline is
+     * stored in prestiti.pickup_deadline, so every check that reads it (pickup
+     * confirmation, the reader's cancellation, the expiry sweep, the expired
+     * badges) applies the same rule. A deadline whose next open day is already
+     * past is left to the expiry sweep. Returns the number of pickups moved.
+     */
+    public static function extendPickupDeadlines(\mysqli $db): int
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return 0;
+        }
+        $today = DateHelper::today();
+        $result = $db->query(
+            "SELECT p.id, p.pickup_deadline, c.sede_id
+             FROM prestiti p
+             LEFT JOIN copie c ON c.id = p.copia_id
+             WHERE p.stato = 'da_ritirare' AND p.attivo = 1 AND p.pickup_deadline IS NOT NULL"
+        );
+        if (!$result instanceof \mysqli_result) {
+            return 0;
+        }
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+        $result->free();
+
+        $moved = 0;
+        $stmt = $db->prepare(
+            "UPDATE prestiti SET pickup_deadline = ?
+             WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
+        );
+        foreach ($rows as $row) {
+            $deadline = substr((string) $row['pickup_deadline'], 0, 10);
+            $next = $calendar->nextOpenDay($deadline, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
+            if ($next === $deadline || $next < $today) {
+                continue;
+            }
+            $id = (int) $row['id'];
+            $stmt->bind_param('sis', $next, $id, $deadline);
+            $stmt->execute();
+            $moved += max(0, $stmt->affected_rows);
+        }
+        $stmt->close();
+        return $moved;
+    }
+
     // ── Queries ─────────────────────────────────────────────────────────────
 
     /** True when a weekly closed day or a closure row is configured. */
@@ -510,7 +558,8 @@ final class LibraryCalendar
         }
     }
 
-    private static function branchOfCopy(\mysqli $db, ?int $copiaId): ?int
+    /** The branch (copie.sede_id) of a copy, null when unknown or none. */
+    public static function branchOfCopy(\mysqli $db, ?int $copiaId): ?int
     {
         if ($copiaId === null || $copiaId <= 0) {
             return null;

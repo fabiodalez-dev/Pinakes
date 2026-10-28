@@ -2812,7 +2812,7 @@ class NcipServerPlugin
                 $this->db->rollback();
                 $failureReason = 'no_capacity';
                 // Same figures the web renew() redirect carries (LoanWindow).
-                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db));
+                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
                 return null;
             }
 
@@ -2838,7 +2838,7 @@ class NcipServerPlugin
                     $this->db->rollback();
                     $failureReason = 'overlap';
                     // The loan's own copy is needed by a later loan: name that day.
-                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db));
+                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
                     return null;
                 }
             }

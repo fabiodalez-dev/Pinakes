@@ -2104,7 +2104,7 @@ class PrestitiController
         $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
         if (!$capacity->hasFreeCapacity($bookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
             $blocked = $capacity->renewalConflictDates($bookId, $loanId, $copyId, $currentDue, $newDueDate);
-            $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'), $db !== null ? \App\Support\LibraryCalendar::forDb($db) : null);
+            $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'), $db !== null ? \App\Support\LibraryCalendar::forDb($db) : null, $db !== null ? \App\Support\LibraryCalendar::branchOfCopy($db, $copyId) : null);
             return null;
         }
 
@@ -2114,7 +2114,7 @@ class PrestitiController
             if ((bool) $copyOverlap->get_result()->fetch_row()) {
                 // The loan's own copy is needed by a later loan: name that day.
                 $blocked = $capacity->renewalConflictDates($bookId, $loanId, $copyId, $currentDue, $newDueDate);
-                $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'), $db !== null ? \App\Support\LibraryCalendar::forDb($db) : null);
+                $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'), $db !== null ? \App\Support\LibraryCalendar::forDb($db) : null, $db !== null ? \App\Support\LibraryCalendar::branchOfCopy($db, $copyId) : null);
                 return null;
             }
         }
@@ -2346,9 +2346,9 @@ class PrestitiController
             $capacity = new \App\Services\CapacityService($db);
             // A refusal names the longest renewal still possible (LoanWindow),
             // and which loan it is about, so the page can offer "renew until D".
-            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $db): string {
+            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $db, $copiaId): string {
                 return http_build_query(['error' => 'extension_conflicts', 'loan_id' => $id]
-                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, null, \App\Support\LibraryCalendar::forDb($db)));
+                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, null, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId)));
             };
             if (!$capacity->hasFreeCapacity($libroId, $extensionStart, $extensionEnd, excludePrestitoId: $id)) {
                 $blocked = $capacity->renewalConflictDates($libroId, $id, $copiaId, (string) $currentDueDate, $extensionEnd);

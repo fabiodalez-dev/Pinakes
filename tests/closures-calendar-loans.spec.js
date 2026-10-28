@@ -125,7 +125,7 @@ test.describe('Closures calendar — circulation', () => {
     const hash = execFileSync('php', ['-r', `echo password_hash('${READER_PASS}', PASSWORD_DEFAULT);`], { encoding: 'utf-8' }).trim();
     db(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, created_at) VALUES ('CAL${RUN}', 'Cal', 'Reader', '${READER_EMAIL}', '${hash}', 'attivo', 1, 'standard', NOW())`);
     readerId = parseInt(db(`SELECT id FROM utenti WHERE email='${READER_EMAIL}'`), 10);
-    for (const key of ['prefill', 'store', 'pickup', 'renew', 'weekly', 'request', 'reqstart', 'api', 'zero']) {
+    for (const key of ['prefill', 'store', 'pickup', 'reprieve', 'renew', 'weekly', 'request', 'reqstart', 'api', 'zero']) {
       const title = `${TAG} ${key}`;
       db(`INSERT INTO libri (titolo, anno_pubblicazione, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${title}', 2024, 1, 1, NOW(), NOW())`);
       const id = parseInt(db(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10);
@@ -214,6 +214,37 @@ test.describe('Closures calendar — circulation', () => {
     await submitLoanForm(page);
     expect(db(`SELECT CONCAT(data_scadenza,'|',pickup_deadline) FROM prestiti WHERE libro_id=${books.zero.id} AND utente_id=${readerId}`))
       .toBe(`${addDays(today, loanDays)}|${addDays(today, Math.min(pickupDays, loanDays))}`);
+  });
+
+  test('Admin 6: closing the past pickup deadline day from the calendar page keeps the pickup collectable', async ({ page }) => {
+    // The deadline was yesterday; the librarian then declares yesterday closed.
+    const yesterday = addDays(today, -1);
+    const copy = db(`SELECT id FROM copie WHERE libro_id=${books.reprieve.id} LIMIT 1`);
+    db(`UPDATE copie SET stato='prenotato' WHERE id=${copy}`);
+    db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, pickup_deadline, origine) VALUES (${books.reprieve.id}, ${copy}, ${readerId}, '${addDays(today, -4)}', '${addDays(today, 20)}', 'da_ritirare', 1, '${yesterday}', 'diretto')`);
+    const loanId = parseInt(db(`SELECT id FROM prestiti WHERE libro_id=${books.reprieve.id} AND utente_id=${readerId} AND attivo=1`), 10);
+
+    await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
+    await page.goto(`${BASE}/admin/calendar`);
+    await page.fill('#closure_start', yesterday);
+    await page.fill('#closure_description', TAG);
+    await Promise.all([
+      page.waitForURL(/\/admin\/calendar/, { timeout: 15000 }),
+      page.locator('#save-closure').click(),
+    ]);
+    // Yesterday was closed, so the reader still has today to come in.
+    expect(db(`SELECT pickup_deadline FROM prestiti WHERE id=${loanId}`)).toBe(today);
+
+    await page.goto(`${BASE}/admin/loans/pending`);
+    const pickupBtn = page.locator(`.confirm-pickup-btn[data-loan-id="${loanId}"]`);
+    await expect(pickupBtn).toBeVisible({ timeout: 10000 });
+    await pickupBtn.click();
+    await page.waitForSelector('.swal2-popup', { timeout: 10000 });
+    const confirm = page.waitForResponse((r) => r.url().includes('/admin/loans/confirm-pickup') && r.request().method() === 'POST', { timeout: 15000 });
+    await page.locator('.swal2-confirm').click();
+    const body = await (await confirm).json().catch(() => ({}));
+    expect(body.success, body.message || 'confirm-pickup refused').toBe(true);
+    expect(db(`SELECT stato FROM prestiti WHERE id=${loanId}`)).toBe('in_corso');
   });
 
   // ── Renewal ──────────────────────────────────────────────────────────────

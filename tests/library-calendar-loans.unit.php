@@ -158,6 +158,13 @@ $cap = LoanWindow::renewalCap($shift($today, 30), [$conflict], null, LibraryCale
 $check($cap !== null && $cap['max_due_date'] === $shift($conflict, -2), 'renewal cap: the day before the conflict is closed, so the proposal steps back one more day');
 $capNoCal = LoanWindow::renewalCap($shift($today, 30), [$conflict]);
 $check($capNoCal !== null && $capNoCal['max_due_date'] === $closedBefore, 'renewal cap without a calendar is unchanged');
+$clearClosures();
+$addClosure($closedBefore, $closedBefore, $sedeId);
+$capBranch = LoanWindow::renewalCap($shift($today, 30), [$conflict], null, LibraryCalendar::forDb($db), LibraryCalendar::branchOfCopy($db, $copyId));
+$check($capBranch !== null && $capBranch['max_due_date'] === $shift($conflict, -2), "renewal cap: a closure of the copy's branch on the day before the conflict steps back too");
+$check(LibraryCalendar::dueDate($db, $capBranch['max_due_date'] ?? '', $copyId) === ($capBranch['max_due_date'] ?? ''), "the proposed date stays put when the renewal moves it with the copy's branch closures");
+$capLibrary = LoanWindow::renewalCap($shift($today, 30), [$conflict], null, LibraryCalendar::forDb($db));
+$check($capLibrary !== null && $capLibrary['max_due_date'] === $closedBefore, 'without the branch the branch closure is ignored, as before');
 
 // ── Nightly jobs ──────────────────────────────────────────────────────────
 $clearClosures();
@@ -186,9 +193,16 @@ $check($maintenance->checkExpiredPickups() === 0 && $stateOf($pickupLoan) === 'd
 $check($maintenance->checkExpiredReservations() === 0, 'checkExpiredReservations returns 0 on a closed day');
 $clearClosures();
 $addClosure($yesterday, $yesterday);
+// What the calendar page does after every save.
+$check(LibraryCalendar::extendPickupDeadlines($db) >= 1, 'saving the calendar moves the pickup whose deadline is now closed');
+$deadlineOf = static fn (int $id): string => (string) $db->query("SELECT pickup_deadline FROM prestiti WHERE id = {$id}")->fetch_row()[0];
+$check($deadlineOf($pickupLoan) === $today, 'the stored deadline is the next open day (today), the one every check reads');
 $maintenance->checkExpiredPickups();
 $check($stateOf($pickupLoan) === 'da_ritirare', 'a deadline on a later-declared closed day lasts until the next open day (today)');
+$check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'a second save moves nothing (idempotent)');
 $clearClosures();
+$db->query("UPDATE prestiti SET pickup_deadline = '{$yesterday}' WHERE id = {$pickupLoan}");
+$check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'without closures no deadline moves');
 $maintenance->checkExpiredPickups();
 $check($stateOf($pickupLoan) !== 'da_ritirare', 'with the library open the overdue pickup expires as before');
 

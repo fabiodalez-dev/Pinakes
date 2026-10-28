@@ -1435,14 +1435,10 @@ class MaintenanceService
         $result = $stmt->get_result();
         $expiredPickups = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
-        // A deadline that fell on a day later declared closed lasts until the
-        // next open day: the reader never had that last day to come in.
-        if ($calendar->hasRules()) {
-            $expiredPickups = array_values(array_filter(
-                $expiredPickups,
-                static fn (array $row): bool => $calendar->nextOpenDay((string) $row['pickup_deadline']) < $today
-            ));
-        }
+        // A deadline that fell on a day later declared closed was already moved
+        // to the next open day when the calendar changed
+        // (LibraryCalendar::extendPickupDeadlines()), so the stored deadline is
+        // the one rule every path reads.
 
         $expiredCount = 0;
         $integrity = new DataIntegrity($this->db);

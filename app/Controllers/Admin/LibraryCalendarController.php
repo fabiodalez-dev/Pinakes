@@ -86,7 +86,7 @@ class LibraryCalendarController
         }
         ksort($days);
         (new SettingsRepository($db))->set('loans', 'closed_weekdays', implode(',', $days));
-        LibraryCalendar::reset();
+        $this->calendarChanged($db);
         $_SESSION['success_message'] = __('Giorni di chiusura settimanale salvati.');
         return $this->back($response);
     }
@@ -102,7 +102,7 @@ class LibraryCalendarController
             return $this->back($response);
         }
         $this->insertClosure($db, $row);
-        LibraryCalendar::reset();
+        $this->calendarChanged($db);
         $_SESSION['success_message'] = __('Chiusura aggiunta.');
         return $this->back($response, substr($row['start'], 0, 7));
     }
@@ -123,7 +123,7 @@ class LibraryCalendarController
         $stmt->bind_param('sssiii', $row['start'], $row['end'], $row['description'], $yearly, $sede, $id);
         $stmt->execute();
         $stmt->close();
-        LibraryCalendar::reset();
+        $this->calendarChanged($db);
         $_SESSION['success_message'] = __('Chiusura aggiornata.');
         return $this->back($response, substr($row['start'], 0, 7));
     }
@@ -138,7 +138,7 @@ class LibraryCalendarController
         $stmt->execute();
         $deleted = $stmt->affected_rows > 0;
         $stmt->close();
-        LibraryCalendar::reset();
+        $this->calendarChanged($db);
         $_SESSION[$deleted ? 'success_message' : 'error_message'] = $deleted ? __('Chiusura eliminata.') : __('Chiusura non trovata.');
         return $this->back($response);
     }
@@ -163,7 +163,7 @@ class LibraryCalendarController
                 $added++;
             }
         }
-        LibraryCalendar::reset();
+        $this->calendarChanged($db);
         $_SESSION['success_message'] = __('Festività nazionali importate: %d nuove chiusure.', $added);
         return $this->back($response);
     }
@@ -212,12 +212,26 @@ class LibraryCalendarController
             $this->insertClosure($db, $row);
             $added++;
         }
-        LibraryCalendar::reset();
+        $this->calendarChanged($db);
         $_SESSION['success_message'] = __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);
         return $this->back($response);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Every write ends here: the request sees the new calendar, and pending
+     * pickups whose deadline is now a closed day move to the next open day.
+     */
+    private function calendarChanged(\mysqli $db): void
+    {
+        LibraryCalendar::reset();
+        try {
+            LibraryCalendar::extendPickupDeadlines($db);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
+        }
+    }
 
     private function guard(Response $response): ?Response
     {
