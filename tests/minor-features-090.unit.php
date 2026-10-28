@@ -62,6 +62,10 @@ $pdf = CatalogueCard::render([['titolo' => 'Uno', 'autori' => []], ['titolo' => 
 checkMinor(str_starts_with($pdf, '%PDF-'), 'render() produces a PDF');
 checkMinor(preg_match_all('#/Type\s*/Page[^s]#', $pdf) === 2, 'one card per book (two pages)');
 checkMinor(preg_match('#/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+(354\.\d+)\s+(212\.\d+)\s*\]#', $pdf, $m) === 1, 'the page is 125 × 75 mm landscape (354.33 × 212.60 pt)');
+$keywords = implode(', ', array_map(static fn (int $n): string => 'Soggetto lungo numero ' . $n, range(1, 40)));
+$crowded = ['titolo' => str_repeat('Titolo molto lungo ', 12), 'sottotitolo' => str_repeat('sottotitolo esteso ', 10), 'autori' => [], 'editore_nome' => 'Sellerio', 'parole_chiave' => $keywords, 'numero_inventario' => 'INV-999', 'isbn13' => '9788804668619'];
+$pdf = CatalogueCard::render([$crowded, ['titolo' => 'Due', 'autori' => []]], 'Biblioteca');
+checkMinor(preg_match_all('#/Type\s*/Page[^s]#', $pdf) === 2, 'a card with 40 keywords and a long title still takes exactly one page');
 
 // ── Bulk ids ──
 checkMinor(CatalogueCardController::parseIds('3, 1,3,x,-2,0,2') === [3, 1, 2], 'bulk ids: positive integers, first-seen order, no duplicates');

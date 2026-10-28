@@ -894,6 +894,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('.row-select').forEach(cb => {
         cb.addEventListener('change', handleRowSelect);
       });
+      syncSelectAll();
       updateBulkActionsBar();
     }
   });
@@ -1092,7 +1093,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.target.checked) selectedBooks.add(id);
     else selectedBooks.delete(id);
     updateBulkActionsBar();
-    document.getElementById('select-all').checked = selectedBooks.size > 0 && selectedBooks.size === document.querySelectorAll('.row-select').length;
+    syncSelectAll();
+  }
+
+  // "Select all" reflects the rows on screen: the selection survives paging,
+  // so on a new page the box starts unticked unless every row there is selected.
+  function syncSelectAll() {
+    const boxes = Array.from(document.querySelectorAll('.row-select'));
+    document.getElementById('select-all').checked = boxes.length > 0 && boxes.every(cb => cb.checked);
   }
 
   document.getElementById('select-all').addEventListener('change', function() {
@@ -1495,6 +1503,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // Bulk ISBD catalogue cards (PDF, one card per page)
   document.getElementById('bulk-catalogue-cards').addEventListener('click', function() {
     if (selectedBooks.size === 0) return;
+    const maxCards = <?= json_encode(\App\Controllers\CatalogueCardController::MAX_BULK, JSON_HEX_TAG) ?>;
+    if (selectedBooks.size > maxCards) {
+      // The server prints at most maxCards cards: say so instead of silently dropping the rest.
+      Swal.fire({
+        icon: 'warning',
+        title: <?= json_encode(__('Troppi libri selezionati'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        text: <?= json_encode(__('Si possono stampare al massimo %d schede alla volta: selezionane di meno.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>.replace('%d', maxCards)
+      });
+      return;
+    }
     const ids = Array.from(selectedBooks).join(',');
     window.open(`${window.BASE_PATH}/admin/books/catalogue-cards?ids=${encodeURIComponent(ids)}`, '_blank', 'noopener');
   });

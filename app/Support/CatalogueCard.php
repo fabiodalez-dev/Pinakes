@@ -192,32 +192,32 @@ final class CatalogueCard
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
         $pdf->SetMargins(8, 7, 8);
-        $pdf->SetAutoPageBreak(true, 6);
+        // One card, one page: nothing may flow onto a second page. Text that
+        // does not fit the card shrinks, then the tracings are shortened.
+        $pdf->SetAutoPageBreak(false);
 
         foreach ($books as $book) {
             $card = self::lines($book);
             $pdf->AddPage();
+            $bottom = self::HEIGHT_MM - ($card['inventory'] !== '' ? 13.0 : 6.0);
 
             // Call number, top left
             $pdf->SetFont('dejavusans', 'B', 8);
             $pdf->MultiCell(30, 0, $card['call'], 0, 'L', false, 0, 8, 7);
 
             // Main entry heading
-            $pdf->SetFont('dejavusans', 'B', 9);
-            $pdf->MultiCell(0, 0, $card['heading'], 0, 'L', false, 1, 40, 7);
+            self::fitBlock($pdf, $card['heading'], 40, 7, $bottom, 9.0, 'B');
             $pdf->Ln(1.5);
 
             // Body, indented as on a traditional card
-            $pdf->SetFont('dejavusans', '', 8);
-            $pdf->SetX(44);
-            $pdf->MultiCell(0, 0, $card['body'], 0, 'L', false, 1, 44);
-            if ($card['isbn'] !== '') {
+            self::fitBlock($pdf, $card['body'], 44, $pdf->GetY(), $bottom, 8.0);
+            if ($card['isbn'] !== '' && $pdf->GetY() + 4 < $bottom) {
                 $pdf->Ln(1);
-                $pdf->MultiCell(0, 0, $card['isbn'], 0, 'L', false, 1, 44);
+                self::fitBlock($pdf, $card['isbn'], 44, $pdf->GetY(), $bottom, 8.0);
             }
-            if ($card['tracings'] !== '') {
+            if ($card['tracings'] !== '' && $pdf->GetY() + 5 < $bottom) {
                 $pdf->Ln(2);
-                $pdf->MultiCell(0, 0, $card['tracings'], 0, 'L', false, 1, 44);
+                self::fitBlock($pdf, $card['tracings'], 44, $pdf->GetY(), $bottom, 8.0);
             }
             if ($card['inventory'] !== '') {
                 $pdf->SetFont('dejavusans', '', 7);
@@ -226,6 +226,45 @@ final class CatalogueCard
         }
 
         return $pdf->Output('', 'S');
+    }
+
+    /**
+     * Write $text from ($x, $y) to the right margin without passing $bottom:
+     * the font shrinks down to 5.5 pt, then trailing words give way to "…".
+     */
+    private static function fitBlock(TCPDF $pdf, string $text, float $x, float $y, float $bottom, float $size, string $style = ''): void
+    {
+        if ($text === '') {
+            return;
+        }
+        $width = self::WIDTH_MM - 8.0 - $x;
+        $room = $bottom - $y;
+        if ($room <= 0) {
+            return;
+        }
+        $fits = static function (string $candidate, float $pt) use ($pdf, $style, $width, $room): bool {
+            $pdf->SetFont('dejavusans', $style, $pt);
+            return $pdf->getStringHeight($width, $candidate) <= $room;
+        };
+        for ($pt = $size; $pt > 5.5 && !$fits($text, $pt); $pt -= 0.5) {
+        }
+        $pt = max(5.5, $pt);
+        if (!$fits($text, $pt)) {
+            $words = preg_split('/\s+/u', $text) ?: [];
+            while (count($words) > 1) {
+                array_pop($words);
+                $candidate = rtrim(implode(' ', $words), " ,;.") . ' …';
+                if ($fits($candidate, $pt)) {
+                    $text = $candidate;
+                    break;
+                }
+            }
+            if (count($words) <= 1) {
+                $text = '…';
+            }
+        }
+        $pdf->SetFont('dejavusans', $style, $pt);
+        $pdf->MultiCell($width, 0, $text, 0, 'L', false, 1, $x, $y);
     }
 
     /**

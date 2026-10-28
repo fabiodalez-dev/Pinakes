@@ -137,4 +137,51 @@ test.describe.serial('Catalogue cards (schede catalografiche)', () => {
     await expect(page).toHaveURL(/\/admin\/books$/);
     await expect(page.getByText('Seleziona almeno un libro per stampare le schede catalografiche.')).toBeVisible();
   });
+  test('6. Selecting more books than one print allows warns instead of silently dropping some', async () => {
+    const BULK = `cardbulk${STAMP}`;
+    // 205 plain records, more than CatalogueCardController::MAX_BULK (200).
+    h.dbQuery(`INSERT INTO libri (titolo, search_index, copie_totali, copie_disponibili)
+      SELECT CONCAT('Scheda massiva ', ${h.sqlString(BULK)}, ' ', n), CONCAT('scheda massiva ', ${h.sqlString(BULK)}, ' ', n), 1, 1
+      FROM (SELECT a.d + 10 * b.d + 100 * c.d AS n FROM
+        (SELECT 0 d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a,
+        (SELECT 0 d UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b,
+        (SELECT 0 d UNION SELECT 1 UNION SELECT 2) c) t WHERE n < 205`);
+    const bulkIds = h.dbQuery(`SELECT id FROM libri WHERE titolo LIKE ${h.sqlString('Scheda massiva ' + BULK + ' %')}`).split('\n').filter(Boolean).map(Number);
+    try {
+      expect(bulkIds.length).toBe(205);
+      await page.goto(`${h.BASE}/admin/books`);
+      await page.locator('.dt-length select, .dataTables_length select').first().selectOption('100');
+      await page.fill('#search_text', BULK);
+      // The search box also reloads the table on "change", i.e. when it loses
+      // focus: leave it now and let that reload land before paging.
+      const settled = page.waitForResponse((r) => r.url().includes('/api/libri') && r.url().includes(BULK));
+      await page.locator('#search_text').press('Tab');
+      await settled;
+      const rows = page.locator('#libri-table tbody tr .row-select');
+      // Tick "select all" on each of the three result pages, as a librarian would.
+      for (let pageNo = 1; pageNo <= 3; pageNo++) {
+        await expect(rows.first()).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('#libri-table tbody tr').filter({ hasNotText: BULK })).toHaveCount(0, { timeout: 15000 });
+        if (pageNo === 3) await expect(rows).toHaveCount(5, { timeout: 15000 });
+        else await expect(rows).toHaveCount(100, { timeout: 15000 });
+        await page.locator('#select-all').check();
+        // The bulk actions bar is fixed over the bottom pager once books are
+        // selected, so the click goes straight to the pager's "next" button.
+        if (pageNo < 3) {
+          await page.getByRole('navigation', { name: 'pagination' }).getByRole('link', { name: 'Next' }).dispatchEvent('click');
+          await expect(page.locator('.dt-info, .dataTables_info').first()).toContainText(`${pageNo * 100 + 1}`, { timeout: 15000 });
+        }
+      }
+      await expect(page.locator('#selected-count')).toHaveText('205');
+      let printed = false;
+      page.on('request', (r) => { if (r.url().includes('/admin/books/catalogue-cards')) printed = true; });
+      await page.click('#bulk-catalogue-cards');
+      await expect(page.locator('.swal2-popup')).toBeVisible();
+      await expect(page.locator('.swal2-html-container')).toContainText('200');
+      await page.locator('.swal2-confirm').click();
+      expect(printed, 'no PDF request is sent for an oversized selection').toBe(false);
+    } finally {
+      h.deleteBooks(bulkIds);
+    }
+  });
 });
