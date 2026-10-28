@@ -8853,7 +8853,7 @@
   "Rendi predefinita": "Als Standard festlegen",
   "Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.": "Diese Kategorie löschen? Ihre Leser wechseln zur Standardkategorie.",
   "Regole per tipo di materiale": "Regeln pro Medienart",
-  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Ausnahmen pro Leserkategorie und Medienart: Ausleihbarkeit, maximale Ausleihen dieses Mediums (zusätzlich zur Gesamtgrenze), Dauer und Verlängerungen. Graue Werte sind geerbt; trage nur dort einen Wert ein, wo eine Ausnahme nötig ist.",
+  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Ausnahmen pro Leserkategorie und Medienart: Ausleihbarkeit, maximale Ausleihen dieses Mediums (zusätzlich zur Gesamtgrenze), Dauer, Verlängerungen und Tage pro Verlängerung. Graue Werte sind geerbt; trage nur dort einen Wert ein, wo eine Ausnahme nötig ist.",
   "Eredita (%s)": "Erben (%s)",
   "prestabile": "ausleihbar",
   "consultazione": "Einsichtnahme",
@@ -8875,5 +8875,11 @@
   "Rinnova tessera": "Ausweis verlängern",
   "Rinnovare la tessera fino al %s?": "Ausweis bis zum %s verlängern?",
   "Tessera in scadenza": "Ausweis läuft ab",
-  "Tessera rinnovata fino al %s.": "Ausweis bis zum %s verlängert."
+  "Tessera rinnovata fino al %s.": "Ausweis bis zum %s verlängert.",
+  "Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.": "Letzte 12 Monate. Leser ohne Lesertyp werden unter „%s“ gezählt, dem Standardtyp.",
+  "Ultimi 12 mesi.": "Letzte 12 Monate.",
+  "Gg/rinnovo": "Tage/Verl.",
+  "Rinnova prestito (+%d giorni)": "Ausleihe verlängern (+%d Tage)",
+  "La scadenza verrà estesa di %d giorni": "Die Frist wird um %d Tage verlängert",
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Ausleihe verlängern? Das Fälligkeitsdatum wird um %d Tage verlängert."
 }

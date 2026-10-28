@@ -1,7 +1,8 @@
 // @ts-check
 // /admin/statistics in 0.9.0: loans by material, visitors from the visitor
-// log, the outcomes of the last closed stocktake, and the extension
-// sections (patron types, fines) hidden until another feature provides them.
+// log, the outcomes of the last closed stocktake, loans by patron type
+// (readers without a type count under the default type), and the fines
+// section hidden until the fines feature provides it.
 const { test, expect } = require('@playwright/test');
 const h = require('./helpers/minor-features-090');
 
@@ -25,7 +26,7 @@ test.describe.serial('Statistics 0.9.0 sections', () => {
   const shownCount = (media) => page.locator(`#stats-loans-by-media tr[data-media="${media}"] [data-count]`);
 
   test.beforeAll(async ({ browser }) => {
-    h.dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente) VALUES (${h.sqlString(CARD)}, 'Lia', 'Statistica', ${h.sqlString(`stats-${STAMP}@example.test`)}, 'x', 'attivo', 'standard')`);
+    h.dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, telefono, indirizzo, stato, tipo_utente) VALUES (${h.sqlString(CARD)}, 'Lia', 'Statistica', ${h.sqlString(`stats-${STAMP}@example.test`)}, 'x', '0000000', 'Via E2E 1', 'attivo', 'standard')`);
     userId = parseInt(h.dbQuery(`SELECT id FROM utenti WHERE codice_tessera = ${h.sqlString(CARD)}`), 10);
     dvdId = h.seedBook({ titolo: DVD_TITLE, tipo_media: 'dvd' });
     context = await browser.newContext();
@@ -87,15 +88,70 @@ test.describe.serial('Statistics 0.9.0 sections', () => {
     await expect(page).toHaveURL(/\/admin\/attendance$/);
   });
 
-  test('5. Patron-type and fines sections stay hidden until a feature provides them', async () => {
+  test('5. The fines section stays hidden until the fines feature provides it', async () => {
     await page.goto(`${h.BASE}/admin/statistics`);
     await expect(page.locator('#stats-loans-by-media')).toBeVisible();
-    for (const id of ['patron-types', 'fines']) {
-      await expect(page.locator(`#stats-${id}`)).toHaveCount(0);
+    await expect(page.locator('#stats-fines')).toHaveCount(0);
+    await expect(page.locator('#stats-patron-types')).toBeVisible();
+  });
+
+  test('6. Loans by patron type: a typed reader counts under the type, an untyped one under the default type', async () => {
+    const typeCode = `e2est${STAMP}`.slice(0, 40);
+    const typeName = `E2E Tipologia statistiche ${STAMP}`;
+    const typeCount = (sqlTypeCond) => parseInt(h.dbQuery(
+      `SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+       LEFT JOIN utenti u ON u.id = p.utente_id
+       WHERE p.stato IN ('in_corso','in_ritardo','restituito','perso','danneggiato')
+         AND p.data_prestito >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+         AND ${sqlTypeCond}`), 10);
+    const defaultId = parseInt(h.dbQuery(`SELECT id FROM tipologie_lettore WHERE predefinita = 1 ORDER BY id LIMIT 1`), 10);
+    const defaultName = h.dbQuery(`SELECT nome FROM tipologie_lettore WHERE id = ${defaultId}`);
+    const defaultCount = () => typeCount(`COALESCE(u.tipologia_id, ${defaultId}) = ${defaultId}`);
+    h.dbQuery(`INSERT INTO tipologie_lettore (codice, nome, attiva, ordinamento) VALUES (${h.sqlString(typeCode)}, ${h.sqlString(typeName)}, 1, 95)`);
+    const typeId = parseInt(h.dbQuery(`SELECT id FROM tipologie_lettore WHERE codice = ${h.sqlString(typeCode)}`), 10);
+    const section = page.locator('#stats-patron-types');
+    const value = (label) => section.locator('tr', { has: page.locator('td', { hasText: new RegExp(`^${label}$`) }) }).locator('td').nth(1);
+    try {
+      // A new active type with no loans is listed with 0.
+      await page.goto(`${h.BASE}/admin/statistics`);
+      await expect(section.getByRole('heading', { name: 'Prestiti per tipologia di lettore' })).toBeVisible();
+      await expect(value(typeName)).toHaveText('0');
+      await expect(value(defaultName)).toHaveText(String(defaultCount()));
+      await expect(section).toContainText(`I lettori senza tipologia sono contati in «${defaultName}»`);
+
+      // The reader of the DVD loan (test 2) has no type: the loan is under the default type.
+      expect(h.dbQuery(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE id = ${userId}`)).toBe('NULL');
+      const defaultBefore = defaultCount();
+
+      // The librarian gives the reader the new type from the edit form.
+      await page.goto(`${h.BASE}/admin/users/edit/${userId}`);
+      await page.locator('select[name="tipologia_id"]').selectOption(String(typeId));
+      await page.locator('#user-form button[type="submit"]').click();
+      await page.waitForURL((u) => !u.pathname.includes('/edit/'), { timeout: 20000 });
+      expect(page.url()).not.toContain('error=');
+      expect(h.dbQuery(`SELECT tipologia_id FROM utenti WHERE id = ${userId}`)).toBe(String(typeId));
+
+      await page.goto(`${h.BASE}/admin/statistics`);
+      const typed = typeCount(`u.tipologia_id = ${typeId}`);
+      expect(typed).toBeGreaterThan(0);
+      await expect(value(typeName)).toHaveText(String(typed));
+      await expect(value(defaultName)).toHaveText(String(defaultBefore - typed));
+
+      // A deactivated type with loans is still listed; without loans it disappears.
+      h.dbQuery(`UPDATE tipologie_lettore SET attiva = 0 WHERE id = ${typeId}`);
+      await page.goto(`${h.BASE}/admin/statistics`);
+      await expect(value(typeName)).toHaveText(String(typed));
+      h.dbQuery(`UPDATE utenti SET tipologia_id = NULL WHERE id = ${userId}`);
+      await page.goto(`${h.BASE}/admin/statistics`);
+      await expect(section.locator('td', { hasText: new RegExp(`^${typeName}$`) })).toHaveCount(0);
+      await expect(value(defaultName)).toHaveText(String(defaultBefore));
+    } finally {
+      h.dbQuery(`UPDATE utenti SET tipologia_id = NULL WHERE id = ${userId}`);
+      h.dbQuery(`DELETE FROM tipologie_lettore WHERE id = ${typeId}`);
     }
   });
 
-  test('6. The last closed stocktake shows its outcomes', async () => {
+  test('7. The last closed stocktake shows its outcomes', async () => {
     const name = `E2E Revisione statistiche ${STAMP}`;
     const bookId = h.seedBook({ titolo: `E2E Statistiche revisione ${STAMP}` });
     const copies = ['A', 'B', 'C'].map((suffix) => {

@@ -8853,7 +8853,7 @@
   "Rendi predefinita": "Rendi predefinita",
   "Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.": "Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.",
   "Regole per tipo di materiale": "Regole per tipo di materiale",
-  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.",
+  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.",
   "Eredita (%s)": "Eredita (%s)",
   "prestabile": "prestabile",
   "consultazione": "consultazione",
@@ -8875,5 +8875,11 @@
   "Rinnova tessera": "Rinnova tessera",
   "Rinnovare la tessera fino al %s?": "Rinnovare la tessera fino al %s?",
   "Tessera in scadenza": "Tessera in scadenza",
-  "Tessera rinnovata fino al %s.": "Tessera rinnovata fino al %s."
+  "Tessera rinnovata fino al %s.": "Tessera rinnovata fino al %s.",
+  "Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.": "Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.",
+  "Ultimi 12 mesi.": "Ultimi 12 mesi.",
+  "Gg/rinnovo": "Gg/rinnovo",
+  "Rinnova prestito (+%d giorni)": "Rinnova prestito (+%d giorni)",
+  "La scadenza verrà estesa di %d giorni": "La scadenza verrà estesa di %d giorni",
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Rinnovare il prestito? La scadenza verrà estesa di %d giorni."
 }

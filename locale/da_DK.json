@@ -8853,7 +8853,7 @@
   "Rendi predefinita": "Gør til standard",
   "Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.": "Slet denne kategori? Dens lånere flyttes til standardkategorien.",
   "Regole per tipo di materiale": "Regler pr. materialetype",
-  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Undtagelser pr. lånerkategori og materialetype: udlånbarhed, maksimalt antal lån af det materiale (ud over den samlede grænse), periode og fornyelser. Grå værdier er arvede; skriv kun en værdi, hvor der er brug for en undtagelse.",
+  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Undtagelser pr. lånerkategori og materialetype: udlånbarhed, maksimalt antal lån af det materiale (ud over den samlede grænse), periode, fornyelser og dage pr. fornyelse. Grå værdier er arvede; skriv kun en værdi, hvor der er brug for en undtagelse.",
   "Eredita (%s)": "Arv (%s)",
   "prestabile": "udlånbar",
   "consultazione": "brug på stedet",
@@ -8875,5 +8875,11 @@
   "Rinnova tessera": "Forny kort",
   "Rinnovare la tessera fino al %s?": "Forny kortet til den %s?",
   "Tessera in scadenza": "Kort udløber snart",
-  "Tessera rinnovata fino al %s.": "Kortet er fornyet til den %s."
+  "Tessera rinnovata fino al %s.": "Kortet er fornyet til den %s.",
+  "Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.": "Seneste 12 måneder. Lånere uden lånertype tælles under »%s«, standardtypen.",
+  "Ultimi 12 mesi.": "Seneste 12 måneder.",
+  "Gg/rinnovo": "Dage/forny.",
+  "Rinnova prestito (+%d giorni)": "Forny lån (+%d dage)",
+  "La scadenza verrà estesa di %d giorni": "Fristen forlænges med %d dage",
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Vil du fornye lånet? Udløbsdatoen udvides med %d dage."
 }

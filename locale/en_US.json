@@ -8853,7 +8853,7 @@
   "Rendi predefinita": "Make default",
   "Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.": "Delete this type? Its patrons will move to the default type.",
   "Regole per tipo di materiale": "Rules per material type",
-  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Exceptions per patron type and material type: lendability, maximum loans of that material (on top of the total limit), duration and renewals. Grey values are inherited; enter a value only where an exception is needed.",
+  "Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.": "Exceptions per patron type and material type: lendability, maximum loans of that material (on top of the total limit), duration, renewals and days per renewal. Grey values are inherited; enter a value only where an exception is needed.",
   "Eredita (%s)": "Inherit (%s)",
   "prestabile": "lendable",
   "consultazione": "consultation",
@@ -8875,5 +8875,11 @@
   "Rinnova tessera": "Renew card",
   "Rinnovare la tessera fino al %s?": "Renew the card until %s?",
   "Tessera in scadenza": "Card expiring",
-  "Tessera rinnovata fino al %s.": "Card renewed until %s."
+  "Tessera rinnovata fino al %s.": "Card renewed until %s.",
+  "Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.": "Last 12 months. Readers without a patron type are counted under «%s», the default type.",
+  "Ultimi 12 mesi.": "Last 12 months.",
+  "Gg/rinnovo": "Days/renewal",
+  "Rinnova prestito (+%d giorni)": "Renew loan (+%d days)",
+  "La scadenza verrà estesa di %d giorni": "The due date will be extended by %d days",
+  "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Renew loan? The due date will be extended by %d days."
 }
