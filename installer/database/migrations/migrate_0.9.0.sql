@@ -269,3 +269,71 @@ CREATE TABLE IF NOT EXISTS `calendario_chiusure` (
   CONSTRAINT `fk_calendario_chiusure_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- ── end closures calendar ──
+
+-- ── fines-ledger (Phase 4: fines, patron ledger, debt block) ──
+-- movimenti_lettore is an append-only patron ledger: the balance is SUM(importo),
+-- positive = debt, negative = payment/waiver. chiave_idempotenza keeps a charge
+-- from being written twice (late:<loan>, penalty:<loan>).
+CREATE TABLE IF NOT EXISTS `movimenti_lettore` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `prestito_id` int DEFAULT NULL,
+  `tipo` enum('multa_ritardo','addebito_perdita','addebito_danno','addebito_manuale','pagamento','condono','storno') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `importo` decimal(10,2) NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `metodo_pagamento` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `creato_da` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `chiave_idempotenza` varchar(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`),
+  KEY `idx_movimenti_utente` (`utente_id`,`importo`),
+  KEY `idx_movimenti_prestito` (`prestito_id`),
+  KEY `idx_movimenti_tipo_data` (`tipo`,`created_at`),
+  KEY `idx_movimenti_creato_da` (`creato_da`),
+  CONSTRAINT `fk_movimenti_utente` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_movimenti_prestito` FOREIGN KEY (`prestito_id`) REFERENCES `prestiti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_movimenti_creato_da` FOREIGN KEY (`creato_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Existing prestiti.sanzione amounts (assessed by hand when a copy was closed lost
+-- or damaged) become ledger charges. prestiti.sanzione stays and is still written
+-- as a mirror. The key penalty:<loan id> is the one the live return path uses, so
+-- the conversion happens exactly once, however many times the upgrade runs.
+-- Batches of 5000 loans in id order; each statement is its own short transaction
+-- and resumes where the previous one stopped. Rows left after the last batch
+-- (an archive with more than 100000 assessed penalties) are converted by
+-- PatronLedger::backfillLegacyPenalties() during maintenance.
+SET @fl_sql = 'INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, creato_da, created_at, chiave_idempotenza)
+ SELECT p.utente_id, p.id, IF(p.stato = ''perso'', ''addebito_perdita'', ''addebito_danno''), p.sanzione,
+        ''Importo registrato alla chiusura del prestito'', p.processed_by,
+        COALESCE(CAST(p.data_restituzione AS DATETIME), p.updated_at, p.created_at, NOW()), CONCAT(''penalty:'', p.id)
+   FROM prestiti p
+  WHERE p.sanzione > 0
+    AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT(''penalty:'', p.id))
+  ORDER BY p.id
+  LIMIT 5000
+ ON DUPLICATE KEY UPDATE movimenti_lettore.id = movimenti_lettore.id';
+PREPARE fl_stmt FROM @fl_sql;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+EXECUTE fl_stmt;
+DEALLOCATE PREPARE fl_stmt;
+-- ── end fines-ledger ──

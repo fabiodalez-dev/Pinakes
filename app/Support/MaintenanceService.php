@@ -179,6 +179,20 @@ class MaintenanceService
             $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
         }
 
+        // 0.9.0 (plan §7): convert any prestiti.sanzione the migration's
+        // batches did not reach into ledger rows. Marker-guarded so the scan
+        // runs until it completes once; new penalties are written live with
+        // the same idempotency key.
+        try {
+            $settingsRepo = new \App\Models\SettingsRepository($this->db);
+            if ($settingsRepo->get('loans', 'legacy_penalties_backfilled', '0') !== '1') {
+                (new \App\Services\PatronLedger($this->db))->backfillLegacyPenalties();
+                $settingsRepo->set('loans', 'legacy_penalties_backfilled', '1');
+            }
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'legacyPenaltyBackfill: ' . $e->getMessage();
+        }
+
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
         // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
         // in this same pass that special-cases 'in_ritardo' (capacity clamps,
