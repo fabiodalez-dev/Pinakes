@@ -511,8 +511,7 @@ final class LibraryCalendar
         if ($from === false || $to === false) {
             return -1;
         }
-        $days = $from->diff($to)->days;
-        return $days === false ? -1 : (int) $days;
+        return (int) $from->diff($to)->days;
     }
 
     /**
