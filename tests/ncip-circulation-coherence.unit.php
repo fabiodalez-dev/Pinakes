@@ -372,7 +372,7 @@ $dUserId = $makeUser();
 $dDue = (new DateTimeImmutable($today))->modify("+{$loanDays} days")->format('Y-m-d');
 $createLoanAtomic = new ReflectionMethod(NcipServerPlugin::class, 'createLoanAtomic');
 $dFailure = null;
-$dLoanId = $createLoanAtomic->invokeArgs($ncip, [$dBookId, $dUserId, $dDue, (int) $staffCaller['id'], &$dFailure]);
+$dLoanId = $createLoanAtomic->invokeArgs($ncip, [$dBookId, $dUserId, &$dDue, (int) $staffCaller['id'], &$dFailure]);
 $check(is_int($dLoanId) && $dLoanId > 0, '13 atomic NCIP checkout creates the in_corso loan (' . var_export($dFailure, true) . ')');
 $check($hasAuditEvent($dBookId, 'loan.created', 'ncip', (int) $dLoanId), '14 loan.created audit event recorded with source=ncip');
 $dOutbox = 0;
