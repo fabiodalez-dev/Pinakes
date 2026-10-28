@@ -538,6 +538,17 @@ class LoanApprovalController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // The copy is known only now: a due date closed at its branch moves
+            // to the branch's next open day when the longer window still fits
+            // (otherwise the requested date stays, as before the calendar).
+            if ($dataScadenza !== null && $dataScadenza !== '') {
+                $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $dataScadenza, 0, $db, (int) $selectedCopy['id']);
+                if ($branchDue !== $dataScadenza
+                    && (new \App\Services\CapacityService($db))->hasFreeCapacity($libroId, (string) $dataPrestito, $branchDue, excludePrestitoId: $loanId)) {
+                    $dataScadenza = $branchDue;
+                }
+            }
+
             // Occupazione canonica #157: la copia è tenuta da un prestito attivo
             // OPPURE da un pending di conversione prenotazione che ha già una
             // copia (attivo=0, stato='pendente', copia_id valorizzato). Omettere
@@ -615,17 +626,17 @@ class LoanApprovalController
             if ($pickupDeadline !== null) {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?{$pickupNotificationResetSql}
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?, data_scadenza = ?{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
-                $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
+                $stmt->bind_param('sissi', $newState, $selectedCopy['id'], $pickupDeadline, $dataScadenza, $loanId);
             } else {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL{$pickupNotificationResetSql}
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL, data_scadenza = ?{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
-                $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
+                $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $dataScadenza, $loanId);
             }
             $stmt->execute();
             $stmt->close();

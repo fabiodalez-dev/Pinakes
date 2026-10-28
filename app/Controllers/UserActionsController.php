@@ -1119,7 +1119,8 @@ class UserActionsController
                 $db->commit();
                 $params = ['reserve_success' => 1];
                 if ($desired !== '') {
-                    $params['reserve_date'] = $desired;
+                    // The stored start: a closed desired day moved to the next open one.
+                    $params['reserve_date'] = $start;
                 }
                 return $this->back($response, $params);
             }
