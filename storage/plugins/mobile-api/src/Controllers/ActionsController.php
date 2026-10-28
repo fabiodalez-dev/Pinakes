@@ -139,6 +139,65 @@ final class ActionsController
         }
     }
 
+    // ─── GET /me/movements ───────────────────────────────────────────────────
+
+    /**
+     * Balance and ledger of the authenticated reader (plan §7, additive in
+     * 1.9.0): amounts in cents and as a decimal string, plus the fines
+     * accruing today on overdue loans (not charged until the return).
+     */
+    public function myMovements(Request $request, ResponseInterface $response): ResponseInterface
+    {
+        $userId = $this->userId($request);
+        if ($userId === 0) {
+            return $this->unauth($response);
+        }
+
+        try {
+            $ledger = new \App\Services\PatronLedger($this->db);
+            $params = \App\Services\FineParameters::forUser($this->db, $userId);
+            $balance = $ledger->balanceCents($userId);
+            $items = [];
+            foreach ($ledger->movements($userId, 200) as $m) {
+                $cents = \App\Services\FineParameters::decimalToCents($m['importo']);
+                $items[] = [
+                    'id'           => (int) $m['id'],
+                    'type'         => (string) $m['tipo'],
+                    'type_label'   => \App\Services\PatronLedger::typeLabel((string) $m['tipo']),
+                    'amount_cents' => $cents,
+                    'amount'       => \App\Services\FineParameters::centsToDecimal($cents),
+                    'description'  => \App\Services\PatronLedger::describe($m),
+                    'payment_method' => $this->nullableString($m['metodo_pagamento'] ?? null),
+                    'loan_id'      => $m['prestito_id'] !== null ? (int) $m['prestito_id'] : null,
+                    'book_title'   => $this->nullableString($m['libro_titolo'] ?? null),
+                    'created_at'   => (string) $m['created_at'],
+                ];
+            }
+            $accrued = array_map(static fn (array $a): array => [
+                'loan_id'      => $a['loan_id'],
+                'title'        => $a['titolo'],
+                'due_at'       => $a['data_scadenza'],
+                'days_late'    => $a['days'],
+                'amount_cents' => $a['cents'],
+            ], $ledger->accruedFines($userId));
+            $threshold = $params->debtBlockThresholdCents;
+
+            return ResponseEnvelope::success($response, [
+                'currency'               => $params->currency,
+                'balance_cents'          => $balance,
+                'balance'                => \App\Services\FineParameters::centsToDecimal($balance),
+                'accrued_cents'          => array_sum(array_column($accrued, 'amount_cents')),
+                'accrued'                => $accrued,
+                'debt_block_threshold_cents' => $threshold,
+                'debt_blocked'           => $threshold !== null && $balance > $threshold,
+                'items'                  => $items,
+            ], ['count' => count($items)], 200);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[MobileApi] my movements failed: ' . $e->getMessage());
+            return ResponseEnvelope::error($response, 'internal_error', __('Movimenti non disponibili.'), 500);
+        }
+    }
+
     // ─── GET /me/reservations ────────────────────────────────────────────────
 
     public function myReservations(Request $request, ResponseInterface $response): ResponseInterface

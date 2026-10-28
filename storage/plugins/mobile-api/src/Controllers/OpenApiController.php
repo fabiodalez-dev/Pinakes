@@ -691,6 +691,43 @@ final class OpenApiController
                 ],
             ],
 
+            '/me/movements' => [
+                'get' => [
+                    'tags'        => ['loans'],
+                    'summary'     => 'Own balance and movements',
+                    'description' => 'Patron ledger (since 1.9.0): balance (positive = owed), charges, payments, waivers and reversals, newest first, plus the fines accruing today on overdue loans (charged only at return). Amounts in cents and as decimal strings in `currency`.',
+                    'operationId' => 'getMeMovements',
+                    'security'    => [['bearerAuth' => []]],
+                    'responses'   => [
+                        '200' => ['description' => 'Balance and movements.', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['type' => 'object', 'properties' => [
+                                'currency' => ['type' => 'string'],
+                                'balance_cents' => ['type' => 'integer'],
+                                'balance' => ['type' => 'string'],
+                                'accrued_cents' => ['type' => 'integer'],
+                                'accrued' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                                    'loan_id' => ['type' => 'integer'], 'title' => ['type' => 'string'], 'due_at' => ['type' => 'string', 'format' => 'date'],
+                                    'days_late' => ['type' => 'integer'], 'amount_cents' => ['type' => 'integer'],
+                                ]]],
+                                'debt_block_threshold_cents' => ['type' => ['integer', 'null']],
+                                'debt_blocked' => ['type' => 'boolean'],
+                                'items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                                    'id' => ['type' => 'integer'],
+                                    'type' => ['type' => 'string', 'enum' => ['multa_ritardo', 'addebito_perdita', 'addebito_danno', 'addebito_manuale', 'pagamento', 'condono', 'storno']],
+                                    'type_label' => ['type' => 'string'], 'amount_cents' => ['type' => 'integer'], 'amount' => ['type' => 'string'],
+                                    'description' => ['type' => 'string'], 'payment_method' => ['type' => ['string', 'null']],
+                                    'loan_id' => ['type' => ['integer', 'null']], 'book_title' => ['type' => ['string', 'null']],
+                                    'created_at' => ['type' => 'string'],
+                                ]]],
+                            ]]],
+                        ]]]],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
             '/me/reservations' => [
                 'get' => [
                     'tags'        => ['loans'],

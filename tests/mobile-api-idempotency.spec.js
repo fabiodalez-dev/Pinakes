@@ -196,6 +196,7 @@ const ENDPOINTS = [
     { name: 'GET /catalog/genres',               method: 'GET',    path: '/catalog/genres',               auth: true,  kind: 'etag' },
     { name: 'GET /catalog/languages',            method: 'GET',    path: '/catalog/languages',            auth: true,  kind: 'etag' },
     { name: 'GET /me/loans',                     method: 'GET',    path: '/me/loans',                     auth: true,  kind: 'safeGet' },
+    { name: 'GET /me/movements',                 method: 'GET',    path: '/me/movements',                 auth: true,  kind: 'safeGet' },
     { name: 'GET /me/reservations',              method: 'GET',    path: '/me/reservations',              auth: true,  kind: 'safeGet' },
     { name: 'POST /reservations',                method: 'POST',   path: '/reservations',                 auth: true,  kind: 'conflict2',
         body: (ctx) => ({ book_id: ctx.bookId }), firstAny: true /* 1st may 201 or 422 (availability); 2nd identical must be rejected */ },
