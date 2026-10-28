@@ -31,6 +31,7 @@ checkMinor(RdaTypes::overrides($book) === ['media' => 'c', 'carrier' => 'cr'], '
 checkMinor(RdaTypes::effective($book) === ['content' => 'txt', 'media' => 'c', 'carrier' => 'cr'], 'effective() mixes overrides over the derived triple');
 checkMinor(RdaTypes::overrides(['tipo_media' => 'dvd']) === [], 'a record without overrides has none');
 checkMinor(RdaTypes::effective(['tipo_media' => 'dvd']) === ['content' => 'tdi', 'media' => 'v', 'carrier' => 'vd'] && RdaTypes::effective(['tipo_media' => 'libro']) === ['content' => 'txt', 'media' => 'n', 'carrier' => 'nc'], 'without an override BIBFRAME emits the derived triple: a book keeps txt/n/nc, a DVD gets its real types');
+checkMinor(RdaTypes::codes($book) === RdaTypes::effective($book) && array_keys(RdaTypes::codes(['tipo_media' => 'dvd'])) === ['content', 'media', 'carrier'], 'codes() is the effective triple under the content/media/carrier keys the MARC 336/337/338 builder reads');
 checkMinor(RdaTypes::uri('carrier', 'cr') === 'http://id.loc.gov/vocabulary/carriers/cr' && RdaTypes::uri('content', 'txt') === 'http://id.loc.gov/vocabulary/contentTypes/txt', 'codes map to id.loc.gov URIs');
 foreach (RdaTypes::kinds() as $kind) {
     foreach (array_keys(MediaLabelsKeys()) as $media) {
