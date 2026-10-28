@@ -146,6 +146,97 @@ unset($workspaceHeader);
     </div>
   </div>
 
+  <!-- Loans by material + visitors (0.9.0) -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="card" id="stats-loans-by-media">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-compact-disc text-gray-900"></i>
+          <?= __("Prestiti per tipo di materiale (ultimi 12 mesi)") ?>
+        </h2>
+      </div>
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Tipo Media") ?></th>
+                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Prestiti") ?></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php foreach (($loansByMedia ?? []) as $mediaRow): ?>
+              <tr data-media="<?= htmlspecialchars($mediaRow['tipo_media'], ENT_QUOTES, 'UTF-8') ?>">
+                <td class="px-6 py-3 text-sm text-gray-900"><i class="fas <?= htmlspecialchars($mediaRow['icon'], ENT_QUOTES, 'UTF-8') ?> text-gray-400 mr-2"></i><?= App\Support\HtmlHelper::e($mediaRow['label']) ?></td>
+                <td class="px-6 py-3 text-center text-sm font-semibold" data-count><?= (int) $mediaRow['totale'] ?></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <?php if (!empty($visitors)): ?>
+    <div class="card" id="stats-visitors">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-door-open text-gray-900"></i>
+          <?= sprintf(__("Presenze in biblioteca (ultimi %d giorni)"), (int) $visitors['days']) ?>
+        </h2>
+      </div>
+      <div class="card-body">
+        <div class="grid grid-cols-3 gap-4 mb-4">
+          <div>
+            <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Totale") ?></p>
+            <p class="text-2xl font-bold text-gray-900 mt-1" data-visitors="totale"><?= number_format((int) $visitors['totale']) ?></p>
+          </div>
+          <div>
+            <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Soci") ?></p>
+            <p class="text-2xl font-bold text-blue-600 mt-1" data-visitors="soci"><?= number_format((int) $visitors['soci']) ?></p>
+          </div>
+          <div>
+            <p class="text-xs uppercase text-gray-500 font-medium"><?= __("Ospiti") ?></p>
+            <p class="text-2xl font-bold text-purple-600 mt-1" data-visitors="ospiti"><?= number_format((int) $visitors['ospiti']) ?></p>
+          </div>
+        </div>
+        <a href="<?= htmlspecialchars(url('/admin/attendance'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary">
+          <i class="fas fa-chart-bar mr-2"></i><?= __("Dettaglio per giorno e fascia oraria") ?>
+        </a>
+      </div>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <?php
+  // Extension sections (patron types, fines, stocktake): filled by other
+  // branches through App\Support\StatisticsSections, hidden while NULL.
+  foreach (($extraSections ?? []) as $sectionId => $section): ?>
+  <div class="card mb-6" id="stats-<?= htmlspecialchars((string) $sectionId, ENT_QUOTES, 'UTF-8') ?>">
+    <div class="card-header">
+      <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas <?= htmlspecialchars($section['icon'], ENT_QUOTES, 'UTF-8') ?> text-gray-900"></i>
+        <?= App\Support\HtmlHelper::e($section['title']) ?>
+      </h2>
+    </div>
+    <div class="card-body p-0">
+      <table class="min-w-full divide-y divide-gray-200">
+        <tbody class="bg-white divide-y divide-gray-200">
+          <?php foreach ($section['data']['rows'] as $extraRow): ?>
+          <tr>
+            <td class="px-6 py-3 text-sm text-gray-900"><?= App\Support\HtmlHelper::e((string) $extraRow['label']) ?></td>
+            <td class="px-6 py-3 text-right text-sm font-semibold"><?= App\Support\HtmlHelper::e((string) $extraRow['value']) ?></td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php if (!empty($section['data']['note'])): ?>
+        <p class="px-6 py-3 text-xs text-gray-500"><?= App\Support\HtmlHelper::e((string) $section['data']['note']) ?></p>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php endforeach; ?>
+
   <!-- Top Books Table -->
   <div class="grid grid-cols-1 gap-6">
     <div class="card">

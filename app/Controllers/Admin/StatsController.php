@@ -109,6 +109,12 @@ class StatsController
         $statsResult = $db->query($statsQuery);
         $stats = $statsResult->fetch_assoc();
 
+        // 0.9.0 sections: visitors (attendance log), loans by material and the
+        // extension points other branches fill (see StatisticsSections).
+        $visitors = \App\Support\StatisticsSections::visitors($db, 30);
+        $loansByMedia = \App\Support\StatisticsSections::loansByMediaType($db);
+        $extraSections = \App\Support\StatisticsSections::extensions($db);
+
         $title = 'Statistiche Prestiti';
 
         ob_start();
