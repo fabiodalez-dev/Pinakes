@@ -1188,6 +1188,8 @@ class UsersController
         // (nome, email, note) that start with = + - @.
         $writer = Csv::writerToStream($stream, ';', "'");
         $writer->insertOne($headers);
+        // One policy for the whole file: the patron types are read once.
+        $exportPolicy = new \App\Services\CirculationPolicy($db);
 
         foreach ($utenti as $utente) {
             $row = [
@@ -1204,10 +1206,10 @@ class UsersController
                 isset($utente['data_scadenza_tessera']) ? format_date($utente['data_scadenza_tessera'], false, '/') : '',
                 $utente['stato'] ?? '',
                 $utente['tipo_utente'] ?? '',
-                \App\Support\PatronTypeAssignment::nameOf($db, $utente['tipologia_id'] ?? null),
+                \App\Support\PatronTypeAssignment::nameOf($db, $utente['tipologia_id'] ?? null, $exportPolicy),
                 // The code beside the name: the import resolves by code first,
                 // so this file re-imports exactly where the same types exist.
-                \App\Support\PatronTypeAssignment::codeOf($db, $utente['tipologia_id'] ?? null),
+                \App\Support\PatronTypeAssignment::codeOf($db, $utente['tipologia_id'] ?? null, $exportPolicy),
                 $utente['cod_fiscale'] ?? '',
                 $utente['note_utente'] ?? '',
                 ($utente['email_verificata'] ?? 0) == 1 ? 'Sì' : 'No',

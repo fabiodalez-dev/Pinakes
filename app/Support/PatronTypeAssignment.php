@@ -103,9 +103,9 @@ final class PatronTypeAssignment
     /**
      * Display name of a stored patron type (null/unknown = the default type).
      */
-    public static function nameOf(mysqli $db, mixed $typeId): string
+    public static function nameOf(mysqli $db, mixed $typeId, ?CirculationPolicy $policy = null): string
     {
-        return self::fieldOf($db, $typeId, 'nome');
+        return self::fieldOf($db, $typeId, 'nome', $policy);
     }
 
     /**
@@ -114,14 +114,18 @@ final class PatronTypeAssignment
      * by its code first, so an export re-imports exactly on an installation
      * with the same types, even when two of them share a name.
      */
-    public static function codeOf(mysqli $db, mixed $typeId): string
+    public static function codeOf(mysqli $db, mixed $typeId, ?CirculationPolicy $policy = null): string
     {
-        return self::fieldOf($db, $typeId, 'codice');
+        return self::fieldOf($db, $typeId, 'codice', $policy);
     }
 
-    private static function fieldOf(mysqli $db, mixed $typeId, string $field): string
+    /**
+     * $policy: pass one instance when resolving many rows (the users export),
+     * so the patron types are read once instead of once per call.
+     */
+    private static function fieldOf(mysqli $db, mixed $typeId, string $field, ?CirculationPolicy $policy = null): string
     {
-        $policy = new CirculationPolicy($db);
+        $policy ??= new CirculationPolicy($db);
         $types = $policy->types();
         $id = is_numeric($typeId) ? (int) $typeId : null;
         $id = $id !== null && isset($types[$id]) ? $id : $policy->defaultTypeId();
