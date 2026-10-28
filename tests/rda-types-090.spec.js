@@ -65,11 +65,12 @@ test.describe.serial('RDA content/media/carrier types', () => {
     await expect(page.locator('#book-rda-types')).toHaveText('Parola parlata · Audio · Disco sonoro');
   });
 
-  test('3. BIBFRAME keeps its current output when no override is set', async () => {
+  test('3. Without an override BIBFRAME carries the types the book page shows (audiobook: spw/s/sd)', async () => {
     const body = await bibframe(page, bookId);
-    expect(body).toContain('http://id.loc.gov/vocabulary/contentTypes/txt');
-    expect(body).toContain('http://id.loc.gov/vocabulary/carriers/nc');
-    expect(body).toContain('http://id.loc.gov/vocabulary/mediaTypes/n');
+    expect(body).toContain('http://id.loc.gov/vocabulary/contentTypes/spw');
+    expect(body).toContain('http://id.loc.gov/vocabulary/carriers/sd');
+    expect(body).toContain('http://id.loc.gov/vocabulary/mediaTypes/s');
+    expect(body).not.toContain('http://id.loc.gov/vocabulary/contentTypes/txt');
   });
 
   test('4. An override saved in the form is stored, reloaded and shown', async () => {
@@ -93,9 +94,9 @@ test.describe.serial('RDA content/media/carrier types', () => {
     const body = await bibframe(page, bookId);
     expect(body).toContain('http://id.loc.gov/vocabulary/carriers/cr');
     expect(body).toContain('http://id.loc.gov/vocabulary/mediaTypes/c');
-    expect(body).not.toContain('http://id.loc.gov/vocabulary/carriers/nc');
-    // Content was not overridden: the historical value stays.
-    expect(body).toContain('http://id.loc.gov/vocabulary/contentTypes/txt');
+    expect(body).not.toContain('http://id.loc.gov/vocabulary/carriers/sd');
+    // Content was not overridden: the value derived from the material stays.
+    expect(body).toContain('http://id.loc.gov/vocabulary/contentTypes/spw');
   });
 
   test('6. Choosing "Automatico" again clears the override', async () => {
@@ -108,7 +109,7 @@ test.describe.serial('RDA content/media/carrier types', () => {
     await expect.poll(() => h.dbQuery(`SELECT CONCAT_WS('|', IFNULL(rda_media_type,'NULL'), IFNULL(rda_carrier_type,'NULL')) FROM libri WHERE id = ${bookId}`), { timeout: 30000 })
       .toBe('NULL|NULL');
     const body = await bibframe(page, bookId);
-    expect(body).toContain('http://id.loc.gov/vocabulary/carriers/nc');
+    expect(body).toContain('http://id.loc.gov/vocabulary/carriers/sd');
     expect(body).not.toContain('http://id.loc.gov/vocabulary/carriers/cr');
   });
 });

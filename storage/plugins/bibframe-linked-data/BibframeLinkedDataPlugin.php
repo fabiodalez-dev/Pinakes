@@ -445,15 +445,13 @@ class BibframeLinkedDataPlugin
             ];
         }
 
-        // RDA content/media/carrier: a cataloguer's per-record override wins
-        // (libri.rda_*_type, 0.9.0); without one the historical output stays
-        // exactly as it was (text / unmediated / volume).
-        $rdaOverrides = \App\Support\RdaTypes::overrides($book);
+        // RDA content/media/carrier: the same effective types the book page
+        // shows (libri.tipo_media, then the cataloguer's per-record override,
+        // 0.9.0). A book keeps the historical text / unmediated / volume.
+        $rdaEffective = \App\Support\RdaTypes::effective($book);
         $work['bf:content'] = [
             '@type' => 'bf:Content',
-            '@id'   => isset($rdaOverrides['content'])
-                ? \App\Support\RdaTypes::uri('content', $rdaOverrides['content'])
-                : 'http://id.loc.gov/vocabulary/contentTypes/txt',
+            '@id'   => \App\Support\RdaTypes::uri('content', $rdaEffective['content']),
         ];
 
         // No owl:sameAs on the Work: a VIAF id identifies a PERSON, so linking
@@ -526,12 +524,8 @@ class BibframeLinkedDataPlugin
                 '@type'        => 'bf:Title',
                 'bf:mainTitle' => $instanceMainTitleVal,
             ],
-            'bf:carrier' => ['@id' => isset($rdaOverrides['carrier'])
-                ? \App\Support\RdaTypes::uri('carrier', $rdaOverrides['carrier'])
-                : 'http://id.loc.gov/vocabulary/carriers/nc'],
-            'bf:media'   => ['@id' => isset($rdaOverrides['media'])
-                ? \App\Support\RdaTypes::uri('media', $rdaOverrides['media'])
-                : 'http://id.loc.gov/vocabulary/mediaTypes/n'],
+            'bf:carrier' => ['@id' => \App\Support\RdaTypes::uri('carrier', $rdaEffective['carrier'])],
+            'bf:media'   => ['@id' => \App\Support\RdaTypes::uri('media', $rdaEffective['media'])],
         ];
 
         // Identifiers
