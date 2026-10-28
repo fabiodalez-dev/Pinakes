@@ -78,31 +78,19 @@ class MarcExportController
             yield $xml->output();
         }
         foreach ($this->books($db, $ids) as [$row, $authors, $publishers, $genre]) {
-            $record = $format === 'unimarc'
-                ? BookMarcBuilder::unimarc($row, $authors, $publishers, $genre, true)
-                : BookMarcBuilder::marc21($row, $authors, $publishers, $genre, true);
             if ($xml !== null) {
-                $xml->writeRecord($record);
+                $xml->writeRecord(BookMarcBuilder::marc21($row, $authors, $publishers, $genre, true));
                 yield $xml->output();
                 continue;
             }
             $cuts = [];
-            try {
-                $bytes = Iso2709Writer::serialize($record, $cuts);
-            } catch (\OverflowException) {
-                // Over 99,999 bytes: the long free texts (description, notes)
-                // are shortened so the book is still in the file, not dropped.
-                $short = self::shortenTexts($row);
-                $record = $format === 'unimarc'
-                    ? BookMarcBuilder::unimarc($short, $authors, $publishers, $genre, true)
-                    : BookMarcBuilder::marc21($short, $authors, $publishers, $genre, true);
-                try {
-                    $bytes = Iso2709Writer::serialize($record, $cuts);
-                    \App\Support\SecureLogger::warning('[MARC export] record over the ISO 2709 limit, long texts shortened', ['book_id' => $row['id'] ?? null]);
-                } catch (\OverflowException) {
-                    \App\Support\SecureLogger::error('[MARC export] record too long for ISO 2709 even shortened, skipped', ['book_id' => $row['id'] ?? null]);
-                    continue;
-                }
+            $bytes = self::serializeIso($format, $row, $authors, $publishers, $genre, $cuts, $level);
+            if ($bytes === null) {
+                \App\Support\SecureLogger::error('[MARC export] record too long for ISO 2709 even reduced, skipped', ['book_id' => $row['id'] ?? null]);
+                continue;
+            }
+            if ($level !== 'full') {
+                \App\Support\SecureLogger::warning('[MARC export] record over the ISO 2709 limit, exported ' . ($level === 'shortened' ? 'with long texts shortened' : 'as a reduced record'), ['book_id' => $row['id'] ?? null]);
             }
             // A field over the 9,999-byte ISO 2709 field limit is cut at a
             // subfield boundary: the file is still readable, the log says what
@@ -141,17 +129,60 @@ class MarcExportController
     }
 
     /**
-     * A copy of the book row with every text longer than 1000 characters
+     * One book as an ISO 2709 record that always fits the 99,999-byte limit,
+     * so an export never leaves a book out. The full record first; if it is
+     * too long, the same record with every text over 1000 characters
+     * shortened; if even that is too long (hundreds of contributors or
+     * subjects), a reduced record: texts cut to 200 characters and at most
+     * 20 authors and 5 publishers, which is bounded far below the limit.
+     * $level says which of the three was written ("full", "shortened",
+     * "reduced"); $cuts holds the field cuts of that record only.
+     *
+     * @param array<string, mixed> $row
+     * @param list<array<string, mixed>> $authors
+     * @param list<array<string, mixed>> $publishers
+     * @param array<string, mixed>|null $genre
+     * @param list<string> $cuts
+     */
+    public static function serializeIso(string $format, array $row, array $authors, array $publishers, ?array $genre, array &$cuts, ?string &$level = null): ?string
+    {
+        $attempts = [
+            'full' => [$row, $authors, $publishers],
+            'shortened' => [self::shortenTexts($row), $authors, $publishers],
+            'reduced' => [self::shortenTexts($row, 200), array_slice($authors, 0, 20), array_slice($publishers, 0, 5)],
+        ];
+        foreach ($attempts as $name => [$r, $a, $p]) {
+            $record = $format === 'unimarc'
+                ? BookMarcBuilder::unimarc($r, $a, $p, $genre, true)
+                : BookMarcBuilder::marc21($r, $a, $p, $genre, true);
+            // Only the cuts of the record that is written are reported.
+            $notes = [];
+            try {
+                $bytes = Iso2709Writer::serialize($record, $notes);
+                $cuts = $notes ?? [];
+                $level = $name;
+                return $bytes;
+            } catch (\OverflowException) {
+                continue;
+            }
+        }
+        $cuts = [];
+        $level = null;
+        return null;
+    }
+
+    /**
+     * A copy of the book row with every text longer than $max characters
      * cut there, for a record that would not fit ISO 2709 otherwise.
      *
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
-    public static function shortenTexts(array $row): array
+    public static function shortenTexts(array $row, int $max = 1000): array
     {
         foreach ($row as $key => $value) {
-            if (is_string($value) && mb_strlen($value) > 1000) {
-                $row[$key] = rtrim(mb_substr($value, 0, 1000)) . '…';
+            if (is_string($value) && mb_strlen($value) > $max) {
+                $row[$key] = rtrim(mb_substr($value, 0, $max)) . '…';
             }
         }
         return $row;
