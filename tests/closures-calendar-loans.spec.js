@@ -125,7 +125,7 @@ test.describe('Closures calendar — circulation', () => {
     const hash = execFileSync('php', ['-r', `echo password_hash('${READER_PASS}', PASSWORD_DEFAULT);`], { encoding: 'utf-8' }).trim();
     db(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, created_at) VALUES ('CAL${RUN}', 'Cal', 'Reader', '${READER_EMAIL}', '${hash}', 'attivo', 1, 'standard', NOW())`);
     readerId = parseInt(db(`SELECT id FROM utenti WHERE email='${READER_EMAIL}'`), 10);
-    for (const key of ['prefill', 'store', 'pickup', 'reprieve', 'branch', 'approve', 'crafted', 'renew', 'weekly', 'request', 'reqstart', 'api', 'zero']) {
+    for (const key of ['prefill', 'store', 'pickup', 'reprieve', 'branch', 'approve', 'approvebusy', 'crafted', 'renew', 'weekly', 'request', 'reqstart', 'api', 'zero']) {
       const title = `${TAG} ${key}`;
       db(`INSERT INTO libri (titolo, anno_pubblicazione, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${title}', 2024, 1, 1, NOW(), NOW())`);
       const id = parseInt(db(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10);
@@ -296,6 +296,48 @@ test.describe('Closures calendar — circulation', () => {
       db(`DELETE FROM calendario_chiusure WHERE sede_id=${sede}`);
       db(`UPDATE copie SET sede_id=NULL WHERE libro_id=${books.approve.id}`);
       db(`DELETE FROM sedi WHERE id=${sede}`);
+    }
+  });
+
+  test('Admin 9: the approval keeps the requested due date when the copy is taken right after it', async ({ page }) => {
+    db(`INSERT INTO sedi (nome) VALUES ('${TAG} sede piena')`);
+    const sede = parseInt(db(`SELECT id FROM sedi WHERE nome='${TAG} sede piena'`), 10);
+    const book = books.approvebusy;
+    let otherId = 0;
+    try {
+      const copyA = parseInt(db(`SELECT id FROM copie WHERE libro_id=${book.id} LIMIT 1`), 10);
+      // A second copy keeps the title-level capacity free on the extra day.
+      db(`INSERT INTO copie (libro_id, stato, numero_inventario, created_at) VALUES (${book.id}, 'disponibile', 'CAL-approvebusy2-${RUN}', NOW())`);
+      db(`UPDATE libri SET copie_totali=2, copie_disponibili=2 WHERE id=${book.id}`);
+      db(`UPDATE copie SET sede_id=${sede} WHERE id=${copyA}`);
+      const due = addDays(today, 10);
+      db(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id) VALUES ('${due}', '${due}', '${TAG}', ${sede})`);
+      // Copy A is promised to another reader from the day after the due date.
+      db(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, created_at) VALUES ('CAO${RUN}', 'Cal', 'Other', 'calother-${RUN}@example.test', 'x', 'attivo', 1, 'standard', NOW())`);
+      otherId = parseInt(db(`SELECT id FROM utenti WHERE email='calother-${RUN}@example.test'`), 10);
+      db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, ${copyA}, ${otherId}, '${addDays(due, 1)}', '${addDays(due, 20)}', 'prenotato', 'diretto', 1)`);
+      // A request already holding copy A (as a promoted reservation does).
+      db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, ${copyA}, ${readerId}, '${today}', '${due}', 'pendente', 'prenotazione', 0)`);
+      const loanId = parseInt(db(`SELECT id FROM prestiti WHERE libro_id=${book.id} AND stato='pendente'`), 10);
+      await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
+      await page.goto(`${BASE}/admin/loans/pending`);
+      const approve = page.locator(`.approve-btn[data-loan-id="${loanId}"]`);
+      await expect(approve).toBeVisible({ timeout: 10000 });
+      await approve.click();
+      await page.waitForSelector('.swal2-popup', { timeout: 10000 });
+      const reply = page.waitForResponse((r) => r.url().includes('/admin/loans/approve') && r.request().method() === 'POST', { timeout: 15000 });
+      await page.locator('.swal2-confirm').click();
+      const body = await (await reply).json();
+      expect(body.success, JSON.stringify(body)).toBe(true);
+      expect(db(`SELECT CONCAT(stato,'|',copia_id,'|',data_scadenza) FROM prestiti WHERE id=${loanId}`)).toBe(`da_ritirare|${copyA}|${due}`);
+    } finally {
+      db(`DELETE FROM calendario_chiusure WHERE sede_id=${sede}`);
+      db(`UPDATE copie SET sede_id=NULL WHERE libro_id=${book.id}`);
+      db(`DELETE FROM sedi WHERE id=${sede}`);
+      if (otherId) {
+        db(`DELETE FROM prestiti WHERE utente_id=${otherId}`);
+        db(`DELETE FROM utenti WHERE id=${otherId}`);
+      }
     }
   });
 

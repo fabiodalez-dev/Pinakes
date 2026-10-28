@@ -545,7 +545,27 @@ class LoanApprovalController
                 $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $dataScadenza, 0, $db, (int) $selectedCopy['id']);
                 if ($branchDue !== $dataScadenza
                     && (new \App\Services\CapacityService($db))->hasFreeCapacity($libroId, (string) $dataPrestito, $branchDue, excludePrestitoId: $loanId)) {
-                    $dataScadenza = $branchDue;
+                    // The selected copy must be free on the added days too
+                    // (same occupancy predicate as the recheck below).
+                    $extraStart = \App\Support\LibraryCalendar::shift((string) $dataScadenza, 1);
+                    $extraStmt = $db->prepare("
+                        SELECT 1 FROM prestiti
+                        WHERE copia_id = ? AND id != ?
+                        AND data_prestito <= ?
+                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
+                        AND (
+                            (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
+                            OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                        )
+                        LIMIT 1
+                    ");
+                    $extraStmt->bind_param('iisss', $selectedCopy['id'], $loanId, $branchDue, $today, $extraStart);
+                    $extraStmt->execute();
+                    $extraBusy = (bool) $extraStmt->get_result()->fetch_row();
+                    $extraStmt->close();
+                    if (!$extraBusy) {
+                        $dataScadenza = $branchDue;
+                    }
                 }
             }
 

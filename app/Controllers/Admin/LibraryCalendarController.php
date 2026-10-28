@@ -188,6 +188,10 @@ class LibraryCalendarController
             // ICS is UTF-8 by the standard, but exports in Windows-1252 /
             // ISO-8859-1 exist: their accented SUMMARY bytes would fail the
             // utf8mb4 INSERT halfway through the import.
+            // Unfold first (RFC 5545 3.1): a folded line may split one UTF-8
+            // character in two, which the encoding check would take for
+            // Windows-1252.
+            $ics = (string) preg_replace("/\r?\n[ \t]/", '', $ics);
             if (!mb_check_encoding($ics, 'UTF-8')) {
                 $ics = (string) mb_convert_encoding($ics, 'UTF-8', 'Windows-1252');
             }

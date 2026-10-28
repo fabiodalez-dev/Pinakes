@@ -319,6 +319,17 @@ test.describe('Closures calendar — admin page', () => {
     await expect(page.locator('#calendar-closures')).toContainText(`${TAG} festività à è`);
   });
 
+  test('ICS 7: a UTF-8 character split by a folded line is rebuilt, not read as Windows-1252', async () => {
+    const head = Buffer.from(['BEGIN:VCALENDAR', 'BEGIN:VEVENT', `DTSTART;VALUE=DATE:${farYear}0613`, `SUMMARY:${TAG} caff`].join('\r\n'), 'utf-8');
+    // "é" is C3 A9: the fold falls between the two bytes.
+    const tail = Buffer.from(['', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'), 'utf-8');
+    const buffer = Buffer.concat([head, Buffer.from([0xc3]), Buffer.from('\r\n ', 'utf-8'), Buffer.from([0xa9]), tail]);
+    await page.goto(`${BASE}/admin/calendar`);
+    await page.setInputFiles('#ics_file', { name: 'chiusure.ics', mimeType: 'text/calendar', buffer });
+    await submitAndLand(page, '#import-ics');
+    expect(db(`SELECT data_inizio FROM calendario_chiusure WHERE descrizione='${TAG} caffé'`)).toBe(`${farYear}-06-13`);
+  });
+
   test('ICS 5: a file that is not a calendar is refused', async () => {
     const before = db('SELECT COUNT(*) FROM calendario_chiusure');
     await importIcs('this is not a calendar');

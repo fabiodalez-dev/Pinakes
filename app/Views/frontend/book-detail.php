@@ -2101,7 +2101,9 @@ document.addEventListener('DOMContentLoaded', function() {
               // The days actually available: fewer than the setting when the
               // loan ends first (same rule as the pickup emails).
               const spanDays = Math.round((Date.parse(pickupDeadline) - Date.parse(storedStart)) / 86400000);
-              const pickupDays = Number.isFinite(spanDays) && spanDays >= 0 ? spanDays : pickupExpiryDays;
+              // Same count as the pickup emails: never more than the setting,
+              // fewer when the loan ends first (closed days do not add any).
+              const pickupDays = Number.isFinite(spanDays) && spanDays >= 0 ? Math.min(pickupExpiryDays, spanDays) : pickupExpiryDays;
               const scheduledFootnote = scheduledFootnoteTpl
                 .replace('%s', formatDateIT(storedStart))
                 .replace('%d', String(pickupDays))

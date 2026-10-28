@@ -586,6 +586,18 @@ class ReservationsController
                     $status = 'pending_approval';
                 }
 
+                // The window as stored: approval may still move the due date
+                // over a closure of the assigned copy's branch.
+                $storedWindow = $this->db->prepare('SELECT data_prestito, data_scadenza FROM prestiti WHERE id = ?');
+                $storedWindow->bind_param('i', $loanRequestId);
+                $storedWindow->execute();
+                $storedRow = $storedWindow->get_result()->fetch_assoc();
+                $storedWindow->close();
+                if (is_array($storedRow)) {
+                    $startDate = (string) ($storedRow['data_prestito'] ?? $startDate);
+                    $endDate = (string) ($storedRow['data_scadenza'] ?? $endDate);
+                }
+
                 $response->getBody()->write(json_encode([
                     'success' => true,
                     'message' => $message,

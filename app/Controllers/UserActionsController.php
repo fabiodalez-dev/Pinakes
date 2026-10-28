@@ -719,7 +719,8 @@ class UserActionsController
         // "Today" via DateHelper (M9): PHP process tz is often UTC while the
         // library runs in a local zone, so a raw date('Y-m-d') near midnight
         // would date the request to the wrong day.
-        $data_prestito = \App\Support\DateHelper::today();
+        // A day the library is closed starts on the next open day instead.
+        $data_prestito = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay(\App\Support\DateHelper::today());
         $circulation = new \App\Services\CirculationPolicy($db);
         $loanPolicy = $circulation->forLoan($utenteId, $libroId);
         $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_prestito, $loanPolicy->requestDurationDays(), $db);
