@@ -223,6 +223,39 @@ try {
     $check($buckets($service->reportRows($sessionId)) === $closedRows, 'and every report row keeps its bucket');
     $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$sessionId} AND copia_id = {$c6}") === 'persa' && $service->summary($sessionId)['perse'] === 1, 'the copy the close marked lost is still reported as such');
 
+    // A failed snapshot write must leave the session open and retryable.
+    $atomicBook = $addBook('Atomic', $shelves['X']);
+    $atomicCopy = $addCopy($atomicBook, 'ATOMIC');
+    $atomicSession = $service->open('ZZST atomic ' . $run, null, ['collocazione_da' => "{$p}.Atomic", 'collocazione_a' => "{$p}.Atomic"], null);
+    $sessionIds[] = $atomicSession;
+    $freezeFailure = 'zzst_freeze_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$freezeFailure} BEFORE UPDATE ON inventario_attese FOR EACH ROW BEGIN IF NEW.sessione_id = {$atomicSession} AND NEW.esito_chiusura IS NOT NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZST simulated snapshot failure'; END IF; END");
+    $triggers[] = $freezeFailure;
+    $snapshotFailed = false;
+    try {
+        $service->close($atomicSession, false, null);
+    } catch (mysqli_sql_exception) {
+        $snapshotFailed = true;
+    }
+    $db->query("DROP TRIGGER {$freezeFailure}");
+    $check($snapshotFailed, 'the snapshot write failure reaches the caller');
+    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$atomicSession}") === 'aperta', 'a failed snapshot rolls back the close so it can be retried');
+    $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === null, 'a failed close leaves the expected copy unfrozen');
+
+    // Losing a copy and recording its frozen bucket are one per-book unit:
+    // neither the copy nor its availability may change if the bucket fails.
+    $lostFailure = 'zzst_lost_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$lostFailure} BEFORE UPDATE ON inventario_attese FOR EACH ROW BEGIN IF NEW.sessione_id = {$atomicSession} AND NEW.esito_chiusura = 'persa' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZST simulated lost bucket failure'; END IF; END");
+    $triggers[] = $lostFailure;
+    $result = $service->close($atomicSession, true, null);
+    $db->query("DROP TRIGGER {$lostFailure}");
+    $check($result === ['marked' => 0, 'failed' => 1], 'a lost bucket failure is reported as a failed book update');
+    $check($one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a failed lost bucket rolls back the copy state');
+    $check($one("SELECT copie_disponibili FROM libri WHERE id = {$atomicBook}") === '1', 'a failed lost bucket rolls back book availability');
+    $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'mancante', 'the frozen report stays missing when marking lost fails');
+    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$atomicSession}") === 'chiusa', 'the retried close succeeds even when marking a book lost fails');
+    $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$atomicBook} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 0, 'the rolled-back loss writes no copy audit event');
+
     echo "SUCCESS {$checks} stocktake snapshot checks\n";
 } finally {
     foreach ($triggers as $trigger) {
