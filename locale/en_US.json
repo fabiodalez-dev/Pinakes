@@ -9030,5 +9030,6 @@
   "Lettori con saldo a debito": "Patrons with a debt",
   "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Last 12 months; the outstanding balance is today's. The month-by-month detail is in the fines report below.",
   "Movimenti %1$d–%2$d di %3$d": "Movements %1$d–%2$d of %3$d",
-  "Solo gli amministratori possono modificare multe e soglia di blocco.": "Only administrators can change fines and the debt threshold."
+  "Solo gli amministratori possono modificare multe e soglia di blocco.": "Only administrators can change fines and the debt threshold.",
+  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Invalid amount for \"%1$s\": the maximum allowed is %2$s."
 }

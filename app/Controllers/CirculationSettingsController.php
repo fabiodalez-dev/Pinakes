@@ -479,7 +479,10 @@ class CirculationSettingsController
         foreach (self::TYPE_MONEY_FIELDS as $column) {
             $value = self::moneyOrNull($data[$column] ?? null);
             if ($value === false) {
-                return sprintf(__('Valore non valido per il campo "%s".'), self::fieldLabel($column));
+                $raw = $data[$column] ?? null;
+                return is_scalar($raw) && \App\Services\FineParameters::exceedsSettingMax((string) $raw)
+                    ? sprintf(__('Importo non valido per "%1$s": il massimo consentito è %2$s.'), self::fieldLabel($column), \App\Services\FineParameters::format(\App\Services\FineParameters::MAX_SETTING_CENTS))
+                    : sprintf(__('Valore non valido per il campo "%s".'), self::fieldLabel($column));
             }
             $fields[$column] = $value;
         }
@@ -489,7 +492,7 @@ class CirculationSettingsController
     /**
      * An amount typed by the operator ("2", "2,50") as a DECIMAL string.
      *
-     * @return string|null|false null for an empty value, false when malformed or negative
+     * @return string|null|false null for an empty value, false when malformed, negative or above FineParameters::MAX_SETTING_CENTS
      */
     private static function moneyOrNull(mixed $raw): string|null|false
     {
@@ -500,7 +503,9 @@ class CirculationSettingsController
             return false;
         }
         $cents = \App\Services\FineParameters::toCents((string) $raw);
-        return $cents === null ? false : \App\Services\FineParameters::centsToDecimal($cents);
+        return $cents === null || $cents > \App\Services\FineParameters::MAX_SETTING_CENTS
+            ? false
+            : \App\Services\FineParameters::centsToDecimal($cents);
     }
 
     public static function fieldLabel(string $column): string

@@ -1706,6 +1706,13 @@ class SettingsController
         ];
     }
 
+    /** Fine amounts of the loans tab → the patron type column with the same label (CirculationSettingsController::fieldLabel()). */
+    private const FINE_AMOUNT_FIELDS = [
+        'daily_fine' => 'multa_giornaliera',
+        'fine_max_per_loan' => 'multa_massima_prestito',
+        'debt_block_threshold' => 'soglia_blocco_debito',
+    ];
+
     public function updateLoansSettings(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
@@ -1713,6 +1720,23 @@ class SettingsController
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
+
+        // Plan §7: a fine amount above FineParameters::MAX_SETTING_CENTS is a
+        // typing error, not a policy: the tab is sent back untouched with the
+        // field named, before anything below is written.
+        if (\App\Support\Permissions::mayConfigure()) {
+            foreach (self::FINE_AMOUNT_FIELDS as $amountKey => $column) {
+                $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
+                if (\App\Services\FineParameters::exceedsSettingMax($raw)) {
+                    $_SESSION['error_message'] = sprintf(
+                        __('Importo non valido per "%1$s": il massimo consentito è %2$s.'),
+                        \App\Controllers\CirculationSettingsController::fieldLabel($column),
+                        \App\Services\FineParameters::format(\App\Services\FineParameters::MAX_SETTING_CENTS)
+                    );
+                    return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
+                }
+            }
+        }
 
         // Clamp to sane bounds on BOTH ends — a hand-crafted POST must not be
         // able to persist absurd durations/renewals (the UI min/max attributes
@@ -1762,7 +1786,7 @@ class SettingsController
         // are unless an administrator saves them (AdminAuthMiddleware admits
         // staff, so the check is here).
         if (\App\Support\Permissions::mayConfigure()) {
-            foreach (['daily_fine', 'fine_max_per_loan', 'debt_block_threshold'] as $amountKey) {
+            foreach (array_keys(self::FINE_AMOUNT_FIELDS) as $amountKey) {
                 $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
                 $cents = \App\Services\FineParameters::toCents($raw);
                 $repository->set('loans', $amountKey, $cents !== null && $cents > 0 ? \App\Services\FineParameters::centsToDecimal($cents) : '');

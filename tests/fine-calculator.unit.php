@@ -82,6 +82,16 @@ $calendar = new \App\Support\LibraryCalendar([0], [['start' => '2026-10-13', 'en
 $real = new FineCalculator(static fn (string $d, ?int $b = null): bool => $calendar->isOpen($d, $b));
 $check($real->daysLate('2026-10-10', '2026-10-20') === 5 && $real->daysLate('2026-10-10', '2026-10-20') === $calendar->openDaysBetween('2026-10-10', '2026-10-20'), 'LibraryCalendar: 10 days minus Sundays 11 and 18, closure 13-14 and yearly 16 = 5 open days, as openDaysBetween()');
 
+echo "E2. Bounds: a decade overdue, with and without a calendar\n";
+$everyDayOpen = new FineCalculator(static fn (string $d, ?int $b = null): bool => true);
+$check($calc->daysLate('2015-01-01', '2026-01-01') === 3660, '11 years late without a calendar: the walk stops at MAX_DAYS (3660)');
+$check($everyDayOpen->daysLate('2015-01-01', '2026-01-01') === 3660, '...and so does the calendar branch (every day open)');
+$check($everyDayOpen->daysLate('2015-01-01', '2026-01-01') === $calc->daysLate('2015-01-01', '2026-01-01'), 'the two branches count the same days');
+$check($sundaysClosed->daysLate('2015-01-01', '2026-01-01') < 3660 && $sundaysClosed->daysLate('2015-01-01', '2026-01-01') > 3000, 'with closed days the bounded walk still skips them');
+$check($calc->lateFineCents($params('99999999.99'), '2015-01-01', '2026-01-01') === \App\Services\PatronLedger::MAX_AMOUNT_CENTS, 'an absurd daily fine over a decade is clamped at PatronLedger::MAX_AMOUNT_CENTS (DECIMAL(10,2))');
+$check($calc->lateFineCents($params('99999999.99', 0, '5'), '2015-01-01', '2026-01-01') === 500, 'the cap per loan still applies below the bound');
+$check($everyDayOpen->lateFineCents($params('99999999.99'), '2015-01-01', '2026-01-01') === $calc->lateFineCents($params('99999999.99'), '2015-01-01', '2026-01-01'), 'same clamped fine on both branches');
+
 echo "F. Amounts\n";
 $check(FineParameters::toCents('2') === 200 && FineParameters::toCents('2.5') === 250 && FineParameters::toCents('2,05') === 205, 'toCents parses 2 / 2.5 / 2,05');
 $check(FineParameters::toCents('') === null && FineParameters::toCents('-1') === null && FineParameters::toCents('1.234') === null && FineParameters::toCents('abc') === null, 'toCents rejects empty, negative, 3 decimals, text');
@@ -90,6 +100,10 @@ $check(FineParameters::decimalToCents('-12.50') === -1250 && FineParameters::dec
 $check(FineParameters::format(1250, 'it_IT', 'EUR') === '12,50 €' && FineParameters::format(1250, 'en_US', 'USD') === 'USD 12.50', 'format per locale and currency');
 $check($params('1', 0, '', '10')->debtBlockThresholdCents === 1000, 'debt threshold in cents');
 $check(FineParameters::fromSettings(['fine_grace_days' => '-4'])->graceDays === 0, 'negative grace clamps to 0');
+$check(FineParameters::MAX_SETTING_CENTS === 999999 && FineParameters::format(FineParameters::MAX_SETTING_CENTS, 'it_IT', 'EUR') === '9.999,99 €', 'fine settings stop at 9999.99');
+$check(!FineParameters::exceedsSettingMax('9999.99') && !FineParameters::exceedsSettingMax('9999,99') && !FineParameters::exceedsSettingMax('0.50'), 'amounts up to the maximum are accepted');
+$check(FineParameters::exceedsSettingMax('10000') && FineParameters::exceedsSettingMax('99999999.99'), '10000 and above are over the maximum');
+$check(!FineParameters::exceedsSettingMax('') && !FineParameters::exceedsSettingMax('abc') && !FineParameters::exceedsSettingMax('-5'), 'an empty or malformed amount is not "too large" (it is refused as malformed elsewhere)');
 
 // FineParameters over CirculationPolicy layers (rule → patron type → globals).
 $globals = ['duration_days' => 30, 'max_request_days' => 90, 'max_renewals' => 3, 'max_active_loans' => 0,

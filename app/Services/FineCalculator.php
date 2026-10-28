@@ -16,7 +16,9 @@ namespace App\Services;
  * - the grace period is a THRESHOLD, as in SLiMS: up to graceDays late there is
  *   no fine; once a loan is later than that, every late day is charged from
  *   day one.
- * - the optional cap per loan limits the total.
+ * - the optional cap per loan limits the total;
+ * - the total never exceeds PatronLedger::MAX_AMOUNT_CENTS, and the day walk
+ *   stops at MAX_DAYS with or without a calendar.
  */
 final class FineCalculator
 {
@@ -45,15 +47,16 @@ final class FineCalculator
             return 0;
         }
 
-        $span = (int) $due->diff($returned)->days;
+        // The bound applies on both branches, so a calendar never changes the
+        // count of a loan a decade overdue (every day open = plain span).
+        $span = min((int) $due->diff($returned)->days, self::MAX_DAYS);
         if ($this->isOpenDay === null) {
             return $span;
         }
 
         $open = 0;
         $day = $due;
-        $steps = min($span, self::MAX_DAYS);
-        for ($i = 0; $i < $steps; $i++) {
+        for ($i = 0; $i < $span; $i++) {
             $day = $day->modify('+1 day');
             if (($this->isOpenDay)($day->format('Y-m-d'), $branchId)) {
                 $open++;
@@ -76,7 +79,9 @@ final class FineCalculator
         if ($params->maxFinePerLoanCents !== null) {
             $amount = min($amount, $params->maxFinePerLoanCents);
         }
-        return $amount;
+        // Never more than the ledger can store (DECIMAL(10,2)): the preview,
+        // the accruing figure and the charge at return all read this bound.
+        return min($amount, PatronLedger::MAX_AMOUNT_CENTS);
     }
 
     private static function parse(string $date): ?\DateTimeImmutable

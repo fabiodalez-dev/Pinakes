@@ -30,6 +30,14 @@ final class FineParameters
     public const SETTING_DEBT_THRESHOLD = 'debt_block_threshold';
     public const SETTING_FINE_EMAIL = 'fine_charged_email';
 
+    /**
+     * Largest amount a fine setting accepts (daily fine, cap per loan, debt
+     * threshold, in the loans settings, the patron type and the rules matrix):
+     * 9999.99. The ledger column is DECIMAL(10,2); the fine of one loan is
+     * clamped at PatronLedger::MAX_AMOUNT_CENTS whatever the settings say.
+     */
+    public const MAX_SETTING_CENTS = 999999;
+
     public function __construct(
         public readonly int $dailyFineCents,
         public readonly int $graceDays,
@@ -120,6 +128,13 @@ final class FineParameters
     {
         $code = strtoupper(trim((string) \App\Support\ConfigStore::get('app.currency', 'EUR')));
         return preg_match('/^[A-Z]{3}$/', $code) === 1 ? $code : 'EUR';
+    }
+
+    /** Whether an operator-typed amount parses but is above MAX_SETTING_CENTS. */
+    public static function exceedsSettingMax(string $raw): bool
+    {
+        $cents = self::toCents($raw);
+        return $cents !== null && $cents > self::MAX_SETTING_CENTS;
     }
 
     /**
