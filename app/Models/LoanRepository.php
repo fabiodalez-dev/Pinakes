@@ -253,6 +253,10 @@ class LoanRepository
                 return false;
             }
 
+            // Late fine into the patron ledger, atomic with the close (plan §7).
+            // Idempotent (late:<id>) and 0 while fines are disabled.
+            $lateFineCents = (new \App\Services\PatronLedger($this->db))->chargeLateReturn($id, null);
+
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
             $integrity = new DataIntegrity($this->db);
@@ -316,6 +320,14 @@ class LoanRepository
             $reservationManager->flushDeferredNotifications();
         } catch (\Throwable $e) {
             SecureLogger::warning('LoanRepository::close flush notifications warning', ['error' => $e->getMessage()]);
+        }
+
+        if ($lateFineCents > 0) {
+            try {
+                (new \App\Support\NotificationService($this->db))->sendFineChargedNotification($id);
+            } catch (\Throwable $e) {
+                SecureLogger::warning('LoanRepository::close fine notification warning', ['error' => $e->getMessage()]);
+            }
         }
 
         // validateAndUpdateLoan has its own transaction, call it after main transaction completes

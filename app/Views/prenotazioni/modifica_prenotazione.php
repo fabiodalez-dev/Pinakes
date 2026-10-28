@@ -37,7 +37,7 @@ unset($workspaceHeader);
               'capacity_full' => \App\Support\LoanWindow::explainFromParams($_GET) ?? __('Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.'),
               'invalid_status' => __('Stato prenotazione non valido: modifica non salvata.'),
               'promoted_loan_active' => __('Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.'),
-              'user_not_found', 'user_suspended', 'card_expired' => \App\Support\LoanEligibility::errorMessage($errorKey),
+              'user_not_found', 'user_suspended', 'card_expired', 'debt_block' => \App\Support\LoanEligibility::errorMessage($errorKey),
               default => __('Impossibile completare l\'operazione. Riprova più tardi.')
           };
           ?>

@@ -1533,6 +1533,12 @@ class LoanApprovalController
             $stmt->execute();
             $stmt->close();
 
+            // Late fine into the patron ledger in the same transaction (plan §7).
+            $lateFineCents = (new \App\Services\PatronLedger($db))->chargeLateReturn(
+                $loanId,
+                isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null
+            );
+
             // Update copy status (only if not in a non-lendable state)
             $copyAvailable = false;
             if ($copiaId) {
@@ -1586,6 +1592,14 @@ class LoanApprovalController
                 $reassignmentService->flushDeferredNotifications();
             }
             $reservationManager->flushDeferredNotifications();
+
+            if ($lateFineCents > 0) {
+                try {
+                    (new \App\Support\NotificationService($db))->sendFineChargedNotification($loanId);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Fine charged notification failed', ['loan_id' => $loanId, 'error' => $e->getMessage()]);
+                }
+            }
 
             // Notify wishlist users AFTER commit, only if book has available copies
             try {

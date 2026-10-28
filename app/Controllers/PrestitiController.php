@@ -1404,6 +1404,10 @@ class PrestitiController
         $prestito = $result->fetch_assoc();
         $stmt->close();
 
+        // Plan §7: the late fine a return today would charge, shown before the
+        // operator confirms (with the option to waive it on the spot).
+        $finePreview = (new \App\Services\PatronLedger($db))->previewLateFine($id);
+
         ob_start();
         require __DIR__ . '/../Views/prestiti/restituito_prestito.php';
         $content = ob_get_clean();
@@ -1446,6 +1450,15 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_penalty')->withStatus(302);
         }
         $sanzione = number_format((float) $penaltyRaw, 2, '.', '');
+
+        // Late-fine waiver at the desk (plan §7): the operator may waive the
+        // fine shown on the return screen, but only with a reason. Checked
+        // before any write so a refused waiver leaves the loan open.
+        $waiveFine = isset($data['waive_fine']) && is_scalar($data['waive_fine']) && (string) $data['waive_fine'] === '1';
+        $waiveReason = trim((string) (is_scalar($data['waive_reason'] ?? null) ? $data['waive_reason'] : ''));
+        if ($waiveFine && $waiveReason === '') {
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=waiver_reason_required')->withStatus(302);
+        }
 
         // La riparazione NON è un esito di prestito: `prestiti.stato` non ha stati
         // 'manutenzione'/'in_restauro'. Un rientro-con-riparazione chiude il prestito
@@ -1496,7 +1509,7 @@ class PrestitiController
             // (attivo=1, in_corso/in_ritardo) è restituibile (BUG4/D10 — niente
             // doppia elaborazione, niente TypeError su copia_id nullo).
             $stmt = $db->prepare("
-                SELECT libro_id, copia_id, stato, data_scadenza
+                SELECT libro_id, copia_id, utente_id, stato, data_scadenza
                 FROM prestiti
                 WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
                 FOR UPDATE
@@ -1539,6 +1552,18 @@ class PrestitiController
             if ($loanAffected < 1) {
                 // Un'altra richiesta ha già chiuso questo prestito tra la SELECT e l'UPDATE.
                 throw new \RuntimeException('Prestito non più restituibile (race).');
+            }
+
+            // Patron ledger (plan §7), same transaction as the close: the late
+            // fine (idempotent key late:<id>, 0 when fines are disabled) and the
+            // amount assessed for a lost/damaged copy (penalty:<id>, mirrored
+            // from prestiti.sanzione, which stays the source for emails/audit).
+            $ledger = new \App\Services\PatronLedger($db);
+            $ledgerStaffId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $lateFineCents = $ledger->chargeLateReturn($id, $ledgerStaffId);
+            $ledger->chargeLossPenalty($id, $ledgerStaffId);
+            if ($waiveFine && $lateFineCents > 0) {
+                $ledger->waive((int) $loan['utente_id'], $lateFineCents, $waiveReason, $ledgerStaffId, $id);
             }
 
             // Mappa esito-rientro → stato copia (form di RESTITUZIONE). Le due voci
@@ -1690,6 +1715,13 @@ class PrestitiController
                 } catch (\Throwable $e) {
                     SecureLogger::warning('Loan returned notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
                 }
+                if ($lateFineCents > 0 && !$waiveFine) {
+                    try {
+                        (new NotificationService($db))->sendFineChargedNotification($id);
+                    } catch (\Throwable $e) {
+                        SecureLogger::warning('Fine charged notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
+                    }
+                }
             } elseif (in_array($loan_stato, ['perso', 'danneggiato'], true)) {
                 try {
                     (new NotificationService($db))->sendLoanCopyOutcomeNotification($id);
@@ -1804,6 +1836,14 @@ class PrestitiController
         }
         $prestito = $result->fetch_assoc();
         $stmt->close();
+
+        // Plan §7: fine accruing on an open overdue loan (shown, written only at
+        // return) and the late fine already charged on a closed one.
+        $ledger = new \App\Services\PatronLedger($db);
+        $loanFineAccruedCents = ((int) ($prestito['attivo'] ?? 0) === 1 && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true))
+            ? (int) $ledger->previewLateFine($id)['cents']
+            : 0;
+        $loanFineChargedCents = $ledger->lateFineNetCents($id);
 
         ob_start();
         require __DIR__ . '/../Views/prestiti/dettagli_prestito.php';
