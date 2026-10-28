@@ -131,7 +131,25 @@ $same(['id' => $ltFirst['id'], 'created' => false], $ltAuthor->invoke($lt, $db, 
 $ltTranslator = \App\Support\ContributorSync::resolveNameIds($db, (string) $ltRow['traduttore']);
 $ok($ltTranslator['created'] === 1 && $nameOf('autori', $ltTranslator['ids'][0]) === "{$given} Hüffner", 'LibraryThing import: a quoted translator reaches ContributorSync and is stored without quotes');
 
+// CSV duplicate check, strategy 4 (title + first author, no ISBN): a quoted
+// author matches only the author written that way; an unquoted one keeps the
+// accent-tolerant comparison.
+$dedupTitle = "Quoted dedup {$given}";
+$dedupBook = Exact501::exec($db, "INSERT INTO libri (titolo, stato, copie_totali, copie_disponibili) VALUES (?, 'disponibile', 1, 1)", [$dedupTitle]);
+Exact501::exec($db, "INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (?, ?, 'principale', 0)", [$dedupBook, $authorPlain]);
+Exact501::onCleanup(static function () use ($db, $dedupBook): void {
+    Exact501::exec($db, 'DELETE FROM libri_autori WHERE libro_id = ?', [$dedupBook]);
+    Exact501::exec($db, 'DELETE FROM libri WHERE id = ?', [$dedupBook]);
+});
+$csv = (new \ReflectionClass(\App\Controllers\CsvImportController::class))->newInstanceWithoutConstructor();
+$findExisting = new \ReflectionMethod($csv, 'findExistingBook');
+$same($dedupBook, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "{$given} Haffner"]), 'CSV dedup: title + unquoted first author finds the book');
+$same($dedupBook, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "{$given} Häffner"]), 'CSV dedup: an unquoted Häffner still matches Haffner (accent-tolerant)');
+$same($dedupBook, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "\"{$given} Haffner\""]), 'CSV dedup: a quoted Haffner matches the book by Haffner');
+$same($dedupBook, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "\"Haffner, {$given}\""]), 'CSV dedup: a quoted inverted Haffner matches too');
+$same(null, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "\"{$given} Häffner\""]), 'CSV dedup: a quoted Häffner is a different person and does not match the book by Haffner');
+
 $typed = $periodicals->resolve(["new:\"Verlag {$given} Hüffner\""]);
 $ok(count($typed) === 1 && $nameOf('editori', $typed[0]) === "Verlag {$given} Hüffner" && $typed[0] !== $pubPlain, 'periodicals: a quoted typed publisher is a new one, stored without quotes');
 
-Exact501::finish(46);
+Exact501::finish(51);
