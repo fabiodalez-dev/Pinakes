@@ -36,15 +36,22 @@ $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 $user   = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? '');
 $name   = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
-$db = ($socket !== '' && file_exists($socket))
-    ? new mysqli(null, $user, $dbPass, $name, 0, $socket)
-    : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $user, $dbPass, $name, (int) ($env['DB_PORT'] ?? 3306));
-$db->set_charset('utf8mb4');
 if (!isset($_ENV['APP_CANONICAL_URL'])) {
     $_ENV['APP_CANONICAL_URL'] = 'https://library.example.org';
 }
 
-$plugin = new OaiPmhServerPlugin($db, new HookManager($db));
+// The three serializations never touch the database: without one (no
+// MySQL on the machine) the plugin is built without its constructor.
+try {
+    $db = ($socket !== '' && file_exists($socket))
+        ? new mysqli(null, $user, $dbPass, $name, 0, $socket)
+        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $user, $dbPass, $name, (int) ($env['DB_PORT'] ?? 3306));
+    $db->set_charset('utf8mb4');
+    $plugin = new OaiPmhServerPlugin($db, new HookManager($db));
+} catch (Throwable $e) {
+    echo "  (no database: " . $e->getMessage() . "; the plugin is built without one)\n";
+    $plugin = (new ReflectionClass(OaiPmhServerPlugin::class))->newInstanceWithoutConstructor();
+}
 $call = static function (string $method, array $args) use ($plugin) {
     $m = new ReflectionMethod(OaiPmhServerPlugin::class, $method);
     return $m->invokeArgs($plugin, $args);

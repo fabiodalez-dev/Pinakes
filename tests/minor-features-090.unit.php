@@ -9,6 +9,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 if (!function_exists('__')) { function __(string $s, mixed ...$a): string { return $a ? sprintf($s, ...$a) : $s; } }
 
 use App\Controllers\CatalogueCardController;
+use App\Controllers\MarcImportController;
 use App\Models\AttendanceRepository;
 use App\Models\SupplierRepository;
 use App\Support\CatalogueCard;
@@ -29,7 +30,9 @@ checkMinor(RdaTypes::normalize('content', 'nc') === null, 'a code from another v
 $book = ['tipo_media' => 'libro', 'rda_carrier_type' => 'cr', 'rda_media_type' => 'c', 'rda_content_type' => null];
 checkMinor(RdaTypes::overrides($book) === ['media' => 'c', 'carrier' => 'cr'], 'overrides() lists only the stored overrides');
 checkMinor(RdaTypes::effective($book) === ['content' => 'txt', 'media' => 'c', 'carrier' => 'cr'], 'effective() mixes overrides over the derived triple');
-checkMinor(RdaTypes::overrides(['tipo_media' => 'dvd']) === [], 'a record without overrides has none (BIBFRAME keeps its historical output)');
+checkMinor(RdaTypes::overrides(['tipo_media' => 'dvd']) === [], 'a record without overrides has none');
+checkMinor(RdaTypes::effective(['tipo_media' => 'dvd']) === ['content' => 'tdi', 'media' => 'v', 'carrier' => 'vd'] && RdaTypes::effective(['tipo_media' => 'libro']) === ['content' => 'txt', 'media' => 'n', 'carrier' => 'nc'], 'without an override BIBFRAME emits the derived triple: a book keeps txt/n/nc, a DVD gets its real types');
+checkMinor(RdaTypes::codes($book) === RdaTypes::effective($book) && array_keys(RdaTypes::codes(['tipo_media' => 'dvd'])) === ['content', 'media', 'carrier'], 'codes() is the effective triple under the content/media/carrier keys the MARC 336/337/338 builder reads');
 checkMinor(RdaTypes::uri('carrier', 'cr') === 'http://id.loc.gov/vocabulary/carriers/cr' && RdaTypes::uri('content', 'txt') === 'http://id.loc.gov/vocabulary/contentTypes/txt', 'codes map to id.loc.gov URIs');
 foreach (RdaTypes::kinds() as $kind) {
     foreach (array_keys(MediaLabelsKeys()) as $media) {
@@ -77,6 +80,12 @@ checkMinor($s['nome'] === 'Libreria Rossi' && $s['telefono'] === null && $s['not
 checkMinor($s['email'] === null && $s['sito_web'] === 'https://www.rossi.it', 'invalid email dropped, scheme-less website gets https');
 checkMinor(SupplierRepository::normalize(['sito_web' => 'javascript:alert(1)'])['sito_web'] === null, 'a non-http website is rejected');
 checkMinor(array_keys($s) === SupplierRepository::FIELDS, 'normalize() returns exactly the writable fields');
+checkMinor(SupplierRepository::invalidFields(['email' => 'not-an-email', 'sito_web' => 'not a url']) === ['email', 'sito_web'], 'the form is refused on an e-mail or website that is not one');
+checkMinor(SupplierRepository::invalidFields(['email' => ' ordini@example.org ', 'sito_web' => 'www.rossi.it']) === [] && SupplierRepository::invalidFields(['email' => '', 'sito_web' => null]) === [], 'a valid or blank e-mail and website pass');
+checkMinor(SupplierRepository::invalidFields(['sito_web' => 'javascript:alert(1)']) === ['sito_web'], 'a non-http website is refused, not silently dropped');
+
+checkMinor(MarcImportController::supplierApplies('created', 'skip') && MarcImportController::supplierApplies('created', 'fill') && MarcImportController::supplierApplies('updated', 'overwrite'), 'an import batch supplier goes on created books and on overwritten ones');
+checkMinor(!MarcImportController::supplierApplies('skipped', 'overwrite') && !MarcImportController::supplierApplies('updated', 'fill') && !MarcImportController::supplierApplies('updated', 'skip'), 'skipped duplicates and books only completed in their empty fields keep their supplier');
 
 // ── Visitor log helpers ──
 checkMinor(AttendanceRepository::shortName('Mario', 'rossi') === 'Mario R.' && AttendanceRepository::shortName('Cher', '') === 'Cher', 'kiosk names are shortened to the initial');

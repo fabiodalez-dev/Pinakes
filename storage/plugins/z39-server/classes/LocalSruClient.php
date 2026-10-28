@@ -42,6 +42,13 @@ final class LocalSruClient extends SruClient
         $query = [];
         parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
         require_once dirname(__DIR__) . '/endpoint.php';
+        // The endpoint checks the plugin's API key when the setting asks for
+        // one: this request comes from the plugin itself, so it carries the
+        // key as a client would, instead of being answered with a 401.
+        $settings = \getPluginSettings($this->db, $this->pluginId);
+        if (in_array($settings['require_api_key'] ?? '', ['1', 'true'], true) && trim((string) ($settings['api_key'] ?? '')) !== '') {
+            $query['api_key'] = (string) $settings['api_key'];
+        }
         $request = (new \Slim\Psr7\Factory\ServerRequestFactory())
             ->createServerRequest('GET', '/api/sru', $_SERVER)
             ->withQueryParams($query);
@@ -49,6 +56,9 @@ final class LocalSruClient extends SruClient
         $body = $response->getBody();
         $body->rewind();
         $xml = $body->getContents();
+        // An error answer with a body (<error><message>, as the endpoint
+        // writes on 401, 429 and 503) is returned so its message is read and
+        // reported as the server's error; one without a body is the status.
         if ($response->getStatusCode() >= 400 && $xml === '') {
             throw new \RuntimeException('HTTP ' . $response->getStatusCode() . ' error from server');
         }

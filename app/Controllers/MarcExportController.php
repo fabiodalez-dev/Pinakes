@@ -86,8 +86,9 @@ class MarcExportController
                 yield $xml->output();
                 continue;
             }
+            $cuts = [];
             try {
-                yield Iso2709Writer::serialize($record);
+                $bytes = Iso2709Writer::serialize($record, $cuts);
             } catch (\OverflowException) {
                 // Over 99,999 bytes: the long free texts (description, notes)
                 // are shortened so the book is still in the file, not dropped.
@@ -96,12 +97,20 @@ class MarcExportController
                     ? BookMarcBuilder::unimarc($short, $authors, $publishers, $genre, true)
                     : BookMarcBuilder::marc21($short, $authors, $publishers, $genre, true);
                 try {
-                    yield Iso2709Writer::serialize($record);
+                    $bytes = Iso2709Writer::serialize($record, $cuts);
                     \App\Support\SecureLogger::warning('[MARC export] record over the ISO 2709 limit, long texts shortened', ['book_id' => $row['id'] ?? null]);
                 } catch (\OverflowException) {
                     \App\Support\SecureLogger::error('[MARC export] record too long for ISO 2709 even shortened, skipped', ['book_id' => $row['id'] ?? null]);
+                    continue;
                 }
             }
+            // A field over the 9,999-byte ISO 2709 field limit is cut at a
+            // subfield boundary: the file is still readable, the log says what
+            // was lost.
+            foreach ($cuts as $cut) {
+                \App\Support\SecureLogger::warning('[MARC export] field cut to the ISO 2709 field limit', ['book_id' => $row['id'] ?? null, 'detail' => $cut]);
+            }
+            yield $bytes;
         }
         if ($xml !== null) {
             $xml->endCollection();

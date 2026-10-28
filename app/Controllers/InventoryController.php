@@ -62,7 +62,7 @@ class InventoryController
         return [
             'trovata' => __('Trovata'),
             'fuori_posto' => __('Fuori posto'),
-            'in_prestito' => __('In prestito'),
+            'in_prestito' => __('In prestito o in attesa di ritiro'),
             'mancante' => __('Mancante'),
             'sconosciuta' => __('Codice sconosciuto'),
             'fuori_ambito' => __('Fuori ambito'),

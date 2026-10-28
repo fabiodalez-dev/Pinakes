@@ -25,14 +25,18 @@ final class MarcLanguage
     /** Codes that name no language. */
     private const NONE = ['und', 'mul', 'zxx', 'mis', '|||', '   ', 'xxx'];
 
-    /** The stored name for a code; '' for "undetermined"; the code itself when unknown. */
+    /**
+     * The stored name for a code; '' for "undetermined" and for a code this
+     * table does not know (a raw "swa" in the language field would be no
+     * language to the catalogue).
+     */
     public static function nameFor(string $code): string
     {
         $code = strtolower(trim($code));
         if ($code === '' || in_array($code, self::NONE, true) || strlen($code) !== 3) {
             return '';
         }
-        return self::NAMES[$code] ?? $code;
+        return self::NAMES[$code] ?? '';
     }
     /**
      * ISO 639-2/B code for one stored language (Italian/English/native name,
