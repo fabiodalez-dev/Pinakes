@@ -15,7 +15,9 @@ final class PatronTypeAssignment
 {
     /**
      * The submitted patron type: null for "default" (empty value) or an id of
-     * an existing type. An unknown id keeps $current.
+     * an active type. An unknown id, or a deactivated one other than the
+     * type the user already has, keeps $current (the form and the CSV import
+     * refuse deactivated types too).
      *
      * @param array<mixed> $data
      */
@@ -32,7 +34,11 @@ final class PatronTypeAssignment
             return $current;
         }
         $id = (int) $raw;
-        return isset((new CirculationPolicy($db))->types()[$id]) ? $id : $current;
+        $types = (new CirculationPolicy($db))->types();
+        if (!isset($types[$id])) {
+            return $current;
+        }
+        return ((int) ($types[$id]['attiva'] ?? 1) === 1 || $id === $current) ? $id : $current;
     }
 
     /** Store the patron type of $userId (no-op until the 0.9.0 schema exists). */

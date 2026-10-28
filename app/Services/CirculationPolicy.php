@@ -293,6 +293,46 @@ final class CirculationPolicy
     }
 
     /**
+     * Patrons holding an active reservation on $libroId whom the per-material
+     * rules refuse right now: the title's material is not loanable for their
+     * patron type, or they already hold the limit for that material. Queue
+     * promotion (ReservationManager) and capacity occupancy (CapacityService)
+     * both leave their promotable reservations aside, the same pause the
+     * total-limit SQL predicate applies, so a refused head of the queue does
+     * not block the patrons behind it. Empty without rules-matrix rows (a
+     * zero-config install never pauses anyone here).
+     *
+     * @return list<int>
+     */
+    public function materialRefusedReservationUserIds(int $libroId): array
+    {
+        if ($this->rules() === []) {
+            return [];
+        }
+        $media = $this->mediaOf($libroId);
+        $stmt = $this->db->prepare("SELECT DISTINCT utente_id FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+        $stmt->bind_param('i', $libroId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $userIds = [];
+        while ($result && ($row = $result->fetch_row())) {
+            $userIds[] = (int) $row[0];
+        }
+        $stmt->close();
+
+        $refused = [];
+        foreach ($userIds as $userId) {
+            $policy = $this->forType($this->patronTypeOf($userId), $media);
+            if (!$policy->loanable
+                || ($policy->maxActiveForMedia > 0 && $media !== self::ALL_MEDIA
+                    && $this->countActiveLoansForMedia($userId, $media) >= $policy->maxActiveForMedia)) {
+                $refused[] = $userId;
+            }
+        }
+        return $refused;
+    }
+
+    /**
      * Active queue reservations plus loan requests still awaiting approval:
      * what the reservation limit counts (plan decision 4).
      */

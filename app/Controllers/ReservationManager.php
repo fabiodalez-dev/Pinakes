@@ -202,13 +202,21 @@ class ReservationManager
             // irraggiungibile il primo candidato idoneo. Il predicato SQL cerca
             // direttamente il primo idoneo in FIFO; checkUser() rimane il gate
             // autorevole sotto la stessa transazione.
+            // Patrons the per-material rules refuse (not loanable for their
+            // type, or already at the limit for this material) are skipped
+            // like those at their total limit; CapacityService leaves the
+            // same reservations out of the occupied capacity.
+            $materialRefused = $circulation->materialRefusedReservationUserIds((int) $bookId);
+            $materialRefusedSql = $materialRefused === []
+                ? ''
+                : ' AND r.utente_id NOT IN (' . implode(',', array_map('intval', $materialRefused)) . ')';
             $stmt = $this->db->prepare("
                 SELECT r.*, u.email, u.nome, u.cognome
                 FROM prenotazioni r
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ? AND r.stato = 'attiva'
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
-                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
+                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "{$materialRefusedSql}
                 AND ({$limitSql} <= 0 OR (
                     SELECT COUNT(*)
                     FROM prestiti cap

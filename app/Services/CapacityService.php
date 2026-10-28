@@ -484,6 +484,17 @@ final class CapacityService
             $params[] = $today;
             $params[] = $today;
         }
+        // Same pause as queue promotion for the per-material rules: a
+        // promotable reservation of a patron the matrix refuses for this
+        // title does not hold capacity (ReservationManager skips it too).
+        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId);
+        if ($materialRefused !== []) {
+            $sql .= ' AND NOT (r.utente_id IN (' . implode(',', array_map('intval', $materialRefused)) . ')
+                      AND ' . \App\Support\LoanEligibility::promotableReservationWhere('r') . ')';
+            $types .= 'ss';
+            $params[] = $today;
+            $params[] = $today;
+        }
         if ($excludeReservationId !== null) {
             $sql .= ' AND r.id <> ?';
             $types .= 'i';
