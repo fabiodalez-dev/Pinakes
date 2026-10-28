@@ -241,7 +241,7 @@ unset($workspaceHeader);
             <select id="patron_type_filter" class="form-input">
               <option value=""><?= __("Tutte le tipologie") ?></option>
               <?php foreach ($patronTypeFilterOptions as $ptId => $pt): ?>
-              <option value="<?= (int) $ptId ?>"><?= \App\Support\HtmlHelper::e((string) $pt['nome']) ?></option>
+              <option value="<?= (int) $ptId ?>"><?= htmlspecialchars((string) ((string) $pt['nome']), ENT_QUOTES, 'UTF-8') ?></option>
               <?php endforeach; ?>
             </select>
           </div>

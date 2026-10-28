@@ -289,7 +289,7 @@ unset($workspaceHeader);
       <div>
         <dt class="text-sm text-gray-500"><?= __("Tipologia lettore") ?></dt>
         <dd class="text-sm text-gray-900 mt-1" data-testid="patron-type-name">
-          <?= HtmlHelper::e($patronTypeName ?? __('Standard')); ?>
+          <?= htmlspecialchars((string) ($patronTypeName ?? __('Standard')), ENT_QUOTES, 'UTF-8'); ?>
           <?php if (empty($patronTypeIsOwn)): ?><span class="text-xs text-gray-500">(<?= __("predefinita") ?>)</span><?php endif; ?>
         </dd>
       </div>
