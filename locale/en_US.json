@@ -8498,5 +8498,6 @@
   "Revisione inventariale chiusa": "Stocktake closed",
   "Revisione inventariale annullata": "Stocktake cancelled",
   "In prestito o in attesa di ritiro": "On loan or awaiting pickup",
-  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan."
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2."
 }
