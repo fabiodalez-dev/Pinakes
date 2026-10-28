@@ -189,6 +189,12 @@ $corp->addDataField('710', '2', ' ', [['a', 'Some body'], ['t', 'A work']]);
 $c = (new Marc21LibriMapper())->map($corp);
 $check($c['autori'] === ['United States. Congress. Senate', 'Convegno di studi'], '51b 110 $a $b joined and a 711 meeting are authors; a publisher (710 $4 pbl) and a name-title entry are not');
 $check($c['curatore'] === ['Istituto nazionale di statistica'], '51c a 710 with $4 edt is the editor');
+$meet = new MarcRecord();
+$meet->addDataField('111', '2', ' ', [['a', 'Congresso internazionale'], ['e', 'Comitato scientifico.'], ['d', '(2001 : Milano)']]);
+$meet->addDataField('245', '1', '0', [['a', 'Atti']]);
+$meet->addDataField('711', '2', ' ', [['a', 'Convegno di studi'], ['e', 'Sezione storica.'], ['j', 'editor.']]);
+$mt = (new Marc21LibriMapper())->map($meet);
+$check($mt['autori'] === ['Congresso internazionale. Comitato scientifico'] && $mt['curatore'] === ['Convegno di studi. Sezione storica'], '51d 111/711: $e is the subordinate unit (part of the name), $j the relator term');
 
 echo "UNIMARC mapping\n";
 $u = (new UnimarcLibriMapper())->map($uni[0]);
@@ -373,6 +379,17 @@ try {
     $fits = false;
 }
 $check($fits, '74 with its long texts shortened the same book is exported instead of dropped');
+$hugeCut = $huge + [];
+$hugeCut['descrizione'] = str_repeat('lunga ', 3500); // a 520 over the 9,999-byte field limit
+$cutsSeen = ['stale'];
+$bytesShort = \App\Controllers\MarcExportController::serializeIso('marc21', $hugeCut, [], [], null, $cutsSeen, $levelShort);
+$check($bytesShort !== null && $levelShort === 'shortened' && $cutsSeen === [], '74a the field cuts of the rejected full record are not reported for the shortened one that is written');
+$crowd = array_map(static fn (int $i): array => ['nome' => 'Autore ' . str_repeat('n', 200) . " {$i}", 'ruolo' => 'principale'], range(1, 700));
+$cutsCrowd = [];
+$bytesCrowd = \App\Controllers\MarcExportController::serializeIso('marc21', $huge, $crowd, [], null, $cutsCrowd, $levelCrowd);
+$bytesCrowdUni = \App\Controllers\MarcExportController::serializeIso('unimarc', $huge, $crowd, [], null, $cutsCrowd, $levelCrowdUni);
+$check($bytesCrowd !== null && $levelCrowd === 'reduced' && Iso2709Reader::parse(substr($bytesCrowd, 0, -1))->subfield('245', 'a') === 'T'
+    && $bytesCrowdUni !== null && $levelCrowdUni === 'reduced', '74b a book that overflows even shortened (700 authors) is exported as a reduced record, never skipped');
 
 echo "Language names round trip\n";
 $roundTrip = true;

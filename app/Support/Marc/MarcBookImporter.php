@@ -357,26 +357,61 @@ final class MarcBookImporter
     }
 
     /**
+     * The extra MARC columns to write for one record, column => value (NULL
+     * clears it). A record writes the columns it carries (in fill mode only
+     * where the book has them empty). When an overwrite changes the book's
+     * media type, the RDA overrides the record does not carry are cleared:
+     * they described the old material (a printed book's carrier "nb" on what
+     * is now a DVD), and without them the new media type implies its own
+     * RDA codes.
+     *
+     * @param array<string, string|list<string>> $data
+     * @param array<string, mixed>|null $existing
+     * @param callable(string): bool $hasColumn
+     * @return array<string, string|null>
+     */
+    public static function extraColumnUpdates(string $mode, array $data, ?array $existing, callable $hasColumn): array
+    {
+        $newType = trim((string) ($data['tipo_media'] ?? ''));
+        $typeChanged = $existing !== null
+            && $mode === self::MODE_OVERWRITE
+            && $newType !== ''
+            && $newType !== trim((string) ($existing['tipo_media'] ?? ''));
+        $updates = [];
+        foreach (self::EXTRA_COLUMNS as $column => $length) {
+            if (!$hasColumn($column)) {
+                continue;
+            }
+            $value = trim((string) ($data[$column] ?? ''));
+            if ($value === '') {
+                if ($typeChanged && str_starts_with($column, 'rda_') && trim((string) ($existing[$column] ?? '')) !== '') {
+                    $updates[$column] = null;
+                }
+                continue;
+            }
+            if ($existing !== null && $mode === self::MODE_FILL && trim((string) ($existing[$column] ?? '')) !== '') {
+                continue;
+            }
+            $updates[$column] = mb_substr($value, 0, $length);
+        }
+        return $updates;
+    }
+
+    /**
      * @param array<string, string|list<string>> $data
      * @param array<string, mixed>|null $existing
      */
     private function writeExtraColumns(int $bookId, array $data, ?array $existing): void
     {
+        $updates = self::extraColumnUpdates($this->mode, $data, $existing, fn (string $column): bool => $this->hasColumn($column));
+        if ($updates === []) {
+            return;
+        }
         $sets = [];
         $params = [];
-        foreach (self::EXTRA_COLUMNS as $column => $length) {
-            $value = trim((string) ($data[$column] ?? ''));
-            if ($value === '' || !$this->hasColumn($column)) {
-                continue;
-            }
-            if ($existing !== null && $this->mode === self::MODE_FILL && trim((string) ($existing[$column] ?? '')) !== '') {
-                continue;
-            }
+        foreach ($updates as $column => $value) {
             $sets[] = "{$column} = ?";
-            $params[] = mb_substr($value, 0, $length);
-        }
-        if ($sets === []) {
-            return;
+            $params[] = $value;
         }
         $params[] = $bookId;
         $stmt = $this->db->prepare('UPDATE libri SET ' . implode(', ', $sets) . ' WHERE id = ? AND deleted_at IS NULL');

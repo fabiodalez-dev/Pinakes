@@ -36,9 +36,27 @@ final class Marc21LibriMapper implements MarcLibriMapper
         'colorist' => 'colorista',
     ];
 
+    /** Meeting entries (X11) put the subordinate unit in $e and the relator term in $j. */
+    private static function isMeeting(MarcField $field): bool
+    {
+        return $field->tag === '111' || $field->tag === '711';
+    }
+
     /**
-     * The name of a name entry: a person's $a; a corporate body's or
-     * meeting's $a with its subordinate units ($b), "United States. Congress".
+     * The relator terms of a name entry: $e, except in a meeting entry
+     * (111/711), where $e is the subordinate unit and the term is $j.
+     *
+     * @return list<string>
+     */
+    private static function relatorTerms(MarcField $field): array
+    {
+        return $field->subfieldValues(self::isMeeting($field) ? 'j' : 'e');
+    }
+
+    /**
+     * The name of a name entry: a person's $a; a corporate body's $a with
+     * its subordinate units ($b), "United States. Congress"; a meeting's $a
+     * with its subordinate units ($e).
      */
     private static function entryName(MarcField $field): string
     {
@@ -46,8 +64,9 @@ final class Marc21LibriMapper implements MarcLibriMapper
         if (!in_array($field->tag, ['110', '111', '710', '711'], true)) {
             return $name;
         }
+        $units = $field->subfieldValues(self::isMeeting($field) ? 'e' : 'b');
         $parts = [];
-        foreach (array_merge([$name], array_map([MarcBookData::class, 'cleanName'], $field->subfieldValues('b'))) as $part) {
+        foreach (array_merge([$name], array_map([MarcBookData::class, 'cleanName'], $units)) as $part) {
             if ($part !== '') {
                 $parts[] = $part;
             }
@@ -102,7 +121,7 @@ final class Marc21LibriMapper implements MarcLibriMapper
             foreach ($record->fieldsByTag($tag) as $field) {
                 $name = self::entryName($field);
                 $codes = $field->subfieldValues('4');
-                $term = $field->subfieldValues('e');
+                $term = self::relatorTerms($field);
                 // The main entry is the author unless its own relator says otherwise.
                 $role = ($codes === [] && $term === [])
                     ? 'author'
@@ -119,7 +138,7 @@ final class Marc21LibriMapper implements MarcLibriMapper
                 if ($name === '') {
                     continue;
                 }
-                $term = $field->subfieldValues('e');
+                $term = self::relatorTerms($field);
                 $role = RelatorRoles::resolve($field->subfieldValues('4'), $term === [] ? null : implode(' ', $term), $statement, $name, 'marc21');
                 $file($name, $role);
             }

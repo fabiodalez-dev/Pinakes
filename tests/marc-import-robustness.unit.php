@@ -122,6 +122,16 @@ $partial = ['isbn13' => '9780140449136', 'titolo' => 'New title'] + \App\Support
 [$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial)), ['isbn10' => '8845292614', 'traduttore' => 'Old Translator'] + $existing);
 $check($row['isbn10'] === '8845292614' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value');
 $check($over['tipo_media'] === false, 'overwrite: a record without a media type leaves the book\'s');
+// An overwrite that changes the media type clears the RDA overrides the
+// record does not carry (they described the old material).
+$allColumns = static fn (string $column): bool => true;
+$printed = ['tipo_media' => 'libro', 'rda_content_type' => '', 'rda_media_type' => 'n', 'rda_carrier_type' => 'nb', 'dimensioni' => '21 cm'];
+$dvdRecord = ['tipo_media' => 'dvd', 'rda_content_type' => 'tdi'] + \App\Support\Marc\MarcBookData::empty();
+$up = MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, $dvdRecord, $printed, $allColumns);
+$check($up === ['rda_content_type' => 'tdi', 'rda_media_type' => null, 'rda_carrier_type' => null], 'overwrite that changes the media type: the record\'s RDA override is written, the book\'s other overrides are cleared, other columns untouched');
+$check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, ['tipo_media' => 'libro'] + \App\Support\Marc\MarcBookData::empty(), $printed, $allColumns) === [], 'overwrite with the same media type keeps the book\'s RDA overrides');
+$check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_FILL, $dvdRecord, $printed, $allColumns) === ['rda_content_type' => 'tdi'], 'fill mode never clears an RDA override, only fills an empty one');
+$check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, $dvdRecord, $printed, static fn (string $c): bool => !str_starts_with($c, 'rda_')) === [], 'without the RDA columns nothing RDA is written or cleared');
 
 // 4. Post-commit failures are warnings, not failed records.
 $envFile = $root . '/.env';
