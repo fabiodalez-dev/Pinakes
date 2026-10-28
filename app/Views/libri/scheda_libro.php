@@ -176,6 +176,11 @@ ob_start();
             <i class="fas fa-barcode"></i>
             <?= __("Stampa etichetta") ?>
           </a>
+          <!-- Scheda catalografica ISBD -->
+          <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/catalogue-card'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" id="catalogue-card-link" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+            <i class="fas fa-address-card"></i>
+            <?= __("Scheda catalografica") ?>
+          </a>
           <!-- Visualizza nel frontend -->
           <a href="<?php echo htmlspecialchars(book_url($libro), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-eye"></i>
@@ -579,6 +584,28 @@ unset($workspaceHeader);
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(__($libro['tipo_acquisizione'])); ?></dd>
             </div>
             <?php endif; ?>
+            <?php
+            $bookSupplier = (!empty($libro['fornitore_id']) && isset($db) && $db instanceof \mysqli)
+                ? (new \App\Models\SupplierRepository($db))->getById((int) $libro['fornitore_id'])
+                : null;
+            ?>
+            <?php if ($bookSupplier !== null): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Fornitore") ?></dt>
+              <dd class="text-gray-900 font-medium" id="book-supplier"><a class="hover:underline" href="<?= htmlspecialchars(url('/admin/suppliers/edit/' . (int) $bookSupplier['id']), ENT_QUOTES, 'UTF-8') ?>"><?php echo App\Support\HtmlHelper::e((string) $bookSupplier['nome']); ?></a></dd>
+            </div>
+            <?php endif; ?>
+            <?php
+            $rdaEffective = \App\Support\RdaTypes::effective($libro);
+            $rdaParts = [];
+            foreach ($rdaEffective as $rdaKind => $rdaCode) {
+                $rdaParts[] = __(\App\Support\RdaTypes::label($rdaKind, $rdaCode));
+            }
+            ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tipologia RDA") ?></dt>
+              <dd class="text-gray-900 font-medium" id="book-rda-types" data-rda="<?= htmlspecialchars(implode('/', $rdaEffective), ENT_QUOTES, 'UTF-8') ?>"><?php echo App\Support\HtmlHelper::e(implode(' · ', $rdaParts)); ?></dd>
+            </div>
             <?php
             // Contributor roles as author entities (issue #237). Entities are the
             // single source of truth — no free-text fallback: the legacy columns

@@ -34,6 +34,7 @@ class LibriApiController
         $anno_to = trim((string) ($q['anno_to'] ?? ''));
         $collana = trim((string) ($q['collana'] ?? ''));
         $tipo_media = trim((string) ($q['tipo_media'] ?? ''));
+        $fornitore_id = (int) ($q['fornitore_filter'] ?? 0);
 
         // Build WHERE clause with prepared statement parameters
         $where = 'WHERE l.deleted_at IS NULL ';
@@ -157,6 +158,12 @@ class LibriApiController
                 $params[] = $tipo_media;
                 $types  .= 's';
             }
+        }
+
+        if ($fornitore_id > 0 && $this->hasColumn($db, 'fornitore_id')) {
+            $where .= ' AND l.fornitore_id = ?';
+            $params[] = $fornitore_id;
+            $types .= 'i';
         }
 
         // Parse DataTables sorting parameters (with robust null checks to avoid notices)

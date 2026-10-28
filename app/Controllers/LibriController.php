@@ -408,7 +408,7 @@ class LibriController
         } catch (\Throwable) {
             $copyCatalogingAvailable = false;
         }
-        $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName];
+        $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName, 'fornitori' => (new \App\Models\SupplierRepository($db))->options()];
         // extract($data);
         require __DIR__ . '/../Views/libri/index.php';
         $content = ob_get_clean();
@@ -633,6 +633,7 @@ class LibriController
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
+        $fornitori = (new \App\Models\SupplierRepository($db))->options();
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
@@ -1403,6 +1404,9 @@ class LibriController
                 $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
 
+            // Supplier and RDA overrides (0.9.0): only the keys the form posts.
+            \App\Support\CataloguingExtras::save($db, $id, $data);
+
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
@@ -1498,6 +1502,7 @@ class LibriController
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
+        $fornitori = (new \App\Models\SupplierRepository($db))->options();
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
@@ -2033,6 +2038,9 @@ class LibriController
                 && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
                 $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
+
+            // Supplier and RDA overrides (0.9.0): only the keys the form posts.
+            \App\Support\CataloguingExtras::save($db, $id, $data);
 
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
