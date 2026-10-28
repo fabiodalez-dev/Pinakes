@@ -203,6 +203,17 @@ return [
 <p>Har du ikke længere brug for den, kan du annullere lånet på siden »Reservationer« på din konto: så går bogen straks videre til en anden.</p>
 <p>God læselyst!</p>',
     ],
+    'card_expiring' => [
+        'subject' => '🪪 Dit lånerkort udløber den {{data_scadenza_tessera}}',
+        'body' => '<h2>Dit lånerkort udløber snart</h2>
+<p>Hej {{utente_nome}},</p>
+<p>dit lånerkort (nr. {{codice_tessera}}) udløber den <strong>{{data_scadenza_tessera}}</strong> (dage tilbage: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Når det er udløbet, kan du ikke låne eller reservere bøger, før kortet er fornyet.</p>
+</div>
+<p>Henvend dig ved bibliotekets skranke i åbningstiden for at forny det.</p>
+<p>På gensyn!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Afhentning annulleret',
         'body' => '<h2>Afhentning annulleret</h2>

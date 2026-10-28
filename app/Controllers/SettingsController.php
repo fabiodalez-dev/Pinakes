@@ -1675,7 +1675,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1683,6 +1683,8 @@ class SettingsController
             'loan_duration_days'       => (int) ($repository->get('loans', 'loan_duration_days', '30') ?? 30),
             'pickup_expiry_days'       => (int) ($repository->get('loans', 'pickup_expiry_days', '3') ?? 3),
             'pickup_reminder_days'     => (int) ($repository->get('loans', 'pickup_reminder_days', '2') ?? 2),
+            // Card-expiry warning (circulation policy): 0 = off.
+            'card_expiry_warning_days' => (int) ($repository->get('loans', 'card_expiry_warning_days', '0') ?? 0),
             'max_renewals'             => (int) ($repository->get('loans', 'max_renewals', '3') ?? 3),
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
@@ -1714,7 +1716,8 @@ class SettingsController
         // blocks every renewal) — it is NOT "unlimited".
         $loanDurationDays = min(3650, max(1, (int) ($data['loan_duration_days'] ?? 30)));         // 1 day … 10 years
         $pickupExpiryDays = min(30,   max(1, (int) ($data['pickup_expiry_days'] ?? 3)));          // 1 … 30 days (matches the loans-tab input max)
-        $pickupReminderDays = min(30, max(0, (int) ($data['pickup_reminder_days'] ?? 2)));        // 0 (off) … 30 days before the pickup deadline
+        $pickupReminderDays = min(30, max(0, (int) ($data['pickup_reminder_days'] ?? 2)));
+        $cardExpiryWarningDays = min(365, max(0, (int) ($data['card_expiry_warning_days'] ?? 0))); // 0 (off) … 365 days before the card expires        // 0 (off) … 30 days before the pickup deadline
         $maxRenewals      = min(100,  max(0, (int) ($data['max_renewals'] ?? 3)));                // 0 … 100
         $maxActiveLoans   = min(1000, max(0, (int) ($data['max_active_loans_per_user'] ?? 0)));   // 0 (unlimited) … 1000
         $maxLoanDuration  = min(3650, max(1, (int) ($data['max_loan_duration_days'] ?? 90)));     // 1 day … 10 years (reservation-window cap enforced by ReservationsController)
@@ -1735,6 +1738,7 @@ class SettingsController
         $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
         $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
         $repository->set('loans', 'pickup_reminder_days', (string) $pickupReminderDays);
+        $repository->set('loans', 'card_expiry_warning_days', (string) $cardExpiryWarningDays);
         $repository->set('loans', 'max_renewals', (string) $maxRenewals);
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);

@@ -8873,5 +8873,15 @@
   "Prenotazioni non disponibili per il tuo profilo": "Réservations non disponibles pour votre profil",
   "L'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.": "Le lecteur a atteint le nombre maximal de prêts que sa catégorie autorise pour ce type de support.",
   "Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.": "Ce document (ou l'exemplaire indiqué) est en consultation sur place uniquement pour la catégorie de ce lecteur.",
-  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Catégories de lecteurs et règles de prêt par type de support."
+  "Tipologie di lettore e regole di prestito per tipo di materiale.": "Catégories de lecteurs et règles de prêt par type de support.",
+  "Avviso scadenza tessera": "Avis d'expiration de la carte",
+  "Avviso scadenza tessera: giorni prima della scadenza": "Avis d'expiration de la carte : jours avant l'échéance",
+  "Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.": "Le lecteur reçoit un e-mail quand sa carte va expirer, pour la renouveler avant de ne plus pouvoir emprunter.",
+  "Impossibile rinnovare la tessera di questo account.": "Impossible de renouveler la carte de ce compte.",
+  "Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata).": "Envoyé quelques jours avant l'expiration de la carte du lecteur. Les jours de préavis se règlent dans Paramètres → Prêts (0 = désactivé).",
+  "Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0": "Envoyé une seule fois par échéance par la tâche planifiée des notifications (modèle « Carte bientôt expirée »). 0 désactive l'avis. Par défaut : 0",
+  "Rinnova tessera": "Renouveler la carte",
+  "Rinnovare la tessera fino al %s?": "Renouveler la carte jusqu'au %s ?",
+  "Tessera in scadenza": "Carte bientôt expirée",
+  "Tessera rinnovata fino al %s.": "Carte renouvelée jusqu'au %s."
 }

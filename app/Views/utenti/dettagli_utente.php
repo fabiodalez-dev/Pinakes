@@ -330,6 +330,17 @@ unset($workspaceHeader);
       </div>
     </dl>
     <p class="text-xs text-gray-500 mt-3"><?= __("Le regole per tipo di materiale (Impostazioni → Circolazione) possono ridurre questi valori per singoli materiali.") ?></p>
+    <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/renew-card'), ENT_QUOTES, 'UTF-8') ?>" class="mt-4"
+          data-swal-confirm="<?= htmlspecialchars(sprintf(__('Rinnovare la tessera fino al %s?'), format_date(\App\Support\PatronTypeAssignment::todayPlus($patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS), false, '/')), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm-title="<?= htmlspecialchars(__('Rinnova tessera'), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm-button="<?= htmlspecialchars(__('Rinnova tessera'), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm-kind="action">
+      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+      <button type="submit" data-testid="renew-card" class="px-4 py-3 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-gray-800">
+        <i class="fas fa-id-card"></i>
+        <span class="font-medium"><?= __("Rinnova tessera") ?></span>
+      </button>
+    </form>
   </section>
   <?php endif; ?>
 

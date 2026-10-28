@@ -84,6 +84,8 @@ try {
     $check($scalar("SELECT GROUP_CONCAT(CONCAT(email, ':', tipo_utente, ':', IFNULL(data_scadenza_tessera, '-'), ':', IFNULL(tipologia_id, '-')) ORDER BY id) FROM {$u}") === 'a@x:standard:2027-01-01:-,b@x:premium:-:-,c@x:admin:-:-', 'no existing user is touched (premium is NOT migrated to a type)');
     $check((int) $scalar("SELECT COUNT(*) FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = '{$fk}' AND REFERENCED_TABLE_NAME = '{$tl}' AND DELETE_RULE = 'SET NULL'") === 1, 'tipologia_id references the types with ON DELETE SET NULL');
     $check((int) $scalar("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$u}' AND INDEX_NAME = 'idx_utenti_tipologia'") === 1, 'tipologia_id is indexed');
+    $col = $column($u, 'card_expiry_warning_sent_for');
+    $check(is_array($col) && $col['DATA_TYPE'] === 'date' && $col['IS_NULLABLE'] === 'YES' && ($col['COLUMN_DEFAULT'] === null || $col['COLUMN_DEFAULT'] === 'NULL'), 'utenti.card_expiry_warning_sent_for is a nullable DATE: nobody counts as warned');
     $col = $column($c, 'solo_consultazione');
     $check(is_array($col) && $col['IS_NULLABLE'] === 'NO' && trim((string) $col['COLUMN_DEFAULT'], "'") === '0', 'copie.solo_consultazione is NOT NULL DEFAULT 0');
     $check($scalar("SELECT GROUP_CONCAT(CONCAT(id, ':', stato, ':', solo_consultazione) ORDER BY id) FROM {$c}") === '1:disponibile:0,2:prestato:0', 'existing copies stay lendable');
@@ -118,6 +120,7 @@ try {
     $check(str_contains($schema, 'CREATE TABLE IF NOT EXISTS `tipologie_lettore`') && str_contains($schema, 'CREATE TABLE IF NOT EXISTS `regole_prestito`'), 'fresh install creates both tables');
     $check(str_contains($schema, '`tipologia_id` int DEFAULT NULL') && str_contains($schema, 'CONSTRAINT `fk_utenti_tipologia` FOREIGN KEY (`tipologia_id`) REFERENCES `tipologie_lettore` (`id`) ON DELETE SET NULL'), 'fresh install has utenti.tipologia_id with its foreign key');
     $check(str_contains($schema, "`solo_consultazione` tinyint(1) NOT NULL DEFAULT '0'"), 'fresh install has copie.solo_consultazione');
+    $check(str_contains($schema, '`card_expiry_warning_sent_for` date DEFAULT NULL'), 'fresh install has utenti.card_expiry_warning_sent_for');
     foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
         $data = (string) file_get_contents(dirname(__DIR__) . "/installer/database/data_{$locale}.sql");
         $check(str_contains($data, "INSERT INTO `tipologie_lettore` (`codice`, `nome`, `predefinita`, `ordinamento`) VALUES ('standard', 'Standard', 1, 0);"), "fresh {$locale} install seeds the default type");

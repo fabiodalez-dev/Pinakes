@@ -181,7 +181,10 @@ class RegistrationController
         // Ensure timezone consistency BEFORE generating dates
         $db->query("SET SESSION time_zone = '+00:00'");
 
-        $data_scadenza_tessera = gmdate('Y-m-d', strtotime('+5 years')); // Scadenza tessera tra 5 anni in UTC
+        // Card validity: the default patron type's card duration when it sets
+        // one (circulation policy), otherwise the historical 5 years.
+        $data_scadenza_tessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, null)
+            ?? gmdate('Y-m-d', strtotime('+5 years')); // Scadenza tessera tra 5 anni in UTC
         $data_scadenza_token = gmdate('Y-m-d H:i:s', time() + 24 * 60 * 60); // Token scade tra 24 ore in UTC
 
         // GDPR: Record privacy acceptance timestamp

@@ -68,7 +68,7 @@ final class PatronTypeAssignment
     public static function automaticCardExpiry(mysqli $db, ?int $typeId): ?string
     {
         $days = (new CirculationPolicy($db))->forType($typeId)->user->cardDurationDays;
-        return $days !== null ? CirculationPolicy::dueDateFor(DateHelper::today(), $days) : null;
+        return $days !== null ? self::todayPlus($days) : null;
     }
 
     /**
@@ -104,6 +104,81 @@ final class PatronTypeAssignment
         $id = is_numeric($typeId) ? (int) $typeId : null;
         $id = $id !== null && isset($types[$id]) ? $id : $policy->defaultTypeId();
         return $id !== null ? (string) $types[$id]['nome'] : '';
+    }
+
+    /** Card validity used by "Rinnova tessera" when the patron type sets none. */
+    public const DEFAULT_RENEWAL_DAYS = 365;
+
+    /**
+     * Renew the library card of $userId: expiry = today + the card duration
+     * of the patron type (DEFAULT_RENEWAL_DAYS when the type sets none), an
+     * expired account becomes active again and the expiry warning re-arms.
+     * Returns the new expiry date, or null when the account has no card
+     * (admin/staff) or does not exist.
+     */
+    public static function renewCard(mysqli $db, int $userId): ?string
+    {
+        $stmt = $db->prepare('SELECT id, tipo_utente, stato, data_scadenza_tessera FROM utenti WHERE id = ?');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$user || !in_array($user['tipo_utente'], ['standard', 'premium'], true)) {
+            return null;
+        }
+        $policy = new CirculationPolicy($db);
+        $days = $policy->forUser($userId)->cardDurationDays ?? self::DEFAULT_RENEWAL_DAYS;
+        $expiry = self::todayPlus($days);
+        $state = $user['stato'] === 'scaduto' ? 'attivo' : (string) $user['stato'];
+        $flagSql = self::hasExpiryWarningFlag($db) ? ', card_expiry_warning_sent_for = NULL' : '';
+        $update = $db->prepare('UPDATE utenti SET data_scadenza_tessera = ?, stato = ?' . $flagSql . ' WHERE id = ?');
+        $update->bind_param('ssi', $expiry, $state, $userId);
+        $update->execute();
+        $update->close();
+        ActivityLog::recordEntityEvent(
+            $db,
+            'utenti',
+            $userId,
+            'user.card_renewed',
+            ['data_scadenza_tessera' => $user['data_scadenza_tessera'], 'stato' => $user['stato']],
+            ['data_scadenza_tessera' => $expiry, 'stato' => $state],
+            source: 'manual'
+        );
+        return $expiry;
+    }
+
+    /**
+     * Apply the patron type's card duration on registration approval: only
+     * when the type sets one (otherwise the stored expiry is kept).
+     */
+    public static function applyCardDurationOnApproval(mysqli $db, int $userId): void
+    {
+        $policy = new CirculationPolicy($db);
+        $days = $policy->forUser($userId)->cardDurationDays;
+        if ($days === null) {
+            return;
+        }
+        $expiry = self::todayPlus($days);
+        $stmt = $db->prepare("UPDATE utenti SET data_scadenza_tessera = ? WHERE id = ? AND tipo_utente IN ('standard', 'premium')");
+        $stmt->bind_param('si', $expiry, $userId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    /**
+     * today + $days as a calendar date. Card expiries are not loan due dates:
+     * they deliberately bypass CirculationPolicy::dueDateFor(), which the
+     * closures calendar shifts to the next open day.
+     */
+    public static function todayPlus(int $days): string
+    {
+        return (new \DateTimeImmutable(DateHelper::today()))->modify('+' . max(0, $days) . ' days')->format('Y-m-d');
+    }
+
+    private static function hasExpiryWarningFlag(mysqli $db): bool
+    {
+        $result = $db->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND COLUMN_NAME = 'card_expiry_warning_sent_for'");
+        return $result instanceof \mysqli_result && (int) ($result->fetch_row()[0] ?? 0) === 1;
     }
 
     /**
