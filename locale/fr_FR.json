@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Le code ne correspond à aucun exemplaire du catalogue.",
   "Questa copia è già stata registrata in questa revisione.": "Cet exemplaire a déjà été enregistré dans ce récolement.",
   "La copia esiste ma non rientra nel filtro della revisione.": "L'exemplaire existe mais n'entre pas dans le filtre du récolement.",
-  "La copia risulta in prestito: verifica il prestito.": "L'exemplaire est enregistré comme prêté : vérifiez le prêt.",
   "La revisione è stata chiusa da un altro operatore.": "Le récolement a été clôturé par un autre opérateur.",
   "Revisore inventario": "Agent de récolement",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Profil de départ pour participer aux récolements : ouvrir une session et scanner les exemplaires, sans modifier le catalogue ni déclarer des exemplaires perdus.",
@@ -8567,5 +8566,8 @@
   "Trascina qui il file MARC o %{browse}": "Déposez le fichier MARC ici ou %{browse}",
   "Tutti i campi": "Tous les champs",
   "UNIMARC (.mrc)": "UNIMARC (.mrc)",
-  "Il file contiene più di %d record: vengono importati solo i primi %d": "Le fichier contient plus de %d notices : seules les %d premières sont importées"
+  "Il file contiene più di %d record: vengono importati solo i primi %d": "Le fichier contient plus de %d notices : seules les %d premières sont importées",
+  "In prestito o in attesa di ritiro": "Emprunté ou en attente de retrait",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "L'exemplaire est enregistré comme prêté ou en attente de retrait : vérifiez le prêt.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "L'intervalle est comparé par ordre alphabétique, pas numérique : A.10 vient avant A.2."
 }

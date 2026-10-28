@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Il codice non corrisponde a nessuna copia a catalogo.",
   "Questa copia è già stata registrata in questa revisione.": "Questa copia è già stata registrata in questa revisione.",
   "La copia esiste ma non rientra nel filtro della revisione.": "La copia esiste ma non rientra nel filtro della revisione.",
-  "La copia risulta in prestito: verifica il prestito.": "La copia risulta in prestito: verifica il prestito.",
   "La revisione è stata chiusa da un altro operatore.": "La revisione è stata chiusa da un altro operatore.",
   "Revisore inventario": "Revisore inventario",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.",
@@ -8567,5 +8566,8 @@
   "Trascina qui il file MARC o %{browse}": "Trascina qui il file MARC o %{browse}",
   "Tutti i campi": "Tutti i campi",
   "UNIMARC (.mrc)": "UNIMARC (.mrc)",
-  "Il file contiene più di %d record: vengono importati solo i primi %d": "Il file contiene più di %d record: vengono importati solo i primi %d"
+  "Il file contiene più di %d record: vengono importati solo i primi %d": "Il file contiene più di %d record: vengono importati solo i primi %d",
+  "In prestito o in attesa di ritiro": "In prestito o in attesa di ritiro",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2."
 }
