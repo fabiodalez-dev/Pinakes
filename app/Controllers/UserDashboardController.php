@@ -233,7 +233,7 @@ class UserDashboardController
         $ledgerMovements = [];
         $ledgerAccrued = [];
         try {
-            $ledger = new \App\Services\PatronLedger($db);
+            $ledger = \App\Services\PatronLedger::forDb($db);
             $ledgerBalanceCents = $ledger->balanceCents($userId);
             $ledgerMovements = $ledger->movements($userId, 50);
             $ledgerAccrued = $ledger->accruedFines($userId);

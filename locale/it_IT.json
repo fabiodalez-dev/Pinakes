@@ -9019,5 +9019,11 @@
   "Storno": "Storno",
   "Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.": "Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.",
   "Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0": "Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0",
-  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita."
+  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.",
+  "Tolleranza": "Tolleranza",
+  "Multa/giorno": "Multa/giorno",
+  "Multa max": "Multa max",
+  "Multa: %s/giorno": "Multa: %s/giorno",
+  "Blocco oltre %s": "Blocco oltre %s",
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti."
 }

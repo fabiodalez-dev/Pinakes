@@ -793,7 +793,7 @@ class UsersController
         $patronTypeIsOwn = isset($utente['tipologia_id']);
         // "Movimenti" section (plan §7): balance, ledger rows, fines accruing on
         // open overdue loans (shown, not written), and who may act on them.
-        $ledger = new \App\Services\PatronLedger($db);
+        $ledger = \App\Services\PatronLedger::forDb($db);
         $ledgerBalanceCents = $ledger->balanceCents($id);
         $ledgerMovements = $ledger->movements($id, 200);
         $ledgerAccrued = $ledger->accruedFines($id);

@@ -1406,7 +1406,7 @@ class PrestitiController
 
         // Plan §7: the late fine a return today would charge, shown before the
         // operator confirms (with the option to waive it on the spot).
-        $finePreview = (new \App\Services\PatronLedger($db))->previewLateFine($id);
+        $finePreview = \App\Services\PatronLedger::forDb($db)->previewLateFine($id);
 
         ob_start();
         require __DIR__ . '/../Views/prestiti/restituito_prestito.php';
@@ -1558,7 +1558,7 @@ class PrestitiController
             // fine (idempotent key late:<id>, 0 when fines are disabled) and the
             // amount assessed for a lost/damaged copy (penalty:<id>, mirrored
             // from prestiti.sanzione, which stays the source for emails/audit).
-            $ledger = new \App\Services\PatronLedger($db);
+            $ledger = \App\Services\PatronLedger::forDb($db);
             $ledgerStaffId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
             $lateFineCents = $ledger->chargeLateReturn($id, $ledgerStaffId);
             $ledger->chargeLossPenalty($id, $ledgerStaffId);
@@ -1839,7 +1839,7 @@ class PrestitiController
 
         // Plan §7: fine accruing on an open overdue loan (shown, written only at
         // return) and the late fine already charged on a closed one.
-        $ledger = new \App\Services\PatronLedger($db);
+        $ledger = \App\Services\PatronLedger::forDb($db);
         $loanFineAccruedCents = ((int) ($prestito['attivo'] ?? 0) === 1 && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true))
             ? (int) $ledger->previewLateFine($id)['cents']
             : 0;

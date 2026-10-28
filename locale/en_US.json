@@ -9019,5 +9019,11 @@
   "Storno": "Reversal",
   "Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.": "Cap on the fine of a single loan. Empty or 0 = no cap.",
   "Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0": "A delay up to this many days is not fined. Default: 0",
-  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Uses the “Late fine charged” email template. Off by default."
+  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Uses the “Late fine charged” email template. Off by default.",
+  "Tolleranza": "Grace",
+  "Multa/giorno": "Fine/day",
+  "Multa max": "Max fine",
+  "Multa: %s/giorno": "Fine: %s/day",
+  "Blocco oltre %s": "Blocked above %s",
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Daily fine 0 = no fines for this type; block threshold 0 = no debt block. An empty field inherits the setting of the Loans tab."
 }

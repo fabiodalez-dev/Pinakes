@@ -39,8 +39,21 @@ final class PatronLedger
     public function __construct(mysqli $db, ?FineCalculator $calculator = null)
     {
         $this->db = $db;
-        // Stack hook: the closures calendar injects its "is open day" callable here.
         $this->calculator = $calculator ?? new FineCalculator();
+    }
+
+    /**
+     * The ledger every application path uses (return paths, reader record,
+     * notifications, reports, Mobile API). Building it here is the single
+     * place where the late-fine day count gets its "is the library open on
+     * this day" rule, so closed days are honoured on every channel at once.
+     */
+    public static function forDb(mysqli $db): self
+    {
+        // Every calendar day counts until a closures calendar exists.
+        // Stack hook: the closures calendar passes its "is open day" callable
+        // here: new FineCalculator(static fn (string $ymd): bool => ...).
+        return new self($db, new FineCalculator());
     }
 
     /** SQL expression for a patron's balance; $userIdExpr is a fixed column reference. */
@@ -71,16 +84,13 @@ final class PatronLedger
     }
 
     /**
-     * Debt block (plan §7): the patron owes more than the threshold.
-     * Mirrors the SQL predicate in LoanEligibility::eligibleUserWhere().
+     * Debt block (plan §7): the patron owes more than the threshold of their
+     * patron type (else the global one). See CirculationPolicy::debtBlockError();
+     * the SQL twin is LoanEligibility::debtBlockSql().
      */
     public static function isDebtBlocked(mysqli $db, int $userId): bool
     {
-        $params = FineParameters::forUser($db, $userId);
-        if (!$params->debtBlockEnabled()) {
-            return false;
-        }
-        return (new self($db))->balanceCents($userId) > (int) $params->debtBlockThresholdCents;
+        return (new CirculationPolicy($db))->debtBlockError($userId) !== null;
     }
 
     /**

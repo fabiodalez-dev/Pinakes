@@ -116,7 +116,7 @@ class StatsController
         $extraSections = \App\Support\StatisticsSections::extensions($db);
         // Fines report (plan §7): charged / collected / waived per month.
         [$finesFrom, $finesTo] = self::finesPeriod($request);
-        $finesByMonth = (new \App\Services\PatronLedger($db))->periodTotals($finesFrom, $finesTo);
+        $finesByMonth = \App\Services\PatronLedger::forDb($db)->periodTotals($finesFrom, $finesTo);
 
         $title = 'Statistiche Prestiti';
 
@@ -136,7 +136,7 @@ class StatsController
     public function finesCsv(Request $request, Response $response, \mysqli $db): Response
     {
         [$from, $to] = self::finesPeriod($request);
-        $rows = (new \App\Services\PatronLedger($db))->periodTotals($from, $to);
+        $rows = \App\Services\PatronLedger::forDb($db)->periodTotals($from, $to);
         $currency = \App\Services\FineParameters::currency();
         $out = fopen('php://temp', 'r+');
         fputcsv($out, [__('Mese'), __('Addebitato') . ' (' . $currency . ')', __('Incassato') . ' (' . $currency . ')', __('Condonato') . ' (' . $currency . ')', __('Stornato') . ' (' . $currency . ')'], ',', '"', '');

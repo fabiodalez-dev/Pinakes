@@ -14,6 +14,7 @@ declare(strict_types=1);
  * Run: php tests/fine-calculator.unit.php (exit code is the verdict)
  */
 
+use App\Services\Circulation\PolicyResolver;
 use App\Services\FineCalculator;
 use App\Services\FineParameters;
 
@@ -81,6 +82,25 @@ $check(FineParameters::decimalToCents('-12.50') === -1250 && FineParameters::dec
 $check(FineParameters::format(1250, 'it_IT', 'EUR') === '12,50 €' && FineParameters::format(1250, 'en_US', 'USD') === 'USD 12.50', 'format per locale and currency');
 $check($params('1', 0, '', '10')->debtBlockThresholdCents === 1000, 'debt threshold in cents');
 $check(FineParameters::fromSettings(['fine_grace_days' => '-4'])->graceDays === 0, 'negative grace clamps to 0');
+
+// FineParameters over CirculationPolicy layers (rule → patron type → globals).
+$globals = ['duration_days' => 30, 'max_request_days' => 90, 'max_renewals' => 3, 'max_active_loans' => 0,
+    'daily_fine' => '0.50', 'grace_days' => 2, 'max_fine_per_loan' => null, 'debt_block_threshold' => '10.00'];
+$resolve = static fn (array $layers, ?array $type = null): FineParameters => FineParameters::fromPolicy(
+    PolicyResolver::resolve($layers, $globals, PolicyResolver::resolveUser($type, $globals), 'dvd'),
+    'EUR'
+);
+$g = $resolve([]);
+$check($g->dailyFineCents === 50 && $g->graceDays === 2 && $g->maxFinePerLoanCents === null && $g->debtBlockThresholdCents === 1000, 'globals only: 0.50/day, 2 grace days, no cap, block over 10');
+$t = $resolve([null, null, null, ['daily_fine' => '1.00', 'grace_days' => 0, 'max_fine_per_loan' => '4.00']], ['debt_block_threshold' => '3.00']);
+$check($t->dailyFineCents === 100 && $t->graceDays === 0 && $t->maxFinePerLoanCents === 400 && $t->debtBlockThresholdCents === 300, 'patron type layer overrides every fine field and the threshold');
+$r = $resolve([['daily_fine' => '2.00'], null, null, ['daily_fine' => '1.00', 'grace_days' => 5]]);
+$check($r->dailyFineCents === 200 && $r->graceDays === 5, 'a material rule overrides the type daily fine, the type grace still applies');
+$z = $resolve([null, null, null, ['daily_fine' => '0.00']], ['debt_block_threshold' => '0.00']);
+$check(!$z->finesEnabled() && !$z->debtBlockEnabled(), 'type daily fine 0 and threshold 0: fines off, no block, whatever the globals');
+$i = $resolve([null, null, null, ['daily_fine' => null, 'grace_days' => null]], ['debt_block_threshold' => null]);
+$check($i->dailyFineCents === 50 && $i->graceDays === 2 && $i->debtBlockThresholdCents === 1000, 'type with every field empty inherits the globals');
+$check(FineParameters::fromPolicy(PolicyResolver::resolve([], ['duration_days' => 30], PolicyResolver::resolveUser(null, [])))->finesEnabled() === false, 'no fine anywhere: disabled');
 
 echo PHP_EOL . "Result: {$passed} passed, {$failed} failed" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

@@ -154,7 +154,7 @@ final class ActionsController
         }
 
         try {
-            $ledger = new \App\Services\PatronLedger($this->db);
+            $ledger = \App\Services\PatronLedger::forDb($this->db);
             $params = \App\Services\FineParameters::forUser($this->db, $userId);
             $balance = $ledger->balanceCents($userId);
             $items = [];

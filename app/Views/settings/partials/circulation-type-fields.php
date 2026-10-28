@@ -16,6 +16,17 @@ $tfGlobal = [
     'giorni_rinnovo' => (string) (int) ($cGlobals['duration_days'] ?? 30),
     'max_prenotazioni' => '∞',
     'durata_tessera_giorni' => '—',
+    'giorni_tolleranza' => (string) (int) ($cGlobals['grace_days'] ?? 0),
+];
+$tfMoney = static fn (string $k): string => isset($tf[$k]) && $tf[$k] !== '' ? (string) $tf[$k] : '';
+$tfGlobalMoney = static function (mixed $v): string {
+    $cents = \App\Services\FineParameters::toCents((string) ($v ?? ''));
+    return $cents !== null && $cents > 0 ? \App\Services\FineParameters::format($cents) : '—';
+};
+$tfGlobalMoneyByField = [
+    'multa_giornaliera' => $tfGlobalMoney($cGlobals['daily_fine'] ?? null),
+    'multa_massima_prestito' => $tfGlobalMoney($cGlobals['max_fine_per_loan'] ?? null),
+    'soglia_blocco_debito' => $tfGlobalMoney($cGlobals['debt_block_threshold'] ?? null),
 ];
 ?>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -31,16 +42,26 @@ $tfGlobal = [
     <label for="<?= $tfPrefix ?>-descrizione" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Descrizione") ?></label>
     <textarea id="<?= $tfPrefix ?>-descrizione" name="descrizione" rows="2" maxlength="2000" class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"><?= htmlspecialchars((string) ($tf['descrizione'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
   </div>
-  <?php foreach (['max_prestiti', 'durata_prestito_giorni', 'max_durata_richiesta_giorni', 'max_rinnovi', 'giorni_rinnovo', 'max_prenotazioni', 'durata_tessera_giorni'] as $tfField): ?>
+  <?php foreach (['max_prestiti', 'durata_prestito_giorni', 'max_durata_richiesta_giorni', 'max_rinnovi', 'giorni_rinnovo', 'max_prenotazioni', 'durata_tessera_giorni', 'giorni_tolleranza'] as $tfField): ?>
   <div>
     <label for="<?= $tfPrefix . '-' . $tfField ?>" class="block text-sm font-medium text-gray-700 mb-2"><?= htmlspecialchars(\App\Controllers\CirculationSettingsController::fieldLabel($tfField), ENT_QUOTES, 'UTF-8') ?></label>
     <input type="number" min="0" id="<?= $tfPrefix . '-' . $tfField ?>" name="<?= $tfField ?>" value="<?= htmlspecialchars($tfInt($tfField), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(sprintf(__('Eredita: %s'), $tfGlobal[$tfField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 placeholder:text-gray-400">
+  </div>
+  <?php endforeach; ?>
+  <?php foreach (\App\Controllers\CirculationSettingsController::TYPE_MONEY_FIELDS as $tfField): ?>
+  <div>
+    <label for="<?= $tfPrefix . '-' . $tfField ?>" class="block text-sm font-medium text-gray-700 mb-2"><?= htmlspecialchars(\App\Controllers\CirculationSettingsController::fieldLabel($tfField), ENT_QUOTES, 'UTF-8') ?></label>
+    <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $tfPrefix . '-' . $tfField ?>" name="<?= $tfField ?>" value="<?= htmlspecialchars($tfMoney($tfField), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(sprintf(__('Eredita: %s'), $tfGlobalMoneyByField[$tfField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 placeholder:text-gray-400">
   </div>
   <?php endforeach; ?>
 </div>
 <p class="text-xs text-gray-500">
   <i class="fas fa-info-circle mr-1"></i>
   <?= __("Prestiti attivi massimi 0 = nessun limite. La durata della tessera, se indicata, calcola la scadenza alla creazione, all'approvazione e al rinnovo della tessera.") ?>
+</p>
+<p class="text-xs text-gray-500">
+  <i class="fas fa-info-circle mr-1"></i>
+  <?= __("Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.") ?>
 </p>
 <div class="space-y-2">
   <label class="flex items-center gap-2 text-sm text-gray-700">
