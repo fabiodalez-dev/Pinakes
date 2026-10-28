@@ -8,7 +8,9 @@ declare(strict_types=1);
  *  - a cover copied from this installation keeps the extension of its bytes
  *    (WebP stays .webp, GIF stays .gif);
  *  - a re-import full of duplicates lists at most MAX_LISTED_DUPLICATES of
- *    them in the session state and the import log.
+ *    them in the session state and the import log;
+ *  - in fill mode a family is written as soon as one of its columns is empty
+ *    and no field the book has is overwritten.
  *
  * The database part touches only the book it creates (title prefixed ZZMR)
  * and removes it with the probe trigger.
@@ -86,7 +88,36 @@ foreach ($created as $file) {
     @unlink($file);
 }
 
-// 3. Post-commit failures are warnings, not failed records.
+// 3. Fill mode never overwrites a field the book has; a family is filled as
+//    soon as one of its columns is empty (pure: MarcBookImporter::plan()).
+$existing = [
+    'id' => 7, 'isbn13' => '9788845292613', 'isbn10' => '', 'ean' => '', 'titolo' => 'Old title', 'sottotitolo' => '',
+    'anno_pubblicazione' => null, 'lingua' => 'Italiano', 'edizione' => '', 'numero_pagine' => null,
+    'collana' => 'Serie', 'numero_serie' => '', 'classificazione_dewey' => '', 'parole_chiave' => 'old',
+    'descrizione' => '', 'editore_id' => 5, 'genere_id' => null, 'traduttore' => 'Old Translator', 'illustratore' => '',
+    'curatore' => '', '_principal_authors' => 1,
+];
+$data = \App\Support\Marc\MarcBookData::empty();
+$data = [
+    'titolo' => 'New title', 'isbn13' => '9780140449136', 'isbn10' => '0140449132', 'collana' => 'Altra', 'numero_serie' => '3',
+    'traduttore' => ['New Translator'], 'illustratore' => ['Ill Ustrator'], 'autori' => ['Some Author'], 'editori' => ['Pub'],
+    'genere' => 'Narrativa', 'anno_pubblicazione' => '2001', 'parole_chiave' => ['new'],
+] + $data;
+$csv = new \App\Controllers\CsvImportController();
+$parsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($data));
+[$fill, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $data, $parsed, $existing);
+$check($fill['isbn'] === true && $row['isbn13'] === '9788845292613' && $row['isbn10'] === '0140449132', 'fill: the ISBN family is written for the empty ISBN-10, the book\'s ISBN-13 is kept');
+$check($fill['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '3', 'fill: the series number is filled, the series name kept');
+$check($fill['contributors'] === true && $row['traduttore'] === 'Old Translator' && $row['illustratore'] === 'Ill Ustrator', 'fill: the illustrator is filled, the translator kept');
+$check($fill['titolo'] === false && $fill['keywords'] === false && $fill['authors'] === false && $fill['publisher'] === false, 'fill: title, keywords, authors and publisher the book has are not touched');
+$check($fill['anno'] === true && $fill['genre'] === true && $fill['sottotitolo'] === false && $fill['formato'] === false, 'fill: an empty year and genre are filled; a family the record does not carry, and the format, are not');
+[$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $data, $parsed, $existing);
+$check($over['isbn'] === true && $over['titolo'] === true && $row['isbn13'] === '9780140449136' && $row['titolo'] === 'New title' && $row['traduttore'] === 'New Translator', 'overwrite: the record\'s values replace the book\'s');
+$partial = ['isbn13' => '9780140449136', 'titolo' => 'New title'] + \App\Support\Marc\MarcBookData::empty();
+[$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial)), ['isbn10' => '8845292614', 'traduttore' => 'Old Translator'] + $existing);
+$check($row['isbn10'] === '8845292614' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value');
+
+// 4. Post-commit failures are warnings, not failed records.
 $envFile = $root . '/.env';
 if (!is_file($envFile)) {
     echo "  SKIP database checks: no .env\n";

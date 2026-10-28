@@ -159,6 +159,9 @@ try {
     logMessage("Notifications sent:");
     logMessage("  - Expiration warnings: " . $results['expiration_warnings']);
     logMessage("  - Overdue notifications: " . $results['overdue_notifications']);
+    logMessage("  - Loan recalls: " . $results['loan_recalls']);
+    logMessage("  - Pickup reminders: " . $results['pickup_reminders']);
+    logMessage("  - Card expiry warnings: " . $results['card_expiry_warnings']);
     logMessage("  - Wishlist notifications: " . $results['wishlist_notifications']);
     logMessage("  - Reservation availability notifications retried: " . $results['reservation_notifications_retried']);
     logMessage("  - Pickup-ready notifications retried: " . $results['pickup_notifications_retried']);

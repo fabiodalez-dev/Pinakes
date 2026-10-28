@@ -130,6 +130,41 @@ test.describe.serial('MARC bulk import', () => {
     expect(dbQuery(`SELECT COUNT(*) FROM copie c JOIN libri l ON l.id=c.libro_id WHERE l.titolo='${sqlEscape(title1)}'`)).toBe('1');
   });
 
+  test('a supplier chosen on the import page goes on new and overwritten books, never on skipped ones', async ({ page }) => {
+    test.setTimeout(180000);
+    await loginAsAdmin(page);
+    dbQuery(`INSERT INTO fornitori (nome) VALUES ('Fornitore ${RUN} A'), ('Fornitore ${RUN} B')`);
+    const [a, b] = dbQuery(`SELECT id FROM fornitori WHERE nome LIKE 'Fornitore ${RUN} %' ORDER BY nome`).split('\n').map(Number);
+    expect(a).toBeGreaterThan(0);
+    const file = marcFile(RUN, 2, 'mrc', 501);
+    const suppliers = () => dbQuery(`SELECT GROUP_CONCAT(DISTINCT IFNULL(fornitore_id, 'NULL')) FROM libri WHERE titolo IN ('Libro MARC ${RUN} 501', 'Libro MARC ${RUN} 502') AND deleted_at IS NULL`);
+
+    // New books get supplier A
+    let upload = await uploadForPreview(page, file, { supplier: a });
+    expect(upload.total_rows).toBe(2);
+    let result = await confirmImport(page);
+    expect(result.imported).toBe(2);
+    expect(suppliers()).toBe(String(a));
+
+    // skip: the duplicates keep A although B is chosen
+    await uploadForPreview(page, file, { duplicates: 'skip', supplier: b });
+    result = await confirmImport(page);
+    expect(result.skipped).toBe(2);
+    expect(suppliers()).toBe(String(a));
+
+    // fill: only empty fields are completed; the supplier is not one of them
+    await uploadForPreview(page, file, { duplicates: 'fill', supplier: b });
+    result = await confirmImport(page);
+    expect(result.updated).toBe(2);
+    expect(suppliers()).toBe(String(a));
+
+    // overwrite: the record replaces the book's data, the supplier included
+    await uploadForPreview(page, file, { duplicates: 'overwrite', supplier: b });
+    result = await confirmImport(page);
+    expect(result.updated).toBe(2);
+    expect(suppliers()).toBe(String(b));
+  });
+
   test('a deleted book does not count as a duplicate: its ISBN was cleared', async ({ page }) => {
     test.setTimeout(90000);
     await loginAsAdmin(page);

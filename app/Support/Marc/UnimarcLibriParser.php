@@ -69,6 +69,20 @@ class UnimarcLibriParser
                 case '200': // Title + statement of responsibility
                     if (isset($subs['a'][0])) {
                         $out['titolo'] = $subs['a'][0];
+                        // $h number of a part, $i name of a part, in order:
+                        // "Storia d'Italia. Vol. 2. Il Medioevo".
+                        $parts = [];
+                        foreach ($field->childNodes as $child) {
+                            if ($child instanceof \DOMElement && $child->localName === 'subfield' && in_array($child->getAttribute('code'), ['h', 'i'], true)) {
+                                $part = trim(rtrim(trim($child->textContent), ' /:;=,.'));
+                                if ($part !== '') {
+                                    $parts[] = $part;
+                                }
+                            }
+                        }
+                        if ($parts !== []) {
+                            $out['titolo'] = trim(rtrim($out['titolo'], ' .') . '. ' . implode('. ', $parts), ' .');
+                        }
                     }
                     if (isset($subs['e'][0])) {
                         $out['sottotitolo'] = $subs['e'][0];

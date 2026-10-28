@@ -147,6 +147,22 @@ unset($workspaceHeader);
                             </label>
                         </div>
 
+                        <?php if (!empty($fornitori)): ?>
+                        <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                            <label for="fornitore_id" class="block text-sm font-medium text-gray-900 mb-2">
+                                <i class="fas fa-truck mr-1 text-gray-600"></i>
+                                <?= __("Fornitore") ?>
+                            </label>
+                            <select id="fornitore_id" name="fornitore_id" class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+                                <option value=""><?= __("Nessun fornitore") ?></option>
+                                <?php foreach ($fornitori as $supplierId => $supplierName): ?>
+                                <option value="<?= (int) $supplierId ?>"><?= htmlspecialchars((string) $supplierName, ENT_QUOTES, 'UTF-8') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="text-gray-600 mt-1 text-sm"><?= __("Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.") ?></p>
+                        </div>
+                        <?php endif; ?>
+
                         <div id="import-progress-container" class="mt-6 hidden">
                             <div class="bg-white border border-gray-200 rounded-lg p-4">
                                 <div class="flex items-center justify-between mb-2">

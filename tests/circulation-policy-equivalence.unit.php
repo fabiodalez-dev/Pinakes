@@ -66,7 +66,10 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
 $old = [
     // SettingsRepository::loanDurationDays() (PrestitiController store/createForm/renew, LoanRepository, StaffLoanReader)
     'duration' => static fn (SettingsRepository $s): int => (($d = (int) ($s->get('loans', 'loan_duration_days', '30') ?? 30)) >= 1 ? $d : 30),
-    // ReservationsAdminController::loanDurationDays(), NCIP CheckOut/RequestItem/RenewItem
+    // ReservationsAdminController::loanDurationDays(), NCIP CheckOut/RenewItem.
+    // NCIP RequestItem used this bare duration too; it now takes
+    // requestDurationDays() (duration capped by the request window), the
+    // same due date as a website or app request — checked below.
     'duration_ncip' => static fn (SettingsRepository $s): int => (($d = (int) ($s->get('loans', 'loan_duration_days', '30') ?? 30)) > 0 ? $d : 30),
     // SettingsRepository::maxLoanDurationDays() (ReservationsController, UserActionsController, FrontendController)
     'max_request' => static fn (SettingsRepository $s): int => (($d = (int) ($s->get('loans', 'max_loan_duration_days', '90') ?? 90)) >= 1 ? $d : 90),
@@ -110,6 +113,9 @@ foreach ($grid['loan_duration_days'] as $duration) {
                     $check($p->renewalDays === $old['duration']($settings), "renewal length = loan duration #{$i} {$tag}");
                     $check($p->maxRequestDays === $old['max_request']($settings), "max request #{$i} {$tag}");
                     $check($p->requestDurationDays() === min($old['duration']($settings), $old['max_request']($settings)), "request default #{$i} {$tag}");
+                    // NCIP RequestItem (NcipServerPlugin::handleRequestItem) no longer
+                    // equals the bare NCIP duration: it is capped like every other channel.
+                    $check($p->requestDurationDays() === min($old['duration_ncip']($settings), $old['max_request']($settings)), "NCIP RequestItem due = duration capped by the request window #{$i} {$tag}");
                     $check($p->maxRenewals === $old['renewals']($settings), "renewals #{$i} {$tag}");
                     $check($p->maxRenewals === $old['renewals_numeric']($settings), "renewals (numeric form) #{$i} {$tag}");
                     $check(($p->maxActiveLoans > 0) === ($old['max_loans']($settings) > 0), "limit enabled #{$i} {$tag}");

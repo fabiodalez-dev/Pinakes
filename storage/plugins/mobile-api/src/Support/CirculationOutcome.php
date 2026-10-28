@@ -222,6 +222,26 @@ final class CirculationOutcome
     }
 
     /**
+     * The state of a reader's loan request after UserActionsController::loan()
+     * (POST /reservations on an available title): the request stays
+     * `pendente` unless it was auto-approved, in which case loan() threads
+     * the persisted state through the redirect as `loan_state`: `prenotato`
+     * when the start day is ahead (the library is closed today, so the loan
+     * starts on the next open day), `da_ritirare` when it starts today. An
+     * approved request without a usable state is reported as `da_ritirare`.
+     *
+     * @param array<string, string> $outcome the redirect query of loan()
+     */
+    public static function requestState(array $outcome): string
+    {
+        if (($outcome['auto_approved'] ?? '0') !== '1') {
+            return 'pendente';
+        }
+        $state = (string) ($outcome['loan_state'] ?? '');
+        return in_array($state, ['prenotato', 'da_ritirare'], true) ? $state : 'da_ritirare';
+    }
+
+    /**
      * Presentation hint for a reservation row.
      *
      * @return list<string>

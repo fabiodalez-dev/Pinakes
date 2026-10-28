@@ -26,9 +26,11 @@ class SuppliersController
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
-        $data = SupplierRepository::normalize((array) $request->getParsedBody());
-        if ($data['nome'] === null) {
-            $_SESSION['error_message'] = __('Il nome del fornitore è obbligatorio.');
+        $input = (array) $request->getParsedBody();
+        $data = SupplierRepository::normalize($input);
+        $error = $this->validationError($input, $data);
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
             return $response->withHeader('Location', url('/admin/suppliers/create'))->withStatus(302);
         }
         try {
@@ -56,9 +58,11 @@ class SuppliersController
         if ($repo->getById($id) === null) {
             return $response->withStatus(404);
         }
-        $data = SupplierRepository::normalize((array) $request->getParsedBody());
-        if ($data['nome'] === null) {
-            $_SESSION['error_message'] = __('Il nome del fornitore è obbligatorio.');
+        $input = (array) $request->getParsedBody();
+        $data = SupplierRepository::normalize($input);
+        $error = $this->validationError($input, $data);
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
             return $response->withHeader('Location', url('/admin/suppliers/edit/' . $id))->withStatus(302);
         }
         try {
@@ -84,6 +88,28 @@ class SuppliersController
             $_SESSION['error_message'] = __('Impossibile eliminare il fornitore. Riprova più tardi.');
         }
         return $response->withHeader('Location', url('/admin/suppliers'))->withStatus(302);
+    }
+
+    /**
+     * The message that refuses a submission, or NULL when it can be saved:
+     * the name is required, and an e-mail or website that is not one is
+     * refused rather than silently dropped by normalize().
+     *
+     * @param array<string, mixed> $input raw form data
+     * @param array<string, ?string> $data the same data, normalized
+     */
+    private function validationError(array $input, array $data): ?string
+    {
+        $messages = [];
+        if ($data['nome'] === null) {
+            $messages[] = __('Il nome del fornitore è obbligatorio.');
+        }
+        foreach (SupplierRepository::invalidFields($input) as $field) {
+            $messages[] = $field === 'email'
+                ? __('L\'email del fornitore non è un indirizzo valido.')
+                : __('Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.');
+        }
+        return $messages === [] ? null : implode(' ', $messages);
     }
 
     /** @param array<string, mixed> $data */

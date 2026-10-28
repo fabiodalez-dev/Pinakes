@@ -124,6 +124,8 @@ try {
     foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
         $data = (string) file_get_contents(dirname(__DIR__) . "/installer/database/data_{$locale}.sql");
         $check(str_contains($data, "INSERT INTO `tipologie_lettore` (`codice`, `nome`, `predefinita`, `ordinamento`) VALUES ('standard', 'Standard', 1, 0);"), "fresh {$locale} install seeds the default type");
+        // The card_expiring template is seeded like the other templates (row 29), with the shipped text's placeholders.
+        $check(preg_match("/`email_templates` VALUES \\(29,'card_expiring','{$locale}',[^\\n]*\\{\\{data_scadenza_tessera\\}\\}[^\\n]*\\{\\{giorni_rimasti\\}\\}/", $data) === 1, "fresh {$locale} install seeds the card_expiring email template");
     }
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
     $check(version_compare('0.9.0', (string) $version, '<='), 'the release includes the migration');

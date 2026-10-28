@@ -1,7 +1,8 @@
 // @ts-check
 // RDA content / media / carrier in cataloguing (0.9.0): derived from the
-// media type, optional per-record override in the book form, override used by
-// the BIBFRAME output (historical output kept when there is no override).
+// media type, optional per-record override in the book form, and the BIBFRAME
+// output carrying the effective triple (derived types for every record, the
+// override when one is set: a book keeps txt/n/nc, an audiobook gets spw/s/sd).
 const { test, expect } = require('@playwright/test');
 const h = require('./helpers/minor-features-090');
 

@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "The code does not match any copy in the catalogue.",
   "Questa copia è già stata registrata in questa revisione.": "This copy was already recorded in this stocktake.",
   "La copia esiste ma non rientra nel filtro della revisione.": "The copy exists but is outside the stocktake's filter.",
-  "La copia risulta in prestito: verifica il prestito.": "The copy is recorded as on loan: check the loan.",
   "La revisione è stata chiusa da un altro operatore.": "The stocktake was closed by another operator.",
   "Revisore inventario": "Stocktake reviewer",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Starting profile for taking part in stocktakes: open a session and scan copies, without changing the catalogue or declaring copies lost.",
@@ -9032,5 +9031,19 @@
   "Movimenti %1$d–%2$d di %3$d": "Movements %1$d–%2$d of %3$d",
   "Solo gli amministratori possono modificare multe e soglia di blocco.": "Only administrators can change fines and the debt threshold.",
   "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Invalid amount for \"%1$s\": the maximum allowed is %2$s.",
-  "Richiesta già registrata: ricarica la pagina e riprova.": "Request already recorded: reload the page and try again."
+  "Richiesta già registrata: ricarica la pagina e riprova.": "Request already recorded: reload the page and try again.",
+  "Prestito approvato: potrai ritirare il libro dal %s.": "Loan approved: you can pick up the book from %s.",
+  "File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).": "ICS file imported: %1$d closures added, %2$d already present, %3$d discarded as longer than the limit (one year if yearly, ten years otherwise).",
+  "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Without a card expiry in the file, the date is computed from the card duration of the patron type (the one given or the default one); an expiry present in the CSV takes precedence.",
+  "Utente importato, ma la scadenza della tessera non è stata calcolata.": "User imported, but the card expiry could not be computed.",
+  "Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)": "Compute the expiry from the card duration of the patron type (when set, and when the date above is left empty)",
+  "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.": "The file was not UTF-8 and has been converted from Windows-1252: check the accented letters in the preview.",
+  "L'email del fornitore non è un indirizzo valido.": "The supplier e-mail is not a valid address.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "The supplier website is not a valid address: enter an http(s) URL, for example https://www.example.org.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Assigned to the new books and, with \"Overwrite\", to the books already in the catalogue. Skipped or merely completed books keep their supplier.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Assigned to the new books this import creates. Books already in the catalogue keep their supplier.",
+  "Fornitore non assegnato": "Supplier not assigned",
+  "In prestito o in attesa di ritiro": "On loan or awaiting pickup",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2."
 }

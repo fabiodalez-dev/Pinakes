@@ -10,17 +10,22 @@ use App\Support\PublicationPlace;
 /**
  * MARC 21 bibliographic → Pinakes book data.
  *
- *   020 $a ISBN-13 / ISBN-10 (qualifiers dropped)   022 $a ISSN
- *   024 $a EAN (when it is not the ISBN-13 again)   041 $a language (else 008/35-37)
+ *   020 $a ISBN-13 / ISBN-10 (qualifiers dropped)   022 $a ISSN (else 490 / 830 $x)
+ *   024 $a EAN (when it is not the ISBN-13 again)   041 $a languages (else 008/35-37)
  *   050 $a $b LC classification                     082 $a Dewey
  *   100 $a main author; 700 $a added entries, their part read from $4, else $e,
  *       else the 245 $c statement of responsibility (RelatorRoles, the same
  *       reading the SRU client and danMARC2 use): editors, translators,
  *       illustrators and colorists go to their own columns, the rest stay authors
- *   245 $a title, $b rest of title                  250 $a edition
+ *   110 / 111 $a $b corporate body or meeting as the main entry, 710 / 711 as
+ *       added entries, with the same roles
+ *   245 $a title (with $n $p, the part), $b rest   250 $a edition
  *   260 / 264 $a place, $b publishers, $c year (else 008/07-10)
  *   300 $a pages, $c dimensions                     490 $a $v series (else 830)
  *   520 $a summary   650 / 651 / 653 $a keywords    856 $u cover image
+ *   655 $a genre, only with $2 local (the catalogue's own term)
+ *   leader/06 (and 336 $b) media type; 336 / 337 / 338 $b RDA codes the media
+ *       type does not imply
  */
 final class Marc21LibriMapper implements MarcLibriMapper
 {
@@ -31,11 +36,46 @@ final class Marc21LibriMapper implements MarcLibriMapper
         'colorist' => 'colorista',
     ];
 
+    /**
+     * The name of a name entry: a person's $a; a corporate body's or
+     * meeting's $a with its subordinate units ($b), "United States. Congress".
+     */
+    private static function entryName(MarcField $field): string
+    {
+        $name = MarcBookData::cleanName($field->subfield('a'));
+        if (!in_array($field->tag, ['110', '111', '710', '711'], true)) {
+            return $name;
+        }
+        $parts = [];
+        foreach (array_merge([$name], array_map([MarcBookData::class, 'cleanName'], $field->subfieldValues('b'))) as $part) {
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+        return implode('. ', $parts);
+    }
+
     public function map(MarcRecord $record): array
     {
         $data = MarcBookData::empty();
 
-        $data['titolo'] = MarcBookData::clean($record->subfield('245', 'a'));
+        // 245 $a, with the number and name of the part ($n, $p, in order)
+        // appended: "Storia d'Italia. Vol. 2. Il Medioevo".
+        $title = MarcBookData::clean($record->subfield('245', 'a'));
+        $parts = [];
+        $titleField = $record->first('245');
+        foreach ($titleField !== null ? $titleField->subfields : [] as [$code, $value]) {
+            if ($code === 'n' || $code === 'p') {
+                $part = MarcBookData::clean($value, ' /:;=,.');
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+            }
+        }
+        if ($parts !== []) {
+            $title = trim(rtrim($title, ' .') . '. ' . implode('. ', $parts), ' .');
+        }
+        $data['titolo'] = $title;
         $data['sottotitolo'] = MarcBookData::clean($record->subfield('245', 'b'));
 
         $statement = $record->subfield('245', 'c');
@@ -56,27 +96,33 @@ final class Marc21LibriMapper implements MarcLibriMapper
                 $contributors[$column][] = $name;
             }
         };
-        foreach ($record->fieldsByTag('100') as $field) {
-            $name = MarcBookData::cleanName($field->subfield('a'));
-            $codes = $field->subfieldValues('4');
-            $term = $field->subfieldValues('e');
-            // The main entry is the author unless its own relator says otherwise.
-            $role = ($codes === [] && $term === [])
-                ? 'author'
-                : RelatorRoles::resolve($codes, $term === [] ? null : implode(' ', $term), null, $name, 'marc21');
-            $file($name, $role === 'other' ? 'author' : $role);
+        // Main entry: a person (100), a corporate body (110) or a meeting
+        // (111); added entries the same way (700, 710, 711).
+        foreach (['100', '110', '111'] as $tag) {
+            foreach ($record->fieldsByTag($tag) as $field) {
+                $name = self::entryName($field);
+                $codes = $field->subfieldValues('4');
+                $term = $field->subfieldValues('e');
+                // The main entry is the author unless its own relator says otherwise.
+                $role = ($codes === [] && $term === [])
+                    ? 'author'
+                    : RelatorRoles::resolve($codes, $term === [] ? null : implode(' ', $term), null, $name, 'marc21');
+                $file($name, $role === 'other' ? 'author' : $role);
+            }
         }
-        foreach ($record->fieldsByTag('700') as $field) {
-            if ($field->subfield('t') !== null) {
-                continue; // a name-title entry is a work, not a person's part
+        foreach (['700', '710', '711'] as $tag) {
+            foreach ($record->fieldsByTag($tag) as $field) {
+                if ($field->subfield('t') !== null) {
+                    continue; // a name-title entry is a work, not a person's part
+                }
+                $name = self::entryName($field);
+                if ($name === '') {
+                    continue;
+                }
+                $term = $field->subfieldValues('e');
+                $role = RelatorRoles::resolve($field->subfieldValues('4'), $term === [] ? null : implode(' ', $term), $statement, $name, 'marc21');
+                $file($name, $role);
             }
-            $name = MarcBookData::cleanName($field->subfield('a'));
-            if ($name === '') {
-                continue;
-            }
-            $term = $field->subfieldValues('e');
-            $role = RelatorRoles::resolve($field->subfieldValues('4'), $term === [] ? null : implode(' ', $term), $statement, $name, 'marc21');
-            $file($name, $role);
         }
         $data['autori'] = $authors;
         foreach ($contributors as $column => $names) {
@@ -109,7 +155,8 @@ final class Marc21LibriMapper implements MarcLibriMapper
             $data['anno_pubblicazione'] = MarcBookData::yearOf(substr($f008, 7, 4));
         }
 
-        $data['numero_pagine'] = ContributorSorter::pagesOf((string) $record->subfield('300', 'a'));
+        // Only an extent in pages counts: "2 v." or "24 cm" is no page count.
+        $data['numero_pagine'] = ContributorSorter::pagesOf((string) $record->subfield('300', 'a'), false);
         $data['dimensioni'] = MarcBookData::clean($record->subfield('300', 'c'), ' /:;=,+');
 
         $data['collana'] = MarcBookData::clean($record->subfield('490', 'a'));
@@ -134,8 +181,21 @@ final class Marc21LibriMapper implements MarcLibriMapper
             }
         }
         $data['parole_chiave'] = $keywords;
+        // The genre: a 655 the exporting catalogue marked as its own term
+        // ($2 local, as this one writes). Any other 655 (LCGFT, RBMS...) is a
+        // form heading of a scheme the catalogue has no genre for.
+        foreach ($record->fieldsByTag('655') as $field) {
+            if (strtolower(trim((string) $field->subfield('2'))) === 'local') {
+                $data['genere'] = MarcBookData::clean($field->subfield('a'), ' /:;=,.');
+                if ($data['genere'] !== '') {
+                    break;
+                }
+            }
+        }
 
-        $dewey = (string) $record->subfield('082', 'a');
+        // 082 $a with its prime marks removed: "891.73/3" is 891.733,
+        // "813/.54" is 813.54; "[Fic]" is no number.
+        $dewey = str_replace(['/', "'"], '', (string) $record->subfield('082', 'a'));
         if (preg_match('/(\d{3}(?:\.\d+)?)/', $dewey, $m) === 1) {
             $data['classificazione_dewey'] = $m[1];
         }
@@ -157,15 +217,41 @@ final class Marc21LibriMapper implements MarcLibriMapper
                 break;
             }
         }
+        // 022: the ISSN of the resource itself; on a monograph the series
+        // ISSN travels in 490 $x (or 830 $x), as the export writes it.
         $data['issn'] = MarcBookData::clean($record->subfield('022', 'a'));
-
-        $language = (string) $record->subfield('041', 'a');
-        if ($language === '' && strlen($f008) >= 38) {
-            $language = substr($f008, 35, 3);
+        if ($data['issn'] === '') {
+            $data['issn'] = MarcBookData::clean($record->subfield('490', 'x') ?? $record->subfield('830', 'x'));
         }
-        $data['lingua'] = MarcLanguage::nameFor(substr($language, 0, 3));
+
+        // Every 041 $a (one per language), else 008/35-37.
+        $languages = [];
+        foreach ($record->subfieldValues('041', 'a') as $code) {
+            // A pre-1990 041 may pack several codes in one $a ("engita").
+            foreach (str_split(trim($code), 3) as $chunk) {
+                $name = MarcLanguage::nameFor($chunk);
+                if ($name !== '' && !in_array($name, $languages, true)) {
+                    $languages[] = $name;
+                }
+            }
+        }
+        if ($languages === [] && strlen($f008) >= 38) {
+            $name = MarcLanguage::nameFor(substr($f008, 35, 3));
+            if ($name !== '') {
+                $languages[] = $name;
+            }
+        }
+        $data['lingua'] = implode(', ', $languages);
 
         $data['copertina_url'] = MarcBookData::coverUrlOf($record);
+
+        // Media type from leader/06, refined by the RDA content type (336);
+        // RDA codes the media type does not imply are kept as the book's own.
+        $content = $record->subfield('336', 'b');
+        $data['tipo_media'] = MarcMediaType::tipoMediaOf(substr($record->leader() . '      ', 6, 1), $content);
+        foreach (MarcMediaType::overrides($data['tipo_media'], $content, $record->subfield('337', 'b'), $record->subfield('338', 'b')) as $column => $code) {
+            $data[$column] = $code;
+        }
 
         return $data;
     }

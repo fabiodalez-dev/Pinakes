@@ -13,7 +13,10 @@ namespace App\Support;
  * columns; NULL means "use the derived value".
  *
  * Codes are the Library of Congress RDA vocabulary codes, so they map 1:1 to
- * the id.loc.gov URIs the BIBFRAME plugin emits.
+ * the id.loc.gov URIs the BIBFRAME plugin emits and to the MARC 21 fields
+ * 336 (content), 337 (media) and 338 (carrier): codes() is the triple
+ * BookMarcBuilder (MARC export, #505) writes in $b of those fields, with
+ * "rdacontent" / "rdamedia" / "rdacarrier" in $2.
  */
 final class RdaTypes
 {
@@ -166,6 +169,19 @@ final class RdaTypes
             $derived[$kind] = $code;
         }
         return $derived;
+    }
+
+    /**
+     * The effective codes under the names the exporters use: the same triple
+     * as effective(), kept as a stable entry point for BookMarcBuilder
+     * (336/337/338) and the BIBFRAME plugin.
+     *
+     * @param array<string, mixed> $book
+     * @return array{content: string, media: string, carrier: string}
+     */
+    public static function codes(array $book): array
+    {
+        return self::effective($book);
     }
 
     /** id.loc.gov URI of a code. */

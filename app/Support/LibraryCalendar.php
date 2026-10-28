@@ -30,6 +30,12 @@ final class LibraryCalendar
     /** Upper bound on day-by-day scans, so an all-closed setup cannot loop forever. */
     private const MAX_SCAN_DAYS = 1100;
 
+    /** Longest yearly closure (days between start and end): a year less a day. */
+    public const MAX_YEARLY_SPAN_DAYS = 364;
+
+    /** Longest one-off closure: ten years. */
+    public const MAX_ONCE_SPAN_DAYS = 3660;
+
     /** @var array<int, true> */
     private array $closedWeekdays = [];
 
@@ -38,6 +44,9 @@ final class LibraryCalendar
 
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
     private static array $instances = [];
+
+    /** @var array<int, ?int> branchOfCopy() memo: copy id => sede_id (null when none) */
+    private array $copyBranches = [];
 
     /**
      * @param list<int>|array<int, int> $closedWeekdays 0 = Sunday … 6 = Saturday
@@ -67,10 +76,16 @@ final class LibraryCalendar
                 [$start, $end] = [$end, $start];
             }
             $sede = $row['sede_id'] ?? $row['sede'] ?? null;
+            // A yearly closure repeats its month-day span, which only makes
+            // sense for a span shorter than a year. A longer row (the form
+            // refuses one; an old import may have stored one) is applied once,
+            // as the interval it names, instead of closing every day.
+            $yearly = (bool) ($row['ricorrente_annuale'] ?? $row['yearly'] ?? false)
+                && self::spanDays($start, $end) <= self::MAX_YEARLY_SPAN_DAYS;
             $this->closures[] = [
                 'start' => $start,
                 'end' => $end,
-                'yearly' => (bool) ($row['ricorrente_annuale'] ?? $row['yearly'] ?? false),
+                'yearly' => $yearly,
                 'sede' => ($sede === null || $sede === '' || (int) $sede <= 0) ? null : (int) $sede,
             ];
         }
@@ -392,12 +407,16 @@ final class LibraryCalendar
      * Closed intervals from an iCalendar file: every VEVENT with a DTSTART.
      * All-day events have an exclusive DTEND (RFC 5545), so the last closed
      * day is the day before it; RRULE:FREQ=YEARLY makes the row recurring.
-     * Other recurrences are imported as their first occurrence only.
+     * Other recurrences are imported as their first occurrence only. A UTC
+     * DATE-TIME (trailing Z) is read in $timezone (app.timezone by default)
+     * before its day is taken. The spans are not validated here: the import
+     * applies the same limits as the form.
      *
      * @return list<array{start: string, end: string, description: string, yearly: bool}>
      */
-    public static function parseIcs(string $ics, int $maxEvents = 1000): array
+    public static function parseIcs(string $ics, int $maxEvents = 1000, ?string $timezone = null): array
     {
+        $timezone ??= self::appTimezone();
         // Unfold continuation lines (RFC 5545 §3.1).
         $ics = str_replace(["\r\n", "\r"], "\n", $ics);
         $ics = preg_replace("/\n[ \t]/", '', $ics) ?? $ics;
@@ -445,7 +464,7 @@ final class LibraryCalendar
             $value = substr($line, $colon + 1);
             $name = explode(';', $nameAndParams)[0];
             if ($name === 'DTSTART' || $name === 'DTEND') {
-                $date = self::icsDate($value);
+                $date = self::icsDate($value, $timezone);
                 if ($date === null) {
                     continue;
                 }
@@ -484,35 +503,69 @@ final class LibraryCalendar
         return $date === false ? -1 : (int) $date->format('w');
     }
 
+    /** Days between two Y-m-d dates (0 for the same day); -1 when either is not a date. */
+    public static function spanDays(string $start, string $end): int
+    {
+        $from = \DateTimeImmutable::createFromFormat('!Y-m-d', $start, new \DateTimeZone('UTC'));
+        $to = \DateTimeImmutable::createFromFormat('!Y-m-d', $end, new \DateTimeZone('UTC'));
+        if ($from === false || $to === false) {
+            return -1;
+        }
+        return (int) $from->diff($to)->days;
+    }
+
     /**
      * A yearly closure repeats its month-day span every year. A span that
-     * crosses New Year (12-24 → 01-06) wraps; a span longer than a year
-     * closes every day.
+     * crosses New Year (12-24 → 01-06) wraps. The constructor keeps only
+     * spans shorter than a year recurring, so $ymd is closed only when its
+     * month-day falls inside the span: no span closes every day.
      */
     private static function recurringCovers(string $start, string $end, string $ymd, string $monthDay): bool
     {
-        if ((int) substr($end, 0, 4) - (int) substr($start, 0, 4) >= 2) {
-            return true;
-        }
         $from = substr($start, 5);
         $to = substr($end, 5);
-        $crossesYear = substr($end, 0, 4) !== substr($start, 0, 4);
-        if ($crossesYear) {
-            if ($to >= $from) {
-                return true; // more than a full year
-            }
-            return $monthDay >= $from || $monthDay <= $to;
+        if ($to < $from) {
+            return $monthDay >= $from || $monthDay <= $to; // wraps over New Year
         }
         return $monthDay >= $from && $monthDay <= $to;
     }
 
-    private static function icsDate(string $value): ?string
+    /**
+     * The day of an iCalendar DATE or DATE-TIME. A floating DATE-TIME and a
+     * DATE are taken as written; a UTC DATE-TIME (trailing Z) is converted
+     * to $timezone first, so 20260410T230000Z in Europe/Rome is 2026-04-11.
+     */
+    private static function icsDate(string $value, string $timezone): ?string
     {
-        if (preg_match('/^(\d{4})(\d{2})(\d{2})/', trim($value), $m) !== 1) {
+        $value = trim($value);
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z?))?/i', $value, $m) !== 1) {
             return null;
         }
         $date = "{$m[1]}-{$m[2]}-{$m[3]}";
-        return DateHelper::isISODateFormat($date) ? $date : null;
+        if (!DateHelper::isISODateFormat($date)) {
+            return null;
+        }
+        if (($m[7] ?? '') === '') {
+            return $date;
+        }
+        try {
+            $utc = new \DateTimeImmutable(sprintf('%sT%s:%s:%s', $date, $m[4], $m[5], $m[6] !== '' ? $m[6] : '00'), new \DateTimeZone('UTC'));
+            return $utc->setTimezone(new \DateTimeZone($timezone))->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return $date;
+        }
+    }
+
+    /** app.timezone, with the same fallback as DateHelper::today(). */
+    private static function appTimezone(): string
+    {
+        try {
+            $tz = (string) ConfigStore::get('app.timezone', 'Europe/Rome');
+            new \DateTimeZone($tz);
+            return $tz;
+        } catch (\Throwable $e) {
+            return 'Europe/Rome';
+        }
     }
 
     /**
@@ -558,12 +611,25 @@ final class LibraryCalendar
         }
     }
 
-    /** The branch (copie.sede_id) of a copy, null when unknown or none. */
+    /**
+     * The branch (copie.sede_id) of a copy, null when unknown or none. One
+     * query per copy and connection: the answer is kept on the forDb()
+     * calendar, which reset() discards with it.
+     */
     public static function branchOfCopy(\mysqli $db, ?int $copiaId): ?int
     {
         if ($copiaId === null || $copiaId <= 0) {
             return null;
         }
+        $calendar = self::forDb($db);
+        if (array_key_exists($copiaId, $calendar->copyBranches)) {
+            return $calendar->copyBranches[$copiaId];
+        }
+        return $calendar->copyBranches[$copiaId] = self::queryBranchOfCopy($db, $copiaId);
+    }
+
+    private static function queryBranchOfCopy(\mysqli $db, int $copiaId): ?int
+    {
         try {
             $stmt = $db->prepare('SELECT sede_id FROM copie WHERE id = ?');
             if ($stmt === false) {
