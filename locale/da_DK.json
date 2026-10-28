@@ -8520,6 +8520,8 @@
   "Conferma: autori, editori e copie vengono creati come nell'import CSV": "Bekræft: forfattere, forlag og eksemplarer oprettes som ved CSV-import",
   "Controlla l'anteprima dei primi record": "Tjek forhåndsvisningen af de første poster",
   "Copertina non scaricata": "Omslag ikke hentet",
+  "Campi MARC aggiuntivi non salvati": "Yderligere MARC-felter ikke gemt",
+  "Indice di ricerca non aggiornato": "Søgeindeks ikke opdateret",
   "Copy cataloging (SRU)": "Kopikatalogisering (SRU)",
   "Copy cataloging": "Kopikatalogisering",
   "Dal leader del record (posizione 9)": "Fra postens leader (position 9)",

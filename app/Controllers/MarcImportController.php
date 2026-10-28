@@ -29,6 +29,13 @@ class MarcImportController
     private const MAX_FILE_BYTES = 20 * 1024 * 1024;
     private const MAX_RECORDS = 20000;
     private const SESSION_KEY = 'marc_import_data';
+    /**
+     * Skipped duplicates listed by name in the run's history. The rest only
+     * count (counters['skipped']): re-importing a whole export of this
+     * catalogue must not grow the session, rewritten on every chunk, and the
+     * import log by one entry per record.
+     */
+    public const MAX_LISTED_DUPLICATES = 100;
     private const EXTENSIONS = ['mrc', 'marc', 'iso', 'dat', 'xml', 'marcxml'];
 
     public function showImportPage(Request $request, Response $response): Response
@@ -206,12 +213,7 @@ class MarcImportController
                     $warnings = [];
                     $result = $importer->import($bookData, $counters, $warnings);
                     if ($result['action'] === 'skipped') {
-                        $state['errors'][] = [
-                            'line' => $position,
-                            'title' => $title,
-                            'message' => sprintf(__('Già in catalogo (libro #%d): saltato'), (int) $result['id']),
-                            'type' => 'duplicate',
-                        ];
+                        self::listSkippedDuplicate($state, $position, $title, (int) $result['id']);
                     }
                     foreach ($warnings as $warning) {
                         $state['errors'][] = ['line' => $position, 'title' => $title, 'message' => $warning, 'type' => 'cover'];
@@ -257,6 +259,26 @@ class MarcImportController
             'complete' => $complete,
             'import_id' => $importId,
         ]);
+    }
+
+    /**
+     * Note a skipped duplicate in the run's report, up to MAX_LISTED_DUPLICATES.
+     *
+     * @param array<string, mixed> $state
+     */
+    public static function listSkippedDuplicate(array &$state, int $position, string $title, int $bookId): void
+    {
+        $listed = (int) ($state['duplicates_listed'] ?? 0);
+        if ($listed >= self::MAX_LISTED_DUPLICATES) {
+            return;
+        }
+        $state['duplicates_listed'] = $listed + 1;
+        $state['errors'][] = [
+            'line' => $position,
+            'title' => $title,
+            'message' => sprintf(__('Già in catalogo (libro #%d): saltato'), $bookId),
+            'type' => 'duplicate',
+        ];
     }
 
     /**

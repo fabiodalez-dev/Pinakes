@@ -67,7 +67,15 @@ final class MarcCoverFetcher
         if ($info === false) {
             throw new \RuntimeException(__('File non valido o corrotto.'));
         }
-        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'png' ? 'png' : 'jpg';
+        // The stored name follows the bytes, not the source name, so a server
+        // that types files by extension serves the right Content-Type.
+        $extension = match ($info[2]) {
+            IMAGETYPE_JPEG => 'jpg',
+            IMAGETYPE_PNG => 'png',
+            IMAGETYPE_WEBP => 'webp',
+            IMAGETYPE_GIF => 'gif',
+            default => throw new \RuntimeException(__('File non valido o corrotto.')),
+        };
         $name = uniqid('copertina_', true) . '.' . $extension;
         if (!@copy($file, self::coversDir() . '/' . $name)) {
             throw new \RuntimeException(__('Errore nel salvataggio dell\'immagine.'));

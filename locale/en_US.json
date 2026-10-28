@@ -8520,6 +8520,8 @@
   "Conferma: autori, editori e copie vengono creati come nell'import CSV": "Confirm: authors, publishers and copies are created as in the CSV import",
   "Controlla l'anteprima dei primi record": "Check the preview of the first records",
   "Copertina non scaricata": "Cover not downloaded",
+  "Campi MARC aggiuntivi non salvati": "Additional MARC fields not saved",
+  "Indice di ricerca non aggiornato": "Search index not updated",
   "Copy cataloging (SRU)": "Copy cataloguing (SRU)",
   "Copy cataloging": "Copy cataloguing",
   "Dal leader del record (posizione 9)": "From the record leader (position 9)",

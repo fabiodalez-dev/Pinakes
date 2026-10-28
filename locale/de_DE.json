@@ -8520,6 +8520,8 @@
   "Conferma: autori, editori e copie vengono creati come nell'import CSV": "Bestätige: Autoren, Verlage und Exemplare werden wie beim CSV-Import angelegt",
   "Controlla l'anteprima dei primi record": "Prüfe die Vorschau der ersten Datensätze",
   "Copertina non scaricata": "Cover nicht heruntergeladen",
+  "Campi MARC aggiuntivi non salvati": "Zusätzliche MARC-Felder nicht gespeichert",
+  "Indice di ricerca non aggiornato": "Suchindex nicht aktualisiert",
   "Copy cataloging (SRU)": "Fremddatenübernahme (SRU)",
   "Copy cataloging": "Fremddatenübernahme",
   "Dal leader del record (posizione 9)": "Aus dem Leader des Datensatzes (Position 9)",

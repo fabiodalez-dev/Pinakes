@@ -103,8 +103,9 @@ final class MarcBookImporter
      * Import one record's book data. $counters is advanced (imported,
      * updated, skipped, authors_created, publishers_created, covers); a
      * cover that cannot be fetched is reported in $warnings, not as a
-     * failure. Throws when the record cannot be written; nothing of it is
-     * then left in the catalogue.
+     * failure. Throws when the book itself cannot be written; nothing of it
+     * is then left in the catalogue. Once the book is committed, a failure
+     * of the extra MARC columns, the cover or the search index is a warning.
      *
      * @param array<string, string|list<string>> $data book data (MarcBookData shape)
      * @param array<string, mixed> $counters
@@ -155,9 +156,23 @@ final class MarcBookImporter
         );
         $bookId = $result['id'];
 
-        $this->writeExtraColumns($bookId, $data, $existing);
+        // The book is committed and counted at this point: what follows only
+        // completes it, so a failure here is a warning on an imported record,
+        // never a failed record (that would count it twice and contradict the
+        // catalogue, where the book already is).
+        try {
+            $this->writeExtraColumns($bookId, $data, $existing);
+        } catch (\Throwable $e) {
+            $warnings[] = __('Campi MARC aggiuntivi non salvati') . ': ' . $e->getMessage();
+            \App\Support\SecureLogger::warning('[MARC import] extra columns not written', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+        }
         $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $existing, $counters, $warnings);
-        \App\Support\SearchIndexBuilder::rebuild($this->db, $bookId);
+        try {
+            \App\Support\SearchIndexBuilder::rebuild($this->db, $bookId);
+        } catch (\Throwable $e) {
+            $warnings[] = __('Indice di ricerca non aggiornato') . ': ' . $e->getMessage();
+            \App\Support\SecureLogger::warning('[MARC import] search index not rebuilt', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+        }
 
         return ['action' => $result['action'], 'id' => $bookId, 'title' => $title];
     }
@@ -357,13 +372,18 @@ final class MarcBookImporter
         if ($path === '') {
             return;
         }
-        $stmt = $this->db->prepare('UPDATE libri SET copertina_url = ? WHERE id = ? AND deleted_at IS NULL');
-        if ($stmt === false) {
+        try {
+            $stmt = $this->db->prepare('UPDATE libri SET copertina_url = ? WHERE id = ? AND deleted_at IS NULL');
+            if ($stmt === false) {
+                return;
+            }
+            $stmt->bind_param('si', $path, $bookId);
+            $stmt->execute();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            $warnings[] = __('Copertina non scaricata') . ': ' . $e->getMessage();
             return;
         }
-        $stmt->bind_param('si', $path, $bookId);
-        $stmt->execute();
-        $stmt->close();
         $counters['covers']++;
     }
 
