@@ -1768,21 +1768,28 @@ class CsvImportController
 
             if ($firstAuthor !== '') {
                 // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi").
-                // A name in quotes keeps them through normalize() (#501); they
-                // are never part of a stored name, so compare without them.
+                // A name in quotes keeps them through normalize() (#501): the
+                // quotes are never part of a stored name, and they mean this
+                // exact spelling, so a quoted author matches only an author
+                // written the same way (accents distinct, case ignored), like
+                // AuthorRepository::findByCanonicalName(). An unquoted author
+                // keeps the accent-tolerant `a.nome = ?` comparison.
                 $normalizedAuthor = \App\Support\AuthorNormalizer::normalize($firstAuthor);
-                $normalizedAuthor = \App\Support\ExactSearch::quotedValue($normalizedAuthor) ?? $normalizedAuthor;
+                $quotedAuthor = \App\Support\ExactSearch::quotedValue($normalizedAuthor);
+                $authorMatch = $quotedAuthor !== null
+                    ? \App\Support\ExactSearch::equalsCondition('a.nome', $quotedAuthor)
+                    : ['sql' => 'a.nome = ?', 'params' => [$normalizedAuthor], 'types' => 's'];
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l
                     JOIN libri_autori al ON l.id = al.libro_id
                     JOIN autori a ON al.autore_id = a.id
                     WHERE l.titolo = ?
-                    AND a.nome = ?
+                    AND {$authorMatch['sql']}
                     AND l.deleted_at IS NULL
                     LIMIT 1
                 ");
-                $stmt->bind_param('ss', $data['titolo'], $normalizedAuthor);
+                $stmt->bind_param('s' . $authorMatch['types'], $data['titolo'], ...$authorMatch['params']);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 if ($row = $result->fetch_assoc()) {
