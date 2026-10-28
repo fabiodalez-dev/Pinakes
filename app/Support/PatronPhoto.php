@@ -28,6 +28,8 @@ final class PatronPhoto
     public const DIR = 'patron_photos';
     public const MAX_BYTES = 5 * 1024 * 1024;
     public const MAX_EDGE = 600;
+    /** Largest decoded image accepted (16 megapixels, about 64 MB in GD). */
+    public const MAX_PIXELS = 16000000;
     private const NAME_PATTERN = '/^patron_photos\/(\d+)-[a-f0-9]{16}\.jpg$/D';
 
     /** Absolute directory holding the photos (created on first use). */
@@ -163,7 +165,9 @@ final class PatronPhoto
             return null;
         }
         [$width, $height] = [(int) $info[0], (int) $info[1]];
-        if ($width < 16 || $height < 16 || $width > 8000 || $height > 8000) {
+        // The pixel count bounds what GD has to allocate (~4 bytes a pixel):
+        // a tiny flat PNG can declare 8000 x 8000 and exhaust memory_limit.
+        if ($width < 16 || $height < 16 || $width > 8000 || $height > 8000 || $width * $height > self::MAX_PIXELS) {
             return null;
         }
         $bytes = @file_get_contents($sourcePath);
@@ -173,6 +177,24 @@ final class PatronPhoto
         $src = @imagecreatefromstring($bytes);
         if ($src === false) {
             return null;
+        }
+        // Phone photos carry their rotation in EXIF Orientation, which the
+        // re-encode drops: turn the pixels so the card shows them upright.
+        if ($info[2] === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
+            $exif = @exif_read_data($sourcePath);
+            $angle = match (is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1) {
+                3 => 180,
+                6 => -90,
+                8 => 90,
+                default => 0,
+            };
+            if ($angle !== 0) {
+                $rotated = imagerotate($src, $angle, 0);
+                if ($rotated !== false) {
+                    $src = $rotated;
+                    [$width, $height] = [imagesx($src), imagesy($src)];
+                }
+            }
         }
         $scale = min(1.0, self::MAX_EDGE / max($width, $height));
         $newW = max(1, (int) round($width * $scale));

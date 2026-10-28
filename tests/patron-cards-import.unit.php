@@ -146,6 +146,27 @@ try {
     $check($path !== null && str_starts_with($path, dirname(__DIR__) . '/storage/patron_photos/'), 'the file lives outside the web root');
     $check(PatronPhoto::store($db, $userId, $src) === null && PatronPhoto::absolutePath($stored) === null, 'a new photo replaces the old file');
     $photoFiles[] = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+    // A small file declaring more than MAX_PIXELS is refused before GD decodes it.
+    $huge = imagecreate(4001, 4001);
+    imagecolorallocate($huge, 255, 255, 255);
+    imagepng($huge, $src, 9);
+    $check(filesize($src) < PatronPhoto::MAX_BYTES && PatronPhoto::store($db, $userId, $src) === 'invalid_image', 'an image above MAX_PIXELS is refused, whatever its file size');
+    // A portrait phone photo: landscape pixels with EXIF Orientation 6.
+    $land = imagecreatetruecolor(800, 400);
+    imagefill($land, 0, 0, (int) imagecolorallocate($land, 30, 120, 200));
+    ob_start();
+    imagejpeg($land, null, 90);
+    $jpeg = (string) ob_get_clean();
+    $tiff = "MM\x00\x2a\x00\x00\x00\x08" . "\x00\x01" . "\x01\x12\x00\x03\x00\x00\x00\x01\x00\x06\x00\x00" . "\x00\x00\x00\x00";
+    $app1 = "Exif\x00\x00" . $tiff;
+    file_put_contents($src, substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($app1) + 2) . $app1 . substr($jpeg, 2));
+    if (function_exists('exif_read_data')) {
+        $check(PatronPhoto::store($db, $userId, $src) === null, 'a JPEG with EXIF orientation is accepted');
+        $rotatedPath = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+        $photoFiles[] = $rotatedPath;
+        $rotatedInfo = $rotatedPath !== null ? getimagesize($rotatedPath) : false;
+        $check($rotatedInfo !== false && $rotatedInfo[1] > $rotatedInfo[0], 'EXIF Orientation 6 is applied: the stored photo is upright (portrait)');
+    }
     file_put_contents($src, "<?php echo 'x';");
     $check(PatronPhoto::store($db, $userId, $src) === 'invalid_image', 'a non-image is refused');
     $check(PatronPhoto::absolutePath('patron_photos/../../.env') === null && PatronPhoto::absolutePath('/etc/passwd') === null, 'a tampered reference never resolves');
