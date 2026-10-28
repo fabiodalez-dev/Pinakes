@@ -6,7 +6,7 @@ namespace App\Support;
 /** Capabilities are independent of reader membership (standard/premium). */
 final class Permissions
 {
-    public const ALL = ['backend.access', 'catalog.manage', 'loans.manage', 'digital.manage', 'digital.access', 'users.manage', 'settings.manage'];
+    public const ALL = ['backend.access', 'catalog.manage', 'loans.manage', 'digital.manage', 'digital.access', 'users.manage', 'settings.manage', 'inventory.manage'];
 
     /** @return array<string, string> */
     public static function labels(): array
@@ -19,6 +19,7 @@ final class Permissions
             'digital.access' => __('Apertura allegati riservati'),
             'users.manage' => __('Gestione utenti'),
             'settings.manage' => __('Impostazioni'),
+            'inventory.manage' => __('Revisione inventariale'),
         ];
     }
 
@@ -124,6 +125,7 @@ final class Permissions
             'users.manage' => ['/admin/users', '/api/users', '/api/utenti', '/api/admin/pending-registrations', '/api/admin/pending-registrations-count', '/api/v1/staff/users', '/api/search/utenti'],
             'digital.manage' => ['/admin/plugins/digital-library/upload'],
             'settings.manage' => ['/admin/settings'],
+            'inventory.manage' => ['/admin/inventory'],
         ];
         foreach ($groups as $permission => $prefixes) {
             foreach ($prefixes as $prefix) {
