@@ -103,16 +103,15 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Impossibile leggere il file caricato')], 400);
         }
 
-        $handle = fopen($tmp, 'r');
-        if ($handle === false) {
+        $bytes = @file_get_contents($tmp);
+        if ($bytes === false) {
             return $this->json($response, ['success' => false, 'error' => __('Impossibile leggere il file caricato')], 400);
         }
-        $sample = [];
-        for ($i = 0; $i < 5 && !feof($handle); $i++) {
-            $sample[] = fgets($handle);
-        }
-        fclose($handle);
-        $delimiter = UserImport::detectDelimiter($sample);
+        // The staged copy is always UTF-8 without BOM: a Windows-1252 export
+        // is converted here, once, so every later step reads clean text.
+        ['text' => $text, 'converted' => $converted] = UserImport::toUtf8($bytes);
+        unset($bytes);
+        $delimiter = UserImport::detectDelimiter(array_slice(explode("\n", $text, 6), 0, 5));
         if ($delimiter === null) {
             return $this->json($response, ['success' => false, 'error' => __('File CSV non valido: usa ";", "," o TAB come separatore.')], 400);
         }
@@ -122,9 +121,10 @@ class UserImportController
             @mkdir($dir, 0755, true);
         }
         $saved = $dir . '/user_import_' . bin2hex(random_bytes(12)) . '.csv';
-        if (!@copy($tmp, $saved)) {
+        if (@file_put_contents($saved, $text) === false) {
             return $this->json($response, ['success' => false, 'error' => __('Impossibile salvare il file CSV caricato')], 500);
         }
+        unset($text);
 
         try {
             $reader = Csv::readerFromPath($saved, $delimiter);
@@ -161,6 +161,7 @@ class UserImportController
             'preview' => $preview,
             'fields' => $fields,
             'mapping' => UserImport::guessMapping($headers, $fields),
+            'notice' => $converted ? __('Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell\'anteprima.') : null,
         ]);
     }
 
@@ -250,7 +251,7 @@ class UserImportController
             try {
                 $parsed = UserImport::normalizeRow($row, $state['mapping'], $customDefinitions, $locales, $visible);
                 $record = $parsed['record'];
-                $label = trim((string) ($record['nome'] ?? '') . ' ' . (string) ($record['cognome'] ?? '')) ?: (string) ($record['email'] ?? '');
+                $label = $this->text(trim((string) ($record['nome'] ?? '') . ' ' . (string) ($record['cognome'] ?? '')) ?: (string) ($record['email'] ?? ''));
                 if ($parsed['error'] !== null) {
                     $this->rowError($state, $line, $this->rowLabel($row, $state['mapping']), $parsed['error'], 'validation');
                     continue;
@@ -438,7 +439,13 @@ class UserImportController
                 $parts[] = trim((string) $row[$index]);
             }
         }
-        return mb_substr(implode(' ', $parts), 0, 200);
+        return $this->text(implode(' ', $parts));
+    }
+
+    /** A label for the error report: valid UTF-8 (whatever the cells held) and at most 200 characters. */
+    private function text(string $value): string
+    {
+        return mb_substr(mb_scrub($value, 'UTF-8'), 0, 200);
     }
 
     /**
@@ -540,7 +547,9 @@ class UserImportController
     /** @param array<string,mixed> $payload */
     private function json(Response $response, array $payload, int $status = 200): Response
     {
-        $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        // A stray invalid byte becomes U+FFFD rather than an empty body the page
+        // cannot parse.
+        $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE));
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

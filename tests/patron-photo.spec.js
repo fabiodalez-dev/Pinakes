@@ -80,6 +80,7 @@ function writePng(file, w = 64, h = 80) {
 
 test.describe.serial('Patron photo (phase 7)', () => {
   let userId = 0;
+  let bookId = 0;
   const code = `ZPH${RUN}`;
   const files = [];
 
@@ -92,7 +93,9 @@ test.describe.serial('Patron photo (phase 7)', () => {
   test.afterAll(() => {
     const stored = userId ? storedPhoto(userId) : '';
     if (stored) files.push(photoFile(stored));
+    if (userId) dbQuery(`DELETE FROM prestiti WHERE utente_id = ${userId}`);
     if (userId) dbQuery(`DELETE FROM utenti WHERE id = ${userId}`);
+    if (bookId) dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
     for (const f of files) removeServerFile(f);
   });
 
@@ -229,5 +232,33 @@ test.describe.serial('Patron photo (phase 7)', () => {
     await page.locator('#user-form button[type="submit"]').click();
     await page.waitForURL((u) => !u.toString().includes('/edit/'), { timeout: 15000 });
     expect(storedPhoto(userId)).toBe('');
+  });
+
+  test('deleting a reader with loan history keeps the account as suspended but still erases the photo', async ({ page }) => {
+    await login(page);
+    await page.goto(`${BASE}/admin/users/edit/${userId}`);
+    const png = path.join(os.tmpdir(), `zph-loan-${RUN}.png`);
+    writePng(png);
+    await page.locator('#photo-file').setInputFiles(png);
+    await expect(page.locator('#photo-status')).toHaveText('Foto salvata.', { timeout: 15000 });
+    fs.unlinkSync(png);
+    const stored = storedPhoto(userId);
+    expect(stored).not.toBe('');
+    files.push(photoFile(stored));
+    // A returned loan: the account cannot be deleted, only marked "sospeso".
+    const title = `Photo loan ${RUN}`;
+    dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES (${sqlStr(title)}, 1, 1)`);
+    bookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo = ${sqlStr(title)} ORDER BY id DESC LIMIT 1`));
+    dbQuery(`INSERT INTO prestiti (utente_id, libro_id, data_prestito, data_scadenza, stato, attivo) VALUES (${userId}, ${bookId}, CURDATE(), CURDATE(), 'restituito', 0)`);
+
+    const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    const res = await page.request.post(`${BASE}/admin/users/delete/${userId}`, { form: { csrf_token: String(csrf) }, maxRedirects: 0 });
+    expect(res.status()).toBe(302);
+    expect(dbQuery(`SELECT stato FROM utenti WHERE id = ${userId}`)).toBe('sospeso');
+    expect(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id = ${userId}`)).toBe('1');
+    expect(storedPhoto(userId)).toBe('');
+    expect(serverFileExists(photoFile(stored))).toBe(false);
+    const gone = await page.request.get(`${BASE}/admin/users/${userId}/photo`);
+    expect(gone.status()).toBe(404);
   });
 });

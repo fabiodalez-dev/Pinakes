@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Koden svarer ikke til noget eksemplar i kataloget.",
   "Questa copia è già stata registrata in questa revisione.": "Dette eksemplar er allerede registreret i denne optælling.",
   "La copia esiste ma non rientra nel filtro della revisione.": "Eksemplaret findes, men er uden for optællingens filter.",
-  "La copia risulta in prestito: verifica il prestito.": "Eksemplaret står som udlånt: tjek udlånet.",
   "La revisione è stata chiusa da un altro operatore.": "Optællingen er lukket af en anden medarbejder.",
   "Revisore inventario": "Optællingsmedarbejder",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Startprofil til at deltage i lageroptællinger: åbne en session og scanne eksemplarer uden at ændre kataloget eller erklære eksemplarer tabt.",
@@ -8892,5 +8891,14 @@
   "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Vil du fornye lånet? Udløbsdatoen udvides med %d dage.",
   "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Uden udløbsdato for kortet i filen beregnes datoen ud fra lånertypens kortvarighed (den angivne eller standardtypen); en udløbsdato i CSV-filen har forrang.",
   "Utente importato, ma la scadenza della tessera non è stata calcolata.": "Bruger importeret, men kortets udløbsdato kunne ikke beregnes.",
-  "Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)": "Beregn udløbsdatoen ud fra lånertypens kortvarighed (hvis angivet, og hvis datoen ovenfor er tom)"
+  "Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)": "Beregn udløbsdatoen ud fra lånertypens kortvarighed (hvis angivet, og hvis datoen ovenfor er tom)",
+  "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.": "Filen var ikke UTF-8 og er blevet konverteret fra Windows-1252: tjek de accentuerede bogstaver i forhåndsvisningen.",
+  "L'email del fornitore non è un indirizzo valido.": "Leverandørens e-mail er ikke en gyldig adresse.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Leverandørens websted er ikke en gyldig adresse: angiv en http(s)-URL, for eksempel https://www.eksempel.dk.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Tildeles de nye bøger og, med \"Overskriv\", de bøger der allerede findes. Bøger der springes over eller kun udfyldes beholder deres leverandør.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Tildeles de nye bøger, som denne import opretter. Bøger der allerede findes beholder deres leverandør.",
+  "Fornitore non assegnato": "Leverandør ikke tildelt",
+  "In prestito o in attesa di ritiro": "Udlånt eller klar til afhentning",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "Eksemplaret står som udlånt eller klar til afhentning: tjek udlånet.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallet sammenlignes alfabetisk, ikke numerisk: A.10 kommer før A.2."
 }

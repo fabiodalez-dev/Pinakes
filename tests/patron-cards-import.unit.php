@@ -29,6 +29,16 @@ $check(!isset($fields['tipologia']), 'the patron type is not offered while its s
 $check(!in_array('password', array_keys($fields), true), 'there is no password field to map');
 $check(UserImport::normalizeHeader("\xEF\xBB\xBFE-Mail ") === 'email', 'a BOM, case and punctuation are ignored in headers');
 $check(UserImport::normalizeHeader('Fødselsdato') === 'fodselsdato', 'Danish letters are transliterated');
+// Under the "C" locale iconv's ASCII//TRANSLIT yields "?" (glibc) or nothing
+// (musl) for an accented letter; the headers must not depend on it.
+$savedLocale = setlocale(LC_CTYPE, '0');
+setlocale(LC_CTYPE, 'C');
+$check(UserImport::normalizeHeader('Prénom') === 'prenom' && UserImport::normalizeHeader('Téléphone') === 'telephone', 'French accents are removed whatever the locale');
+$check(UserImport::normalizeHeader('Gültig bis') === 'gultigbis' && UserImport::normalizeHeader('GEBURTSDATUM ') === 'geburtsdatum', 'German umlauts and upper case are normalised whatever the locale');
+$check(UserImport::normalizeHeader('Nº de carte') === 'ndecarte' && UserImport::normalizeHeader('Straße') === 'strasse' && UserImport::normalizeHeader('Cœur') === 'coeur', 'º falls through to the fallback, ß and œ expand');
+$check(UserImport::normalizeGender('Männlich') === 'M' && UserImport::normalizeGender('Féminin') === 'F' && UserImport::normalizeGender('Autre') === 'Altro', 'gender words with accents are recognised whatever the locale');
+$check(UserImport::guessMapping(['Prénom', 'Nom', 'Courriel', 'Téléphone', 'Date de naissance', 'Numéro de carte', "Date d'expiration"], $fields) === [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'telefono', 4 => 'data_nascita', 5 => 'codice_tessera', 6 => 'data_scadenza_tessera'], 'French headers are recognised under the "C" locale');
+setlocale(LC_CTYPE, $savedLocale === false ? 'C' : $savedLocale);
 
 $guess = UserImport::guessMapping(['Nome', 'Cognome', 'E-mail', 'Codice tessera', 'Password', 'Telegram', 'Nome'], $fields);
 $check($guess === [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'codice_tessera', 4 => '', 5 => 'custom:7', 6 => ''], 'Italian headers, a custom field and a repeated column map as expected; password is ignored');
@@ -68,6 +78,14 @@ $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', '', '', str_repe
 $check(UserImport::normalizeRow(['X', 'Y', 'x@example.org', '', 'M'], $map, $defs, $locales, ['sesso' => false, 'cod_fiscale' => false])['record']['sesso'] === null, 'a hidden profile field is not collected');
 $check(UserImport::parseDate('2026-12-31') === '2026-12-31' && UserImport::parseDate('31.12.2026') === '2026-12-31' && UserImport::parseDate('12/31/2026') === null, 'date spellings: ISO, dotted, day-first only');
 $check(UserImport::detectDelimiter(["a;b;c\n", "1;2;3\n"]) === ';' && UserImport::detectDelimiter(["a,b\n"]) === ',' && UserImport::detectDelimiter(["abc\n"]) === null, 'delimiter detection');
+
+// ── UserImport: file encoding ───────────────────────────────────────────
+$u = UserImport::toUtf8("\xEF\xBB\xBFNome;Cognome\nCaff\xC3\xA8;Rossi\n");
+$check($u['converted'] === false && $u['text'] === "Nome;Cognome\nCaff\xC3\xA8;Rossi\n", 'a UTF-8 file loses its BOM and is otherwise untouched');
+$u = UserImport::toUtf8("Nome;Cognome\nCaff\xE8;M\xFCller \x80\n");
+$check($u['converted'] === true && $u['text'] === "Nome;Cognome\nCaffè;Müller €\n", 'a Windows-1252 file (Excel on Windows) is converted: è, ü and the euro sign survive');
+$check(mb_check_encoding(UserImport::toUtf8("ok\xFF\xFE\xC0")['text'], 'UTF-8'), 'whatever the bytes, the result is valid UTF-8');
+$check(UserImport::toUtf8('plain ascii')['converted'] === false, 'ASCII is UTF-8 already: nothing to report');
 
 // ── Card settings ───────────────────────────────────────────────────────
 $d = PatronCardSettings::sanitize([]);

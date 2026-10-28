@@ -58,16 +58,18 @@ function cleanupRun(run) {
     + `DELETE FROM editori WHERE nome LIKE ${like};`
     + `DELETE FROM collane WHERE nome LIKE ${like};`
     + `DELETE FROM import_logs WHERE file_name LIKE ${like};`
+    + `DELETE FROM fornitori WHERE nome LIKE ${like};`
   );
 }
 
 /** Upload a file on the MARC import page and wait for the preview. */
-async function uploadForPreview(page, file, { duplicates = 'skip', covers = false, flavour = 'auto' } = {}) {
+async function uploadForPreview(page, file, { duplicates = 'skip', covers = false, flavour = 'auto', supplier = 0 } = {}) {
   await page.goto(`${BASE}/admin/books/import/marc`);
   await page.setInputFiles('#marc_file', file);
   await page.selectOption('#marc_flavour', flavour);
   await page.check(`#duplicates_${duplicates}`);
   if (covers) await page.check('#download_covers'); else await page.uncheck('#download_covers');
+  if (supplier) await page.selectOption('#fornitore_id', String(supplier));
   const uploaded = page.waitForResponse((r) => r.url().includes('/admin/books/import/marc/upload'));
   await page.click('#previewBtn');
   const response = await uploaded;

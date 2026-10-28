@@ -180,6 +180,9 @@ final class PatronPhoto
         }
         // Phone photos carry their rotation in EXIF Orientation, which the
         // re-encode drops: turn the pixels so the card shows them upright.
+        // Read now, applied after the downscale, so GD never holds two
+        // full-resolution copies at once.
+        $angle = 0;
         if ($info[2] === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
             $exif = @exif_read_data($sourcePath);
             $angle = match (is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1) {
@@ -188,13 +191,6 @@ final class PatronPhoto
                 8 => 90,
                 default => 0,
             };
-            if ($angle !== 0) {
-                $rotated = imagerotate($src, $angle, 0);
-                if ($rotated !== false) {
-                    $src = $rotated;
-                    [$width, $height] = [imagesx($src), imagesy($src)];
-                }
-            }
         }
         $scale = min(1.0, self::MAX_EDGE / max($width, $height));
         $newW = max(1, (int) round($width * $scale));
@@ -203,6 +199,14 @@ final class PatronPhoto
         // A transparent PNG becomes white, not black.
         imagefill($dst, 0, 0, (int) imagecolorallocate($dst, 255, 255, 255));
         imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $width, $height);
+        unset($src); // free the full-size image before the rotation
+        if ($angle !== 0) {
+            // A quarter turn keeps the long edge within MAX_EDGE.
+            $rotated = imagerotate($dst, $angle, 0);
+            if ($rotated !== false) {
+                $dst = $rotated;
+            }
+        }
         ob_start();
         imagejpeg($dst, null, 85);
         $out = (string) ob_get_clean();

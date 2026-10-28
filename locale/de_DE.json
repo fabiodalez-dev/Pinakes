@@ -8489,7 +8489,6 @@
   "Il codice non corrisponde a nessuna copia a catalogo.": "Der Code entspricht keinem Exemplar im Katalog.",
   "Questa copia è già stata registrata in questa revisione.": "Dieses Exemplar wurde in dieser Revision bereits erfasst.",
   "La copia esiste ma non rientra nel filtro della revisione.": "Das Exemplar existiert, liegt aber außerhalb des Filters der Revision.",
-  "La copia risulta in prestito: verifica il prestito.": "Das Exemplar ist als ausgeliehen erfasst: Prüfe die Ausleihe.",
   "La revisione è stata chiusa da un altro operatore.": "Die Revision wurde von einem anderen Mitarbeiter geschlossen.",
   "Revisore inventario": "Bestandsprüfer",
   "Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.": "Ausgangsprofil für die Teilnahme an Bestandsrevisionen: eine Sitzung eröffnen und Exemplare scannen, ohne den Katalog zu ändern oder Exemplare als verloren zu erklären.",
@@ -8892,5 +8891,14 @@
   "Rinnovare il prestito? La scadenza verrà estesa di %d giorni.": "Ausleihe verlängern? Das Fälligkeitsdatum wird um %d Tage verlängert.",
   "Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.": "Fehlt das Ablaufdatum des Ausweises in der Datei, wird es aus der Ausweisdauer des Lesertyps berechnet (des angegebenen oder des Standardtyps); ein im CSV vorhandenes Ablaufdatum hat Vorrang.",
   "Utente importato, ma la scadenza della tessera non è stata calcolata.": "Benutzer importiert, aber das Ablaufdatum des Ausweises konnte nicht berechnet werden.",
-  "Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)": "Ablaufdatum aus der Ausweisdauer des Lesertyps berechnen (falls angegeben und falls das Datum oben leer bleibt)"
+  "Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)": "Ablaufdatum aus der Ausweisdauer des Lesertyps berechnen (falls angegeben und falls das Datum oben leer bleibt)",
+  "Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell'anteprima.": "Die Datei war nicht UTF-8 und wurde aus Windows-1252 umgewandelt: prüfen Sie die Umlaute und Akzente in der Vorschau.",
+  "L'email del fornitore non è un indirizzo valido.": "Die E-Mail-Adresse des Lieferanten ist ungültig.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Die Website des Lieferanten ist keine gültige Adresse: geben Sie eine http(s)-URL an, zum Beispiel https://www.beispiel.de.",
+  "Assegnato ai libri nuovi e, con «Sovrascrivi», ai libri già presenti. I libri saltati o solo completati non cambiano fornitore.": "Wird den neuen Büchern und, mit „Überschreiben“, den bereits vorhandenen Büchern zugewiesen. Übersprungene oder nur ergänzte Bücher behalten ihren Lieferanten.",
+  "Assegnato ai libri nuovi creati da questa importazione. I libri già presenti non cambiano fornitore.": "Wird den neuen Büchern zugewiesen, die dieser Import anlegt. Bereits vorhandene Bücher behalten ihren Lieferanten.",
+  "Fornitore non assegnato": "Lieferant nicht zugewiesen",
+  "In prestito o in attesa di ritiro": "Ausgeliehen oder zur Abholung bereit",
+  "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "Das Exemplar ist als ausgeliehen oder zur Abholung bereit erfasst: Prüfe die Ausleihe.",
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Der Bereich wird alphabetisch verglichen, nicht numerisch: A.10 steht vor A.2."
 }

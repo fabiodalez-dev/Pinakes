@@ -24,11 +24,24 @@ class AuthorNormalizer
      * - "Marx, Karl Heinrich" → "Karl Heinrich Marx"
      * - "De Filippo, Eduardo" → "Eduardo De Filippo"
      *
+     * A name typed wholly in quotes (`"Häffner, Rolf"`) means "this exact
+     * spelling" (#501): the quotes are kept, around the canonical form
+     * (`"Rolf Häffner"`), so the save and lookup paths still see a whole-value
+     * quoted string (ExactSearch::quotedValue()) and the person is the one
+     * written that way. Without this the quotes ended up inside the swapped
+     * name (`Rolf" "Häffner`) and were stored as part of it.
+     *
      * @param string $name The author name in any format
      * @return string Normalized name in "Name Surname" format
      */
     public static function normalize(string $name): string
     {
+        $quoted = ExactSearch::quotedValue($name);
+        if ($quoted !== null) {
+            $inner = self::normalize($quoted);
+            return $inner === '' ? '' : '"' . $inner . '"';
+        }
+
         $name = trim($name);
 
         if ($name === '') {
@@ -78,8 +91,9 @@ class AuthorNormalizer
      */
     public static function toSearchForm(string $name): string
     {
-        // First normalize the name
-        $normalized = self::normalize($name);
+        // First normalize the name. Quotes are a lookup instruction, never
+        // part of the name: a quoted candidate compares on the name inside.
+        $normalized = self::normalize(ExactSearch::quotedValue($name) ?? $name);
 
         if ($normalized === '') {
             return '';
@@ -108,7 +122,7 @@ class AuthorNormalizer
      */
     public static function getSearchVariants(string $name): array
     {
-        $normalized = self::normalize($name);
+        $normalized = self::normalize(ExactSearch::quotedValue($name) ?? $name);
 
         if ($normalized === '') {
             return [];

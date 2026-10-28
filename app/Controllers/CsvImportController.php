@@ -131,31 +131,15 @@ class CsvImportController
      * Whether the Emeroteca (periodicals) plugin is active, so the CSV
      * import page can link to its article importer only when that route
      * actually exists — otherwise it points to Plugins instead (#article
-     * link 404 fix). showImportPage() isn't routed with a mysqli connection
-     * (see web.php), so this opens its own short-lived one — same fallback
-     * pattern as ReservationsController's constructor — and queries the
-     * plugins table directly, mirroring frontend/layout.php's
-     * $publicPluginIsActive() fallback (no DI container available here).
+     * link 404 fix). Queries the plugins table directly, mirroring
+     * frontend/layout.php's $publicPluginIsActive() fallback (no DI
+     * container available here).
      */
-    private function isEmerotecaPluginActive(): bool
+    private function isEmerotecaPluginActive(\mysqli $db): bool
     {
         try {
-            $settings = require __DIR__ . '/../../config/settings.php';
-            $cfg = $settings['db'];
-            $db = new \mysqli(
-                $cfg['hostname'],
-                $cfg['username'],
-                $cfg['password'],
-                $cfg['database'],
-                $cfg['port'],
-                $cfg['socket'] ?? null
-            );
-            if ($db->connect_error) {
-                return false;
-            }
             $stmt = $db->prepare('SELECT is_active FROM plugins WHERE name = ? LIMIT 1');
             if ($stmt === false) {
-                $db->close();
                 return false;
             }
             $pluginName = 'emeroteca';
@@ -166,7 +150,6 @@ class CsvImportController
                 $active = $result instanceof \mysqli_result && (int) ($result->fetch_assoc()['is_active'] ?? 0) === 1;
             }
             $stmt->close();
-            $db->close();
             return $active;
         } catch (\Throwable $e) {
             return false;
@@ -176,11 +159,12 @@ class CsvImportController
     /**
      * Mostra la pagina di import CSV
      */
-    public function showImportPage(Request $request, Response $response): Response
+    public function showImportPage(Request $request, Response $response, \mysqli $db): Response
     {
         ob_start();
         $title = "Import Libri da CSV";
-        $emerotecaAvailable = $this->isEmerotecaPluginActive();
+        $emerotecaAvailable = $this->isEmerotecaPluginActive($db);
+        $fornitori = (new \App\Models\SupplierRepository($db))->options();
         include __DIR__ . '/../Views/admin/csv_import.php';
         $content = ob_get_clean();
 
@@ -319,6 +303,9 @@ class CsvImportController
             'total_rows' => $totalRows,
             'enable_scraping' => !empty($data['enable_scraping']),
             'update_fields' => $updateFields,
+            // The supplier chosen for the batch, validated once; written on
+            // the books this import creates (CataloguingExtras::assignSupplier).
+            'fornitore_id' => \App\Support\CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
             'imported' => 0,
             'updated' => 0,
             'scraped' => 0,
@@ -371,6 +358,7 @@ class CsvImportController
         $chunkSize = max(1, min($chunkSize, self::CHUNK_SIZE)); // Capped at CHUNK_SIZE
 
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
+        $supplierId = (int) ($importData['fornitore_id'] ?? 0);
 
         // #380: field families the user allowed this import to update on books
         // that already exist. A family absent from the session (pre-#380 upload
@@ -452,6 +440,17 @@ class CsvImportController
                 $upsertResult = $this->importParsedRow($db, $parsedData, $updateFields, $importData);
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
+
+                // The batch's supplier goes on new books only: an existing
+                // book keeps its own. The row is already committed and
+                // counted, so a failure here is logged, not a failed row.
+                if ($supplierId > 0 && $action === 'created') {
+                    try {
+                        \App\Support\CataloguingExtras::assignSupplier($db, (int) $bookId, $supplierId);
+                    } catch (\Throwable $supplierError) {
+                        \App\Support\SecureLogger::warning('[CSV] supplier not assigned', ['line' => $lineNumber, 'book_id' => (int) $bookId, 'message' => $supplierError->getMessage()]);
+                    }
+                }
 
                 // Scraping (if enabled and ISBN exists)
                 if ($enableScraping && !empty($parsedData['isbn13'])) {
@@ -1768,8 +1767,11 @@ class CsvImportController
             $firstAuthor = $authorsArray[0];
 
             if ($firstAuthor !== '') {
-                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi")
+                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi").
+                // A name in quotes keeps them through normalize() (#501); they
+                // are never part of a stored name, so compare without them.
                 $normalizedAuthor = \App\Support\AuthorNormalizer::normalize($firstAuthor);
+                $normalizedAuthor = \App\Support\ExactSearch::quotedValue($normalizedAuthor) ?? $normalizedAuthor;
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l

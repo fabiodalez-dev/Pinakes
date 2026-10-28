@@ -141,17 +141,51 @@ class SupplierRepository
             }
             $out[$field] = $value === '' ? null : $value;
         }
-        if ($out['email'] !== null && filter_var($out['email'], FILTER_VALIDATE_EMAIL) === false) {
+        if ($out['email'] !== null && !self::isValidEmail($out['email'])) {
             $out['email'] = null;
         }
         if ($out['sito_web'] !== null) {
-            $url = $out['sito_web'];
-            if (!preg_match('#^https?://#i', $url)) {
-                $url = 'https://' . ltrim($url, '/');
-            }
-            $out['sito_web'] = filter_var($url, FILTER_VALIDATE_URL) !== false ? $url : null;
+            $out['sito_web'] = self::websiteUrl($out['sito_web']);
         }
         return $out;
+    }
+
+    /**
+     * Fields of a submission that carry a value normalize() would have to
+     * drop: 'email' when it is not an e-mail address, 'sito_web' when it is
+     * not an http(s) URL once the scheme is added. The controller refuses the
+     * form on these instead of saving NULL with a success message.
+     *
+     * @param array<string, mixed> $input
+     * @return list<string>
+     */
+    public static function invalidFields(array $input): array
+    {
+        $invalid = [];
+        $email = is_scalar($input['email'] ?? null) ? trim((string) $input['email']) : '';
+        if ($email !== '' && !self::isValidEmail($email)) {
+            $invalid[] = 'email';
+        }
+        $site = is_scalar($input['sito_web'] ?? null) ? trim((string) $input['sito_web']) : '';
+        if ($site !== '' && self::websiteUrl($site) === null) {
+            $invalid[] = 'sito_web';
+        }
+        return $invalid;
+    }
+
+    private static function isValidEmail(string $email): bool
+    {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    /** The website as an http(s) URL (a missing scheme becomes https), or NULL when it is not a URL. */
+    private static function websiteUrl(string $raw): ?string
+    {
+        $url = $raw;
+        if (!preg_match('#^https?://#i', $url)) {
+            $url = 'https://' . ltrim($url, '/');
+        }
+        return filter_var($url, FILTER_VALIDATE_URL) !== false ? $url : null;
     }
 
     /**

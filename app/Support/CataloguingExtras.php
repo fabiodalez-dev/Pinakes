@@ -13,7 +13,8 @@ use mysqli;
  * They are written after the core save, and only for the keys the request
  * actually carries: the book form always posts them, while CSV/LibraryThing
  * imports, the mobile API and plugins do not, so those paths leave the stored
- * values untouched.
+ * values untouched. The MARC and CSV imports tag a whole batch with one
+ * supplier through assignSupplier() instead.
  */
 final class CataloguingExtras
 {
@@ -75,8 +76,30 @@ final class CataloguingExtras
         }
     }
 
+    /**
+     * Link a book to a supplier chosen for an import batch. Nothing is
+     * written when the supplier was deleted meanwhile or the column does not
+     * exist yet: the import must never clear a supplier on its own.
+     */
+    public static function assignSupplier(mysqli $db, int $bookId, int $supplierId): void
+    {
+        if (!self::hasColumn($db, 'fornitore_id') || self::existingSupplierId($db, $supplierId) === null) {
+            return;
+        }
+        $stmt = $db->prepare('UPDATE libri SET fornitore_id = ? WHERE id = ? AND deleted_at IS NULL');
+        if ($stmt === false) {
+            throw new \RuntimeException('Unable to prepare the supplier update');
+        }
+        try {
+            $stmt->bind_param('ii', $supplierId, $bookId);
+            $stmt->execute();
+        } finally {
+            $stmt->close();
+        }
+    }
+
     /** A submitted supplier id that exists, or NULL ("no supplier"). */
-    private static function existingSupplierId(mysqli $db, mixed $raw): ?int
+    public static function existingSupplierId(mysqli $db, mixed $raw): ?int
     {
         $id = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($id === false) {

@@ -93,15 +93,44 @@ final class UserImport
         return $fields;
     }
 
+    /**
+     * Accented letters of the five languages' headers and gender words, to
+     * their ASCII base. iconv's ASCII//TRANSLIT depends on LC_CTYPE (under
+     * the "C" locale glibc gives "?", musl gives nothing) and would turn
+     * "Prénom" into "prnom"; this table is applied first, iconv only mops up.
+     */
+    private const TRANSLIT = [
+        'à' => 'a', 'á' => 'a', 'â' => 'a', 'ä' => 'a', 'ã' => 'a', 'å' => 'a', 'æ' => 'ae',
+        'ç' => 'c',
+        'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'ì' => 'i', 'í' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ñ' => 'n',
+        'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'ö' => 'o', 'õ' => 'o', 'ø' => 'o', 'œ' => 'oe',
+        'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u',
+        'ý' => 'y', 'ÿ' => 'y',
+        'ß' => 'ss',
+        'À' => 'a', 'Á' => 'a', 'Â' => 'a', 'Ä' => 'a', 'Ã' => 'a', 'Å' => 'a', 'Æ' => 'ae',
+        'Ç' => 'c',
+        'È' => 'e', 'É' => 'e', 'Ê' => 'e', 'Ë' => 'e',
+        'Ì' => 'i', 'Í' => 'i', 'Î' => 'i', 'Ï' => 'i',
+        'Ñ' => 'n',
+        'Ò' => 'o', 'Ó' => 'o', 'Ô' => 'o', 'Ö' => 'o', 'Õ' => 'o', 'Ø' => 'o', 'Œ' => 'oe',
+        'Ù' => 'u', 'Ú' => 'u', 'Û' => 'u', 'Ü' => 'u',
+        'Ý' => 'y', 'Ÿ' => 'y',
+    ];
+
     /** Lowercase, accents removed, only letters and digits. */
     public static function normalizeHeader(string $header): string
     {
         $header = preg_replace('/^\xEF\xBB\xBF/', '', $header) ?? $header;
-        $header = mb_strtolower(trim($header), 'UTF-8');
-        $header = strtr($header, ['ø' => 'o', 'æ' => 'ae', 'å' => 'a', 'ß' => 'ss']);
-        $ascii = function_exists('iconv') ? @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $header) : false;
-        if (is_string($ascii) && $ascii !== '') {
-            $header = strtolower($ascii);
+        $header = strtr(mb_strtolower(trim($header), 'UTF-8'), self::TRANSLIT);
+        if (!preg_match('/^[\x00-\x7F]*$/', $header)) {
+            // Letters outside the table (a Polish ł, a Czech č): iconv's
+            // locale-dependent best effort, or nothing — never a wrong match.
+            $ascii = function_exists('iconv') ? @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $header) : false;
+            if (is_string($ascii) && $ascii !== '') {
+                $header = strtolower($ascii);
+            }
         }
         return (string) preg_replace('/[^a-z0-9]/', '', $header);
     }
@@ -303,6 +332,30 @@ final class UserImport
             in_array($v, ['altro', 'other', 'x', 'divers', 'autre', 'andet', 'nonbinary', 'nb'], true) => 'Altro',
             default => null,
         };
+    }
+
+    /**
+     * The uploaded bytes as UTF-8. A BOM is dropped. A file that is not valid
+     * UTF-8 — a spreadsheet saved as "CSV" on Windows writes the system code
+     * page — is read as Windows-1252, the superset of ISO-8859-1 such exports
+     * fall under; "Caffè" then keeps its accent instead of breaking the JSON
+     * preview. Whatever comes back is valid UTF-8.
+     *
+     * @return array{text: string, converted: bool}
+     */
+    public static function toUtf8(string $bytes): array
+    {
+        if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+            $bytes = substr($bytes, 3);
+        }
+        if (mb_check_encoding($bytes, 'UTF-8')) {
+            return ['text' => $bytes, 'converted' => false];
+        }
+        $text = mb_convert_encoding($bytes, 'UTF-8', 'Windows-1252');
+        if (!mb_check_encoding($text, 'UTF-8')) {
+            $text = mb_scrub($bytes, 'UTF-8');
+        }
+        return ['text' => $text, 'converted' => true];
     }
 
     /**

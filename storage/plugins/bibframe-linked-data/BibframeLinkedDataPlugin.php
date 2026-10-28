@@ -446,8 +446,10 @@ class BibframeLinkedDataPlugin
         }
 
         // RDA content/media/carrier: the same effective types the book page
-        // shows (libri.tipo_media, then the cataloguer's per-record override,
-        // 0.9.0). A book keeps the historical text / unmediated / volume.
+        // shows (derived from libri.tipo_media, the cataloguer's per-record
+        // override when set; 0.9.0). A book keeps the historical text /
+        // unmediated / volume; a DVD, disc or audiobook now carries its own
+        // types instead of a book's.
         $rdaEffective = \App\Support\RdaTypes::effective($book);
         $work['bf:content'] = [
             '@type' => 'bf:Content',
