@@ -225,11 +225,11 @@ unset($workspaceHeader);
             <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
                 <i class="fas fa-coins text-gray-600"></i><?= __("Multa per ritardo") ?></h3>
             <p class="text-sm text-yellow-900">
-                <?= HtmlHelper::e(sprintf(
+                <?= htmlspecialchars(sprintf(
                     __('Restituito con %1$d giorni di ritardo: alla conferma verrà addebitata una multa di %2$s.'),
                     (int) $finePreview['days'],
                     \App\Services\FineParameters::format((int) $finePreview['cents'])
-                )); ?>
+                ), ENT_QUOTES, 'UTF-8'); ?>
             </p>
             <label class="mt-4 flex items-center gap-2 text-sm font-bold text-gray-900">
                 <input type="checkbox" id="waive_fine" name="waive_fine" value="1">

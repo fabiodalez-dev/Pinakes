@@ -22,6 +22,8 @@ use mysqli;
  *   late:<loan id>     late fine written when the loan is returned
  *   penalty:<loan id>  amount assessed when the copy is closed lost/damaged
  *                      (the same key the 0.9.0 migration uses for prestiti.sanzione)
+ *   form:<32 hex>      one submitted desk form (payment, charge, waiver): a
+ *                      repeated POST writes nothing more
  *   storno:late:<loan id>:<n> / storno:waiver:<loan id>:<n>
  *                      the n-th undo of a return: the late fine and the
  *                      waivers written for it, reversed
@@ -109,9 +111,10 @@ final class PatronLedger
      *
      * @return list<array<string, mixed>>
      */
-    public function movements(int $userId, int $limit = 500): array
+    public function movements(int $userId, int $limit = 500, int $offset = 0): array
     {
         $limit = max(1, min(5000, $limit));
+        $offset = max(0, $offset);
         $stmt = $this->db->prepare(
             "SELECT m.id, m.utente_id, m.prestito_id, m.tipo, m.importo, m.descrizione, m.metodo_pagamento,
                     m.creato_da, m.created_at, m.chiave_idempotenza,
@@ -123,13 +126,24 @@ final class PatronLedger
                LEFT JOIN utenti op ON op.id = m.creato_da
               WHERE m.utente_id = ?
               ORDER BY m.created_at DESC, m.id DESC
-              LIMIT {$limit}"
+              LIMIT {$limit} OFFSET {$offset}"
         );
         $stmt->bind_param('i', $userId);
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $rows;
+    }
+
+    /** Number of ledger rows of $userId (the reader record pages through them). */
+    public function movementCount(int $userId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $count = (int) ($stmt->get_result()->fetch_row()[0] ?? 0);
+        $stmt->close();
+        return $count;
     }
 
     /** @return array<string, mixed>|null */
@@ -289,26 +303,30 @@ final class PatronLedger
         return preg_match('/^(\d+)\|/', $text, $m) === 1 ? (int) $m[1] : 0;
     }
 
-    /** Payment received at the desk (negative movement). */
-    public function recordPayment(int $userId, int $cents, string $method, ?string $note, ?int $staffId): int
+    /**
+     * Payment received at the desk (negative movement). $requestKey (one per
+     * submitted form) makes a repeated submission return the movement it
+     * already wrote instead of recording a second payment.
+     */
+    public function recordPayment(int $userId, int $cents, string $method, ?string $note, ?int $staffId, ?string $requestKey = null): int
     {
         if (!in_array($method, self::PAYMENT_METHODS, true)) {
             throw new \InvalidArgumentException('invalid_method');
         }
-        return $this->credit($userId, 'pagamento', $cents, $note, $method, $staffId, null);
+        return $this->credit($userId, 'pagamento', $cents, $note, $method, $staffId, null, $requestKey);
     }
 
     /** Waiver (condono) of part or all of the debt; the reason is mandatory. */
-    public function waive(int $userId, int $cents, string $reason, ?int $staffId, ?int $loanId = null): int
+    public function waive(int $userId, int $cents, string $reason, ?int $staffId, ?int $loanId = null, ?string $requestKey = null): int
     {
         if (trim($reason) === '') {
             throw new \InvalidArgumentException('reason_required');
         }
-        return $this->credit($userId, 'condono', $cents, $reason, null, $staffId, $loanId);
+        return $this->credit($userId, 'condono', $cents, $reason, null, $staffId, $loanId, $requestKey);
     }
 
-    /** Manual charge with a mandatory description. */
-    public function manualCharge(int $userId, int $cents, string $description, ?int $staffId): int
+    /** Manual charge with a mandatory description ($requestKey: see recordPayment()). */
+    public function manualCharge(int $userId, int $cents, string $description, ?int $staffId, ?string $requestKey = null): int
     {
         if ($cents <= 0 || $cents > self::MAX_AMOUNT_CENTS) {
             throw new \InvalidArgumentException('invalid_amount');
@@ -317,9 +335,10 @@ final class PatronLedger
             throw new \InvalidArgumentException('description_required');
         }
         $id = null;
-        $this->inTransaction(function () use ($userId, $cents, $description, $staffId, &$id): void {
+        $this->inTransaction(function () use ($userId, $cents, $description, $staffId, $requestKey, &$id): void {
             $this->lockUser($userId);
-            $id = $this->insert($userId, null, 'addebito_manuale', $cents, self::clip($description), null, $staffId, null);
+            $id = $this->replayedMovement($userId, $requestKey)
+                ?? $this->insert($userId, null, 'addebito_manuale', $cents, self::clip($description), null, $staffId, $requestKey);
         });
         return (int) $id;
     }
@@ -456,20 +475,40 @@ final class PatronLedger
     }
 
     /** Payment or waiver: never more than the patron currently owes. */
-    private function credit(int $userId, string $type, int $cents, ?string $text, ?string $method, ?int $staffId, ?int $loanId): int
+    private function credit(int $userId, string $type, int $cents, ?string $text, ?string $method, ?int $staffId, ?int $loanId, ?string $requestKey = null): int
     {
         if ($cents <= 0 || $cents > self::MAX_AMOUNT_CENTS) {
             throw new \InvalidArgumentException('invalid_amount');
         }
         $id = null;
-        $this->inTransaction(function () use ($userId, $type, $cents, $text, $method, $staffId, $loanId, &$id): void {
+        $this->inTransaction(function () use ($userId, $type, $cents, $text, $method, $staffId, $loanId, $requestKey, &$id): void {
             $this->lockUser($userId);
+            // A repeated form submission: the movement is already there (and the
+            // balance check would now refuse it), so hand back the same row.
+            $id = $this->replayedMovement($userId, $requestKey);
+            if ($id !== null) {
+                return;
+            }
             if ($cents > $this->balanceCents($userId)) {
                 throw new \InvalidArgumentException('amount_exceeds_balance');
             }
-            $id = $this->insert($userId, $loanId, $type, -$cents, $text !== null ? self::clip($text) : null, $method, $staffId, null);
+            $id = $this->insert($userId, $loanId, $type, -$cents, $text !== null ? self::clip($text) : null, $method, $staffId, $requestKey);
         });
         return (int) $id;
+    }
+
+    /** The movement of $userId already written under $requestKey, if any. */
+    private function replayedMovement(int $userId, ?string $requestKey): ?int
+    {
+        if ($requestKey === null) {
+            return null;
+        }
+        $stmt = $this->db->prepare('SELECT id FROM movimenti_lettore WHERE chiave_idempotenza = ? AND utente_id = ?');
+        $stmt->bind_param('si', $requestKey, $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return $row !== null ? (int) $row[0] : null;
     }
 
     /** Serialise balance-dependent writes of one patron on the utenti row. */

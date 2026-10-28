@@ -8975,7 +8975,7 @@
   "L'importo supera il saldo a debito del lettore.": "Der Betrag übersteigt den offenen Betrag des Lesers.",
   "La descrizione dell'addebito è obbligatoria.": "Eine Beschreibung der Gebühr ist erforderlich.",
   "La motivazione del condono è obbligatoria.": "Ein Grund für den Erlass ist erforderlich.",
-  "La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.": "Die Gebühr steigt mit jedem Tag Verspätung und wird bei der Rückgabe berechnet.",
+  "L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.": "Der Betrag kann bis zur Rückgabe nach den Regeln der Bibliothek steigen und wird dann berechnet.",
   "Metodo di pagamento": "Zahlungsart",
   "Metodo di pagamento non valido.": "Ungültige Zahlungsart.",
   "Metodo di pagamento:": "Zahlungsart:",
@@ -9028,5 +9028,6 @@
   "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Tagesgebühr 0 = keine Gebühren für diesen Typ; Sperrschwelle 0 = keine Sperre wegen Schulden. Ein leeres Feld übernimmt die Einstellung des Tabs Ausleihen.",
   "Saldo da incassare": "Offener Saldo",
   "Lettori con saldo a debito": "Leser mit offenem Saldo",
-  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Letzte 12 Monate; der offene Saldo ist der heutige. Die Aufstellung Monat für Monat steht im Gebührenbericht weiter unten."
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Letzte 12 Monate; der offene Saldo ist der heutige. Die Aufstellung Monat für Monat steht im Gebührenbericht weiter unten.",
+  "Movimenti %1$d–%2$d di %3$d": "Buchungen %1$d–%2$d von %3$d"
 }

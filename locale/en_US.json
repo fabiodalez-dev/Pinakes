@@ -8975,7 +8975,7 @@
   "L'importo supera il saldo a debito del lettore.": "The amount exceeds what the reader owes.",
   "La descrizione dell'addebito è obbligatoria.": "A description of the charge is required.",
   "La motivazione del condono è obbligatoria.": "A reason for the waiver is required.",
-  "La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.": "The fine grows with every day late and is charged when you return the book.",
+  "L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.": "The amount can grow until the book is returned, following the library's rules, and is charged at that point.",
   "Metodo di pagamento": "Payment method",
   "Metodo di pagamento non valido.": "Invalid payment method.",
   "Metodo di pagamento:": "Payment method:",
@@ -9028,5 +9028,6 @@
   "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Daily fine 0 = no fines for this type; block threshold 0 = no debt block. An empty field inherits the setting of the Loans tab.",
   "Saldo da incassare": "Outstanding balance",
   "Lettori con saldo a debito": "Patrons with a debt",
-  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Last 12 months; the outstanding balance is today's. The month-by-month detail is in the fines report below."
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Last 12 months; the outstanding balance is today's. The month-by-month detail is in the fines report below.",
+  "Movimenti %1$d–%2$d di %3$d": "Movements %1$d–%2$d of %3$d"
 }

@@ -22,7 +22,7 @@ class PatronLedgerController
         return $this->write($request, $response, $db, $userId, function (PatronLedger $ledger, array $data, int $cents, ?int $staffId) use ($userId): int {
             $method = is_scalar($data['metodo_pagamento'] ?? null) ? (string) $data['metodo_pagamento'] : '';
             $note = trim(is_scalar($data['note'] ?? null) ? (string) $data['note'] : '');
-            return $ledger->recordPayment($userId, $cents, $method, $note !== '' ? $note : null, $staffId);
+            return $ledger->recordPayment($userId, $cents, $method, $note !== '' ? $note : null, $staffId, self::requestKey($data));
         }, 'paid');
     }
 
@@ -30,7 +30,7 @@ class PatronLedgerController
     {
         return $this->write($request, $response, $db, $userId, function (PatronLedger $ledger, array $data, int $cents, ?int $staffId) use ($userId): int {
             $description = is_scalar($data['descrizione'] ?? null) ? (string) $data['descrizione'] : '';
-            return $ledger->manualCharge($userId, $cents, $description, $staffId);
+            return $ledger->manualCharge($userId, $cents, $description, $staffId, self::requestKey($data));
         }, 'charged');
     }
 
@@ -38,7 +38,7 @@ class PatronLedgerController
     {
         return $this->write($request, $response, $db, $userId, function (PatronLedger $ledger, array $data, int $cents, ?int $staffId) use ($userId): int {
             $reason = is_scalar($data['motivazione'] ?? null) ? (string) $data['motivazione'] : '';
-            return $ledger->waive($userId, $cents, $reason, $staffId);
+            return $ledger->waive($userId, $cents, $reason, $staffId, null, self::requestKey($data));
         }, 'waived');
     }
 
@@ -90,6 +90,18 @@ class PatronLedgerController
             return $this->back($response, $base, ['ledger_error' => 'save_failed']);
         }
         return $this->back($response, $base, ['ledger' => $okFlag, 'movement' => (string) $movementId]);
+    }
+
+    /**
+     * The idempotency key of one rendered form (hidden request_key, 32 hex),
+     * or null when absent or malformed.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function requestKey(array $data): ?string
+    {
+        $raw = is_scalar($data['request_key'] ?? null) ? (string) $data['request_key'] : '';
+        return preg_match('/^[a-f0-9]{32}$/', $raw) === 1 ? 'form:' . $raw : null;
     }
 
     /** @param array<string, string> $params */

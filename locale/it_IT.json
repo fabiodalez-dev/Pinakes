@@ -8975,7 +8975,7 @@
   "L'importo supera il saldo a debito del lettore.": "L'importo supera il saldo a debito del lettore.",
   "La descrizione dell'addebito è obbligatoria.": "La descrizione dell'addebito è obbligatoria.",
   "La motivazione del condono è obbligatoria.": "La motivazione del condono è obbligatoria.",
-  "La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.": "La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.",
+  "L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.": "L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.",
   "Metodo di pagamento": "Metodo di pagamento",
   "Metodo di pagamento non valido.": "Metodo di pagamento non valido.",
   "Metodo di pagamento:": "Metodo di pagamento:",
@@ -9028,5 +9028,6 @@
   "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.",
   "Saldo da incassare": "Saldo da incassare",
   "Lettori con saldo a debito": "Lettori con saldo a debito",
-  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso."
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.",
+  "Movimenti %1$d–%2$d di %3$d": "Movimenti %1$d–%2$d di %3$d"
 }

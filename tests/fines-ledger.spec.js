@@ -6,7 +6,7 @@
  * create the overdue loans (due dates in the application's timezone) and to
  * verify what was written.
  *
- * Run: /Users/fabio/Documents/GitHub/run-e2e-wt3.sh tests/fines-ledger.spec.js --config=tests/playwright.config.js --workers=1
+ * Run: /tmp/run-e2e.sh tests/fines-ledger.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
@@ -432,5 +432,48 @@ test.describe.serial('Fines and patron ledger', () => {
     await returnFromDesk(page, loanId);
     expect(dbQuery(`SELECT stato FROM prestiti WHERE id=${loanId}`)).toBe('restituito');
     expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE prestito_id=${loanId}`))).toBe(0);
+  });
+
+  test('15. a desk form sent twice records one payment (double click, lost reply)', async () => {
+    dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES (${state.patronId}, 'addebito_manuale', 3.00, 'ZZ doppio invio', NOW())`);
+    const before = balanceCents();
+    await page.goto(`${BASE}/admin/users/details/${state.patronId}`);
+    await page.fill('#ledger_pay_amount', '1,00');
+    const form = page.locator('#ledger-payment-form');
+    const fields = await form.evaluate((f) => Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (f)).entries()));
+    expect(String(fields.request_key)).toMatch(/^[a-f0-9]{32}$/);
+    const action = await form.getAttribute('action');
+    // The same submission twice, as a browser retry would send it.
+    for (let i = 0; i < 2; i++) {
+      const r = await page.request.post(new URL(String(action), BASE).toString(), { form: /** @type {Record<string, string>} */ (fields), maxRedirects: 0 });
+      expect(r.status()).toBe(302);
+    }
+    expect(balanceCents()).toBe(before - 100);
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId} AND chiave_idempotenza='form:${fields.request_key}'`))).toBe(1);
+    // A fresh form is a new payment.
+    await page.goto(`${BASE}/admin/users/details/${state.patronId}`);
+    await page.fill('#ledger_pay_amount', '1,00');
+    await page.locator('#ledger-payment-form button[type="submit"]').click();
+    await expect(page.locator('[data-ledger-flash="paid"]')).toBeVisible();
+    expect(balanceCents()).toBe(before - 200);
+  });
+
+  test('16. a long ledger pages through older movements on the reader record', async () => {
+    const existing = Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId}`));
+    const rows = [];
+    for (let i = 0; i < 205; i++) rows.push(`(${state.patronId}, 'addebito_manuale', 0.01, 'ZZ pagina ${i}', DATE_SUB(NOW(), INTERVAL ${400 + i} DAY))`);
+    dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES ${rows.join(',')}`);
+    const total = existing + 205;
+    await page.goto(`${BASE}/admin/users/details/${state.patronId}`);
+    const pager = page.locator('[data-ledger-pager]');
+    await expect(pager).toContainText(`1–200 di ${total}`);
+    await expect(page.locator('#ledger-movements tbody tr')).toHaveCount(200);
+    await expect(page.locator('#ledger-movements')).not.toContainText('ZZ pagina 204');
+    await page.locator('[data-ledger-next]').click();
+    await expect(page).toHaveURL(/ledger_page=2/);
+    await expect(page.locator('#ledger-movements')).toContainText('ZZ pagina 204');
+    await expect(page.locator('#ledger-movements tbody tr')).toHaveCount(total - 200);
+    await page.locator('[data-ledger-prev]').click();
+    await expect(page.locator('#ledger-movements tbody tr')).toHaveCount(200);
   });
 });

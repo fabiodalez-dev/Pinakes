@@ -757,7 +757,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
     </div>
     <div class="alert-overdue-content">
       <h3><?= htmlspecialchars(sprintf(__('Multe in maturazione: %s'), \App\Services\FineParameters::format($ledgerAccruedTotal)), ENT_QUOTES, 'UTF-8') ?></h3>
-      <p><?= __('La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.') ?></p>
+      <p><?= __("L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.") ?></p>
     </div>
   </div>
   <?php endif; ?>

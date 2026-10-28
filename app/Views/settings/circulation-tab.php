@@ -95,8 +95,8 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                       ? sprintf(__('Prenotazioni: %s'), $cEff->user->maxReservations > 0 ? (string) $cEff->user->maxReservations : '∞')
                       : __('Prenotazioni disattivate') ?>
                   <?php if ($cEff->user->cardDurationDays !== null): ?> · <?= sprintf(__('Tessera: %d giorni'), $cEff->user->cardDurationDays) ?><?php endif; ?>
-                  <?php $cFine = \App\Services\FineParameters::fromPolicy($cEff); if ($cFine->finesEnabled()): ?> · <span data-testid="type-fine-summary"><?= HtmlHelper::e(sprintf(__('Multa: %s/giorno'), \App\Services\FineParameters::format($cFine->dailyFineCents))) ?></span><?php endif; ?>
-                  <?php if ($cFine->debtBlockEnabled()): ?> · <span data-testid="type-debt-summary"><?= HtmlHelper::e(sprintf(__('Blocco oltre %s'), \App\Services\FineParameters::format((int) $cFine->debtBlockThresholdCents))) ?></span><?php endif; ?>
+                  <?php $cFine = \App\Services\FineParameters::fromPolicy($cEff); if ($cFine->finesEnabled()): ?> · <span data-testid="type-fine-summary"><?= htmlspecialchars(sprintf(__('Multa: %s/giorno'), \App\Services\FineParameters::format($cFine->dailyFineCents)), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
+                  <?php if ($cFine->debtBlockEnabled()): ?> · <span data-testid="type-debt-summary"><?= htmlspecialchars(sprintf(__('Blocco oltre %s'), \App\Services\FineParameters::format((int) $cFine->debtBlockThresholdCents)), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= (int) ($circulationData['userCounts'][$cTypeId] ?? 0) ?></td>
@@ -177,7 +177,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                       <?php endforeach; ?>
                       <?php foreach (['fine' => [__('Multa/giorno'), 'multa_giornaliera'], 'fine_max' => [__('Multa max'), 'multa_massima_prestito']] as $cField => [$cLabel, $cColumn]): ?>
                       <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
-                        <span class="w-16"><?= HtmlHelper::e($cLabel) ?></span>
+                        <span class="w-16"><?= htmlspecialchars($cLabel, ENT_QUOTES, 'UTF-8') ?></span>
                         <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cMoneyOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cMoneyPlaceholder($cInh[$cField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
                       </label>
                       <?php endforeach; ?>

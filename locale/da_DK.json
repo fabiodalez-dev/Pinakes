@@ -8975,7 +8975,7 @@
   "L'importo supera il saldo a debito del lettore.": "Beløbet overstiger lånerens skyldige saldo.",
   "La descrizione dell'addebito è obbligatoria.": "En beskrivelse af gebyret er påkrævet.",
   "La motivazione del condono è obbligatoria.": "En begrundelse for eftergivelsen er påkrævet.",
-  "La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.": "Gebyret stiger for hver dag for sent og opkræves ved aflevering.",
+  "L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.": "Beløbet kan stige indtil afleveringen efter bibliotekets regler og opkræves på det tidspunkt.",
   "Metodo di pagamento": "Betalingsmåde",
   "Metodo di pagamento non valido.": "Ugyldig betalingsmåde.",
   "Metodo di pagamento:": "Betalingsmåde:",
@@ -9028,5 +9028,6 @@
   "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Dagsgebyr 0 = ingen gebyrer for denne type; spærregrænse 0 = ingen spærring for gæld. Et tomt felt arver indstillingen fra fanen Lån.",
   "Saldo da incassare": "Udestående saldo",
   "Lettori con saldo a debito": "Lånere med gæld",
-  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Seneste 12 måneder; den udestående saldo er dagens. Måned for måned står i gebyrrapporten længere nede."
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Seneste 12 måneder; den udestående saldo er dagens. Måned for måned står i gebyrrapporten længere nede.",
+  "Movimenti %1$d–%2$d di %3$d": "Posteringer %1$d–%2$d af %3$d"
 }

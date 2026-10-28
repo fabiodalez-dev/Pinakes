@@ -688,44 +688,54 @@ class UsersController
 
         // Check for any loans (active or not) to preserve history. Ledger rows
         // (payments, charges) are history too: a reader with movements is
-        // suspended like one with loans, never erased with the ledger.
-        $loanCheck = $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count");
-        $loanCheck->bind_param("ii", $id, $id);
-        $loanCheck->execute();
-        $loanResult = $loanCheck->get_result()->fetch_assoc();
-        $loanCheck->close();
+        // suspended like one with loans, never erased with the ledger. The
+        // check and the delete run under the user row lock that ledger writes
+        // and loan limits take too, so a payment committed in between cannot
+        // be erased by the cascade.
+        $db->begin_transaction();
+        try {
+            $lockUser = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+            $lockUser->bind_param('i', $id);
+            $lockUser->execute();
+            $lockUser->close();
+            $loanCheck = $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count");
+            $loanCheck->bind_param("ii", $id, $id);
+            $loanCheck->execute();
+            $loanResult = $loanCheck->get_result()->fetch_assoc();
+            $loanCheck->close();
 
-        if ($loanResult['count'] > 0) {
-            // Cannot delete user with loan history - mark as suspended instead
-            $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
-            $updateStmt->bind_param("i", $id);
-            $updateStmt->execute();
-            $updateStmt->close();
+            if ($loanResult['count'] > 0) {
+                // Cannot delete user with loan history - mark as suspended instead
+                $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
+                $updateStmt->bind_param("i", $id);
+                $updateStmt->execute();
+                $updateStmt->close();
+                $db->commit();
 
-            // Audit logging
-            \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
-                'user_id' => $id,
-                'user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
-                'user_email' => $userToDelete['email'],
-                'loan_count' => $loanResult['count'],
-                'deleted_by' => $_SESSION['user']['id'] ?? 'unknown'
-            ]);
+                // Audit logging
+                \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
+                    'user_id' => $id,
+                    'user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
+                    'user_email' => $userToDelete['email'],
+                    'loan_count' => $loanResult['count'],
+                    'deleted_by' => $_SESSION['user']['id'] ?? 'unknown'
+                ]);
 
-            $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
-            return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
-        }
+                $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
+                return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
+            }
 
-        // No loans - safe to delete
-        $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        $success = $stmt->execute();
-        $error = $stmt->error;
-        $stmt->close();
-
-        if (!$success) {
+            // No loans - safe to delete
+            $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
             \App\Support\SecureLogger::error('User deletion failed', [
                 'user_id' => $id,
-                'mysqli_error' => $error,
+                'mysqli_error' => $e->getMessage(),
             ]);
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
             return $response->withHeader('Location', url('/admin/users?error=db_error'))->withStatus(302);
@@ -795,7 +805,12 @@ class UsersController
         // open overdue loans (shown, not written), and who may act on them.
         $ledger = \App\Services\PatronLedger::forDb($db);
         $ledgerBalanceCents = $ledger->balanceCents($id);
-        $ledgerMovements = $ledger->movements($id, 200);
+        // 200 rows per page, newest first; ?ledger_page=N reaches older ones.
+        $ledgerPerPage = 200;
+        $ledgerTotal = $ledger->movementCount($id);
+        $ledgerPages = max(1, (int) ceil($ledgerTotal / $ledgerPerPage));
+        $ledgerPage = min($ledgerPages, max(1, (int) ($request->getQueryParams()['ledger_page'] ?? 1)));
+        $ledgerMovements = $ledger->movements($id, $ledgerPerPage, ($ledgerPage - 1) * $ledgerPerPage);
         $ledgerAccrued = $ledger->accruedFines($id);
         $ledgerParams = \App\Services\FineParameters::forUser($db, $id);
         $ledgerCanManage = \App\Support\Permissions::can('loans.manage');

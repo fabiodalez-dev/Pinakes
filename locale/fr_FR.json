@@ -8975,7 +8975,7 @@
   "L'importo supera il saldo a debito del lettore.": "Le montant dépasse le solde dû par le lecteur.",
   "La descrizione dell'addebito è obbligatoria.": "La description du frais est obligatoire.",
   "La motivazione del condono è obbligatoria.": "Le motif de la remise est obligatoire.",
-  "La multa cresce ogni giorno di ritardo e viene addebitata alla restituzione.": "La pénalité augmente chaque jour de retard et est facturée au retour.",
+  "L'importo può crescere fino alla restituzione, secondo le regole della biblioteca, e viene addebitato in quel momento.": "Le montant peut augmenter jusqu'au retour, selon les règles de la bibliothèque, et il est facturé à ce moment-là.",
   "Metodo di pagamento": "Moyen de paiement",
   "Metodo di pagamento non valido.": "Moyen de paiement non valide.",
   "Metodo di pagamento:": "Moyen de paiement :",
@@ -9028,5 +9028,6 @@
   "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Pénalité journalière 0 = aucune pénalité pour ce type ; seuil de blocage 0 = aucun blocage pour dette. Un champ vide hérite du réglage de l'onglet Emprunts.",
   "Saldo da incassare": "Solde à encaisser",
   "Lettori con saldo a debito": "Lecteurs avec un solde débiteur",
-  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "12 derniers mois ; le solde à encaisser est celui d'aujourd'hui. Le détail mois par mois se trouve dans le rapport des pénalités plus bas."
+  "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "12 derniers mois ; le solde à encaisser est celui d'aujourd'hui. Le détail mois par mois se trouve dans le rapport des pénalités plus bas.",
+  "Movimenti %1$d–%2$d di %3$d": "Mouvements %1$d–%2$d sur %3$d"
 }
