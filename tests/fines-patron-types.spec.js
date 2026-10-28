@@ -8,7 +8,7 @@
  * desk. The database is used only to create the overdue loans (due dates in
  * the application's timezone), to seed a debt, and to verify what was written.
  *
- * Run: /Users/fabio/Documents/GitHub/run-e2e-wt3.sh tests/fines-patron-types.spec.js --config=tests/playwright.config.js --workers=1
+ * Run: /tmp/run-e2e.sh tests/fines-patron-types.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');

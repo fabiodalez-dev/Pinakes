@@ -11,7 +11,7 @@
  * Every loan is due 10 days ago and returned today: with no closure it is
  * 10 days late, so at 1.00 a day the fine in cents is 100 × open late days.
  *
- * Run: /Users/fabio/Documents/GitHub/run-e2e-wt3.sh tests/fines-closed-days.spec.js --config=tests/playwright.config.js --workers=1
+ * Run: /tmp/run-e2e.sh tests/fines-closed-days.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
