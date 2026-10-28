@@ -4,7 +4,6 @@
  * @var array<string, mixed> $globals
  */
 use App\Support\Csrf;
-use App\Support\HtmlHelper;
 
 $csrfToken = Csrf::ensureToken();
 $typeForm = $type;
@@ -17,7 +16,7 @@ $cGlobals = $globals;
         <i class="fas fa-id-badge text-gray-500"></i>
         <?= __("Modifica tipologia lettore") ?>
       </h1>
-      <p class="text-sm text-gray-600 mt-1"><?= HtmlHelper::e((string) $type['nome']) ?></p>
+      <p class="text-sm text-gray-600 mt-1"><?= htmlspecialchars((string) ((string) $type['nome']), ENT_QUOTES, 'UTF-8') ?></p>
     </div>
     <a href="<?= htmlspecialchars(url('/admin/settings?tab=circulation'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
       <i class="fas fa-arrow-left"></i>

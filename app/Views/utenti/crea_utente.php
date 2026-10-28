@@ -218,6 +218,20 @@ unset($workspaceHeader);
     const day = String(fiveYearsLater.getDate()).padStart(2, '0');
     dataScadenzaTesseraField.value = `${year}-${month}-${day}`;
     dataScadenzaTesseraField.dataset.originalValue = dataScadenzaTesseraField.value;
+    // The 5-year date is a suggestion, not a date the librarian typed: tell
+    // the server, so "Calcola la scadenza dalla durata tessera" still applies
+    // the patron type's card duration. Any edit of the field clears the flag.
+    const userForm = document.getElementById('user-form');
+    if (userForm) {
+      const prefilled = document.createElement('input');
+      prefilled.type = 'hidden';
+      prefilled.name = 'card_expiry_prefilled';
+      prefilled.value = '1';
+      userForm.appendChild(prefilled);
+      const typed = () => { prefilled.value = '0'; };
+      dataScadenzaTesseraField.addEventListener('input', typed);
+      dataScadenzaTesseraField.addEventListener('change', typed);
+    }
   }
 
   const storeOriginalState = (container) => {
