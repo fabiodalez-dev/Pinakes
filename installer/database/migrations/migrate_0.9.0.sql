@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `inventario_attese` (
   `copia_id` int NOT NULL,
   `scaffale_atteso` int DEFAULT NULL,
   `stato_all_apertura` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`sessione_id`,`copia_id`),
   KEY `idx_inventario_attese_copia` (`copia_id`),
   CONSTRAINT `fk_inventario_attese_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE
@@ -52,6 +53,16 @@ CREATE TABLE IF NOT EXISTS `inventario_scansioni` (
   CONSTRAINT `fk_inventario_scansioni_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_inventario_scansioni_utente` FOREIGN KEY (`scansionato_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- inventario_attese.esito_chiusura freezes each expected copy's bucket when the session
+-- is closed (trovata, fuori_posto, in_prestito, mancante, persa), so the report of a
+-- closed session no longer follows later loans and returns. Added here for tables
+-- created by an earlier build of 0.9.0; a fresh CREATE above already has it.
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_attese' AND COLUMN_NAME = 'esito_chiusura');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE inventario_attese ADD COLUMN esito_chiusura varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER stato_all_apertura', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- A starting profile for volunteers who only take part in stocktakes.
 INSERT IGNORE INTO ruoli (nome, permessi) VALUES

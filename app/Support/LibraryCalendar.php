@@ -27,7 +27,13 @@ use App\Models\SettingsRepository;
  */
 final class LibraryCalendar
 {
-    /** Upper bound on day-by-day scans, so an all-closed setup cannot loop forever. */
+    /**
+     * Upper bound on the scans, so an all-closed setup cannot loop forever.
+     * A scan steps over a one-off closure in one go (closedThrough()), so the
+     * bound only has to outlast the day-by-day part: closed weekdays and
+     * yearly closures, each shorter than a year. A one-off closure may span
+     * MAX_ONCE_SPAN_DAYS, far more than this: it is never walked.
+     */
     private const MAX_SCAN_DAYS = 1100;
 
     /** Longest yearly closure (days between start and end): a year less a day. */
@@ -156,7 +162,14 @@ final class LibraryCalendar
      * stored in prestiti.pickup_deadline, so every check that reads it (pickup
      * confirmation, the reader's cancellation, the expiry sweep, the expired
      * badges) applies the same rule. A deadline whose next open day is already
-     * past is left to the expiry sweep. Returns the number of pickups moved.
+     * past is left to the expiry sweep.
+     *
+     * The deadline never passes the loan's due date (prestiti.data_scadenza):
+     * pickupDeadline() caps it there on creation, and confirmPickup() refuses
+     * a pickup after the loan window, so an extension past it would promise a
+     * day the desk cannot honour. The due date of an existing loan is not
+     * moved here; when the cap leaves nothing to add the row is left alone.
+     * Returns the number of pickups moved.
      */
     public static function extendPickupDeadlines(\mysqli $db): int
     {
@@ -166,7 +179,7 @@ final class LibraryCalendar
         }
         $today = DateHelper::today();
         $result = $db->query(
-            "SELECT p.id, p.pickup_deadline, c.sede_id
+            "SELECT p.id, p.pickup_deadline, p.data_scadenza, c.sede_id
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.stato = 'da_ritirare' AND p.attivo = 1 AND p.pickup_deadline IS NOT NULL"
@@ -185,7 +198,11 @@ final class LibraryCalendar
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
             $next = $calendar->nextOpenDay($deadline, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
-            if ($next === $deadline || $next < $today) {
+            $dueDate = $row['data_scadenza'] !== null ? substr((string) $row['data_scadenza'], 0, 10) : '';
+            if (DateHelper::isISODateFormat($dueDate) && $next > $dueDate) {
+                $next = $dueDate;
+            }
+            if ($next <= $deadline || $next < $today) {
                 continue;
             }
             $id = (int) $row['id'];
@@ -234,7 +251,13 @@ final class LibraryCalendar
         return true;
     }
 
-    /** $ymd itself when open, otherwise the first open day after it. */
+    /**
+     * $ymd itself when open, otherwise the first open day after it. A day
+     * inside a one-off closure jumps to the day after that closure; the
+     * scan bound only applies to closed weekdays and yearly closures. With
+     * every day closed (two yearly closures covering the year) $ymd is
+     * returned after the bound, as before.
+     */
     public function nextOpenDay(string $ymd, ?int $sedeId = null): string
     {
         if (!DateHelper::isISODateFormat($ymd)) {
@@ -245,7 +268,7 @@ final class LibraryCalendar
             if ($this->isOpen($day, $sedeId)) {
                 return $day;
             }
-            $day = self::shift($day, 1);
+            $day = self::shift($this->closedThrough($day, $sedeId) ?? $day, 1);
         }
         return $ymd;
     }
@@ -256,7 +279,10 @@ final class LibraryCalendar
         return $this->nextOpenDay($ymd, $sedeId);
     }
 
-    /** $ymd itself when open, otherwise the last open day before it. */
+    /**
+     * $ymd itself when open, otherwise the last open day before it: the
+     * mirror of nextOpenDay(), jumping to the day before a one-off closure.
+     */
     public function previousOpenDay(string $ymd, ?int $sedeId = null): string
     {
         if (!DateHelper::isISODateFormat($ymd)) {
@@ -267,12 +293,16 @@ final class LibraryCalendar
             if ($this->isOpen($day, $sedeId)) {
                 return $day;
             }
-            $day = self::shift($day, -1);
+            $day = self::shift($this->closedFrom($day, $sedeId) ?? $day, -1);
         }
         return $ymd;
     }
 
-    /** The day $n open days after $from ($from itself excluded). */
+    /**
+     * The day $n open days after $from ($from itself excluded). A one-off
+     * closure on the way is stepped over whole; after the scan bound (every
+     * day closed) the plain $from + $n is returned, as before.
+     */
     public function addOpenDays(string $from, int $n, ?int $sedeId = null): string
     {
         if (!DateHelper::isISODateFormat($from) || $n <= 0) {
@@ -284,6 +314,8 @@ final class LibraryCalendar
             $day = self::shift($day, 1);
             if ($this->isOpen($day, $sedeId)) {
                 $counted++;
+            } else {
+                $day = $this->closedThrough($day, $sedeId) ?? $day;
             }
         }
         return $counted < $n ? self::shift($from, $n) : $day;
@@ -291,6 +323,9 @@ final class LibraryCalendar
 
     /**
      * Closed days in [$from, $to], both included, for the request calendars.
+     * Listed day by day, so the list stops MAX_SCAN_DAYS days after $from:
+     * the callers ask for a month or a 400-day horizon, never a span that
+     * long, and a ten-year closure is not expanded into ten years of dates.
      *
      * @return list<string>
      */
@@ -308,6 +343,42 @@ final class LibraryCalendar
             $day = self::shift($day, 1);
         }
         return $closed;
+    }
+
+    /**
+     * The last day of the one-off closures of $sedeId (or of every branch)
+     * that contain $ymd, the latest when several overlap; null when none
+     * does (the day is closed by a weekday or a yearly closure, or open).
+     * Yearly closures are not considered: they are shorter than a year and
+     * a scan walks them day by day, within its bound.
+     */
+    private function closedThrough(string $ymd, ?int $sedeId): ?string
+    {
+        $through = null;
+        foreach ($this->closures as $closure) {
+            if ($closure['yearly'] || ($closure['sede'] !== null && $closure['sede'] !== $sedeId)) {
+                continue;
+            }
+            if ($ymd >= $closure['start'] && $ymd <= $closure['end'] && ($through === null || $closure['end'] > $through)) {
+                $through = $closure['end'];
+            }
+        }
+        return $through;
+    }
+
+    /** The first day of the one-off closures containing $ymd (see closedThrough()). */
+    private function closedFrom(string $ymd, ?int $sedeId): ?string
+    {
+        $from = null;
+        foreach ($this->closures as $closure) {
+            if ($closure['yearly'] || ($closure['sede'] !== null && $closure['sede'] !== $sedeId)) {
+                continue;
+            }
+            if ($ymd >= $closure['start'] && $ymd <= $closure['end'] && ($from === null || $closure['start'] < $from)) {
+                $from = $closure['start'];
+            }
+        }
+        return $from;
     }
 
     /**

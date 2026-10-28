@@ -100,6 +100,41 @@ $oneDayMore = new LibraryCalendar([], [['start' => '2026-06-01', 'end' => '2027-
 $eq($oneDayMore->isOpen('2030-12-25'), true, 'a 365-day yearly span does not recur');
 $eq($oneDayMore->isOpen('2026-12-25'), false, 'but closes its own interval');
 
+// ── A one-off closure longer than the scan bound is stepped over whole ───
+// A once closure may span ten years (MAX_ONCE_SPAN_DAYS) while a scan walks
+// at most ~3 years day by day: the scans jump to the end of the closure.
+$fiveYears = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2030-12-31']]);
+$eq(LibraryCalendar::spanDays('2026-01-01', '2030-12-31') <= LibraryCalendar::MAX_ONCE_SPAN_DAYS, true, 'a five-year once closure is admissible');
+$eq($fiveYears->nextOpenDay('2026-06-15'), '2031-01-01', 'nextOpenDay inside a five-year closure is the day after it ends');
+$eq($fiveYears->nextOpenDay('2026-01-01'), '2031-01-01', 'from its first day too');
+$eq($fiveYears->previousOpenDay('2030-06-15'), '2025-12-31', 'previousOpenDay inside it is the day before it starts');
+$eq($fiveYears->previousOpenDay('2030-12-31'), '2025-12-31', 'from its last day too');
+$eq($fiveYears->addOpenDays('2026-06-15', 3), '2031-01-03', 'addOpenDays from inside it counts open days after it');
+$eq($fiveYears->addOpenDays('2025-12-30', 3), '2031-01-02', 'addOpenDays across it: Dec 31, then Jan 1 and 2 of 2031');
+$eq($fiveYears->closedDatesBetween('2027-01-01', '2027-01-31'), array_map(static fn (int $d): string => sprintf('2027-01-%02d', $d), range(1, 31)), 'closedDatesBetween inside it lists every day of the month asked');
+$cut = $fiveYears->closedDatesBetween('2026-01-01', '2030-12-31');
+$eq($cut[0] === '2026-01-01' && count($cut) > 1000 && count($cut) < 1826 && LibraryCalendar::shift($cut[0], count($cut) - 1) === end($cut), true, 'closedDatesBetween over the whole closure is cut at the scan bound, consecutive from the start');
+$eq($fiveYears->openDaysBetween('2025-12-31', '2031-01-02'), 2, 'openDaysBetween across it counts only the two days after it');
+// Around the jump: closed weekdays and a branch closure right after it still apply.
+$afterJump = new LibraryCalendar([3], [['start' => '2026-01-01', 'end' => '2030-12-31'], ['start' => '2031-01-02', 'end' => '2031-01-02', 'sede_id' => 2]]);
+$eq($afterJump->nextOpenDay('2028-02-29'), '2031-01-02', '2031-01-01 is a Wednesday (closed weekday): the jump lands on the next open day');
+$eq($afterJump->nextOpenDay('2028-02-29', 2), '2031-01-03', 'and branch 2, closed on Jan 2 as well, opens on Jan 3');
+$eq($afterJump->previousOpenDay('2028-02-29'), '2025-12-30', '2025-12-31 is a Wednesday: previousOpenDay steps back once more');
+$twoCut = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2027-12-31'], ['start' => '2027-06-01', 'end' => '2030-12-31']]);
+$eq($twoCut->nextOpenDay('2026-06-15'), '2031-01-01', 'overlapping once closures are stepped over one after the other');
+$eq($twoCut->previousOpenDay('2030-06-15'), '2025-12-31', 'backwards too');
+$branchOnly = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2030-12-31', 'sede_id' => 5]]);
+$eq($branchOnly->nextOpenDay('2026-06-15'), '2026-06-15', 'a branch-only closure does not move the library as a whole');
+$eq($branchOnly->nextOpenDay('2026-06-15', 5), '2031-01-01', 'but moves its branch past it');
+// Every day closed (two yearly closures covering the year): the scans still
+// end after the bound and fall back as before, quickly.
+$allYear = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2026-06-30', 'yearly' => true], ['start' => '2026-07-01', 'end' => '2026-12-31', 'yearly' => true]]);
+$started = microtime(true);
+$eq($allYear->nextOpenDay('2026-06-15'), '2026-06-15', 'all days closed: nextOpenDay returns its input after the bound');
+$eq($allYear->previousOpenDay('2026-06-15'), '2026-06-15', 'all days closed: previousOpenDay returns its input');
+$eq($allYear->addOpenDays('2026-06-15', 3), '2026-06-18', 'all days closed: addOpenDays falls back to +N calendar days');
+$eq(microtime(true) - $started < 2.0, true, 'the all-closed fallbacks finish quickly');
+
 // ── Branch-specific vs all branches ───────────────────────────────────────
 $branches = new LibraryCalendar([], [
     ['start' => '2026-11-10', 'end' => '2026-11-10', 'sede_id' => 2],

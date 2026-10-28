@@ -204,7 +204,7 @@ unset($workspaceHeader);
             <li class="flex items-start"><i class="fas fa-check text-green-600 mt-0.5 mr-2"></i><span><?= __("Le date possono essere scritte come 2026-12-31, 31/12/2026 o 31.12.2026.") ?></span></li>
             <li class="flex items-start"><i class="fas fa-check text-green-600 mt-0.5 mr-2"></i><span><?= __("I campi personalizzati della registrazione compaiono tra le colonne da associare.") ?></span></li>
             <?php if ($patronTypes): ?>
-            <li class="flex items-start"><i class="fas fa-check text-green-600 mt-0.5 mr-2"></i><span><?= __("La tipologia lettore si indica con il suo codice.") ?></span></li>
+            <li class="flex items-start"><i class="fas fa-check text-green-600 mt-0.5 mr-2"></i><span><?= __("La tipologia lettore si indica con il suo codice o con il suo nome.") ?></span></li>
             <li class="flex items-start"><i class="fas fa-check text-green-600 mt-0.5 mr-2"></i><span><?= __("Senza scadenza tessera nel file, la data viene calcolata dalla durata tessera della tipologia lettore (quella indicata o la predefinita); una scadenza presente nel CSV ha la precedenza.") ?></span></li>
             <?php endif; ?>
             <li class="flex items-start"><i class="fas fa-lock text-gray-500 mt-0.5 mr-2"></i><span><?= __("Le password non vengono mai importate.") ?></span></li>

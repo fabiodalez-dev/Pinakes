@@ -5,8 +5,9 @@ declare(strict_types=1);
  * Closures calendar applied to the loan code, against the real database:
  * the dueDate()/pickupDeadline() funnels reading loans.closed_weekdays and
  * calendario_chiusure, branch closures through the copy's sede, the renewal
- * cap stepping back to an open day, and the nightly expiry jobs doing nothing
- * on a closed day.
+ * cap stepping back to an open day, the nightly expiry jobs doing nothing
+ * on a closed day, and the NCIP checkout moving its due date with the
+ * chosen copy's branch.
  *
  * Run: php tests/library-calendar-loans.unit.php
  */
@@ -47,6 +48,7 @@ $tag = "zz-cal-{$run}";
 $prevWeekdays = $db->query("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = 'closed_weekdays'")->fetch_row();
 $bookId = 0;
 $userId = 0;
+$otherUserId = 0;
 $sedeId = 0;
 $setWeekdays = static function (string $value) use ($db): void {
     $stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'closed_weekdays', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
@@ -66,7 +68,7 @@ $clearClosures = static function () use ($db, $tag): void {
     $db->query("DELETE FROM calendario_chiusure WHERE descrizione = '{$tag}'");
     LibraryCalendar::reset();
 };
-$cleanup = static function () use ($db, $tag, $prevWeekdays, &$bookId, &$userId, &$sedeId): void {
+$cleanup = static function () use ($db, $tag, $prevWeekdays, &$bookId, &$userId, &$otherUserId, &$sedeId): void {
     $db->query("DELETE FROM calendario_chiusure WHERE descrizione = '{$tag}'");
     if ($prevWeekdays === null) {
         $db->query("DELETE FROM system_settings WHERE category = 'loans' AND setting_key = 'closed_weekdays'");
@@ -84,6 +86,9 @@ $cleanup = static function () use ($db, $tag, $prevWeekdays, &$bookId, &$userId,
     }
     if ($userId > 0) {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
+    }
+    if ($otherUserId > 0) {
+        $db->query("DELETE FROM utenti WHERE id = {$otherUserId}");
     }
     if ($sedeId > 0) {
         $db->query("DELETE FROM sedi WHERE id = {$sedeId}");
@@ -201,6 +206,26 @@ $check($deadlineOf($pickupLoan) === $today, 'the stored deadline is the next ope
 $maintenance->checkExpiredPickups();
 $check($stateOf($pickupLoan) === 'da_ritirare', 'a deadline on a later-declared closed day lasts until the next open day (today)');
 $check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'a second save moves nothing (idempotent)');
+
+// The extension never passes the loan's due date (confirmPickup() refuses a
+// pickup after the loan window), and the due date itself is not moved.
+$clearClosures();
+$pickupDue = $shift($today, 3);
+$db->query("UPDATE prestiti SET pickup_deadline = '{$pickupDue}', data_scadenza = '{$pickupDue}' WHERE id = {$pickupLoan}");
+$addClosure($pickupDue, $shift($pickupDue, 2));
+$check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'a deadline equal to the due date is left alone when the due date is closed');
+$check($deadlineOf($pickupLoan) === $pickupDue, 'its stored deadline still is the due date');
+$clearClosures();
+$db->query("UPDATE prestiti SET pickup_deadline = '{$shift($pickupDue, -1)}' WHERE id = {$pickupLoan}");
+$addClosure($shift($pickupDue, -1), $shift($pickupDue, 2));
+$check(LibraryCalendar::extendPickupDeadlines($db) >= 1, 'a deadline the day before the due date, closed through after it, moves');
+$check($deadlineOf($pickupLoan) === $pickupDue, 'and stops at the due date, not at the next open day');
+$check((string) $db->query("SELECT data_scadenza FROM prestiti WHERE id = {$pickupLoan}")->fetch_row()[0] === $pickupDue, 'the due date of the existing loan is not moved');
+$clearClosures();
+$db->query("UPDATE prestiti SET pickup_deadline = '{$shift($pickupDue, -1)}', data_scadenza = '{$shift($pickupDue, 5)}' WHERE id = {$pickupLoan}");
+$addClosure($shift($pickupDue, -1), $pickupDue);
+$check(LibraryCalendar::extendPickupDeadlines($db) >= 1 && $deadlineOf($pickupLoan) === $shift($pickupDue, 1), 'with room before the due date the deadline moves to the next open day as before');
+$db->query("UPDATE prestiti SET pickup_deadline = '{$yesterday}', data_scadenza = '{$loanEnd}' WHERE id = {$pickupLoan}");
 $clearClosures();
 $db->query("UPDATE prestiti SET pickup_deadline = '{$yesterday}' WHERE id = {$pickupLoan}");
 $check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'without closures no deadline moves');
@@ -224,6 +249,55 @@ $clearClosures();
 (new \App\Controllers\ReservationManager($db))->cancelExpiredReservations();
 $check($resState() !== 'attiva', 'with the library open the expired queue reservation is cancelled as before');
 $db->query("DELETE FROM prenotazioni WHERE id = {$queueRes}");
+
+// ── NCIP CheckOutItem: the due date moves with the chosen copy's branch ───
+// handleCheckOutItem() computes the library-wide due date before any copy is
+// known; createLoanAtomic() picks the copy under the book lock and must apply
+// that copy's branch closures to the date it stores (as the desk does), and
+// hand the stored date back for the response's DateDue.
+require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
+$clearClosures();
+$db->query("DELETE FROM prestiti WHERE libro_id = {$bookId}");
+$db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$copyId}");
+$db->query("UPDATE libri SET copie_disponibili = 1 WHERE id = {$bookId}");
+$ncip = new \App\Plugins\NcipServer\NcipServerPlugin($db, new \App\Support\HookManager($db));
+$createLoanAtomic = new ReflectionMethod($ncip, 'createLoanAtomic');
+$ncipPlainDue = $shift($today, 15);
+$addClosure($ncipPlainDue, $ncipPlainDue, $sedeId);
+$check(LibraryCalendar::dueDate($db, $ncipPlainDue) === $ncipPlainDue, 'NCIP: the library-wide due date is open (the closure is of the branch only)');
+$ncipDue = $ncipPlainDue;
+$ncipFailure = null;
+$ncipLoan = $createLoanAtomic->invokeArgs($ncip, [$bookId, $userId, &$ncipDue, 0, &$ncipFailure]);
+$check(is_int($ncipLoan) && $ncipLoan > 0, 'NCIP: the checkout with a branch closure on its due date is created (' . var_export($ncipFailure, true) . ')');
+$ncipStored = (string) $db->query('SELECT data_scadenza FROM prestiti WHERE id = ' . (int) $ncipLoan)->fetch_row()[0];
+$check($ncipStored === $shift($ncipPlainDue, 1), "NCIP: the stored data_scadenza is the next open day of the copy's branch");
+$check($ncipDue === $ncipStored, 'NCIP: the handler is handed the stored date (the DateDue of the response)');
+
+// The shifted window is checked again: a commitment on the copy from the
+// day after the closure refuses the checkout instead of storing a due date
+// on the closed day (the title has one copy, so capacity refuses first).
+$db->query('DELETE FROM prestiti WHERE id = ' . (int) $ncipLoan);
+$db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$copyId}");
+$otherEmail = "{$tag}-b@test.local";
+$otherCard = strtoupper("ZZCAL{$run}B");
+$stmt = $db->prepare("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata) VALUES (?, 'Cal', 'Other', ?, ?, 'standard', 'attivo', 1)");
+$stmt->bind_param('sss', $otherCard, $otherEmail, $hash);
+$stmt->execute();
+$otherUserId = (int) $db->insert_id;
+$stmt->close();
+$heldFrom = $shift($ncipPlainDue, 1);
+$heldTo = $shift($ncipPlainDue, 10);
+$stmt = $db->prepare("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, ?, 'prenotato', 1)");
+$stmt->bind_param('iiiss', $bookId, $copyId, $otherUserId, $heldFrom, $heldTo);
+$stmt->execute();
+$stmt->close();
+$ncipDue = $ncipPlainDue;
+$ncipFailure = null;
+$ncipLoan2 = $createLoanAtomic->invokeArgs($ncip, [$bookId, $userId, &$ncipDue, 0, &$ncipFailure]);
+$check($ncipLoan2 === null && in_array($ncipFailure, ['no_capacity', 'no_copy'], true), 'NCIP: a commitment from the shifted day refuses the checkout (' . var_export($ncipFailure, true) . ') rather than storing a closed due date');
+$check($ncipDue === $ncipPlainDue, 'NCIP: a refused checkout leaves the handed-in date alone');
+$check((int) $db->query("SELECT COUNT(*) FROM prestiti WHERE libro_id = {$bookId} AND utente_id = {$userId}")->fetch_row()[0] === 0, 'NCIP: nothing was stored for the refused checkout');
+$clearClosures();
 
 echo ($failed === 0 ? 'SUCCESS' : 'FAILURE') . " {$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);
