@@ -389,6 +389,27 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     }
   });
 
+  test('a ";" CSV whose addresses hold more commas than semicolons is still read with ";": the preview has every column and the address is one cell', async () => {
+    const file = path.join(os.tmpdir(), `utenti-indirizzi-${RUN}.csv`);
+    // Three ";" per line against five commas per address: counting characters would pick ",".
+    fs.writeFileSync(file, [['Nome', 'Cognome', 'E-mail', 'Indirizzo'].join(';'),
+      ['Viale', 'Uno', `viale1.${RUN}@${DOMAIN}`, 'Via Roma 1, int. 3, scala B, piano 2, 00100 Roma, RM'].join(';'),
+      ['Viale', 'Due', `viale2.${RUN}@${DOMAIN}`, 'Piazza Dante 5, int. 1, scala A, piano 1, 20100 Milano, MI'].join(';')].join('\n') + '\n');
+    try {
+      await page.goto(`${BASE}/admin/users/import`);
+      await page.locator('#user_import_file').setInputFiles(file);
+      await page.locator('#user-import-upload-btn').click();
+      await expect(page.locator('#user-import-step-mapping')).toBeVisible();
+      await expect(page.locator('#user-import-row-count')).toHaveText('2 righe da importare');
+      await expect(page.locator('#user-import-preview thead tr').first().locator('th')).toHaveCount(4);
+      await expect(page.locator('select[data-import-column="3"]')).toHaveValue('indirizzo');
+      await expect(page.locator('#user-import-preview tbody tr').first()).toContainText('Via Roma 1, int. 3, scala B, piano 2, 00100 Roma, RM');
+      await page.locator('#user-import-cancel').click();
+    } finally {
+      try { fs.unlinkSync(file); } catch { /* gone */ }
+    }
+  });
+
   test('a failure after the account is created is a warning on a created row, not a failed row', async () => {
     test.setTimeout(120_000);
     const trigger = `zz_ui_probe_${RUN.replace(/[^a-z0-9]/gi, '')}`;
