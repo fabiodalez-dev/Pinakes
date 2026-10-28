@@ -678,6 +678,12 @@ class UsersController
             $updateStmt->execute();
             $updateStmt->close();
 
+            // The photo is personal data and goes with the account even when
+            // the record itself is kept for the loan history. delete() clears
+            // the reference and unlinks the file; its failures are logged, never
+            // thrown, so the request completes either way.
+            \App\Support\PatronPhoto::delete($db, $id);
+
             // Audit logging
             \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
                 'user_id' => $id,
