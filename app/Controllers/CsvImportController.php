@@ -30,6 +30,12 @@ class CsvImportController
      * anno → anno_pubblicazione; pagine → numero_pagine;
      * dewey → classificazione_dewey.
      *
+     * The media type can also be selected apart from the format: a caller
+     * that passes the optional `tipo_media` family to importParsedRow()
+     * decides it on its own (the MARC import, whose records carry a media
+     * type but never a format or a price). The CSV upload never sends it,
+     * so a CSV row keeps writing both columns through `formato`.
+     *
      * @var list<string>
      */
     private const UPDATE_FIELD_FAMILIES = [
@@ -697,7 +703,8 @@ class CsvImportController
      * rethrown, so the caller records the row as failed and goes on.
      *
      * @param array<string, mixed> $parsedData a row as parseCsvRow() returns it
-     * @param array<string, bool> $updateFields one entry per UPDATE_FIELD_FAMILIES family
+     * @param array<string, bool> $updateFields one entry per UPDATE_FIELD_FAMILIES family,
+     *        plus the optional `tipo_media` family (defaults to the `formato` one)
      * @param array<string, mixed> $importData
      * @param int|null $existingBookId the book to update when $resolveExisting is false
      * @param bool $resolveExisting true: match by ID/ISBN-13/EAN/title+author as the CSV import does
@@ -1811,8 +1818,10 @@ class CsvImportController
      * unchecked keeps the book's current values for its columns:
      * isbn → isbn10/isbn13; ean → ean; titolo/sottotitolo/anno/lingua/
      * edizione/pagine/prezzo/dewey → the matching column;
-     * formato → formato + tipo_media; collana → collana + numero_serie
-     * (+ series membership sync skipped);
+     * formato → formato + tipo_media, unless $updateFields carries its own
+     * `tipo_media` entry, which then decides the media type alone (the MARC
+     * import overwrites the media type and never the format);
+     * collana → collana + numero_serie (+ series membership sync skipped);
      * genre → genere_id; publisher → editore_id (+ junction sync skipped);
      * description → descrizione/descrizione_plain; keywords → parole_chiave;
      * contributors → the legacy traduttore/illustratore/curatore TEXT columns.
@@ -1831,6 +1840,9 @@ class CsvImportController
         foreach (self::UPDATE_FIELD_FAMILIES as $family) {
             $apply[$family] = (bool) ($updateFields[$family] ?? true);
         }
+        // The media type follows the format family unless the caller selects
+        // it on its own (see UPDATE_FIELD_FAMILIES).
+        $apply['tipo_media'] = (bool) ($updateFields['tipo_media'] ?? $apply['formato']);
         $anyPreserved = in_array(false, $apply, true);
         $activityBefore = \App\Support\ActivityLog::loadBookSnapshot($db, $bookId);
         $hasTipoMedia = $this->hasTipoMediaColumn($db);
@@ -1972,6 +1984,8 @@ class CsvImportController
             }
             if (!$apply['formato']) {
                 $formato = $existingDesc['formato'];
+            }
+            if (!$apply['tipo_media']) {
                 // tipo_media updates via COALESCE(?, tipo_media): NULL keeps it.
                 $tipoMedia = null;
             }

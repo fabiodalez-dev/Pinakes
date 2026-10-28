@@ -6,7 +6,8 @@ declare(strict_types=1);
  * at opening is independent of later catalogue edits, every scan lands in the
  * right bucket, the buckets add up, and closing with "mark as lost" changes
  * only the missing copies (never one lent, waiting for pickup or damaged),
- * recalculates availability and writes the audit log.
+ * recalculates availability and writes the audit log. Once closed, the
+ * report is frozen: loans and returns after the close change nothing.
  *
  * Touches only rows it creates (titles/codes prefixed ZZST) and removes them.
  * Run: php tests/stocktake-snapshot.unit.php
@@ -115,6 +116,7 @@ try {
     $check($summary['attese'] === 6 && $summary['trovate'] === 1 && $summary['fuori_posto'] === 0 && $summary['in_prestito'] === 2 && $summary['mancanti'] === 3, 'found 1, on loan 2 (C3 lent, C7 waiting for pickup), missing 3 (C2 deleted, C6 unscanned, C8 damaged)');
     $check($summary['trovate'] + $summary['fuori_posto'] + $summary['in_prestito'] + $summary['mancanti'] === $summary['attese'], 'the four buckets add up to the expected copies');
     $check($summary['sconosciute'] === 2 && $summary['fuori_ambito'] === 1 && $summary['duplicate'] === 1 && $summary['scansioni'] === 6, 'side counters: 2 unknown, 1 out of scope, 1 duplicate, 6 scans');
+    $check($summary['perse'] === 0 && (int) $one("SELECT COUNT(*) FROM inventario_attese WHERE sessione_id = {$sessionId} AND esito_chiusura IS NULL") === 6, 'while the session is open no bucket is frozen and nothing is marked lost');
 
     $categories = array_count_values(array_column($service->reportRows($sessionId), 'categoria'));
     $check(($categories['mancante'] ?? 0) === 3 && ($categories['trovata'] ?? 0) === 1 && ($categories['in_prestito'] ?? 0) === 2, 'the report rows list the same buckets');
@@ -137,6 +139,10 @@ try {
     $check((int) $one("SELECT copie_disponibili FROM libri WHERE id = {$b1}") === 1, 'book availability is recalculated (1 of the 3 remaining copies)');
     $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$b1} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 1, 'an ActivityLog entry records the copy declared lost');
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$sessionId}") === 'chiusa', 'the session is closed');
+    $check($one("SELECT GROUP_CONCAT(CONCAT(copia_id, ':', esito_chiusura) ORDER BY copia_id) FROM inventario_attese WHERE sessione_id = {$sessionId}") === "{$c1}:trovata,{$c2}:mancante,{$c6}:persa,{$c3}:in_prestito,{$c7}:in_prestito,{$c8}:mancante", 'closing freezes each expected copy\'s bucket: the scan outcome, on loan, missing, or lost when the close marked it');
+    $closedSummary = $service->summary($sessionId);
+    $check($closedSummary['trovate'] === 1 && $closedSummary['fuori_posto'] === 0 && $closedSummary['in_prestito'] === 2 && $closedSummary['mancanti'] === 3 && $closedSummary['perse'] === 1 && $closedSummary['attese'] === 6, 'the closed summary reads found 1, on loan 2, missing 3 of which 1 marked lost');
+    $check($closedSummary['trovate'] + $closedSummary['fuori_posto'] + $closedSummary['in_prestito'] + $closedSummary['mancanti'] === $closedSummary['attese'], 'the frozen buckets add up to the expected copies');
     try {
         $service->scan($sessionId, "{$p}-C6", null, null);
         $check(false, 'a closed session refuses scans');
@@ -199,6 +205,23 @@ try {
     (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $fourth);
     $check(ignore_user_abort() === 1, 'a mark-lost close keeps running if the browser goes away');
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$fourth}") === 'chiusa', 'and closes the session');
+    $check($one("SELECT GROUP_CONCAT(CONCAT(copia_id, ':', esito_chiusura) ORDER BY copia_id) FROM inventario_attese WHERE sessione_id = {$fourth}") === "{$c3}:in_prestito,{$c7}:in_prestito,{$c5}:persa", 'the close from the page freezes the buckets too');
+
+    // The report of a closed session is frozen at close (review #504): the
+    // loan desk keeps working, the report keeps saying what the stocktake found.
+    $buckets = static fn (array $rows): array => array_map(static fn (array $r): array => [$r['categoria'], $r['codice']], $rows);
+    $closedRows = $buckets($service->reportRows($sessionId));
+    $closedCategories = array_count_values(array_column($closedRows, 0));
+    ksort($closedCategories);
+    $check($closedCategories === ['duplicata' => 1, 'fuori_ambito' => 1, 'in_prestito' => 2, 'mancante' => 3, 'sconosciuta' => 2, 'trovata' => 1], 'the closed report lists the frozen buckets, the copy marked lost among the missing');
+    // C7's hold is picked up and returned, C6 turns up on a shelf, C8 is repaired and lent.
+    $db->query("UPDATE prestiti SET stato = 'restituito', attivo = 0 WHERE id = {$holdId}");
+    $db->query("UPDATE copie SET stato = 'disponibile' WHERE id IN ({$c7}, {$c6})");
+    $db->query("UPDATE copie SET stato = 'prestato' WHERE id = {$c8}");
+    $check($one("SELECT stato FROM copie WHERE id = {$c7}") === 'disponibile' && $one("SELECT stato FROM copie WHERE id = {$c8}") === 'prestato', 'the loan desk moved on after the close');
+    $check($service->summary($sessionId) === $closedSummary, 'a return, a loan and a found copy after the close leave the summary as it was');
+    $check($buckets($service->reportRows($sessionId)) === $closedRows, 'and every report row keeps its bucket');
+    $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$sessionId} AND copia_id = {$c6}") === 'persa' && $service->summary($sessionId)['perse'] === 1, 'the copy the close marked lost is still reported as such');
 
     echo "SUCCESS {$checks} stocktake snapshot checks\n";
 } finally {
