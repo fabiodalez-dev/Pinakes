@@ -1000,6 +1000,11 @@ class ReservationManager
      */
     public function cancelExpiredReservations(): int
     {
+        // Closures calendar: a queue reservation does not lose its place on a
+        // day the library is closed (same rule as checkExpiredReservations()).
+        if (!\App\Support\LibraryCalendar::forDb($this->db)->isOpen(\App\Support\DateHelper::today())) {
+            return 0;
+        }
         $ownTransaction = $this->beginTransactionIfNeeded();
         $expiryNotifications = [];
 

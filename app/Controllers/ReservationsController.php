@@ -290,6 +290,11 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // A start day the library is closed moves to the next open day, as the
+        // request calendar proposes it (a crafted request cannot start on a
+        // closure); identical without closures.
+        $startDate = \App\Support\LibraryCalendar::forDb($this->db)->nextOpenDay($startDate);
+
         if ($endDate && $endDate < $startDate) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_range', 'message' => __('La data di fine non può precedere la data di inizio')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
@@ -456,6 +461,9 @@ class ReservationsController
                     'auto_approved' => false,
                     'status' => 'reserved',
                     'loan_state' => null,
+                    // The stored window (closed days already skipped).
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             }
@@ -587,6 +595,9 @@ class ReservationsController
                     'auto_approved' => $loanState !== null,
                     'status' => $status,
                     'loan_state' => $loanState,
+                    // The stored window (closed days already skipped).
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {

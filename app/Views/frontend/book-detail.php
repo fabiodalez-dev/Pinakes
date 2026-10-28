@@ -1669,8 +1669,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loanWindowFrom(startIso, availabilityByDate, defaultDays, maxDays, closedSet) {
       const lookAhead = Math.max(defaultDays, maxDays || defaultDays);
+      // The longest end can pass lookAhead when it skips closed days: the
+      // conflict search has to reach that day too.
+      const searchDays = daysBetweenIso(startIso, toOpenDayIso(addDaysToIso(startIso, lookAhead), 1, closedSet));
       let firstBlocked = null;
-      for (let i = 1; i <= lookAhead; i++) {
+      for (let i = 1; i <= searchDays; i++) {
         const day = addDaysToIso(startIso, i);
         const info = availabilityByDate[day];
         if (info && info.state !== 'free') {
@@ -2041,7 +2044,9 @@ document.addEventListener('DOMContentLoaded', function() {
               Swal.showValidationMessage(noWindowText(loanWindow));
               return false;
             }
-            const effectiveEnd = endDate || toOpenDayIso(addDaysToIso(startDate, defaultRequestLoanDays), 1, closedDaySet);
+            // A chosen return day the library is closed is stored on the next
+            // open day, like the default one.
+            const effectiveEnd = toOpenDayIso(endDate || addDaysToIso(startDate, defaultRequestLoanDays), 1, closedDaySet);
             if (effectiveEnd > loanWindow.maxEndDate) {
               Swal.showValidationMessage(loanWindow.firstBlocked !== null ? loanLimitText(loanWindow) : maxDurationText);
               return false;
@@ -2074,27 +2079,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              const effectiveEndDate = formValues.endDate || toOpenDayIso(addDaysToIso(formValues.startDate, defaultRequestLoanDays), 1, closedDaySet);
+              // The window the server stored, else the same rule computed here.
+              const storedStart = typeof result.start_date === 'string' && result.start_date ? result.start_date : formValues.startDate;
+              const effectiveEndDate = typeof result.end_date === 'string' && result.end_date
+                ? result.end_date
+                : toOpenDayIso(formValues.endDate || addDaysToIso(formValues.startDate, defaultRequestLoanDays), 1, closedDaySet);
               const isWaitlistReservation = result.status === 'reserved';
               const rangeTemplate = isWaitlistReservation ? reservationRangeTpl : successRangeTpl;
               const successHtml = rangeTemplate
-                .replace('%1$s', formatDateIT(formValues.startDate))
+                .replace('%1$s', formatDateIT(storedStart))
                 .replace('%2$s', formatDateIT(effectiveEndDate));
 
               const isAutoApproved = result.auto_approved === true;
               // A scheduled ('prenotato') loan is not awaiting pickup yet: branch
               // the footnote so it doesn't promise imminent pickup instructions.
               const isScheduled = result.loan_state === 'prenotato';
-              let pickupDeadline = addOpenDaysIso(formValues.startDate, pickupExpiryDays, closedDaySet);
+              let pickupDeadline = addOpenDaysIso(storedStart, pickupExpiryDays, closedDaySet);
               if (effectiveEndDate && effectiveEndDate < pickupDeadline) {
                 pickupDeadline = effectiveEndDate;
               }
               // The days actually available: fewer than the setting when the
               // loan ends first (same rule as the pickup emails).
-              const spanDays = Math.round((Date.parse(pickupDeadline) - Date.parse(formValues.startDate)) / 86400000);
+              const spanDays = Math.round((Date.parse(pickupDeadline) - Date.parse(storedStart)) / 86400000);
               const pickupDays = Number.isFinite(spanDays) && spanDays >= 0 ? spanDays : pickupExpiryDays;
               const scheduledFootnote = scheduledFootnoteTpl
-                .replace('%s', formatDateIT(formValues.startDate))
+                .replace('%s', formatDateIT(storedStart))
                 .replace('%d', String(pickupDays))
                 .replace('%s', formatDateIT(pickupDeadline));
               const approvedFootnoteText = isScheduled ? scheduledFootnote : approvedFootnote;

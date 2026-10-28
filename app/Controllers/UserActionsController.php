@@ -560,6 +560,8 @@ class UserActionsController
         }
 
         $uid = (int) $user['id'];
+        // A closed start day moves to the next open day (see reserve()).
+        $date = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay($date);
         $startDate = $date;
 
         $db->begin_transaction();
@@ -982,8 +984,10 @@ class UserActionsController
             return $this->back($response, ['reserve_error' => 'not_eligible']);
         }
 
-        // Calculate date range for availability check
-        $start = ($desired !== '') ? $desired : $today;
+        // Calculate date range for availability check. A start day the library
+        // is closed moves to the next open day, as the request calendar
+        // proposes it; identical without closures.
+        $start = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay(($desired !== '') ? $desired : $today);
         $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
         $end = \App\Services\CirculationPolicy::dueDateFor($start, $reservePolicy->requestDurationDays(), $db);
         // Optional return date (Mobile API 1.8.2), bounded as in loan().
