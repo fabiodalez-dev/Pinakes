@@ -160,6 +160,24 @@ test.describe('Closures calendar — admin page', () => {
     expect(rowsFor(`${TAG} inverted`)).toBe('0');
   });
 
+  test('CRUD 7: updating a closure that no longer exists reports "non trovata" and stores nothing', async () => {
+    const missingId = parseInt(db('SELECT COALESCE(MAX(id), 0) + 100000 FROM calendario_chiusure'), 10);
+    const before = db('SELECT COUNT(*) FROM calendario_chiusure');
+    await page.goto(`${BASE}/admin/calendar`);
+    await page.fill('#closure_start', `${farYear}-06-20`);
+    await page.fill('#closure_description', `${TAG} ghost`);
+    // Same form, same CSRF token, the update route of an id that does not exist.
+    await page.evaluate((id) => {
+      const form = document.querySelector('#save-closure').closest('form');
+      form.action = form.action.replace(/\/admin\/calendar\/closures.*$/, `/admin/calendar/closures/${id}/update`);
+    }, missingId);
+    await submitAndLand(page, '#save-closure');
+    await expect(page.locator('body')).toContainText(/Chiusura non trovata/);
+    await expect(page.locator('body')).not.toContainText(/Chiusura aggiornata/);
+    expect(db('SELECT COUNT(*) FROM calendario_chiusure')).toBe(before);
+    expect(rowsFor(`${TAG} ghost`)).toBe('0');
+  });
+
   test('CRUD 6: a closure for one branch is stored with that branch', async () => {
     await addClosure(page, { start: `${farYear}-07-01`, description: `${TAG} branch`, branch: String(sedeId) });
     expect(db(`SELECT sede_id FROM calendario_chiusure WHERE descrizione='${TAG} branch'`)).toBe(String(sedeId));
@@ -328,6 +346,27 @@ test.describe('Closures calendar — admin page', () => {
     await page.setInputFiles('#ics_file', { name: 'chiusure.ics', mimeType: 'text/calendar', buffer });
     await submitAndLand(page, '#import-ics');
     expect(db(`SELECT data_inizio FROM calendario_chiusure WHERE descrizione='${TAG} caffé'`)).toBe(`${farYear}-06-13`);
+  });
+
+  test('ICS 8: a yearly event longer than a year is discarded with a reason; the other events and the open days stay', async () => {
+    // A ten-year RRULE:FREQ=YEARLY event, stored as a yearly row, would have
+    // closed every day of every year: the import applies the form's limits.
+    const decadeIcs = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0',
+      'BEGIN:VEVENT', 'UID:decade@e2e', `DTSTART;VALUE=DATE:${farYear}0101`, `DTEND;VALUE=DATE:${farYear + 10}0101`, 'RRULE:FREQ=YEARLY', `SUMMARY:${TAG} decennio`, 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:fine@e2e', `DTSTART;VALUE=DATE:${farYear}0921`, `SUMMARY:${TAG} ics valido`, 'END:VEVENT',
+      'END:VCALENDAR', '',
+    ].join('\r\n');
+    await importIcs(decadeIcs);
+    await expect(page.locator('body')).toContainText(/1 chiusure aggiunte, 0 già presenti, 1 scartate perché più lunghe del limite/);
+    expect(rowsFor(`${TAG} decennio`)).toBe('0');
+    expect(rowsFor(`${TAG} ics valido`)).toBe('1');
+    // Weekdays of the next years are still open: nothing closed every day.
+    await page.goto(`${BASE}/admin/calendar?month=${farYear + 2}-09`);
+    await expect(page.locator(`[data-calendar-day="${farYear + 2}-09-21"]`)).toHaveAttribute('data-closed', '0');
+    await expect(page.locator(`[data-calendar-day="${farYear + 2}-09-22"]`)).toHaveAttribute('data-closed', '0');
+    await page.goto(`${BASE}/admin/calendar?month=${farYear}-09`);
+    await expect(page.locator(`[data-calendar-day="${farYear}-09-21"]`)).toHaveAttribute('data-closed', '1');
   });
 
   test('ICS 5: a file that is not a calendar is refused', async () => {

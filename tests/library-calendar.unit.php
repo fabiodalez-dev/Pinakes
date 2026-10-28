@@ -79,6 +79,27 @@ $leap = new LibraryCalendar([], [['start' => '2024-02-29', 'end' => '2024-02-29'
 $eq($leap->isOpen('2028-02-29'), false, 'a yearly Feb 29 closes Feb 29 in leap years');
 $eq($leap->isOpen('2027-03-01'), true, 'and does not close Mar 1 in other years');
 
+// A yearly span of a year or more cannot repeat: it is applied once, as the
+// interval stored, and never closes a day outside it.
+$eq(LibraryCalendar::spanDays('2026-01-01', '2026-01-01'), 0, 'spanDays: same day is 0');
+$eq(LibraryCalendar::spanDays('2026-01-01', '2026-12-31'), 364, 'spanDays: a year less a day is 364');
+$eq(LibraryCalendar::spanDays('2026-01-01', 'nope'), -1, 'spanDays: not a date is -1');
+$eq(LibraryCalendar::MAX_YEARLY_SPAN_DAYS, 364, 'the yearly limit is a year less a day');
+$decade = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2035-12-31', 'yearly' => true]]);
+$eq($decade->isOpen('2030-06-15'), false, 'a ten-year yearly row closes a day inside its interval');
+$eq($decade->isOpen('2040-06-15'), true, 'and leaves an arbitrary later date open (it does not close every day)');
+$eq($decade->isOpen('2025-06-15'), true, 'nor an earlier one');
+$twoYears = new LibraryCalendar([], [['start' => '2020-03-01', 'end' => '2022-02-28', 'yearly' => true]]);
+$eq($twoYears->isOpen('2021-07-01'), false, 'a two-year yearly row closes its own days');
+$eq($twoYears->isOpen('2026-07-01'), true, 'and not the same day years later');
+$fullYear = new LibraryCalendar([], [['start' => '2026-06-01', 'end' => '2027-05-31', 'yearly' => true]]);
+$eq($fullYear->isOpen('2030-12-25'), false, 'a 364-day yearly span (Jun 1 - May 31) still recurs and wraps');
+$eq($fullYear->isOpen('2030-05-31'), false, 'its last month-day is closed');
+$eq($fullYear->hasRules(), true, 'it is a rule');
+$oneDayMore = new LibraryCalendar([], [['start' => '2026-06-01', 'end' => '2027-06-01', 'yearly' => true]]);
+$eq($oneDayMore->isOpen('2030-12-25'), true, 'a 365-day yearly span does not recur');
+$eq($oneDayMore->isOpen('2026-12-25'), false, 'but closes its own interval');
+
 // ── Branch-specific vs all branches ───────────────────────────────────────
 $branches = new LibraryCalendar([], [
     ['start' => '2026-11-10', 'end' => '2026-11-10', 'sede_id' => 2],
@@ -144,6 +165,27 @@ $eq($parsed[0], ['start' => '2026-12-24', 'end' => '2026-12-26', 'description' =
 $eq($parsed[1]['yearly'] && $parsed[1]['start'] === '2026-08-15' && $parsed[1]['end'] === '2026-08-15', true, 'ICS: RRULE FREQ=YEARLY recurs, no DTEND = one day');
 $eq([$parsed[2]['start'], $parsed[2]['end']], ['2026-11-02', '2026-11-02'], 'ICS: a timed event closes its day');
 $eq(LibraryCalendar::parseIcs('not a calendar'), [], 'ICS: garbage yields nothing');
+
+// A UTC DATE-TIME is read in the app timezone before its day is taken; a
+// floating DATE-TIME and a DATE are taken as written.
+$utcIcs = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20260410T230000Z\nDTEND:20260411T000000Z\nSUMMARY:utc\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20260410T230000\nSUMMARY:floating\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260410\nSUMMARY:date\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20260411T020000Z\nSUMMARY:early\nEND:VEVENT\nEND:VCALENDAR\n";
+$rome = LibraryCalendar::parseIcs($utcIcs, 1000, 'Europe/Rome');
+$eq([$rome[0]['start'], $rome[0]['end']], ['2026-04-11', '2026-04-11'], 'ICS: 20260410T230000Z is Apr 11 in Europe/Rome');
+$eq([$rome[1]['start'], $rome[2]['start']], ['2026-04-10', '2026-04-10'], 'ICS: a floating DATE-TIME and a DATE keep their day');
+$eq($rome[3]['start'], '2026-04-11', 'ICS: 20260411T020000Z stays Apr 11 in Europe/Rome');
+$newYork = LibraryCalendar::parseIcs($utcIcs, 1000, 'America/New_York');
+$eq($newYork[0]['start'], '2026-04-10', 'ICS: 20260410T230000Z is still Apr 10 in New York');
+$eq($newYork[3]['start'], '2026-04-10', 'ICS: 20260411T020000Z is Apr 10 in New York');
+$eq(LibraryCalendar::parseIcs($utcIcs, 1000, 'UTC')[0]['start'], '2026-04-10', 'ICS: in UTC the day is as written');
+
+// A ten-year yearly event is parsed as such; the import refuses it with the
+// form's limits (E2E: closures-calendar-admin.spec.js, ICS 8).
+$tenYears = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nDTEND;VALUE=DATE:20360101\nRRULE:FREQ=YEARLY\nSUMMARY:decade\nEND:VEVENT\nEND:VCALENDAR\n");
+$eq([$tenYears[0]['start'], $tenYears[0]['end'], $tenYears[0]['yearly']], ['2026-01-01', '2035-12-31', true], 'ICS: a ten-year yearly event is parsed as stored');
+$eq(LibraryCalendar::spanDays($tenYears[0]['start'], $tenYears[0]['end']) > LibraryCalendar::MAX_YEARLY_SPAN_DAYS, true, 'ICS: and exceeds the yearly limit the import applies');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
 
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";

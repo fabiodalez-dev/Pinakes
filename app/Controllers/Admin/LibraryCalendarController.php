@@ -112,6 +112,10 @@ class LibraryCalendarController
         if ($guard = $this->guard($response)) {
             return $guard;
         }
+        if (!$this->closureExists($db, $id)) {
+            $_SESSION['error_message'] = __('Chiusura non trovata.');
+            return $this->back($response);
+        }
         $row = $this->validatedClosure($db, (array) $request->getParsedBody());
         if (is_string($row)) {
             $_SESSION['error_message'] = $row;
@@ -207,7 +211,14 @@ class LibraryCalendarController
         $sede = $this->branchFrom($db, $data['sede_id'] ?? null);
         $added = 0;
         $skipped = 0;
+        $rejected = 0;
         foreach (LibraryCalendar::parseIcs($ics) as $event) {
+            // The same limits as the form: a yearly event longer than a year
+            // would otherwise be stored as a closure of every day.
+            if ($this->spanError($event['start'], $event['end'], $event['yearly']) !== null) {
+                $rejected++;
+                continue;
+            }
             $row = [
                 'start' => $event['start'],
                 'end' => $event['end'],
@@ -223,7 +234,9 @@ class LibraryCalendarController
             $added++;
         }
         $this->calendarChanged($db);
-        $_SESSION['success_message'] = __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);
+        $_SESSION['success_message'] = $rejected > 0
+            ? __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', $added, $skipped, $rejected)
+            : __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);
         return $this->back($response);
     }
 
@@ -280,15 +293,9 @@ class LibraryCalendarController
         if (!DateHelper::isISODateFormat($start) || !DateHelper::isISODateFormat($end)) {
             return __('Data non valida: usa il formato AAAA-MM-GG.');
         }
-        if ($end < $start) {
-            return __('La data di fine non può precedere la data di inizio');
-        }
-        $span = (int) (new \DateTimeImmutable($start))->diff(new \DateTimeImmutable($end))->days;
         $yearly = !empty($data['ricorrente_annuale']);
-        if ($span > ($yearly ? 364 : 3660)) {
-            return $yearly
-                ? __('Una chiusura annuale non può durare più di un anno.')
-                : __('Una chiusura non può durare più di dieci anni.');
+        if (($error = $this->spanError($start, $end, $yearly)) !== null) {
+            return $error;
         }
         $description = is_string($data['descrizione'] ?? null) ? trim($data['descrizione']) : '';
         $description = mb_substr(preg_replace('/\s+/u', ' ', $description) ?? '', 0, 255);
@@ -298,6 +305,39 @@ class LibraryCalendarController
             return __('Sede non trovata.');
         }
         return ['start' => $start, 'end' => $end, 'description' => $description, 'yearly' => $yearly, 'sede' => $sede];
+    }
+
+    /**
+     * The limits every closure meets, from the form or from a file: end not
+     * before start, a yearly closure within a year, a one-off within ten.
+     * Null when the span is fine, otherwise the message for the operator.
+     */
+    private function spanError(string $start, string $end, bool $yearly): ?string
+    {
+        if ($end < $start) {
+            return __('La data di fine non può precedere la data di inizio');
+        }
+        $span = LibraryCalendar::spanDays($start, $end);
+        if ($span < 0) {
+            return __('Data non valida: usa il formato AAAA-MM-GG.');
+        }
+        if ($yearly && $span > LibraryCalendar::MAX_YEARLY_SPAN_DAYS) {
+            return __('Una chiusura annuale non può durare più di un anno.');
+        }
+        if (!$yearly && $span > LibraryCalendar::MAX_ONCE_SPAN_DAYS) {
+            return __('Una chiusura non può durare più di dieci anni.');
+        }
+        return null;
+    }
+
+    private function closureExists(\mysqli $db, int $id): bool
+    {
+        $stmt = $db->prepare('SELECT 1 FROM calendario_chiusure WHERE id = ? LIMIT 1');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $found;
     }
 
     private function branchFrom(\mysqli $db, mixed $raw): ?int

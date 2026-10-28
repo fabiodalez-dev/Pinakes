@@ -8916,6 +8916,7 @@
   "Festività nazionali italiane": "Italienske nationale helligdage",
   "File ICS": "ICS-fil",
   "File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.": "ICS-fil importeret: %1$d lukninger tilføjet, %2$d fandtes allerede.",
+  "File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).": "ICS-fil importeret: %1$d lukninger tilføjet, %2$d fandtes allerede, %3$d afvist, fordi de er længere end grænsen (et år hvis årlige, ellers ti år).",
   "Gestisci il calendario chiusure": "Administrér lukkekalenderen",
   "Giorni di chiusura e festività": "Lukkedage og helligdage",
   "Giorni di chiusura settimanale salvati.": "Ugentlige lukkedage er gemt.",

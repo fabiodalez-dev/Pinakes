@@ -8916,6 +8916,7 @@
   "Festività nazionali italiane": "Italian national holidays",
   "File ICS": "ICS file",
   "File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.": "ICS file imported: %1$d closures added, %2$d already present.",
+  "File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).": "ICS file imported: %1$d closures added, %2$d already present, %3$d discarded as longer than the limit (one year if yearly, ten years otherwise).",
   "Gestisci il calendario chiusure": "Manage the closures calendar",
   "Giorni di chiusura e festività": "Closed days and holidays",
   "Giorni di chiusura settimanale salvati.": "Weekly closed days saved.",
