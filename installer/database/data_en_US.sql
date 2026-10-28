@@ -194,6 +194,22 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Catalogue-only mode - disables loans, reservations and wishlist')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+-- Optional modules (Settings > Modules / Loans): fresh-install defaults
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0.sql).
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('features', 'stocktake', '1', 'Optional module: Inventory stocktake'),
+('features', 'marc', '1', 'Optional module: MARC import and export'),
+('features', 'visitor_log', '0', 'Optional module: Visitor log'),
+('features', 'catalogue_cards', '1', 'Optional module: Catalogue cards'),
+('features', 'suppliers', '1', 'Optional module: Suppliers'),
+('features', 'rda_types', '1', 'Optional module: RDA types'),
+('features', 'patron_cards', '1', 'Optional module: Patron cards and photos'),
+('features', 'user_import', '1', 'Optional module: User import from CSV'),
+('features', 'circulation_rules', '1', 'Optional module: Rules by patron type'),
+('features', 'closures_calendar', '1', 'Optional module: Closures calendar'),
+('features', 'fines', '0', 'Optional module: Fines and patron ledger')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Days to pick up an approved loan before it expires')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();

@@ -6,6 +6,7 @@
 <section data-settings-panel="loans" class="settings-panel <?php echo $activeTab === 'loans' ? 'block' : 'hidden'; ?>">
   <form action="<?= htmlspecialchars(url('/admin/settings/loans'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php $modulesLocked = !\App\Support\Permissions::mayConfigure(); // optional modules: administrators only ?>
 
     <!-- Automatic approval -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -86,6 +87,46 @@
       </div>
     </div>
 
+    <!-- Patron types and rules matrix (optional module, Settings → Circulation) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="loans-circulation-rules">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-id-badge text-gray-500"></i>
+          <?= __("Regole per tipologia di lettore") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Tipologie di lettore con regole proprie per tipo di materiale. Le regole si configurano nella sezione Circolazione delle impostazioni.") ?></p>
+        <?php if ($modulesLocked): ?>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4" data-testid="modules-admin-only">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-lock text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700"><?= __("Solo gli amministratori possono attivare o disattivare i moduli.") ?></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="feature_circulation_rules_label" class="text-sm font-semibold text-gray-900"><?= htmlspecialchars(\App\Support\Features::label('circulation_rules'), ENT_QUOTES, 'UTF-8') ?></span>
+            <p id="feature_circulation_rules_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help('circulation_rules'), ENT_QUOTES, 'UTF-8') ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="feature_circulation_rules"
+                   name="feature_circulation_rules"
+                   <?= $modulesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="feature_circulation_rules_label"
+                   aria-describedby="feature_circulation_rules_desc"
+                   <?php echo !empty($loansSettings['circulation_rules_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- Closures calendar (own page: /admin/calendar) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="loans-closures-calendar">
       <div class="space-y-4">
@@ -96,10 +137,31 @@
         <p class="text-sm text-gray-600"><?= __("Giorni in cui la biblioteca è chiusa: le scadenze che vi cadono passano al primo giorno di apertura e i giorni per il ritiro contano solo i giorni di apertura.") ?></p>
       </div>
       <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="feature_closures_calendar_label" class="text-sm font-semibold text-gray-900"><?= htmlspecialchars(\App\Support\Features::label('closures_calendar'), ENT_QUOTES, 'UTF-8') ?></span>
+            <p id="feature_closures_calendar_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help('closures_calendar'), ENT_QUOTES, 'UTF-8') ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="feature_closures_calendar"
+                   name="feature_closures_calendar"
+                   <?= $modulesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="feature_closures_calendar_label"
+                   aria-describedby="feature_closures_calendar_desc"
+                   <?php echo !empty($loansSettings['closures_calendar_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <?php if (\App\Support\Features::enabled('closures_calendar')): ?>
         <a href="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="open-closures-calendar" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
           <i class="fas fa-calendar-alt"></i>
           <?= __("Gestisci il calendario chiusure") ?>
         </a>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -463,7 +525,26 @@
         <?php endif; ?>
       </div>
       <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
-        <div>
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="feature_fines_label" class="text-sm font-semibold text-gray-900"><?= htmlspecialchars(\App\Support\Features::label('fines'), ENT_QUOTES, 'UTF-8') ?></span>
+            <p id="feature_fines_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help('fines'), ENT_QUOTES, 'UTF-8') ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="feature_fines"
+                   name="feature_fines"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="feature_fines_label"
+                   aria-describedby="feature_fines_desc"
+                   <?php echo !empty($loansSettings['fines_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <div class="border-t border-gray-100 pt-4">
           <label for="daily_fine" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Multa giornaliera") ?>
           </label>

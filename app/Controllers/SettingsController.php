@@ -84,7 +84,11 @@ class SettingsController
         // administrators like every CirculationSettingsController action, so
         // staff gets no data and the view renders no panel (the section is
         // absent from the settings catalogue for them too).
-        $circulationData = \App\Support\Permissions::mayConfigure() ? CirculationSettingsController::viewData($db) : null;
+        $circulationData = \App\Support\Permissions::mayConfigure() && \App\Support\Features::enabled('circulation_rules')
+            ? CirculationSettingsController::viewData($db)
+            : null;
+        // Optional modules (Settings → Modules): the saved switches.
+        $moduleSettings = \App\Support\Features::snapshot();
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
         // Custom registration fields (issue #255) — edited from the email tab's
@@ -120,6 +124,7 @@ class SettingsController
             'advancedSettings',
             'loansSettings',
             'circulationData',
+            'moduleSettings',
             'contactMessages',
             'activeTab',
             'db',
@@ -1706,6 +1711,11 @@ class SettingsController
             'debt_block_threshold'     => (string) ($repository->get('loans', 'debt_block_threshold', '') ?? ''),
             'fine_charged_email'       => (string) ($repository->get('loans', 'fine_charged_email', '0') ?? '0') === '1',
             'currency'                 => \App\Services\FineParameters::currency(),
+            // Optional circulation modules switched from this tab (the saved
+            // switch, not the catalogue-mode-adjusted one).
+            'fines_enabled'            => \App\Support\Features::stored('fines'),
+            'closures_calendar_enabled' => \App\Support\Features::stored('closures_calendar'),
+            'circulation_rules_enabled' => \App\Support\Features::stored('circulation_rules'),
         ];
     }
 
@@ -1798,6 +1808,9 @@ class SettingsController
             $fineEmail = isset($data['fine_charged_email']) && is_scalar($data['fine_charged_email'])
                 && (string) $data['fine_charged_email'] === '1';
             $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
+            // The three circulation modules of this tab (patron type rules,
+            // closures calendar, fines): library policy, administrators only.
+            $this->saveFeatureSwitches($repository, $data, \App\Support\Features::LOANS_TAB);
         }
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
@@ -1813,6 +1826,45 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni prestiti aggiornate correttamente.');
         return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
+    }
+
+    /**
+     * Save Settings → Modules. Switching a module off hides it everywhere, so
+     * it is library policy: AdminAuthMiddleware admits staff, the check is
+     * here, as for the other policy settings.
+     */
+    public function updateModules(Request $request, Response $response, mysqli $db): Response
+    {
+        if (!\App\Support\Permissions::mayConfigure()) {
+            $_SESSION['error_message'] = __('Accesso negato. Permessi insufficienti.');
+            return $this->redirect($response, '/admin/settings');
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+        $this->saveFeatureSwitches($repository, $data, \App\Support\Features::MODULES_TAB);
+
+        $_SESSION['success_message'] = __('Moduli aggiornati correttamente.');
+        return $this->redirect($response, '/admin/settings?tab=modules');
+    }
+
+    /**
+     * Write features.<key> for each of $keys from the checkbox feature_<key>
+     * (absent = off). SettingsRepository::set() drops the ConfigStore cache,
+     * so the next request already reads the new value.
+     *
+     * @param array<mixed> $data
+     * @param list<string> $keys
+     */
+    private function saveFeatureSwitches(SettingsRepository $repository, array $data, array $keys): void
+    {
+        foreach ($keys as $key) {
+            $field = 'feature_' . $key;
+            $on = isset($data[$field]) && is_scalar($data[$field]) && (string) $data[$field] === '1';
+            $repository->set('features', $key, $on ? '1' : '0');
+        }
     }
 
     /** A 302 back to an admin path inside the application. */

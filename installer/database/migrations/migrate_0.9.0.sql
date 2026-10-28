@@ -348,3 +348,79 @@ EXECUTE fl_stmt;
 EXECUTE fl_stmt;
 DEALLOCATE PREPARE fl_stmt;
 -- ── end fines-ledger ──
+
+-- ── feature toggles ──
+-- One features.<key> row per optional 0.9.0 module (App\Support\Features), with
+-- its UPGRADE default, which is also the code fallback. Insert-if-missing (as
+-- migrate_0.7.64-rc.1.sql): a value the operator already saved is never
+-- overwritten, and a second run is a no-op. The values MUST match
+-- Features::DEFAULTS (tests/feature-toggles-registry.unit.php checks it).
+-- Modules that are on by default: reachable only from an explicit action inside
+-- an existing module, they change nothing until used.
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'marc', '1', 'Optional module: MARC import and export' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'marc');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'catalogue_cards', '1', 'Optional module: Catalogue cards' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'catalogue_cards');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'patron_cards', '1', 'Optional module: Patron cards and photos' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'patron_cards');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'user_import', '1', 'Optional module: User import from CSV' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'user_import');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'circulation_rules', '1', 'Optional module: Rules by patron type' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'circulation_rules');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'closures_calendar', '1', 'Optional module: Closures calendar' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'closures_calendar');
+-- Off by default on an upgrade (new sidebar entries, new cataloguing fields,
+-- money, personal data), EXCEPT where the library already has data for the
+-- module (an upgrade from a 0.9.0 release candidate that used it): if you used
+-- it, it stays on. Each probe is guarded on information_schema, so the section
+-- also runs where an earlier section has not created the table.
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_sessioni');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM inventario_sessioni), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'stocktake', @ft_val, 'Optional module: Inventory stocktake' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'stocktake');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fornitori');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM fornitori), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'suppliers', @ft_val, 'Optional module: Suppliers' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'suppliers');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'presenze');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM presenze), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'visitor_log', @ft_val, 'Optional module: Visitor log' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'visitor_log');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME IN ('rda_content_type', 'rda_media_type', 'rda_carrier_type'));
+SET @ft_sql = IF(@ft_has = 3, 'SELECT IF(EXISTS(SELECT 1 FROM libri WHERE deleted_at IS NULL AND (rda_content_type IS NOT NULL OR rda_media_type IS NOT NULL OR rda_carrier_type IS NOT NULL)), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'rda_types', @ft_val, 'Optional module: RDA types' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'rda_types');
+-- Fines: a ledger row the legacy-penalty conversion did not write (key penalty:<id>),
+-- or a daily fine already configured.
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM movimenti_lettore WHERE chiave_idempotenza IS NULL OR chiave_idempotenza NOT LIKE ''penalty:%''), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+SET @ft_val = IF(@ft_val = '1' OR EXISTS(SELECT 1 FROM system_settings WHERE category = 'loans' AND setting_key = 'daily_fine' AND setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2})?$' AND CAST(REPLACE(setting_value, ',', '.') AS DECIMAL(10,2)) > 0), '1', '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'fines', @ft_val, 'Optional module: Fines and patron ledger' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'fines');
+-- ── end feature toggles ──

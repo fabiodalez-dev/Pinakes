@@ -194,6 +194,22 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Mode catalogue uniquement - désactive les emprunts, réservations et liste de souhaits')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+-- Optional modules (Settings > Modules / Loans): fresh-install defaults
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0.sql).
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('features', 'stocktake', '1', 'Module facultatif: Récolement'),
+('features', 'marc', '1', 'Module facultatif: Import et export MARC'),
+('features', 'visitor_log', '0', 'Module facultatif: Registre des visites'),
+('features', 'catalogue_cards', '1', 'Module facultatif: Fiches de catalogue'),
+('features', 'suppliers', '1', 'Module facultatif: Fournisseurs'),
+('features', 'rda_types', '1', 'Module facultatif: Types RDA'),
+('features', 'patron_cards', '1', 'Module facultatif: Cartes et photos des lecteurs'),
+('features', 'user_import', '1', 'Module facultatif: Import des utilisateurs depuis un CSV'),
+('features', 'circulation_rules', '1', 'Module facultatif: Règles par type de lecteur'),
+('features', 'closures_calendar', '1', 'Module facultatif: Calendrier des fermetures'),
+('features', 'fines', '0', 'Module facultatif: Amendes et registre des mouvements')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Jours pour récupérer un emprunt approuvé avant expiration')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();

@@ -153,6 +153,10 @@ final class ConfigStore
                 'litespeed_catalog_ttl' => 120,
                 'litespeed_book_ttl' => 300,
             ],
+            // Optional 0.9.0 modules (Settings → Modules / Loans). The default
+            // is the upgrade one: an install without the row behaves as an
+            // upgrade (Features::DEFAULTS is the single source).
+            'features' => array_map(static fn (string $v): bool => $v === '1', Features::DEFAULTS),
         ];
 
         $localizedDefaults = self::getLocaleDefaultTexts();
@@ -670,6 +674,23 @@ final class ConfigStore
                 self::$dbSettingsCache['sharing'] = [];
                 foreach ($raw['sharing'] as $key => $value) {
                     self::$dbSettingsCache['sharing'][$key] = (string) $value;
+                }
+            }
+
+            // features.* (optional modules): without this mapping a saved
+            // switch would be inert (allowlist trap). Only the known keys,
+            // as booleans.
+            if (!empty($raw['features'])) {
+                self::$dbSettingsCache['features'] = [];
+                foreach (array_keys(Features::DEFAULTS) as $featureKey) {
+                    if (!isset($raw['features'][$featureKey])) {
+                        continue;
+                    }
+                    $value = filter_var($raw['features'][$featureKey], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($value === null) {
+                        $value = in_array((string) $raw['features'][$featureKey], ['1', 'true', 'yes'], true);
+                    }
+                    self::$dbSettingsCache['features'][$featureKey] = $value;
                 }
             }
 

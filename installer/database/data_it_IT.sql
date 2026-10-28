@@ -11,6 +11,22 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Modalità solo catalogo - disabilita prestiti, prenotazioni e wishlist')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+-- Optional modules (Settings > Modules / Loans): fresh-install defaults
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0.sql).
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('features', 'stocktake', '1', 'Modulo opzionale: Revisione inventariale'),
+('features', 'marc', '1', 'Modulo opzionale: Import ed export MARC'),
+('features', 'visitor_log', '0', 'Modulo opzionale: Registro presenze'),
+('features', 'catalogue_cards', '1', 'Modulo opzionale: Schede catalografiche'),
+('features', 'suppliers', '1', 'Modulo opzionale: Fornitori'),
+('features', 'rda_types', '1', 'Modulo opzionale: Tipi RDA'),
+('features', 'patron_cards', '1', 'Modulo opzionale: Tessere e foto dei lettori'),
+('features', 'user_import', '1', 'Modulo opzionale: Importazione utenti da CSV'),
+('features', 'circulation_rules', '1', 'Modulo opzionale: Regole per tipologia di lettore'),
+('features', 'closures_calendar', '1', 'Modulo opzionale: Calendario chiusure'),
+('features', 'fines', '0', 'Modulo opzionale: Multe e registro movimenti')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Giorni per ritirare un prestito approvato prima che scada')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
