@@ -181,6 +181,7 @@ unset($workspaceHeader);
                     'csv' => ['label' => 'CSV', 'color' => 'bg-blue-100 text-blue-800'],
                     'librarything' => ['label' => 'LibraryThing', 'color' => 'bg-purple-100 text-purple-800'],
                     'marc' => ['label' => 'MARC', 'color' => 'bg-green-100 text-green-800'],
+                    'users' => ['label' => __('Utenti'), 'color' => 'bg-amber-100 text-amber-800'],
                 ];
                 $type = $typeLabels[$import['import_type']] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 

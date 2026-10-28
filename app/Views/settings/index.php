@@ -892,6 +892,9 @@ unset($workspaceHeader);
         </form>
       </section>
 
+      <!-- Card Settings -->
+      <?php include __DIR__ . '/cards-tab.php'; ?>
+
       <!-- Sharing Settings -->
       <section data-settings-panel="sharing" class="settings-panel <?php echo $activeTab === 'sharing' ? 'block' : 'hidden'; ?>">
         <form action="<?= htmlspecialchars(url('/admin/settings/sharing'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">

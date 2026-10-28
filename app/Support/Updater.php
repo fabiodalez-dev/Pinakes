@@ -111,6 +111,7 @@ class Updater
         'storage/cache',
         'storage/logs',
         'storage/calendar',
+        'storage/patron_photos',
         'storage/tmp',
         'storage/sessions',
         'public/uploads',
