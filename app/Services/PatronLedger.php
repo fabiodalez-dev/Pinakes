@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Support\DateHelper;
+use App\Support\DbAtomic;
 use App\Support\LibraryCalendar;
 use mysqli;
 
@@ -21,6 +22,9 @@ use mysqli;
  *   late:<loan id>     late fine written when the loan is returned
  *   penalty:<loan id>  amount assessed when the copy is closed lost/damaged
  *                      (the same key the 0.9.0 migration uses for prestiti.sanzione)
+ *   storno:late:<loan id>:<n> / storno:waiver:<loan id>:<n>
+ *                      the n-th undo of a return: the late fine and the
+ *                      waivers written for it, reversed
  *
  * Methods that write take part in the caller's transaction when one is open
  * (the return paths); otherwise they open and commit their own.
@@ -200,43 +204,73 @@ final class PatronLedger
     }
 
     /**
-     * A return was undone: reverse the late fine with a storno row. A later
-     * return of the same loan writes a new late fine (the key carries the
-     * reversal count, so the history stays one row per event).
+     * A return was undone: reverse the late fine with a storno row, and the
+     * waivers written for it with a second one, so the balance is back where
+     * it was before the return. A later return of the same loan writes a new
+     * late fine (the key carries the reversal count, so the history stays one
+     * row per event).
      *
-     * @return int cents reversed (0 when no late fine is outstanding)
+     * @return int cents of late fine reversed (0 when no late fine is outstanding)
      */
     public function reverseLateFine(int $loanId, string $reason, ?int $staffId = null): int
     {
-        $net = $this->lateFineNetCents($loanId);
-        if ($net <= 0) {
+        $charged = $this->loanSum($loanId, "tipo = 'multa_ritardo' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%')");
+        if ($charged <= 0) {
             return 0;
         }
         $loan = $this->loanRow($loanId);
         if ($loan === null) {
             return 0;
         }
-        $generation = $this->reversalCount($loanId);
-        $id = $this->insert(
-            (int) $loan['utente_id'],
-            $loanId,
-            'storno',
-            -$net,
-            self::clip($reason),
-            null,
-            $staffId,
-            'storno:late:' . $loanId . ':' . ($generation + 1)
-        );
-        return $id === null ? 0 : $net;
+        $waived = -$this->loanSum($loanId, "tipo = 'condono' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:waiver:%')");
+        $generation = $this->reversalCount($loanId) + 1;
+        $id = null;
+        $this->inTransaction(function () use ($loan, $loanId, $charged, $waived, $reason, $staffId, $generation, &$id): void {
+            $id = $this->insert(
+                (int) $loan['utente_id'],
+                $loanId,
+                'storno',
+                -$charged,
+                self::clip($reason),
+                null,
+                $staffId,
+                'storno:late:' . $loanId . ':' . $generation
+            );
+            if ($id !== null && $waived > 0) {
+                $this->insert(
+                    (int) $loan['utente_id'],
+                    $loanId,
+                    'storno',
+                    $waived,
+                    self::clip($reason),
+                    null,
+                    $staffId,
+                    'storno:waiver:' . $loanId . ':' . $generation
+                );
+            }
+        });
+        return $id === null ? 0 : $charged;
     }
 
-    /** Late fine still standing for a loan: late charges minus their reversals. */
+    /**
+     * Late fine still standing for a loan: late charges minus their reversals
+     * and minus the waivers written for that loan (the desk waiver at return
+     * carries the loan id), never below zero. The return email, the fine
+     * email and the loan page all read this figure.
+     */
     public function lateFineNetCents(int $loanId): int
     {
-        $stmt = $this->db->prepare(
-            "SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore
-              WHERE prestito_id = ? AND (tipo = 'multa_ritardo' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%'))"
-        );
+        return max(0, $this->loanSum(
+            $loanId,
+            "tipo = 'multa_ritardo' OR tipo = 'condono'
+             OR (tipo = 'storno' AND (chiave_idempotenza LIKE 'storno:late:%' OR chiave_idempotenza LIKE 'storno:waiver:%'))"
+        ));
+    }
+
+    /** SUM(importo) in cents of the movements of a loan matching $where (fixed SQL from this class). */
+    private function loanSum(int $loanId, string $where): int
+    {
+        $stmt = $this->db->prepare("SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore WHERE prestito_id = ? AND ({$where})");
         $stmt->bind_param('i', $loanId);
         $stmt->execute();
         $value = $stmt->get_result()->fetch_row()[0] ?? 0;
@@ -451,23 +485,17 @@ final class PatronLedger
         }
     }
 
-    /** Run $work in the caller's transaction, or in a new one when none is open. */
+    /**
+     * Run $work in the caller's transaction, or in a new one when none is open.
+     * An explicit begin_transaction() leaves @@autocommit at 1, so the check is
+     * DbAtomic's (autocommit flag plus a SAVEPOINT probe): a waiver written
+     * inside the return transaction must never commit that return halfway.
+     *
+     * @param callable():void $work
+     */
     private function inTransaction(callable $work): void
     {
-        $res = $this->db->query('SELECT @@autocommit');
-        $autocommit = $res ? (int) ($res->fetch_row()[0] ?? 1) : 1;
-        if ($autocommit === 0) {
-            $work();
-            return;
-        }
-        $this->db->begin_transaction();
-        try {
-            $work();
-            $this->db->commit();
-        } catch (\Throwable $e) {
-            $this->db->rollback();
-            throw $e;
-        }
+        DbAtomic::run($this->db, $work, 'PatronLedger');
     }
 
     /**

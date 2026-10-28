@@ -165,6 +165,22 @@ try {
     $ledger->manualCharge($u1, 700, 'Tessera sostitutiva', null);
     $check($ledger->balanceCents($u1) === 700 && $count("utente_id = {$u1} AND tipo = 'addebito_manuale' AND importo = 7.00") === 1, 'manual charge 7.00');
 
+    echo "C2. Inside the caller's transaction, and the desk waiver\n";
+    $u4 = $newUser('tx');
+    $db->begin_transaction();
+    $ledger->manualCharge($u4, 400, 'Dentro la transazione', null);
+    $ledger->waive($u4, 400, 'Condono in transazione', null);
+    $db->rollback();
+    $check($count("utente_id = {$u4}") === 0, 'a charge and a waiver written inside begin_transaction() roll back with the caller');
+    $loan4 = $newLoan($u4, $daysAgo(20), $daysAgo(5));
+    $check((new LoanRepository($db))->close($loan4) === true && $ledger->lateFineNetCents($loan4) === 250, 'late return: 2.50 standing on the loan');
+    $ledger->waive($u4, 250, 'Condono al rientro', null, $loan4);
+    $check($ledger->lateFineNetCents($loan4) === 0 && $ledger->balanceCents($u4) === 0, 'a waiver for the loan leaves no fine on it (return email, loan page)');
+    $check($ledger->reverseLateFine($loan4, 'Restituzione annullata', null) === 250 && $ledger->balanceCents($u4) === 0, 'undoing a waived return reverses the fine and its waiver: the patron is not credited');
+    $check($count("prestito_id = {$loan4} AND tipo = 'storno' AND importo = 2.50 AND chiave_idempotenza = 'storno:waiver:{$loan4}:1'") === 1, 'the waiver is reversed by its own storno row');
+    $check($ledger->lateFineNetCents($loan4) === 0, 'nothing standing on the loan after the undo');
+    $check($ledger->chargeLateReturn($loan4) === 250 && $ledger->lateFineNetCents($loan4) === 250 && $ledger->balanceCents($u4) === 250, 'the next return of the loan charges its fine again');
+
     echo "D. Debt block: PHP and SQL agree\n";
     $check(LoanEligibility::checkUser($db, $u1) === null && $sqlEligible($u1), 'no threshold: eligible in PHP and SQL');
     $setSetting('debt_block_threshold', '5,00');

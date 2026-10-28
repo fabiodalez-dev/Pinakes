@@ -280,6 +280,10 @@ test.describe.serial('Fines and patron ledger', () => {
     expect(dbQuery(`SELECT GROUP_CONCAT(CONCAT(tipo,':',importo) ORDER BY id) FROM movimenti_lettore WHERE prestito_id=${loanId}`)).toBe('multa_ritardo:2.00,condono:-2.00');
     expect(dbQuery(`SELECT descrizione FROM movimenti_lettore WHERE prestito_id=${loanId} AND tipo='condono'`)).toBe('Primo ritardo, avvisato a voce');
     expect(balanceCents()).toBe(500);
+    // The loan page does not show a fine that was waived.
+    await page.goto(`${BASE}/admin/loans/details/${loanId}`);
+    await expect(page.locator('h1, h2').first()).toBeVisible();
+    await expect(page.locator('[data-loan-fine-charged]')).toHaveCount(0);
   });
 
   test('10. a return within the grace days charges nothing', async () => {
@@ -386,6 +390,37 @@ test.describe.serial('Fines and patron ledger', () => {
     expect(full.HTML).toContain(`${TITLE_PREFIX}_C`);
     expect(full.HTML).toContain('3'); // days late
     expect(full.HTML).toContain(euro(650)); // balance: 5,00 + 1,50
+  });
+
+  test('13b. a fine waived at the desk: the return email has no fine line and no fine email is sent (Mailpit)', async () => {
+    let mailpit = false;
+    try { mailpit = (await fetch(`${MAILPIT_API}/messages`, { signal: AbortSignal.timeout(3000) })).ok; } catch { mailpit = false; }
+    test.skip(!mailpit, `Mailpit is not reachable at ${MAILPIT_API}`);
+    expect(readSetting('loans', 'fine_charged_email')).toBe('1');
+
+    const loanId = overdueLoan('W', 4);
+    await returnFromDesk(page, loanId, 'Condonata al banco');
+    expect(dbQuery(`SELECT GROUP_CONCAT(tipo ORDER BY id) FROM movimenti_lettore WHERE prestito_id=${loanId}`)).toBe('multa_ritardo,condono');
+
+    // Both emails are decided in the return request: once the return email
+    // is in Mailpit, the fine email would be there too.
+    const title = `${TITLE_PREFIX}_W`;
+    const search = async (query) => (await (await fetch(`${MAILPIT_API}/search?query=${encodeURIComponent(query)}`)).json()).messages || [];
+    let returned = null;
+    const deadline = Date.now() + 30000;
+    while (!returned && Date.now() < deadline) {
+      for (const m of await search(`to:${PATRON_EMAIL} subject:"Restituzione"`)) {
+        const full = await (await fetch(`${MAILPIT_API}/message/${m.ID}`)).json();
+        if (full.HTML.includes(title)) { returned = full; break; }
+      }
+      if (!returned) await new Promise((r) => setTimeout(r, 500));
+    }
+    expect(returned, 'loan_returned email in Mailpit').not.toBeNull();
+    expect(returned.HTML).not.toContain('Multa per ritardo');
+    for (const m of await search(`to:${PATRON_EMAIL} subject:"Multa per ritardo"`)) {
+      const full = await (await fetch(`${MAILPIT_API}/message/${m.ID}`)).json();
+      expect(full.HTML, 'no fine email for the waived loan').not.toContain(title);
+    }
   });
 
   test('14. with fines turned off again, a late return charges nothing (zero configuration)', async () => {
