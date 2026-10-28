@@ -5,6 +5,7 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 ## [0.9.0] - Unreleased
 
 ### Inventory stocktake
+
 - **Stocktake sessions** (Admin → Revisione inventariale, `/admin/inventory`). A session is opened with a name, an optional branch and a filter (bookcase, shelf level, genre with its subgenres, media type, collocation range). Opening it freezes the list of expected copies in `inventario_attese`, books removed from the catalogue excluded, so moving a book, adding or deleting a copy while the stocktake runs does not change what the session looks for.
 - **Scanning** works with keyboard-wedge barcode readers (the code field keeps the focus, Enter records), with the self-hosted camera scanner already used at the loan desk, and with an uploaded `.txt` (one code per line) or `.csv` (first column) list. Each read is classified as found, misplaced (found on a bookcase other than the expected one, as declared by "Scaffale in cui stai lavorando"), on loan, unknown code, out of scope or repeated, with its own colour and sound. Several operators can scan the same session at once: the counters refresh every few seconds and "Solo le mie scansioni" narrows the list to one's own reads.
 - **Live report**: expected copies always add up as found + misplaced + on loan + missing; unknown, out-of-scope and repeated reads are counted on the side. PDF and CSV reports are available while the session is open and after it ends.
@@ -12,6 +13,7 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 - **Permission** `inventory.manage` for custom roles, and a new starting profile "Revisore inventario" (backend access + stocktakes). Staff and administrators have it already.
 
 ### Migration
+
 - `migrate_0.9.0.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
 
 ## [0.8.9]

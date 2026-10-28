@@ -149,9 +149,16 @@ test.beforeAll(() => {
 });
 
 test.afterAll(() => {
-  if (fx.sessions.length) {
-    dbQuery(`DELETE FROM log_modifiche WHERE tabella='inventario_sessioni' AND record_id IN (${fx.sessions.join(',')})`);
-    dbQuery(`DELETE FROM inventario_sessioni WHERE id IN (${fx.sessions.join(',')})`);
+  // A session saved before a navigation failed never reaches fx.sessions:
+  // collect every session opened by the test users or named after this run too.
+  const users = [ADMIN.id, STAFF.id].filter(Boolean);
+  const found = dbQuery(`SELECT id FROM inventario_sessioni WHERE nome LIKE ${S(TAG + '%')}`
+    + (users.length ? ` OR aperta_da IN (${users.join(',')})` : '')).split('\n').filter(Boolean).map(Number);
+  const sessions = [...new Set([...fx.sessions, ...found])];
+  if (sessions.length) {
+    // inventario_attese and inventario_scansioni go with the session (ON DELETE CASCADE).
+    dbQuery(`DELETE FROM log_modifiche WHERE tabella='inventario_sessioni' AND record_id IN (${sessions.join(',')})`);
+    dbQuery(`DELETE FROM inventario_sessioni WHERE id IN (${sessions.join(',')})`);
   }
   const books = Object.values(fx.books);
   if (books.length) {
