@@ -9,7 +9,7 @@
  * @var list<array<string, mixed>> $ledgerMovements
  * @var list<array{loan_id: int, titolo: string, data_scadenza: string, days: int, cents: int}> $ledgerAccrued
  * @var \App\Services\FineParameters $ledgerParams
- * @var bool $ledgerCanManage
+ * @var bool $ledgerCanManage  loans.manage: the desk forms and the receipts; without it the ledger is read-only
  * @var int $ledgerPage
  * @var int $ledgerPages
  * @var int $ledgerPerPage
@@ -26,6 +26,10 @@ $ledgerFlash = is_scalar($_GET['ledger'] ?? null) ? (string) $_GET['ledger'] : '
 $ledgerError = is_scalar($_GET['ledger_error'] ?? null) ? (string) $_GET['ledger_error'] : '';
 $ledgerMovementId = (int) (is_scalar($_GET['movement'] ?? null) ? $_GET['movement'] : 0);
 $ledgerCsrf = App\Support\Csrf::ensureToken();
+// The ledger routes (/admin/users/{id}/ledger/*) need loans.manage
+// (Permissions::permissionForPath): the forms, the buttons and the receipt
+// links are rendered only for whoever may reach them.
+$ledgerCanManage = ($ledgerCanManage ?? false) && App\Support\Permissions::can('loans.manage');
 ?>
   <!-- Movimenti (patron ledger) -->
   <div class="bg-white shadow-sm rounded-2xl border border-slate-200 mt-6" id="movimenti">
@@ -44,7 +48,7 @@ $ledgerCsrf = App\Support\Csrf::ensureToken();
           <div class="text-sm text-green-800">
             <?php if ($ledgerFlash === 'paid'): ?>
               <?= __("Pagamento registrato.") ?>
-              <?php if ($ledgerMovementId > 0): ?>
+              <?php if ($ledgerMovementId > 0 && $ledgerCanManage): ?>
                 <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/receipt/' . $ledgerMovementId), ENT_QUOTES, 'UTF-8') ?>" class="font-medium underline" data-ledger-receipt><?= __("Scarica la ricevuta") ?></a>
               <?php endif; ?>
             <?php elseif ($ledgerFlash === 'charged'): ?>
@@ -120,7 +124,7 @@ $ledgerCsrf = App\Support\Csrf::ensureToken();
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right font-semibold <?= $movCents > 0 ? 'text-red-600' : 'text-green-600' ?>"><?= $ledgerE($ledgerFmt($movCents)) ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
-                                <?php if ((string) $mov['tipo'] === 'pagamento'): ?>
+                                <?php if ((string) $mov['tipo'] === 'pagamento' && $ledgerCanManage): ?>
                                     <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/receipt/' . (int) $mov['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-icon btn-secondary p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= htmlspecialchars(__('Ricevuta PDF'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Ricevuta PDF'), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-file-pdf w-4 h-4"></i>
                                     </a>

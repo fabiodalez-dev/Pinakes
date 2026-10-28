@@ -88,6 +88,7 @@ function cleanup() {
   dbQuery(`DELETE FROM libri WHERE titolo LIKE 'ZZ\\_FINES\\_%'`);
   dbQuery(`DELETE FROM user_sessions WHERE utente_id IN (SELECT id FROM utenti WHERE email LIKE 'zz-fines-%@test.local')`);
   dbQuery(`DELETE FROM utenti WHERE email LIKE 'zz-fines-%@test.local'`);
+  dbQuery(`DELETE FROM ruoli WHERE nome LIKE 'ZZ Fines %'`);
 }
 function readSetting(category, key) {
   const v = dbQuery(`SELECT setting_value FROM system_settings WHERE category='${category}' AND setting_key='${key}'`);
@@ -509,5 +510,60 @@ test.describe.serial('Fines and patron ledger', () => {
     await page.goto(`${BASE}/admin/settings?tab=loans`);
     await expect(page.locator('#daily_fine')).toBeEnabled();
     await expect(page.locator('[data-testid="fines-admin-only"]')).toHaveCount(0);
+  });
+
+  test('18. a custom role reads the ledger with users.manage and moves money only with loans.manage', async ({ browser }) => {
+    // Two custom roles: one manages readers only, the other also runs the desk.
+    dbQuery(`INSERT INTO ruoli (nome, permessi) VALUES ('ZZ Fines utenti ${RUN}', '["backend.access","users.manage"]'), ('ZZ Fines banco ${RUN}', '["backend.access","users.manage","loans.manage"]')`);
+    const usersRole = Number(dbQuery(`SELECT id FROM ruoli WHERE nome='ZZ Fines utenti ${RUN}'`));
+    const deskRole = Number(dbQuery(`SELECT id FROM ruoli WHERE nome='ZZ Fines banco ${RUN}'`));
+    const email = `zz-fines-role-${RUN}@test.local`;
+    dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, ruolo_id, privacy_accettata) VALUES ('${`ZZR${RUN}`.slice(0, 20)}', 'Zz', 'Role', '${email}', '${esc(phpHash(PATRON_PASS))}', 'attivo', 1, 'standard', ${usersRole}, 1)`);
+    const operatorId = Number(dbQuery(`SELECT id FROM utenti WHERE email='${email}'`));
+    dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES (${state.patronId}, 'addebito_manuale', 2.00, 'ZZ ruolo', NOW())`);
+    const before = Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId}`));
+    const operator = await browser.newPage();
+    try {
+      await operator.goto(`${BASE}/accedi`);
+      await operator.fill('input[name="email"]', email);
+      await operator.fill('input[name="password"]', PATRON_PASS);
+      await operator.locator('button[type="submit"]').click();
+      await operator.waitForURL((u) => !u.toString().includes('/accedi'), { timeout: 30000 });
+      // users.manage: the reader record and its ledger are readable, nothing else.
+      await operator.goto(`${BASE}/admin/users/details/${state.patronId}`);
+      await expect(operator.locator('#movimenti [data-ledger-balance]')).toBeVisible();
+      await expect(operator.locator('#ledger-movements tbody tr')).not.toHaveCount(0);
+      await expect(operator.locator('#ledger-payment-form')).toHaveCount(0);
+      await expect(operator.locator('#ledger-charge-form')).toHaveCount(0);
+      await expect(operator.locator('#ledger-waive-form')).toHaveCount(0);
+      await expect(operator.locator('#movimenti a[href*="/ledger/receipt/"]')).toHaveCount(0);
+      // A hand-built POST is refused before the controller runs (no ledger flash, nothing written).
+      const csrfInputs = operator.locator('input[name="csrf_token"]');
+      const csrf = (await csrfInputs.count()) > 0 ? await csrfInputs.first().inputValue() : '';
+      const refused = await operator.request.post(`${BASE}/admin/users/${state.patronId}/ledger/payment`, { form: { csrf_token: csrf, importo: '1', metodo_pagamento: 'contanti', request_key: 'a'.repeat(32) }, maxRedirects: 0 });
+      expect([302, 403]).toContain(refused.status());
+      expect(String(refused.headers().location || '')).not.toContain('ledger=');
+      expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId}`))).toBe(before);
+      const payment = Number(dbQuery(`SELECT id FROM movimenti_lettore WHERE utente_id=${state.patronId} AND tipo='pagamento' ORDER BY id DESC LIMIT 1`));
+      expect((await operator.request.get(`${BASE}/admin/users/${state.patronId}/ledger/receipt/${payment}`, { maxRedirects: 0 })).status()).not.toBe(200);
+
+      // loans.manage added (the role is re-read on every request): the desk forms appear and work.
+      dbQuery(`UPDATE utenti SET ruolo_id=${deskRole} WHERE id=${operatorId}`);
+      await operator.goto(`${BASE}/admin/users/details/${state.patronId}#movimenti`);
+      await expect(operator.locator('#ledger-payment-form')).toBeVisible();
+      await operator.fill('#ledger_pay_amount', '1,00');
+      await operator.selectOption('#ledger_pay_method', 'contanti');
+      await operator.locator('#ledger-payment-form button[type="submit"]').click();
+      await expect(operator.locator('[data-ledger-flash="paid"]')).toContainText('Pagamento registrato.');
+      expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId}`))).toBe(before + 1);
+      expect(Number(dbQuery(`SELECT creato_da FROM movimenti_lettore WHERE utente_id=${state.patronId} ORDER BY id DESC LIMIT 1`))).toBe(operatorId);
+      const href = await operator.locator('[data-ledger-receipt]').getAttribute('href');
+      expect((await operator.request.get(new URL(String(href), BASE).toString())).status()).toBe(200);
+    } finally {
+      await operator.close();
+      dbQuery(`DELETE FROM user_sessions WHERE utente_id=${operatorId}`);
+      dbQuery(`DELETE FROM utenti WHERE id=${operatorId}`);
+      dbQuery(`DELETE FROM ruoli WHERE id IN (${usersRole}, ${deskRole})`);
+    }
   });
 });
