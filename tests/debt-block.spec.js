@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * Debt block (plan §7): a reader who owes more than the threshold set in
- * Settings → Loans cannot request, receive or renew a loan, on any path, and
- * gets the dedicated message. The DB is used only to seed the debt and the
+ * Settings → Loans cannot request, receive or renew a loan, nor have a
+ * pending request approved, on any path, and gets the dedicated message. The DB is used only to seed the debt and the
  * loans (dates in the application timezone) and to verify the outcome.
  *
  * Run: /tmp/run-e2e.sh tests/debt-block.spec.js --config=tests/playwright.config.js --workers=1
@@ -242,6 +242,24 @@ test.describe.serial('Debt block', () => {
     expect(dbQuery(`SELECT stato FROM prenotazioni WHERE id=${resId}`)).toBe('attiva');
     expect(Number(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${state.patronId} AND libro_id=${state.bookFree}`))).toBe(0);
     dbQuery(`DELETE FROM prenotazioni WHERE id=${resId}`);
+  });
+
+  test('5b. approving a pending request of the blocked reader is refused with debt_block', async () => {
+    // A request sent before the debt (or before the threshold was set): the
+    // approval re-checks eligibility under the user lock, as the desk does.
+    dbQuery(`INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${state.bookFree}, ${state.patronId}, '${appTodayISO()}', '${appDateOffsetISO(14)}', 'pendente', 'richiesta', 0)`);
+    const loanId = Number(dbQuery(`SELECT id FROM prestiti WHERE utente_id=${state.patronId} AND stato='pendente' ORDER BY id DESC LIMIT 1`));
+    await page.goto(`${BASE}/admin/loans/pending`);
+    const csrfInputs = page.locator('input[name="csrf_token"]');
+    const csrf = (await csrfInputs.count()) > 0 ? await csrfInputs.first().inputValue() : '';
+    const res = await page.request.post(`${BASE}/admin/loans/approve`, { form: { csrf_token: csrf, loan_id: String(loanId) }, headers: { Accept: 'application/json' } });
+    expect(res.status(), await res.text()).toBe(403);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(String(body.message)).toContain(DEBT_MESSAGE);
+    expect(dbQuery(`SELECT CONCAT(stato,'|',attivo) FROM prestiti WHERE id=${loanId}`)).toBe('pendente|0');
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${state.patronId} AND libro_id=${state.bookFree} AND attivo=1`))).toBe(0);
+    dbQuery(`DELETE FROM prestiti WHERE id=${loanId}`);
   });
 
   test('6. once the reader pays below the threshold, the same request goes through', async ({ browser }) => {

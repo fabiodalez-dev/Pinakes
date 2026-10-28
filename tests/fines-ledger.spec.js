@@ -194,12 +194,21 @@ test.describe.serial('Fines and patron ledger', () => {
 
   test('3. confirming a late return charges the fine once and the reader record shows it', async () => {
     const loanId = state.loans.A;
+    // The return form exactly as the browser would send it, kept for the replay below.
+    await page.goto(`${BASE}/admin/loans/returned/${loanId}`);
+    const form = page.locator(`form[action$="/admin/loans/returned/${loanId}"]`);
+    const fields = await form.evaluate((f) => Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (f)).entries()));
+    expect(String(fields.csrf_token || '')).not.toBe('');
     await returnFromDesk(page, loanId);
     expect(dbQuery(`SELECT CONCAT(stato,'|',attivo,'|',restituito_in_ritardo) FROM prestiti WHERE id=${loanId}`)).toBe('restituito|0|1');
     expect(dbQuery(`SELECT CONCAT(tipo,'|',importo,'|',chiave_idempotenza) FROM movimenti_lettore WHERE prestito_id=${loanId}`)).toBe(`multa_ritardo|2.50|late:${loanId}`);
-    // A second POST of the same return (double click, back button) is refused and charges nothing.
-    await page.goto(`${BASE}/admin/loans/returned/${loanId}`);
+    // A second POST of the same return (double click, back button, retried request) is refused and charges nothing.
+    const replay = await page.request.post(`${BASE}/admin/loans/returned/${loanId}`, { form: /** @type {Record<string, string>} */ (fields), maxRedirects: 0 });
+    expect(replay.status()).toBe(302);
+    expect(String(replay.headers().location || '')).toContain('error=not_returnable');
+    expect(dbQuery(`SELECT CONCAT(stato,'|',attivo) FROM prestiti WHERE id=${loanId}`)).toBe('restituito|0');
     expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE prestito_id=${loanId}`))).toBe(1);
+    expect(balanceCents()).toBe(250);
 
     await page.goto(`${BASE}/admin/users/details/${state.patronId}`);
     const section = page.locator('#movimenti');

@@ -2,7 +2,7 @@
 /**
  * Circulation policy — the same patron-type rules on every channel:
  * the Mobile API (reader and staff routes) and the NCIP server refuse what
- * the website refuses, with stable codes.
+ * the website refuses, with stable codes; the debt block (plan §7) too.
  */
 const { test, expect } = require('@playwright/test');
 const F = require('./helpers/circulation-fixtures');
@@ -126,5 +126,46 @@ test.describe.serial('Patron-type rules on the Mobile API and NCIP', () => {
     expect(r.status, r.text.slice(0, 300)).toBe(409);
     expect(r.json.error.code).toBe('reservations_disabled');
     expect(F.dbInt(`SELECT COUNT(*) FROM prenotazioni WHERE utente_id=${ctx.kid.id}`)).toBe(0);
+  });
+
+  test('NCIP CheckOutItem and RenewItem of a reader in debt → User Ineligible (debt_block)', async ({ request }) => {
+    // Global threshold 5 (the child's type leaves the field empty, so it inherits it), a charge of 8.
+    const hadThreshold = F.dbInt("SELECT COUNT(*) FROM system_settings WHERE category='loans' AND setting_key='debt_block_threshold'") === 1;
+    const savedThreshold = hadThreshold ? F.dbQuery("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='debt_block_threshold'") : null;
+    F.dbQuery("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','debt_block_threshold','5.00') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)");
+    F.dbQuery(`DELETE FROM prestiti WHERE utente_id=${ctx.kid.id}`);
+    F.dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES (${ctx.kid.id}, 'addebito_manuale', 8.00, 'Tessera smarrita', NOW())`);
+    try {
+      const out = await ncip(request, ncipXml('CheckOutItem', ctx.kid.id, ctx.book2.id));
+      const outBody = await out.text();
+      expect(outBody).toContain('User Ineligible To Check Out This Item');
+      expect(F.dbInt(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${ctx.kid.id}`)).toBe(0);
+
+      // An open loan of the child (made before the debt): the renewal is refused the same way.
+      F.dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, origine) VALUES (${ctx.book1.id}, ${ctx.book1.copyIds[0]}, ${ctx.kid.id}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 10 DAY), 'in_corso', 1, 'diretto')`);
+      F.dbQuery(`UPDATE copie SET stato='prestato' WHERE id=${ctx.book1.copyIds[0]}`);
+      const loanId = F.dbInt(`SELECT id FROM prestiti WHERE utente_id=${ctx.kid.id} AND libro_id=${ctx.book1.id} AND attivo=1`);
+      const due = F.dbQuery(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`);
+      const renew = await ncip(request, ncipXml('RenewItem', ctx.kid.id, ctx.book1.id));
+      expect(await renew.text()).toContain('User Ineligible To Renew This Item');
+      expect(F.dbQuery(`SELECT CONCAT(data_scadenza,'|',renewals) FROM prestiti WHERE id=${loanId}`)).toBe(`${due}|0`);
+
+      // Paid below the threshold (the type still allows no renewal and one
+      // loan): with the loan returned, the checkout refused above goes through.
+      F.dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, metodo_pagamento, created_at) VALUES (${ctx.kid.id}, 'pagamento', -8.00, 'Saldo', 'contanti', NOW())`);
+      F.dbQuery(`DELETE FROM prestiti WHERE utente_id=${ctx.kid.id}`);
+      F.dbQuery(`UPDATE copie SET stato='disponibile' WHERE id=${ctx.book1.copyIds[0]}`);
+      const paid = await ncip(request, ncipXml('CheckOutItem', ctx.kid.id, ctx.book2.id));
+      const paidBody = await paid.text();
+      expect(paidBody).toContain('CheckOutItemResponse');
+      expect(paidBody).not.toContain('User Ineligible');
+      expect(F.dbInt(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${ctx.kid.id} AND attivo=1`)).toBe(1);
+    } finally {
+      F.dbQuery(`DELETE FROM movimenti_lettore WHERE utente_id=${ctx.kid.id}`);
+      F.dbQuery(`DELETE FROM prestiti WHERE utente_id=${ctx.kid.id}`);
+      F.dbQuery(`UPDATE copie SET stato='disponibile' WHERE id IN (${ctx.book1.copyIds[0]}, ${ctx.book2.copyIds[0]})`);
+      if (savedThreshold === null) F.dbQuery("DELETE FROM system_settings WHERE category='loans' AND setting_key='debt_block_threshold'");
+      else F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','debt_block_threshold',${F.sqlStr(savedThreshold)}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+    }
   });
 });
