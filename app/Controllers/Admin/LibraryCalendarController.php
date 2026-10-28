@@ -6,6 +6,8 @@ namespace App\Controllers\Admin;
 
 use App\Models\SettingsRepository;
 use App\Support\DateHelper;
+use App\Support\Holidays\HolidayCalculator;
+use App\Support\Holidays\HolidayPresets;
 use App\Support\LibraryCalendar;
 use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -16,8 +18,9 @@ use Psr\Http\Message\UploadedFileInterface;
  * Admin page /admin/calendar: the days the library is closed.
  *
  * Weekly closed days (loans.closed_weekdays), closure intervals with yearly
- * recurrence and optional branch, the Italian national holidays preset, ICS
- * import and a monthly preview. AdminAuthMiddleware also admits staff; like
+ * recurrence and optional branch, the national holiday presets (a country,
+ * optionally a region, and the holidays the library ticks), the yearly
+ * closures switched on and off, ICS import and a monthly preview. AdminAuthMiddleware also admits staff; like
  * the settings pages, every action is reserved to Permissions::mayConfigure().
  */
 class LibraryCalendarController
@@ -45,10 +48,15 @@ class LibraryCalendarController
         $editId = isset($query['edit']) && is_numeric($query['edit']) ? (int) $query['edit'] : 0;
         $editing = null;
         foreach ($closures as $row) {
-            if ((int) $row['id'] === $editId) {
+            // A preset row changes with the selection, never by hand.
+            if ((int) $row['id'] === $editId && ($row['regola_festivita'] ?? null) === null) {
                 $editing = $row;
             }
         }
+        $yearlyClosures = array_values(array_filter(
+            $closures,
+            static fn (array $row): bool => (int) $row['ricorrente_annuale'] === 1 && ($row['regola_festivita'] ?? null) === null
+        ));
 
         $monthStart = $month . '-01';
         $monthEnd = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('last day of this month')->format('Y-m-d');
@@ -56,6 +64,7 @@ class LibraryCalendarController
         $prevMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('-1 month')->format('Y-m');
         $nextMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('+1 month')->format('Y-m');
         $currentYear = (int) substr($today, 0, 4);
+        $holidays = $this->holidayPreview($db, $query, $currentYear);
 
         ob_start();
         require __DIR__ . '/../../Views/admin/calendar.php';
@@ -116,6 +125,10 @@ class LibraryCalendarController
             $_SESSION['error_message'] = __('Chiusura non trovata.');
             return $this->back($response);
         }
+        if ($this->isPresetRow($db, $id)) {
+            $_SESSION['error_message'] = __('Le festività si modificano dalla selezione delle festività nazionali.');
+            return $this->back($response);
+        }
         $row = $this->validatedClosure($db, (array) $request->getParsedBody());
         if (is_string($row)) {
             $_SESSION['error_message'] = $row;
@@ -137,6 +150,10 @@ class LibraryCalendarController
         if ($guard = $this->guard($response)) {
             return $guard;
         }
+        if ($this->isPresetRow($db, $id)) {
+            $_SESSION['error_message'] = __('Le festività si modificano dalla selezione delle festività nazionali.');
+            return $this->back($response);
+        }
         $stmt = $db->prepare('DELETE FROM calendario_chiusure WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
@@ -147,29 +164,85 @@ class LibraryCalendarController
         return $this->back($response);
     }
 
+    /**
+     * Apply the holidays ticked for a country (and region): the selection is
+     * saved, rows of unticked holidays are removed, missing ones added.
+     * Closures added by hand or from an ICS file are not touched.
+     */
     public function importPreset(Request $request, Response $response, \mysqli $db): Response
     {
         if ($guard = $this->guard($response)) {
             return $guard;
         }
         $data = (array) $request->getParsedBody();
-        $currentYear = (int) substr(DateHelper::today(), 0, 4);
-        $year = is_scalar($data['year'] ?? null) ? (int) $data['year'] : $currentYear;
-        if ($year < $currentYear - 1 || $year > $currentYear + 10) {
-            $_SESSION['error_message'] = __('Anno non valido.');
+        $country = is_string($data['country'] ?? null) ? strtoupper(trim($data['country'])) : '';
+        if (HolidayCalculator::country($country) === null) {
+            $_SESSION['error_message'] = __('Paese non valido.');
             return $this->back($response);
         }
-        $added = 0;
-        foreach (LibraryCalendar::italianHolidays($year) as $holiday) {
-            $row = ['start' => $holiday['start'], 'end' => $holiday['end'], 'description' => $holiday['description'], 'yearly' => $holiday['yearly'], 'sede' => null];
-            if (!$this->alreadyClosed($db, $row)) {
-                $this->insertClosure($db, $row);
-                $added++;
+        $region = HolidayCalculator::normaliseRegion($country, is_string($data['region'] ?? null) ? trim($data['region']) : '');
+        if (!HolidayPresets::schemaReady($db)) {
+            $_SESSION['error_message'] = __("Esegui prima l'aggiornamento del database: manca la colonna delle festività.");
+            return $this->backToPreset($response, $country, $region);
+        }
+        $ids = [];
+        foreach (is_array($data['rules'] ?? null) ? $data['rules'] : [] as $id) {
+            if (is_string($id)) {
+                $ids[] = $id;
             }
         }
+        try {
+            $counts = HolidayPresets::apply($db, $country, $region, $ids);
+        } catch (\Throwable $e) {
+            SecureLogger::error('Calendar: holiday preset not applied: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Festività non applicate: riprova.');
+            return $this->backToPreset($response, $country, $region);
+        }
         $this->calendarChanged($db);
-        $_SESSION['success_message'] = __('Festività nazionali importate: %d nuove chiusure.', $added);
-        return $this->back($response);
+        $_SESSION['success_message'] = $counts['adopted'] > 0
+            ? __('Festività applicate: %1$d aggiunte, %2$d rimosse, %3$d già presenti riconosciute.', $counts['added'], $counts['removed'], $counts['adopted'])
+            : __('Festività applicate: %1$d aggiunte, %2$d rimosse.', $counts['added'], $counts['removed']);
+        return $this->backToPreset($response, $country, $region);
+    }
+
+    /**
+     * Switch the yearly closures added by hand (or from a file) on and off
+     * without deleting them: a switched-off closure closes no day.
+     */
+    public function saveYearly(Request $request, Response $response, \mysqli $db): Response
+    {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
+        if (!HolidayPresets::schemaReady($db)) {
+            $_SESSION['error_message'] = __("Esegui prima l'aggiornamento del database: manca la colonna delle festività.");
+            return $this->back($response);
+        }
+        $data = (array) $request->getParsedBody();
+        $ids = static function (mixed $raw): array {
+            $out = [];
+            foreach (is_array($raw) ? $raw : [] as $value) {
+                if (is_scalar($value) && ctype_digit((string) $value)) {
+                    $out[(int) $value] = (int) $value;
+                }
+            }
+            return $out;
+        };
+        $listed = $ids($data['listed'] ?? []);
+        $active = $ids($data['active'] ?? []);
+        $changed = 0;
+        $stmt = $db->prepare('UPDATE calendario_chiusure SET attiva = ? WHERE id = ? AND ricorrente_annuale = 1 AND regola_festivita IS NULL AND attiva <> ?');
+        foreach ($listed as $id) {
+            $flag = isset($active[$id]) ? 1 : 0;
+            $stmt->bind_param('iii', $flag, $id, $flag);
+            $stmt->execute();
+            $changed += max(0, $stmt->affected_rows);
+        }
+        $stmt->close();
+        $this->calendarChanged($db);
+        $_SESSION['success_message'] = __('Chiusure annuali salvate: %d modificate.', $changed);
+        $target = url('/admin/calendar') . '#calendar-yearly';
+        return $response->withHeader('Location', $target)->withStatus(302);
     }
 
     public function importIcs(Request $request, Response $response, \mysqli $db): Response
@@ -389,10 +462,79 @@ class LibraryCalendarController
     /** @return list<array<string, mixed>> */
     private function closures(\mysqli $db): array
     {
-        $result = $db->query('SELECT c.id, c.data_inizio, c.data_fine, c.descrizione, c.ricorrente_annuale, c.sede_id, s.nome AS sede_nome
+        // Before the holiday-presets migration the two columns are missing:
+        // every row is a manual, active one.
+        $presetColumns = HolidayPresets::schemaReady($db) ? 'c.regola_festivita, c.attiva' : 'NULL AS regola_festivita, 1 AS attiva';
+        $result = $db->query("SELECT c.id, c.data_inizio, c.data_fine, c.descrizione, c.ricorrente_annuale, c.sede_id, {$presetColumns}, s.nome AS sede_nome
             FROM calendario_chiusure c LEFT JOIN sedi s ON s.id = c.sede_id
-            ORDER BY c.ricorrente_annuale DESC, c.data_inizio, c.data_fine, c.id');
+            ORDER BY c.ricorrente_annuale DESC, c.data_inizio, c.data_fine, c.id");
         return $result === false ? [] : $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    private function isPresetRow(\mysqli $db, int $id): bool
+    {
+        if (!HolidayPresets::schemaReady($db)) {
+            return false;
+        }
+        $stmt = $db->prepare('SELECT 1 FROM calendario_chiusure WHERE id = ? AND regola_festivita IS NOT NULL LIMIT 1');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $found;
+    }
+
+    private function backToPreset(Response $response, string $country, string $region): Response
+    {
+        $params = ['holiday_country' => $country];
+        if ($region !== '') {
+            $params['holiday_region'] = $region;
+        }
+        $target = url('/admin/calendar') . '?' . http_build_query($params) . '#calendar-preset';
+        return $response->withHeader('Location', $target)->withStatus(302);
+    }
+
+    /**
+     * What the holiday card shows: the country / region / preview year asked
+     * for in the query (the saved choice otherwise) and, for each holiday,
+     * its date in that year and whether it is ticked. Ticked = the saved
+     * choice for the saved country and region; for another one the
+     * statutory holidays (optional ones stay unticked).
+     *
+     * @param array<mixed> $query
+     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: list<int>, year: int, list: list<array{id: string, name: string, date: ?string, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool}
+     */
+    private function holidayPreview(\mysqli $db, array $query, int $currentYear): array
+    {
+        $selection = HolidayPresets::selection($db);
+        $country = is_string($query['holiday_country'] ?? null) ? strtoupper($query['holiday_country']) : '';
+        if (HolidayCalculator::country($country) === null) {
+            $country = $selection['country'];
+        }
+        $rawRegion = is_string($query['holiday_region'] ?? null)
+            ? $query['holiday_region']
+            : ($country === $selection['country'] ? $selection['region'] : '');
+        $region = HolidayCalculator::normaliseRegion($country, $rawRegion);
+        $years = range($currentYear, $currentYear + HolidayPresets::YEARS_AHEAD);
+        $year = is_scalar($query['holiday_year'] ?? null) && in_array((int) $query['holiday_year'], $years, true) ? (int) $query['holiday_year'] : $currentYear;
+        $savedHere = $selection['saved'] && $selection['country'] === $country && $selection['region'] === $region;
+        $ticked = array_flip($selection['rules']);
+        $list = [];
+        foreach (HolidayCalculator::forYear($country, $region, $year) as $holiday) {
+            $holiday['checked'] = $savedHere ? isset($ticked[$holiday['id']]) : !$holiday['optional'];
+            $list[] = $holiday;
+        }
+        return [
+            'countries' => HolidayCalculator::countryNames(),
+            'country' => $country,
+            'regions' => HolidayCalculator::regions($country),
+            'region' => $region,
+            'years' => $years,
+            'year' => $year,
+            'list' => $list,
+            'saved' => $savedHere,
+            'schema' => HolidayPresets::schemaReady($db),
+        ];
     }
 
     /** @var array<int, string>|null */

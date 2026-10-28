@@ -843,7 +843,7 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Closures calendar (Admin Only): weekly closed days, closure intervals,
-    // holiday preset, ICS import. Every action re-checks mayConfigure() inline.
+    // holiday presets, yearly closures on/off, ICS import. Every action re-checks mayConfigure() inline.
     $app->get('/admin/calendar', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         return (new \App\Controllers\Admin\LibraryCalendarController())->index($request, $response, $db);
@@ -872,6 +872,11 @@ return function (App $app): void {
     $app->post('/admin/calendar/preset', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         return (new \App\Controllers\Admin\LibraryCalendarController())->importPreset($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/yearly', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->saveYearly($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/calendar/import-ics', function ($request, $response) use ($app) {
