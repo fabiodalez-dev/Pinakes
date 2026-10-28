@@ -121,7 +121,7 @@ $ledgerCsrf = App\Support\Csrf::ensureToken();
                             <td class="px-6 py-4 whitespace-nowrap text-right font-semibold <?= $movCents > 0 ? 'text-red-600' : 'text-green-600' ?>"><?= $ledgerE($ledgerFmt($movCents)) ?></td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
                                 <?php if ((string) $mov['tipo'] === 'pagamento'): ?>
-                                    <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/receipt/' . (int) $mov['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-icon btn-secondary p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= $ledgerE(__('Ricevuta PDF')) ?>" aria-label="<?= $ledgerE(__('Ricevuta PDF')) ?>">
+                                    <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/receipt/' . (int) $mov['id']), ENT_QUOTES, 'UTF-8') ?>" class="btn-icon btn-secondary p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= htmlspecialchars(__('Ricevuta PDF'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Ricevuta PDF'), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-file-pdf w-4 h-4"></i>
                                     </a>
                                 <?php endif; ?>
@@ -137,7 +137,7 @@ $ledgerCsrf = App\Support\Csrf::ensureToken();
         $ledgerTo = min($ledgerTotal, $ledgerPage * $ledgerPerPage);
         $ledgerPageUrl = static fn (int $page): string => url('/admin/users/details/' . $id) . '?ledger_page=' . $page . '#movimenti';
     ?>
-    <nav class="px-6 py-3 border-t border-slate-200 flex items-center justify-between text-sm text-gray-600" data-ledger-pager aria-label="<?= $ledgerE(__('Movimenti')) ?>">
+    <nav class="px-6 py-3 border-t border-slate-200 flex items-center justify-between text-sm text-gray-600" data-ledger-pager aria-label="<?= htmlspecialchars(__('Movimenti'), ENT_QUOTES, 'UTF-8') ?>">
       <span><?= $ledgerE(sprintf(__('Movimenti %1$d–%2$d di %3$d'), $ledgerFrom, $ledgerTo, $ledgerTotal)) ?></span>
       <span class="flex gap-2">
         <?php if ($ledgerPage > 1): ?>
