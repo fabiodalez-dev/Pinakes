@@ -146,9 +146,12 @@ document.addEventListener('DOMContentLoaded', function () {
       const text = count > 0
         ? <?= json_encode(__("I %d libri collegati resteranno nel catalogo senza fornitore."), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>.replace('%d', String(count))
         : <?= json_encode(__("Il fornitore non ha libri collegati."), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      // The supplier name is user data: it only ever goes into `text`,
+      // which SweetAlert2 renders as plain text (its `title` is HTML).
+      const question = <?= json_encode(__("Eliminare il fornitore \"%s\"?"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>.replace('%s', form.dataset.name || '');
       const result = await window.SwalApp.confirm({
-        title: <?= json_encode(__("Eliminare il fornitore \"%s\"?"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>.replace('%s', form.dataset.name || ''),
-        text: text,
+        title: <?= json_encode(__("Elimina"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        text: question + ' ' + text,
         confirmText: <?= json_encode(__("Sì, elimina"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
       });
       if (result.isConfirmed) {
