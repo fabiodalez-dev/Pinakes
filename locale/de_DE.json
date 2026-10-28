@@ -8717,6 +8717,8 @@
   "Codice tessera già assegnato: %s": "Ausweisnummer bereits vergeben: %s",
   "Tipologia lettore sconosciuta: %s (assegnata quella predefinita)": "Unbekannter Lesertyp: %s (der Standardtyp wurde zugewiesen)",
   "Utente importato, ma l'invito non è stato inviato.": "Nutzer importiert, aber die Einladung wurde nicht gesendet.",
+  "Utente importato, ma i campi personalizzati non sono stati salvati.": "Benutzer importiert, aber die benutzerdefinierten Felder wurden nicht gespeichert.",
+  "Utente importato, ma la tipologia lettore non è stata assegnata.": "Benutzer importiert, aber der Lesertyp wurde nicht zugewiesen.",
   "Tessere della biblioteca": "Leserausweise der Bibliothek",
   "Tipologia lettore (codice)": "Lesertyp (Code)",
   "Mappatura delle colonne non valida.": "Ungültige Spaltenzuordnung.",

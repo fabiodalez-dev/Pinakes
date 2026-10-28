@@ -1311,6 +1311,10 @@ return function (App $app): void {
         $controller = new \App\Controllers\UserImportController();
         return $controller->example($request, $response, $app->getContainer()->get('db'));
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/import/errors', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->downloadErrors($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
     $app->post('/admin/users/import/upload', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\UserImportController();
         return $controller->upload($request, $response, $app->getContainer()->get('db'));

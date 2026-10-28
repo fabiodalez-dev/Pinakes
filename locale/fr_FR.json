@@ -8717,6 +8717,8 @@
   "Codice tessera già assegnato: %s": "Code de carte déjà attribué : %s",
   "Tipologia lettore sconosciuta: %s (assegnata quella predefinita)": "Type de lecteur inconnu : %s (le type par défaut a été attribué)",
   "Utente importato, ma l'invito non è stato inviato.": "Utilisateur importé, mais l'invitation n'a pas été envoyée.",
+  "Utente importato, ma i campi personalizzati non sono stati salvati.": "Utilisateur importé, mais les champs personnalisés n'ont pas été enregistrés.",
+  "Utente importato, ma la tipologia lettore non è stata assegnata.": "Utilisateur importé, mais le type de lecteur n'a pas été attribué.",
   "Tessere della biblioteca": "Cartes de la bibliothèque",
   "Tipologia lettore (codice)": "Type de lecteur (code)",
   "Mappatura delle colonne non valida.": "Correspondance des colonnes non valide.",

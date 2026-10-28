@@ -8717,6 +8717,8 @@
   "Codice tessera già assegnato: %s": "Card code already assigned: %s",
   "Tipologia lettore sconosciuta: %s (assegnata quella predefinita)": "Unknown patron type: %s (the default one was assigned)",
   "Utente importato, ma l'invito non è stato inviato.": "User imported, but the invitation was not sent.",
+  "Utente importato, ma i campi personalizzati non sono stati salvati.": "User imported, but the custom fields were not saved.",
+  "Utente importato, ma la tipologia lettore non è stata assegnata.": "User imported, but the patron type was not assigned.",
   "Tessere della biblioteca": "Library cards",
   "Tipologia lettore (codice)": "Patron type (code)",
   "Mappatura delle colonne non valida.": "Invalid column mapping.",

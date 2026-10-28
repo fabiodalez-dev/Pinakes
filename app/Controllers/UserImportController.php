@@ -41,6 +41,14 @@ class UserImportController
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }
+        // Coming back to the page abandons a preview that was never started
+        // ("Annulla" reloads it); an import in progress is left alone.
+        $state = $_SESSION[self::SESSION_KEY] ?? null;
+        if (is_array($state) && empty($state['started'])) {
+            $this->discardSessionFile();
+            unset($_SESSION[self::SESSION_KEY]);
+        }
+        UserImport::sweepStaleUploads(self::uploadDir());
         $patronTypes = (new PatronTypeImport($db))->available();
         ob_start();
         require __DIR__ . '/../Views/utenti/import.php';
@@ -76,6 +84,7 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
         $this->discardSessionFile();
+        UserImport::sweepStaleUploads(self::uploadDir());
 
         $file = $request->getUploadedFiles()['csv_file'] ?? null;
         if (!$file instanceof \Psr\Http\Message\UploadedFileInterface || $file->getError() !== UPLOAD_ERR_OK) {
@@ -107,7 +116,7 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('File CSV non valido: usa ";", "," o TAB come separatore.')], 400);
         }
 
-        $dir = dirname(__DIR__, 2) . '/writable/uploads';
+        $dir = self::uploadDir();
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
@@ -209,6 +218,7 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Blocco di righe non valido.')], 409);
         }
         $total = (int) $state['total'];
+        @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
 
         try {
             $reader = Csv::readerFromPath((string) $state['file'], (string) $state['delimiter']);
@@ -263,22 +273,10 @@ class UserImportController
                 $state['seen_emails'][$email] = true;
                 $state['seen_codes'][mb_strtolower((string) $record['codice_tessera'])] = true;
                 $state['created']++;
-
-                if ($parsed['custom'] !== []) {
-                    RegistrationFields::saveValues($db, $userId, $parsed['custom']);
-                }
-                if ($patronTypes->assign($userId, $parsed['tipologia']) === 'unknown') {
-                    $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => sprintf(__('Tipologia lettore sconosciuta: %s (assegnata quella predefinita)'), (string) $parsed['tipologia']), 'type' => 'warning'];
-                }
-                if ($notifier !== null) {
-                    $token = PasswordSetupToken::issue($db, $userId);
-                    if ($token !== null && $notifier->sendUserPasswordSetup($userId, $token)) {
-                        $state['invited']++;
-                    } else {
-                        $state['invite_failed']++;
-                        $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito non è stato inviato.'), 'type' => 'email'];
-                    }
-                }
+                // The account exists from here on: what follows completes it, so
+                // a failure is a warning on a created row, never a failed row
+                // (that would count it twice and invite a duplicate re-import).
+                $this->completeImportedUser($db, $state, $userId, $line, $label, $parsed, $patronTypes, $notifier);
             } catch (\Throwable $e) {
                 $field = $e instanceof \mysqli_sql_exception ? \App\Support\UniqueViolation::fieldFor($e) : 'other';
                 if ($field === 'email' || $field === 'codice_tessera' || $field === 'cod_fiscale') {
@@ -440,6 +438,66 @@ class UserImportController
             }
         }
         return mb_substr(implode(' ', $parts), 0, 200);
+    }
+
+    /**
+     * Custom fields, patron type and invitation of a user already inserted.
+     *
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $parsed
+     */
+    private function completeImportedUser(mysqli $db, array &$state, int $userId, int $line, string $label, array $parsed, PatronTypeImport $patronTypes, ?NotificationService $notifier): void
+    {
+        $warn = static function (string $message, \Throwable $e) use (&$state, $line, $label, $userId): void {
+            SecureLogger::error('[UserImport] post-insert step failed', ['line' => $line, 'user_id' => $userId, 'error' => $e->getMessage()]);
+            $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => $message, 'type' => 'warning'];
+        };
+        if ($parsed['custom'] !== []) {
+            try {
+                RegistrationFields::saveValues($db, $userId, $parsed['custom']);
+            } catch (\Throwable $e) {
+                $warn(__('Utente importato, ma i campi personalizzati non sono stati salvati.'), $e);
+            }
+        }
+        try {
+            if ($patronTypes->assign($userId, $parsed['tipologia']) === 'unknown') {
+                $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => sprintf(__('Tipologia lettore sconosciuta: %s (assegnata quella predefinita)'), (string) $parsed['tipologia']), 'type' => 'warning'];
+            }
+        } catch (\Throwable $e) {
+            $warn(__('Utente importato, ma la tipologia lettore non è stata assegnata.'), $e);
+        }
+        if ($notifier !== null) {
+            try {
+                $token = PasswordSetupToken::issue($db, $userId);
+                $sent = $token !== null && $notifier->sendUserPasswordSetup($userId, $token);
+            } catch (\Throwable $e) {
+                SecureLogger::error('[UserImport] invitation failed', ['line' => $line, 'user_id' => $userId, 'error' => $e->getMessage()]);
+                $sent = false;
+            }
+            if ($sent) {
+                $state['invited']++;
+            } else {
+                $state['invite_failed']++;
+                $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito non è stato inviato.'), 'type' => 'email'];
+            }
+        }
+    }
+
+    /**
+     * The error report of a user import, for whoever may import users: the
+     * generic one under /admin/imports belongs to the catalogue permission.
+     */
+    public function downloadErrors(Request $request, Response $response, mysqli $db): Response
+    {
+        if (!\App\Support\Permissions::can('users.manage')) {
+            return $response->withStatus(403);
+        }
+        return (new ImportHistoryController())->downloadErrors($request, $response, $db, 'users');
+    }
+
+    private static function uploadDir(): string
+    {
+        return dirname(__DIR__, 2) . '/writable/uploads';
     }
 
     /** @return array<string,string> */

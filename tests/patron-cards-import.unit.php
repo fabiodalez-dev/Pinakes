@@ -154,6 +154,29 @@ try {
     @unlink($src);
 
     $check(\App\Support\ContentSecurityPolicy::permissionsPolicy() === 'geolocation=(), microphone=(), camera=(self)', 'the camera is allowed to the same origin only, nothing else is loosened');
+
+    // Uploaded CSV copies (patrons' personal data) do not outlive their use.
+    $sweepDir = sys_get_temp_dir() . '/pci_sweep_' . bin2hex(random_bytes(4));
+    mkdir($sweepDir);
+    $staleCopy = $sweepDir . '/user_import_' . str_repeat('a', 24) . '.csv';
+    $freshCopy = $sweepDir . '/user_import_' . str_repeat('b', 24) . '.csv';
+    $otherFile = $sweepDir . '/import_keep.csv';
+    foreach ([$staleCopy, $freshCopy, $otherFile] as $f) {
+        file_put_contents($f, 'x');
+    }
+    $now = time();
+    touch($staleCopy, $now - UserImport::STALE_UPLOAD_SECONDS - 5);
+    touch($otherFile, $now - 10 * UserImport::STALE_UPLOAD_SECONDS);
+    $check(UserImport::sweepStaleUploads($sweepDir, UserImport::STALE_UPLOAD_SECONDS, $now) === 1, 'the sweep removes exactly one stale copy');
+    $check(!is_file($staleCopy) && is_file($freshCopy) && is_file($otherFile), 'a recent copy and files of other imports are kept');
+    foreach ([$freshCopy, $otherFile] as $f) {
+        @unlink($f);
+    }
+    @rmdir($sweepDir);
+
+    // The user import's error report is served under the users permission.
+    $check(\App\Support\Permissions::permissionForPath('/admin/users/import/errors') === 'users.manage', 'the user import error report needs users.manage, not catalog.manage');
+
     echo "SUCCESS {$checks} checks\n";
 } finally {
     $db->query("DROP TABLE IF EXISTS {$types}");

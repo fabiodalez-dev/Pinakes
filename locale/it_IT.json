@@ -8717,6 +8717,8 @@
   "Codice tessera già assegnato: %s": "Codice tessera già assegnato: %s",
   "Tipologia lettore sconosciuta: %s (assegnata quella predefinita)": "Tipologia lettore sconosciuta: %s (assegnata quella predefinita)",
   "Utente importato, ma l'invito non è stato inviato.": "Utente importato, ma l'invito non è stato inviato.",
+  "Utente importato, ma i campi personalizzati non sono stati salvati.": "Utente importato, ma i campi personalizzati non sono stati salvati.",
+  "Utente importato, ma la tipologia lettore non è stata assegnata.": "Utente importato, ma la tipologia lettore non è stata assegnata.",
   "Tessere della biblioteca": "Tessere della biblioteca",
   "Tipologia lettore (codice)": "Tipologia lettore (codice)",
   "Mappatura delle colonne non valida.": "Mappatura delle colonne non valida.",

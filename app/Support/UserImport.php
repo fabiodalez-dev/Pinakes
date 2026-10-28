@@ -19,6 +19,12 @@ final class UserImport
     public const MAX_BYTES = 5 * 1024 * 1024;
     public const CHUNK_SIZE = 10;
     public const PREVIEW_ROWS = 5;
+    /**
+     * An uploaded CSV holds patrons' personal data. One that no import has
+     * read for this long (the tab was closed, the session expired, the
+     * preview was abandoned) is deleted by the next visit to the import page.
+     */
+    public const STALE_UPLOAD_SECONDS = 3600;
 
     /** Field key => [max length or 0, required]. */
     private const FIELDS = [
@@ -329,5 +335,23 @@ final class UserImport
             $value = substr($value, 1);
         }
         return strip_tags($value);
+    }
+
+    /**
+     * Delete user_import_*.csv files in $dir not modified for $maxAge seconds.
+     *
+     * @return int number of files removed
+     */
+    public static function sweepStaleUploads(string $dir, int $maxAge = self::STALE_UPLOAD_SECONDS, ?int $now = null): int
+    {
+        $now ??= time();
+        $removed = 0;
+        foreach (glob(rtrim($dir, '/') . '/user_import_*.csv') ?: [] as $file) {
+            $mtime = @filemtime($file);
+            if ($mtime !== false && $now - $mtime > $maxAge && @unlink($file)) {
+                $removed++;
+            }
+        }
+        return $removed;
     }
 }

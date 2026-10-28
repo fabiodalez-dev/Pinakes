@@ -206,10 +206,12 @@ unset($workspaceHeader);
             <?php endif; ?>
             <li class="flex items-start"><i class="fas fa-lock text-gray-500 mt-0.5 mr-2"></i><span><?= __("Le password non vengono mai importate.") ?></span></li>
           </ul>
+          <?php if (\App\Support\Permissions::can('catalog.manage')): // the history page belongs to the catalogue permission ?>
           <p class="text-xs text-gray-500 mt-4">
             <?= __("Il riepilogo di ogni import, con gli errori da scaricare, resta nello") ?>
             <a class="underline" href="<?= htmlspecialchars(url('/admin/imports-history'), ENT_QUOTES, 'UTF-8') ?>"><?= __("storico import") ?></a>.
           </p>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -345,7 +347,7 @@ unset($workspaceHeader);
     }
     if (last.import_id && errors.length > 0) {
       const link = $('user-import-download-errors');
-      link.href = BASE + '/admin/imports/download-errors?import_id=' + encodeURIComponent(last.import_id);
+      link.href = BASE + '/admin/users/import/errors?import_id=' + encodeURIComponent(last.import_id);
       link.classList.remove('hidden');
     }
   });

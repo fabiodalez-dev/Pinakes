@@ -238,7 +238,8 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     const link = page.locator('#user-import-download-errors');
     await expect(link).toBeVisible();
     const href = String(await link.getAttribute('href'));
-    expect(href).toContain('/admin/imports/download-errors?import_id=');
+    // Served under /admin/users: users.manage is enough, catalog.manage is not needed.
+    expect(href).toContain('/admin/users/import/errors?import_id=');
     const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
     const file = await download.path();
     const csv = fs.readFileSync(String(file), 'utf-8');
@@ -259,5 +260,71 @@ test.describe.serial('User import from CSV (phase 7)', () => {
     const row = page.locator('tr', { hasText: path.basename(csvFile) });
     await expect(row).toBeVisible();
     await expect(row).toContainText('Utenti');
+  });
+  test('the users-scoped errors download refuses an import that is not a users import', async () => {
+    const other = `zz-other-${RUN}`;
+    dbQuery(`INSERT INTO import_logs (import_id, import_type, file_name, user_id, total_rows, imported, failed, status, errors_json)
+             VALUES (${sqlStr(other)}, 'csv', ${sqlStr(path.basename(csvFile))}, NULL, 1, 0, 1, 'completed', '[]')`);
+    try {
+      const res = await page.request.get(`${BASE}/admin/users/import/errors?import_id=${encodeURIComponent(other)}`);
+      expect(res.status()).toBe(404);
+    } finally {
+      dbQuery(`DELETE FROM import_logs WHERE import_id = ${sqlStr(other)}`);
+    }
+  });
+
+  test('"Annulla" on the preview deletes the uploaded copy, and stale copies are swept', async () => {
+    const uploads = path.join(ROOT, 'writable', 'uploads');
+    const listCopies = () => (fs.existsSync(uploads) ? fs.readdirSync(uploads).filter((n) => /^user_import_[0-9a-f]+\.csv$/.test(n)) : []);
+    // A copy left behind by an abandoned session two hours ago.
+    fs.mkdirSync(uploads, { recursive: true });
+    const stale = path.join(uploads, `user_import_${'ab'.repeat(6)}${RUN.replace(/[^0-9a-f]/g, '').padEnd(12, '0').slice(0, 12)}.csv`);
+    fs.writeFileSync(stale, 'Nome;Email\n');
+    const old = new Date(Date.now() - 2 * 3600 * 1000);
+    fs.utimesSync(stale, old, old);
+
+    const before = new Set(listCopies());
+    await page.goto(`${BASE}/admin/users/import`);
+    expect(fs.existsSync(stale), 'a copy untouched for over an hour is deleted when the page is opened').toBe(false);
+
+    await page.locator('#user_import_file').setInputFiles(csvFile);
+    await page.locator('#user-import-upload-btn').click();
+    await expect(page.locator('#user-import-step-mapping')).toBeVisible();
+    const added = listCopies().filter((n) => !before.has(n));
+    expect(added.length, 'the upload keeps one copy for the import').toBe(1);
+
+    await page.locator('#user-import-cancel').click();
+    await expect(page).toHaveURL(/\/admin\/users\/import$/);
+    await expect(page.locator('#user_import_file')).toBeVisible();
+    expect(fs.existsSync(path.join(uploads, added[0])), 'cancelling the preview deletes the copy').toBe(false);
+  });
+
+  test('a failure after the account is created is a warning on a created row, not a failed row', async () => {
+    test.setTimeout(120_000);
+    const trigger = `zz_ui_probe_${RUN.replace(/[^a-z0-9]/gi, '')}`;
+    const file = path.join(os.tmpdir(), `utenti-post-${RUN}.csv`);
+    fs.writeFileSync(file, [['Nome', 'Cognome', 'E-mail', CUSTOM_LABEL].join(';'),
+      ['Post', 'Uno', `post1.${RUN}@${DOMAIN}`, 'ZZFAIL'].join(';'),
+      ['Post', 'Due', `post2.${RUN}@${DOMAIN}`, 'ok'].join(';')].join('\n') + '\n');
+    // Make saving the custom field fail for the first row only.
+    dbQuery(`DELIMITER //\nCREATE TRIGGER ${trigger} BEFORE INSERT ON utenti_campi_valori FOR EACH ROW BEGIN IF NEW.valore = 'ZZFAIL' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'probe'; END IF; END//\nDELIMITER ;`);
+    try {
+      await page.goto(`${BASE}/admin/users/import`);
+      await page.locator('#user_import_file').setInputFiles(file);
+      await page.locator('#user-import-upload-btn').click();
+      await expect(page.locator('#user-import-step-mapping')).toBeVisible();
+      await expect(page.locator('select[data-import-column="3"]')).toHaveValue(`custom:${customId}`);
+      await page.locator('#user-import-start').click();
+      await expect(page.locator('#user-import-summary')).toBeVisible({ timeout: 60_000 });
+      await expect(page.locator('[data-import-count="created"]')).toHaveText('2');
+      await expect(page.locator('[data-import-count="failed"]')).toHaveText('0');
+      await expect(page.locator('#user-import-errors tr[data-import-error="warning"]')).toHaveCount(1);
+      await expect(page.locator('#user-import-errors tr[data-import-error="warning"]')).toContainText('campi personalizzati');
+      expect(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email LIKE ${sqlStr(`post_.${RUN}@${DOMAIN}`)}`)).toBe('2');
+    } finally {
+      dbQuery(`DROP TRIGGER IF EXISTS ${trigger}`);
+      dbQuery(`DELETE FROM import_logs WHERE file_name = ${sqlStr(path.basename(file))}`);
+      try { fs.unlinkSync(file); } catch { /* gone */ }
+    }
   });
 });
