@@ -18,8 +18,9 @@ use mysqli;
  * stocktake runs cannot change what the session was looking for.
  *
  * The expected copies always end in exactly one bucket of the report:
- * found, misplaced, on loan or missing. Unknown codes, copies outside the
- * filter and repeated scans are counted on the side.
+ * found, misplaced, on loan (lent, or waiting on the pickup shelf) or missing.
+ * Unknown codes, copies outside the filter and repeated scans are counted on
+ * the side.
  */
 final class StocktakeService
 {
@@ -31,9 +32,30 @@ final class StocktakeService
     /**
      * Copy states that already explain why a copy is not on the shelf. A missing
      * copy in one of these states is reported, but closing with "mark as lost"
-     * leaves it alone: it is lent, at the restorer's, in transit, or already lost.
+     * leaves it alone: it is lent or waiting on the pickup shelf, damaged, at
+     * the restorer's, in transit, in maintenance, or already lost.
      */
-    private const AWAY_STATES = ['prestato', 'perso', 'in_restauro', 'in_trasferimento', 'manutenzione'];
+    private const AWAY_STATES = ['prestato', 'prenotato', 'perso', 'danneggiato', 'in_restauro', 'in_trasferimento', 'manutenzione'];
+
+    /**
+     * The "on loan" bucket of the report: a copy lent to a reader or set aside
+     * on the pickup shelf for one, by its own state or by an active loan row.
+     * Such a copy is where the loan desk put it, so it is never declared lost
+     * (a copy marked lost would also have its hold moved to another copy).
+     * A scheduled loan (prestiti 'prenotato') is not in the bucket: the copy
+     * stays on its shelf until MaintenanceService activates the pickup, and
+     * only then does the copy itself become 'prenotato'.
+     */
+    private const ON_LOAN_COPY_STATES = ['prestato', 'prenotato'];
+    private const ON_LOAN_LOAN_STATES = ['in_corso', 'in_ritardo', 'da_ritirare'];
+
+    /**
+     * Copies nobody expects on a shelf when the session opens: they are left
+     * out of the snapshot, otherwise they would be "missing" for the whole
+     * session with nothing the close could do about them. Lent copies and
+     * copies waiting for pickup stay in: they have a bucket of their own.
+     */
+    private const OFF_SHELF_STATES = ['perso', 'danneggiato', 'in_restauro', 'in_trasferimento', 'manutenzione'];
 
     public function __construct(private mysqli $db)
     {
@@ -45,7 +67,7 @@ final class StocktakeService
      * @param bool     $copyExists     the code matches a copy of a book still in the catalogue
      * @param bool     $alreadyScanned this session already recorded a scan of that copy
      * @param bool     $expected       the copy is in the session's opening snapshot
-     * @param bool     $onLoan         the copy is out on an active loan right now
+     * @param bool     $onLoan         the copy is out on an active loan or waiting on the pickup shelf right now
      * @param int|null $expectedShelf  shelf recorded in the snapshot (null: the book had none)
      * @param int|null $scanShelf      shelf the operator says they are working on (null: not given)
      */
@@ -155,7 +177,9 @@ final class StocktakeService
     }
 
     /**
-     * Open a session and freeze the copies it expects to find.
+     * Open a session and freeze the copies it expects to find: those matching
+     * the filter, of books still in the catalogue, that are not already out of
+     * circulation (OFF_SHELF_STATES).
      *
      * @param array<string,mixed> $filter
      */
@@ -188,7 +212,7 @@ final class StocktakeService
             $sql = 'INSERT INTO inventario_attese (sessione_id, copia_id, scaffale_atteso, stato_all_apertura) '
                 . 'SELECT ?, c.id, l.scaffale_id, c.stato FROM copie c '
                 . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
-                . 'WHERE 1 = 1' . $where;
+                . 'WHERE c.stato NOT IN (' . self::sqlList(self::OFF_SHELF_STATES) . ')' . $where;
             $stmt = $this->db->prepare($sql);
             if ($stmt === false) {
                 throw new \RuntimeException($this->db->error);
@@ -435,7 +459,7 @@ final class StocktakeService
             $alreadyScanned = $stmt->get_result()->fetch_row() !== null;
             $stmt->close();
 
-            $onLoan = ($copy['stato'] ?? '') === 'prestato' || $this->isOnLoan($copyId);
+            $onLoan = in_array((string) ($copy['stato'] ?? ''), self::ON_LOAN_COPY_STATES, true) || $this->isOnLoan($copyId);
         }
 
         $expectedShelf = is_array($expected) && $expected['scaffale_atteso'] !== null ? (int) $expected['scaffale_atteso'] : null;
@@ -530,9 +554,26 @@ final class StocktakeService
         }
     }
 
+    /** @param list<string> $values */
+    private static function sqlList(array $values): string
+    {
+        return "'" . implode("','", $values) . "'";
+    }
+
+    /**
+     * SQL predicate: the expected copy `a` (joined as `c`) is in the "on loan"
+     * bucket. NULL when the copy no longer exists.
+     */
+    private static function onLoanSql(): string
+    {
+        return '(c.stato IN (' . self::sqlList(self::ON_LOAN_COPY_STATES) . ') OR EXISTS ('
+            . 'SELECT 1 FROM prestiti p WHERE p.copia_id = a.copia_id AND p.attivo = 1 AND p.stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ')))';
+    }
+
+    /** Lent, or set aside on the pickup shelf: see ON_LOAN_LOAN_STATES. */
     private function isOnLoan(int $copyId): bool
     {
-        $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo') LIMIT 1");
+        $stmt = $this->db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ') LIMIT 1');
         if ($stmt === false) {
             return false;
         }
@@ -593,7 +634,7 @@ final class StocktakeService
         // (c.stato NULL) is not on loan and stays among the missing ones.
         $stmt = $this->db->prepare(
             'SELECT COUNT(*) AS n, COALESCE(SUM(t.in_prestito), 0) AS lent FROM ('
-            . "SELECT COALESCE(c.stato = 'prestato' OR EXISTS (SELECT 1 FROM prestiti p WHERE p.copia_id = a.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo')), 0) AS in_prestito "
+            . 'SELECT COALESCE(' . self::onLoanSql() . ', 0) AS in_prestito '
             . 'FROM inventario_attese a '
             . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
             . 'LEFT JOIN copie c ON c.id = a.copia_id '
@@ -633,7 +674,7 @@ final class StocktakeService
         $stmt = $this->db->prepare(
             'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, c.numero_inventario, c.stato AS stato_attuale, c.libro_id, '
             . 'l.titolo, l.collocazione, '
-            . "(c.stato = 'prestato' OR EXISTS (SELECT 1 FROM prestiti p WHERE p.copia_id = a.copia_id AND p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo'))) AS in_prestito "
+            . self::onLoanSql() . ' AS in_prestito '
             . 'FROM inventario_attese a '
             . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
             . 'LEFT JOIN copie c ON c.id = a.copia_id '
@@ -725,8 +766,8 @@ final class StocktakeService
 
     /**
      * Close the session. With $markLost every missing copy that is not already
-     * explained by its state (lent, lost, at the restorer's, in transit, in
-     * maintenance) becomes 'perso', one book per transaction, with the same
+     * explained by its state (lent or waiting for pickup, damaged, lost, at the
+     * restorer's, in transit, in maintenance) becomes 'perso', one book per transaction, with the same
      * hold reassignment and availability recalculation as a manual change of
      * a copy's state, and an ActivityLog entry per copy.
      *
@@ -745,7 +786,7 @@ final class StocktakeService
             $byBook = [];
             foreach ($this->unscannedExpected($sessionId) as $row) {
                 if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['titolo'] === null) {
-                    continue; // lent, or the copy/book left the catalogue meanwhile
+                    continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
                 }
                 if (in_array((string) $row['stato_attuale'], self::AWAY_STATES, true)) {
                     continue;

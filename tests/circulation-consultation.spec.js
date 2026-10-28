@@ -104,7 +104,7 @@ test.describe.serial('Consultation-only material (matrix rule)', () => {
 test.describe.serial('Consultation-only copy (single copy flag)', () => {
   /** @type {import('@playwright/test').Page} */ let admin;
   /** @type {import('@playwright/test').Page} */ let reader;
-  let ctxA; let ctxR; let patron; let title;
+  let ctxA; let ctxR; let patron; let viewer; let title;
   const errors = [];
 
   test.beforeAll(async ({ browser }) => {
@@ -113,12 +113,13 @@ test.describe.serial('Consultation-only copy (single copy flag)', () => {
     for (const p of [admin, reader]) p.on('response', (r) => { if (r.status() >= 500) errors.push(`${r.status()} ${r.url()}`); });
     await F.loginAsAdmin(admin);
     patron = F.createPatron(`CSC${RUN}`);
+    viewer = F.createPatron(`CSW${RUN}`);
     title = F.createTitle(`${RUN} TWO`, 'libro', 2);
   });
   test.afterEach(() => { expect(errors.splice(0), 'no HTTP 5xx').toEqual([]); });
   test.afterAll(async () => {
     F.deleteTitles([title?.id]);
-    F.deletePatrons([patron?.id]);
+    F.deletePatrons([patron?.id, viewer?.id]);
     await ctxA?.close(); await ctxR?.close();
   });
 
@@ -145,6 +146,21 @@ test.describe.serial('Consultation-only copy (single copy flag)', () => {
   test('a loan without a code takes the other copy', async () => {
     expect(await F.staffLoan(admin, patron, title)).not.toContain('error=');
     expect(F.dbInt(`SELECT copia_id FROM prestiti WHERE utente_id=${patron.id} AND attivo=1 ORDER BY id DESC LIMIT 1`)).toBe(title.copyIds[1]);
+  });
+
+  test('with the lendable copy out, the consultation copy does not count: the reader is offered a reservation, not a loan', async () => {
+    // libri.copie_disponibili is the counter behind the book page button and
+    // the catalogue "available" filter: the consultation copy on the shelf
+    // must not make the title look lendable while the other copy is out.
+    expect(F.dbInt(`SELECT copie_disponibili FROM libri WHERE id=${title.id}`)).toBe(0);
+    expect(F.dbInt(`SELECT copie_totali FROM libri WHERE id=${title.id}`)).toBe(2);
+    await F.loginAs(reader, viewer.email, viewer.password);
+    await reader.goto(`${F.BASE}/libro/${title.id}`);
+    await expect(reader.locator('#consultation-only')).toHaveCount(0);
+    const button = reader.locator('#btn-request-loan');
+    await expect(button).toBeVisible();
+    await expect(button).toContainText(/Prenota quando disponibile|Reserve when available/i);
+    await expect(button).not.toContainText(/Richiedi prestito|Request loan/i);
   });
 
   test('a copy held by a loan cannot be reserved for consultation', async () => {

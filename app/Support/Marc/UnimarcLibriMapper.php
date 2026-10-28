@@ -10,6 +10,7 @@ namespace App\Support\Marc;
  *
  *   011 $a ISSN   073 $a EAN   210 / 214 $a place, every $c publisher
  *   215 $d dimensions   330 $a summary   856 $u cover image
+ *   label/06 media type
  *
  * The reader's roles (from the IFLA $4 relator codes) sort translators,
  * editors, illustrators and colorists out of the authors.
@@ -86,6 +87,7 @@ final class UnimarcLibriMapper implements MarcLibriMapper
         }
         $data['issn'] = MarcBookData::clean($record->subfield('011', 'a'));
         $data['copertina_url'] = MarcBookData::coverUrlOf($record);
+        $data['tipo_media'] = MarcMediaType::tipoMediaOf(substr($record->leader() . '      ', 6, 1));
 
         return $data;
     }

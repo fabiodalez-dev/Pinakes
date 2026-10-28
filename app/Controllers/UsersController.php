@@ -176,10 +176,13 @@ class UsersController
             $dataScadenzaTessera = $dataScadenzaInput !== '' ? $dataScadenzaInput : null;
         }
         // Patron type (circulation rules) and, when asked, the card expiry it
-        // implies (today + the type's card duration).
+        // implies (today + the type's card duration). The checkbox is ticked
+        // by default on this form, so it fills an empty date only: a date the
+        // librarian typed wins. (The edit form opts in explicitly and
+        // recomputes, see update().)
         $patronTypeId = \App\Support\PatronTypeAssignment::fromSubmission($db, $data);
-        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto'])) {
-            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId) ?? $dataScadenzaTessera;
+        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto']) && $dataScadenzaInput === '') {
+            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId);
         }
 
         $stato = (string) ($data['stato'] ?? ($isAdmin ? 'attivo' : 'attivo'));
@@ -699,6 +702,12 @@ class UsersController
             $updateStmt->bind_param("i", $id);
             $updateStmt->execute();
             $updateStmt->close();
+
+            // The photo is personal data and goes with the account even when
+            // the record itself is kept for the loan history. delete() clears
+            // the reference and unlinks the file; its failures are logged, never
+            // thrown, so the request completes either way.
+            \App\Support\PatronPhoto::delete($db, $id);
 
             // Audit logging
             \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [

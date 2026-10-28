@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/helpers/exact-search-501.php';
 
+use App\Support\AuthorNormalizer as N;
 use App\Support\ExactSearch as E;
 
 $ok = [Exact501::class, 'check'];
@@ -48,6 +49,17 @@ $same(null, E::quotedValue('Edizioni «La Scala»'), 'guillemets inside a publis
 $same(null, E::quotedValue('Haffner'), 'an unquoted name is not a quoted value');
 $same(null, E::quotedValue('"'), 'a lone quote is not a name');
 $ok(E::filterCondition(['a.nome'], '"') === null, 'a lone quote adds no filter');
+// AuthorNormalizer: a quoted name is canonicalised INSIDE the quotes, so the
+// save and lookup paths still see a whole-value quoted string and the quote
+// characters never end up in the stored name (`Rolf" "Häffner`).
+$same('"Rolf Häffner"', N::normalize('"Häffner, Rolf"'), 'a quoted inverted name is swapped with the quotes kept around the whole name');
+$same('"Rolf Häffner"', N::normalize('"Rolf Häffner"'), 'a quoted direct name is unchanged');
+$same('"Rolf Häffner"', N::normalize('„Häffner, Rolf“'), 'typographic quotes come back as straight ones around the canonical name');
+$same('Rolf Häffner', N::normalize('Häffner, Rolf'), 'an unquoted inverted name is still swapped');
+$same('"Pippo" Inzaghi', N::normalize('"Pippo" Inzaghi'), 'a quoted part inside a name is not a quoted name and is kept as typed');
+$same('Rolf Häffner', E::quotedValue(N::normalize('"Häffner, Rolf"')), 'the normalised quoted name still reads as one quoted value when saved');
+$same('rolf haffner', N::toSearchForm('"Häffner, Rolf"'), 'the search form of a quoted name is the name inside the quotes');
+$ok(N::match('"Häffner, Rolf"', 'Rolf Häffner'), 'match() compares a quoted candidate on the name inside the quotes');
 $cond = E::filterCondition(['a.nome', 'a.pseudonimo'], '"x"');
 $ok($cond !== null && count($cond['params']) === 2 && $cond['types'] === 'ss', 'one bound pattern per searched column');
 
@@ -104,4 +116,4 @@ $same([], $f("\xff\xfe"), 'a garbled value matches nothing instead of every row'
 $limited = \App\Support\ExactSearch::wordsCondition(['nome'], '"thomas mann" other words', 1);
 $same(['%thomas mann%'], $limited['params'], 'a search budget counts a quoted phrase as one term');
 $same(null, \App\Support\ExactSearch::wordsCondition(['nome'], 'mann', 0), 'a zero search budget produces no invalid empty predicate');
-Exact501::finish(47);
+Exact501::finish(55);

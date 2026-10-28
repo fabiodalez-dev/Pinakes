@@ -173,6 +173,23 @@ $check($m3['titolo'] === 'Untitled anthology' && $m3['autori'] === [] && $m3['an
 $crime = (new Marc21LibriMapper())->map($xml[0]);
 $check($crime['autori'] === ['Dostoyevsky, Fyodor'] && $crime['traduttore'] === ['McDuff, David'] && $crime['copertina_url'] === 'https://covers.example.org/crime.jpeg', '51 "translated with an introduction" → translator; 856 $q image/jpeg');
 
+$deweyOf = static function (string $value): string {
+    $r = new MarcRecord();
+    $r->addDataField('082', '0', '4', [['a', $value], ['2', '23']]);
+    return (new Marc21LibriMapper())->map($r)['classificazione_dewey'];
+};
+$check($deweyOf('891.73/3') === '891.733' && $deweyOf('813/.54') === '813.54' && $deweyOf("823'.912") === '823.912' && $deweyOf('[Fic]') === '' && $deweyOf('853.914') === '853.914', '51a 082 prime marks (/ and \') are dropped, [Fic] is no number');
+$corp = new MarcRecord();
+$corp->addDataField('110', '2', ' ', [['a', 'United States.'], ['b', 'Congress.'], ['b', 'Senate.']]);
+$corp->addDataField('245', '1', '0', [['a', 'Report']]);
+$corp->addDataField('710', '2', ' ', [['a', 'Istituto nazionale di statistica,'], ['e', 'editor.'], ['4', 'edt']]);
+$corp->addDataField('711', '2', ' ', [['a', 'Convegno di studi'], ['d', '(1998 : Roma)']]);
+$corp->addDataField('710', '2', ' ', [['a', 'Einaudi,'], ['e', 'publisher.'], ['4', 'pbl']]);
+$corp->addDataField('710', '2', ' ', [['a', 'Some body'], ['t', 'A work']]);
+$c = (new Marc21LibriMapper())->map($corp);
+$check($c['autori'] === ['United States. Congress. Senate', 'Convegno di studi'], '51b 110 $a $b joined and a 711 meeting are authors; a publisher (710 $4 pbl) and a name-title entry are not');
+$check($c['curatore'] === ['Istituto nazionale di statistica'], '51c a 710 with $4 edt is the editor');
+
 echo "UNIMARC mapping\n";
 $u = (new UnimarcLibriMapper())->map($uni[0]);
 $check($u['titolo'] === 'Se questo è un uomo' && $u['sottotitolo'] === 'testimonianza' && $u['isbn13'] === '9788806219499' && $u['ean'] === '8001234567894', '52 200, 010, 073');
@@ -214,6 +231,87 @@ $backU = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString
 $check($backU['titolo'] === 'Viaggio al centro' && $backU['autori'] === ['Jules Verne'] && $backU['traduttore'] === ['Maria Traduce'] && $backU['classificazione_dewey'] === '843.8' && $backU['copertina_url'] === 'https://img.example.org/c.jpg', '63 UNIMARC export maps back, with 676 and 856');
 $plain = BookMarcBuilder::marc21($row, $authors, [], null, false);
 $check($plain->first('024') === null && $plain->first('856') === null && $plain->first('050') === null, '64 without $extended the record is the OAI one (no 024/050/856)');
+
+echo "Media type and RDA types\n";
+$typed = static fn (string $tipo, array $extra = []): MarcRecord => BookMarcBuilder::marc21($row + ['tipo_media' => $tipo] + $extra, $authors, [], null);
+$rdaOf = static fn (MarcRecord $r): array => [$r->subfield('336', 'b'), $r->subfield('337', 'b'), $r->subfield('338', 'b')];
+$book = $typed('libro');
+$check($book->leader()[6] === 'a' && $book->controlField('007') === 'ta' && $rdaOf($book) === ['txt', 'n', 'nc'], '67a a book: leader/06 a, 007 text, 336-338 txt/n/nc');
+$check($book->subfield('336', 'a') === 'text' && $book->subfield('336', '2') === 'rdacontent' && $book->subfield('337', 'a') === 'unmediated' && $book->subfield('338', 'a') === 'volume' && $book->subfield('338', '2') === 'rdacarrier', '67b the RDA term in $a, the vocabulary in $2');
+$dvd = $typed('dvd');
+$check($dvd->leader()[6] === 'g' && str_starts_with((string) $dvd->controlField('007'), 'vd') && $rdaOf($dvd) === ['tdi', 'v', 'vd'], '67c a DVD: leader/06 g, 007 videodisc, tdi/v/vd');
+$check($typed('disco')->leader()[6] === 'j' && $rdaOf($typed('disco')) === ['prm', 's', 'sd'] && $typed('audiolibro')->leader()[6] === 'i' && $rdaOf($typed('audiolibro')) === ['spw', 's', 'sd'], '67d a disco is a musical sound recording (j, prm), an audiolibro a non-musical one (i, spw)');
+$check($typed('altro')->controlField('007') === null && $rdaOf($typed('altro')) === ['xxx', 'x', 'zu'], '67e altro: no 007, RDA other/other/unspecified');
+$own = $typed('libro', ['rda_content_type' => 'ntm', 'rda_carrier_type' => 'nb']);
+$check($rdaOf($own) === ['ntm', 'n', 'nb'] && $own->subfield('336', 'a') === 'notated music' && $own->subfield('338', 'a') === 'sheet', '67f the book\'s own RDA codes override what the media type implies');
+$check(BookMarcBuilder::unimarc($row + ['tipo_media' => 'dvd'], $authors, [], null)->leader()[6] === 'g' && BookMarcBuilder::unimarc($row, $authors, [], null)->leader()[6] === 'a', '67g UNIMARC label/06 follows the media type too');
+$viaIso = static fn (MarcRecord $r): array => (new Marc21LibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($r))))[0]);
+$backDvd = $viaIso($dvd);
+$check($backDvd['tipo_media'] === 'dvd' && !isset($backDvd['rda_content_type']) && !isset($backDvd['rda_media_type']) && !isset($backDvd['rda_carrier_type']), '67h export → import: a DVD comes back a DVD, the implied RDA codes are not stored as its own');
+$check($viaIso($typed('disco'))['tipo_media'] === 'disco' && $viaIso($typed('audiolibro'))['tipo_media'] === 'audiolibro' && $viaIso($book)['tipo_media'] === 'libro', '67i disco, audiolibro and libro round trip');
+$backOwn = $viaIso($own);
+$check($backOwn['tipo_media'] === 'libro' && ($backOwn['rda_content_type'] ?? '') === 'ntm' && ($backOwn['rda_carrier_type'] ?? '') === 'nb' && !isset($backOwn['rda_media_type']), '67j only the codes the media type does not imply come back as the book\'s own');
+$music = new MarcRecord('00000nim a2200000   4500');
+$music->addDataField('245', '0', '0', [['a', 'Sonate']]);
+$music->addDataField('336', ' ', ' ', [['b', 'prm'], ['2', 'rdacontent']]);
+$check((new Marc21LibriMapper())->map($music)['tipo_media'] === 'disco', '67k leader/06 i with 336 prm (performed music) is a disco');
+$map = new MarcRecord('00000nem a2200000   4500');
+$map->addDataField('245', '0', '0', [['a', 'Atlas']]);
+$map->addDataField('336', ' ', ' ', [['b', 'cri'], ['2', 'rdacontent']]);
+$mapped = (new Marc21LibriMapper())->map($map);
+$check($mapped['tipo_media'] === '' && ($mapped['rda_content_type'] ?? '') === 'cri', '67l a kind the catalogue has no media type for leaves it unset, its content type kept');
+$check((new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize(BookMarcBuilder::unimarc($row + ['tipo_media' => 'audiolibro'], $authors, [], null)))))[0])['tipo_media'] === 'audiolibro', '67m UNIMARC export → import keeps the media type');
+$check(MarcBookData::toImportRow($backDvd)['tipo_media'] === 'dvd', '67n the import row carries tipo_media');
+
+echo "Genre round trip\n";
+$withGenre = BookMarcBuilder::marc21($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
+$check($withGenre->first('655')?->ind2 === '7' && $withGenre->subfield('655', 'a') === 'Narrativa' && $withGenre->subfield('655', '2') === 'local' && $withGenre->subfieldValues('650', 'a') === ['avventura', 'viaggi'], '67o the genre is a 655 _7 $2 local, the keywords stay 650 _4');
+$xmlOut = new MarcXmlWriter(MarcXmlWriter::NS_MARC21);
+$xmlOut->startCollection();
+$xmlOut->writeRecord($withGenre);
+$xmlOut->endCollection();
+$backGenre = (new Marc21LibriMapper())->map($records($all(MarcXmlReader::fromString($xmlOut->output())))[0]);
+$check($backGenre['genere'] === 'Narrativa' && $backGenre['parole_chiave'] === ['avventura', 'viaggi'], '67p builder → MARCXML → reader → mapper: the genre comes back as the genre, not as a keyword');
+$check(MarcBookData::toImportRow($backGenre)['genere'] === 'Narrativa', '67q the import row carries the genre');
+$lcgft = new MarcRecord();
+$lcgft->addDataField('245', '0', '0', [['a', 'A novel']]);
+$lcgft->addDataField('655', ' ', '7', [['a', 'Detective and mystery fiction.'], ['2', 'lcgft']]);
+$lcgft->addDataField('655', ' ', '4', [['a', 'Thrillers.']]);
+$check((new Marc21LibriMapper())->map($lcgft)['genere'] === '', '67r a 655 of another scheme, or without $2, is not imported as the genre');
+
+$entities = BookMarcBuilder::marc21(['descrizione' => '<p>Tom &amp; Jerry</p><p>Vol. &laquo;2&raquo;</p>'] + $row, $authors, [], null);
+$check($entities->subfield('520', 'a') === "Tom & Jerry\n\nVol. «2»", '67s the summary decodes the entities of the rich description');
+$check(BookMarcBuilder::marc21(['descrizione' => '<p>x</p>', 'descrizione_plain' => 'Plain &amp; kept'] + $row, $authors, [], null)->subfield('520', 'a') === 'Plain &amp; kept', '67t the stored plain projection is taken as it is');
+
+echo "Series ISSN, languages, extents, parts\n";
+$mapOne = static function (array $fields, string $leader = MarcRecord::DEFAULT_LEADER): array {
+    $r = new MarcRecord($leader);
+    foreach ($fields as [$tag, $ind1, $ind2, $subs]) {
+        $r->addDataField($tag, $ind1, $ind2, $subs);
+    }
+    return (new Marc21LibriMapper())->map($r);
+};
+$check($mapOne([['490', '0', ' ', [['a', 'Serie'], ['x', '0317-8471']]]])['issn'] === '0317-8471' && $mapOne([['830', ' ', '0', [['a', 'Serie'], ['x', '1234-5679']]]])['issn'] === '1234-5679', '67u the series ISSN in 490 $x / 830 $x is read when 022 is absent');
+$check($mapOne([['022', ' ', ' ', [['a', '1111-2222']]], ['490', '0', ' ', [['a', 'Serie'], ['x', '0317-8471']]]])['issn'] === '1111-2222', '67v 022 wins over the series ISSN');
+$bilingual = BookMarcBuilder::marc21(['lingua' => 'inglese, italiano'] + $row, $authors, [], null);
+$check($bilingual->subfieldValues('041', 'a') === ['eng', 'ita'], '67w one 041 $a per language');
+$check($viaIso($bilingual)['lingua'] === 'English, Italiano', '67x every 041 $a comes back, joined as the catalogue stores them');
+$check($mapOne([['041', '0', ' ', [['a', 'gerfre']]]])['lingua'] === 'Deutsch, Français' && $mapOne([['041', '0', ' ', [['a', 'swa']]]])['lingua'] === '', '67y a packed 041 is split; an unknown code is no language');
+$check(\App\Support\Marc\MarcLanguage::nameFor('swa') === '' && \App\Support\Marc\MarcLanguage::nameFor('ita') === 'Italiano', '67z nameFor: unknown code → empty');
+$check($mapOne([['300', ' ', ' ', [['a', '2 v.']]]])['numero_pagine'] === '' && $mapOne([['300', ' ', ' ', [['a', '24 cm']]]])['numero_pagine'] === '' && $mapOne([['300', ' ', ' ', [['a', 'xii, 503 p. :']]]])['numero_pagine'] === '503', '68a "2 v." and "24 cm" are not page counts, "503 p." is');
+$check($mapOne([['245', '1', '0', [['a', 'Harry Potter.'], ['n', 'Vol. 1,'], ['p', 'The philosopher\'s stone /'], ['c', 'J. K. Rowling.']]]])['titolo'] === 'Harry Potter. Vol. 1. The philosopher\'s stone', '68b 245 $n and $p are appended to the title, ISBD-stripped');
+$uniPart = new MarcRecord(BookMarcBuilder::UNIMARC_LEADER_TEMPLATE);
+$uniPart->setFormat('UNIMARC');
+$uniPart->addDataField('200', '1', ' ', [['a', 'Storia d\'Italia'], ['h', 'Vol. 2'], ['i', 'Il Medioevo :'], ['e', 'dal V al XV secolo']]);
+$check((new UnimarcLibriMapper())->map($uniPart)['titolo'] === 'Storia d\'Italia. Vol. 2. Il Medioevo', '68c UNIMARC 200 $h and $i are appended to the title');
+$twoSubs = new MarcRecord();
+$twoSubs->addDataField('520', ' ', ' ', [['a', 'Short summary'], ['b', str_repeat('x', 12000)], ['c', 'after']]);
+$cutWarnings = [];
+$cutRecord = Iso2709Reader::parse(substr(Iso2709Writer::serialize($twoSubs, $cutWarnings), 0, -1));
+$check($cutRecord->first('520')?->subfields === [['a', 'Short summary']] && count($cutWarnings) === 1 && str_contains($cutWarnings[0], 'field 520'), '68d a field over the limit is cut at the last subfield boundary that fits and the cut is reported');
+$noCut = [];
+Iso2709Writer::serialize($rosa, $noCut);
+$check($noCut === [], '68e nothing is reported for a record that fits');
 
 echo "Import row\n";
 $importRow = MarcBookData::toImportRow($m);

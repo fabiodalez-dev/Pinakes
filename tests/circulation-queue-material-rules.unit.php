@@ -8,7 +8,9 @@ declare(strict_types=1);
  *    the patron type): the next patron in the queue is promoted, and the
  *    refused reservation stays active without holding capacity;
  *  - PatronTypeAssignment::fromSubmission() refuses a deactivated patron
- *    type, unless it is the one the user already has.
+ *    type, unless it is the one the user already has;
+ *  - DataIntegrity recalculates libri.copie_disponibili without the
+ *    consultation-only copies (copie_totali keeps counting them).
  *
  * Runs against the REAL database of the checkout and only touches rows it
  * creates (titles ZZ_CQM_%, emails zzcqm+%@test.local, types zzcqm-%).
@@ -19,6 +21,7 @@ declare(strict_types=1);
 use App\Controllers\ReservationManager;
 use App\Services\CapacityService;
 use App\Services\CirculationPolicy;
+use App\Support\DataIntegrity;
 use App\Support\DateHelper;
 use App\Support\PatronTypeAssignment;
 
@@ -249,6 +252,34 @@ $check(PatronTypeAssignment::fromSubmission($db, ['tipologia_id' => (string) $re
 $check(PatronTypeAssignment::fromSubmission($db, ['tipologia_id' => (string) $retired], $retired) === $retired, 'a user keeps the deactivated type they already have');
 $check(PatronTypeAssignment::fromSubmission($db, ['tipologia_id' => '999999999'], $student) === $student, 'an unknown type keeps the current one');
 $check(PatronTypeAssignment::fromSubmission($db, ['tipologia_id' => ''], $student) === null, 'an empty value selects the default type');
+
+/* ------------------------------------------------------------------------
+ * 5. libri.copie_disponibili excludes the consultation-only copies.
+ * ---------------------------------------------------------------------- */
+echo "Availability counter without the consultation copies\n";
+[$mixed, $lendableCopy] = $makeBook('mixed', 'libro');
+$consultationInv = substr('ZZCQM-MIXED-CONS-' . strtoupper($prefix), 0, 50);
+$stmt = $db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, solo_consultazione) VALUES (?, ?, 'disponibile', 1)");
+$stmt->bind_param('is', $mixed, $consultationInv);
+$stmt->execute();
+$stmt->close();
+$counters = static function (int $bookId) use ($db): string {
+    $row = $db->query("SELECT copie_disponibili, copie_totali, stato FROM libri WHERE id = {$bookId}")->fetch_assoc();
+    return $row['copie_disponibili'] . '/' . $row['copie_totali'] . '/' . $row['stato'];
+};
+$integrity = new DataIntegrity($db);
+$check($integrity->recalculateBookAvailability($mixed) && $counters($mixed) === '1/2/disponibile', 'one lendable + one consultation copy: 1 available of 2 physical copies');
+$borrower = $makeUser('borrower', null);
+$mkLoan($mixed, $lendableCopy, $borrower);
+$check($integrity->recalculateBookAvailability($mixed) && $counters($mixed) === '0/2/prestato', 'with the lendable copy out the consultation copy does not count: 0 available, title lent');
+$db->query("UPDATE copie SET solo_consultazione = 0 WHERE numero_inventario = '{$consultationInv}'");
+$check($integrity->recalculateBookAvailability($mixed) && $counters($mixed) === '1/2/disponibile', 'back in circulation, the copy counts again');
+$db->query("UPDATE copie SET solo_consultazione = 1 WHERE libro_id = {$mixed}");
+$db->query("DELETE FROM prestiti WHERE libro_id = {$mixed}");
+$db->query("UPDATE copie SET stato = 'disponibile' WHERE libro_id = {$mixed}");
+$check($integrity->recalculateBookAvailability($mixed) && $counters($mixed) === '0/2/non_disponibile', 'every copy kept for consultation: nothing available, title not lendable');
+$all = $integrity->recalculateAllBookAvailability();
+$check($all['errors'] === [] && $counters($mixed) === '0/2/non_disponibile', 'the global recalculation applies the same rule');
 
 $cleanup();
 $db->close();

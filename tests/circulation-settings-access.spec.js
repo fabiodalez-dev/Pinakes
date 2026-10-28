@@ -54,6 +54,17 @@ test.describe.serial('Circulation settings: administrators only', () => {
     await expect(staffPage.locator('[data-testid="circulation-type-edit"]')).toHaveCount(0);
   });
 
+  test('staff opening the settings page on the circulation tab gets the default section, without the panel or the menu entry', async () => {
+    await staffPage.goto(`${F.BASE}/admin/settings?tab=circulation`);
+    await expect(staffPage).toHaveURL(/\/admin\/settings/);
+    await expect(staffPage.locator('[data-settings-panel="general"]')).toBeVisible();
+    await expect(staffPage.locator('[data-settings-panel="circulation"]')).toHaveCount(0);
+    await expect(staffPage.locator('[data-testid="circulation-type-create"]')).toHaveCount(0);
+    await expect(staffPage.locator('form[action$="/admin/settings/circulation/rules"]')).toHaveCount(0);
+    await expect(staffPage.locator('[data-settings-section="circulation"]')).toHaveCount(0);
+    await expect(staffPage.locator('[data-settings-section="loans"]').first()).toBeAttached();
+  });
+
   test('every circulation form sent by staff is refused and changes nothing', async () => {
     await staffPage.goto(`${F.BASE}/admin/dashboard`);
     const csrf = await staffPage.locator('meta[name="csrf-token"]').getAttribute('content');

@@ -80,8 +80,11 @@ class SettingsController
         $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
-        // Patron types and rules matrix (Settings → Circulation).
-        $circulationData = CirculationSettingsController::viewData($db);
+        // Patron types and rules matrix (Settings → Circulation): reserved to
+        // administrators like every CirculationSettingsController action, so
+        // staff gets no data and the view renders no panel (the section is
+        // absent from the settings catalogue for them too).
+        $circulationData = \App\Support\Permissions::mayConfigure() ? CirculationSettingsController::viewData($db) : null;
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
         // Custom registration fields (issue #255) — edited from the email tab's

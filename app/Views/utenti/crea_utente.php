@@ -176,7 +176,7 @@ unset($workspaceHeader);
           <div class="md:col-span-2">
             <label class="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" id="card_auto" name="card_auto" value="1" class="rounded border-gray-300" checked>
-              <?= __("Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata)") ?>
+              <?= __("Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)") ?>
             </label>
           </div>
         </div>

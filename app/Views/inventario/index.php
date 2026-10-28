@@ -142,11 +142,12 @@ unset($workspaceHeader);
                 </div>
                 <div>
                   <label for="inventory-from" class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Collocazione da") ?></label>
-                  <input id="inventory-from" name="collocazione_da" maxlength="50" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= htmlspecialchars(__('A.1'), ENT_QUOTES, 'UTF-8') ?>">
+                  <input id="inventory-from" name="collocazione_da" maxlength="50" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= htmlspecialchars(__('A.1'), ENT_QUOTES, 'UTF-8') ?>" aria-describedby="inventory-range-help">
                 </div>
                 <div>
                   <label for="inventory-to" class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Collocazione a") ?></label>
-                  <input id="inventory-to" name="collocazione_a" maxlength="50" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= htmlspecialchars(__('A.9'), ENT_QUOTES, 'UTF-8') ?>">
+                  <input id="inventory-to" name="collocazione_a" maxlength="50" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400" placeholder="<?= htmlspecialchars(__('A.9'), ENT_QUOTES, 'UTF-8') ?>" aria-describedby="inventory-range-help">
+                  <p id="inventory-range-help" class="text-xs text-gray-500 mt-1"><?= __("Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.") ?></p>
                 </div>
                 <div class="md:col-span-3">
                   <label for="inventory-note" class="text-sm font-medium text-gray-700 mb-1 block"><?= __("Note") ?></label>

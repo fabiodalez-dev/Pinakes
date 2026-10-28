@@ -43,7 +43,7 @@ class MaintenanceService
      * non basta, due admin in sessioni diverse eseguirebbero entrambi runAll().
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, loan_recalls?: int, pickup_reminders?: int, card_expiry_warnings?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -107,7 +107,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
+     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
      */
     public function runAll(): array
     {
@@ -147,7 +147,7 @@ class MaintenanceService
         }
     }
 
-    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} */
+    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} */
     private function runAllLocked(): array
     {
         $results = [
@@ -160,6 +160,9 @@ class MaintenanceService
             'overdue_loans_updated' => 0,
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
+            'loan_recalls' => 0,
+            'pickup_reminders' => 0,
+            'card_expiry_warnings' => 0,
             'wishlist_notifications' => 0,
             'reservation_notifications_retried' => 0,
             'pickup_notifications_retried' => 0,
@@ -248,7 +251,9 @@ class MaintenanceService
             $notificationResults = $this->runNotifications();
             $results['expiration_warnings'] = $notificationResults['expiration_warnings'];
             $results['overdue_notifications'] = $notificationResults['overdue_notifications'];
+            $results['loan_recalls'] = $notificationResults['loan_recalls'];
             $results['pickup_reminders'] = $notificationResults['pickup_reminders'];
+            $results['card_expiry_warnings'] = $notificationResults['card_expiry_warnings'];
             $results['wishlist_notifications'] = $notificationResults['wishlist_notifications'];
         } catch (\Throwable $e) {
             $results['errors'][] = 'runNotifications: ' . $e->getMessage();
@@ -463,14 +468,16 @@ class MaintenanceService
      * Delegates to NotificationService to send loan expiration warnings,
      * overdue loan notifications, and wishlist availability alerts.
      *
-     * @return array{expiration_warnings: int, overdue_notifications: int, pickup_reminders: int, wishlist_notifications: int, errors: array} Notification counts and any errors
+     * @return array{expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, errors: array} Notification counts and any errors
      */
     public function runNotifications(): array
     {
         $results = [
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
+            'loan_recalls' => 0,
             'pickup_reminders' => 0,
+            'card_expiry_warnings' => 0,
             'wishlist_notifications' => 0,
             'errors' => []
         ];
@@ -479,9 +486,14 @@ class MaintenanceService
             $notificationService = new NotificationService($this->db);
             $notifResults = $notificationService->runAutomaticNotifications();
 
+            // Every counter runAutomaticNotifications() reports, so the cron
+            // log of full-maintenance.php names the recalls and the card
+            // expiry warnings it sent, like automatic-notifications.php does.
             $results['expiration_warnings'] = $notifResults['expiration_warnings'] ?? 0;
             $results['overdue_notifications'] = $notifResults['overdue_notifications'] ?? 0;
+            $results['loan_recalls'] = $notifResults['loan_recalls'] ?? 0;
             $results['pickup_reminders'] = $notifResults['pickup_reminders'] ?? 0;
+            $results['card_expiry_warnings'] = $notifResults['card_expiry_warnings'] ?? 0;
             $results['wishlist_notifications'] = $notifResults['wishlist_notifications'] ?? 0;
 
             if (!empty($notifResults['errors'])) {

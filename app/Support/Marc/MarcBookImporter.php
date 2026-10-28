@@ -20,13 +20,14 @@ use App\Controllers\CsvImportController;
  *
  *   skip       the book is left as it is
  *   fill       only the fields the book has empty are filled from the record
- *              (BookDataMerger decides what is empty)
+ *              (BookDataMerger decides what is empty); a field the book has
+ *              is never overwritten
  *   overwrite  every field the record carries replaces the book's; a field
  *              the record does not carry is kept
  *
  * The columns the CSV pipeline does not write (place of publication,
- * dimensions, LC classification, ISSN) and the cover (856) follow the same
- * mode.
+ * dimensions, LC classification, ISSN, the book's own RDA codes) and the
+ * cover (856) follow the same mode.
  */
 final class MarcBookImporter
 {
@@ -45,11 +46,12 @@ final class MarcBookImporter
         'lingua' => ['lingua'],
         'edizione' => ['edizione'],
         'pagine' => ['numero_pagine'],
-        'collana' => ['collana'],
+        'collana' => ['collana', 'numero_serie'],
         'dewey' => ['classificazione_dewey'],
         'keywords' => ['parole_chiave'],
         'description' => ['descrizione'],
         'publisher' => ['editore_id'],
+        'genre' => ['genere_id'],
         'contributors' => ['traduttore', 'illustratore', 'curatore'],
     ];
 
@@ -68,16 +70,23 @@ final class MarcBookImporter
         'keywords' => ['parole_chiave'],
         'description' => ['descrizione'],
         'publisher' => ['editori'],
+        'genre' => ['genere'],
         'authors' => ['autori'],
         'contributors' => ['traduttore', 'illustratore', 'curatore', 'colorista'],
     ];
 
-    /** Columns written here, not by the CSV pipeline. */
+    /**
+     * Columns written here, not by the CSV pipeline, each only when the
+     * libri table has it (the RDA columns arrive with a later migration).
+     */
     private const EXTRA_COLUMNS = [
         'luogo_pubblicazione' => 255,
         'dimensioni' => 50,
         'lc_classification' => 100,
         'issn' => 20,
+        'rda_content_type' => 10,
+        'rda_media_type' => 10,
+        'rda_carrier_type' => 10,
     ];
 
     private CsvImportController $pipeline;
@@ -135,15 +144,7 @@ final class MarcBookImporter
         }
         $families = [];
         if ($existing !== null) {
-            $families = $this->families($data, $existing);
-            // A family writes several columns at once (ISBN-13 and ISBN-10,
-            // series and number, the legacy contributor columns): the ones
-            // the record leaves empty keep the book's value.
-            foreach (['isbn10', 'isbn13', 'numero_serie', 'traduttore', 'illustratore', 'curatore'] as $column) {
-                if (empty($parsed[$column]) && !empty($existing[$column])) {
-                    $parsed[$column] = $existing[$column];
-                }
-            }
+            [$families, $parsed] = self::plan($this->mode, $data, $parsed, $existing);
         }
 
         $result = $this->pipeline->importParsedRow(
@@ -251,13 +252,24 @@ final class MarcBookImporter
     }
 
     /**
-     * Which CSV update families the record may write on an existing book.
+     * What an existing book gets from a record: the CSV update families the
+     * record may write, and the parsed row as the pipeline must receive it.
      *
-     * @param array<string, string|list<string>> $data
-     * @param array<string, mixed> $existing
-     * @return array<string, bool>
+     * A family writes several columns at once (ISBN-13 and ISBN-10, series
+     * and number, the legacy contributor columns). In every mode a column
+     * the record leaves empty keeps the book's value. In fill mode a family
+     * is written as soon as one of its columns is empty, and every column
+     * the book already has is handed back to the pipeline unchanged, so a
+     * non-empty field is never overwritten: a book with an ISBN-13 and no
+     * ISBN-10 gains the ISBN-10 and keeps its ISBN-13 even when the record
+     * names another.
+     *
+     * @param array<string, string|list<string>> $data book data (MarcBookData shape)
+     * @param array<string, mixed> $parsed the row as normalizeImportRow() returns it
+     * @param array<string, mixed> $existing the libri row (with _principal_authors)
+     * @return array{0: array<string, bool>, 1: array<string, mixed>}
      */
-    private function families(array $data, array $existing): array
+    public static function plan(string $mode, array $data, array $parsed, array $existing): array
     {
         $carries = static function (string $family) use ($data): bool {
             foreach (self::FAMILY_DATA[$family] ?? [] as $key) {
@@ -275,23 +287,37 @@ final class MarcBookImporter
                 $families[$family] = false;
                 continue;
             }
-            if ($this->mode === self::MODE_OVERWRITE) {
+            if ($mode === self::MODE_OVERWRITE) {
                 $families[$family] = true;
                 continue;
             }
-            // fill: only a family the book has nothing in
+            // fill: a family with at least one column the book has empty
             if ($family === 'authors') {
                 $families[$family] = (int) ($existing['_principal_authors'] ?? 0) === 0;
                 continue;
             }
-            $columns = self::FAMILY_COLUMNS[$family];
-            $families[$family] = count(array_intersect_key(array_flip($columns), $empty)) === count($columns);
+            $families[$family] = array_intersect_key(array_flip(self::FAMILY_COLUMNS[$family]), $empty) !== [];
         }
-        // Never from a MARC record: the genre, the format and the price.
-        foreach (['genre', 'formato', 'prezzo'] as $family) {
+        // Never from a MARC record: the format and the price.
+        foreach (['formato', 'prezzo'] as $family) {
             $families[$family] = false;
         }
-        return $families;
+        foreach (self::FAMILY_COLUMNS as $family => $columns) {
+            foreach ($columns as $column) {
+                if ($column === 'editore_id' || $column === 'genere_id') {
+                    continue; // the pipeline resolves the publisher and the genre by name
+                }
+                if (isset($empty[$column]) || !array_key_exists($column, $existing)) {
+                    continue;
+                }
+                $value = $parsed[$column] ?? null;
+                $recordEmpty = $value === null || (is_string($value) && trim($value) === '');
+                if ($recordEmpty || ($mode === self::MODE_FILL && $families[$family])) {
+                    $parsed[$column] = $existing[$column];
+                }
+            }
+        }
+        return [$families, $parsed];
     }
 
     /** @return array<string, mixed>|null */
