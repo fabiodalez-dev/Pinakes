@@ -136,4 +136,25 @@ test.describe.serial('Suppliers (fornitori)', () => {
     await page.goto(`${h.BASE}/admin/books/${bookId}`);
     await expect(page.locator('#book-supplier')).toHaveCount(0);
   });
+
+  test('6. A supplier name with markup is shown literally, never executed', async () => {
+    const XSS = `E2E <img src=x onerror=window.__xss=1> ${STAMP}`;
+    await page.goto(`${h.BASE}/admin/suppliers/create`);
+    await page.fill('#nome', XSS);
+    await Promise.all([page.waitForURL(/\/admin\/suppliers$/), page.click('#form-fornitore button[type="submit"]')]);
+    expect(h.dbQuery(`SELECT COUNT(*) FROM fornitori WHERE nome = ${h.sqlString(XSS)}`)).toBe('1');
+    const row = page.locator('[data-supplier-row]', { hasText: XSS });
+    await expect(row).toHaveCount(1);
+    await row.locator('.supplier-delete-form button[type="submit"]').click();
+    const popup = page.locator('.swal2-popup');
+    await expect(popup).toBeVisible();
+    await expect(popup).toContainText(XSS);
+    await expect(popup.locator('img[src="x"]')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    await page.locator('.swal2-cancel').click();
+    // The book form select and the list filter show it as text too.
+    await page.goto(`${h.BASE}/admin/books`);
+    await expect(page.locator('#fornitore_filter option', { hasText: XSS })).toHaveCount(1);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
 });
