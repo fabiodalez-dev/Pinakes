@@ -207,6 +207,6 @@ class MarcExportController
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        return array_values($rows);
+        return $rows;
     }
 }
