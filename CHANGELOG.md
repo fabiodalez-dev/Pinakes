@@ -41,13 +41,6 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 - **Card duration of the patron type.** When the type sets a card duration, the card expiry is computed on creation and edit ("Calcola la scadenza dalla durata tessera", on by default when creating), on self-registration and on registration approval; the date can still be set by hand. The reader page has a **"Rinnova tessera"** button: expiry = today + the type's duration (one year when the type sets none), an expired account becomes active again, and the renewal is in the activity log.
 - **"Tessera in scadenza" email** (`card_expiring`, five languages). Sent `loans.card_expiry_warning_days` before the card expires (Settings → Loans, default 0 = off) by `cron/automatic-notifications.php`, once per expiry date (`utenti.card_expiry_warning_sent_for`); a renewed card re-arms it.
 
-### Migration
-- `migrate_0.9.0.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
-- `migrate_0.9.0.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`, appended to the enum computed from the current one, so the order of the sections does not matter. Idempotent; existing rows are untouched.
-- `migrate_0.9.0.sql`, section "minor features": creates `presenze` (visitor log) and `fornitori` (suppliers), adds `libri.fornitore_id` (ON DELETE SET NULL) and the nullable `libri.rda_content_type`, `rda_media_type`, `rda_carrier_type` overrides. Additive and idempotent.
-- `migrate_0.9.0.sql`, section "patron-cards-import": `import_logs.import_type` gains the value `users`; the new enum is computed from the current one, so `marc` and any value added by another section are kept.
-- `migrate_0.9.0.sql`, section "Circulation policy": creates `tipologie_lettore` and `regole_prestito`, seeds the default "Standard" type with every rule NULL, adds `utenti.tipologia_id` (FK `ON DELETE SET NULL`), `utenti.card_expiry_warning_sent_for` and `copie.solo_consultazione`. Idempotent; no existing row changes.
-
 ### Closures calendar
 - **The library's closed days.** A new admin page, Admin → Calendario chiusure (`/admin/calendar`, also linked from Settings → Loans), holds the weekly closed days (`loans.closed_weekdays`) and the closures: single days or periods, once or every year, for every branch or for one. The Italian national holidays come with one click (fixed holidays as yearly closures, Easter and Easter Monday computed for the chosen year), any other calendar can be imported from an ICS file, and a monthly preview shows which days are open.
 - **Due dates land on an open day.** The shift lives in `CirculationPolicy::dueDateFor()`, so the per-patron-type durations and renewal days of the circulation policy land on an open day too. A due date that falls on a closed day moves to the next open day: admin loans (proposed and saved), loan edits, reader requests from the website and the app, reservations and their promotion to a loan, renewals and bulk extensions, NCIP CheckOut, RequestItem and RenewItem. A refused renewal proposes the last open day before the conflict.
@@ -55,8 +48,13 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 - **The request calendars know the closed days.** On the book page and in the admin loan form a closed day cannot be picked as the start; the availability payload carries `closed_dates`, on the website and in the Mobile API `GET /catalog/books/{id}/availability` (additive field).
 - With no closed weekday and no closure configured every date is computed exactly as before.
 
-#### Migration
-- `migrate_0.9.0.sql` (section "closures calendar") creates `calendario_chiusure`, additive and idempotent.
+### Migration
+- `migrate_0.9.0.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
+- `migrate_0.9.0.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`, appended to the enum computed from the current one, so the order of the sections does not matter. Idempotent; existing rows are untouched.
+- `migrate_0.9.0.sql`, section "minor features": creates `presenze` (visitor log) and `fornitori` (suppliers), adds `libri.fornitore_id` (ON DELETE SET NULL) and the nullable `libri.rda_content_type`, `rda_media_type`, `rda_carrier_type` overrides. Additive and idempotent.
+- `migrate_0.9.0.sql`, section "patron-cards-import": `import_logs.import_type` gains the value `users`; the new enum is computed from the current one, so `marc` and any value added by another section are kept.
+- `migrate_0.9.0.sql`, section "Circulation policy": creates `tipologie_lettore` and `regole_prestito`, seeds the default "Standard" type with every rule NULL, adds `utenti.tipologia_id` (FK `ON DELETE SET NULL`), `utenti.card_expiry_warning_sent_for` and `copie.solo_consultazione`. Idempotent; no existing row changes.
+- `migrate_0.9.0.sql`, section "closures calendar": creates `calendario_chiusure` (closure intervals, optional yearly recurrence and branch, FK to `sedi` ON DELETE CASCADE); the weekly closed days are the setting `loans.closed_weekdays`, no schema. Additive and idempotent.
 
 ## [0.8.9]
 
