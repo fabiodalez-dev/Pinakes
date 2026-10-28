@@ -112,6 +112,36 @@ test.describe.serial('Rules matrix: total and per-material limits, due date per 
     expect(due).toBe(5);
   });
 
+  test('days per renewal from a matrix cell: the button says it and the renewal extends by it', async () => {
+    // Placeholder of an empty cell: the global renewal length (= loan duration).
+    await F.openCirculationTab(admin);
+    await expect(admin.locator('#rule-0-audiolibro-renewal_days')).toHaveValue('');
+    await F.setMatrixCell(admin, 0, 'audiolibro', { renewalDays: 7 });
+    expect(F.dbQuery(`SELECT CONCAT(durata_prestito_giorni,'|',giorni_rinnovo) FROM regole_prestito WHERE tipologia_id=0 AND tipo_media='audiolibro'`)).toBe('5|7');
+    await F.openCirculationTab(admin);
+    await expect(admin.locator('#rule-0-audiolibro-renewal_days')).toHaveValue('7');
+    // Other cells of the audiobook column inherit the 7 days of the all-types rule.
+    await expect(admin.locator(`#rule-${studentType}-audiolibro-renewal_days`)).toHaveAttribute('placeholder', '7');
+
+    const loanId = F.dbInt(`SELECT id FROM prestiti WHERE utente_id=${adult.id} AND libro_id=${audio.id} AND attivo=1 ORDER BY id DESC LIMIT 1`);
+    F.dbQuery(`UPDATE prestiti SET stato='in_corso' WHERE id=${loanId}`);
+    const dueBefore = F.dbQuery(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`);
+    await admin.goto(`${F.BASE}/admin/books/${audio.id}`);
+    const renew = admin.locator(`form[action$="/admin/loans/renew/${loanId}"] button[type="submit"]`);
+    await expect(renew).toContainText('+7 giorni');
+    await renew.click();
+    await expect(admin.locator('.swal2-popup')).toContainText('7 giorni');
+    await Promise.all([admin.waitForURL(/\/admin\/books\//), admin.locator('.swal2-confirm').click()]);
+    expect(F.dbQuery(`SELECT CONCAT(DATEDIFF(data_scadenza, '${dueBefore}'),'|',renewals) FROM prestiti WHERE id=${loanId}`)).toBe('7|1');
+    // The cell is emptied again: no rule row is left for a cell with nothing in it.
+    await F.openCirculationTab(admin);
+    await admin.locator('#rule-0-audiolibro-duration').fill('');
+    await admin.locator('#rule-0-audiolibro-renewal_days').fill('');
+    await admin.locator('[data-testid="circulation-matrix-form"] button[type="submit"]').click();
+    await admin.waitForURL((u) => u.searchParams.get('tab') === 'circulation');
+    expect(F.dbInt(`SELECT COUNT(*) FROM regole_prestito WHERE tipologia_id=0 AND tipo_media='audiolibro'`)).toBe(0);
+  });
+
   test('the reader request of a book gets the student duration', async () => {
     // Free one slot: the librarian returns the DVD.
     F.dbQuery(`UPDATE prestiti SET stato='restituito', attivo=0, data_restituzione=CURDATE() WHERE utente_id=${student.id} AND libro_id=${dvd1.id}`);

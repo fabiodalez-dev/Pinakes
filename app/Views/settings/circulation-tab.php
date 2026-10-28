@@ -130,7 +130,7 @@ $cIntOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (string
         <i class="fas fa-table text-gray-500"></i>
         <?= __("Regole per tipo di materiale") ?>
       </h2>
-      <p class="text-sm text-gray-600"><?= __("Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata e rinnovi. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.") ?></p>
+      <p class="text-sm text-gray-600"><?= __("Eccezioni per tipologia di lettore e tipo di materiale: prestabilità, prestiti massimi di quel materiale (oltre al limite totale), durata, rinnovi e giorni per rinnovo. I valori in grigio sono quelli ereditati; scrivi un valore solo dove serve un'eccezione.") ?></p>
       <form action="<?= htmlspecialchars(url('/admin/settings/circulation/rules'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-4" data-testid="circulation-matrix-form">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
@@ -164,7 +164,7 @@ $cIntOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (string
                         <option value="1" <?= $cLoanable === '1' ? 'selected' : '' ?>><?= __("Prestabile") ?></option>
                         <option value="0" <?= $cLoanable === '0' ? 'selected' : '' ?>><?= __("Solo consultazione") ?></option>
                       </select>
-                      <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
+                      <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']], 'renewal_days' => [__('Gg/rinnovo'), 'giorni_rinnovo', (string) $cInh['renewal_days']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
                       <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
                         <span class="w-16"><?= HtmlHelper::e($cLabel) ?></span>
                         <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
