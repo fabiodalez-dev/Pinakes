@@ -22,6 +22,9 @@ namespace App\Support;
  *   solo per tipo_utente standard/premium: admin e staff non hanno tessera
  *   (un trigger DB la azzera).
  *
+ * - saldo a debito oltre la soglia (Impostazioni → Prestiti → Multe,
+ *   loans.debt_block_threshold; 0/vuoto = nessun blocco) -> 'debt_block'.
+ *
  * Il confronto date usa DateHelper::today() così PHP e MySQL concordano
  * sul confine di giornata (vedi docblock di DateHelper::today()).
  */
@@ -31,7 +34,7 @@ class LoanEligibility
      * Verifica l'idoneità di un utente a richiedere/ricevere un prestito.
      *
      * @return string|null Codice errore ('user_not_found', 'user_suspended',
-     *                     'card_expired') oppure null se l'utente è idoneo.
+     *                     'card_expired', 'debt_block') oppure null se l'utente è idoneo.
      * @phpstan-impure Reads mutable database state; repeated calls can differ.
      */
     public static function checkUser(\mysqli $db, int $userId): ?string
@@ -62,6 +65,12 @@ class LoanEligibility
             return 'card_expired';
         }
 
+        // Debt block (plan §7). Stack hook: FineParameters::forUser() becomes
+        // CirculationPolicy::forUser()->debtBlockThreshold (per patron type).
+        if (\App\Services\PatronLedger::isDebtBlocked($db, $userId)) {
+            return 'debt_block';
+        }
+
         return null;
     }
 
@@ -88,6 +97,8 @@ class LoanEligibility
                 return __('Le prenotazioni non sono consentite per la tua tipologia di lettore');
             case 'reservation_limit_reached':
                 return __('Hai raggiunto il numero massimo di prenotazioni e richieste in attesa');
+            case 'debt_block':
+                return __('Saldo a debito oltre la soglia consentita: prestiti bloccati fino al pagamento');
             default:
                 return __('Utente non idoneo al prestito');
         }
@@ -128,6 +139,14 @@ class LoanEligibility
      *
      * Requires ONE positional placeholder bound to the application date.
      * $alias is a fixed table alias supplied by application code.
+     *
+     * The debt block reads its threshold from system_settings inside the
+     * fragment, so no caller has to bind an extra value: with the setting
+     * absent or 0 the NOT EXISTS is trivially true and the predicate is the
+     * pre-0.9.0 one. The balance subquery is served by the covering index
+     * movimenti_lettore(utente_id, importo).
+     * Stack hook: with patron types the threshold comes from the patron's type
+     * (falling back to this global setting) — replace debtBlockSql() only.
      */
     public static function eligibleUserWhere(string $alias): string
     {
@@ -138,6 +157,23 @@ class LoanEligibility
                         OR {$alias}.data_scadenza_tessera IS NULL
                         OR {$alias}.data_scadenza_tessera >= ?
                     )
+                    AND " . self::debtBlockSql($alias) . "
                 )";
+    }
+
+    /**
+     * SQL twin of PatronLedger::isDebtBlocked(): true when the user is NOT
+     * debt-blocked. $alias is the `utenti` alias, a fixed literal.
+     */
+    public static function debtBlockSql(string $alias): string
+    {
+        return "NOT EXISTS (
+                        SELECT 1 FROM system_settings dbt
+                         WHERE dbt.category = 'loans'
+                           AND dbt.setting_key = 'debt_block_threshold'
+                           AND dbt.setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2}){0,1}$'
+                           AND CAST(REPLACE(dbt.setting_value, ',', '.') AS DECIMAL(10,2)) > 0
+                           AND " . \App\Services\PatronLedger::balanceSql($alias . '.id') . " > CAST(REPLACE(dbt.setting_value, ',', '.') AS DECIMAL(10,2))
+                    )";
     }
 }

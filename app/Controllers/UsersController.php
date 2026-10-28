@@ -686,9 +686,11 @@ class UsersController
         if (!$userToDelete) { return $response->withStatus(404); }
         if (!\App\Support\UserRoleAssignment::canEdit($userToDelete)) { return $response->withStatus(403); }
 
-        // Check for any loans (active or not) to preserve history
-        $loanCheck = $db->prepare("SELECT COUNT(*) as count FROM prestiti WHERE utente_id = ?");
-        $loanCheck->bind_param("i", $id);
+        // Check for any loans (active or not) to preserve history. Ledger rows
+        // (payments, charges) are history too: a reader with movements is
+        // suspended like one with loans, never erased with the ledger.
+        $loanCheck = $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count");
+        $loanCheck->bind_param("ii", $id, $id);
         $loanCheck->execute();
         $loanResult = $loanCheck->get_result()->fetch_assoc();
         $loanCheck->close();
@@ -789,6 +791,14 @@ class UsersController
         $patronPolicy = $circulation->forType($circulation->patronTypeOf($id));
         $patronTypeName = $patronPolicy->user->patronTypeName;
         $patronTypeIsOwn = isset($utente['tipologia_id']);
+        // "Movimenti" section (plan §7): balance, ledger rows, fines accruing on
+        // open overdue loans (shown, not written), and who may act on them.
+        $ledger = new \App\Services\PatronLedger($db);
+        $ledgerBalanceCents = $ledger->balanceCents($id);
+        $ledgerMovements = $ledger->movements($id, 200);
+        $ledgerAccrued = $ledger->accruedFines($id);
+        $ledgerParams = \App\Services\FineParameters::forUser($db, $id);
+        $ledgerCanManage = \App\Support\Permissions::can('loans.manage');
 
         ob_start();
         require __DIR__ . '/../Views/utenti/dettagli_utente.php';
