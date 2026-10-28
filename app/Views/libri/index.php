@@ -337,7 +337,7 @@ unset($workspaceHeader);
             <select id="fornitore_filter" class="form-input">
               <option value=""><?= __("Tutti i fornitori") ?></option>
               <?php foreach ($fornitoriFilter as $fid => $fname): ?>
-                <option value="<?= (int) $fid ?>" <?= $fornitoreUrl === (int) $fid ? 'selected' : '' ?>><?= App\Support\HtmlHelper::e($fname) ?></option>
+                <option value="<?= (int) $fid ?>" <?= $fornitoreUrl === (int) $fid ? 'selected' : '' ?>><?= htmlspecialchars((string) ($fname), ENT_QUOTES, 'UTF-8') ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -467,6 +467,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let genereUrlFilter = initialGenere;
   let sottogenereUrlFilter = initialSottogenere;
   const initialKeywords = urlParams.get('keywords') || '';
+  // "Libri di questo fornitore" opens the list with ?fornitore=N preselected.
+  const initialFornitore = <?= (int) $fornitoreUrl ?>;
   const initialCollana = urlParams.get('collana') || '';
   let collanaFilter = initialCollana;
 
@@ -662,7 +664,7 @@ document.addEventListener('DOMContentLoaded', function() {
     stateLoadCallback: function(settings) {
       // When URL filters are active, reset saved pagination to page 1
       // to avoid "Showing 2501 to 44 of 44" when saved state had a high page offset
-      const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere;
+      const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere || initialFornitore > 0;
       let raw = null;
       try {
         raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
@@ -930,6 +932,12 @@ document.addEventListener('DOMContentLoaded', function() {
       el.addEventListener('change', reloadDebounced);
     }
   });
+
+  // A supplier preselected from the URL sits in the closed "more filters"
+  // panel: show it as an active filter chip from the start.
+  if (initialFornitore > 0) {
+    updateActiveFilters();
+  }
 
   // Active filters display
   function updateActiveFilters() {

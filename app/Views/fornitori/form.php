@@ -5,13 +5,12 @@
  * @var array $data { fornitore: array<string,mixed>|null }
  */
 use App\Support\Csrf;
-use App\Support\HtmlHelper;
 
 $csrf = Csrf::ensureToken();
 $fornitore = $data['fornitore'];
 $isEdit = is_array($fornitore);
 $action = $isEdit ? url('/admin/suppliers/update/' . (int) $fornitore['id']) : url('/admin/suppliers/create');
-$v = static fn (string $key): string => HtmlHelper::e((string) ($fornitore[$key] ?? ''));
+$v = static fn (string $key): string => htmlspecialchars((string) ((string) ($fornitore[$key] ?? '')), ENT_QUOTES, 'UTF-8');
 ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

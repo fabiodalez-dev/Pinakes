@@ -424,7 +424,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <select id="fornitore_id" name="fornitore_id" class="form-input">
                 <option value=""><?= __("Nessun fornitore") ?></option>
                 <?php foreach ($supplierOptions as $supplierId => $supplierName): ?>
-                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= HtmlHelper::e($supplierName) ?></option>
+                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) ($supplierName), ENT_QUOTES, 'UTF-8') ?></option>
                 <?php endforeach; ?>
               </select>
               <p class="text-xs text-gray-500 mt-1">
@@ -3958,6 +3958,8 @@ function initializeIsbnImport() {
                     const tipoMediaSelect = document.getElementById('tipo_media');
                     if (tipoMediaSelect) {
                         tipoMediaSelect.value = data.tipo_media;
+                        // Listeners (the RDA "Automatico" labels) follow the new material.
+                        tipoMediaSelect.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 }
             } catch (err) {

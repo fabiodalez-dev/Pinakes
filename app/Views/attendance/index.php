@@ -9,7 +9,6 @@
  * }
  */
 use App\Support\Csrf;
-use App\Support\HtmlHelper;
 
 $csrf = Csrf::ensureToken();
 $days = (int) $data['days'];
@@ -27,7 +26,7 @@ $branchSelect = static function (string $id) use ($branches, $selectedBranch): v
       <select id="<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>" name="sede_id" class="form-input">
         <option value=""><?= __("Nessuna sede") ?></option>
         <?php foreach ($branches as $bid => $bname): ?>
-          <option value="<?= (int) $bid ?>" <?= $selectedBranch === (int) $bid ? 'selected' : '' ?>><?= HtmlHelper::e($bname) ?></option>
+          <option value="<?= (int) $bid ?>" <?= $selectedBranch === (int) $bid ? 'selected' : '' ?>><?= htmlspecialchars((string) ($bname), ENT_QUOTES, 'UTF-8') ?></option>
         <?php endforeach; ?>
       </select>
     </div>
@@ -255,7 +254,7 @@ unset($workspaceHeader);
                 <?php else: ?>
                   <span class="status-badge bg-purple-100 text-purple-800"><?= __("Ospite") ?></span>
                 <?php endif; ?>
-                <?= HtmlHelper::e($visit['etichetta']) ?>
+                <?= htmlspecialchars((string) ($visit['etichetta']), ENT_QUOTES, 'UTF-8') ?>
               </span>
               <span class="text-gray-500 whitespace-nowrap"><?= htmlspecialchars(format_date($visit['created_at'], true, '/'), ENT_QUOTES, 'UTF-8') ?></span>
             </li>

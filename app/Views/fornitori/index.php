@@ -3,7 +3,6 @@
  * @var array $data { fornitori: list<array<string,mixed>> }
  */
 use App\Support\Csrf;
-use App\Support\HtmlHelper;
 
 $fornitori = $data['fornitori'];
 $csrf = Csrf::ensureToken();
@@ -86,16 +85,16 @@ unset($workspaceHeader);
                 <tr class="hover:bg-gray-50 transition-colors" data-supplier-row data-name="<?= htmlspecialchars(mb_strtolower((string) $f['nome']), ENT_QUOTES, 'UTF-8') ?>">
                   <td class="px-6 py-4">
                     <a href="<?= htmlspecialchars(url('/admin/suppliers/edit/' . $fid), ENT_QUOTES, 'UTF-8') ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
-                      <?= HtmlHelper::e((string) $f['nome']) ?>
+                      <?= htmlspecialchars((string) ((string) $f['nome']), ENT_QUOTES, 'UTF-8') ?>
                     </a>
                     <?php if (!empty($f['partita_iva'])): ?>
-                      <div class="text-xs text-gray-500"><?= __("P. IVA") ?> <?= HtmlHelper::e((string) $f['partita_iva']) ?></div>
+                      <div class="text-xs text-gray-500"><?= __("P. IVA") ?> <?= htmlspecialchars((string) ((string) $f['partita_iva']), ENT_QUOTES, 'UTF-8') ?></div>
                     <?php endif; ?>
                   </td>
-                  <td class="px-6 py-4 text-sm text-gray-700"><?= HtmlHelper::e((string) ($f['referente'] ?? '')) ?></td>
+                  <td class="px-6 py-4 text-sm text-gray-700"><?= htmlspecialchars((string) ((string) ($f['referente'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
                   <td class="px-6 py-4 text-sm text-gray-700">
-                    <?php if (!empty($f['email'])): ?><div><?= HtmlHelper::e((string) $f['email']) ?></div><?php endif; ?>
-                    <?php if (!empty($f['telefono'])): ?><div class="text-xs text-gray-500"><?= HtmlHelper::e((string) $f['telefono']) ?></div><?php endif; ?>
+                    <?php if (!empty($f['email'])): ?><div><?= htmlspecialchars((string) ((string) $f['email']), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+                    <?php if (!empty($f['telefono'])): ?><div class="text-xs text-gray-500"><?= htmlspecialchars((string) ((string) $f['telefono']), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-center">
                     <span class="inline-flex items-center justify-center px-2 py-1 rounded bg-gray-100 text-gray-800 text-xs font-medium" data-supplier-count><?= (int) $f['libri_count'] ?></span>

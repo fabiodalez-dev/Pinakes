@@ -167,7 +167,7 @@ unset($workspaceHeader);
             <tbody class="bg-white divide-y divide-gray-200">
               <?php foreach (($loansByMedia ?? []) as $mediaRow): ?>
               <tr data-media="<?= htmlspecialchars($mediaRow['tipo_media'], ENT_QUOTES, 'UTF-8') ?>">
-                <td class="px-6 py-3 text-sm text-gray-900"><i class="fas <?= htmlspecialchars($mediaRow['icon'], ENT_QUOTES, 'UTF-8') ?> text-gray-400 mr-2"></i><?= App\Support\HtmlHelper::e($mediaRow['label']) ?></td>
+                <td class="px-6 py-3 text-sm text-gray-900"><i class="fas <?= htmlspecialchars($mediaRow['icon'], ENT_QUOTES, 'UTF-8') ?> text-gray-400 mr-2"></i><?= htmlspecialchars((string) ($mediaRow['label']), ENT_QUOTES, 'UTF-8') ?></td>
                 <td class="px-6 py-3 text-center text-sm font-semibold" data-count><?= (int) $mediaRow['totale'] ?></td>
               </tr>
               <?php endforeach; ?>
@@ -216,7 +216,7 @@ unset($workspaceHeader);
     <div class="card-header">
       <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
         <i class="fas <?= htmlspecialchars($section['icon'], ENT_QUOTES, 'UTF-8') ?> text-gray-900"></i>
-        <?= App\Support\HtmlHelper::e($section['title']) ?>
+        <?= htmlspecialchars((string) ($section['title']), ENT_QUOTES, 'UTF-8') ?>
       </h2>
     </div>
     <div class="card-body p-0">
@@ -224,14 +224,14 @@ unset($workspaceHeader);
         <tbody class="bg-white divide-y divide-gray-200">
           <?php foreach ($section['data']['rows'] as $extraRow): ?>
           <tr>
-            <td class="px-6 py-3 text-sm text-gray-900"><?= App\Support\HtmlHelper::e((string) $extraRow['label']) ?></td>
-            <td class="px-6 py-3 text-right text-sm font-semibold"><?= App\Support\HtmlHelper::e((string) $extraRow['value']) ?></td>
+            <td class="px-6 py-3 text-sm text-gray-900"><?= htmlspecialchars((string) ((string) $extraRow['label']), ENT_QUOTES, 'UTF-8') ?></td>
+            <td class="px-6 py-3 text-right text-sm font-semibold"><?= htmlspecialchars((string) ((string) $extraRow['value']), ENT_QUOTES, 'UTF-8') ?></td>
           </tr>
           <?php endforeach; ?>
         </tbody>
       </table>
       <?php if (!empty($section['data']['note'])): ?>
-        <p class="px-6 py-3 text-xs text-gray-500"><?= App\Support\HtmlHelper::e((string) $section['data']['note']) ?></p>
+        <p class="px-6 py-3 text-xs text-gray-500"><?= htmlspecialchars((string) ((string) $section['data']['note']), ENT_QUOTES, 'UTF-8') ?></p>
       <?php endif; ?>
     </div>
   </div>

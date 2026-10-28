@@ -592,7 +592,7 @@ unset($workspaceHeader);
             <?php if ($bookSupplier !== null): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Fornitore") ?></dt>
-              <dd class="text-gray-900 font-medium" id="book-supplier"><a class="hover:underline" href="<?= htmlspecialchars(url('/admin/suppliers/edit/' . (int) $bookSupplier['id']), ENT_QUOTES, 'UTF-8') ?>"><?php echo App\Support\HtmlHelper::e((string) $bookSupplier['nome']); ?></a></dd>
+              <dd class="text-gray-900 font-medium" id="book-supplier"><a class="hover:underline" href="<?= htmlspecialchars(url('/admin/suppliers/edit/' . (int) $bookSupplier['id']), ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars((string) ((string) $bookSupplier['nome']), ENT_QUOTES, 'UTF-8'); ?></a></dd>
             </div>
             <?php endif; ?>
             <?php
