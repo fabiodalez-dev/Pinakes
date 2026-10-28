@@ -185,6 +185,12 @@ class LibraryCalendarController
         }
         try {
             $ics = (string) $file->getStream()->getContents();
+            // ICS is UTF-8 by the standard, but exports in Windows-1252 /
+            // ISO-8859-1 exist: their accented SUMMARY bytes would fail the
+            // utf8mb4 INSERT halfway through the import.
+            if (!mb_check_encoding($ics, 'UTF-8')) {
+                $ics = (string) mb_convert_encoding($ics, 'UTF-8', 'Windows-1252');
+            }
         } catch (\Throwable $e) {
             SecureLogger::warning('Calendar ICS import: unreadable upload: ' . $e->getMessage());
             $ics = '';

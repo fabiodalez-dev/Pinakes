@@ -7,7 +7,7 @@
 // next open one. Closures are written in the DB (setup); every action is a
 // click in the UI. Dates come from the application timezone, not the runner.
 //
-// Run: /Users/fabio/Documents/GitHub/run-e2e-wt2.sh tests/closures-calendar-loans.spec.js --config=tests/playwright.config.js --workers=1
+// Run: /tmp/run-e2e.sh tests/closures-calendar-loans.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 
@@ -125,7 +125,7 @@ test.describe('Closures calendar — circulation', () => {
     const hash = execFileSync('php', ['-r', `echo password_hash('${READER_PASS}', PASSWORD_DEFAULT);`], { encoding: 'utf-8' }).trim();
     db(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, created_at) VALUES ('CAL${RUN}', 'Cal', 'Reader', '${READER_EMAIL}', '${hash}', 'attivo', 1, 'standard', NOW())`);
     readerId = parseInt(db(`SELECT id FROM utenti WHERE email='${READER_EMAIL}'`), 10);
-    for (const key of ['prefill', 'store', 'pickup', 'reprieve', 'renew', 'weekly', 'request', 'reqstart', 'api', 'zero']) {
+    for (const key of ['prefill', 'store', 'pickup', 'reprieve', 'branch', 'crafted', 'renew', 'weekly', 'request', 'reqstart', 'api', 'zero']) {
       const title = `${TAG} ${key}`;
       db(`INSERT INTO libri (titolo, anno_pubblicazione, copie_totali, copie_disponibili, created_at, updated_at) VALUES ('${title}', 2024, 1, 1, NOW(), NOW())`);
       const id = parseInt(db(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`), 10);
@@ -247,6 +247,31 @@ test.describe('Closures calendar — circulation', () => {
     expect(db(`SELECT stato FROM prestiti WHERE id=${loanId}`)).toBe('in_corso');
   });
 
+  test('Admin 7: closures of the copy\'s branch move the due date and lengthen the pickup days', async ({ page }) => {
+    db(`INSERT INTO sedi (nome) VALUES ('${TAG} sede')`);
+    const sede = parseInt(db(`SELECT id FROM sedi WHERE nome='${TAG} sede'`), 10);
+    try {
+      db(`UPDATE copie SET sede_id=${sede} WHERE libro_id=${books.branch.id}`);
+      const due = addDays(today, loanDays);
+      // Closed at that branch only: on the due date and on the day after today.
+      db(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id) VALUES ('${due}', '${due}', '${TAG}', ${sede}), ('${addDays(today, 1)}', '${addDays(today, 1)}', '${TAG}', ${sede})`);
+      await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
+      await page.goto(`${BASE}/admin/loans/create`);
+      // The form does not know the copy yet: it proposes the library-wide date.
+      await expect(page.locator('#data_scadenza')).toHaveValue(due);
+      await selectBorrower(page);
+      await resolveCopy(page, books.branch);
+      await page.uncheck('#consegna_immediata');
+      await submitLoanForm(page);
+      expect(db(`SELECT CONCAT(stato,'|',data_scadenza,'|',pickup_deadline) FROM prestiti WHERE libro_id=${books.branch.id} AND utente_id=${readerId}`))
+        .toBe(`da_ritirare|${addDays(due, 1)}|${addDays(today, Math.min(pickupDays + 1, loanDays + 1))}`);
+    } finally {
+      db(`DELETE FROM calendario_chiusure WHERE sede_id=${sede}`);
+      db(`UPDATE copie SET sede_id=NULL WHERE libro_id=${books.branch.id}`);
+      db(`DELETE FROM sedi WHERE id=${sede}`);
+    }
+  });
+
   // ── Renewal ──────────────────────────────────────────────────────────────
   async function renewFromBookPage(page, book, loanId) {
     await page.goto(`${BASE}/admin/books/${book.id}`);
@@ -320,6 +345,27 @@ test.describe('Closures calendar — circulation', () => {
     await loginAs(page, READER_EMAIL, READER_PASS);
     await openRequestModal(page, books.reqstart);
     await expect(page.locator('#swal-date-start')).toHaveValue(addDays(today, 1));
+  });
+
+  test('Request 5: a request sent with a closed start day starts on the next open day', async ({ page }) => {
+    // The calendar refuses a closed start day; a request built by hand gets
+    // the same answer from the server, and the window it stored comes back.
+    const closed = addDays(today, 2);
+    closeDay(closed);
+    await loginAs(page, READER_EMAIL, READER_PASS);
+    await page.goto(`${BASE}/libro/${books.crafted.id}`);
+    const sent = await page.evaluate(async ({ id, start }) => {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const res = await fetch(`${/** @type {any} */ (window).BASE_PATH || ''}/api/libro/${id}/reservation`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ start_date: start, csrf_token: csrf }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, { id: books.crafted.id, start: closed });
+    expect(sent.body.success, JSON.stringify(sent.body)).toBe(true);
+    expect(sent.body.start_date).toBe(addDays(closed, 1));
+    expect(db(`SELECT data_prestito FROM prestiti WHERE libro_id=${books.crafted.id} AND utente_id=${readerId} ORDER BY id DESC LIMIT 1`)).toBe(addDays(closed, 1));
   });
 
   test('Request 4: a request whose return date falls on a closed day is saved with the next open day', async ({ page }) => {

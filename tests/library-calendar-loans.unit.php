@@ -206,5 +206,23 @@ $check(LibraryCalendar::extendPickupDeadlines($db) === 0, 'without closures no d
 $maintenance->checkExpiredPickups();
 $check($stateOf($pickupLoan) !== 'da_ritirare', 'with the library open the overdue pickup expires as before');
 
+// Queue reservation past its deadline: kept on a closed day, expired once open.
+$db->query("DELETE FROM prestiti WHERE libro_id = {$bookId}");
+$resStart = $shift($today, -6);
+$resDeadline = $shift($today, -1) . ' 23:59:59';
+$stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, queue_position, stato, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta) VALUES (?, ?, 1, 'attiva', ?, ?, ?, ?)");
+$resEnd = $shift($today, -1);
+$stmt->bind_param('iissss', $bookId, $userId, $resStart, $resDeadline, $resStart, $resEnd);
+$stmt->execute();
+$queueRes = (int) $db->insert_id;
+$stmt->close();
+$resState = static fn (): string => (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$queueRes}")->fetch_row()[0];
+$addClosure($today, $today);
+$check((new \App\Controllers\ReservationManager($db))->cancelExpiredReservations() === 0 && $resState() === 'attiva', 'the queue expiry keeps a reservation on a closed day');
+$clearClosures();
+(new \App\Controllers\ReservationManager($db))->cancelExpiredReservations();
+$check($resState() !== 'attiva', 'with the library open the expired queue reservation is cancelled as before');
+$db->query("DELETE FROM prenotazioni WHERE id = {$queueRes}");
+
 echo ($failed === 0 ? 'SUCCESS' : 'FAILURE') . " {$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

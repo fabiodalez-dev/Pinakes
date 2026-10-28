@@ -7,7 +7,7 @@
 // Patron types, closures and loans are set up in the DB; every action under
 // test is a click in the UI. Dates come from the application clock.
 //
-// Run: /Users/fabio/Documents/GitHub/run-e2e-wt2.sh tests/closures-calendar-circulation.spec.js --config=tests/playwright.config.js --workers=1
+// Run: /tmp/run-e2e.sh tests/closures-calendar-circulation.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const F = require('./helpers/circulation-fixtures');
 

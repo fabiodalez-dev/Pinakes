@@ -4,7 +4,7 @@
 // closed days, the Italian holidays preset and an ICS import — and checks the
 // result in the monthly preview. DB only for setup and verification.
 //
-// Run: /Users/fabio/Documents/GitHub/run-e2e-wt2.sh tests/closures-calendar-admin.spec.js --config=tests/playwright.config.js --workers=1
+// Run: /tmp/run-e2e.sh tests/closures-calendar-admin.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 
@@ -99,7 +99,7 @@ test.describe('Closures calendar — admin page', () => {
     if (prevWeekdays === '') {
       db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     } else {
-      db(`UPDATE system_settings SET setting_value='${prevWeekdays}' WHERE category='loans' AND setting_key='closed_weekdays'`);
+      db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${prevWeekdays}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
     }
     if (sedeId) db(`DELETE FROM sedi WHERE id=${sedeId}`);
     await page?.close();
@@ -280,9 +280,9 @@ test.describe('Closures calendar — admin page', () => {
     'END:VCALENDAR', '',
   ].join('\r\n');
 
-  async function importIcs(content, branch = '') {
+  async function importIcs(content, branch = '', encoding = 'utf-8') {
     await page.goto(`${BASE}/admin/calendar`);
-    await page.setInputFiles('#ics_file', { name: 'chiusure.ics', mimeType: 'text/calendar', buffer: Buffer.from(content, 'utf-8') });
+    await page.setInputFiles('#ics_file', { name: 'chiusure.ics', mimeType: 'text/calendar', buffer: Buffer.from(content, encoding) });
     if (branch) await page.selectOption('#ics_branch', branch);
     await submitAndLand(page, '#import-ics');
   }
@@ -309,6 +309,14 @@ test.describe('Closures calendar — admin page', () => {
     const branchIcs = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', `DTSTART;VALUE=DATE:${farYear}0410`, `SUMMARY:${TAG} sede ics`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
     await importIcs(branchIcs, String(sedeId));
     expect(db(`SELECT sede_id FROM calendario_chiusure WHERE descrizione='${TAG} sede ics'`)).toBe(String(sedeId));
+  });
+
+  test('ICS 6: a Windows-1252 export with accented names is imported in UTF-8', async () => {
+    const latinIcs = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', `DTSTART;VALUE=DATE:${farYear}0612`, `SUMMARY:${TAG} festività à è`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
+    await importIcs(latinIcs, '', 'latin1');
+    await expect(page.locator('body')).toContainText(/1 chiusure aggiunte, 0 già presenti/);
+    expect(db(`SELECT data_inizio FROM calendario_chiusure WHERE descrizione='${TAG} festività à è'`)).toBe(`${farYear}-06-12`);
+    await expect(page.locator('#calendar-closures')).toContainText(`${TAG} festività à è`);
   });
 
   test('ICS 5: a file that is not a calendar is refused', async () => {

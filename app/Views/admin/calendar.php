@@ -15,9 +15,9 @@
  * @var string $today
  */
 
-use App\Support\HtmlHelper;
-
 $csrf = \App\Support\Csrf::ensureToken();
+// Plain escaping: the stored text is shown exactly as saved.
+$e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $calLocale = \App\Support\I18n::getLocale();
 $fmt = static function (string $pattern, string $ymd) use ($calLocale): string {
     if (class_exists('IntlDateFormatter')) {
@@ -96,7 +96,7 @@ unset($workspaceHeader);
                 <label class="flex items-center gap-2 text-sm text-gray-700">
                   <input type="checkbox" name="closed_weekdays[]" value="<?= $w ?>" id="closed_weekday_<?= $w ?>"
                          <?= in_array($w, $closedWeekdays, true) ? 'checked' : '' ?>>
-                  <span><?= HtmlHelper::e($weekdayNames[$w]) ?></span>
+                  <span><?= $e($weekdayNames[$w]) ?></span>
                 </label>
               <?php endforeach; ?>
             </div>
@@ -128,19 +128,19 @@ unset($workspaceHeader);
               <div>
                 <label for="closure_start" class="form-label"><i class="fas fa-calendar mr-1"></i><?= __("Data inizio") ?> *</label>
                 <input type="date" id="closure_start" name="data_inizio" class="form-input" required data-no-flatpickr
-                       value="<?= HtmlHelper::e((string) ($editing['data_inizio'] ?? '')) ?>">
+                       value="<?= $e((string) ($editing['data_inizio'] ?? '')) ?>">
               </div>
               <div>
                 <label for="closure_end" class="form-label"><i class="fas fa-calendar mr-1"></i><?= __("Data fine") ?></label>
                 <input type="date" id="closure_end" name="data_fine" class="form-input" data-no-flatpickr
-                       value="<?= HtmlHelper::e((string) ($editing['data_fine'] ?? '')) ?>">
+                       value="<?= $e((string) ($editing['data_fine'] ?? '')) ?>">
               </div>
             </div>
             <div>
               <label for="closure_description" class="form-label"><i class="fas fa-tag mr-1"></i><?= __("Descrizione") ?></label>
               <input type="text" id="closure_description" name="descrizione" maxlength="255" class="form-input"
                      placeholder="<?= htmlspecialchars(__('es. Chiusura estiva'), ENT_QUOTES, 'UTF-8') ?>"
-                     value="<?= HtmlHelper::e((string) ($editing['descrizione'] ?? '')) ?>">
+                     value="<?= $e((string) ($editing['descrizione'] ?? '')) ?>">
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -148,7 +148,7 @@ unset($workspaceHeader);
                 <select id="closure_branch" name="sede_id" class="form-input">
                   <option value=""><?= __("Tutte le sedi") ?></option>
                   <?php foreach ($branches as $branchId => $branchName): ?>
-                    <option value="<?= (int) $branchId ?>" <?= (int) ($editing['sede_id'] ?? 0) === (int) $branchId ? 'selected' : '' ?>><?= HtmlHelper::e($branchName) ?></option>
+                    <option value="<?= (int) $branchId ?>" <?= (int) ($editing['sede_id'] ?? 0) === (int) $branchId ? 'selected' : '' ?>><?= $e($branchName) ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
@@ -222,7 +222,7 @@ unset($workspaceHeader);
               <select id="ics_branch" name="sede_id" class="form-input">
                 <option value=""><?= __("Tutte le sedi") ?></option>
                 <?php foreach ($branches as $branchId => $branchName): ?>
-                  <option value="<?= (int) $branchId ?>"><?= HtmlHelper::e($branchName) ?></option>
+                  <option value="<?= (int) $branchId ?>"><?= $e($branchName) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
@@ -242,7 +242,7 @@ unset($workspaceHeader);
       <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-calendar-alt text-gray-600"></i>
-          <span id="calendar-preview-title"><?= HtmlHelper::e(mb_convert_case($fmt('LLLL y', $month . '-01'), MB_CASE_TITLE, 'UTF-8')) ?></span>
+          <span id="calendar-preview-title"><?= $e(mb_convert_case($fmt('LLLL y', $month . '-01'), MB_CASE_TITLE, 'UTF-8')) ?></span>
         </h2>
         <div class="flex items-center gap-2 pk-stack-mobile">
           <?php $sedeQuery = $previewSede !== null ? '&sede=' . $previewSede : ''; ?>
@@ -250,11 +250,11 @@ unset($workspaceHeader);
           <a href="<?= htmlspecialchars(url('/admin/calendar') . '?month=' . $nextMonth . $sedeQuery, ENT_QUOTES, 'UTF-8') ?>" id="calendar-next" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200" aria-label="<?= htmlspecialchars(__('Mese successivo'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right"></i></a>
           <?php if ($branches !== []): ?>
             <form method="GET" action="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>">
-              <input type="hidden" name="month" value="<?= HtmlHelper::e($month) ?>">
+              <input type="hidden" name="month" value="<?= $e($month) ?>">
               <select name="sede" class="form-input" onchange="this.form.submit()" aria-label="<?= htmlspecialchars(__('Sede'), ENT_QUOTES, 'UTF-8') ?>">
                 <option value=""><?= __("Tutte le sedi") ?></option>
                 <?php foreach ($branches as $branchId => $branchName): ?>
-                  <option value="<?= (int) $branchId ?>" <?= $previewSede === (int) $branchId ? 'selected' : '' ?>><?= HtmlHelper::e($branchName) ?></option>
+                  <option value="<?= (int) $branchId ?>" <?= $previewSede === (int) $branchId ? 'selected' : '' ?>><?= $e($branchName) ?></option>
                 <?php endforeach; ?>
               </select>
             </form>
@@ -264,7 +264,7 @@ unset($workspaceHeader);
       <div class="p-6">
         <div class="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
           <?php foreach ([1, 2, 3, 4, 5, 6, 0] as $w): ?>
-            <div><?= HtmlHelper::e(mb_substr($weekdayNames[$w], 0, 3)) ?></div>
+            <div><?= $e(mb_substr($weekdayNames[$w], 0, 3)) ?></div>
           <?php endforeach; ?>
         </div>
         <div class="grid grid-cols-7 gap-1 text-center text-sm">
@@ -278,7 +278,7 @@ unset($workspaceHeader);
           while (substr($day, 0, 7) === $month):
               $isClosed = isset($monthClosed[$day]); ?>
             <div class="p-2 rounded-lg border <?= $isClosed ? 'bg-red-50 border-red-200 text-red-700 font-semibold' : 'bg-green-50 border-green-200 text-green-700' ?><?= $day === $today ? ' ring-2 ring-gray-500' : '' ?>"
-                 data-calendar-day="<?= HtmlHelper::e($day) ?>" data-closed="<?= $isClosed ? '1' : '0' ?>"
+                 data-calendar-day="<?= $e($day) ?>" data-closed="<?= $isClosed ? '1' : '0' ?>"
                  title="<?= htmlspecialchars($isClosed ? __('Chiuso') : __('Aperto'), ENT_QUOTES, 'UTF-8') ?>">
               <?= (int) substr($day, 8, 2) ?>
             </div>
@@ -327,9 +327,9 @@ unset($workspaceHeader);
                     $endLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_fine']) : $displayDate((string) $closure['data_fine']); ?>
                   <tr class="hover:bg-gray-50" data-closure-id="<?= $cid ?>">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <?= HtmlHelper::e($startLabel) ?><?php if ($closure['data_fine'] !== $closure['data_inizio']): ?> – <?= HtmlHelper::e($endLabel) ?><?php endif; ?>
+                      <?= $e($startLabel) ?><?php if ($closure['data_fine'] !== $closure['data_inizio']): ?> – <?= $e($endLabel) ?><?php endif; ?>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-700"><?= HtmlHelper::e((string) $closure['descrizione']) ?></td>
+                    <td class="px-6 py-4 text-sm text-gray-700"><?= $e((string) $closure['descrizione']) ?></td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                       <?php if ($yearlyRow): ?>
                         <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"><i class="fas fa-redo mr-1"></i><?= __("Ogni anno") ?></span>
@@ -337,7 +337,7 @@ unset($workspaceHeader);
                         <span class="text-gray-500"><?= __("Una volta") ?></span>
                       <?php endif; ?>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= HtmlHelper::e($closure['sede_nome'] !== null ? (string) $closure['sede_nome'] : __('Tutte le sedi')) ?></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= $e($closure['sede_nome'] !== null ? (string) $closure['sede_nome'] : __('Tutte le sedi')) ?></td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div class="inline-flex items-center gap-2">
                         <a href="<?= htmlspecialchars(url('/admin/calendar') . '?edit=' . $cid . '#calendar-closure-form', ENT_QUOTES, 'UTF-8') ?>"
