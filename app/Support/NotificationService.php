@@ -2422,7 +2422,7 @@ class NotificationService {
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             // {{multa}} (plan §7): the late fine left on this loan after any
             // waiver, or a localised "no fine" when nothing was charged.
-            $lateFineCents = (new \App\Services\PatronLedger($this->db))->lateFineNetCents($loanId);
+            $lateFineCents = \App\Services\PatronLedger::forDb($this->db)->lateFineNetCents($loanId);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
@@ -2453,7 +2453,7 @@ class NotificationService {
             if ($enabled !== '1') {
                 return false;
             }
-            $ledger = new \App\Services\PatronLedger($this->db);
+            $ledger = \App\Services\PatronLedger::forDb($this->db);
             $fineCents = $ledger->lateFineNetCents($loanId);
             if ($fineCents <= 0) {
                 return false;

@@ -9011,5 +9011,11 @@
   "Storno": "Contre-passation",
   "Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.": "Plafond de la pénalité d’un seul prêt. Vide ou 0 = aucun plafond.",
   "Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0": "Un retard jusqu’à ce nombre de jours n’est pas pénalisé. Par défaut : 0",
-  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Utilise le modèle d’e-mail « Pénalité de retard facturée ». Désactivé par défaut."
+  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Utilise le modèle d’e-mail « Pénalité de retard facturée ». Désactivé par défaut.",
+  "Tolleranza": "Tolérance",
+  "Multa/giorno": "Pénalité/jour",
+  "Multa max": "Pénalité max",
+  "Multa: %s/giorno": "Pénalité : %s/jour",
+  "Blocco oltre %s": "Blocage au-delà de %s",
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Pénalité journalière 0 = aucune pénalité pour ce type ; seuil de blocage 0 = aucun blocage pour dette. Un champ vide hérite du réglage de l'onglet Emprunts."
 }

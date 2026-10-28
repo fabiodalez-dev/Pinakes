@@ -10,6 +10,9 @@ $cRules = $circulationData['rules'];
 $cInherited = $circulationData['inherited'];
 $cGlobals = $circulationData['globals'];
 $cIntOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (string) (int) $v;
+$cMoneyOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (string) $v;
+// Inherited amount in the cell placeholder: "0.50", "—" when none applies.
+$cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? number_format($v, 2, '.', '') : '—';
 ?>
 <section data-settings-panel="circulation" class="settings-panel <?php echo $activeTab === 'circulation' ? 'block' : 'hidden'; ?>">
   <div class="space-y-6">
@@ -92,6 +95,8 @@ $cIntOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (string
                       ? sprintf(__('Prenotazioni: %s'), $cEff->user->maxReservations > 0 ? (string) $cEff->user->maxReservations : '∞')
                       : __('Prenotazioni disattivate') ?>
                   <?php if ($cEff->user->cardDurationDays !== null): ?> · <?= sprintf(__('Tessera: %d giorni'), $cEff->user->cardDurationDays) ?><?php endif; ?>
+                  <?php $cFine = \App\Services\FineParameters::fromPolicy($cEff); if ($cFine->finesEnabled()): ?> · <span data-testid="type-fine-summary"><?= HtmlHelper::e(sprintf(__('Multa: %s/giorno'), \App\Services\FineParameters::format($cFine->dailyFineCents))) ?></span><?php endif; ?>
+                  <?php if ($cFine->debtBlockEnabled()): ?> · <span data-testid="type-debt-summary"><?= HtmlHelper::e(sprintf(__('Blocco oltre %s'), \App\Services\FineParameters::format((int) $cFine->debtBlockThresholdCents))) ?></span><?php endif; ?>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= (int) ($circulationData['userCounts'][$cTypeId] ?? 0) ?></td>
@@ -164,10 +169,16 @@ $cIntOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (string
                         <option value="1" <?= $cLoanable === '1' ? 'selected' : '' ?>><?= __("Prestabile") ?></option>
                         <option value="0" <?= $cLoanable === '0' ? 'selected' : '' ?>><?= __("Solo consultazione") ?></option>
                       </select>
-                      <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']], 'renewal_days' => [__('Gg/rinnovo'), 'giorni_rinnovo', (string) $cInh['renewal_days']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
+                      <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']], 'renewal_days' => [__('Gg/rinnovo'), 'giorni_rinnovo', (string) $cInh['renewal_days']], 'grace' => [__('Tolleranza'), 'giorni_tolleranza', (string) $cInh['grace']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
                       <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
                         <span class="w-16"><?= HtmlHelper::e($cLabel) ?></span>
                         <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
+                      </label>
+                      <?php endforeach; ?>
+                      <?php foreach (['fine' => [__('Multa/giorno'), 'multa_giornaliera'], 'fine_max' => [__('Multa max'), 'multa_massima_prestito']] as $cField => [$cLabel, $cColumn]): ?>
+                      <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
+                        <span class="w-16"><?= HtmlHelper::e($cLabel) ?></span>
+                        <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cMoneyOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cMoneyPlaceholder($cInh[$cField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
                       </label>
                       <?php endforeach; ?>
                     </div>

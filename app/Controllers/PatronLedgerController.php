@@ -82,7 +82,7 @@ class PatronLedgerController
         }
         $staffId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
         try {
-            $movementId = $operation(new PatronLedger($db), $data, $cents, $staffId);
+            $movementId = $operation(PatronLedger::forDb($db), $data, $cents, $staffId);
         } catch (\InvalidArgumentException $e) {
             return $this->back($response, $base, ['ledger_error' => $e->getMessage()]);
         } catch (\Throwable $e) {

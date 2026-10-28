@@ -186,7 +186,7 @@ class MaintenanceService
         try {
             $settingsRepo = new \App\Models\SettingsRepository($this->db);
             if ($settingsRepo->get('loans', 'legacy_penalties_backfilled', '0') !== '1') {
-                (new \App\Services\PatronLedger($this->db))->backfillLegacyPenalties();
+                \App\Services\PatronLedger::forDb($this->db)->backfillLegacyPenalties();
                 $settingsRepo->set('loans', 'legacy_penalties_backfilled', '1');
             }
         } catch (\Throwable $e) {

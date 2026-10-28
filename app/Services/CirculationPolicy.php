@@ -218,13 +218,30 @@ final class CirculationPolicy
                 'reservations_enabled' => true,
                 'max_reservations' => 0,
                 'card_duration_days' => null,
-                'debt_block_threshold' => null,
-                'daily_fine' => null,
-                'grace_days' => null,
-                'max_fine_per_loan' => null,
+                // Fines (Settings → Loans → Fines). Amounts are normalised to
+                // DECIMAL strings; empty or malformed = null (no fine, no cap,
+                // no debt block), exactly the pre-0.9.0 behaviour.
+                'debt_block_threshold' => self::moneyOrNull($this->settings->get('loans', 'debt_block_threshold', '')),
+                'daily_fine' => self::moneyOrNull($this->settings->get('loans', 'daily_fine', '')),
+                'grace_days' => self::graceOrNull($this->settings->get('loans', 'fine_grace_days', '')),
+                'max_fine_per_loan' => self::moneyOrNull($this->settings->get('loans', 'fine_max_per_loan', '')),
             ];
         }
         return $this->globals;
+    }
+
+    /** An operator-typed amount ("2", "2,50") as a DECIMAL string, null when empty or malformed. */
+    private static function moneyOrNull(?string $raw): ?string
+    {
+        $cents = FineParameters::toCents((string) $raw);
+        return $cents === null ? null : FineParameters::centsToDecimal($cents);
+    }
+
+    /** Global grace days (0 … 365); null when unset or 0, which is the same rule: no grace. */
+    private static function graceOrNull(?string $raw): ?int
+    {
+        $days = max(0, min(365, (int) ($raw ?? 0)));
+        return $days > 0 ? $days : null;
     }
 
     // ─── Counting and refusals ──────────────────────────────────────────────
@@ -295,6 +312,23 @@ final class CirculationPolicy
             return 'media_limit_reached';
         }
         return null;
+    }
+
+    /**
+     * The debt-block refusal for $userId, or null (plan §7, decision 6).
+     *
+     * The threshold is the patron type's (soglia_blocco_debito), else the
+     * global loans.debt_block_threshold; NULL/0 = no block. Every channel
+     * reaches it through LoanEligibility::checkUser(), and its SQL twin is
+     * LoanEligibility::debtBlockSql() (the queue selection).
+     */
+    public function debtBlockError(int $userId): ?string
+    {
+        $threshold = FineParameters::moneyToCents($this->forUser($userId)->debtBlockThreshold);
+        if ($threshold === null || $threshold <= 0) {
+            return null;
+        }
+        return PatronLedger::forDb($this->db)->balanceCents($userId) > $threshold ? 'debt_block' : null;
     }
 
     /**

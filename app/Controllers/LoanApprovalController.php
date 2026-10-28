@@ -1495,7 +1495,7 @@ class LoanApprovalController
             $stmt->close();
 
             // Late fine into the patron ledger in the same transaction (plan §7).
-            $lateFineCents = (new \App\Services\PatronLedger($db))->chargeLateReturn(
+            $lateFineCents = \App\Services\PatronLedger::forDb($db)->chargeLateReturn(
                 $loanId,
                 isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null
             );

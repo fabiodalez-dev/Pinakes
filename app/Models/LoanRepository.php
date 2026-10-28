@@ -255,7 +255,7 @@ class LoanRepository
 
             // Late fine into the patron ledger, atomic with the close (plan §7).
             // Idempotent (late:<id>) and 0 while fines are disabled.
-            $lateFineCents = (new \App\Services\PatronLedger($this->db))->chargeLateReturn($id, null);
+            $lateFineCents = \App\Services\PatronLedger::forDb($this->db)->chargeLateReturn($id, null);
 
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective

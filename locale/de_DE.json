@@ -9011,5 +9011,11 @@
   "Storno": "Storno",
   "Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.": "Obergrenze der Gebühr einer einzelnen Ausleihe. Leer oder 0 = keine Obergrenze.",
   "Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0": "Eine Verspätung bis zu dieser Anzahl Tage wird nicht berechnet. Standard: 0",
-  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Verwendet die E-Mail-Vorlage „Verspätungsgebühr berechnet“. Standardmäßig aus."
+  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Verwendet die E-Mail-Vorlage „Verspätungsgebühr berechnet“. Standardmäßig aus.",
+  "Tolleranza": "Kulanz",
+  "Multa/giorno": "Gebühr/Tag",
+  "Multa max": "Max. Gebühr",
+  "Multa: %s/giorno": "Gebühr: %s/Tag",
+  "Blocco oltre %s": "Sperre über %s",
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Tagesgebühr 0 = keine Gebühren für diesen Typ; Sperrschwelle 0 = keine Sperre wegen Schulden. Ein leeres Feld übernimmt die Einstellung des Tabs Ausleihen."
 }

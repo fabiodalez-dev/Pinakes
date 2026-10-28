@@ -18,7 +18,7 @@ class PaymentReceiptPdf extends LoanPdfGenerator
      */
     public function generateForPayment(int $userId, int $movementId): string
     {
-        $ledger = new PatronLedger($this->db);
+        $ledger = PatronLedger::forDb($this->db);
         $movement = $ledger->movement($movementId);
         if ($movement === null || (int) $movement['utente_id'] !== $userId || (string) $movement['tipo'] !== 'pagamento') {
             throw new \RuntimeException('payment_not_found');

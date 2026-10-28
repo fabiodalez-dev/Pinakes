@@ -18,6 +18,7 @@ declare(strict_types=1);
  */
 
 use App\Models\LoanRepository;
+use App\Services\FineParameters;
 use App\Services\PatronLedger;
 use App\Support\DateHelper;
 use App\Support\LoanEligibility;
@@ -184,7 +185,9 @@ try {
     };
     $check(str_contains($plan("SELECT COALESCE(SUM(ml.importo), 0) FROM movimenti_lettore ml WHERE ml.utente_id = {$u1}"), 'idx_movimenti_utente'), 'balance subquery uses idx_movimenti_utente (EXPLAIN)');
     $check(
-        str_contains($plan("SELECT u.id FROM utenti u WHERE u.id = {$u1} AND " . str_replace('?', "'{$today}'", LoanEligibility::eligibleUserWhere('u'))), 'idx_movimenti_utente'),
+        // A non-constant user row: with u.id = <const> the optimizer folds the
+        // whole predicate before execution and the plan shows no subquery.
+        str_contains($plan("SELECT u.id FROM utenti u WHERE u.email LIKE 'zz-ledger%' AND " . str_replace('?', "'{$today}'", LoanEligibility::eligibleUserWhere('u'))), 'idx_movimenti_utente'),
         'inside eligibleUserWhere the ledger is read through idx_movimenti_utente (EXPLAIN)'
     );
     $check(substr_count(LoanEligibility::eligibleUserWhere('u'), '?') === 1, 'the fragment still needs exactly ONE placeholder');
@@ -198,6 +201,62 @@ try {
     $check((new LoanRepository($db))->close($loan2) === true && $count("utente_id = {$u2}") === 0, 'fines off: a 30-day late return writes no ledger row');
     $check(LoanEligibility::checkUser($db, $u2) === null && $sqlEligible($u2), 'fines off: user eligible in PHP and SQL');
     $check($ledger->accruedFines($u1) === [] && $ledger->previewLateFine($loan2)['enabled'] === false, 'fines off: nothing accrues, preview says disabled');
+
+    echo "F. Debt threshold per patron type: PHP and SQL agree on every layer\n";
+    $defaultType = (int) $db->query('SELECT id FROM tipologie_lettore WHERE predefinita = 1 ORDER BY ordinamento, nome, id LIMIT 1')->fetch_row()[0];
+    $savedDefaultThreshold = $db->query("SELECT soglia_blocco_debito FROM tipologie_lettore WHERE id = {$defaultType}")->fetch_row()[0];
+    $db->query("INSERT INTO tipologie_lettore (codice, nome, ordinamento) VALUES ('zz-ledger-{$run}', 'ZZ Ledger {$run}', 999)");
+    $ownType = (int) $db->insert_id;
+    $setType = static function (int $typeId, ?string $threshold) use ($db): void {
+        $stmt = $db->prepare('UPDATE tipologie_lettore SET soglia_blocco_debito = ? WHERE id = ?');
+        $stmt->bind_param('si', $threshold, $typeId);
+        $stmt->execute();
+        $stmt->close();
+    };
+    try {
+        $u3 = $newUser('f');
+        $ledger->manualCharge($u3, 700, 'Debito di prova', null);
+        $cases = 0;
+        foreach ([null, '5.00'] as $global) {
+            foreach ([null, '3.00', '0.00', '8.00'] as $defaultThreshold) {
+                foreach (['none', null, '6.00', '0.00'] as $own) {
+                    $setSetting('debt_block_threshold', $global);
+                    $setType($defaultType, $defaultThreshold);
+                    $setType($ownType, $own === 'none' ? null : $own);
+                    $db->query('UPDATE utenti SET tipologia_id = ' . ($own === 'none' ? 'NULL' : $ownType) . " WHERE id = {$u3}");
+                    // Expected: first non-NULL of own type (when assigned), default type, global; > 0 and balance 7 over it.
+                    $layers = $own === 'none' ? [$defaultThreshold, $global] : [$own, $global];
+                    $threshold = null;
+                    foreach ($layers as $layer) {
+                        if ($layer !== null) {
+                            $threshold = (float) $layer;
+                            break;
+                        }
+                    }
+                    $expectBlocked = $threshold !== null && $threshold > 0 && 7.0 > $threshold;
+                    $tag = json_encode([$global, $defaultThreshold, $own]);
+                    $php = LoanEligibility::checkUser($db, $u3) === 'debt_block';
+                    $sql = !$sqlEligible($u3);
+                    if ($php !== $expectBlocked || $sql !== $expectBlocked) {
+                        $check(false, "debt threshold layers {$tag}: expected " . ($expectBlocked ? 'blocked' : 'eligible') . ', PHP ' . ($php ? 'blocked' : 'eligible') . ', SQL ' . ($sql ? 'blocked' : 'eligible'));
+                    }
+                    $cases++;
+                }
+            }
+        }
+        $check($cases === 32, 'PHP checkUser and SQL eligibleUserWhere agree with the layer rule on 32 combinations (global × default type × own type)');
+        $setSetting('debt_block_threshold', '10');
+        $setType($defaultType, null);
+        $setType($ownType, '5');
+        $db->query("UPDATE utenti SET tipologia_id = {$ownType} WHERE id = {$u3}");
+        $check(LoanEligibility::checkUser($db, $u3) === 'debt_block' && FineParameters::forUser($db, $u3)->debtBlockThresholdCents === 500, 'the own type threshold (5) beats the global one (10)');
+        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$u3}");
+        $check(LoanEligibility::checkUser($db, $u3) === null && FineParameters::forUser($db, $u3)->debtBlockThresholdCents === 1000, 'without a type the patron inherits the global threshold (10, balance 7: eligible)');
+    } finally {
+        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE email LIKE 'zz-ledger%@test.local'");
+        $db->query("DELETE FROM tipologie_lettore WHERE id = {$ownType}");
+        $setType($defaultType, $savedDefaultThreshold === null ? null : (string) $savedDefaultThreshold);
+    }
 } finally {
     foreach ($savedSettings as $k => $v) {
         $setSetting($k, $v);

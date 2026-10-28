@@ -4,21 +4,23 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Circulation\LoanPolicy;
+use App\Services\Circulation\PolicyResolver;
 use mysqli;
 
 /**
  * Fine and debt-block parameters for one loan or one patron.
  *
- * This is the single place the fines feature reads its rules from. Today every
- * value comes from four global settings (Settings → Loans → Fines); once the
- * circulation-policy work lands, forLoan()/forUser() are the two methods to
- * re-point at CirculationPolicy (per patron type × material), and nothing else
- * in the fines code has to change.
+ * A thin adapter over CirculationPolicy: the values are resolved there, per
+ * field, rule (patron type × material) → patron type → global loans settings
+ * (Settings → Loans → Fines, which are the global layer of
+ * CirculationPolicy::globalLayer()). This class only turns them into integer
+ * cents for the arithmetic, so the fines code never reads a setting itself.
  *
  * Money is kept in integer cents so sums and caps never drift on float maths.
- * A daily fine of 0 (the default) means fines are disabled; a debt threshold of
- * 0 means no debt block — an install that never opens the settings behaves
- * exactly as before the feature existed.
+ * A daily fine of 0/empty (the default) means fines are disabled; a debt
+ * threshold of 0/empty means no debt block — an install that never opens the
+ * settings behaves exactly as before the feature existed.
  */
 final class FineParameters
 {
@@ -37,41 +39,49 @@ final class FineParameters
     ) {
     }
 
-    /**
-     * Parameters that govern the late fine of one loan.
-     * Stack hook: replace with CirculationPolicy::forLoan($userId, $libroId, $copiaId).
-     */
-    public static function forLoan(mysqli $db, int $loanId): self
+    /** Parameters that govern the late fine of one loan (its patron's type × its material). */
+    public static function forLoan(mysqli $db, int $loanId, ?CirculationPolicy $policy = null): self
     {
-        return self::global($db);
+        return self::fromPolicy(($policy ?? new CirculationPolicy($db))->forExistingLoan($loanId));
     }
 
     /**
-     * Parameters that depend on the patron only (debt block threshold).
-     * Stack hook: replace with CirculationPolicy::forUser($userId)->debtBlockThreshold.
+     * Parameters of a patron regardless of the material: the patron type's
+     * fine fields and debt threshold over the globals (reader record, app).
      */
-    public static function forUser(mysqli $db, int $userId): self
+    public static function forUser(mysqli $db, int $userId, ?CirculationPolicy $policy = null): self
     {
-        return self::global($db);
+        $policy ??= new CirculationPolicy($db);
+        return self::fromPolicy($policy->forType($policy->patronTypeOf($userId)));
     }
 
-    /** The global settings, read in one query. */
+    /** The global settings only (no patron type, no rule). */
     public static function global(mysqli $db): self
     {
-        $settings = [];
-        $stmt = $db->prepare("SELECT setting_key, setting_value FROM system_settings WHERE category = 'loans' AND setting_key IN (?, ?, ?, ?)");
-        if ($stmt !== false) {
-            $keys = [self::SETTING_DAILY_FINE, self::SETTING_GRACE_DAYS, self::SETTING_MAX_PER_LOAN, self::SETTING_DEBT_THRESHOLD];
-            $stmt->bind_param('ssss', $keys[0], $keys[1], $keys[2], $keys[3]);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $settings[(string) $row['setting_key']] = (string) ($row['setting_value'] ?? '');
-            }
-            $stmt->close();
-        }
+        $globals = (new CirculationPolicy($db))->globalLayer();
+        return self::fromPolicy(PolicyResolver::resolve([], $globals, PolicyResolver::resolveUser(null, $globals)));
+    }
 
-        return self::fromSettings($settings, self::currency());
+    /** Cents view of a resolved circulation policy. */
+    public static function fromPolicy(LoanPolicy $policy, ?string $currency = null): self
+    {
+        $daily = self::moneyToCents($policy->dailyFine) ?? 0;
+        $cap = self::moneyToCents($policy->maxFinePerLoan);
+        $threshold = self::moneyToCents($policy->debtBlockThreshold);
+
+        return new self(
+            max(0, $daily),
+            max(0, min(365, (int) ($policy->graceDays ?? 0))),
+            $cap !== null && $cap > 0 ? $cap : null,
+            $threshold !== null && $threshold > 0 ? $threshold : null,
+            $currency ?? self::currency(),
+        );
+    }
+
+    /** A resolved amount (float from PolicyResolver) to cents; null stays null. */
+    public static function moneyToCents(?float $amount): ?int
+    {
+        return $amount === null ? null : (int) round($amount * 100);
     }
 
     /**

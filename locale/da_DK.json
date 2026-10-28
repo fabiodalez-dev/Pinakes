@@ -9011,5 +9011,11 @@
   "Storno": "Tilbageførsel",
   "Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.": "Loft over gebyret for et enkelt lån. Tom eller 0 = intet loft.",
   "Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0": "En forsinkelse op til dette antal dage giver intet gebyr. Standard: 0",
-  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Bruger e-mailskabelonen »Gebyr for for sen aflevering opkrævet«. Slået fra som standard."
+  "Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.": "Bruger e-mailskabelonen »Gebyr for for sen aflevering opkrævet«. Slået fra som standard.",
+  "Tolleranza": "Henstand",
+  "Multa/giorno": "Gebyr/dag",
+  "Multa max": "Maks. gebyr",
+  "Multa: %s/giorno": "Gebyr: %s/dag",
+  "Blocco oltre %s": "Spærring over %s",
+  "Multa giornaliera 0 = nessuna multa per questa tipologia; soglia di blocco 0 = nessun blocco per debito. Un campo vuoto eredita l'impostazione della scheda Prestiti.": "Dagsgebyr 0 = ingen gebyrer for denne type; spærregrænse 0 = ingen spærring for gæld. Et tomt felt arver indstillingen fra fanen Lån."
 }
