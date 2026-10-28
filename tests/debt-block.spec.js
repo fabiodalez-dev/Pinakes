@@ -5,7 +5,7 @@
  * gets the dedicated message. The DB is used only to seed the debt and the
  * loans (dates in the application timezone) and to verify the outcome.
  *
- * Run: /Users/fabio/Documents/GitHub/run-e2e-wt3.sh tests/debt-block.spec.js --config=tests/playwright.config.js --workers=1
+ * Run: /tmp/run-e2e.sh tests/debt-block.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
@@ -179,6 +179,25 @@ test.describe.serial('Debt block', () => {
       expect(text).toContain(DEBT_MESSAGE);
     } finally {
       await reader.close();
+    }
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${state.patronId} AND libro_id=${state.bookFree}`))).toBe(0);
+  });
+
+  test('2b. the app asking for the same book gets the debt message (code not_eligible kept)', async ({ request, browser }) => {
+    const F = require('./helpers/mobile-api-fixtures');
+    const helper = await browser.newPage();
+    let gate = null;
+    try {
+      gate = await F.ensureMobileApiReady(helper);
+      const token = await F.login(request, PATRON_EMAIL, PATRON_PASS, `zz-debt-${RUN}`);
+      const r = await F.api(request, 'POST', '/reservations', { token, body: { book_id: state.bookFree } });
+      expect(r.status, r.text.slice(0, 300)).toBe(403);
+      expect(r.json.error.code).toBe('not_eligible');
+      expect(r.json.error.message).toContain(DEBT_MESSAGE);
+    } finally {
+      F.restoreGate(gate);
+      dbQuery(`DELETE FROM mobile_app_tokens WHERE user_id=${state.patronId}`);
+      await helper.close();
     }
     expect(Number(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id=${state.patronId} AND libro_id=${state.bookFree}`))).toBe(0);
   });

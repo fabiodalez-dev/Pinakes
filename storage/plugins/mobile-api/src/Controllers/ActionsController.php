@@ -1301,6 +1301,10 @@ final class ActionsController
                 // Guardia di idoneità M7 (utente sospeso o tessera scaduta):
                 // condizione permanente lato utente, mai un errore server.
                 return ResponseEnvelope::error($response, 'not_eligible', __('Non sei idoneo al prestito: account sospeso o tessera scaduta.'), 403);
+            case 'debt_block':
+                // Same code as before for existing app builds; the message
+                // says the balance is the reason.
+                return ResponseEnvelope::error($response, 'not_eligible', \App\Support\LoanEligibility::errorMessage('debt_block'), 403);
             case 'book_not_found':
                 return ResponseEnvelope::error($response, 'not_found', __('Libro non trovato.'), 404);
             case 'past_date':
