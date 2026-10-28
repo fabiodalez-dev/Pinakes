@@ -7,6 +7,10 @@ namespace App\Support\Marc;
  * The book data a MARC record maps to, flavour-independent, and its two
  * conversions: from the book shape the catalogue scrapers return (the SRU
  * client, danMARC2) and to the canonical import row the CSV pipeline reads.
+ *
+ * Besides the keys of empty(), a record may carry the RDA codes its media
+ * type does not imply (`rda_content_type`, `rda_media_type`,
+ * `rda_carrier_type`), which the MARC importer writes on its own.
  */
 final class MarcBookData
 {
@@ -24,6 +28,7 @@ final class MarcBookData
             'collana' => '', 'numero_serie' => '', 'descrizione' => '', 'parole_chiave' => [],
             'classificazione_dewey' => '', 'lc_classification' => '',
             'isbn13' => '', 'isbn10' => '', 'ean' => '', 'issn' => '', 'copertina_url' => '',
+            'tipo_media' => '', 'genere' => '',
         ];
     }
 
@@ -150,6 +155,8 @@ final class MarcBookData
             'isbn10' => (string) ($data['isbn10'] ?? ''),
             'isbn13' => (string) ($data['isbn13'] ?? ''),
             'ean' => (string) ($data['ean'] ?? ''),
+            'tipo_media' => (string) ($data['tipo_media'] ?? ''),
+            'genere' => (string) ($data['genere'] ?? ''),
         ];
         foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $role) {
             if (((array) ($data[$role] ?? [])) !== []) {

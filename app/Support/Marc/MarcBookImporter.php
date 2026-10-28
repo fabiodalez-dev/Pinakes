@@ -25,8 +25,8 @@ use App\Controllers\CsvImportController;
  *              the record does not carry is kept
  *
  * The columns the CSV pipeline does not write (place of publication,
- * dimensions, LC classification, ISSN) and the cover (856) follow the same
- * mode.
+ * dimensions, LC classification, ISSN, the book's own RDA codes) and the
+ * cover (856) follow the same mode.
  */
 final class MarcBookImporter
 {
@@ -72,12 +72,18 @@ final class MarcBookImporter
         'contributors' => ['traduttore', 'illustratore', 'curatore', 'colorista'],
     ];
 
-    /** Columns written here, not by the CSV pipeline. */
+    /**
+     * Columns written here, not by the CSV pipeline, each only when the
+     * libri table has it (the RDA columns arrive with a later migration).
+     */
     private const EXTRA_COLUMNS = [
         'luogo_pubblicazione' => 255,
         'dimensioni' => 50,
         'lc_classification' => 100,
         'issn' => 20,
+        'rda_content_type' => 10,
+        'rda_media_type' => 10,
+        'rda_carrier_type' => 10,
     ];
 
     private CsvImportController $pipeline;

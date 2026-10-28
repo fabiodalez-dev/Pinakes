@@ -215,6 +215,37 @@ $check($backU['titolo'] === 'Viaggio al centro' && $backU['autori'] === ['Jules 
 $plain = BookMarcBuilder::marc21($row, $authors, [], null, false);
 $check($plain->first('024') === null && $plain->first('856') === null && $plain->first('050') === null, '64 without $extended the record is the OAI one (no 024/050/856)');
 
+echo "Media type and RDA types\n";
+$typed = static fn (string $tipo, array $extra = []): MarcRecord => BookMarcBuilder::marc21($row + ['tipo_media' => $tipo] + $extra, $authors, [], null);
+$rdaOf = static fn (MarcRecord $r): array => [$r->subfield('336', 'b'), $r->subfield('337', 'b'), $r->subfield('338', 'b')];
+$book = $typed('libro');
+$check($book->leader()[6] === 'a' && $book->controlField('007') === 'ta' && $rdaOf($book) === ['txt', 'n', 'nc'], '67a a book: leader/06 a, 007 text, 336-338 txt/n/nc');
+$check($book->subfield('336', 'a') === 'text' && $book->subfield('336', '2') === 'rdacontent' && $book->subfield('337', 'a') === 'unmediated' && $book->subfield('338', 'a') === 'volume' && $book->subfield('338', '2') === 'rdacarrier', '67b the RDA term in $a, the vocabulary in $2');
+$dvd = $typed('dvd');
+$check($dvd->leader()[6] === 'g' && str_starts_with((string) $dvd->controlField('007'), 'vd') && $rdaOf($dvd) === ['tdi', 'v', 'vd'], '67c a DVD: leader/06 g, 007 videodisc, tdi/v/vd');
+$check($typed('disco')->leader()[6] === 'j' && $rdaOf($typed('disco')) === ['prm', 's', 'sd'] && $typed('audiolibro')->leader()[6] === 'i' && $rdaOf($typed('audiolibro')) === ['spw', 's', 'sd'], '67d a disco is a musical sound recording (j, prm), an audiolibro a non-musical one (i, spw)');
+$check($typed('altro')->controlField('007') === null && $rdaOf($typed('altro')) === ['xxx', 'x', 'zu'], '67e altro: no 007, RDA other/other/unspecified');
+$own = $typed('libro', ['rda_content_type' => 'ntm', 'rda_carrier_type' => 'nb']);
+$check($rdaOf($own) === ['ntm', 'n', 'nb'] && $own->subfield('336', 'a') === 'notated music' && $own->subfield('338', 'a') === 'sheet', '67f the book\'s own RDA codes override what the media type implies');
+$check(BookMarcBuilder::unimarc($row + ['tipo_media' => 'dvd'], $authors, [], null)->leader()[6] === 'g' && BookMarcBuilder::unimarc($row, $authors, [], null)->leader()[6] === 'a', '67g UNIMARC label/06 follows the media type too');
+$viaIso = static fn (MarcRecord $r): array => (new Marc21LibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($r))))[0]);
+$backDvd = $viaIso($dvd);
+$check($backDvd['tipo_media'] === 'dvd' && !isset($backDvd['rda_content_type']) && !isset($backDvd['rda_media_type']) && !isset($backDvd['rda_carrier_type']), '67h export → import: a DVD comes back a DVD, the implied RDA codes are not stored as its own');
+$check($viaIso($typed('disco'))['tipo_media'] === 'disco' && $viaIso($typed('audiolibro'))['tipo_media'] === 'audiolibro' && $viaIso($book)['tipo_media'] === 'libro', '67i disco, audiolibro and libro round trip');
+$backOwn = $viaIso($own);
+$check($backOwn['tipo_media'] === 'libro' && ($backOwn['rda_content_type'] ?? '') === 'ntm' && ($backOwn['rda_carrier_type'] ?? '') === 'nb' && !isset($backOwn['rda_media_type']), '67j only the codes the media type does not imply come back as the book\'s own');
+$music = new MarcRecord('00000nim a2200000   4500');
+$music->addDataField('245', '0', '0', [['a', 'Sonate']]);
+$music->addDataField('336', ' ', ' ', [['b', 'prm'], ['2', 'rdacontent']]);
+$check((new Marc21LibriMapper())->map($music)['tipo_media'] === 'disco', '67k leader/06 i with 336 prm (performed music) is a disco');
+$map = new MarcRecord('00000nem a2200000   4500');
+$map->addDataField('245', '0', '0', [['a', 'Atlas']]);
+$map->addDataField('336', ' ', ' ', [['b', 'cri'], ['2', 'rdacontent']]);
+$mapped = (new Marc21LibriMapper())->map($map);
+$check($mapped['tipo_media'] === '' && ($mapped['rda_content_type'] ?? '') === 'cri', '67l a kind the catalogue has no media type for leaves it unset, its content type kept');
+$check((new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize(BookMarcBuilder::unimarc($row + ['tipo_media' => 'audiolibro'], $authors, [], null)))))[0])['tipo_media'] === 'audiolibro', '67m UNIMARC export → import keeps the media type');
+$check(MarcBookData::toImportRow($backDvd)['tipo_media'] === 'dvd', '67n the import row carries tipo_media');
+
 echo "Import row\n";
 $importRow = MarcBookData::toImportRow($m);
 $check($importRow['autori'] === 'Eco, Umberto;Rossi, Mario' && $importRow['editore'] === 'Bompiani' && $importRow['curatore'] === 'Ferré, Lùcia' && !array_key_exists('traduttore', $importRow), '65 names joined with ";", an absent role is not a column');

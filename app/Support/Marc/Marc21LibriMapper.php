@@ -21,6 +21,8 @@ use App\Support\PublicationPlace;
  *   260 / 264 $a place, $b publishers, $c year (else 008/07-10)
  *   300 $a pages, $c dimensions                     490 $a $v series (else 830)
  *   520 $a summary   650 / 651 / 653 $a keywords    856 $u cover image
+ *   leader/06 (and 336 $b) media type; 336 / 337 / 338 $b RDA codes the media
+ *       type does not imply
  */
 final class Marc21LibriMapper implements MarcLibriMapper
 {
@@ -166,6 +168,14 @@ final class Marc21LibriMapper implements MarcLibriMapper
         $data['lingua'] = MarcLanguage::nameFor(substr($language, 0, 3));
 
         $data['copertina_url'] = MarcBookData::coverUrlOf($record);
+
+        // Media type from leader/06, refined by the RDA content type (336);
+        // RDA codes the media type does not imply are kept as the book's own.
+        $content = $record->subfield('336', 'b');
+        $data['tipo_media'] = MarcMediaType::tipoMediaOf(substr($record->leader() . '      ', 6, 1), $content);
+        foreach (MarcMediaType::overrides($data['tipo_media'], $content, $record->subfield('337', 'b'), $record->subfield('338', 'b')) as $column => $code) {
+            $data[$column] = $code;
+        }
 
         return $data;
     }

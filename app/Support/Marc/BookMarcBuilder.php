@@ -38,10 +38,12 @@ final class BookMarcBuilder
     public static function marc21(array $row, array $authors, array $publishers, ?array $genre, bool $extended = false): MarcRecord
     {
         $isSerial = self::isSerialRecord($row);
-        // Leader: type 'a' (language material), bibliographic level 'm'
+        $tipoMedia = isset($row['tipo_media']) ? (string) $row['tipo_media'] : null;
+        // Leader: type of record from the media type (a language material,
+        // i/j sound recording, g projected medium), bibliographic level 'm'
         // (monograph), 's' for a serial. Leader/18 stays blank: the record
         // carries no ISBD punctuation, so 'i' (ISBD) would be a false claim.
-        $record = new MarcRecord('00000na' . ($isSerial ? 's' : 'm') . ' a2200000   4500');
+        $record = new MarcRecord('00000n' . MarcMediaType::leaderType($tipoMedia) . ($isSerial ? 's' : 'm') . ' a2200000   4500');
 
         // 001 — Control number (book id); 003 — MARC organization code
         $record->addControlField('001', (string) $row['id']);
@@ -49,6 +51,12 @@ final class BookMarcBuilder
         // 005 — Date/time of latest transaction
         $ts = strtotime((string) ($row['updated_at'] ?? 'now')) ?: time();
         $record->addControlField('005', gmdate('YmdHis', $ts) . '.0');
+        // 007 — Physical description: the category of material the media
+        // type says (text, sound disc, videodisc); none for "altro".
+        $f007 = MarcMediaType::field007($tipoMedia);
+        if ($f007 !== null) {
+            $record->addControlField('007', $f007);
+        }
         // 008 — Fixed-length data elements (exactly 40 characters)
         $record->addControlField('008', self::marc21Field008($row));
 
@@ -163,6 +171,20 @@ final class BookMarcBuilder
             $record->addDataField('300', ' ', ' ', $physSubs);
         }
 
+        // 336 / 337 / 338 — RDA content, media and carrier types (040 $e
+        // says rda): what the media type implies, or the book's own codes.
+        $rda = MarcMediaType::rdaCodes($row);
+        foreach (['336' => ['content', 'rdacontent'], '337' => ['media', 'rdamedia'], '338' => ['carrier', 'rdacarrier']] as $tag => [$kind, $source]) {
+            $subs = [];
+            $term = MarcMediaType::term($kind, $rda[$kind]);
+            if ($term !== null) {
+                $subs[] = ['a', $term];
+            }
+            $subs[] = ['b', $rda[$kind]];
+            $subs[] = ['2', $source];
+            $record->addDataField((string) $tag, ' ', ' ', $subs);
+        }
+
         // 490 — Series statement
         if (!empty($row['collana'])) {
             $serSubs = [['a', (string) $row['collana']]];
@@ -218,7 +240,8 @@ final class BookMarcBuilder
      */
     public static function unimarc(array $row, array $authors, array $publishers, ?array $genre, bool $extended = false): MarcRecord
     {
-        $record = new MarcRecord(self::UNIMARC_LEADER_TEMPLATE);
+        // Label/06 (type of record) from the media type, as in MARC 21.
+        $record = new MarcRecord(substr_replace(self::UNIMARC_LEADER_TEMPLATE, MarcMediaType::leaderType(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null), 6, 1));
         $record->setFormat('UNIMARC');
 
         // 001 — Record identifier
