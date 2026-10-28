@@ -9031,5 +9031,6 @@
   "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.",
   "Movimenti %1$d–%2$d di %3$d": "Movimenti %1$d–%2$d di %3$d",
   "Solo gli amministratori possono modificare multe e soglia di blocco.": "Solo gli amministratori possono modificare multe e soglia di blocco.",
-  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Importo non valido per \"%1$s\": il massimo consentito è %2$s."
+  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Importo non valido per \"%1$s\": il massimo consentito è %2$s.",
+  "Richiesta già registrata: ricarica la pagina e riprova.": "Richiesta già registrata: ricarica la pagina e riprova."
 }

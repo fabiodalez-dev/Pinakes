@@ -23,7 +23,8 @@ use mysqli;
  *   penalty:<loan id>  amount assessed when the copy is closed lost/damaged
  *                      (the same key the 0.9.0 migration uses for prestiti.sanzione)
  *   form:<32 hex>      one submitted desk form (payment, charge, waiver): a
- *                      repeated POST writes nothing more
+ *                      repeated POST writes nothing more; the same key with
+ *                      other values is refused (duplicate_request)
  *   storno:late:<loan id>:<n> / storno:waiver:<loan id>:<n>
  *                      the n-th undo of a return: the late fine and the
  *                      waivers written for it, reversed
@@ -337,7 +338,7 @@ final class PatronLedger
         $id = null;
         $this->inTransaction(function () use ($userId, $cents, $description, $staffId, $requestKey, &$id): void {
             $this->lockUser($userId);
-            $id = $this->replayedMovement($userId, $requestKey)
+            $id = $this->replayedMovement($userId, $requestKey, 'addebito_manuale', $cents, null, self::clip($description))
                 ?? $this->insert($userId, null, 'addebito_manuale', $cents, self::clip($description), null, $staffId, $requestKey);
         });
         return (int) $id;
@@ -485,7 +486,7 @@ final class PatronLedger
             $this->lockUser($userId);
             // A repeated form submission: the movement is already there (and the
             // balance check would now refuse it), so hand back the same row.
-            $id = $this->replayedMovement($userId, $requestKey);
+            $id = $this->replayedMovement($userId, $requestKey, $type, -$cents, $method, $text !== null ? self::clip($text) : null);
             if ($id !== null) {
                 return;
             }
@@ -497,18 +498,37 @@ final class PatronLedger
         return (int) $id;
     }
 
-    /** The movement of $userId already written under $requestKey, if any. */
-    private function replayedMovement(int $userId, ?string $requestKey): ?int
+    /**
+     * The movement of $userId already written under $requestKey, if any.
+     *
+     * The key identifies one rendered form, so a replay carries the same
+     * type, signed amount, payment method and text as the stored row. A key
+     * sent again with different values (the page restored from the cache
+     * and submitted with another amount) is not the same event: it is
+     * refused as 'duplicate_request' instead of being answered with the
+     * old movement as if the new one had been recorded.
+     */
+    private function replayedMovement(int $userId, ?string $requestKey, string $type, int $signedCents, ?string $method, ?string $text): ?int
     {
         if ($requestKey === null) {
             return null;
         }
-        $stmt = $this->db->prepare('SELECT id FROM movimenti_lettore WHERE chiave_idempotenza = ? AND utente_id = ?');
+        $stmt = $this->db->prepare('SELECT id, tipo, importo, metodo_pagamento, descrizione FROM movimenti_lettore WHERE chiave_idempotenza = ? AND utente_id = ?');
         $stmt->bind_param('si', $requestKey, $userId);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_row();
+        $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return $row !== null ? (int) $row[0] : null;
+        if (!is_array($row)) {
+            return null;
+        }
+        $same = (string) $row['tipo'] === $type
+            && FineParameters::decimalToCents($row['importo']) === $signedCents
+            && (string) ($row['metodo_pagamento'] ?? '') === (string) ($method ?? '')
+            && (string) ($row['descrizione'] ?? '') === (string) ($text ?? '');
+        if (!$same) {
+            throw new \InvalidArgumentException('duplicate_request');
+        }
+        return (int) $row['id'];
     }
 
     /** Serialise balance-dependent writes of one patron on the utenti row. */

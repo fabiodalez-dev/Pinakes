@@ -158,7 +158,7 @@ $ledgerCanManage = ($ledgerCanManage ?? false) && App\Support\Permissions::can('
     <div class="px-6 py-6 border-t border-slate-200 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/payment'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-3" id="ledger-payment-form">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ledgerCsrf, ENT_QUOTES, 'UTF-8') ?>">
-        <input type="hidden" name="request_key" value="<?= bin2hex(random_bytes(16)) ?>">
+        <input type="hidden" name="request_key" value="<?= bin2hex(random_bytes(16)) ?>" autocomplete="off" data-ledger-request-key>
         <h3 class="text-base font-medium text-gray-900"><?= __("Registra pagamento") ?></h3>
         <div>
           <label for="ledger_pay_amount" class="block text-sm font-medium text-gray-700"><?= __("Importo") ?> *</label>
@@ -183,7 +183,7 @@ $ledgerCanManage = ($ledgerCanManage ?? false) && App\Support\Permissions::can('
 
       <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/charge'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-3" id="ledger-charge-form">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ledgerCsrf, ENT_QUOTES, 'UTF-8') ?>">
-        <input type="hidden" name="request_key" value="<?= bin2hex(random_bytes(16)) ?>">
+        <input type="hidden" name="request_key" value="<?= bin2hex(random_bytes(16)) ?>" autocomplete="off" data-ledger-request-key>
         <h3 class="text-base font-medium text-gray-900"><?= __("Addebito manuale") ?></h3>
         <div>
           <label for="ledger_charge_amount" class="block text-sm font-medium text-gray-700"><?= __("Importo") ?> *</label>
@@ -200,7 +200,7 @@ $ledgerCanManage = ($ledgerCanManage ?? false) && App\Support\Permissions::can('
 
       <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/ledger/waive'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-3" id="ledger-waive-form">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ledgerCsrf, ENT_QUOTES, 'UTF-8') ?>">
-        <input type="hidden" name="request_key" value="<?= bin2hex(random_bytes(16)) ?>">
+        <input type="hidden" name="request_key" value="<?= bin2hex(random_bytes(16)) ?>" autocomplete="off" data-ledger-request-key>
         <h3 class="text-base font-medium text-gray-900"><?= __("Condona") ?></h3>
         <div>
           <label for="ledger_waive_amount" class="block text-sm font-medium text-gray-700"><?= __("Importo") ?> *</label>
@@ -215,5 +215,19 @@ $ledgerCanManage = ($ledgerCanManage ?? false) && App\Support\Permissions::can('
         </button>
       </form>
     </div>
+    <script>
+    // One request_key per rendered form (PatronLedger: a repeated POST records
+    // nothing more). A page shown again from the back-forward cache keeps the
+    // key it was submitted with, so a second submission with another amount
+    // would be refused as a duplicate: mint a new key whenever the page is
+    // shown. (The CSP nonce is added to every inline script by the layout.)
+    window.addEventListener('pageshow', function () {
+      document.querySelectorAll('[data-ledger-request-key]').forEach(function (input) {
+        var bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        input.value = Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+      });
+    });
+    </script>
     <?php endif; ?>
   </div>

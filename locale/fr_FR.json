@@ -9031,5 +9031,6 @@
   "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "12 derniers mois ; le solde à encaisser est celui d'aujourd'hui. Le détail mois par mois se trouve dans le rapport des pénalités plus bas.",
   "Movimenti %1$d–%2$d di %3$d": "Mouvements %1$d–%2$d sur %3$d",
   "Solo gli amministratori possono modificare multe e soglia di blocco.": "Seuls les administrateurs peuvent modifier les pénalités et le seuil de blocage.",
-  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Montant non valide pour « %1$s » : le maximum autorisé est %2$s."
+  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Montant non valide pour « %1$s » : le maximum autorisé est %2$s.",
+  "Richiesta già registrata: ricarica la pagina e riprova.": "Demande déjà enregistrée : rechargez la page et réessayez."
 }

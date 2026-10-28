@@ -9031,5 +9031,6 @@
   "Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.": "Letzte 12 Monate; der offene Saldo ist der heutige. Die Aufstellung Monat für Monat steht im Gebührenbericht weiter unten.",
   "Movimenti %1$d–%2$d di %3$d": "Buchungen %1$d–%2$d von %3$d",
   "Solo gli amministratori possono modificare multe e soglia di blocco.": "Nur Administratoren können Gebühren und die Sperrschwelle ändern.",
-  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Ungültiger Betrag für „%1$s“: der zulässige Höchstwert ist %2$s."
+  "Importo non valido per \"%1$s\": il massimo consentito è %2$s.": "Ungültiger Betrag für „%1$s“: der zulässige Höchstwert ist %2$s.",
+  "Richiesta già registrata: ricarica la pagina e riprova.": "Anfrage bereits erfasst: Seite neu laden und erneut versuchen."
 }

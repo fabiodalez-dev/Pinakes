@@ -171,6 +171,21 @@ try {
     $ledger->manualCharge($u1, 700, 'Tessera sostitutiva', null);
     $check($ledger->balanceCents($u1) === 700 && $count("utente_id = {$u1} AND tipo = 'addebito_manuale' AND importo = 7.00") === 1, 'manual charge 7.00');
 
+    echo "C1. One desk form, one movement: a replayed request_key\n";
+    $key = 'form:' . bin2hex(random_bytes(16));
+    $first = $ledger->recordPayment($u1, 100, 'contanti', 'doppio invio', null, $key);
+    $check($first > 0 && $ledger->recordPayment($u1, 100, 'contanti', 'doppio invio', null, $key) === $first && $ledger->balanceCents($u1) === 600, 'the same payment sent twice under one key is recorded once and answered with the same movement');
+    $check($threw(fn () => $ledger->recordPayment($u1, 200, 'contanti', 'doppio invio', null, $key)) === 'duplicate_request', 'the same key with another amount is refused as duplicate_request');
+    $check($threw(fn () => $ledger->recordPayment($u1, 100, 'pos', 'doppio invio', null, $key)) === 'duplicate_request', '...and with another payment method');
+    $check($threw(fn () => $ledger->waive($u1, 100, 'doppio invio', null, null, $key)) === 'duplicate_request', '...and as a waiver instead of a payment');
+    $check($threw(fn () => $ledger->manualCharge($u1, 100, 'doppio invio', null, $key)) === 'duplicate_request', '...and as a manual charge');
+    $check($ledger->balanceCents($u1) === 600 && $count("utente_id = {$u1} AND chiave_idempotenza = '" . $db->real_escape_string($key) . "'") === 1, 'none of them wrote a row');
+    $chargeKey = 'form:' . bin2hex(random_bytes(16));
+    $chargeId = $ledger->manualCharge($u1, 100, 'Tessera', null, $chargeKey);
+    $check($ledger->manualCharge($u1, 100, 'Tessera', null, $chargeKey) === $chargeId, 'a manual charge replayed as sent is answered with its movement');
+    $check($threw(fn () => $ledger->manualCharge($u1, 100, 'Tessera nuova', null, $chargeKey)) === 'duplicate_request', 'a manual charge replayed with another description is refused');
+    $check($ledger->balanceCents($u1) === 700, 'balance back to 7.00 (section D counts on it)');
+
     echo "C2. Inside the caller's transaction, and the desk waiver\n";
     $u4 = $newUser('tx');
     $db->begin_transaction();

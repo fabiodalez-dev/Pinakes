@@ -119,6 +119,7 @@ class PatronLedgerController
             'reason_required' => __('La motivazione del condono è obbligatoria.'),
             'description_required' => __("La descrizione dell'addebito è obbligatoria."),
             'invalid_method' => __('Metodo di pagamento non valido.'),
+            'duplicate_request' => __('Richiesta già registrata: ricarica la pagina e riprova.'),
             'user_not_found' => __('Utente non trovato'),
             default => __('Operazione non riuscita. Riprova.'),
         };
