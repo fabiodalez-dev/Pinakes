@@ -122,6 +122,9 @@ try {
     $studentId = (int) $db->query("SELECT id FROM {$types} WHERE codice = 'studente'")->fetch_row()[0];
     $check((int) $db->query("SELECT tipologia_id FROM {$users} WHERE id = 1")->fetch_row()[0] === $studentId, 'the reader carries the type id');
     $check($present->assign(1, 'docente') === 'unknown' && $present->assign(1, '') === 'skipped', 'an unknown code is reported, an empty one skipped');
+    $db->query("ALTER TABLE {$types} ADD COLUMN attiva TINYINT(1) NOT NULL DEFAULT 1");
+    $db->query("INSERT INTO {$types} (codice, attiva) VALUES ('ritirata', 0)");
+    $check((new PatronTypeImport($db, $types, $users))->assign(1, 'ritirata') === 'unknown' && (int) $db->query("SELECT tipologia_id FROM {$users} WHERE id = 1")->fetch_row()[0] === $studentId, 'a deactivated type is not assigned, the reader keeps its type');
 
     // Patron photo against one scratch reader.
     $email = 'zz-pci-' . $suffix . '@example.invalid';
