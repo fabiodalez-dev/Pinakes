@@ -173,13 +173,21 @@ test.describe.serial('Catalogue cards (schede catalografiche)', () => {
         }
       }
       await expect(page.locator('#selected-count')).toHaveText('205');
+      // The PDF opens in a new tab: watch every page of the context, and give
+      // a refused print the time a real one would need to start.
       let printed = false;
-      page.on('request', (r) => { if (r.url().includes('/admin/books/catalogue-cards')) printed = true; });
+      const onRequest = (r) => { if (r.url().includes('/admin/books/catalogue-cards')) printed = true; };
+      page.context().on('request', onRequest);
+      let opened = false;
+      page.context().on('page', () => { opened = true; });
       await page.click('#bulk-catalogue-cards');
       await expect(page.locator('.swal2-popup')).toBeVisible();
       await expect(page.locator('.swal2-html-container')).toContainText('200');
       await page.locator('.swal2-confirm').click();
+      await page.context().waitForEvent('request', { predicate: (r) => r.url().includes('/admin/books/catalogue-cards'), timeout: 3000 }).catch(() => null);
+      page.context().off('request', onRequest);
       expect(printed, 'no PDF request is sent for an oversized selection').toBe(false);
+      expect(opened, 'no PDF tab is opened for an oversized selection').toBe(false);
     } finally {
       h.deleteBooks(bulkIds);
     }
