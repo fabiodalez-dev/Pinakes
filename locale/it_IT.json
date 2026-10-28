@@ -8677,5 +8677,7 @@
   "Audiocassetta": "Audiocassetta",
   "Videodisco": "Videodisco",
   "Disco per computer": "Disco per computer",
-  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d."
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.",
+  "L'email del fornitore non è un indirizzo valido.": "L'email del fornitore non è un indirizzo valido.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it."
 }

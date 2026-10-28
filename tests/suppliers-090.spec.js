@@ -57,7 +57,7 @@ test.describe.serial('Suppliers (fornitori)', () => {
     expect(otherSupplierId).toBeGreaterThan(0);
   });
 
-  test('2. A blank name is refused and the supplier can be edited', async () => {
+  test('2. A blank name or an invalid website is refused and the supplier can be edited', async () => {
     await page.goto(`${h.BASE}/admin/suppliers/edit/${supplierId}`);
     await expect(page.locator('#nome')).toHaveValue(SUPPLIER);
     // Spaces pass the browser "required" check; the server must still refuse.
@@ -65,6 +65,15 @@ test.describe.serial('Suppliers (fornitori)', () => {
     await Promise.all([page.waitForURL(new RegExp(`/admin/suppliers/edit/${supplierId}$`)), page.click('#form-fornitore button[type="submit"]')]);
     await expect(page.getByText('Il nome del fornitore è obbligatorio.')).toBeVisible();
     expect(h.dbQuery(`SELECT nome FROM fornitori WHERE id = ${supplierId}`)).toBe(SUPPLIER);
+
+    // A website that is not a URL is refused with a message, nothing is saved
+    // (it used to be silently stored as NULL under a success message).
+    await page.fill('#nome', SUPPLIER);
+    await page.fill('#referente', 'Non salvato');
+    await page.fill('#sito_web', 'not a url');
+    await Promise.all([page.waitForURL(new RegExp(`/admin/suppliers/edit/${supplierId}$`)), page.click('#form-fornitore button[type="submit"]')]);
+    await expect(page.getByText('Il sito web del fornitore non è un indirizzo valido')).toBeVisible();
+    expect(h.dbQuery(`SELECT CONCAT(IFNULL(referente, 'NULL'), '|', IFNULL(sito_web, 'NULL')) FROM fornitori WHERE id = ${supplierId}`)).toBe('NULL|https://www.example.org');
 
     await page.fill('#nome', SUPPLIER_RENAMED);
     await page.fill('#referente', 'Giulia Bianchi');

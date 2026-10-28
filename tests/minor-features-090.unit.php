@@ -77,6 +77,9 @@ checkMinor($s['nome'] === 'Libreria Rossi' && $s['telefono'] === null && $s['not
 checkMinor($s['email'] === null && $s['sito_web'] === 'https://www.rossi.it', 'invalid email dropped, scheme-less website gets https');
 checkMinor(SupplierRepository::normalize(['sito_web' => 'javascript:alert(1)'])['sito_web'] === null, 'a non-http website is rejected');
 checkMinor(array_keys($s) === SupplierRepository::FIELDS, 'normalize() returns exactly the writable fields');
+checkMinor(SupplierRepository::invalidFields(['email' => 'not-an-email', 'sito_web' => 'not a url']) === ['email', 'sito_web'], 'the form is refused on an e-mail or website that is not one');
+checkMinor(SupplierRepository::invalidFields(['email' => ' ordini@example.org ', 'sito_web' => 'www.rossi.it']) === [] && SupplierRepository::invalidFields(['email' => '', 'sito_web' => null]) === [], 'a valid or blank e-mail and website pass');
+checkMinor(SupplierRepository::invalidFields(['sito_web' => 'javascript:alert(1)']) === ['sito_web'], 'a non-http website is refused, not silently dropped');
 
 // ── Visitor log helpers ──
 checkMinor(AttendanceRepository::shortName('Mario', 'rossi') === 'Mario R.' && AttendanceRepository::shortName('Cher', '') === 'Cher', 'kiosk names are shortened to the initial');

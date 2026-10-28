@@ -8677,5 +8677,7 @@
   "Audiocassetta": "Audiokassette",
   "Videodisco": "Videodisk",
   "Disco per computer": "Computerdisk",
-  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Zuletzt abgeschlossene Bestandsrevision: „%s“, %s. Abgeschlossene Bestandsrevisionen insgesamt: %d."
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Zuletzt abgeschlossene Bestandsrevision: „%s“, %s. Abgeschlossene Bestandsrevisionen insgesamt: %d.",
+  "L'email del fornitore non è un indirizzo valido.": "Die E-Mail-Adresse des Lieferanten ist ungültig.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Die Website des Lieferanten ist keine gültige Adresse: geben Sie eine http(s)-URL an, zum Beispiel https://www.beispiel.de."
 }

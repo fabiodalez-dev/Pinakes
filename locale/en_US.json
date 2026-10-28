@@ -8677,5 +8677,7 @@
   "Audiocassetta": "Audiocassette",
   "Videodisco": "Videodisc",
   "Disco per computer": "Computer disc",
-  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Last closed stocktake: “%s”, %s. Closed stocktakes in total: %d."
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Last closed stocktake: “%s”, %s. Closed stocktakes in total: %d.",
+  "L'email del fornitore non è un indirizzo valido.": "The supplier e-mail is not a valid address.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "The supplier website is not a valid address: enter an http(s) URL, for example https://www.example.org."
 }

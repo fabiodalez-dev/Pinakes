@@ -8677,5 +8677,7 @@
   "Audiocassetta": "Lydkassette",
   "Videodisco": "Videodisk",
   "Disco per computer": "Computerdisk",
-  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Senest afsluttede lageroptælling: »%s«, %s. Afsluttede lageroptællinger i alt: %d."
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Senest afsluttede lageroptælling: »%s«, %s. Afsluttede lageroptællinger i alt: %d.",
+  "L'email del fornitore non è un indirizzo valido.": "Leverandørens e-mail er ikke en gyldig adresse.",
+  "Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.": "Leverandørens websted er ikke en gyldig adresse: angiv en http(s)-URL, for eksempel https://www.eksempel.dk."
 }
