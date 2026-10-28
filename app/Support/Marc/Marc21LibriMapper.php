@@ -10,8 +10,8 @@ use App\Support\PublicationPlace;
 /**
  * MARC 21 bibliographic → Pinakes book data.
  *
- *   020 $a ISBN-13 / ISBN-10 (qualifiers dropped)   022 $a ISSN
- *   024 $a EAN (when it is not the ISBN-13 again)   041 $a language (else 008/35-37)
+ *   020 $a ISBN-13 / ISBN-10 (qualifiers dropped)   022 $a ISSN (else 490 / 830 $x)
+ *   024 $a EAN (when it is not the ISBN-13 again)   041 $a languages (else 008/35-37)
  *   050 $a $b LC classification                     082 $a Dewey
  *   100 $a main author; 700 $a added entries, their part read from $4, else $e,
  *       else the 245 $c statement of responsibility (RelatorRoles, the same
@@ -19,7 +19,7 @@ use App\Support\PublicationPlace;
  *       illustrators and colorists go to their own columns, the rest stay authors
  *   110 / 111 $a $b corporate body or meeting as the main entry, 710 / 711 as
  *       added entries, with the same roles
- *   245 $a title, $b rest of title                  250 $a edition
+ *   245 $a title (with $n $p, the part), $b rest   250 $a edition
  *   260 / 264 $a place, $b publishers, $c year (else 008/07-10)
  *   300 $a pages, $c dimensions                     490 $a $v series (else 830)
  *   520 $a summary   650 / 651 / 653 $a keywords    856 $u cover image
@@ -59,7 +59,23 @@ final class Marc21LibriMapper implements MarcLibriMapper
     {
         $data = MarcBookData::empty();
 
-        $data['titolo'] = MarcBookData::clean($record->subfield('245', 'a'));
+        // 245 $a, with the number and name of the part ($n, $p, in order)
+        // appended: "Storia d'Italia. Vol. 2. Il Medioevo".
+        $title = MarcBookData::clean($record->subfield('245', 'a'));
+        $parts = [];
+        $titleField = $record->first('245');
+        foreach ($titleField !== null ? $titleField->subfields : [] as [$code, $value]) {
+            if ($code === 'n' || $code === 'p') {
+                $part = MarcBookData::clean($value, ' /:;=,.');
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+            }
+        }
+        if ($parts !== []) {
+            $title = trim(rtrim($title, ' .') . '. ' . implode('. ', $parts), ' .');
+        }
+        $data['titolo'] = $title;
         $data['sottotitolo'] = MarcBookData::clean($record->subfield('245', 'b'));
 
         $statement = $record->subfield('245', 'c');
@@ -139,7 +155,8 @@ final class Marc21LibriMapper implements MarcLibriMapper
             $data['anno_pubblicazione'] = MarcBookData::yearOf(substr($f008, 7, 4));
         }
 
-        $data['numero_pagine'] = ContributorSorter::pagesOf((string) $record->subfield('300', 'a'));
+        // Only an extent in pages counts: "2 v." or "24 cm" is no page count.
+        $data['numero_pagine'] = ContributorSorter::pagesOf((string) $record->subfield('300', 'a'), false);
         $data['dimensioni'] = MarcBookData::clean($record->subfield('300', 'c'), ' /:;=,+');
 
         $data['collana'] = MarcBookData::clean($record->subfield('490', 'a'));
@@ -200,13 +217,31 @@ final class Marc21LibriMapper implements MarcLibriMapper
                 break;
             }
         }
+        // 022: the ISSN of the resource itself; on a monograph the series
+        // ISSN travels in 490 $x (or 830 $x), as the export writes it.
         $data['issn'] = MarcBookData::clean($record->subfield('022', 'a'));
-
-        $language = (string) $record->subfield('041', 'a');
-        if ($language === '' && strlen($f008) >= 38) {
-            $language = substr($f008, 35, 3);
+        if ($data['issn'] === '') {
+            $data['issn'] = MarcBookData::clean($record->subfield('490', 'x') ?? $record->subfield('830', 'x'));
         }
-        $data['lingua'] = MarcLanguage::nameFor(substr($language, 0, 3));
+
+        // Every 041 $a (one per language), else 008/35-37.
+        $languages = [];
+        foreach ($record->subfieldValues('041', 'a') as $code) {
+            // A pre-1990 041 may pack several codes in one $a ("engita").
+            foreach (str_split(trim($code), 3) as $chunk) {
+                $name = MarcLanguage::nameFor($chunk);
+                if ($name !== '' && !in_array($name, $languages, true)) {
+                    $languages[] = $name;
+                }
+            }
+        }
+        if ($languages === [] && strlen($f008) >= 38) {
+            $name = MarcLanguage::nameFor(substr($f008, 35, 3));
+            if ($name !== '') {
+                $languages[] = $name;
+            }
+        }
+        $data['lingua'] = implode(', ', $languages);
 
         $data['copertina_url'] = MarcBookData::coverUrlOf($record);
 

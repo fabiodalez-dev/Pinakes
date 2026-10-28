@@ -283,6 +283,36 @@ $entities = BookMarcBuilder::marc21(['descrizione' => '<p>Tom &amp; Jerry</p><p>
 $check($entities->subfield('520', 'a') === "Tom & Jerry\n\nVol. «2»", '67s the summary decodes the entities of the rich description');
 $check(BookMarcBuilder::marc21(['descrizione' => '<p>x</p>', 'descrizione_plain' => 'Plain &amp; kept'] + $row, $authors, [], null)->subfield('520', 'a') === 'Plain &amp; kept', '67t the stored plain projection is taken as it is');
 
+echo "Series ISSN, languages, extents, parts\n";
+$mapOne = static function (array $fields, string $leader = MarcRecord::DEFAULT_LEADER): array {
+    $r = new MarcRecord($leader);
+    foreach ($fields as [$tag, $ind1, $ind2, $subs]) {
+        $r->addDataField($tag, $ind1, $ind2, $subs);
+    }
+    return (new Marc21LibriMapper())->map($r);
+};
+$check($mapOne([['490', '0', ' ', [['a', 'Serie'], ['x', '0317-8471']]]])['issn'] === '0317-8471' && $mapOne([['830', ' ', '0', [['a', 'Serie'], ['x', '1234-5679']]]])['issn'] === '1234-5679', '67u the series ISSN in 490 $x / 830 $x is read when 022 is absent');
+$check($mapOne([['022', ' ', ' ', [['a', '1111-2222']]], ['490', '0', ' ', [['a', 'Serie'], ['x', '0317-8471']]]])['issn'] === '1111-2222', '67v 022 wins over the series ISSN');
+$bilingual = BookMarcBuilder::marc21(['lingua' => 'inglese, italiano'] + $row, $authors, [], null);
+$check($bilingual->subfieldValues('041', 'a') === ['eng', 'ita'], '67w one 041 $a per language');
+$check($viaIso($bilingual)['lingua'] === 'English, Italiano', '67x every 041 $a comes back, joined as the catalogue stores them');
+$check($mapOne([['041', '0', ' ', [['a', 'gerfre']]]])['lingua'] === 'Deutsch, Français' && $mapOne([['041', '0', ' ', [['a', 'swa']]]])['lingua'] === '', '67y a packed 041 is split; an unknown code is no language');
+$check(\App\Support\Marc\MarcLanguage::nameFor('swa') === '' && \App\Support\Marc\MarcLanguage::nameFor('ita') === 'Italiano', '67z nameFor: unknown code → empty');
+$check($mapOne([['300', ' ', ' ', [['a', '2 v.']]]])['numero_pagine'] === '' && $mapOne([['300', ' ', ' ', [['a', '24 cm']]]])['numero_pagine'] === '' && $mapOne([['300', ' ', ' ', [['a', 'xii, 503 p. :']]]])['numero_pagine'] === '503', '68a "2 v." and "24 cm" are not page counts, "503 p." is');
+$check($mapOne([['245', '1', '0', [['a', 'Harry Potter.'], ['n', 'Vol. 1,'], ['p', 'The philosopher\'s stone /'], ['c', 'J. K. Rowling.']]]])['titolo'] === 'Harry Potter. Vol. 1. The philosopher\'s stone', '68b 245 $n and $p are appended to the title, ISBD-stripped');
+$uniPart = new MarcRecord(BookMarcBuilder::UNIMARC_LEADER_TEMPLATE);
+$uniPart->setFormat('UNIMARC');
+$uniPart->addDataField('200', '1', ' ', [['a', 'Storia d\'Italia'], ['h', 'Vol. 2'], ['i', 'Il Medioevo :'], ['e', 'dal V al XV secolo']]);
+$check((new UnimarcLibriMapper())->map($uniPart)['titolo'] === 'Storia d\'Italia. Vol. 2. Il Medioevo', '68c UNIMARC 200 $h and $i are appended to the title');
+$twoSubs = new MarcRecord();
+$twoSubs->addDataField('520', ' ', ' ', [['a', 'Short summary'], ['b', str_repeat('x', 12000)], ['c', 'after']]);
+$cutWarnings = [];
+$cutRecord = Iso2709Reader::parse(substr(Iso2709Writer::serialize($twoSubs, $cutWarnings), 0, -1));
+$check($cutRecord->first('520')?->subfields === [['a', 'Short summary']] && count($cutWarnings) === 1 && str_contains($cutWarnings[0], 'field 520'), '68d a field over the limit is cut at the last subfield boundary that fits and the cut is reported');
+$noCut = [];
+Iso2709Writer::serialize($rosa, $noCut);
+$check($noCut === [], '68e nothing is reported for a record that fits');
+
 echo "Import row\n";
 $importRow = MarcBookData::toImportRow($m);
 $check($importRow['autori'] === 'Eco, Umberto;Rossi, Mario' && $importRow['editore'] === 'Bompiani' && $importRow['curatore'] === 'Ferré, Lùcia' && !array_key_exists('traduttore', $importRow), '65 names joined with ";", an absent role is not a column');

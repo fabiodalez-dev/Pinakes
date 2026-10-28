@@ -312,7 +312,7 @@ final class MarcBookImporter
                 }
                 $value = $parsed[$column] ?? null;
                 $recordEmpty = $value === null || (is_string($value) && trim($value) === '');
-                if ($recordEmpty || ($mode === self::MODE_FILL && ($families[$family] ?? false))) {
+                if ($recordEmpty || ($mode === self::MODE_FILL && $families[$family])) {
                     $parsed[$column] = $existing[$column];
                 }
             }

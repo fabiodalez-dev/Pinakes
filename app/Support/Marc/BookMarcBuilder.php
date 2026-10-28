@@ -90,9 +90,19 @@ final class BookMarcBuilder
             ['c', 'IT-Pinakes'],
         ]);
 
-        // 041 — Language
+        // 041 — Languages: one $a per language ("inglese, italiano" is two)
         if (!empty($row['lingua'])) {
-            $record->addDataField('041', '0', ' ', [['a', MarcLanguage::marcCodeOf((string) $row['lingua'])]]);
+            $codes = [];
+            foreach (MarcLanguage::listOf((string) $row['lingua']) as $language) {
+                $code = MarcLanguage::codeFor($language);
+                if ($code !== null && !in_array($code, $codes, true)) {
+                    $codes[] = $code;
+                }
+            }
+            if ($codes === []) {
+                $codes = ['und'];
+            }
+            $record->addDataField('041', '0', ' ', array_map(static fn (string $c): array => ['a', $c], $codes));
         }
 
         // 050 — LC classification (extended)
