@@ -10,6 +10,7 @@ return [
     'privacy' => ['group' => __('Sito e sistema'), 'label' => __('Privacy'), 'description' => __('Gestisci informativa, cookie e preferenze di consenso.'), 'icon' => 'fa-shield-alt'],
     'messages' => ['group' => __('Comunicazione'), 'label' => __('Messaggi'), 'description' => __('Consulta le richieste ricevute dal modulo di contatto.'), 'icon' => 'fa-inbox'],
     'labels' => ['group' => __('Biblioteca'), 'label' => __('Etichette'), 'description' => __('Imposta formato e contenuto delle etichette da stampare.'), 'icon' => 'fa-barcode'],
+    'cards' => ['group' => __('Biblioteca'), 'label' => __('Tessere'), 'description' => __('Imposta layout, codice e retro delle tessere della biblioteca da stampare.'), 'icon' => 'fa-id-card'],
     'sharing' => ['group' => __('Sito e sistema'), 'label' => __('Condivisione'), 'description' => __('Personalizza le anteprime e i contenuti condivisi dal sito.'), 'icon' => 'fa-share-alt'],
     'advanced' => ['group' => __('Sito e sistema'), 'label' => __('Avanzate'), 'description' => __('Gestisci integrazioni e configurazioni avanzate del sistema.'), 'icon' => 'fa-cogs'],
     'loans' => ['group' => __('Biblioteca'), 'label' => __('Prestiti'), 'description' => __('Configura le regole e le automazioni della circolazione.'), 'icon' => 'fa-book-open'],

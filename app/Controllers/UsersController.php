@@ -707,6 +707,9 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users?error=db_error'))->withStatus(302);
         }
 
+        // The photo is personal data: it goes with the account.
+        \App\Support\PatronPhoto::deleteFile($userToDelete['foto_profilo_url'] ?? null);
+
         // Audit logging for user deletion
         \App\Support\SecureLogger::info('User deleted', [
             'deleted_user_id' => $id,

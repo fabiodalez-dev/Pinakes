@@ -21,6 +21,9 @@ $ruolo = $utente['tipo_utente'] ?? 'standard';
 $creatoIl = $utente['created_at'] ?? '';
 $aggiornatoIl = $utente['updated_at'] ?? '';
 $note = $utente['note_utente'] ?? '';
+$photoRaw = (string) ($utente['foto_profilo_url'] ?? '');
+$photoStored = \App\Support\PatronPhoto::absolutePath($photoRaw) !== null ? $photoRaw : null;
+$photoUrl = $photoStored !== null ? url('/admin/users/' . $id . '/photo') . '?v=' . substr(sha1($photoStored), 0, 10) : null;
 
 $statusLabels = [
     'attivo' => __('Attivo'),
@@ -122,6 +125,10 @@ ob_start();
 ?><?= $display($name, __("Utente senza nome")); ?>
 
     <div class="flex items-center gap-3 shrink-0">
+        <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" id="print-card" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
+            <i class="fas fa-id-card mr-2"></i>
+            <?= __("Stampa tessera") ?>
+        </a>
         <a href="<?= htmlspecialchars(url('/admin/loans/create?utente_id=' . $id), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-handshake mr-2"></i>
             <?= __("Nuovo Prestito") ?>
@@ -148,6 +155,47 @@ $workspaceHeader['actions'] = (string) ob_get_clean();
 require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
+
+  <section class="bg-white border border-gray-200 rounded-lg p-6" id="patron-card-section">
+    <h2 class="text-lg font-medium text-gray-900"><?= __("Foto e tessera") ?></h2>
+    <div class="mt-4 flex flex-col sm:flex-row gap-6">
+      <div class="shrink-0">
+        <?php if ($photoUrl !== null): ?>
+          <img src="<?= htmlspecialchars($photoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars(__('Foto di %s', $name), ENT_QUOTES, 'UTF-8') ?>" id="patron-photo" class="w-32 h-40 object-cover rounded-lg border border-gray-200">
+        <?php else: ?>
+          <div id="patron-photo-empty" class="w-32 h-40 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400">
+            <i class="fas fa-user text-3xl" aria-hidden="true"></i>
+            <span class="sr-only"><?= __("Nessuna foto") ?></span>
+          </div>
+        <?php endif; ?>
+      </div>
+      <div class="space-y-3 text-sm text-gray-600">
+        <p><?= __("La foto compare sulla tessera stampata. È un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") ?></p>
+        <div class="flex flex-wrap items-center gap-3">
+          <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=single'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
+            <i class="fas fa-id-card mr-2"></i><?= __("Tessera singola (CR80)") ?>
+          </a>
+          <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=sheet'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
+            <i class="fas fa-th mr-2"></i><?= __("Foglio A4") ?>
+          </a>
+          <a href="<?= htmlspecialchars(url('/admin/users/edit/' . $id) . '#patron-photo-widget', ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary">
+            <i class="fas fa-camera mr-2"></i><?= $photoUrl !== null ? __("Cambia foto") : __("Aggiungi foto") ?>
+          </a>
+          <?php if ($photoUrl !== null): ?>
+          <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/photo/delete'), ENT_QUOTES, 'UTF-8') ?>" id="delete-photo-form"
+                data-swal-confirm="<?= htmlspecialchars(__('La foto verrà eliminata definitivamente. Continuare?'), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm-title="<?= htmlspecialchars(__('Elimina foto'), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm-button="<?= htmlspecialchars(__('Elimina foto'), ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+            <button type="submit" class="btn-danger-outline px-4 py-2 rounded-lg inline-flex items-center">
+              <i class="fas fa-trash mr-2"></i><?= __("Elimina foto") ?>
+            </button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section class="bg-white border border-gray-200 rounded-lg p-6">
     <h2 class="text-lg font-medium text-gray-900"><?= __("Informazioni Personali") ?></h2>

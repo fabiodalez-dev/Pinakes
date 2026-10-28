@@ -68,6 +68,7 @@ class SettingsController
         $contactSettings = $this->resolveContactSettings($repository);
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
+        $cardSettings = \App\Support\PatronCardSettings::resolve($repository);
         $eventSettings = $this->resolveEventSettings($repository);
         // Catalogue header (Settings → CMS): edit the configured site language.
         // Historical translations stay stored for later language changes.
@@ -104,6 +105,7 @@ class SettingsController
             'contactSettings',
             'privacySettings',
             'labelSettings',
+            'cardSettings',
             'eventSettings',
             'catalogHeaderLocales',
             'catalogHeaderTexts',
@@ -1299,6 +1301,20 @@ class SettingsController
         }
 
         return $this->redirect($response, '/admin/settings?tab=labels');
+    }
+
+    /** Save the library card settings (Settings → Tessere). */
+    public function updateCards(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+        \App\Support\PatronCardSettings::save($repository, \App\Support\PatronCardSettings::sanitize($data));
+
+        $_SESSION['success_message'] = __('Impostazioni tessere aggiornate correttamente.');
+        return $this->redirect($response, '/admin/settings?tab=cards');
     }
 
     public function toggleApi(Request $request, Response $response, mysqli $db): Response

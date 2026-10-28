@@ -92,12 +92,13 @@ class UtentiApiController
 
         // Map column index to database column
         // 0: nome/cognome, 1: email, 2: telefono, 3: tipo_utente, 4: stato
+        // Column 0 of the on-screen table is the selection checkbox (not orderable).
         $columnMap = [
-            0 => 'u.cognome',      // Nome (sorts by cognome first)
-            1 => 'u.email',        // Email
-            2 => 'u.telefono',     // Telefono
-            3 => 'u.tipo_utente',  // Ruolo
-            4 => 'u.stato',        // Stato
+            1 => 'u.cognome',      // Nome (sorts by cognome first)
+            2 => 'u.email',        // Email
+            3 => 'u.telefono',     // Telefono
+            4 => 'u.tipo_utente',  // Ruolo
+            5 => 'u.stato',        // Stato
         ];
 
         // Parse order parameter from DataTables
@@ -109,7 +110,7 @@ class UtentiApiController
                 $orderColumn = $columnMap[$colIdx];
                 $orderDir = $dir;
                 // Only add secondary sort for nome column
-                $orderExtra = ($colIdx === 0) ? ', u.nome ' . $dir : '';
+                $orderExtra = ($colIdx === 1) ? ', u.nome ' . $dir : '';
             }
         }
 
