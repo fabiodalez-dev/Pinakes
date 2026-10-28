@@ -1,0 +1,551 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Support\DateHelper;
+use mysqli;
+
+/**
+ * Patron ledger (movimenti_lettore): charges, payments, waivers, reversals.
+ *
+ * The table is append-only: a row is never updated or deleted by the
+ * application; a mistake is corrected with a new row (condono / storno). The
+ * balance is SUM(importo): positive = the patron owes money.
+ *
+ * Charges tied to a loan carry an idempotency key, so the same event can be
+ * processed twice (a retried request, a repeated return) without charging
+ * twice:
+ *   late:<loan id>     late fine written when the loan is returned
+ *   penalty:<loan id>  amount assessed when the copy is closed lost/damaged
+ *                      (the same key the 0.9.0 migration uses for prestiti.sanzione)
+ *
+ * Methods that write take part in the caller's transaction when one is open
+ * (the return paths); otherwise they open and commit their own.
+ */
+final class PatronLedger
+{
+    public const TYPES = ['multa_ritardo', 'addebito_perdita', 'addebito_danno', 'addebito_manuale', 'pagamento', 'condono', 'storno'];
+    public const CHARGE_TYPES = ['multa_ritardo', 'addebito_perdita', 'addebito_danno', 'addebito_manuale'];
+    public const PAYMENT_METHODS = ['contanti', 'pos', 'bonifico', 'altro'];
+
+    /** Largest single amount an operator may type (DECIMAL(10,2) headroom). */
+    public const MAX_AMOUNT_CENTS = 99999999;
+
+    private mysqli $db;
+    private FineCalculator $calculator;
+
+    public function __construct(mysqli $db, ?FineCalculator $calculator = null)
+    {
+        $this->db = $db;
+        // Stack hook: the closures calendar injects its "is open day" callable here.
+        $this->calculator = $calculator ?? new FineCalculator();
+    }
+
+    /** SQL expression for a patron's balance; $userIdExpr is a fixed column reference. */
+    public static function balanceSql(string $userIdExpr): string
+    {
+        return "(SELECT COALESCE(SUM(ml.importo), 0) FROM movimenti_lettore ml WHERE ml.utente_id = {$userIdExpr})";
+    }
+
+    public function balanceCents(int $userId): int
+    {
+        $stmt = $this->db->prepare('SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore WHERE utente_id = ?');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $value = $stmt->get_result()->fetch_row()[0] ?? 0;
+        $stmt->close();
+        return FineParameters::decimalToCents($value);
+    }
+
+    /** Balance right after movement $movementId (receipts show the balance at that moment). */
+    public function balanceAfterCents(int $userId, int $movementId): int
+    {
+        $stmt = $this->db->prepare('SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore WHERE utente_id = ? AND id <= ?');
+        $stmt->bind_param('ii', $userId, $movementId);
+        $stmt->execute();
+        $value = $stmt->get_result()->fetch_row()[0] ?? 0;
+        $stmt->close();
+        return FineParameters::decimalToCents($value);
+    }
+
+    /**
+     * Debt block (plan §7): the patron owes more than the threshold.
+     * Mirrors the SQL predicate in LoanEligibility::eligibleUserWhere().
+     */
+    public static function isDebtBlocked(mysqli $db, int $userId): bool
+    {
+        $params = FineParameters::forUser($db, $userId);
+        if (!$params->debtBlockEnabled()) {
+            return false;
+        }
+        return (new self($db))->balanceCents($userId) > (int) $params->debtBlockThresholdCents;
+    }
+
+    /**
+     * Movements of a patron, newest first, with the loan's title and the operator.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function movements(int $userId, int $limit = 500): array
+    {
+        $limit = max(1, min(5000, $limit));
+        $stmt = $this->db->prepare(
+            "SELECT m.id, m.utente_id, m.prestito_id, m.tipo, m.importo, m.descrizione, m.metodo_pagamento,
+                    m.creato_da, m.created_at, m.chiave_idempotenza,
+                    l.titolo AS libro_titolo,
+                    TRIM(CONCAT(COALESCE(op.nome, ''), ' ', COALESCE(op.cognome, ''))) AS operatore
+               FROM movimenti_lettore m
+               LEFT JOIN prestiti p ON p.id = m.prestito_id
+               LEFT JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN utenti op ON op.id = m.creato_da
+              WHERE m.utente_id = ?
+              ORDER BY m.created_at DESC, m.id DESC
+              LIMIT {$limit}"
+        );
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $rows;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function movement(int $movementId): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT m.*, TRIM(CONCAT(COALESCE(op.nome, ''), ' ', COALESCE(op.cognome, ''))) AS operatore
+               FROM movimenti_lettore m
+               LEFT JOIN utenti op ON op.id = m.creato_da
+              WHERE m.id = ?"
+        );
+        $stmt->bind_param('i', $movementId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    }
+
+    /**
+     * Write the late fine of a returned loan (idempotent).
+     *
+     * Called inside the return transaction, right after the loan row is closed.
+     * Only an actual return ('restituito') is fined: a copy closed lost or
+     * damaged carries the assessed penalty instead.
+     *
+     * @return int cents charged by THIS call (0 when nothing is due or the
+     *             fine was already written)
+     */
+    public function chargeLateReturn(int $loanId, ?int $staffId = null): int
+    {
+        $loan = $this->loanRow($loanId);
+        if ($loan === null || (string) $loan['stato'] !== 'restituito' || empty($loan['data_restituzione'])) {
+            return 0;
+        }
+        $params = FineParameters::forLoan($this->db, $loanId);
+        $cents = $this->calculator->lateFineCents($params, (string) $loan['data_scadenza'], (string) $loan['data_restituzione']);
+        if ($cents <= 0) {
+            return 0;
+        }
+        $days = $this->calculator->daysLate((string) $loan['data_scadenza'], (string) $loan['data_restituzione']);
+        $id = $this->insert(
+            (int) $loan['utente_id'],
+            $loanId,
+            'multa_ritardo',
+            $cents,
+            sprintf('%d|%s|%s', $days, (string) $loan['data_scadenza'], (string) $loan['data_restituzione']),
+            null,
+            $staffId,
+            $this->lateKey($loanId)
+        );
+        return $id === null ? 0 : $cents;
+    }
+
+    /**
+     * Mirror the amount assessed for a lost/damaged copy (prestiti.sanzione)
+     * into the ledger (idempotent, key penalty:<loan id>).
+     */
+    public function chargeLossPenalty(int $loanId, ?int $staffId = null): int
+    {
+        $loan = $this->loanRow($loanId);
+        if ($loan === null) {
+            return 0;
+        }
+        $cents = FineParameters::decimalToCents($loan['sanzione'] ?? 0);
+        if ($cents <= 0) {
+            return 0;
+        }
+        $type = (string) $loan['stato'] === 'perso' ? 'addebito_perdita' : 'addebito_danno';
+        $id = $this->insert((int) $loan['utente_id'], $loanId, $type, $cents, null, null, $staffId, 'penalty:' . $loanId);
+        return $id === null ? 0 : $cents;
+    }
+
+    /**
+     * A return was undone: reverse the late fine with a storno row. A later
+     * return of the same loan writes a new late fine (the key carries the
+     * reversal count, so the history stays one row per event).
+     *
+     * @return int cents reversed (0 when no late fine is outstanding)
+     */
+    public function reverseLateFine(int $loanId, string $reason, ?int $staffId = null): int
+    {
+        $net = $this->lateFineNetCents($loanId);
+        if ($net <= 0) {
+            return 0;
+        }
+        $loan = $this->loanRow($loanId);
+        if ($loan === null) {
+            return 0;
+        }
+        $generation = $this->reversalCount($loanId);
+        $id = $this->insert(
+            (int) $loan['utente_id'],
+            $loanId,
+            'storno',
+            -$net,
+            self::clip($reason),
+            null,
+            $staffId,
+            'storno:late:' . $loanId . ':' . ($generation + 1)
+        );
+        return $id === null ? 0 : $net;
+    }
+
+    /** Late fine still standing for a loan: late charges minus their reversals. */
+    public function lateFineNetCents(int $loanId): int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore
+              WHERE prestito_id = ? AND (tipo = 'multa_ritardo' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%'))"
+        );
+        $stmt->bind_param('i', $loanId);
+        $stmt->execute();
+        $value = $stmt->get_result()->fetch_row()[0] ?? 0;
+        $stmt->close();
+        return FineParameters::decimalToCents($value);
+    }
+
+    /** Days late recorded with the most recent late fine of a loan (0 if none). */
+    public function lateFineDays(int $loanId): int
+    {
+        $stmt = $this->db->prepare("SELECT descrizione FROM movimenti_lettore WHERE prestito_id = ? AND tipo = 'multa_ritardo' ORDER BY id DESC LIMIT 1");
+        $stmt->bind_param('i', $loanId);
+        $stmt->execute();
+        $text = (string) ($stmt->get_result()->fetch_row()[0] ?? '');
+        $stmt->close();
+        return preg_match('/^(\d+)\|/', $text, $m) === 1 ? (int) $m[1] : 0;
+    }
+
+    /** Payment received at the desk (negative movement). */
+    public function recordPayment(int $userId, int $cents, string $method, ?string $note, ?int $staffId): int
+    {
+        if (!in_array($method, self::PAYMENT_METHODS, true)) {
+            throw new \InvalidArgumentException('invalid_method');
+        }
+        return $this->credit($userId, 'pagamento', $cents, $note, $method, $staffId, null);
+    }
+
+    /** Waiver (condono) of part or all of the debt; the reason is mandatory. */
+    public function waive(int $userId, int $cents, string $reason, ?int $staffId, ?int $loanId = null): int
+    {
+        if (trim($reason) === '') {
+            throw new \InvalidArgumentException('reason_required');
+        }
+        return $this->credit($userId, 'condono', $cents, $reason, null, $staffId, $loanId);
+    }
+
+    /** Manual charge with a mandatory description. */
+    public function manualCharge(int $userId, int $cents, string $description, ?int $staffId): int
+    {
+        if ($cents <= 0 || $cents > self::MAX_AMOUNT_CENTS) {
+            throw new \InvalidArgumentException('invalid_amount');
+        }
+        if (trim($description) === '') {
+            throw new \InvalidArgumentException('description_required');
+        }
+        $id = null;
+        $this->inTransaction(function () use ($userId, $cents, $description, $staffId, &$id): void {
+            $this->lockUser($userId);
+            $id = $this->insert($userId, null, 'addebito_manuale', $cents, self::clip($description), null, $staffId, null);
+        });
+        return (int) $id;
+    }
+
+    /**
+     * Fine a loan would carry if it were returned on $returnDate (default today).
+     *
+     * @return array{days: int, cents: int, enabled: bool}
+     */
+    public function previewLateFine(int $loanId, ?string $returnDate = null): array
+    {
+        $loan = $this->loanRow($loanId);
+        $params = FineParameters::forLoan($this->db, $loanId);
+        if ($loan === null) {
+            return ['days' => 0, 'cents' => 0, 'enabled' => $params->finesEnabled()];
+        }
+        $date = $returnDate ?? DateHelper::today();
+        return [
+            'days' => $this->calculator->daysLate((string) $loan['data_scadenza'], $date),
+            'cents' => $this->calculator->lateFineCents($params, (string) $loan['data_scadenza'], $date),
+            'enabled' => $params->finesEnabled(),
+        ];
+    }
+
+    /**
+     * Fines accruing on the patron's open overdue loans, computed for today and
+     * never written (plan §7: shown, charged only at return).
+     *
+     * @return list<array{loan_id: int, titolo: string, data_scadenza: string, days: int, cents: int}>
+     */
+    public function accruedFines(int $userId): array
+    {
+        $today = DateHelper::today();
+        $stmt = $this->db->prepare(
+            "SELECT p.id, p.data_scadenza, l.titolo
+               FROM prestiti p
+               LEFT JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+              WHERE p.utente_id = ? AND p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo')
+                AND p.data_scadenza < ?
+              ORDER BY p.data_scadenza ASC"
+        );
+        $stmt->bind_param('is', $userId, $today);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $loanId = (int) $row['id'];
+            $params = FineParameters::forLoan($this->db, $loanId);
+            $cents = $this->calculator->lateFineCents($params, (string) $row['data_scadenza'], $today);
+            if ($cents <= 0) {
+                continue;
+            }
+            $out[] = [
+                'loan_id' => $loanId,
+                'titolo' => (string) ($row['titolo'] ?? ''),
+                'data_scadenza' => (string) $row['data_scadenza'],
+                'days' => $this->calculator->daysLate((string) $row['data_scadenza'], $today),
+                'cents' => $cents,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Convert prestiti.sanzione amounts the migration did not reach (archives
+     * past its batch limit) into ledger rows, $batch loans per transaction.
+     * Same key as the migration, so it never doubles an amount.
+     *
+     * @return int movements written
+     */
+    public function backfillLegacyPenalties(int $batch = 500, int $maxBatches = 1000): int
+    {
+        $written = 0;
+        $batch = max(1, min(5000, $batch));
+        $sql = "INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, creato_da, created_at, chiave_idempotenza)
+                SELECT p.utente_id, p.id, IF(p.stato = 'perso', 'addebito_perdita', 'addebito_danno'), p.sanzione,
+                       'Importo registrato alla chiusura del prestito', p.processed_by,
+                       COALESCE(CAST(p.data_restituzione AS DATETIME), p.updated_at, p.created_at, NOW()), CONCAT('penalty:', p.id)
+                  FROM prestiti p
+                 WHERE p.sanzione > 0
+                   AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT('penalty:', p.id))
+                 ORDER BY p.id
+                 LIMIT {$batch}
+                ON DUPLICATE KEY UPDATE movimenti_lettore.id = movimenti_lettore.id";
+        for ($i = 0; $i < $maxBatches; $i++) {
+            if (!$this->db->query($sql)) {
+                break;
+            }
+            $affected = $this->db->affected_rows;
+            if ($affected <= 0) {
+                break;
+            }
+            $written += $affected;
+        }
+        return $written;
+    }
+
+    /**
+     * Charged / collected / waived / reversed per month in [$from, $to].
+     *
+     * @return list<array{mese: string, addebitato: int, incassato: int, condonato: int, stornato: int}>
+     */
+    public function periodTotals(string $from, string $to): array
+    {
+        $fromTs = $from . ' 00:00:00';
+        $toTs = $to . ' 23:59:59';
+        $stmt = $this->db->prepare(
+            "SELECT DATE_FORMAT(created_at, '%Y-%m') AS mese,
+                    SUM(CASE WHEN tipo IN ('multa_ritardo','addebito_perdita','addebito_danno','addebito_manuale') THEN importo ELSE 0 END) AS addebitato,
+                    SUM(CASE WHEN tipo = 'pagamento' THEN -importo ELSE 0 END) AS incassato,
+                    SUM(CASE WHEN tipo = 'condono' THEN -importo ELSE 0 END) AS condonato,
+                    SUM(CASE WHEN tipo = 'storno' THEN -importo ELSE 0 END) AS stornato
+               FROM movimenti_lettore
+              WHERE created_at BETWEEN ? AND ?
+              GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+              ORDER BY mese ASC"
+        );
+        $stmt->bind_param('ss', $fromTs, $toTs);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return array_map(static fn (array $r): array => [
+            'mese' => (string) $r['mese'],
+            'addebitato' => FineParameters::decimalToCents($r['addebitato']),
+            'incassato' => FineParameters::decimalToCents($r['incassato']),
+            'condonato' => FineParameters::decimalToCents($r['condonato']),
+            'stornato' => FineParameters::decimalToCents($r['stornato']),
+        ], $rows);
+    }
+
+    /** Payment or waiver: never more than the patron currently owes. */
+    private function credit(int $userId, string $type, int $cents, ?string $text, ?string $method, ?int $staffId, ?int $loanId): int
+    {
+        if ($cents <= 0 || $cents > self::MAX_AMOUNT_CENTS) {
+            throw new \InvalidArgumentException('invalid_amount');
+        }
+        $id = null;
+        $this->inTransaction(function () use ($userId, $type, $cents, $text, $method, $staffId, $loanId, &$id): void {
+            $this->lockUser($userId);
+            if ($cents > $this->balanceCents($userId)) {
+                throw new \InvalidArgumentException('amount_exceeds_balance');
+            }
+            $id = $this->insert($userId, $loanId, $type, -$cents, $text !== null ? self::clip($text) : null, $method, $staffId, null);
+        });
+        return (int) $id;
+    }
+
+    /** Serialise balance-dependent writes of one patron on the utenti row. */
+    private function lockUser(int $userId): void
+    {
+        $stmt = $this->db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        if ($found === null) {
+            throw new \InvalidArgumentException('user_not_found');
+        }
+    }
+
+    /** Run $work in the caller's transaction, or in a new one when none is open. */
+    private function inTransaction(callable $work): void
+    {
+        $res = $this->db->query('SELECT @@autocommit');
+        $autocommit = $res ? (int) ($res->fetch_row()[0] ?? 1) : 1;
+        if ($autocommit === 0) {
+            $work();
+            return;
+        }
+        $this->db->begin_transaction();
+        try {
+            $work();
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
+    }
+
+    /**
+     * Insert one movement. Returns the new id, or null when the idempotency key
+     * already exists (the event was recorded before).
+     */
+    private function insert(int $userId, ?int $loanId, string $type, int $cents, ?string $description, ?string $method, ?int $staffId, ?string $key): ?int
+    {
+        if (!in_array($type, self::TYPES, true)) {
+            throw new \InvalidArgumentException('invalid_type');
+        }
+        $amount = FineParameters::centsToDecimal($cents);
+        $now = DateHelper::now();
+        $stmt = $this->db->prepare(
+            'INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, metodo_pagamento, creato_da, created_at, chiave_idempotenza)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE id = id'
+        );
+        $stmt->bind_param('iissssiss', $userId, $loanId, $type, $amount, $description, $method, $staffId, $now, $key);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $newId = (int) $stmt->insert_id;
+        $stmt->close();
+        return $affected === 1 ? $newId : null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function loanRow(int $loanId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT id, utente_id, stato, data_scadenza, data_restituzione, sanzione FROM prestiti WHERE id = ?');
+        $stmt->bind_param('i', $loanId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    }
+
+    private function reversalCount(int $loanId): int
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM movimenti_lettore WHERE prestito_id = ? AND tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%'");
+        $stmt->bind_param('i', $loanId);
+        $stmt->execute();
+        $count = (int) ($stmt->get_result()->fetch_row()[0] ?? 0);
+        $stmt->close();
+        return $count;
+    }
+
+    /** late:<id> for the first return, late:<id>:<n> after n reversals. */
+    private function lateKey(int $loanId): string
+    {
+        $reversals = $this->reversalCount($loanId);
+        return 'late:' . $loanId . ($reversals > 0 ? ':' . ($reversals + 1) : '');
+    }
+
+    private static function clip(string $text): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        return mb_substr($text, 0, 255);
+    }
+
+    /**
+     * Readable description of a movement for lists, receipts and the API.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function describe(array $row): string
+    {
+        $type = (string) ($row['tipo'] ?? '');
+        $text = (string) ($row['descrizione'] ?? '');
+        if ($type === 'multa_ritardo' && preg_match('/^(\d+)\|/', $text, $m) === 1) {
+            return sprintf(__('Multa per %d giorni di ritardo'), (int) $m[1]);
+        }
+        return $text;
+    }
+
+    /** Localised label of a movement type. */
+    public static function typeLabel(string $type): string
+    {
+        return match ($type) {
+            'multa_ritardo' => __('Multa per ritardo'),
+            'addebito_perdita' => __('Addebito copia persa'),
+            'addebito_danno' => __('Addebito copia danneggiata'),
+            'addebito_manuale' => __('Addebito manuale'),
+            'pagamento' => __('Pagamento'),
+            'condono' => __('Condono'),
+            'storno' => __('Storno'),
+            default => $type,
+        };
+    }
+
+    /** Localised label of a payment method. */
+    public static function methodLabel(?string $method): string
+    {
+        return match ((string) $method) {
+            'contanti' => __('Contanti'),
+            'pos' => __('POS'),
+            'bonifico' => __('Bonifico'),
+            'altro' => __('Altro'),
+            default => '',
+        };
+    }
+}

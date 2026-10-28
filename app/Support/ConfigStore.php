@@ -468,6 +468,12 @@ final class ConfigStore
                 if (isset($raw['app']['timezone']) && $raw['app']['timezone'] !== '') {
                     self::$dbSettingsCache['app']['timezone'] = (string) $raw['app']['timezone'];
                 }
+                // app.currency (prices, sanzione, patron ledger): without this
+                // mapping a stored value would be inert (allowlist trap) and
+                // every reader would keep seeing the EUR default.
+                if (isset($raw['app']['currency']) && preg_match('/^[A-Za-z]{3}$/', (string) $raw['app']['currency']) === 1) {
+                    self::$dbSettingsCache['app']['currency'] = strtoupper((string) $raw['app']['currency']);
+                }
                 // Load social links
                 $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_linkedin', 'social_bluesky', 'social_telegram'];
                 foreach ($socialKeys as $socialKey) {
