@@ -8670,5 +8670,6 @@
   "Disco sonoro": "Lydplade",
   "Audiocassetta": "Lydkassette",
   "Videodisco": "Videodisk",
-  "Disco per computer": "Computerdisk"
+  "Disco per computer": "Computerdisk",
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Senest afsluttede lageroptælling: »%s«, %s. Afsluttede lageroptællinger i alt: %d."
 }

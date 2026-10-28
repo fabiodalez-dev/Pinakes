@@ -8670,5 +8670,6 @@
   "Disco sonoro": "Audiodisk",
   "Audiocassetta": "Audiokassette",
   "Videodisco": "Videodisk",
-  "Disco per computer": "Computerdisk"
+  "Disco per computer": "Computerdisk",
+  "Ultima revisione chiusa: «%s», %s. Revisioni chiuse in totale: %d.": "Zuletzt abgeschlossene Bestandsrevision: „%s“, %s. Abgeschlossene Bestandsrevisionen insgesamt: %d."
 }
