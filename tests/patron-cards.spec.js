@@ -117,7 +117,10 @@ test.describe.serial('Library cards (phase 7)', () => {
   let savedSettings = [];
 
   test.beforeAll(() => {
-    const raw = dbQuery("SELECT setting_key, setting_value FROM system_settings WHERE category = 'cards'");
+    // HEX on both sides: mysql -B would escape newlines, tabs and backslashes
+    // in the values (card_back_text has newlines) and the restore would store
+    // the escaped text.
+    const raw = dbQuery("SELECT HEX(setting_key), IF(setting_value IS NULL, 'NULL', HEX(setting_value)) FROM system_settings WHERE category = 'cards'");
     savedSettings = raw === '' ? [] : raw.split('\n').map((line) => line.split('\t'));
     dbQuery("DELETE FROM system_settings WHERE category = 'cards'");
     for (const r of READERS) {
@@ -131,7 +134,8 @@ test.describe.serial('Library cards (phase 7)', () => {
     if (ids.length) dbQuery(`DELETE FROM utenti WHERE id IN (${ids.join(',')})`);
     dbQuery("DELETE FROM system_settings WHERE category = 'cards'");
     for (const [k, v] of savedSettings) {
-      dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('cards', ${sqlStr(k)}, ${sqlStr(v)})`);
+      if (!/^[0-9A-F]*$/.test(k) || (v !== 'NULL' && !/^[0-9A-F]*$/.test(v))) continue;
+      dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('cards', CONVERT(UNHEX('${k}') USING utf8mb4), ${v === 'NULL' ? 'NULL' : `CONVERT(UNHEX('${v}') USING utf8mb4)`})`);
     }
   });
 

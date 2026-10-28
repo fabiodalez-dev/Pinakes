@@ -1,7 +1,6 @@
 <?php
 /** @var bool $patronTypes */
 use App\Support\Csrf;
-use App\Support\HtmlHelper;
 
 $csrfToken = Csrf::ensureToken();
 $importI18n = [
@@ -75,7 +74,7 @@ unset($workspaceHeader);
             <?= __("Carica File CSV") ?>
           </h2>
           <form id="user-import-upload-form" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken) ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) $csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <label for="user_import_file" class="block text-sm font-medium text-gray-700 mb-2"><?= __("File CSV degli utenti") ?></label>
             <input type="file" name="csv_file" id="user_import_file" accept=".csv,.tsv,.txt,text/csv" required class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg bg-gray-50 p-2">
             <div class="pk-form-actions mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
