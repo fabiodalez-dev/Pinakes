@@ -146,7 +146,7 @@ function phpHash(password) {
  */
 function createUser(email, password, tipo = 'standard', ruoloId = null) {
   const card = `ZZT${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`.slice(0, 20);
-  dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, ruolo_id, privacy_accettata, locale) VALUES (${sqlString(card)}, 'Zz', 'Toggle', ${sqlString(email)}, ${sqlString(phpHash(password))}, 'attivo', 1, ${sqlString(tipo)}, ${ruoloId === null ? 'NULL' : Number(ruoloId)}, 1, 'it_IT')`);
+  dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, telefono, indirizzo, email, password, stato, email_verificata, tipo_utente, ruolo_id, privacy_accettata, locale) VALUES (${sqlString(card)}, 'Zz', 'Toggle', '3330000000', 'Via Prova 1', ${sqlString(email)}, ${sqlString(phpHash(password))}, 'attivo', 1, ${sqlString(tipo)}, ${ruoloId === null ? 'NULL' : Number(ruoloId)}, 1, 'it_IT')`);
   return Number(dbQuery(`SELECT id FROM utenti WHERE email=${sqlString(email)}`));
 }
 

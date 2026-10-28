@@ -290,6 +290,7 @@ unset($workspaceHeader);
           <?= !empty($dataUltimoAccesso) ? format_date($dataUltimoAccesso, true, '/') : '—'; ?>
         </dd>
       </div>
+      <?php if (\App\Support\Features::enabled('circulation_rules')): // patron types module ?>
       <div>
         <dt class="text-sm text-gray-500"><?= __("Tipologia lettore") ?></dt>
         <dd class="text-sm text-gray-900 mt-1" data-testid="patron-type-name">
@@ -297,6 +298,7 @@ unset($workspaceHeader);
           <?php if (empty($patronTypeIsOwn)): ?><span class="text-xs text-gray-500">(<?= __("predefinita") ?>)</span><?php endif; ?>
         </dd>
       </div>
+      <?php endif; ?>
     </dl>
   </section>
 
