@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  *   php tests/helpers/marc-fixtures.php fixtures
  *       (re)writes the committed files in tests/fixtures/marc/
- *   php tests/helpers/marc-fixtures.php e2e <out-file> <run-id> <count> <mrc|xml|unimarc> [first-index]
+ *   php tests/helpers/marc-fixtures.php e2e <out-file> <run-id> <count> <mrc|xml|unimarc|dvd|...> [first-index]
  *       a file of <count> MARC 21 (or UNIMARC) books whose titles and ISBNs
  *       carry <run-id>, for the Playwright specs
  */
@@ -125,6 +125,11 @@ if ($mode === 'e2e') {
                 ['245', '1', '0', [['a', "Libro esatto {$run} {$n}"]]],
                 ['264', ' ', '1', [['b', "Röss{$run}"], ['c', '2020']]],
             ]);
+            continue;
+        }
+        if ($kind === 'dvd') {
+            // the same records as videorecordings (leader/06 g): a DVD of each book
+            $bytes .= iso('00000ngm a2200000 i 4500', $fields);
             continue;
         }
         if ($kind === 'xml') {

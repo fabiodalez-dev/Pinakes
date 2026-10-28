@@ -128,6 +128,17 @@ test.describe.serial('MARC bulk import', () => {
     // still one book per ISBN, one copy each
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo LIKE '${sqlEscape(title1)}%' AND deleted_at IS NULL`)).toBe('1');
     expect(dbQuery(`SELECT COUNT(*) FROM copie c JOIN libri l ON l.id=c.libro_id WHERE l.titolo='${sqlEscape(title1)}'`)).toBe('1');
+
+    // overwrite updates the media type too: the DVD record of book 03 (same ISBN,
+    // leader/06 g) makes the printed book a DVD; its format is left alone
+    const title3 = `Libro MARC ${RUN} 03`;
+    const mediaOf3 = () => dbQuery(`SELECT CONCAT(tipo_media,'|',formato) FROM libri WHERE titolo='${sqlEscape(title3)}' AND deleted_at IS NULL`);
+    expect(mediaOf3()).toBe('libro|cartaceo');
+    upload = await uploadForPreview(page, marcFile(RUN, 1, 'dvd', 3), { duplicates: 'overwrite' });
+    expect(upload.preview[0].existing_id).toBeGreaterThan(0);
+    result = await confirmImport(page);
+    expect([result.imported, result.updated, result.skipped]).toEqual([0, 1, 0]);
+    expect(mediaOf3()).toBe('dvd|cartaceo');
   });
 
   test('a deleted book does not count as a duplicate: its ISBN was cleared', async ({ page }) => {
