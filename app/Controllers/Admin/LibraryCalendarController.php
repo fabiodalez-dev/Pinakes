@@ -70,6 +70,11 @@ class LibraryCalendarController
         $customHolidays = CustomHolidays::all($db);
         $customEditId = isset($query['custom_edit']) && is_numeric($query['custom_edit']) ? (int) $query['custom_edit'] : 0;
         $customEditing = $customEditId > 0 ? CustomHolidays::find($db, $customEditId) : null;
+        $customDraft = $_SESSION['custom_holiday_draft'] ?? null;
+        unset($_SESSION['custom_holiday_draft']);
+        if (is_array($customDraft) && (int) ($customDraft['id'] ?? 0) === ($customEditing !== null ? $customEditId : 0)) {
+            $customEditing = $customDraft;
+        }
         $customSchema = CustomHolidays::schemaReady($db);
 
         ob_start();
@@ -226,9 +231,12 @@ class LibraryCalendarController
             $_SESSION['error_message'] = __('Le tabelle del calendario non sono ancora state create: completa l\'aggiornamento del database.');
             return $this->backToCustom($response);
         }
-        $row = CustomHolidays::validate((array) $request->getParsedBody(), array_keys($this->branches($db)));
+        $data = (array) $request->getParsedBody();
+        $row = CustomHolidays::validate($data, array_keys($this->branches($db)));
         if (is_string($row)) {
             $_SESSION['error_message'] = $row;
+            // The form comes back with what was typed, not empty or with the stored values.
+            $_SESSION['custom_holiday_draft'] = CustomHolidays::draft($data, $id ?? 0);
             return $this->backToCustom($response, $id);
         }
         CustomHolidays::save($db, $row, $id);

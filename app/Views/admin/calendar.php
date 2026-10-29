@@ -375,7 +375,7 @@ unset($workspaceHeader);
               <label for="custom_calendar" class="form-label"><?= __("Calendario") ?></label>
               <select id="custom_calendar" name="calendario" class="form-input" data-custom-calendar-select>
                 <?php foreach ($calendarCodes as $calendarCode): ?>
-                  <option value="<?= $e($calendarCode) ?>" <?= $customCalendar === $calendarCode ? 'selected' : '' ?> <?= \App\Support\Holidays\WorldCalendars::available($calendarCode) ? '' : 'disabled' ?>><?= $e(\App\Support\Holidays\WorldCalendars::label($calendarCode)) ?></option>
+                  <option value="<?= $e($calendarCode) ?>" <?= $customCalendar === $calendarCode ? 'selected' : '' ?> <?= \App\Support\Holidays\WorldCalendars::available($calendarCode) || $customCalendar === $calendarCode ? '' : 'disabled' ?>><?= $e(\App\Support\Holidays\WorldCalendars::label($calendarCode)) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>

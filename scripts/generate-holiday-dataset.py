@@ -10,6 +10,11 @@ generated (the tests compare both), but Pinakes reads their rules first.
 Run with the pinned version, from the repository root:
     python3 -m venv /tmp/hvenv && /tmp/hvenv/bin/pip install holidays==0.107
     /tmp/hvenv/bin/python -I scripts/generate-holiday-dataset.py
+
+Libraries store the ids of the holidays they ticked, so an id already shipped
+must not change: a holiday renamed upstream keeps its old id when its dates
+are the same, and a shipped id that would disappear stops the run (nothing is
+written) unless --accept-removed is given after checking the list.
 """
 import json
 import os
@@ -81,6 +86,8 @@ def collect(cc, subdiv, category, lang_native, lang_en):
 
 
 def main():
+    accept_removed = "--accept-removed" in sys.argv[1:]
+    outputs, removed = {}, []
     os.makedirs(OUT, exist_ok=True)
     countries = holidays.list_supported_countries(include_aliases=False)
     for cc, subdivs in sorted(countries.items()):
@@ -146,10 +153,37 @@ def main():
             "subdivisions": {sd: aliases.get(sd, sd) for sd in subdivs},
             "holidays": items,
         }
+        removed += [f"{cc}:{hid}" for hid in keep_shipped_ids(cc, items)]
+        outputs[cc] = data
+    if removed and not accept_removed:
+        sys.exit("Shipped holiday ids would disappear (a library may have ticked them):\n  " + "\n  ".join(removed)
+                 + "\nNothing written. Check them, then rerun with --accept-removed.")
+    for cc, data in outputs.items():
         with open(os.path.join(OUT, f"{cc}.json"), "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
             fh.write("\n")
     print(f"{len(countries)} countries written to {os.path.normpath(OUT)}")
+
+
+def keep_shipped_ids(cc, items):
+    """
+    Give back its shipped id to a holiday whose id changed (a renamed holiday:
+    same category, same dates). Returns the shipped ids still missing.
+    """
+    path = os.path.join(OUT, f"{cc}.json")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        shipped = json.load(fh).get("holidays", [])
+    fingerprint = lambda h: (h.get("category"), h.get("dates"), json.dumps(h.get("regional"), sort_keys=True))
+    current = {h["id"] for h in items}
+    missing = {fingerprint(h): h["id"] for h in shipped if h["id"] not in current}
+    for item in items:
+        old = missing.get(fingerprint(item))
+        if old is not None and item["id"] not in {h["id"] for h in shipped}:
+            item["id"] = old
+            del missing[fingerprint(item)]
+    return sorted(missing.values())
 
 
 def first_day(e):

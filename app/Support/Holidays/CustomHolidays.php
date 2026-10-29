@@ -251,8 +251,8 @@ final class CustomHolidays
                 $row['date_specifiche'] = implode(',', $dates);
                 break;
         }
-        $days = $int('durata_giorni') ?? 1;
-        if ($days < 1 || $days > HolidayCalculator::MAX_DAYS) {
+        $days = $str('durata_giorni') === '' ? 1 : $int('durata_giorni');
+        if ($days === null || $days < 1 || $days > HolidayCalculator::MAX_DAYS) {
             return sprintf(__('La durata va da 1 a %d giorni.'), HolidayCalculator::MAX_DAYS);
         }
         $row['durata_giorni'] = $days;
@@ -273,10 +273,51 @@ final class CustomHolidays
         }
         $row['anno_inizio'] = $from;
         $row['anno_fine'] = $until;
-        $branch = $int('sede_id');
-        $row['sede_id'] = $branch !== null && in_array($branch, $branchIds, true) ? $branch : null;
+        // Empty or 0 is every branch; any other value must be an existing branch,
+        // never silently widened to the whole library.
+        $branch = $str('sede_id') === '' ? 0 : $int('sede_id');
+        if ($branch === null || ($branch !== 0 && !in_array($branch, $branchIds, true))) {
+            return __('Sede non trovata.');
+        }
+        $row['sede_id'] = $branch === 0 ? null : $branch;
         $row['attiva'] = ($data['attiva'] ?? null) === '1' ? 1 : 0;
         return $row;
+    }
+
+    /**
+     * The submitted form as a stored row, unvalidated, so that a refused form
+     * comes back with what the administrator typed instead of empty or with
+     * the old values. Only for refilling the form, never for saving.
+     *
+     * @param array<string, mixed> $data the fields read by validate()
+     * @return array<string, mixed>
+     */
+    public static function draft(array $data, int $id = 0): array
+    {
+        $str = static fn (string $k): string => is_scalar($data[$k] ?? null) ? mb_substr(trim((string) $data[$k]), 0, 2000) : '';
+        $kind = in_array($str('tipo'), self::KINDS, true) ? $str('tipo') : 'fixed';
+        $calendar = WorldCalendars::exists($str('calendario')) ? $str('calendario') : null;
+        $month = match ($kind) {
+            'fixed' => $str('fixed_mese'),
+            'nth_weekday' => $str('nth_mese'),
+            'calendar' => $calendar !== null ? $str('cal_mese_' . $calendar) : '',
+            default => '',
+        };
+        $day = match ($kind) {
+            'fixed' => $str('fixed_giorno'),
+            'calendar' => $str('cal_giorno'),
+            default => '',
+        };
+        $blank = static fn (string $v): ?string => $v === '' ? null : $v;
+        return [
+            'id' => $id, 'nome' => $str('nome'), 'tipo' => $kind, 'mese' => $blank($month), 'giorno' => $blank($day),
+            'giorno_settimana' => $blank($str('nth_giorno_settimana')), 'occorrenza' => $blank($str('nth_occorrenza')),
+            'scarto_giorni' => $blank($str('scarto')), 'calendario' => $calendar,
+            'date_specifiche' => $blank(str_replace(["\r\n", "\n", "\r"], ',', $str('date_specifiche'))),
+            'durata_giorni' => $blank($str('durata_giorni')), 'fine_settimana' => $blank($str('fine_settimana')),
+            'sede_id' => $blank($str('sede_id')), 'anno_inizio' => $blank($str('anno_inizio')), 'anno_fine' => $blank($str('anno_fine')),
+            'attiva' => ($data['attiva'] ?? null) === '1' ? 1 : 0,
+        ];
     }
 
     /** @param array<string, mixed> $row the output of validate() */

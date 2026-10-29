@@ -11,6 +11,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const path = require('path');
+const F = require('./helpers/circulation-fixtures');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -224,6 +225,13 @@ test.describe('Holidays for every country and calendar', () => {
     await page.fill('#custom_name', `${name} renamed`);
     await Promise.all([page.waitForURL(/\/admin\/calendar/), page.locator('#save-custom-holiday').click()]);
     await expect(customRow(page, `${name} renamed`)).toBeVisible();
+    // A rename keeps how the day is computed: still 24 June, read back into the form.
+    expect(db(`SELECT CONCAT(tipo, '/', mese, '/', giorno) FROM festivita_personalizzate WHERE nome=${S(name + ' renamed')}`)).toBe('fixed/6/24');
+    await customRow(page, `${name} renamed`).locator('[data-action="edit-custom-holiday"]').click();
+    await expect(page.locator('#custom_kind')).toHaveValue('fixed');
+    await expect(page.locator('#custom_fixed_day')).toHaveValue('24');
+    await expect(page.locator('#custom_fixed_month')).toHaveValue('6');
+    await page.goto(`${BASE}/admin/calendar#calendar-custom`);
     const expected = `${year}-06-24` >= today ? `${year}-06-24` : `${year + 1}-06-24`;
 
     await Promise.all([page.waitForURL(/\/admin\/calendar/), customRow(page, `${name} renamed`).locator('[data-action="toggle-custom-holiday"]').click()]);
@@ -242,5 +250,72 @@ test.describe('Holidays for every country and calendar', () => {
     await addCustom(page, { name, kind: 'fixed', day: 31, month: 2 });
     await expect(page.locator('body')).toContainText(/La data indicata non esiste|That date does not exist/);
     expect(db(`SELECT COUNT(*) FROM festivita_personalizzate WHERE nome=${S(name)}`)).toBe('0');
+    // The form comes back with what was typed, ready to be corrected.
+    await expect(page.locator('#custom_name')).toHaveValue(name);
+    await expect(page.locator('#custom_kind')).toHaveValue('fixed');
+    await expect(page.locator('#custom_fixed_day')).toHaveValue('31');
+    await expect(page.locator('#custom_fixed_month')).toHaveValue('2');
+    await page.fill('#custom_fixed_day', '28');
+    await Promise.all([page.waitForURL(/\/admin\/calendar/), page.locator('#save-custom-holiday').click()]);
+    expect(db(`SELECT CONCAT(mese, '/', giorno) FROM festivita_personalizzate WHERE nome=${S(name)}`)).toBe('2/28');
+  });
+
+  test('11. a refused edit keeps the typed values on the same holiday; a vanished branch is refused', async () => {
+    const name = `${TAG} impossible`;
+    const id = db(`SELECT id FROM festivita_personalizzate WHERE nome=${S(name)}`);
+    await page.goto(`${BASE}/admin/calendar#calendar-custom`);
+    await customRow(page, name).locator('[data-action="edit-custom-holiday"]').click();
+    await page.fill('#custom_name', `${name} edited`);
+    // Each year is valid on its own, so only the server can refuse the pair.
+    await page.fill('#custom_from', '2040');
+    await page.fill('#custom_until', '2030');
+    await Promise.all([page.waitForURL(/custom_edit=/), page.locator('#save-custom-holiday').click()]);
+    await expect(page.locator('body')).toContainText(/L’ultimo anno non può precedere il primo|The last year cannot come before the first/);
+    await expect(page.locator('#custom_name')).toHaveValue(`${name} edited`);
+    await expect(page.locator('#custom_from')).toHaveValue('2040');
+    await expect(page.locator('#custom_until')).toHaveValue('2030');
+    await expect(page.locator('#custom-holiday-form')).toHaveAttribute('action', new RegExp(`/custom-holidays/${id}/update$`));
+    expect(db(`SELECT CONCAT(nome, '|', COALESCE(anno_inizio, '-'), '|', COALESCE(anno_fine, '-')) FROM festivita_personalizzate WHERE id=${id}`)).toBe(`${name}|-|-`);
+
+    // A branch removed while the form was open: the holiday is refused, not widened to every branch.
+    const csrf = String(await page.locator('meta[name="csrf-token"]').getAttribute('content'));
+    const r = await page.request.post(`${BASE}/admin/calendar/custom-holidays`, {
+      form: { csrf_token: csrf, nome: `${TAG} ghost branch`, tipo: 'fixed', fixed_mese: '5', fixed_giorno: '5', sede_id: '999999', attiva: '1' },
+      maxRedirects: 0,
+    });
+    expect(r.status()).toBe(302);
+    expect(db(`SELECT COUNT(*) FROM festivita_personalizzate WHERE nome=${S(TAG + ' ghost branch')}`)).toBe('0');
+  });
+
+  test('12. staff cannot add, change, suspend or delete a holiday of the library; a form without its token is refused', async ({ browser }) => {
+    const id = db(`SELECT id FROM festivita_personalizzate WHERE nome=${S(TAG + ' impossible')}`);
+    const snapshot = () => db(`SELECT CONCAT(COUNT(*), '|', COALESCE(SUM(attiva), 0), '|', COALESCE(GROUP_CONCAT(nome ORDER BY id), '')) FROM festivita_personalizzate WHERE nome LIKE ${S(TAG + '%')}`);
+    const before = snapshot();
+    const staff = F.createPatron(`HWS${RUN}`, { role: 'staff', password: 'Staff1234!' });
+    const staffPage = await (await browser.newContext()).newPage();
+    try {
+      await F.loginAs(staffPage, staff.email, 'Staff1234!');
+      await staffPage.goto(`${BASE}/admin/dashboard`);
+      const csrf = String(await staffPage.locator('meta[name="csrf-token"]').getAttribute('content'));
+      const fields = { tipo: 'fixed', fixed_mese: '5', fixed_giorno: '5', attiva: '1' };
+      for (const [route, form] of [
+        ['/admin/calendar/custom-holidays', { ...fields, nome: `${TAG} staff` }],
+        [`/admin/calendar/custom-holidays/${id}/update`, { ...fields, nome: `${TAG} staff edit` }],
+        [`/admin/calendar/custom-holidays/${id}/toggle`, {}],
+        [`/admin/calendar/custom-holidays/${id}/delete`, {}],
+      ]) {
+        const r = await staffPage.request.post(`${BASE}${route}`, { form: { csrf_token: csrf, ...form }, maxRedirects: 0 });
+        expect(r.status(), route).toBe(302);
+        expect(r.headers()['location'] || '', route).toMatch(/\/admin\/dashboard/);
+      }
+    } finally {
+      await staffPage.context().close();
+      F.deletePatrons([staff.id]);
+    }
+    expect(snapshot()).toBe(before);
+
+    const noToken = await page.request.post(`${BASE}/admin/calendar/custom-holidays/${id}/delete`, { form: {}, maxRedirects: 0 });
+    expect(noToken.status()).toBe(403);
+    expect(snapshot()).toBe(before);
   });
 });

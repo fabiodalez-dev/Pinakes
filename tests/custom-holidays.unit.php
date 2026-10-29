@@ -95,8 +95,29 @@ $eq(is_string($valid(['tipo' => 'calendar', 'calendario' => 'hebrew', 'cal_mese_
 $eq(is_string($valid(['tipo' => 'dates', 'date_specifiche' => 'tomorrow'])), true, 'a list without a valid date is refused');
 $eq(is_string($valid(['tipo' => 'fixed', 'fixed_mese' => '1', 'fixed_giorno' => '1', 'durata_giorni' => '15'])), true, 'more than 14 days is refused');
 $eq(is_string($valid(['tipo' => 'fixed', 'fixed_mese' => '1', 'fixed_giorno' => '1', 'anno_inizio' => '2030', 'anno_fine' => '2020'])), true, 'a last year before the first is refused');
-$branchless = $valid(['tipo' => 'fixed', 'fixed_mese' => '6', 'fixed_giorno' => '24', 'sede_id' => '99']);
-$eq(is_array($branchless) && $branchless['sede_id'] === null, true, 'an unknown branch means every branch');
+$eq($valid(['tipo' => 'fixed', 'fixed_mese' => '6', 'fixed_giorno' => '24', 'sede_id' => '99']), 'Sede non trovata.', 'an unknown branch is refused, never widened to every branch');
+$eq($valid(['tipo' => 'fixed', 'fixed_mese' => '6', 'fixed_giorno' => '24', 'sede_id' => 'x']), 'Sede non trovata.', 'a branch that is not a number is refused');
+foreach (['' => 'empty', '0' => '0'] as $sede => $label) {
+    $everyBranch = $valid(['tipo' => 'fixed', 'fixed_mese' => '6', 'fixed_giorno' => '24', 'sede_id' => (string) $sede]);
+    $eq(is_array($everyBranch) && $everyBranch['sede_id'] === null, true, "branch {$label} means every branch");
+}
+$known = $valid(['tipo' => 'fixed', 'fixed_mese' => '6', 'fixed_giorno' => '24', 'sede_id' => '7']);
+$eq(is_array($known) ? $known['sede_id'] : null, 7, 'an existing branch is kept');
+foreach (['abc', '2.5', '-1', '0'] as $bad) {
+    $eq(is_string($valid(['tipo' => 'fixed', 'fixed_mese' => '1', 'fixed_giorno' => '1', 'durata_giorni' => $bad])), true, "a duration of '{$bad}' is refused, not saved as one day");
+}
+$oneDay = $valid(['tipo' => 'fixed', 'fixed_mese' => '1', 'fixed_giorno' => '1', 'durata_giorni' => '']);
+$eq(is_array($oneDay) ? $oneDay['durata_giorni'] : null, 1, 'an empty duration is one day');
+
+// A refused form comes back with what was typed.
+$draft = CustomHolidays::draft(['nome' => ' Patrono ', 'tipo' => 'calendar', 'calendario' => 'hebrew', 'cal_mese_hebrew' => '7', 'cal_mese_persian' => '3',
+    'cal_giorno' => '14', 'durata_giorni' => 'abc', 'sede_id' => '99', 'anno_inizio' => '2030', 'date_specifiche' => "2026-01-01\r\n2027-01-01"], 12);
+$eq([$draft['id'], $draft['nome'], $draft['tipo'], $draft['calendario'], $draft['mese'], $draft['giorno'], $draft['durata_giorni'], $draft['sede_id'], $draft['anno_inizio'], $draft['attiva']],
+    [12, 'Patrono', 'calendar', 'hebrew', '7', '14', 'abc', '99', '2030', 0], 'the draft keeps the typed values, the month of the chosen calendar');
+$eq($draft['date_specifiche'], '2026-01-01,2027-01-01', 'the draft keeps the listed dates');
+$fixedDraft = CustomHolidays::draft(['tipo' => 'fixed', 'fixed_mese' => '6', 'fixed_giorno' => '24', 'nth_mese' => '3', 'attiva' => '1']);
+$eq([$fixedDraft['id'], $fixedDraft['mese'], $fixedDraft['giorno'], $fixedDraft['attiva']], [0, '6', '24', 1], 'a fixed draft reads the fixed month, not the others');
+$eq(CustomHolidays::draft(['tipo' => 'nope', 'calendario' => 'mayan'])['tipo'] . '/' . var_export(CustomHolidays::draft(['calendario' => 'mayan'])['calendario'], true), 'fixed/NULL', 'an unknown kind or calendar is not echoed back');
 $multi = $valid(['tipo' => 'fixed', 'fixed_mese' => '12', 'fixed_giorno' => '24', 'durata_giorni' => '3', 'fine_settimana' => 'next_monday']);
 $eq(is_array($multi) && $multi['fine_settimana'] === null, true, 'a weekend rule applies to one-day holidays only');
 $eq(H::datesOf(CustomHolidays::rule($multi + ['id' => 1]), 2026), ['2026-12-24', '2026-12-25', '2026-12-26'], 'a three-day closure');
@@ -134,6 +155,16 @@ try {
     $db->query("INSERT INTO sedi (nome) VALUES ('ZZ custom holiday branch')");
     $branch = (int) $db->insert_id;
     Features::override('closures_calendar', true);
+    // A connection lost after the schema was checked (the check is cached per
+    // connection) leaves an open calendar, not an exception in a due date.
+    $broken = $socket !== '' && file_exists($socket) ? new mysqli(null, $user, $pw, $name, 0, $socket) : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), $user, $pw, $name, (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+    $eq(CustomHolidays::schemaReady($broken), true, 'the second connection sees the table');
+    $db->query('KILL ' . (int) $broken->thread_id);
+    try {
+        $eq(LibraryCalendar::fromDatabase($broken)->isOpen('2031-03-04'), true, 'unreadable holiday rules fall back to an open calendar');
+    } catch (Throwable $e) {
+        $eq(get_class($e) . ': ' . $e->getMessage(), 'no exception', 'unreadable holiday rules fall back to an open calendar');
+    }
     $add = static function (array $data) use ($db, $branch): int {
         $row = CustomHolidays::validate(array_replace(['nome' => 'ZZ custom', 'attiva' => '1'], $data), [$branch]);
         if (!is_array($row)) {

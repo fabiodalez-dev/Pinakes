@@ -49,7 +49,7 @@ final class LibraryCalendar
     /** @var list<array{start: string, end: string, yearly: bool, sede: ?int}> */
     private array $closures = [];
 
-    /** @var list<array<string, mixed>> selected holiday rules, evaluated for any year */
+    /** @var list<array<string, mixed>> selected holiday rules, evaluated for any year (dataset countries: the years of their file) */
     private array $holidayRules;
 
     /** @var array<int, array<string, array<int|string, true>>> per year: date => branches ('*' = every branch) */
@@ -116,9 +116,21 @@ final class LibraryCalendar
         if (!$configuration && !Features::enabled('closures_calendar')) {
             return new self([], []);
         }
-        $presetRules = Holidays\HolidayPresets::calendarRules($db);
+        // A selection that cannot be read falls back to the stored closure rows,
+        // as the other loaders fall back instead of failing a due date.
+        try {
+            $presetRules = Holidays\HolidayPresets::calendarRules($db);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar: holiday selection not read: ' . $e->getMessage());
+            $presetRules = null;
+        }
         // The library's own holidays (any calendar, optionally for one branch) join the presets.
-        $customRules = Holidays\CustomHolidays::calendarRules($db);
+        try {
+            $customRules = Holidays\CustomHolidays::calendarRules($db);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar: custom holidays not read: ' . $e->getMessage());
+            $customRules = [];
+        }
         return new self(self::loadClosedWeekdays($db), self::loadClosures($db, $presetRules !== null), array_merge($presetRules ?? [], $customRules));
     }
 

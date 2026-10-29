@@ -156,6 +156,7 @@ final class HolidayDataset
 
     /**
      * The dates of holiday $id in $year (national, plus those of $region).
+     * None outside the years of the file (years()): that day counts as open.
      *
      * @return list<string>
      */
