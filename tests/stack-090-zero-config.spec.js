@@ -48,6 +48,10 @@ function writeSetting(category, key, value) {
   if (value === null) F.dbQuery(`DELETE FROM system_settings WHERE category=${F.sqlStr(category)} AND setting_key=${F.sqlStr(key)}`);
   else F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES (${F.sqlStr(category)}, ${F.sqlStr(key)}, ${F.sqlStr(value)}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
 }
+// Drops the file-backed settings cache used when APCu is off (local slots).
+// With APCu (CI) this is a no-op: the settings these specs change are read
+// through SettingsRepository, which is not cached, and email settings are
+// refreshed by saving a settings tab through the app.
 function clearConfigCache() {
   const cacheDir = path.join(__dirname, '..', 'storage', 'cache');
   if (!fs.existsSync(cacheDir)) return;
@@ -245,6 +249,11 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
   test('5. a late return charges nothing, the loan page shows no fine and the return email has no fine line', async () => {
     let mailpit = false;
     try { mailpit = (await fetch(`${MAILPIT_API}/messages`, { signal: AbortSignal.timeout(3000) })).ok; } catch { mailpit = false; }
+    // In CI Mailpit is a service of the job: without it the e-mail half of
+    // this test would pass silently, so it fails instead. Locally it is optional.
+    if (!mailpit && process.env.CI) {
+      throw new Error(`Mailpit is not reachable at ${MAILPIT_API} in CI`);
+    }
     if (mailpit) {
       F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES
         ('email','type','smtp'),('email','driver_mode','smtp'),('email','smtp_host','localhost'),('email','smtp_port','1025'),
