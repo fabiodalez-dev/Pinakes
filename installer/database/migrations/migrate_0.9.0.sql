@@ -439,13 +439,24 @@ INSERT INTO system_settings (category, setting_key, setting_value, description)
 SELECT 'features', 'rda_types', @ft_val, 'Optional module: RDA types' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'rda_types');
 -- Fines: a ledger row the legacy-penalty conversion did not write (key penalty:<id>),
--- or a daily fine already configured.
+-- a daily fine or a debt threshold already configured, globally, on a patron
+-- type or on a cell of the rules matrix.
 SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore');
 SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM movimenti_lettore WHERE chiave_idempotenza IS NULL OR chiave_idempotenza NOT LIKE ''penalty:%''), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
 PREPARE ft_stmt FROM @ft_sql;
 EXECUTE ft_stmt;
 DEALLOCATE PREPARE ft_stmt;
-SET @ft_val = IF(@ft_val = '1' OR EXISTS(SELECT 1 FROM system_settings WHERE category = 'loans' AND setting_key = 'daily_fine' AND setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2})?$' AND CAST(REPLACE(setting_value, ',', '.') AS DECIMAL(10,2)) > 0), '1', '0');
+SET @ft_val = IF(@ft_val = '1' OR EXISTS(SELECT 1 FROM system_settings WHERE category = 'loans' AND setting_key IN ('daily_fine', 'debt_block_threshold') AND setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2})?$' AND CAST(REPLACE(setting_value, ',', '.') AS DECIMAL(10,2)) > 0), '1', '0');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tipologie_lettore' AND COLUMN_NAME IN ('multa_giornaliera', 'soglia_blocco_debito'));
+SET @ft_sql = IF(@ft_has = 2 AND @ft_val = '0', 'SELECT IF(EXISTS(SELECT 1 FROM tipologie_lettore WHERE multa_giornaliera > 0 OR soglia_blocco_debito > 0), ''1'', ''0'') INTO @ft_val', 'SELECT @ft_val INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'regole_prestito' AND COLUMN_NAME = 'multa_giornaliera');
+SET @ft_sql = IF(@ft_has = 1 AND @ft_val = '0', 'SELECT IF(EXISTS(SELECT 1 FROM regole_prestito WHERE multa_giornaliera > 0), ''1'', ''0'') INTO @ft_val', 'SELECT @ft_val INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
 INSERT INTO system_settings (category, setting_key, setting_value, description)
 SELECT 'features', 'fines', @ft_val, 'Optional module: Fines and patron ledger' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'fines');

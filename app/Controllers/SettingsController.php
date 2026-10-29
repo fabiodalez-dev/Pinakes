@@ -1810,7 +1810,19 @@ class SettingsController
             $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
             // The three circulation modules of this tab (patron type rules,
             // closures calendar, fines): library policy, administrators only.
+            $calendarWasOn = \App\Support\Features::enabled('closures_calendar');
             $this->saveFeatureSwitches($repository, $data, \App\Support\Features::LOANS_TAB);
+            // The calendar switched on applies its closures at once: a pending
+            // pickup whose deadline now falls on a closed day moves to the
+            // next open day, as when the calendar itself is saved.
+            if (\App\Support\Features::enabled('closures_calendar') !== $calendarWasOn) {
+                \App\Support\LibraryCalendar::reset();
+                try {
+                    \App\Support\LibraryCalendar::extendPickupDeadlines($db);
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
+                }
+            }
         }
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from

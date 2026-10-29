@@ -439,7 +439,9 @@ class LibraryCalendarController
     /**
      * An identical closure is already stored (same interval, recurrence and
      * branch; a yearly row matches the same month-day span in any year), so
-     * importing a preset or a file twice adds nothing.
+     * importing a file twice adds nothing. Holiday preset rows do not count:
+     * unticking that holiday later removes them, and the day the file
+     * names must stay closed.
      *
      * @param array{start: string, end: string, description: string, yearly: bool, sede: ?int} $row
      */
@@ -447,13 +449,14 @@ class LibraryCalendarController
     {
         $yearly = $row['yearly'] ? 1 : 0;
         $sede = $row['sede'] ?? 0;
+        $manual = HolidayPresets::schemaReady($db) ? ' AND regola_festivita IS NULL' : '';
         if ($yearly === 1) {
             $from = substr($row['start'], 5);
             $to = substr($row['end'], 5);
-            $stmt = $db->prepare("SELECT 1 FROM calendario_chiusure WHERE ricorrente_annuale = 1 AND DATE_FORMAT(data_inizio, '%m-%d') = ? AND DATE_FORMAT(data_fine, '%m-%d') = ? AND COALESCE(sede_id, 0) = ? LIMIT 1");
+            $stmt = $db->prepare("SELECT 1 FROM calendario_chiusure WHERE ricorrente_annuale = 1 AND DATE_FORMAT(data_inizio, '%m-%d') = ? AND DATE_FORMAT(data_fine, '%m-%d') = ? AND COALESCE(sede_id, 0) = ?{$manual} LIMIT 1");
             $stmt->bind_param('ssi', $from, $to, $sede);
         } else {
-            $stmt = $db->prepare('SELECT 1 FROM calendario_chiusure WHERE ricorrente_annuale = 0 AND data_inizio = ? AND data_fine = ? AND COALESCE(sede_id, 0) = ? LIMIT 1');
+            $stmt = $db->prepare("SELECT 1 FROM calendario_chiusure WHERE ricorrente_annuale = 0 AND data_inizio = ? AND data_fine = ? AND COALESCE(sede_id, 0) = ?{$manual} LIMIT 1");
             $stmt->bind_param('ssi', $row['start'], $row['end'], $sede);
         }
         $stmt->execute();

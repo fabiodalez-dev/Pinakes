@@ -360,4 +360,26 @@ test.describe('Public holiday presets', () => {
     expect(await holidayDate(page, 'FR:vendredi_saint')).toBe(addDays(easter(year), -2));
     expect(await holidayDate(page, 'FR:saint_etienne')).toBe(`${year}-12-26`);
   });
+
+  test('13. a file that closes on a ticked holiday adds its own closure: unticking the holiday later keeps the day closed', async () => {
+    await chooseCountry(page, 'IT');
+    await page.locator('[data-holiday-select="none"]').click();
+    await box(page, 'IT:christmas').check();
+    await submitAndLand(page, '#import-preset');
+    expect(presetCount("regola_festivita='IT:christmas'")).toBe(1);
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//E2E//Pinakes//IT',
+      'BEGIN:VEVENT', 'UID:h13@e2e', `DTSTART;VALUE=DATE:${year}1225`, 'RRULE:FREQ=YEARLY', `SUMMARY:${TAG} ics natale`, 'END:VEVENT',
+      'END:VCALENDAR', ''].join('\r\n');
+    await page.goto(`${BASE}/admin/calendar`);
+    await page.setInputFiles('#ics_file', { name: 'chiusure.ics', mimeType: 'text/calendar', buffer: Buffer.from(ics) });
+    await submitAndLand(page, '#import-ics');
+    expect(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE regola_festivita IS NULL AND ricorrente_annuale=1 AND descrizione=${S(TAG + ' ics natale')}`)).toBe('1');
+    // The library no longer closes for the holiday, but the file still says closed.
+    await chooseCountry(page, 'IT');
+    await page.locator('[data-holiday-select="none"]').click();
+    await submitAndLand(page, '#import-preset');
+    expect(presetCount()).toBe(0);
+    await page.goto(`${BASE}/admin/calendar?month=${year + 1}-12`);
+    await expect(page.locator(`[data-calendar-day="${year + 1}-12-25"]`)).toHaveAttribute('data-closed', '1');
+  });
 });

@@ -51,6 +51,7 @@ test.describe.serial('Feature toggle: closures calendar', () => {
   test.afterAll(async () => {
     await ft.restoreFeatures(snapshot);
     ft.dbQuery(`DELETE FROM calendario_chiusure WHERE descrizione LIKE 'ZZ_FT_CAL %'`);
+    if (bookId > 0) ft.dbQuery(`DELETE FROM prestiti WHERE libro_id=${bookId}`);
     mf.deleteBooks([bookId]);
     await page?.close();
   });
@@ -107,7 +108,14 @@ test.describe.serial('Feature toggle: closures calendar', () => {
   });
 
   test('6. switched back on: entry, page and the closure stored before are back', async () => {
+    // A pickup set up while the calendar was off, due on the closed day.
+    const copyId = ft.dbQuery(`SELECT id FROM copie WHERE libro_id=${bookId} ORDER BY id LIMIT 1`);
+    const userId = ft.dbQuery('SELECT id FROM utenti ORDER BY id LIMIT 1');
+    ft.dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, pickup_deadline) VALUES (${bookId}, ${copyId}, ${userId}, CURDATE(), CURDATE() + INTERVAL 30 DAY, 'da_ritirare', 1, '${closed}')`);
     await ft.setModuleInUi(page, 'closures_calendar', true);
+    // Switching the calendar on moves it to the next open day at once.
+    const deadline = ft.dbQuery(`SELECT DATE_FORMAT(pickup_deadline, '%Y-%m-%d') FROM prestiti WHERE libro_id=${bookId} AND stato='da_ritirare'`);
+    expect(deadline > closed).toBe(true);
     await expect(page.locator('#open-closures-calendar')).toBeVisible();
     await page.locator('#open-closures-calendar').click();
     await expect(page).toHaveURL(/\/admin\/calendar/);

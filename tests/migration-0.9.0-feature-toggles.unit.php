@@ -10,7 +10,8 @@ declare(strict_types=1);
  *     the eleven rows with Features::DEFAULTS, a second run changes nothing;
  *  B. a value the operator already saved is never overwritten;
  *  C. an upgrade from a 0.9.0 release candidate whose library used a module
- *     (sessions, suppliers, visits, RDA overrides, ledger rows, a daily fine)
+ *     (sessions, suppliers, visits, RDA overrides, ledger rows, a daily fine,
+ *     a debt threshold, globally or per patron type, a fine in the rules matrix)
  *     starts that module ON; legacy-penalty rows alone do not turn fines on;
  *  D. the full migration file, every section, then this one: same defaults.
  *
@@ -142,6 +143,28 @@ try {
     $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'daily_fine', '0,50')");
     $run($db, $section);
     $check($rows($db)['fines'] === '1', 'C: a configured daily fine keeps fines on');
+    $db->query("DELETE FROM system_settings WHERE category = 'features' AND setting_key = 'fines'");
+    $db->query("UPDATE system_settings SET setting_value = '' WHERE category = 'loans' AND setting_key = 'daily_fine'");
+    $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'debt_block_threshold', '10.00')");
+    $run($db, $section);
+    $check($rows($db)['fines'] === '1', 'C: a configured debt threshold alone keeps fines on (the debt block stays)');
+    $db->query("DELETE FROM system_settings WHERE category = 'features' AND setting_key = 'fines'");
+    $db->query("UPDATE system_settings SET setting_value = '0' WHERE category = 'loans' AND setting_key = 'debt_block_threshold'");
+    $db->query('CREATE TABLE tipologie_lettore (id int NOT NULL AUTO_INCREMENT PRIMARY KEY, multa_giornaliera decimal(10,2) DEFAULT NULL, soglia_blocco_debito decimal(10,2) DEFAULT NULL)');
+    $db->query('CREATE TABLE regole_prestito (id int NOT NULL AUTO_INCREMENT PRIMARY KEY, multa_giornaliera decimal(10,2) DEFAULT NULL)');
+    $db->query('INSERT INTO tipologie_lettore (multa_giornaliera, soglia_blocco_debito) VALUES (NULL, NULL), (0.00, 0.00)');
+    $db->query('INSERT INTO regole_prestito (multa_giornaliera) VALUES (NULL), (0.00)');
+    $run($db, $section);
+    $check($rows($db)['fines'] === '0', 'C: a zero threshold and types and rules without amounts leave fines off');
+    $db->query("DELETE FROM system_settings WHERE category = 'features' AND setting_key = 'fines'");
+    $db->query('UPDATE tipologie_lettore SET soglia_blocco_debito = 20.00 WHERE id = 2');
+    $run($db, $section);
+    $check($rows($db)['fines'] === '1', 'C: a debt threshold on a patron type keeps fines on');
+    $db->query("DELETE FROM system_settings WHERE category = 'features' AND setting_key = 'fines'");
+    $db->query('UPDATE tipologie_lettore SET soglia_blocco_debito = NULL');
+    $db->query('UPDATE regole_prestito SET multa_giornaliera = 0.20 WHERE id = 2');
+    $run($db, $section);
+    $check($rows($db)['fines'] === '1', 'C: a daily fine on a cell of the rules matrix keeps fines on');
     $db->query("DELETE FROM system_settings WHERE category = 'features' AND setting_key = 'rda_types'");
     $db->query("UPDATE libri SET deleted_at = NOW()");
     $run($db, $section);
