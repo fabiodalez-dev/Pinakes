@@ -21,7 +21,7 @@ use App\Services\PatronLedger;
 $ledgerE = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $ledgerFmt = static fn (int $cents): string => FineParameters::format($cents);
 $ledgerAccruedTotal = array_sum(array_map(static fn (array $a): int => $a['cents'], $ledgerAccrued));
-$ledgerBlocked = $ledgerParams->debtBlockEnabled() && $ledgerBalanceCents > (int) $ledgerParams->debtBlockThresholdCents;
+$ledgerBlocked = \App\Support\Features::enabled('debt_block') && $ledgerParams->debtBlockEnabled() && $ledgerBalanceCents > (int) $ledgerParams->debtBlockThresholdCents;
 $ledgerFlash = is_scalar($_GET['ledger'] ?? null) ? (string) $_GET['ledger'] : '';
 $ledgerError = is_scalar($_GET['ledger_error'] ?? null) ? (string) $_GET['ledger_error'] : '';
 $ledgerMovementId = (int) (is_scalar($_GET['movement'] ?? null) ? $_GET['movement'] : 0);

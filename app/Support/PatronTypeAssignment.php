@@ -185,7 +185,9 @@ final class PatronTypeAssignment
             && DateHelper::isISODateFormat($currentExpiry) && $currentExpiry > $base) {
             $base = $currentExpiry;
         }
-        return (new \DateTimeImmutable($base))->modify('+' . max(0, $days) . ' days')->format('Y-m-d');
+        $expiry = (new \DateTimeImmutable($base))->modify('+' . max(0, $days) . ' days');
+        // MySQL DATE ends at 9999-12-31; lifetime cards must remain renewable.
+        return (int) $expiry->format('Y') > 9999 ? '9999-12-31' : $expiry->format('Y-m-d');
     }
 
     /**

@@ -355,7 +355,7 @@ try {
     });
 
 
-    $test('27 Ledger-only mode ignores positive global and typed fine rates and debt thresholds', static function () use ($saveLoans, $db, $patron, $book, $loan, $type, $assert): void {
+    $test('27 Ledger-only mode ignores positive global and typed fine rates and debt thresholds', static function () use ($root, $saveLoans, $db, $patron, $book, $loan, $type, $flag, $request, $assert): void {
         $saveLoans(['daily_fine' => '2', 'debt_block_threshold' => '1', 'feature_automatic_fines' => '0', 'feature_debt_block' => '0']);
         $t = $type(['multa_giornaliera' => '3.00', 'soglia_blocco_debito' => '0.50']); $p = $patron();
         $db->query("UPDATE utenti SET tipologia_id={$t} WHERE id={$p}");
@@ -364,6 +364,20 @@ try {
         $assert($ledger->chargeLateReturn($id) === 0 && !$ledger->previewLateFine($id)['enabled'], 'Disabled automatic fines still charge or preview');
         $assert(!PatronLedger::isDebtBlocked($db, $p) && \App\Support\LoanEligibility::debtBlockSql('u', $db) === '1 = 1', 'Debt still blocks a channel');
         $assert($ledger->balanceCents($p) === 1000 && Features::enabled('fines'), 'Manual ledger no longer works');
+        require_once $root . '/storage/plugins/mobile-api/MobileApiPlugin.php';
+        $mobileRequest = (new ServerRequestFactory())->createServerRequest('GET', '/api/v1/me/movements')->withAttribute('mobile_user', ['id' => $p]);
+        $mobile = new \App\Plugins\MobileApi\Controllers\ActionsController($db);
+        $read = static function () use ($mobile, $mobileRequest): array {
+            $response = $mobile->myMovements($mobileRequest, new Response());
+            return (array) (json_decode((string) $response->getBody(), true)['data'] ?? []);
+        };
+        $api = $read();
+        $assert(($api['debt_blocked'] ?? null) === false && array_key_exists('debt_block_threshold_cents', $api) && $api['debt_block_threshold_cents'] === null, 'Mobile API reports disabled debt blocking');
+        $page = (new \App\Controllers\UsersController())->details($request('/admin/users/details/' . $p), new Response(), $db, $p);
+        $assert($page->getStatusCode() === 200 && str_contains((string) $page->getBody(), 'data-ledger-balance="1000"') && !str_contains((string) $page->getBody(), __('Prestiti bloccati: il saldo supera la soglia di %s.', FineParameters::format(50))), 'Reader record reports disabled debt blocking');
+        $flag('debt_block', true); $api = $read();
+        $assert(($api['debt_blocked'] ?? null) === true && $api['debt_block_threshold_cents'] === 50, 'Mobile API does not restore the saved typed threshold');
+
     });
     $test('28 Fine and debt switches work independently with positive retained amounts', static function () use ($saveLoans, $db, $patron, $book, $loan, $assert): void {
         $saveLoans(['daily_fine' => '0.50', 'debt_block_threshold' => '1', 'feature_automatic_fines' => '0', 'feature_debt_block' => '1']);
@@ -434,6 +448,9 @@ try {
         $assert(\App\Support\PatronTypeAssignment::renewCard($db, $p) === (new DateTimeImmutable($future))->modify('+30 days')->format('Y-m-d'), 'Renewal erased remaining validity');
         $set('loans', 'card_renewal_base', 'today');
         $assert(\App\Support\PatronTypeAssignment::renewCard($db, $p) === \App\Support\PatronTypeAssignment::todayPlus(30), 'Today default changed');
+        $set('loans', 'card_renewal_base', 'expiry');
+        $db->query("UPDATE utenti SET data_scadenza_tessera='9999-12-31' WHERE id={$p}");
+        $assert(\App\Support\PatronTypeAssignment::renewCard($db, $p) === '9999-12-31', 'A lifetime card overflowed the database date range');
     });
     $test('35 Administrators can prepare disabled rules and calendars without activating runtime behaviour', static function () use ($db, $type, $set, $flag, $assert): void {
         $t = $type(['durata_prestito_giorni' => '11']); $flag('circulation_rules', false); $flag('closures_calendar', false);

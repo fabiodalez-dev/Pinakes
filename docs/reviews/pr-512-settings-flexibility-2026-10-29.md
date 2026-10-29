@@ -18,7 +18,7 @@ Aggiornamento del 29 ottobre 2026 sulla catena #503–#512, con #502 esclusa dal
 | Prestiti → Calendario | Calendario chiusure | Sospende l’applicazione del calendario senza cancellarlo. Gli amministratori possono preparare chiusure e festività e vederne l’anteprima anche a modulo spento. Anno delle festività selezionabile dal 1900 al 2199. |
 | Prestiti → Multe | Registro movimenti | Addebiti manuali, pagamenti, ricevute, condoni e saldo. Può funzionare con tutti e tre gli automatismi successivi spenti. |
 | Prestiti → Multe | Multe automatiche per ritardo | Richiede registro attivo, interruttore dedicato e tariffa positiva. Le tariffe per tipologia e materiale non aggirano il controllo. |
-| Prestiti → Multe | Blocco per debito | Richiede registro attivo, interruttore dedicato e soglia positiva. Funziona senza nuove multe automatiche. |
+| Prestiti → Multe | Blocco per debito | Richiede registro attivo, interruttore dedicato e soglia positiva. Funziona senza nuove multe automatiche. Scheda web e API mobile mostrano il blocco soltanto quando è effettivamente attivo. |
 | Prestiti → Multe | Riporto penalità per perdita e danno | Riporta soltanto importi già assegnati, compresi quelli precedenti. Il form mostra quantità e totale degli importi da riportare. La riattivazione riapre la scansione idempotente. |
 | Prestiti → Multe | Modalità di tolleranza | Soglia, come prima: oltre la tolleranza si conta dal primo giorno. Oppure abbuono: si sottraggono sempre i giorni di tolleranza. |
 
@@ -50,6 +50,7 @@ Gli interruttori e le nuove regole di servizio sono riservati agli amministrator
 - Gate delle migrazioni, schema e auto-riparazione dei plugin: superato.
 - Registro dei 18 controlli, distribuzione nei form, protezioni delle rotte, seed delle cinque lingue e traduzioni: verificati.
 - **25 test browser superati**: salvataggio dei controlli, tastiera, permessi, configurazione a modulo spento, calendario, foto e consultazione indipendenti.
+- Superati inoltre **40 test browser** su multe, tariffe per tipologia/materiale e foto, e **22 test** su tessere e regole lettore, compresa la corrispondenza tra data di conferma e rinnovo dalla scadenza futura.
 - Controllo visivo nel browser a 1280 px e 390 px: nessun overflow orizzontale nei nuovi gruppi di impostazioni.
 
 ## Workflow già verificati prima di questa estensione
