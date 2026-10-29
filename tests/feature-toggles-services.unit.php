@@ -8,6 +8,7 @@ declare(strict_types=1);
  *
  *  A. closures calendar: off = an empty calendar even with closures stored,
  *     due dates as before 0.9.0; on = the stored closure moves the due date;
+ *     maintenance adds no holiday row while off and the missing ones when on;
  *  B. circulation rules: off = no patron types, every copy lendable, the
  *     consultation flag ignored; on = the types and the flag apply;
  *  C. fines: off = no charge, no preview, no debt block in PHP nor in SQL,
@@ -70,6 +71,15 @@ foreach (['debt_block_threshold'] as $k) {
     $saved[$k] = $r === null ? null : (string) $r[0];
 }
 $closureIds = [];
+// Holiday selection (calendar.holiday_*) and the Easter Monday preset rows,
+// put back exactly as they were by the finally block.
+$holidayKeys = ['holiday_country', 'holiday_region', 'holiday_rules'];
+$savedHoliday = [];
+foreach ($holidayKeys as $k) {
+    $r = $db->query("SELECT setting_value FROM system_settings WHERE category = 'calendar' AND setting_key = '{$k}'")->fetch_row();
+    $savedHoliday[$k] = $r === null ? null : (string) $r[0];
+}
+$savedEaster = $db->query("SELECT * FROM calendario_chiusure WHERE regola_festivita = 'IT:easter_monday'")->fetch_all(MYSQLI_ASSOC);
 $cleanup = static function () use ($db, &$closureIds): void {
     foreach ($closureIds as $id) {
         $db->query('DELETE FROM calendario_chiusure WHERE id = ' . (int) $id);
@@ -98,6 +108,26 @@ try {
     LibraryCalendar::reset();
     $check(LibraryCalendar::fromDatabase($db)->closedDatesBetween($closed, $closed) === [$closed], 'A on: the closure is published again');
     $check(LibraryCalendar::dueDate($db, $closed) > $closed, 'A on: the due date moves to the next open day');
+    LibraryCalendar::reset();
+
+    // A2. Holiday presets in the maintenance pass: a saved choice (Italy,
+    // Easter Monday) whose rows are missing.
+    $setCalendar = static function (string $k, ?string $v) use ($db): void {
+        $db->query("DELETE FROM system_settings WHERE category = 'calendar' AND setting_key = '{$k}'");
+        if ($v !== null) {
+            $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', '{$k}', '" . $db->real_escape_string($v) . "')");
+        }
+    };
+    $setCalendar('holiday_country', 'IT');
+    $setCalendar('holiday_region', '');
+    $setCalendar('holiday_rules', '["IT:easter_monday"]');
+    $db->query("DELETE FROM calendario_chiusure WHERE regola_festivita = 'IT:easter_monday'");
+    $easterRows = static fn (): int => (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE regola_festivita = 'IT:easter_monday'")->fetch_row()[0];
+    Features::override('closures_calendar', false);
+    $check((new \App\Support\MaintenanceService($db))->extendHolidayRows() === 0 && $easterRows() === 0, 'A2 off: maintenance writes no holiday row');
+    Features::override('closures_calendar', true);
+    $added = (new \App\Support\MaintenanceService($db))->extendHolidayRows();
+    $check($added === 3 && $easterRows() === 3, "A2 on: maintenance adds Easter Monday for this year and the next two ({$added})");
     LibraryCalendar::reset();
 
     // ── B. circulation rules ────────────────────────────────────────────────
@@ -201,6 +231,18 @@ try {
         } else {
             $db->query("UPDATE system_settings SET setting_value = '" . $db->real_escape_string($v) . "' WHERE category = 'loans' AND setting_key = '{$k}'");
         }
+    }
+    foreach ($holidayKeys as $k) {
+        $db->query("DELETE FROM system_settings WHERE category = 'calendar' AND setting_key = '{$k}'");
+        if ($savedHoliday[$k] !== null) {
+            $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', '{$k}', '" . $db->real_escape_string($savedHoliday[$k]) . "')");
+        }
+    }
+    $db->query("DELETE FROM calendario_chiusure WHERE regola_festivita = 'IT:easter_monday'");
+    foreach ($savedEaster as $row) {
+        $cols = implode(', ', array_map(static fn (string $c): string => "`{$c}`", array_keys($row)));
+        $vals = implode(', ', array_map(static fn ($v): string => $v === null ? 'NULL' : "'" . $db->real_escape_string((string) $v) . "'", array_values($row)));
+        $db->query("INSERT INTO calendario_chiusure ({$cols}) VALUES ({$vals})");
     }
     \App\Support\ConfigStore::clearCache();
     $cleanup();

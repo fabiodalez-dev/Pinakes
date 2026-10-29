@@ -13,6 +13,8 @@
  * @var array<string, int> $monthClosed
  * @var int $currentYear
  * @var string $today
+ * @var list<array<string, mixed>> $yearlyClosures
+ * @var array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: list<int>, year: int, list: list<array{id: string, name: string, date: ?string, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool} $holidays
  */
 
 $csrf = \App\Support\Csrf::ensureToken();
@@ -170,31 +172,125 @@ unset($workspaceHeader);
       </div>
     </div>
 
+    <!-- National holidays: country, region, the holidays to apply -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-preset">
+      <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-flag text-gray-600"></i>
+          <?= __("Festività nazionali") ?>
+        </h2>
+      </div>
+      <div class="p-6 space-y-4">
+        <p class="text-sm text-gray-600"><?= __("Scegli il paese (e la regione, dove serve) e spunta le festività in cui la biblioteca è chiusa. Le festività fisse diventano chiusure annuali, quelle mobili sono ricalcolate ogni anno. Togliere la spunta rimuove solo quella festività; le chiusure aggiunte a mano o da file ICS non vengono toccate.") ?></p>
+        <p class="text-sm text-gray-600"><?= __("Le date sono calcolate dalle regole ufficiali note; la biblioteca sceglie quali applicare e può sempre aggiungere chiusure a mano.") ?></p>
+        <form method="GET" action="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="holiday-filter" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="holiday_country" class="form-label"><i class="fas fa-globe mr-1"></i><?= __("Paese") ?></label>
+            <select id="holiday_country" name="holiday_country" class="form-input" onchange="if (this.form.holiday_region) { this.form.holiday_region.value = ''; } this.form.submit()">
+              <?php foreach ($holidays['countries'] as $code => $countryName): ?>
+                <option value="<?= $e($code) ?>" <?= $code === $holidays['country'] ? 'selected' : '' ?>><?= $e($countryName) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php if ($holidays['regions'] !== []): ?>
+            <div>
+              <label for="holiday_region" class="form-label"><i class="fas fa-map-marker-alt mr-1"></i><?= __("Regione") ?></label>
+              <select id="holiday_region" name="holiday_region" class="form-input" onchange="this.form.submit()">
+                <?php if (empty(\App\Support\Holidays\HolidayCalculator::country($holidays['country'])['region_required'])): ?>
+                  <option value=""><?= __("Solo festività nazionali") ?></option>
+                <?php endif; ?>
+                <?php foreach ($holidays['regions'] as $code => $regionName): ?>
+                  <option value="<?= $e($code) ?>" <?= $code === $holidays['region'] ? 'selected' : '' ?>><?= $e($regionName) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          <?php endif; ?>
+          <div>
+            <label for="holiday_year" class="form-label"><i class="fas fa-calendar-alt mr-1"></i><?= __("Anno di anteprima") ?></label>
+            <select id="holiday_year" name="holiday_year" class="form-input" onchange="this.form.submit()">
+              <?php foreach ($holidays['years'] as $y): ?>
+                <option value="<?= (int) $y ?>" <?= $y === $holidays['year'] ? 'selected' : '' ?>><?= (int) $y ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <noscript>
+            <button type="submit" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200"><?= __("Aggiorna anteprima") ?></button>
+          </noscript>
+        </form>
+
+        <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/preset'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4" id="holiday-apply">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+          <input type="hidden" name="country" value="<?= $e($holidays['country']) ?>">
+          <input type="hidden" name="region" value="<?= $e($holidays['region']) ?>">
+          <div class="flex items-center gap-4 text-sm">
+            <button type="button" class="text-sm text-gray-600 hover:text-gray-800" data-holiday-select="all"><?= __("Seleziona tutte") ?></button>
+            <button type="button" class="text-sm text-gray-600 hover:text-gray-800" data-holiday-select="none"><?= __("Nessuna") ?></button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="holiday-list">
+            <?php foreach ($holidays['list'] as $holiday):
+                $boxId = 'holiday_rule_' . preg_replace('/[^A-Za-z0-9_]/', '_', $holiday['id']); ?>
+              <label class="flex items-center gap-2 text-sm text-gray-700" data-holiday-row="<?= $e($holiday['id']) ?>">
+                <input type="checkbox" name="rules[]" value="<?= $e($holiday['id']) ?>" id="<?= $e($boxId) ?>" data-holiday-rule
+                       <?= $holiday['checked'] ? 'checked' : '' ?>>
+                <span><?= $e($holiday['name']) ?></span>
+                <span class="text-gray-500" data-holiday-date="<?= $e((string) $holiday['date']) ?>"><?= $holiday['date'] !== null ? $e($fmt('EEE d MMMM y', $holiday['date'])) : $e(__('non prevista nel %d', $holidays['year'])) ?></span>
+                <?php if ($holiday['yearly']): ?>
+                  <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"><?= __("ogni anno") ?></span>
+                <?php else: ?>
+                  <span class="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full"><?= __("mobile") ?></span>
+                <?php endif; ?>
+                <?php if ($holiday['regional']): ?>
+                  <span class="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full"><?= __("regionale") ?></span>
+                <?php endif; ?>
+                <?php if ($holiday['optional']): ?>
+                  <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full"><?= __("facoltativa") ?></span>
+                <?php endif; ?>
+              </label>
+            <?php endforeach; ?>
+          </div>
+          <div class="flex justify-end pt-4 border-t border-gray-200">
+            <button type="submit" id="import-preset" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+              <i class="fas fa-check mr-2"></i>
+              <?= __("Applica festività selezionate") ?>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Italian holidays preset -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-preset">
+      <!-- Yearly closures added by hand: on / off without deleting them -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-yearly">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-flag text-gray-600"></i>
-            <?= __("Festività nazionali italiane") ?>
+            <i class="fas fa-redo text-gray-600"></i>
+            <?= __("Chiusure annuali") ?>
           </h2>
         </div>
         <div class="p-6">
-          <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/preset'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4">
+          <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/yearly'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
-            <p class="text-sm text-gray-600"><?= __("Aggiunge le festività fisse come chiusure annuali, e Pasqua e Pasquetta per l'anno scelto. Le chiusure già presenti non vengono duplicate.") ?></p>
-            <div>
-              <label for="preset_year" class="form-label"><i class="fas fa-calendar-alt mr-1"></i><?= __("Anno") ?></label>
-              <select id="preset_year" name="year" class="form-input">
-                <?php for ($y = $currentYear; $y <= $currentYear + 2; $y++): ?>
-                  <option value="<?= $y ?>"><?= $y ?></option>
-                <?php endfor; ?>
-              </select>
-            </div>
+            <p class="text-sm text-gray-600"><?= __("Le chiusure che si ripetono ogni anno, aggiunte a mano o da file ICS. Togli la spunta per sospenderne una senza eliminarla.") ?></p>
+            <?php if ($yearlyClosures === []): ?>
+              <p class="text-sm text-gray-500" id="calendar-yearly-empty"><?= __("Nessuna chiusura annuale aggiunta a mano.") ?></p>
+            <?php else: ?>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <?php foreach ($yearlyClosures as $yearly):
+                    $yid = (int) $yearly['id']; ?>
+                  <label class="flex items-center gap-2 text-sm text-gray-700" data-yearly-row="<?= $yid ?>">
+                    <input type="hidden" name="listed[]" value="<?= $yid ?>">
+                    <input type="checkbox" name="active[]" value="<?= $yid ?>" id="yearly_closure_<?= $yid ?>"
+                           <?= (int) $yearly['attiva'] === 1 ? 'checked' : '' ?>>
+                    <span><?= $e((string) $yearly['descrizione'] !== '' ? (string) $yearly['descrizione'] : __('Chiusura')) ?></span>
+                    <span class="text-gray-500"><?= $e($fmt('d MMMM', (string) $yearly['data_inizio'])) ?><?php if ($yearly['data_fine'] !== $yearly['data_inizio']): ?> – <?= $e($fmt('d MMMM', (string) $yearly['data_fine'])) ?><?php endif; ?></span>
+                  </label>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
             <div class="flex justify-end pt-4 border-t border-gray-200">
-              <button type="submit" id="import-preset" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
-                <i class="fas fa-file-import mr-2"></i>
-                <?= __("Importa festività") ?>
+              <button type="submit" id="save-yearly" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center" <?= $yearlyClosures === [] ? 'disabled' : '' ?>>
+                <i class="fas fa-save mr-2"></i>
+                <?= __("Salva") ?>
               </button>
             </div>
           </form>
@@ -323,13 +419,23 @@ unset($workspaceHeader);
                 <?php foreach ($closures as $closure):
                     $cid = (int) $closure['id'];
                     $yearlyRow = (int) $closure['ricorrente_annuale'] === 1;
+                    $presetRow = ($closure['regola_festivita'] ?? null) !== null;
+                    $activeRow = (int) ($closure['attiva'] ?? 1) === 1;
                     $startLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_inizio']) : $displayDate((string) $closure['data_inizio']);
                     $endLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_fine']) : $displayDate((string) $closure['data_fine']); ?>
                   <tr class="hover:bg-gray-50" data-closure-id="<?= $cid ?>">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <?= $e($startLabel) ?><?php if ($closure['data_fine'] !== $closure['data_inizio']): ?> – <?= $e($endLabel) ?><?php endif; ?>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-700"><?= $e((string) $closure['descrizione']) ?></td>
+                    <td class="px-6 py-4 text-sm text-gray-700">
+                      <?= $e((string) $closure['descrizione']) ?>
+                      <?php if ($presetRow): ?>
+                        <span class="ml-2 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full" data-badge="holiday"><i class="fas fa-flag mr-1"></i><?= __("Festività") ?></span>
+                      <?php endif; ?>
+                      <?php if (!$activeRow): ?>
+                        <span class="ml-2 px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full" data-badge="inactive"><?= __("Sospesa") ?></span>
+                      <?php endif; ?>
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                       <?php if ($yearlyRow): ?>
                         <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"><i class="fas fa-redo mr-1"></i><?= __("Ogni anno") ?></span>
@@ -339,6 +445,9 @@ unset($workspaceHeader);
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= $e($closure['sede_nome'] !== null ? (string) $closure['sede_nome'] : __('Tutte le sedi')) ?></td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <?php if ($presetRow): ?>
+                        <span class="text-gray-500 text-xs"><?= __("Dalla selezione delle festività") ?></span>
+                      <?php else: ?>
                       <div class="inline-flex items-center gap-2">
                         <a href="<?= htmlspecialchars(url('/admin/calendar') . '?edit=' . $cid . '#calendar-closure-form', ENT_QUOTES, 'UTF-8') ?>"
                            class="btn-icon btn-secondary" data-action="edit-closure"
@@ -356,6 +465,7 @@ unset($workspaceHeader);
                           </button>
                         </form>
                       </div>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>
@@ -367,3 +477,11 @@ unset($workspaceHeader);
     </div>
   </div>
 </div>
+<script>
+document.querySelectorAll('[data-holiday-select]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var on = button.getAttribute('data-holiday-select') === 'all';
+    document.querySelectorAll('input[data-holiday-rule]').forEach(function (box) { box.checked = on; });
+  });
+});
+</script>

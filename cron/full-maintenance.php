@@ -154,6 +154,7 @@ try {
     logMessage("- Expired pickups (da_ritirare -> scaduto): " . $results['expired_pickups']);
     logMessage("- Overdue loans updated (in_corso -> in_ritardo): " . $results['overdue_loans_updated']);
     logMessage("- Visitor log rows purged (retention): " . ($results['attendance_purged'] ?? 0));
+    logMessage("- Holiday rows added (movable holidays, two years ahead): " . ($results['holiday_rows_added'] ?? 0));
 
     // Notification results (counts returned at top-level by MaintenanceService::runAll)
     logMessage("Notifications sent:");

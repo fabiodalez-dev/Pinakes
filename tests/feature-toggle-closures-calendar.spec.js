@@ -24,6 +24,7 @@ test.describe.serial('Feature toggle: closures calendar', () => {
   let snapshot;
   let bookId = 0;
   let closed = '';
+  let yearlyId = 0;
 
   /** closed_dates of the public availability the request calendar reads. */
   async function closedDates() {
@@ -39,6 +40,8 @@ test.describe.serial('Feature toggle: closures calendar', () => {
     await ft.writeFeatures({ closures_calendar: '1' });
     closed = ft.dbQuery('SELECT DATE_FORMAT(CURDATE() + INTERVAL 3 DAY, \'%Y-%m-%d\')');
     ft.dbQuery(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('${closed}', '${closed}', ${ft.sqlString(NOTE)})`);
+    ft.dbQuery(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale) VALUES ('2026-08-14', '2026-08-14', ${ft.sqlString(NOTE + ' yearly')}, 1)`);
+    yearlyId = Number(ft.dbQuery(`SELECT id FROM calendario_chiusure WHERE descrizione=${ft.sqlString(NOTE + ' yearly')}`));
     bookId = mf.seedBook({ titolo: TITLE, copie_totali: 1, copie_disponibili: 1 });
     ft.dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, ${ft.sqlString(`ZZFTK-${RUN}`)}, 'disponibile')`);
     page = await browser.newPage();
@@ -78,12 +81,39 @@ test.describe.serial('Feature toggle: closures calendar', () => {
     expect(ft.dbQuery(`SELECT COUNT(*) FROM calendario_chiusure WHERE descrizione=${ft.sqlString(NOTE + ' refused')}`)).toBe('0');
   });
 
-  test('5. switched back on: entry, page and the closure stored before are back', async () => {
+  test('5. switched off: no holiday card, and the holiday and yearly-closure forms are refused', async () => {
+    const holidayRows = () => ft.dbQuery('SELECT COUNT(*) FROM calendario_chiusure WHERE regola_festivita IS NOT NULL');
+    const holidayChoice = () => ft.dbQuery("SELECT COALESCE(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) ORDER BY setting_key), '') FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'");
+    const rowsBefore = holidayRows();
+    const choiceBefore = holidayChoice();
+    await page.goto(`${ft.BASE}/admin/calendar#calendar-preset`);
+    await expect(page).toHaveURL(/\/admin\/dashboard/);
+    await expect(page.locator('#calendar-preset')).toHaveCount(0);
+    await expect(page.locator('#calendar-yearly')).toHaveCount(0);
+    const csrf = await ft.csrfToken(page);
+    const post = (path, body) => page.request.post(`${ft.BASE}${path}`, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: new URLSearchParams(body).toString(), maxRedirects: 0,
+    });
+    const preset = await post('/admin/calendar/preset', [['csrf_token', csrf], ['country', 'IT'], ['region', ''], ['rules[]', 'IT:easter_monday'], ['rules[]', 'IT:christmas']]);
+    expect(preset.status()).toBe(302);
+    expect(preset.headers()['location'] || '').toMatch(/\/admin\/dashboard/);
+    expect(holidayRows()).toBe(rowsBefore);
+    expect(holidayChoice()).toBe(choiceBefore);
+    // The yearly closure is listed and not ticked: on, it would be switched off.
+    const yearly = await post('/admin/calendar/yearly', [['csrf_token', csrf], ['listed[]', String(yearlyId)]]);
+    expect(yearly.status()).toBe(302);
+    expect(yearly.headers()['location'] || '').toMatch(/\/admin\/dashboard/);
+    expect(ft.dbQuery(`SELECT attiva FROM calendario_chiusure WHERE id=${yearlyId}`)).toBe('1');
+  });
+
+  test('6. switched back on: entry, page and the closure stored before are back', async () => {
     await ft.setModuleInUi(page, 'closures_calendar', true);
     await expect(page.locator('#open-closures-calendar')).toBeVisible();
     await page.locator('#open-closures-calendar').click();
     await expect(page).toHaveURL(/\/admin\/calendar/);
     await expect(page.locator('body')).toContainText(NOTE);
+    await expect(page.locator('#calendar-preset')).toBeVisible();
+    await expect(page.locator(`#yearly_closure_${yearlyId}`)).toBeChecked();
     expect(await closedDates()).toContain(closed);
   });
 });

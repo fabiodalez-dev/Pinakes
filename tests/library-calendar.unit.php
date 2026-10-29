@@ -154,11 +154,14 @@ foreach ($known as $year => $date) {
 }
 $h2026 = LibraryCalendar::italianHolidays(2026);
 $dates2026 = array_column($h2026, 'start');
-$eq(count($h2026), 12, 'Italian preset has 12 holidays');
+// 13 from 2026: San Francesco (4 October) is a national holiday again.
+$eq(count($h2026), 13, 'Italian preset has 13 holidays in 2026');
+$eq(count(LibraryCalendar::italianHolidays(2025)), 12, 'and 12 in 2025, before San Francesco returned');
 $eq(in_array('2026-04-06', $dates2026, true), true, 'Easter Monday 2026 is Apr 6');
 $eq(in_array('2026-06-02', $dates2026, true), true, 'Festa della Repubblica included');
-$easterRows = array_values(array_filter($h2026, static fn (array $r): bool => !$r['yearly']));
-$eq(count($easterRows), 2, 'only Easter and Easter Monday are dated for the year');
+$eq(in_array('2026-10-04', $dates2026, true), true, 'San Francesco included from 2026');
+$datedRows = array_values(array_filter($h2026, static fn (array $r): bool => !$r['yearly']));
+$eq(array_column($datedRows, 'start'), ['2026-04-05', '2026-04-06', '2026-10-04'], 'Easter, Easter Monday and San Francesco (from 2026) are dated for the year');
 $eq($dates2026, array_values(array_unique($dates2026)), 'preset dates are distinct');
 $sorted = $dates2026;
 sort($sorted);

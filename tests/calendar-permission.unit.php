@@ -26,7 +26,7 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
     echo "OK {$label}\n";
 };
 
-foreach (['/admin/calendar', '/admin/calendar/weekdays', '/admin/calendar/closures', '/admin/calendar/closures/12/update', '/admin/calendar/closures/12/delete', '/admin/calendar/preset', '/admin/calendar/import-ics'] as $path) {
+foreach (['/admin/calendar', '/admin/calendar/weekdays', '/admin/calendar/closures', '/admin/calendar/closures/12/update', '/admin/calendar/closures/12/delete', '/admin/calendar/preset', '/admin/calendar/yearly', '/admin/calendar/import-ics'] as $path) {
     $check(P::permissionForPath($path) === 'settings.manage', "{$path} needs settings.manage");
 }
 $check(P::permissionForPath('/admin/calendarx') === null, 'a similarly named path does not inherit it');
