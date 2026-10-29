@@ -250,9 +250,15 @@ final class PatronLedger
      */
     public function chargeLossPenalty(int $loanId, ?int $staffId = null): int
     {
-        // Fines off: prestiti.sanzione alone, as before 0.9.0. The same key
-        // as the legacy backfill, which mirrors it once the module is back on.
+        // Fines off: prestiti.sanzione alone, as before 0.9.0. The legacy
+        // backfill mirrors it (same key) once the module is back on; its
+        // marker is re-armed here, because a library that already had fines
+        // on has the scan recorded as done. Same transaction as the close.
         if (!self::active($this->db)) {
+            $loan = $this->loanRow($loanId);
+            if ($loan !== null && FineParameters::decimalToCents($loan['sanzione'] ?? 0) > 0) {
+                (new \App\Models\SettingsRepository($this->db))->set('loans', 'legacy_penalties_backfilled', '0');
+            }
             return 0;
         }
         $loan = $this->loanRow($loanId);

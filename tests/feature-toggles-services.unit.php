@@ -12,7 +12,8 @@ declare(strict_types=1);
  *  B. circulation rules: off = no patron types, every copy lendable, the
  *     consultation flag ignored; on = the types and the flag apply;
  *  C. fines: off = no charge, no preview, no debt block in PHP nor in SQL,
- *     even for a patron far above the threshold; on = blocked;
+ *     even for a patron far above the threshold; on = blocked; a loss
+ *     penalty assessed while off reaches the ledger once fines are back on;
  *  D. RDA types: off = stored overrides ignored by the record view and MARC;
  *  E. suppliers: off = a book save never writes fornitore_id (kept);
  *  F. visitor log: off = maintenance purges nothing; on = the old visit goes;
@@ -66,7 +67,7 @@ foreach (['calendario_chiusure', 'tipologie_lettore', 'movimenti_lettore', 'pres
 
 $run = bin2hex(random_bytes(3));
 $saved = [];
-foreach (['debt_block_threshold'] as $k) {
+foreach (['debt_block_threshold', 'legacy_penalties_backfilled'] as $k) {
     $r = $db->query("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = '{$k}'")->fetch_row();
     $saved[$k] = $r === null ? null : (string) $r[0];
 }
@@ -86,6 +87,7 @@ $cleanup = static function () use ($db, &$closureIds): void {
     }
     $db->query("DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id = m.utente_id WHERE u.email LIKE 'zz-ftsvc-%@test.local'");
     $db->query("DELETE FROM presenze WHERE nome_ospite LIKE 'ZZ_FTSVC_%'");
+    $db->query("DELETE p FROM prestiti p JOIN libri l ON l.id = p.libro_id WHERE l.titolo LIKE 'ZZ\\_FTSVC\\_%'");
     $db->query("DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE l.titolo LIKE 'ZZ\\_FTSVC\\_%'");
     $db->query("DELETE FROM libri WHERE titolo LIKE 'ZZ\\_FTSVC\\_%'");
     $db->query("DELETE FROM fornitori WHERE nome LIKE 'ZZ_FTSVC_%'");
@@ -169,6 +171,24 @@ try {
     Features::override('fines', true);
     $check((new CirculationPolicy($db))->debtBlockError($patron) === 'debt_block', 'C on: the same patron is blocked');
     $check(LoanEligibility::debtBlockSql('u', $db) !== '1 = 1', 'C on: the queue predicate checks the balance');
+
+    // C2. A loss penalty assessed while fines are off, in a library whose
+    // legacy backfill is already recorded as done: it reaches the ledger with
+    // the first maintenance run after fines are switched back on.
+    $db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES ('ZZ_FTSVC_lost_{$run}', 1, 0)");
+    $lostBook = (int) $db->insert_id;
+    $db->query("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo, sanzione) VALUES ({$lostBook}, {$patron}, CURDATE() - INTERVAL 40 DAY, CURDATE() - INTERVAL 10 DAY, 'perso', 0, 12.00)");
+    $lostLoan = (int) $db->insert_id;
+    $marker = static fn (): string => (string) ($db->query("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = 'legacy_penalties_backfilled'")->fetch_row()[0] ?? '');
+    $penaltyRows = static fn (): int => (int) $db->query("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:{$lostLoan}'")->fetch_row()[0];
+    $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'legacy_penalties_backfilled', '1') ON DUPLICATE KEY UPDATE setting_value = '1'");
+    Features::override('fines', false);
+    $check(PatronLedger::forDb($db)->chargeLossPenalty($lostLoan) === 0 && $penaltyRows() === 0, 'C2 off: the loss penalty stays in prestiti.sanzione only');
+    $check($marker() === '0', 'C2 off: the legacy backfill is re-armed');
+    Features::override('fines', true);
+    $db->query("DELETE FROM system_settings WHERE category = 'maintenance' AND setting_key = 'last_run'");
+    (new \App\Support\MaintenanceService($db))->runAll();
+    $check($penaltyRows() === 1 && $marker() === '1', 'C2 on: maintenance mirrors it into the ledger and records the scan again');
 
     // ── D. RDA types ────────────────────────────────────────────────────────
     $row = ['tipo_media' => 'libro', 'rda_content_type' => 'prm', 'rda_media_type' => 'c', 'rda_carrier_type' => 'cr'];
