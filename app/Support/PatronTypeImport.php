@@ -23,7 +23,8 @@ use mysqli;
  * does not guess between them.
  *
  * The table and column names are constructor parameters only so the unit test
- * can run against sandbox tables.
+ * can run against sandbox tables. While the circulation rules module is off,
+ * available() is false and assign() does nothing even on an existing importer.
  */
 final class PatronTypeImport
 {
@@ -40,9 +41,14 @@ final class PatronTypeImport
     ) {
     }
 
-    /** True when the patron types schema exists (checked once per instance). */
+    /** True when the rules module is on and its schema exists (schema cached per instance). */
     public function available(): bool
     {
+        // Check before the schema cache: a long-running import must also
+        // stop assigning types when the circulation rules are switched off.
+        if (!Features::enabled('circulation_rules')) {
+            return false;
+        }
         if ($this->available !== null) {
             return $this->available;
         }

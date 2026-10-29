@@ -153,6 +153,19 @@ try {
     $hash = password_hash('x', PASSWORD_DEFAULT);
     $db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, privacy_accettata) VALUES ('ZZFS{$run}', 'Zz', 'Svc', 'zz-ftsvc-{$run}@test.local', '" . $db->real_escape_string($hash) . "', 'attivo', 1, 'standard', 1)");
     $patron = (int) $db->insert_id;
+    // A CSV import must not expose or assign types while their module is off,
+    // including on an importer whose schema availability was already cached.
+    $typeImporter = new \App\Support\PatronTypeImport($db);
+    $check($typeImporter->available(), 'B on: user import offers patron types');
+    $defaultType = $policy->types()[$policy->defaultTypeId()];
+    Features::override('circulation_rules', false);
+    $check(!$typeImporter->available(), 'B off: an existing importer stops offering patron types');
+    $check($typeImporter->assign($patron, (string) $defaultType['codice']) === 'skipped', 'B off: user import assigns no patron type');
+    $check($db->query("SELECT tipologia_id FROM utenti WHERE id = {$patron}")->fetch_row()[0] === null, 'B off: the imported reader keeps their stored type');
+    $fields = (new \ReflectionMethod(\App\Controllers\UserImportController::class, 'targetFields'))->invoke(new \App\Controllers\UserImportController(), $db);
+    $check(!isset($fields['tipologia']), 'B off: the CSV mapping omits the patron type');
+    Features::override('circulation_rules', true);
+    $check($typeImporter->available(), 'B on: the same importer offers patron types again');
     $db->query("INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES ({$patron}, 'addebito_manuale', 100.00, 'ZZ_FTSVC debt', NOW())");
     $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'debt_block_threshold', '1.00') ON DUPLICATE KEY UPDATE setting_value = '1.00'");
     \App\Support\ConfigStore::clearCache();
