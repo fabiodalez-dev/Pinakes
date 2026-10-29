@@ -57,6 +57,25 @@ La precedente descrizione della PR lasciava aperta la decorrenza di San Francesc
 
 La documentazione OpenAPI descrive anche i tre nuovi flag di capacità (`automatic_fines`, `debt_block`, `consultation_only`) e chiarisce che la soglia di debito effettiva è nulla quando il blocco è spento.
 
+## CI sulle modifiche agli interruttori: tutti i workflow superati
+
+Commit funzionale verificato: `d9f36316b1ef39f409b5c3eff69e4c5b49613147`. Tutti i dieci run seguenti sono terminati con successo. I commit successivi aggiornano la relazione e la descrizione OpenAPI dei flag; il documento API completo è stato verificato come JSON valido.
+
+| Workflow | Esito | Run |
+| --- | --- | --- |
+| Code Quality | Superato | [40852924644](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852924644) |
+| Database Compatibility | Superato | [40852926691](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852926691) |
+| E2E Test Suite | Superato | [40852928999](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852928999) |
+| Test Database Migrations | Superato | [40852931140](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852931140) |
+| Real Upgrade (admin UI) | Superato | [40852933844](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852933844) |
+| Upgrade Smoke Test | Superato | [40852936293](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852936293) |
+| Deep Regression Gate | Superato | [40852939135](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852939135) |
+| Browser Compatibility and DAST | Superato | [40852941339](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852941339) |
+| Security and Supply Chain | Superato | [40852943720](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852943720) |
+| CodeQL Security Analysis | Superato | [40852947181](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852947181) |
+
+La matrice database ha superato tutte le 325 suite su MySQL 8.0/8.4 e MariaDB 10.11/11.4. Gli E2E della 0.9.0 hanno superato **230 test di circolazione** e **253 di catalogazione**, oltre alla batteria generale dell’applicazione. La regressione approfondita ha superato **4/4 gruppi browser** e **5/5 installazioni localizzate**.
+
 ## Workflow già verificati prima di questa estensione
 
 Gli esiti seguenti riguardano esplicitamente i commit indicati; non vengono attribuiti alle modifiche successive.
