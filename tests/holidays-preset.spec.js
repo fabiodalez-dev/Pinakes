@@ -382,4 +382,22 @@ test.describe('Public holiday presets', () => {
     await page.goto(`${BASE}/admin/calendar?month=${year + 1}-12`);
     await expect(page.locator(`[data-calendar-day="${year + 1}-12-25"]`)).toHaveAttribute('data-closed', '1');
   });
+
+  test('14. a holiday beyond the preview years closes the calendar and moves the loan form due date', async () => {
+    await chooseCountry(page, 'IT');
+    await page.locator('[data-holiday-select="none"]').click();
+    await box(page, 'IT:easter_monday').check();
+    await submitAndLand(page, '#import-preset');
+    const distantHoliday = addDays(easter(farYear), 1);
+    expect(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE regola_festivita='IT:easter_monday' AND data_inizio=${S(distantHoliday)}`)).toBe('0');
+
+    const days = daysBetween(today, distantHoliday);
+    setSetting('loans', 'max_loan_duration_days', String(days));
+    setSetting('loans', 'loan_duration_days', String(days));
+    await page.goto(`${BASE}/admin/loans/create`);
+    await expect(page.locator('#data_scadenza')).toHaveValue(addDays(distantHoliday, 1));
+
+    await page.goto(`${BASE}/admin/calendar?month=${distantHoliday.slice(0, 7)}`);
+    await expect(page.locator(`[data-calendar-day="${distantHoliday}"]`)).toHaveAttribute('data-closed', '1');
+  });
 });

@@ -8,6 +8,7 @@ use App\Models\SettingsRepository;
 use App\Support\DateHelper;
 use App\Support\DbAtomic;
 use App\Support\I18n;
+use App\Support\LibraryCalendar;
 
 /**
  * The holidays the library chose, and their rows in calendario_chiusure.
@@ -16,8 +17,9 @@ use App\Support\I18n;
  * holiday_region and holiday_rules (a JSON list of "CC:rule" ids). Each chosen
  * rule is materialised as closures marked with regola_festivita = its id: a
  * fixed date that never moves as ONE yearly row, any other rule as one row
- * per year, from the current year to YEARS_AHEAD after it. LibraryCalendar
- * keeps reading calendario_chiusure only, so the due-date engine is the same.
+ * per year, from the current year to YEARS_AHEAD after it, for the admin list.
+ * LibraryCalendar also evaluates the selected rules on demand, so due dates
+ * and fine days are never limited to this materialised preview window.
  *
  * Rows with regola_festivita NULL (added by hand or from an ICS file) are
  * never changed or removed here, with one exception: a row that is exactly
@@ -76,21 +78,77 @@ final class HolidayPresets
      */
     public static function selection(\mysqli $db): array
     {
-        $repo = new SettingsRepository($db);
-        $country = strtoupper((string) $repo->get(self::SETTINGS_CATEGORY, 'holiday_country', ''));
+        return self::readSelection($db);
+    }
+
+    /**
+     * Read all three values in one statement: a concurrent apply cannot mix
+     * one country's code with another selection's rules. Writers use a
+     * locking current read, including inside an existing REPEATABLE READ
+     * transaction whose ordinary reads may still see an older snapshot.
+     *
+     * @return array{country: string, region: string, rules: list<string>, saved: bool}
+     */
+    private static function readSelection(\mysqli $db, bool $forUpdate = false): array
+    {
+        $result = $db->query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'calendar' AND setting_key IN ('holiday_country', 'holiday_region', 'holiday_rules')" . ($forUpdate ? ' FOR UPDATE' : ''));
+        if (!$result instanceof \mysqli_result) {
+            throw new \RuntimeException('Holiday selection could not be read');
+        }
+        $values = [];
+        while ($row = $result->fetch_assoc()) {
+            $values[(string) $row['setting_key']] = (string) $row['setting_value'];
+        }
+        $result->free();
+        $country = strtoupper($values['holiday_country'] ?? '');
         $saved = $country !== '' && HolidayCalculator::country($country) !== null;
         if (!$saved) {
             $country = self::defaultCountry();
         }
-        $region = HolidayCalculator::normaliseRegion($country, (string) $repo->get(self::SETTINGS_CATEGORY, 'holiday_region', ''));
+        $region = HolidayCalculator::normaliseRegion($country, $values['holiday_region'] ?? '');
         $rules = [];
-        $decoded = json_decode((string) $repo->get(self::SETTINGS_CATEGORY, 'holiday_rules', '[]'), true);
+        $decoded = json_decode($values['holiday_rules'] ?? '[]', true);
         foreach (is_array($decoded) ? $decoded : [] as $id) {
             if (is_string($id)) {
                 $rules[] = $id;
             }
         }
         return ['country' => $country, 'region' => $region, 'rules' => $saved ? self::filterIds($country, $region, $rules) : [], 'saved' => $saved];
+    }
+
+    /**
+     * The rules the due-date engine evaluates for any requested year. null
+     * means there is no saved selection (or no migration yet): retain the
+     * dated closures, including those of the former Italian preset.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public static function calendarRules(\mysqli $db): ?array
+    {
+        if (!self::schemaReady($db)) {
+            return null;
+        }
+        $selection = self::selection($db);
+        if (!$selection['saved']) {
+            return null;
+        }
+        $wanted = array_flip($selection['rules']);
+        return array_values(array_filter(
+            HolidayCalculator::rulesFor($selection['country'], $selection['region']),
+            static fn (array $rule): bool => isset($wanted[$selection['country'] . ':' . (string) $rule['id']])
+        ));
+    }
+
+    /**
+     * Shared transaction lock for apply and upkeep. The row exists even
+     * before the first selection; a no-op upsert serialises that first save
+     * too. The lock lasts until the owning transaction commits or rolls back.
+     */
+    private static function lockSelection(\mysqli $db): void
+    {
+        if (!$db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', 'holiday_rules', '[]') ON DUPLICATE KEY UPDATE setting_key = setting_key")) {
+            throw new \RuntimeException('Holiday selection could not be locked');
+        }
     }
 
     /**
@@ -184,6 +242,7 @@ final class HolidayPresets
         $counts = ['added' => 0, 'removed' => 0, 'adopted' => 0];
 
         DbAtomic::run($db, static function () use ($db, $country, $region, $ids, $firstYear, &$counts): void {
+            self::lockSelection($db);
             $repo = new SettingsRepository($db);
             $repo->set(self::SETTINGS_CATEGORY, 'holiday_country', $country);
             $repo->set(self::SETTINGS_CATEGORY, 'holiday_region', $region);
@@ -213,6 +272,7 @@ final class HolidayPresets
             }
         }, 'HolidayPresets::apply');
 
+        LibraryCalendar::reset();
         return $counts;
     }
 
@@ -226,13 +286,14 @@ final class HolidayPresets
         if (!self::schemaReady($db)) {
             return 0;
         }
-        $selection = self::selection($db);
-        if (!$selection['saved'] || $selection['rules'] === []) {
-            return 0;
-        }
         $firstYear = (int) substr($today ?? DateHelper::today(), 0, 4);
         $added = 0;
-        DbAtomic::run($db, static function () use ($db, $selection, $firstYear, &$added): void {
+        DbAtomic::run($db, static function () use ($db, $firstYear, &$added): void {
+            self::lockSelection($db);
+            $selection = self::readSelection($db, true);
+            if (!$selection['saved'] || $selection['rules'] === []) {
+                return;
+            }
             foreach (self::expectedRows($selection['country'], $selection['region'], $selection['rules'], $firstYear) as $ruleId => $rows) {
                 foreach ($rows as $row) {
                     if (self::ensureRow($db, $ruleId, $row) !== null) {
@@ -241,6 +302,9 @@ final class HolidayPresets
                 }
             }
         }, 'HolidayPresets::ensureYears');
+        // Even a no-op upkeep may have read a newer selection than a calendar
+        // cached earlier in this process, before another writer committed.
+        LibraryCalendar::reset();
         return $added;
     }
 
@@ -262,7 +326,7 @@ final class HolidayPresets
             }
         }
         $from = $keepDates !== [] ? min(array_keys($keepDates)) : sprintf('%04d-01-01', $firstYear);
-        $stmt = $db->prepare('SELECT id, data_inizio, ricorrente_annuale FROM calendario_chiusure WHERE regola_festivita = ?');
+        $stmt = $db->prepare('SELECT id, data_inizio, ricorrente_annuale FROM calendario_chiusure WHERE regola_festivita = ? FOR UPDATE');
         $stmt->bind_param('s', $ruleId);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -297,10 +361,10 @@ final class HolidayPresets
         $yearly = $row['yearly'] ? 1 : 0;
         if ($yearly === 1) {
             $md = substr($row['start'], 5);
-            $stmt = $db->prepare("SELECT 1 FROM calendario_chiusure WHERE regola_festivita = ? AND ricorrente_annuale = 1 AND DATE_FORMAT(data_inizio, '%m-%d') = ? LIMIT 1");
+            $stmt = $db->prepare("SELECT 1 FROM calendario_chiusure WHERE regola_festivita = ? AND ricorrente_annuale = 1 AND DATE_FORMAT(data_inizio, '%m-%d') = ? LIMIT 1 FOR UPDATE");
             $stmt->bind_param('ss', $ruleId, $md);
         } else {
-            $stmt = $db->prepare('SELECT 1 FROM calendario_chiusure WHERE regola_festivita = ? AND ricorrente_annuale = 0 AND data_inizio = ? LIMIT 1');
+            $stmt = $db->prepare('SELECT 1 FROM calendario_chiusure WHERE regola_festivita = ? AND ricorrente_annuale = 0 AND data_inizio = ? LIMIT 1 FOR UPDATE');
             $stmt->bind_param('ss', $ruleId, $row['start']);
         }
         $stmt->execute();
@@ -316,11 +380,11 @@ final class HolidayPresets
             if ($yearly === 1) {
                 $md = substr($row['start'], 5);
                 $sql = "SELECT id FROM calendario_chiusure WHERE regola_festivita IS NULL AND sede_id IS NULL AND ricorrente_annuale = 1
-                        AND DATE_FORMAT(data_inizio, '%m-%d') = ? AND DATE_FORMAT(data_fine, '%m-%d') = ? AND descrizione IN ({$placeholders}) ORDER BY id LIMIT 1";
+                        AND DATE_FORMAT(data_inizio, '%m-%d') = ? AND DATE_FORMAT(data_fine, '%m-%d') = ? AND descrizione IN ({$placeholders}) ORDER BY id LIMIT 1 FOR UPDATE";
                 $params = array_merge([$md, $md], $legacy);
             } else {
                 $sql = "SELECT id FROM calendario_chiusure WHERE regola_festivita IS NULL AND sede_id IS NULL AND ricorrente_annuale = 0
-                        AND data_inizio = ? AND data_fine = ? AND descrizione IN ({$placeholders}) ORDER BY id LIMIT 1";
+                        AND data_inizio = ? AND data_fine = ? AND descrizione IN ({$placeholders}) ORDER BY id LIMIT 1 FOR UPDATE";
                 $params = array_merge([$row['start'], $row['end']], $legacy);
             }
             $stmt = $db->prepare($sql);

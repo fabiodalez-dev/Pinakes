@@ -162,6 +162,78 @@ try {
     $check(LibraryCalendar::dueDate($db, '2026-07-03') === '2026-07-04', 'a due date on a chosen holiday moves to the next open day');
     $check(LibraryCalendar::dueDate($db, '2026-09-07') === '2026-09-07', 'a due date on an unchosen holiday (Labor Day) stays');
 
+    // 12. The materialised rows are a preview, not a horizon on loan policy.
+    $manualBeforeRegressions = $manualSnapshot();
+    HolidayPresets::apply($db, 'IT', '', ['IT:easter_monday'], $today);
+    $check($count("regola_festivita = 'IT:easter_monday' AND data_inizio = '2029-04-02'") === 0, 'the preview still stores only its three years');
+    $check(LibraryCalendar::dueDate($db, '2029-04-02') === '2029-04-03', 'a future due date skips Easter Monday without writing extra rows');
+    $check(LibraryCalendar::forDb($db)->openDaysBetween('2029-03-31', '2029-04-03') === 2, 'future fine days skip the selected holiday too');
+    \App\Support\Features::override('closures_calendar', false);
+    LibraryCalendar::reset();
+    $check(LibraryCalendar::dueDate($db, '2029-04-02') === '2029-04-02', 'switching the calendar off also ignores dynamic holidays');
+    \App\Support\Features::override('closures_calendar', true);
+    LibraryCalendar::reset();
+    $check(LibraryCalendar::dueDate($db, '2036-04-14') === '2036-04-15', 'switching it back on immediately covers distant years, before maintenance');
+    HolidayPresets::apply($db, 'US', '', ['US:new_year'], $today);
+    $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, regola_festivita) VALUES ('2029-04-02','2029-04-02','Stale preset','IT:easter_monday')");
+    LibraryCalendar::reset();
+    $check(LibraryCalendar::dueDate($db, '2029-04-02') === '2029-04-02', 'a stale preset row cannot close a holiday absent from the saved selection');
+    $check(LibraryCalendar::dueDate($db, '2038-12-31') === '2039-01-01', 'observed New Year is applied in the preceding calendar year beyond the preview');
+
+    // 13. A UI apply commits after the cron's transaction snapshot was taken.
+    // Upkeep must use current locking reads, never reinsert the old country's
+    // holidays or duplicate the new country's rows hidden by that snapshot.
+    $other = new mysqli($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $sandbox, (int) ($env['DB_PORT'] ?? 3306), $socket);
+    $other->set_charset('utf8mb4');
+    try {
+        HolidayPresets::apply($db, 'IT', '', ['IT:easter_monday'], $today);
+        $db->begin_transaction();
+        $check($one("SELECT setting_value FROM system_settings WHERE category = 'calendar' AND setting_key = 'holiday_country'") === 'IT', 'the cron snapshot starts with Italy');
+        HolidayPresets::apply($other, 'US', '', ['US:new_year'], '2030-01-01');
+        $check(HolidayPresets::ensureYears($db, '2030-01-01') === 0, 'upkeep sees the newly committed US selection and its already materialised rows');
+        $check(\App\Support\DbAtomic::inTransaction($db), 'upkeep leaves its caller transaction open');
+        $db->commit();
+        $check(HolidayPresets::selection($db)['country'] === 'US' && $count("regola_festivita = 'IT:easter_monday'") === 0, 'upkeep never restores the old country after a concurrent apply');
+        $check($count("regola_festivita = 'US:new_year'") === 3, 'a stale transaction snapshot cannot duplicate the new holiday rows');
+
+        // Both writers contend for the same selection row, including when
+        // the maintenance date is the first one not materialised yet.
+        $other->begin_transaction();
+        $other->query("SELECT setting_value FROM system_settings WHERE category = 'calendar' AND setting_key = 'holiday_rules' FOR UPDATE");
+        $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+        foreach (['upkeep' => static fn () => HolidayPresets::ensureYears($db, '2033-01-01'), 'apply' => static fn () => HolidayPresets::apply($db, 'IT', '', ['IT:easter_monday'], $today)] as $name => $operation) {
+            $blocked = false;
+            try {
+                $operation();
+            } catch (\mysqli_sql_exception $e) {
+                $blocked = $e->getCode() === 1205;
+            }
+            $check($blocked, "{$name} waits on the shared selection lock");
+        }
+        $other->rollback();
+        $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+        $check(HolidayPresets::selection($db)['country'] === 'US' && $count("regola_festivita = 'IT:easter_monday'") === 0, 'a lock timeout leaves selection and closure rows unchanged');
+        $check(HolidayPresets::ensureYears($db, '2033-01-01') === 3, 'upkeep can retry successfully after the lock is released');
+
+        // Snapshot writes and the selection itself are one transaction.
+        $before = $count("regola_festivita = 'US:new_year'");
+        $db->query("CREATE TRIGGER hp_fail_insert BEFORE INSERT ON calendario_chiusure FOR EACH ROW BEGIN IF NEW.regola_festivita = 'IT:easter_monday' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Simulated holiday write failure'; END IF; END");
+        $failedApply = false;
+        try {
+            HolidayPresets::apply($db, 'IT', '', ['IT:easter_monday'], $today);
+        } catch (\mysqli_sql_exception) {
+            $failedApply = true;
+        }
+        $db->query('DROP TRIGGER hp_fail_insert');
+        $check($failedApply && HolidayPresets::selection($db)['country'] === 'US', 'a failed apply rolls back its selection');
+        $check($count("regola_festivita = 'US:new_year'") === $before && $count("regola_festivita = 'IT:easter_monday'") === 0, 'a failed apply restores the previous closures');
+        $check($manualSnapshot() === $manualBeforeRegressions, 'future-date reads, concurrent changes and rollbacks preserve every manual and ICS closure');
+    } finally {
+        $db->rollback();
+        $other->rollback();
+        $other->close();
+    }
+
     $db->close();
     echo "SUCCESS {$checks} holiday preset checks\n";
     $exit = 0;
