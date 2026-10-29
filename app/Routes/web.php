@@ -882,6 +882,26 @@ return function (App $app): void {
         return (new \App\Controllers\Admin\LibraryCalendarController())->importPreset($request, $response, $db);
     })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/calendar/custom-holidays', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->storeCustom($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays/{id:\d+}/update', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->updateCustom($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays/{id:\d+}/toggle', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->toggleCustom($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->deleteCustom($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/calendar/yearly', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         return (new \App\Controllers\Admin\LibraryCalendarController())->saveYearly($request, $response, $db);

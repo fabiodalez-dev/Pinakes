@@ -6,6 +6,7 @@ namespace App\Controllers\Admin;
 
 use App\Models\SettingsRepository;
 use App\Support\DateHelper;
+use App\Support\Holidays\CustomHolidays;
 use App\Support\Holidays\HolidayCalculator;
 use App\Support\Holidays\HolidayPresets;
 use App\Support\LibraryCalendar;
@@ -20,7 +21,8 @@ use Psr\Http\Message\UploadedFileInterface;
  * Weekly closed days (loans.closed_weekdays), closure intervals with yearly
  * recurrence and optional branch, the national holiday presets (a country,
  * optionally a region, and the holidays the library ticks), the yearly
- * closures switched on and off, ICS import and a monthly preview. AdminAuthMiddleware also admits staff; like
+ * closures switched on and off, the library's own holidays (any calendar,
+ * optionally for one branch), ICS import and a monthly preview. AdminAuthMiddleware also admits staff; like
  * the settings pages, every action is reserved to Permissions::mayConfigure().
  */
 class LibraryCalendarController
@@ -65,6 +67,10 @@ class LibraryCalendarController
         $nextMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('+1 month')->format('Y-m');
         $currentYear = (int) substr($today, 0, 4);
         $holidays = $this->holidayPreview($db, $query, $currentYear);
+        $customHolidays = CustomHolidays::all($db);
+        $customEditId = isset($query['custom_edit']) && is_numeric($query['custom_edit']) ? (int) $query['custom_edit'] : 0;
+        $customEditing = $customEditId > 0 ? CustomHolidays::find($db, $customEditId) : null;
+        $customSchema = CustomHolidays::schemaReady($db);
 
         ob_start();
         require __DIR__ . '/../../Views/admin/calendar.php';
@@ -162,6 +168,79 @@ class LibraryCalendarController
         $this->calendarChanged($db);
         $_SESSION[$deleted ? 'success_message' : 'error_message'] = $deleted ? __('Chiusura eliminata.') : __('Chiusura non trovata.');
         return $this->back($response);
+    }
+
+    /** Add a holiday of the library's own (Settings → Calendar → custom holidays). */
+    public function storeCustom(Request $request, Response $response, \mysqli $db): Response
+    {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
+        return $this->saveCustom($request, $response, $db, null);
+    }
+
+    public function updateCustom(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
+        if (CustomHolidays::find($db, $id) === null) {
+            $_SESSION['error_message'] = __('Festività non trovata.');
+            return $this->backToCustom($response);
+        }
+        return $this->saveCustom($request, $response, $db, $id);
+    }
+
+    public function deleteCustom(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
+        $deleted = CustomHolidays::schemaReady($db) && CustomHolidays::delete($db, $id);
+        $this->calendarChanged($db);
+        $_SESSION[$deleted ? 'success_message' : 'error_message'] = $deleted ? __('Festività eliminata.') : __('Festività non trovata.');
+        return $this->backToCustom($response);
+    }
+
+    /** Switch a custom holiday on or off without deleting it. */
+    public function toggleCustom(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guard($response)) {
+            return $guard;
+        }
+        $row = CustomHolidays::find($db, $id);
+        if ($row === null) {
+            $_SESSION['error_message'] = __('Festività non trovata.');
+            return $this->backToCustom($response);
+        }
+        $active = (int) $row['attiva'] !== 1;
+        CustomHolidays::setActive($db, $id, $active);
+        $this->calendarChanged($db);
+        $_SESSION['success_message'] = $active ? __('Festività riattivata.') : __('Festività sospesa.');
+        return $this->backToCustom($response);
+    }
+
+    private function saveCustom(Request $request, Response $response, \mysqli $db, ?int $id): Response
+    {
+        if (!CustomHolidays::schemaReady($db)) {
+            $_SESSION['error_message'] = __('Le tabelle del calendario non sono ancora state create: completa l\'aggiornamento del database.');
+            return $this->backToCustom($response);
+        }
+        $row = CustomHolidays::validate((array) $request->getParsedBody(), array_keys($this->branches($db)));
+        if (is_string($row)) {
+            $_SESSION['error_message'] = $row;
+            return $this->backToCustom($response, $id);
+        }
+        CustomHolidays::save($db, $row, $id);
+        $this->calendarChanged($db);
+        $_SESSION['success_message'] = $id === null ? __('Festività aggiunta.') : __('Festività aggiornata.');
+        return $this->backToCustom($response);
+    }
+
+    private function backToCustom(Response $response, ?int $editId = null): Response
+    {
+        $target = url('/admin/calendar') . ($editId !== null ? '?custom_edit=' . $editId : '') . '#calendar-custom';
+        return $response->withHeader('Location', $target)->withStatus(302);
     }
 
     /**
@@ -505,7 +584,7 @@ class LibraryCalendarController
      * statutory holidays (optional ones stay unticked).
      *
      * @param array<mixed> $query
-     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool}
+     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool}
      */
     private function holidayPreview(\mysqli $db, array $query, int $currentYear): array
     {
@@ -537,6 +616,8 @@ class LibraryCalendarController
             'regions' => HolidayCalculator::regions($country),
             'region' => $region,
             'years' => $years,
+            // Countries without a hand-written table: dates from the dataset, for its years only.
+            'data_years' => (HolidayCalculator::country($country)['dataset'] ?? false) ? \App\Support\Holidays\HolidayDataset::years($country) : null,
             'year' => $year,
             'list' => $list,
             'saved' => $savedHere,

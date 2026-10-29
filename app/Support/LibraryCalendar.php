@@ -52,7 +52,7 @@ final class LibraryCalendar
     /** @var list<array<string, mixed>> selected holiday rules, evaluated for any year */
     private array $holidayRules;
 
-    /** @var array<int, array<string, true>> holiday dates per requested calendar year */
+    /** @var array<int, array<string, array<int|string, true>>> per year: date => branches ('*' = every branch) */
     private array $holidayDates = [];
 
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
@@ -116,8 +116,10 @@ final class LibraryCalendar
         if (!$configuration && !Features::enabled('closures_calendar')) {
             return new self([], []);
         }
-        $holidayRules = Holidays\HolidayPresets::calendarRules($db);
-        return new self(self::loadClosedWeekdays($db), self::loadClosures($db, $holidayRules !== null), $holidayRules ?? []);
+        $presetRules = Holidays\HolidayPresets::calendarRules($db);
+        // The library's own holidays (any calendar, optionally for one branch) join the presets.
+        $customRules = Holidays\CustomHolidays::calendarRules($db);
+        return new self(self::loadClosedWeekdays($db), self::loadClosures($db, $presetRules !== null), array_merge($presetRules ?? [], $customRules));
     }
 
     /**
@@ -265,11 +267,15 @@ final class LibraryCalendar
                 return false;
             }
         }
-        return !$this->isHoliday($ymd);
+        return !$this->isHoliday($ymd, $sedeId);
     }
 
-    /** Selected holidays apply beyond the admin list's materialised years. */
-    private function isHoliday(string $ymd): bool
+    /**
+     * Selected holidays apply beyond the admin list's materialised years. A
+     * rule with 'sede' (a custom holiday of one branch) closes that branch
+     * only, like a branch closure.
+     */
+    private function isHoliday(string $ymd, ?int $sedeId = null): bool
     {
         if ($this->holidayRules === []) {
             return false;
@@ -281,16 +287,18 @@ final class LibraryCalendar
             // preceding year. Include adjacent source years before filtering.
             for ($sourceYear = max(1, $year - 1); $sourceYear <= min(9999, $year + 1); $sourceYear++) {
                 foreach ($this->holidayRules as $rule) {
+                    $branch = isset($rule['sede']) && is_int($rule['sede']) ? $rule['sede'] : '*';
                     foreach (Holidays\HolidayCalculator::datesOf($rule, $sourceYear) as $date) {
                         if ((int) substr($date, 0, 4) === $year) {
-                            $dates[$date] = true;
+                            $dates[$date][$branch] = true;
                         }
                     }
                 }
             }
             $this->holidayDates[$year] = $dates;
         }
-        return isset($this->holidayDates[$year][$ymd]);
+        $branches = $this->holidayDates[$year][$ymd] ?? null;
+        return $branches !== null && (isset($branches['*']) || ($sedeId !== null && isset($branches[$sedeId])));
     }
 
     /**

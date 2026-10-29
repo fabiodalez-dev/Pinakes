@@ -487,7 +487,7 @@ try {
                 if (trim($statement) === '') { continue; }
                 $result = $db->query($statement); if ($result instanceof mysqli_result) { $result->free(); }
             }
-            ConfigStore::clearCache(); PatronLedger::resetSchemaCache();
+            ConfigStore::clearCache(); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
             foreach (['fines','automatic_fines','debt_block','loss_penalties','patron_photos','consultation_only','automatic_card_expiry'] as $key) {
                 $assert(!Features::stored($key), 'Upgrade silently enabled ' . $key);
             }
@@ -516,9 +516,9 @@ try {
         $db->query("INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, chiave_idempotenza) VALUES ({$p}, {$id}, 'multa_ritardo', 1.50, 'ZZ late', 'late:{$id}')");
         $line = new ReflectionMethod(\App\Support\NotificationService::class, 'returnedLoanFineLine');
         $service = new \App\Support\NotificationService($db);
-        $flag('fines', true); PatronLedger::resetSchemaCache();
+        $flag('fines', true); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
         $assert($line->invoke($service, $id, 'it_IT') !== '', 'The fine line is missing with the ledger on');
-        $flag('fines', false); PatronLedger::resetSchemaCache();
+        $flag('fines', false); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
         $assert($line->invoke($service, $id, 'it_IT') === '', 'The fine line is shown with the ledger off');
     });
     $test('40 The supplier filter of the books list is ignored while suppliers are off', static function () use ($db, $book, $flag, $assert): void {
@@ -566,7 +566,7 @@ try {
         $statements = array_filter(explode(';', $sql), static fn (string $statement): bool => trim($statement) !== '');
         $capture = static function () use ($db, $settings, $p, $b): array {
             ConfigStore::clearCache(); LibraryCalendar::reset();
-            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
             $policy = (new CirculationPolicy($db))->forLoan($p, $b['id'], $b['copy']);
             $enabled = [];
             foreach (Features::keys() as $key) { $enabled[$key] = Features::enabled($key); }
@@ -627,7 +627,7 @@ try {
                 if ($result = $db->store_result()) { $result->free(); }
             } while ($db->more_results() && $db->next_result());
             ConfigStore::clearCache(); LibraryCalendar::reset();
-            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
             foreach ([
                 ['system', 'catalogue_mode', $catalogueMode], ['app', 'timezone', 'America/New_York'],
                 ['app', 'currency', 'USD'], ['loans', 'loan_duration_days', '17'],
@@ -639,7 +639,7 @@ try {
             $legacyReader = $patron(); $legacyBook = $book();
             $captureLegacy = static function () use ($db, $legacyReader, $legacyBook): array {
                 ConfigStore::clearCache(); LibraryCalendar::reset();
-                CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+                CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
                 $policy = (new CirculationPolicy($db))->forLoan($legacyReader, $legacyBook['id'], $legacyBook['copy']);
                 return [
                     'saved' => $db->query("SELECT * FROM system_settings WHERE category <> 'features' ORDER BY category, setting_key")->fetch_all(MYSQLI_ASSOC),
@@ -681,7 +681,7 @@ try {
             }
             $restore->close();
             Features::resetOverrides(); ConfigStore::clearCache(); LibraryCalendar::reset();
-            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache(); \App\Support\Holidays\CustomHolidays::resetSchemaCache();
             $asAdmin();
             $body();
             echo "PASS {$name}\n";

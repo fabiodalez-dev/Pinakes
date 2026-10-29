@@ -307,6 +307,41 @@ EXECUTE hp_stmt;
 DEALLOCATE PREPARE hp_stmt;
 -- ── end holiday presets ──
 
+-- ── custom holidays ──
+-- festivita_personalizzate: the holidays a library defines itself, evaluated
+-- for any year like a preset holiday (LibraryCalendar). tipo: fixed (mese,
+-- giorno), nth_weekday (mese, giorno_settimana 0 = Sunday, occorrenza 1-5 or
+-- -1 = last), easter / orthodox_easter (scarto_giorni from Easter Sunday),
+-- calendar (calendario = islamic-umalqura, hebrew, chinese, persian, indian,
+-- ethiopic or coptic, with its mese and giorno), dates (date_specifiche, a
+-- comma list of Y-m-d). durata_giorni: consecutive days from each start;
+-- fine_settimana: NULL, next_monday or us (a weekend day adds a day in lieu).
+-- No rows: an install that defines none behaves as before. Idempotent.
+CREATE TABLE IF NOT EXISTS `festivita_personalizzate` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('fixed','nth_weekday','easter','orthodox_easter','calendar','dates') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mese` tinyint DEFAULT NULL,
+  `giorno` tinyint DEFAULT NULL,
+  `giorno_settimana` tinyint DEFAULT NULL,
+  `occorrenza` tinyint DEFAULT NULL,
+  `scarto_giorni` smallint DEFAULT NULL,
+  `calendario` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `date_specifiche` text COLLATE utf8mb4_unicode_ci,
+  `durata_giorni` tinyint NOT NULL DEFAULT '1',
+  `fine_settimana` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `anno_inizio` smallint DEFAULT NULL,
+  `anno_fine` smallint DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_festivita_personalizzate_sede` (`sede_id`),
+  CONSTRAINT `fk_festivita_personalizzate_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ── end custom holidays ──
+
 -- ── fines-ledger (Phase 4: fines, patron ledger, debt block) ──
 -- movimenti_lettore is an append-only patron ledger: the balance is SUM(importo),
 -- positive = debt, negative = payment/waiver. chiave_idempotenza keeps a charge

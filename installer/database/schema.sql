@@ -231,6 +231,32 @@ CREATE TABLE `editori` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `festivita_personalizzate` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('fixed','nth_weekday','easter','orthodox_easter','calendar','dates') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mese` tinyint DEFAULT NULL,
+  `giorno` tinyint DEFAULT NULL,
+  `giorno_settimana` tinyint DEFAULT NULL,
+  `occorrenza` tinyint DEFAULT NULL,
+  `scarto_giorni` smallint DEFAULT NULL,
+  `calendario` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `date_specifiche` text COLLATE utf8mb4_unicode_ci,
+  `durata_giorni` tinyint NOT NULL DEFAULT '1',
+  `fine_settimana` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `anno_inizio` smallint DEFAULT NULL,
+  `anno_fine` smallint DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_festivita_personalizzate_sede` (`sede_id`),
+  CONSTRAINT `fk_festivita_personalizzate_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `fornitori` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
