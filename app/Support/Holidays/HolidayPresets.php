@@ -286,6 +286,14 @@ final class HolidayPresets
         if (!self::schemaReady($db)) {
             return 0;
         }
+        // Nothing chosen yet (every upgraded library until its administrator
+        // picks holidays): leave system_settings alone. The lock below upserts
+        // calendar.holiday_rules, which would otherwise appear on the first
+        // maintenance run without anyone having saved anything. A selection
+        // committed meanwhile is picked up by the next run.
+        if (!self::readSelection($db)['saved']) {
+            return 0;
+        }
         $firstYear = (int) substr($today ?? DateHelper::today(), 0, 4);
         $added = 0;
         DbAtomic::run($db, static function () use ($db, $firstYear, &$added): void {

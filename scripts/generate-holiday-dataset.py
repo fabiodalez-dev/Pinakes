@@ -177,13 +177,26 @@ def keep_shipped_ids(cc, items):
         shipped = json.load(fh).get("holidays", [])
     fingerprint = lambda h: (h.get("category"), h.get("dates"), json.dumps(h.get("regional"), sort_keys=True))
     current = {h["id"] for h in items}
-    missing = {fingerprint(h): h["id"] for h in shipped if h["id"] not in current}
+    shipped_ids = {h["id"] for h in shipped}
+    # Several shipped holidays can share one fingerprint (IN gudi_padwa /
+    # cheti_chand / ugadi_optional fall on the same days): keep every id.
+    missing = {}
+    for h in shipped:
+        if h["id"] not in current:
+            missing.setdefault(fingerprint(h), []).append(h["id"])
+    renamed = {}
     for item in items:
-        old = missing.get(fingerprint(item))
-        if old is not None and item["id"] not in {h["id"] for h in shipped}:
-            item["id"] = old
-            del missing[fingerprint(item)]
-    return sorted(missing.values())
+        if item["id"] not in shipped_ids:
+            renamed.setdefault(fingerprint(item), []).append(item)
+    # An id is handed back only when the match is unambiguous: exactly one
+    # missing shipped id and exactly one new holiday with that fingerprint.
+    # Otherwise none is reassigned and all of them are reported.
+    for key, ids in list(missing.items()):
+        candidates = renamed.get(key, [])
+        if len(ids) == 1 and len(candidates) == 1:
+            candidates[0]["id"] = ids[0]
+            del missing[key]
+    return sorted(i for ids in missing.values() for i in ids)
 
 
 def first_day(e):
