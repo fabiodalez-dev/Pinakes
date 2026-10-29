@@ -19,6 +19,9 @@ class AttendanceController
 
     public function index(Request $request, Response $response, mysqli $db): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $repo = new AttendanceRepository($db);
         $days = $this->period($request);
         $data = [
@@ -45,6 +48,9 @@ class AttendanceController
 
     public function scan(Request $request, Response $response, mysqli $db): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $body = (array) $request->getParsedBody();
         $repo = new AttendanceRepository($db);
         $card = is_string($body['codice_tessera'] ?? null) ? $body['codice_tessera'] : '';
@@ -69,6 +75,9 @@ class AttendanceController
 
     public function guest(Request $request, Response $response, mysqli $db): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $body = (array) $request->getParsedBody();
         $repo = new AttendanceRepository($db);
         $name = is_string($body['nome_ospite'] ?? null) ? $body['nome_ospite'] : null;
@@ -102,6 +111,9 @@ class AttendanceController
     /** Apply the retention now instead of waiting for the next maintenance run. */
     public function purge(Request $request, Response $response, mysqli $db): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         if (!$this->isAdmin()) {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori.');
             return $this->back($response);
@@ -115,6 +127,9 @@ class AttendanceController
     /** Daily counts for the selected period as CSV. */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $days = $this->period($request);
         $rows = (new AttendanceRepository($db))->dailyCounts($days);
         $out = fopen('php://temp', 'r+');
@@ -161,5 +176,19 @@ class AttendanceController
     private function back(Response $response): Response
     {
         return $response->withHeader('Location', url('/admin/attendance'))->withStatus(302);
+    }
+
+    /**
+     * Files updated before the 0.9.0 migration ran (or a deploy that skipped
+     * it): the visitor log table is not there yet, so every action answers
+     * with a message instead of a 500.
+     */
+    private function schemaMissing(mysqli $db, Response $response): ?Response
+    {
+        if ((new AttendanceRepository($db))->isAvailable()) {
+            return null;
+        }
+        $_SESSION['error_message'] = __('Questa funzione sarà disponibile al termine dell\'aggiornamento del database.');
+        return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
     }
 }

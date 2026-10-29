@@ -8685,5 +8685,6 @@
   "Fornitore non assegnato": "Supplier not assigned",
   "In prestito o in attesa di ritiro": "On loan or awaiting pickup",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan.",
-  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2."
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2.",
+  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "This feature will be available once the database update has finished."
 }
