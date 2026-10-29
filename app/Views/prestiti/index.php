@@ -137,6 +137,12 @@ $applicationToday = \App\Support\DateHelper::today();
                 case 'renewal_failed':
                     echo __('Rinnovo non riuscito. Riprova.');
                     break;
+                case 'media_limit_reached':
+                    echo __('L\'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.');
+                    break;
+                case 'not_loanable':
+                    echo __('Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.');
+                    break;
                 default:
                     echo __('Errore durante l\'aggiornamento del prestito.');
             }

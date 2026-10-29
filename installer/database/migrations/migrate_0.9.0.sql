@@ -161,7 +161,7 @@ DEALLOCATE PREPARE stmt;
 -- current COLUMN_TYPE instead of being spelled out, which keeps any value another
 -- section of this file (or a future release) has already added to the enum.
 SET @pci_type = (SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'import_logs' AND COLUMN_NAME = 'import_type');
-SET @pci_sql = IF(@pci_type IS NOT NULL AND LOCATE('''users''', @pci_type) = 0, CONCAT('ALTER TABLE import_logs MODIFY COLUMN import_type ', LEFT(@pci_type, CHAR_LENGTH(@pci_type) - 1), ',''users'') NOT NULL COMMENT ''Type of import'''), 'SELECT 1');
+SET @pci_sql = IF(@pci_type IS NOT NULL AND LOCATE('''users''', @pci_type) = 0, CONCAT('ALTER TABLE import_logs MODIFY COLUMN import_type ', LEFT(@pci_type, CHAR_LENGTH(@pci_type) - 1), ',''users'') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT ''Type of import'''), 'SELECT 1');
 PREPARE pci_stmt FROM @pci_sql;
 EXECUTE pci_stmt;
 DEALLOCATE PREPARE pci_stmt;
