@@ -2,12 +2,13 @@
 declare(strict_types=1);
 
 /**
- * 25 independently named integration scenarios for the 0.9.0 settings.
+ * 26 independently named integration scenarios for the 0.9.0 settings:
+ * 25 configuration scenarios and upgrade preservation of saved choices.
  * Real controllers, persisted settings, feature gates and domain services;
  * no Features::override(), no source-text assertions, no network requests.
  * Creates a fresh random sandbox database and drops it in finally. The
  * supplied account must have CREATE DATABASE permission, as for migrations.
- * Run: php tests/stack-090-settings-flexibility-25.unit.php
+ * Run: php tests/stack-090-settings-flexibility.unit.php
  */
 use App\Controllers\Admin\LibraryCalendarController;
 use App\Controllers\AttendanceController;
@@ -352,7 +353,123 @@ try {
         $assert($one("SELECT stato FROM copie WHERE id={$b['copy']}") === 'disponibile', 'Optional loss action was applied implicitly');
     });
 
-    $assert(count($cases) === 25, 'This suite must register exactly 25 scenarios');
+    $test('26 Repeated upgrades preserve saved settings and effective behaviour in every switch state', static function () use ($root, $db, $admin, $sandbox, $settings, $set, $flag, $book, $patron, $assert): void {
+        $p = $patron(); $b = $book();
+        $db->query("UPDATE libri SET rda_content_type='prm' WHERE id={$b['id']}");
+        $db->query("UPDATE copie SET solo_consultazione=1 WHERE id={$b['copy']}");
+        $db->query("INSERT INTO fornitori (nome) VALUES ('ZZ upgrade supplier')");
+        $db->query("INSERT INTO presenze (tipo,nome_ospite) VALUES ('ospite','ZZ upgrade guest')");
+        $db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,ricorrente_annuale,attiva) VALUES ('2026-08-20','2026-08-20','ZZ upgrade manual',1,0)");
+        (new StocktakeService($db))->open('ZZ upgrade inventory', null, ['collocazione_da' => $b['location'], 'collocazione_a' => $b['location']], null);
+        $flag('fines', true);
+        (new PatronLedger($db))->manualCharge($p, 400, 'ZZ upgrade existing debt', null);
+        // Existing data would activate the migration's RC defaults. An explicit
+        // saved OFF must still win; a saved ON must survive a default of OFF.
+        $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+        $sql = implode("\n", array_filter(explode("\n", $sql), static fn (string $line): bool => !str_starts_with(trim($line), '--')));
+        $statements = array_filter(explode(';', $sql), static fn (string $statement): bool => trim($statement) !== '');
+        $capture = static function () use ($db, $settings, $p, $b): array {
+            ConfigStore::clearCache(); LibraryCalendar::reset();
+            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+            $policy = (new CirculationPolicy($db))->forLoan($p, $b['id'], $b['copy']);
+            $enabled = [];
+            foreach (Features::keys() as $key) { $enabled[$key] = Features::enabled($key); }
+            return [
+                'settings' => $db->query('SELECT * FROM system_settings ORDER BY category, setting_key')->fetch_all(MYSQLI_ASSOC),
+                'enabled' => $enabled,
+                'stored' => Features::snapshot(),
+                'policy' => [$policy->durationDays, $policy->maxRenewals, $policy->loanable, $policy->maxActiveLoans],
+                'debt_blocked' => PatronLedger::isDebtBlocked($db, $p),
+                'balance' => (new PatronLedger($db))->balanceCents($p),
+                'due_date' => LibraryCalendar::dueDate($db, '2038-08-15', $b['copy']),
+                'card' => PatronCardSettings::resolve($settings),
+                'retention' => AttendanceRepository::retentionDays($settings),
+                'book' => $db->query("SELECT * FROM libri WHERE id={$b['id']}")->fetch_assoc(),
+                'copy' => $db->query("SELECT * FROM copie WHERE id={$b['copy']}")->fetch_assoc(),
+                'closures' => $db->query('SELECT * FROM calendario_chiusure ORDER BY id')->fetch_all(MYSQLI_ASSOC),
+            ];
+        };
+        foreach (['all off', 'all on', 'mixed in catalogue mode'] as $profile => $label) {
+            foreach (Features::keys() as $index => $key) {
+                $flag($key, $profile === 1 || ($profile === 2 && $index % 2 === 0));
+            }
+            foreach ([
+                ['system', 'catalogue_mode', $profile === 2 ? '1' : '0'],
+                ['app', 'timezone', 'America/New_York'], ['app', 'currency', 'USD'],
+                ['loans', 'loan_duration_days', '17'], ['loans', 'pickup_expiry_days', '9'],
+                ['loans', 'max_renewals', '0'], ['loans', 'max_active_loans_per_user', '0'],
+                ['loans', 'daily_fine', $profile === 1 ? '0.37' : '0'],
+                ['loans', 'debt_block_threshold', $profile === 1 ? '0' : '2.75'],
+                ['loans', 'fine_grace_days', '0'], ['loans', 'closed_weekdays', '0,1'],
+                ['cards', 'layout', 'portrait'], ['cards', 'code_type', 'qr'],
+                ['cards', 'show_photo', '0'], ['cards', 'show_logo', '1'], ['cards', 'show_expiry', '0'],
+                ['attendance', 'retention_days', '0'],
+                ['calendar', 'holiday_country', 'DE'], ['calendar', 'holiday_region', 'BY'],
+                ['calendar', 'holiday_rules', '["DE:mariae_himmelfahrt"]'],
+                ['custom_library', 'operator_choice', 'preserve even an unknown preference'],
+            ] as [$category, $key, $value]) { $set($category, $key, $value); }
+            $before = $capture();
+            for ($pass = 1; $pass <= 2; $pass++) {
+                foreach ($statements as $statement) {
+                    $result = $db->query($statement);
+                    if ($result instanceof mysqli_result) { $result->free(); }
+                }
+                $assert($capture() === $before, "Upgrade changed saved choices or behaviour: {$label}, pass {$pass}");
+            }
+        }
+
+        // Also exercise the real 0.8.9 -> 0.9.0 schema transition. A checked-in
+        // release fixture makes this mandatory even in a shallow CI checkout.
+        $legacySchema = (string) file_get_contents($root . '/tests/fixtures/upgrades/schema-0.8.9.sql');
+        $assert(str_contains($legacySchema, 'CREATE TABLE `system_settings`'), 'The 0.8.9 release schema fixture is missing');
+        foreach (['0', '1'] as $catalogueMode) {
+            $admin->query("DROP DATABASE `{$sandbox}`");
+            $admin->query("CREATE DATABASE `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $db->select_db($sandbox);
+            $db->multi_query($legacySchema);
+            do {
+                if ($result = $db->store_result()) { $result->free(); }
+            } while ($db->more_results() && $db->next_result());
+            ConfigStore::clearCache(); LibraryCalendar::reset();
+            CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+            foreach ([
+                ['system', 'catalogue_mode', $catalogueMode], ['app', 'timezone', 'America/New_York'],
+                ['app', 'currency', 'USD'], ['loans', 'loan_duration_days', '17'],
+                ['loans', 'max_renewals', '0'], ['loans', 'max_active_loans_per_user', '0'],
+                ['loans', 'pickup_expiry_days', '9'], ['loans', 'auto_approve_requests', '0'],
+                ['label', 'width', '62'], ['label', 'height', '31'],
+                ['custom_library', 'operator_choice', 'keep the existing choice'],
+            ] as [$category, $key, $value]) { $set($category, $key, $value); }
+            $legacyReader = $patron(); $legacyBook = $book();
+            $captureLegacy = static function () use ($db, $legacyReader, $legacyBook): array {
+                ConfigStore::clearCache(); LibraryCalendar::reset();
+                CirculationPolicy::resetSchemaCache(); PatronLedger::resetSchemaCache();
+                $policy = (new CirculationPolicy($db))->forLoan($legacyReader, $legacyBook['id'], $legacyBook['copy']);
+                return [
+                    'saved' => $db->query("SELECT * FROM system_settings WHERE category <> 'features' ORDER BY category, setting_key")->fetch_all(MYSQLI_ASSOC),
+                    'mode' => ConfigStore::isCatalogueMode(),
+                    'currency' => FineParameters::currency(),
+                    'policy' => [$policy->durationDays, $policy->maxRenewals, $policy->maxActiveLoans, $policy->loanable],
+                    'debt_blocked' => PatronLedger::isDebtBlocked($db, $legacyReader),
+                    'due_date' => LibraryCalendar::dueDate($db, '2038-08-15', $legacyBook['copy']),
+                    'reader' => $db->query("SELECT codice_tessera, data_scadenza_tessera, stato FROM utenti WHERE id={$legacyReader}")->fetch_assoc(),
+                    'book' => $db->query("SELECT titolo, tipo_media, formato, prezzo FROM libri WHERE id={$legacyBook['id']}")->fetch_assoc(),
+                    'copy' => $db->query("SELECT numero_inventario, stato FROM copie WHERE id={$legacyBook['copy']}")->fetch_assoc(),
+                ];
+            };
+            $before = $captureLegacy();
+            $assert($before['policy'] === [17, 0, 0, true] && !$before['debt_blocked'] && $before['due_date'] === '2038-08-15', 'The legacy reference behaviour is wrong');
+            for ($pass = 1; $pass <= 2; $pass++) {
+                foreach ($statements as $statement) {
+                    $result = $db->query($statement);
+                    if ($result instanceof mysqli_result) { $result->free(); }
+                }
+                $assert($captureLegacy() === $before, "0.8.9 upgrade changed saved choices or behaviour: catalogue mode {$catalogueMode}, pass {$pass}");
+            }
+        }
+    });
+
+    $assert(count($cases) === 26, 'This suite must register exactly 26 scenarios');
     foreach ($cases as [$name, $body]) {
         try {
             $db->rollback();
@@ -388,5 +505,5 @@ try {
     if ($db instanceof mysqli) { $db->rollback(); $db->close(); }
     if ($admin instanceof mysqli) { $admin->query("DROP DATABASE IF EXISTS `{$sandbox}`"); $admin->close(); }
 }
-echo "Settings flexibility: {$passed}/25 passed, {$failed} failed\n";
-exit($passed === 25 && $failed === 0 ? 0 : 1);
+echo "Settings flexibility: {$passed}/26 passed, {$failed} failed\n";
+exit($passed === 26 && $failed === 0 ? 0 : 1);
