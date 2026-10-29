@@ -57,6 +57,22 @@ The previous PR description left the start of San Francesco open: the 4 October 
 
 The OpenAPI document also describes the three new capability flags (`automatic_fines`, `debt_block`, `consultation_only`) and states that the effective debt threshold is null while the block is off.
 
+## Review follow-ups and holidays for every country
+
+A second review of this PR closed every open point of the Pullfrog follow-ups and of my own review:
+
+- Switching consultation-only copies (or catalogue mode) recalculates the stored availability of the books that have such a copy at once.
+- The loan-returned email shows no late fine while the ledger is off; the books list ignores a supplier filter while suppliers are off; the users CSV export leaves out the patron type column while patron type rules are off; the UNIMARC import and export of the z39 plugin follow the MARC module.
+- A weekend holiday with a day in lieu closes the holiday itself and the substitute; Koningsdag and the Argentine movable holidays keep only the new date. Easter Sunday in Western Australia (2022), the Northern Territory (2022) and South Australia (2024), and the extra Monday of a weekend Anzac Day in Western Australia.
+- Before the first selection, a former Italian closure the library suspended starts unticked.
+- Smaller items: the legacy penalty count runs only while penalty mirroring is off, the grace mode is read once per policy, the reader record calls the section "Foto" while card printing is off, the fresh-install seeds describe the new controls in the install language, and this report is in English.
+
+The holiday card no longer stops at 22 countries. Every country and territory of the world (250) is offered, named in the interface language: the 22 hand-written rule tables stay, every other country uses the official holidays of the python-holidays open data (MIT licence, years 2010-2060, `scripts/generate-holiday-dataset.py` with the version pinned). Holidays of a single community, public offices, banks or schools are offered unticked with their category; lunar dates that are estimates are marked.
+
+The library can also define holidays of its own in any calendar: a fixed day, the nth weekday of a month, days from Western or Orthodox Easter, a date in the Islamic (Umm al-Qura), Hebrew, Chinese, Persian, Indian national, Ethiopian or Coptic calendar, or listed dates, for every branch or one (table `festivita_personalizzate`). ICU converts the arithmetic calendars and Umm al-Qura; the Chinese dates come from the published lunar month table (1900-2100), because ICU's astronomical calendar puts Lunar New Year 2027 and 2030 a day late.
+
+Tests added: `tests/custom-holidays.unit.php` (69 checks), `tests/migration-0.9.0-custom-holidays.unit.php`, scenarios 38-41 of `tests/stack-090-settings-flexibility.unit.php`, `tests/holidays-world.spec.js` (10 browser tests) and `tests/feature-toggles-followups.spec.js` (5 browser tests).
+
 ## CI on the switch changes: every workflow passed
 
 Functional commit verified: `d9f36316b1ef39f409b5c3eff69e4c5b49613147`. All ten runs below succeeded. The commits right after it only update this report and the OpenAPI description of the flags; the full API document was checked as valid JSON.
