@@ -53,6 +53,10 @@ Gli interruttori e le nuove regole di servizio sono riservati agli amministrator
 - Superati inoltre **40 test browser** su multe, tariffe per tipologia/materiale e foto, e **22 test** su tessere e regole lettore, compresa la corrispondenza tra data di conferma e rinnovo dalla scadenza futura.
 - Controllo visivo nel browser a 1280 px e 390 px: nessun overflow orizzontale nei nuovi gruppi di impostazioni.
 
+La precedente descrizione della PR lasciava aperta la decorrenza di San Francesco: la regola del 4 ottobre dal 2026 è confermata dall’entrata in vigore del 1° gennaio 2026 nella [legge 151/2025, Gazzetta Ufficiale](https://www.gazzettaufficiale.it/eli/id/2025/10/10/25G00153/sg). I test distinguono già il 2025 dal 2026.
+
+La documentazione OpenAPI descrive anche i tre nuovi flag di capacità (`automatic_fines`, `debt_block`, `consultation_only`) e chiarisce che la soglia di debito effettiva è nulla quando il blocco è spento.
+
 ## Workflow già verificati prima di questa estensione
 
 Gli esiti seguenti riguardano esplicitamente i commit indicati; non vengono attribuiti alle modifiche successive.
