@@ -702,4 +702,4 @@ try {
     if ($admin instanceof mysqli) { $admin->query("DROP DATABASE IF EXISTS `{$sandbox}`"); $admin->close(); }
 }
 echo "Settings flexibility: {$passed}/41 passed, {$failed} failed\n";
-exit($passed === 37 && $failed === 0 ? 0 : 1);
+exit($passed === 41 && $failed === 0 ? 0 : 1);
