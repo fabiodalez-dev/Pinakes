@@ -33,7 +33,7 @@ class SearchController
         $select = "id, nome{$lifeDates}, {$label}";
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
-        $cond = $q !== '' ? \App\Support\ExactSearch::wordsCondition(['nome', 'pseudonimo'], $q) : null;
+        $cond = $q !== '' ? \App\Support\ExactSearch::wordsCondition(['nome', 'pseudonimo'], $q, \App\Support\ExactSearch::MAX_FILTER_TERMS) : null;
         if ($cond !== null) {
             $conditions = [$cond['sql']];
             $params = $cond['params'];
@@ -68,7 +68,7 @@ class SearchController
         $rows = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
-        $cond = $q !== '' ? \App\Support\ExactSearch::wordsCondition(['nome'], $q) : null;
+        $cond = $q !== '' ? \App\Support\ExactSearch::wordsCondition(['nome'], $q, \App\Support\ExactSearch::MAX_FILTER_TERMS) : null;
         if ($cond !== null) {
             $conditions = [$cond['sql']];
             $params = $cond['params'];
@@ -392,7 +392,7 @@ class SearchController
         $results = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
-        $cond = \App\Support\ExactSearch::wordsCondition(['nome', 'pseudonimo'], $query);
+        $cond = \App\Support\ExactSearch::wordsCondition(['nome', 'pseudonimo'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
         if ($cond === null) {
             return [];
         }
@@ -424,7 +424,7 @@ class SearchController
         $results = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
-        $cond = \App\Support\ExactSearch::wordsCondition(['nome'], $query);
+        $cond = \App\Support\ExactSearch::wordsCondition(['nome'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
         if ($cond === null) {
             return [];
         }
@@ -519,7 +519,7 @@ class SearchController
         $results = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
-        $cond = \App\Support\ExactSearch::wordsCondition(['a.nome', 'a.pseudonimo'], $query);
+        $cond = \App\Support\ExactSearch::wordsCondition(['a.nome', 'a.pseudonimo'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
         if ($cond === null) {
             return [];
         }
@@ -561,7 +561,7 @@ class SearchController
         $results = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
-        $cond = \App\Support\ExactSearch::wordsCondition(['e.nome'], $query);
+        $cond = \App\Support\ExactSearch::wordsCondition(['e.nome'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
         if ($cond === null) {
             return [];
         }

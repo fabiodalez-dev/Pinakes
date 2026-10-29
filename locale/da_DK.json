@@ -8570,5 +8570,7 @@
   "Il file contiene più di %d record: vengono importati solo i primi %d": "Filen indeholder mere end %d poster: kun de første %d importeres",
   "In prestito o in attesa di ritiro": "Udlånt eller klar til afhentning",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "Eksemplaret står som udlånt eller klar til afhentning: tjek udlånet.",
-  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallet sammenlignes alfabetisk, ikke numerisk: A.10 kommer før A.2."
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallet sammenlignes alfabetisk, ikke numerisk: A.10 kommer før A.2.",
+  "Segnate come perse": "Markeret som tabt",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke."
 }
