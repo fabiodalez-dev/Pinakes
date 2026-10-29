@@ -505,7 +505,7 @@ class LibraryCalendarController
      * statutory holidays (optional ones stay unticked).
      *
      * @param array<mixed> $query
-     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: list<int>, year: int, list: list<array{id: string, name: string, date: ?string, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool}
+     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool}
      */
     private function holidayPreview(\mysqli $db, array $query, int $currentYear): array
     {
@@ -518,13 +518,17 @@ class LibraryCalendarController
             ? $query['holiday_region']
             : ($country === $selection['country'] ? $selection['region'] : '');
         $region = HolidayCalculator::normaliseRegion($country, $rawRegion);
-        $years = range(1900, 2199);
-        $year = is_scalar($query['holiday_year'] ?? null) && in_array((int) $query['holiday_year'], $years, true) ? (int) $query['holiday_year'] : $currentYear;
+        $years = ['min' => 1900, 'max' => 2199];
+        $requestedYear = is_scalar($query['holiday_year'] ?? null) ? filter_var($query['holiday_year'], FILTER_VALIDATE_INT) : false;
+        $year = $requestedYear !== false && $requestedYear >= $years['min'] && $requestedYear <= $years['max'] ? $requestedYear : $currentYear;
         $savedHere = $selection['saved'] && $selection['country'] === $country && $selection['region'] === $region;
         $ticked = array_flip($selection['rules']);
+        // Before the first selection, a former Italian closure the library
+        // suspended starts unticked: applying the defaults keeps it off.
+        $suspended = !$selection['saved'] && $country === 'IT' ? array_flip(HolidayPresets::suspendedLegacyRules($db)) : [];
         $list = [];
         foreach (HolidayCalculator::forYear($country, $region, $year) as $holiday) {
-            $holiday['checked'] = $savedHere ? isset($ticked[$holiday['id']]) : !$holiday['optional'];
+            $holiday['checked'] = $savedHere ? isset($ticked[$holiday['id']]) : !$holiday['optional'] && !isset($suspended[$holiday['id']]);
             $list[] = $holiday;
         }
         return [

@@ -194,8 +194,8 @@ final class HolidayPresets
                 }
             } else {
                 for ($year = $firstYear; $year <= $firstYear + self::YEARS_AHEAD; $year++) {
-                    $date = HolidayCalculator::dateOf($rule, $year);
-                    if ($date !== null) {
+                    // A day in lieu closes both days: the holiday and its substitute.
+                    foreach (HolidayCalculator::datesOf($rule, $year) as $date) {
                         $rows[] = ['start' => $date, 'end' => $date, 'description' => (string) $rule['name'], 'yearly' => false];
                     }
                 }
@@ -407,6 +407,35 @@ final class HolidayPresets
         $stmt->execute();
         $stmt->close();
         return 'added';
+    }
+
+    /**
+     * Former Italian preset rules the librarian suspended: every legacy row
+     * of the rule is switched off (attiva = 0). Before the first selection
+     * they start unticked, so applying the defaults does not bring them back.
+     *
+     * @return list<string> rule ids
+     */
+    public static function suspendedLegacyRules(\mysqli $db): array
+    {
+        if (!self::schemaReady($db)) {
+            return [];
+        }
+        $out = [];
+        foreach (array_keys(self::LEGACY_IT_LABELS) as $ruleId) {
+            $labels = self::legacyLabels($ruleId);
+            $placeholders = implode(',', array_fill(0, count($labels), '?'));
+            $stmt = $db->prepare("SELECT COUNT(*), COALESCE(SUM(attiva), 0) FROM calendario_chiusure
+                                   WHERE regola_festivita IS NULL AND sede_id IS NULL AND descrizione IN ({$placeholders})");
+            $stmt->bind_param(str_repeat('s', count($labels)), ...$labels);
+            $stmt->execute();
+            [$rows, $active] = $stmt->get_result()->fetch_row() ?? [0, 0];
+            $stmt->close();
+            if ((int) $rows > 0 && (int) $active === 0) {
+                $out[] = $ruleId;
+            }
+        }
+        return $out;
     }
 
     /**

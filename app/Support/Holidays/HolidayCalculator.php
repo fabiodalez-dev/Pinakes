@@ -84,7 +84,7 @@ final class HolidayCalculator
      * Each applicable rule with its date in $year (null when the holiday
      * does not exist that year).
      *
-     * @return list<array{id: string, name: string, date: ?string, yearly: bool, regional: bool, optional: bool}>
+     * @return list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool}>
      */
     public static function forYear(string $country, string $region, int $year): array
     {
@@ -95,6 +95,7 @@ final class HolidayCalculator
                 'id' => $country . ':' . (string) $rule['id'],
                 'name' => (string) $rule['name'],
                 'date' => self::dateOf($rule, $year),
+                'dates' => self::datesOf($rule, $year),
                 'yearly' => self::isYearly($rule),
                 'regional' => isset($rule['regions']),
                 'optional' => !empty($rule['optional']),
@@ -148,6 +149,35 @@ final class HolidayCalculator
         }
         $observed = $rule['observed'] ?? null;
         return is_string($observed) && $observed !== '' ? self::observe($date, $observed) : $date;
+    }
+
+    /** Weekend rules that add a day in lieu: the holiday itself keeps its date. */
+    private const IN_LIEU_MODES = ['us', 'next_monday', 'pair'];
+
+    /**
+     * Every closed day of one rule in $year: the observed date, plus the
+     * actual date when a weekend rule adds a day in lieu (us, next_monday,
+     * pair) instead of moving the holiday. Koningsdag (sunday_back) and the
+     * Argentine movable holidays (ar_movable) move: only the new date is a
+     * holiday. A yearly override is the one date of that year.
+     *
+     * @param array<string, mixed> $rule
+     * @return list<string>
+     */
+    public static function datesOf(array $rule, int $year): array
+    {
+        $observed = self::dateOf($rule, $year);
+        if ($observed === null) {
+            return [];
+        }
+        $mode = $rule['observed'] ?? null;
+        $overrides = $rule['overrides'] ?? [];
+        if (!is_string($mode) || !in_array($mode, self::IN_LIEU_MODES, true)
+            || (is_array($overrides) && isset($overrides[$year])) || !is_array($rule['rule'] ?? null)) {
+            return [$observed];
+        }
+        $actual = self::evaluate($rule['rule'], $year);
+        return $actual !== null && $actual !== $observed ? [$actual, $observed] : [$observed];
     }
 
     /**

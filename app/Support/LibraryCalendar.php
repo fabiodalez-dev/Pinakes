@@ -281,9 +281,10 @@ final class LibraryCalendar
             // preceding year. Include adjacent source years before filtering.
             for ($sourceYear = max(1, $year - 1); $sourceYear <= min(9999, $year + 1); $sourceYear++) {
                 foreach ($this->holidayRules as $rule) {
-                    $date = Holidays\HolidayCalculator::dateOf($rule, $sourceYear);
-                    if ($date !== null && (int) substr($date, 0, 4) === $year) {
-                        $dates[$date] = true;
+                    foreach (Holidays\HolidayCalculator::datesOf($rule, $sourceYear) as $date) {
+                        if ((int) substr($date, 0, 4) === $year) {
+                            $dates[$date] = true;
+                        }
                     }
                 }
             }

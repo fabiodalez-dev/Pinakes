@@ -139,7 +139,7 @@ try {
 
     // 10. An observed rule of another country, and the region a nation needs.
     HolidayPresets::apply($db, 'US', '', ['US:independence_day'], $today);
-    $check($one("SELECT GROUP_CONCAT(data_inizio ORDER BY data_inizio) FROM calendario_chiusure WHERE regola_festivita = 'US:independence_day'") === '2026-07-03,2027-07-05,2028-07-04', 'US Independence Day stored on the observed days');
+    $check($one("SELECT GROUP_CONCAT(data_inizio ORDER BY data_inizio) FROM calendario_chiusure WHERE regola_festivita = 'US:independence_day'") === '2026-07-03,2026-07-04,2027-07-04,2027-07-05,2028-07-04', 'US Independence Day stored on the day itself and the day in lieu');
     HolidayPresets::apply($db, 'GB', '', ['GB:new_year', 'GB:st_patrick'], $today);
     $check(HolidayPresets::selection($db)['region'] === 'ENG' && $count("regola_festivita = 'GB:st_patrick'") === 0, 'the United Kingdom falls back to England and Wales');
 
@@ -159,7 +159,8 @@ try {
     $check($count("descrizione = 'Patrono'") === 1, 'and the closure is still stored');
     HolidayPresets::apply($db, 'US', '', ['US:independence_day'], $today);
     LibraryCalendar::reset();
-    $check(LibraryCalendar::dueDate($db, '2026-07-03') === '2026-07-04', 'a due date on a chosen holiday moves to the next open day');
+    // Friday 3 July is the day in lieu, Saturday 4 July the holiday itself: both close.
+    $check(LibraryCalendar::dueDate($db, '2026-07-03') === '2026-07-05', 'a due date on a chosen holiday moves to the next open day');
     $check(LibraryCalendar::dueDate($db, '2026-09-07') === '2026-09-07', 'a due date on an unchosen holiday (Labor Day) stays');
 
     // 12. The materialised rows are a preview, not a horizon on loan policy.
@@ -178,7 +179,7 @@ try {
     $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, regola_festivita) VALUES ('2029-04-02','2029-04-02','Stale preset','IT:easter_monday')");
     LibraryCalendar::reset();
     $check(LibraryCalendar::dueDate($db, '2029-04-02') === '2029-04-02', 'a stale preset row cannot close a holiday absent from the saved selection');
-    $check(LibraryCalendar::dueDate($db, '2038-12-31') === '2039-01-01', 'observed New Year is applied in the preceding calendar year beyond the preview');
+    $check(LibraryCalendar::dueDate($db, '2038-12-31') === '2039-01-02', 'observed New Year is applied in the preceding calendar year beyond the preview, with New Year itself');
 
     // 13. A UI apply commits after the cron's transaction snapshot was taken.
     // Upkeep must use current locking reads, never reinsert the old country's
@@ -213,7 +214,8 @@ try {
         $other->rollback();
         $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
         $check(HolidayPresets::selection($db)['country'] === 'US' && $count("regola_festivita = 'IT:easter_monday'") === 0, 'a lock timeout leaves selection and closure rows unchanged');
-        $check(HolidayPresets::ensureYears($db, '2033-01-01') === 3, 'upkeep can retry successfully after the lock is released');
+        // 2033 (Saturday: also 31 December 2032), 2034 (Sunday: also Monday 2 January) and 2035.
+        $check(HolidayPresets::ensureYears($db, '2033-01-01') === 5, 'upkeep can retry successfully after the lock is released');
 
         // Snapshot writes and the selection itself are one transaction.
         $before = $count("regola_festivita = 'US:new_year'");

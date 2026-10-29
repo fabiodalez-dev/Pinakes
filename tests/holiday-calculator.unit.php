@@ -206,5 +206,26 @@ $eq(H::isYearly($rule('GB', 'early_may')), false, 'an nth weekday is dated per y
 $eq(H::nthWeekday(2026, 2, 1, 5), null, 'there is no fifth Monday in February 2026');
 $eq(H::observe('2026-07-04', 'none'), '2026-07-04', 'an unknown weekend rule leaves the date');
 
+
+// ── Days in lieu close both days; moved holidays close only the new day ──
+$eq(H::datesOf($rule('US', 'christmas'), 2027), ['2027-12-25', '2027-12-24'], 'US Christmas 2027 (Saturday): the day itself and Friday in lieu');
+$eq(H::datesOf($rule('AU', 'christmas'), 2027), ['2027-12-25', '2027-12-27'], 'AU Christmas 2027 (Saturday): the day itself and Monday 27');
+$eq(H::datesOf($rule('AU', 'boxing_day'), 2027), ['2027-12-26', '2027-12-28'], 'AU Boxing Day 2027 (Sunday): the day itself and Tuesday 28');
+$eq(H::datesOf($rule('GB', 'christmas'), 2026), ['2026-12-25'], 'GB Christmas 2026 on a Friday: one day');
+$eq(H::datesOf($rule('NL', 'koningsdag'), 2025), ['2025-04-26'], 'NL Koningsdag 2025 moves from Sunday to Saturday: only Saturday');
+$eq(H::datesOf($rule('US', 'new_year'), 2028), ['2028-01-01', '2027-12-31'], 'US New Year 2028 (Saturday): observed on 31 December 2027 too');
+$eq(H::dateOf($rule('US', 'christmas'), 2027), '2027-12-24', 'dateOf() keeps the observed date');
+
+// ── Australia: Easter Sunday by state and year, WA Anzac Monday ──────────
+$eq($date('AU', 'WA', 2022, 'easter_sunday_wa'), '2022-04-17', 'AU WA Easter Sunday from 2022');
+$eq($date('AU', 'WA', 2021, 'easter_sunday_wa'), null, 'AU WA no Easter Sunday holiday in 2021');
+$eq($date('AU', 'SA', 2024, 'easter_sunday_sa'), '2024-03-31', 'AU SA Easter Sunday from 2024');
+$eq($date('AU', 'SA', 2023, 'easter_sunday_sa'), null, 'AU SA no Easter Sunday holiday in 2023');
+$eq($date('AU', 'NT', 2026, 'easter_sunday_nt'), '2026-04-05', 'AU NT Easter Sunday 2026');
+$eq($has('AU', 'SA', 'easter_sunday'), false, 'SA uses its own Easter Sunday rule');
+$eq(H::datesOf($rule('AU', 'anzac_day_monday_wa'), 2026), ['2026-04-25', '2026-04-27'], 'AU WA Anzac Day 2026 (Saturday): also Monday 27');
+$eq(H::datesOf($rule('AU', 'anzac_day_monday_wa'), 2027), ['2027-04-25', '2027-04-26'], 'AU WA Anzac Day 2027 (Sunday): also Monday 26');
+$eq(H::datesOf($rule('AU', 'anzac_day_monday_wa'), 2028), [], 'AU WA Anzac Day 2028 on a Tuesday: no extra Monday');
+
 echo ($fail === 0 ? 'SUCCESS' : 'FAILED') . " {$pass} checks, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

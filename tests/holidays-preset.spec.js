@@ -148,7 +148,8 @@ test.describe('Public holiday presets', () => {
     expect(await holidayDate(page, 'IT:christmas')).toBe(`${year}-12-25`);
     await expect(page.locator('input[data-holiday-rule]:checked')).toHaveCount(13);
     // Another preview year: the movable dates follow.
-    await Promise.all([page.waitForURL(/holiday_year=/), page.selectOption('#holiday_year', String(year + 1))]);
+    await page.fill('#holiday_year', String(year + 1));
+    await Promise.all([page.waitForURL(/holiday_year=/), page.locator('#holiday_year').dispatchEvent('change')]);
     expect(await holidayDate(page, 'IT:easter_monday')).toBe(addDays(easter(year + 1), 1));
     expect(presetCount()).toBe(0);
   });
@@ -187,7 +188,12 @@ test.describe('Public holiday presets', () => {
     await expect(page.locator('input[data-holiday-rule]:checked')).toHaveCount(0);
     for (const id of ['US:new_year', 'US:independence_day', 'US:thanksgiving', 'US:christmas']) await box(page, id).check();
     await submitAndLand(page, '#import-preset');
-    await expect(page.locator('body')).toContainText(/Festività applicate: 12 aggiunte, 0 rimosse|Holidays applied: 12 added, 0 removed/);
+    // 4 holidays × 3 years, plus the actual day of each holiday that falls on a weekend (day in lieu).
+    const applied = /(?:Festività applicate|Holidays applied): (\d+) (?:aggiunte|added), 0 (?:rimosse|removed)/;
+    await expect(page.locator('body')).toContainText(applied);
+    const added = Number(((await page.locator('body').innerText()).match(applied) || [])[1]);
+    expect(added).toBeGreaterThanOrEqual(12);
+    expect(added).toBe(presetCount());
     expect(db("SELECT GROUP_CONCAT(DISTINCT regola_festivita ORDER BY regola_festivita) FROM calendario_chiusure WHERE regola_festivita IS NOT NULL"))
       .toBe('US:christmas,US:independence_day,US:new_year,US:thanksgiving');
     // Observed rules: one row per year, from this year to two years ahead.
@@ -213,11 +219,15 @@ test.describe('Public holiday presets', () => {
 
   test('5. unticking one holiday removes only its rows', async () => {
     await chooseCountry(page, 'US');
+    // Christmas rows: one per year, plus the day itself when it falls on a weekend.
+    const christmasRows = presetCount("regola_festivita='US:christmas'");
+    const allRows = presetCount();
+    expect(christmasRows).toBeGreaterThanOrEqual(3);
     await box(page, 'US:christmas').uncheck();
     await submitAndLand(page, '#import-preset');
-    await expect(page.locator('body')).toContainText(/Festività applicate: 0 aggiunte, 3 rimosse|Holidays applied: 0 added, 3 removed/);
+    await expect(page.locator('body')).toContainText(new RegExp(`Festività applicate: 0 aggiunte, ${christmasRows} rimosse|Holidays applied: 0 added, ${christmasRows} removed`));
     expect(presetCount("regola_festivita='US:christmas'")).toBe(0);
-    expect(presetCount()).toBe(9);
+    expect(presetCount()).toBe(allRows - christmasRows);
     await expect(box(page, 'US:christmas')).not.toBeChecked();
   });
 
@@ -243,7 +253,8 @@ test.describe('Public holiday presets', () => {
     await chooseCountry(page, 'US');
     let labor = await holidayDate(page, 'US:labor_day');
     if (!labor || labor < addDays(today, minDays)) {
-      await Promise.all([page.waitForURL(/holiday_year=/), page.selectOption('#holiday_year', String(year + 1))]);
+      await page.fill('#holiday_year', String(year + 1));
+      await Promise.all([page.waitForURL(/holiday_year=/), page.locator('#holiday_year').dispatchEvent('change')]);
       labor = await holidayDate(page, 'US:labor_day');
     }
     expect(weekday(/** @type {string} */ (labor))).toBe(1);
@@ -252,10 +263,11 @@ test.describe('Public holiday presets', () => {
 
   test('7. switching country replaces the preset and select none clears it; manual and ICS closures stay', async () => {
     const manual = nonPresetSnapshot();
+    const usRows = presetCount("regola_festivita LIKE 'US:%'");
     await chooseCountry(page, 'DE', 'BY');
     await box(page, 'DE:buss_und_bettag').count().then((n) => expect(n).toBe(0));
     await submitAndLand(page, '#import-preset');
-    await expect(page.locator('body')).toContainText(/9 rimosse|9 removed/);
+    await expect(page.locator('body')).toContainText(new RegExp(`${usRows} rimosse|${usRows} removed`));
     expect(presetCount("regola_festivita LIKE 'US:%'")).toBe(0);
     expect(presetCount("regola_festivita='DE:fronleichnam'")).toBe(3);
     expect(presetCount("regola_festivita='DE:neujahr' AND ricorrente_annuale=1")).toBe(1);

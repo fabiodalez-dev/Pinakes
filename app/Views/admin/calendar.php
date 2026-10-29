@@ -14,7 +14,7 @@
  * @var int $currentYear
  * @var string $today
  * @var list<array<string, mixed>> $yearlyClosures
- * @var array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: list<int>, year: int, list: list<array{id: string, name: string, date: ?string, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool} $holidays
+ * @var array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, checked: bool}>, saved: bool, schema: bool} $holidays
  */
 
 $csrf = \App\Support\Csrf::ensureToken();
@@ -207,11 +207,7 @@ unset($workspaceHeader);
           <?php endif; ?>
           <div>
             <label for="holiday_year" class="form-label"><i class="fas fa-calendar-alt mr-1"></i><?= __("Anno di anteprima") ?></label>
-            <select id="holiday_year" name="holiday_year" class="form-input" onchange="this.form.submit()">
-              <?php foreach ($holidays['years'] as $y): ?>
-                <option value="<?= (int) $y ?>" <?= $y === $holidays['year'] ? 'selected' : '' ?>><?= (int) $y ?></option>
-              <?php endforeach; ?>
-            </select>
+            <input type="number" id="holiday_year" name="holiday_year" class="form-input" min="<?= (int) $holidays['years']['min'] ?>" max="<?= (int) $holidays['years']['max'] ?>" step="1" value="<?= (int) $holidays['year'] ?>" onchange="if (this.checkValidity()) this.form.submit()">
           </div>
           <noscript>
             <button type="submit" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200"><?= __("Aggiorna anteprima") ?></button>
@@ -234,6 +230,9 @@ unset($workspaceHeader);
                        <?= $holiday['checked'] ? 'checked' : '' ?>>
                 <span><?= $e($holiday['name']) ?></span>
                 <span class="text-gray-500" data-holiday-date="<?= $e((string) $holiday['date']) ?>"><?= $holiday['date'] !== null ? $e($fmt('EEE d MMMM y', $holiday['date'])) : $e(__('non prevista nel %d', $holidays['year'])) ?></span>
+                <?php foreach (array_diff($holiday['dates'], [(string) $holiday['date']]) as $holidayActual): ?>
+                  <span class="text-gray-500" data-holiday-actual="<?= $e($holidayActual) ?>"><?= $e(sprintf(__('chiusa anche %s'), $fmt('EEE d MMMM y', $holidayActual))) ?></span>
+                <?php endforeach; ?>
                 <?php if ($holiday['yearly']): ?>
                   <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"><?= __("ogni anno") ?></span>
                 <?php else: ?>

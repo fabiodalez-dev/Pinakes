@@ -433,8 +433,16 @@ final class HolidayRules
                     ['id' => 'good_friday', 'name' => 'Good Friday', 'rule' => ['easter', -2]],
                     ['id' => 'easter_saturday', 'name' => 'Easter Saturday', 'rule' => ['easter', -1], 'regions' => ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'VIC']],
                     ['id' => 'easter_sunday', 'name' => 'Easter Sunday', 'rule' => ['easter', 0], 'regions' => ['ACT', 'NSW', 'QLD', 'VIC']],
+                    // Public and Bank Holidays Act 1972 as amended in 2021: from Easter 2022.
+                    ['id' => 'easter_sunday_wa', 'name' => 'Easter Sunday', 'rule' => ['easter', 0], 'regions' => ['WA'], 'from' => 2022],
+                    // Gazetted every year since 2022.
+                    ['id' => 'easter_sunday_nt', 'name' => 'Easter Sunday', 'rule' => ['easter', 0], 'regions' => ['NT'], 'from' => 2022],
+                    // Declared by the 2023 amendment, from Easter 2024.
+                    ['id' => 'easter_sunday_sa', 'name' => 'Easter Sunday', 'rule' => ['easter', 0], 'regions' => ['SA'], 'from' => 2024],
                     ['id' => 'easter_monday', 'name' => 'Easter Monday', 'rule' => ['easter', 1]],
                     ['id' => 'anzac_day', 'name' => 'Anzac Day', 'rule' => ['fixed', '04-25']],
+                    // WA: on a Saturday or Sunday the following Monday is also a public holiday.
+                    ['id' => 'anzac_day_monday_wa', 'name' => 'Anzac Day (additional Monday)', 'rule' => ['fixed_if', '04-25', ['sat', 'sun']], 'observed' => 'next_monday', 'regions' => ['WA']],
                     ['id' => 'labour_day_qld', 'name' => 'Labour Day', 'rule' => ['nth_weekday', 5, 'mon', 1], 'regions' => ['QLD']],
                     ['id' => 'may_day_nt', 'name' => 'May Day', 'rule' => ['nth_weekday', 5, 'mon', 1], 'regions' => ['NT']],
                     ['id' => 'reconciliation_day', 'name' => 'Reconciliation Day', 'rule' => ['weekday_on_or_after', '05-27', 'mon'], 'regions' => ['ACT'], 'from' => 2018],
