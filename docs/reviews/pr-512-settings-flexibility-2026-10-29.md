@@ -1,100 +1,100 @@
-# PR #512: interruttori, aggiornamenti e verifiche
+# PR #512: switches, upgrades and verification
 
-Aggiornamento del 29 ottobre 2026 sulla catena #503–#512, con #502 esclusa dalla review. Gli undici moduli hanno ora **18 interruttori persistenti**: dieci in **Impostazioni → Moduli**, otto in **Impostazioni → Prestiti**. I controlli nuovi riprendono etichette, descrizioni, accessibilità e stile degli interruttori esistenti.
+Update of 29 October 2026 on the #503–#512 stack (#502 excluded from this review). The eleven modules now have **18 saved controls**: ten in **Settings → Modules** and eight in **Settings → Loans**. The new controls reuse the labels, descriptions, accessibility and styling of the existing switches.
 
-## Controlli applicati
+## Controls
 
-| Dove | Controllo | Comportamento |
+| Where | Control | Behaviour |
 | --- | --- | --- |
-| Moduli → Utenti | Stampa delle tessere | Abilita PDF singoli e multipli. Le impostazioni di stampa si possono preparare anche a modulo spento. |
-| Moduli → Utenti | Foto dei lettori | Acquisizione, visualizzazione, modifica e cancellazione indipendenti dalla stampa. Spento, blocca anche gli URL diretti ed esclude le foto dai PDF; conserva i file esistenti. |
-| Moduli → Servizi al pubblico | Registro presenze | Abilita la raccolta di nuovi ingressi. |
-| Moduli → Servizi al pubblico | Conservazione a registro sospeso | Consente di applicare la conservazione mentre la raccolta è spenta, anche in modalità catalogo. Parte spento; non avvia cancellazioni durante l’aggiornamento. |
-| Moduli → Servizi al pubblico | Giorni di conservazione | Modificabili anche a registro spento. `0` impedisce sempre la cancellazione automatica. |
-| Prestiti → Regole lettore | Regole per tipologia | Attiva tipologie, matrice, durata e limiti per lettore e materiale. Gli amministratori possono preparare la configurazione a modulo spento. |
-| Prestiti → Regole lettore | Copie in sola consultazione | Applica il vincolo fisico anche con le regole per tipologia spente. Controllo condiviso da banco, sito, app, allocazione SQL e integrazioni. |
-| Prestiti → Regole lettore | Validità automatica delle tessere | Applica la durata della tipologia a nuove iscrizioni e approvazioni. Spento, conserva la scadenza già salvata; il rinnovo manuale resta disponibile. |
-| Prestiti → Regole lettore | Base del rinnovo tessera | Scelta tra oggi, comportamento precedente, e scadenza futura esistente. Una scadenza già passata riparte da oggi. |
-| Prestiti → Calendario | Calendario chiusure | Sospende l’applicazione del calendario senza cancellarlo. Gli amministratori possono preparare chiusure e festività e vederne l’anteprima anche a modulo spento. Anno delle festività selezionabile dal 1900 al 2199. |
-| Prestiti → Multe | Registro movimenti | Addebiti manuali, pagamenti, ricevute, condoni e saldo. Può funzionare con tutti e tre gli automatismi successivi spenti. |
-| Prestiti → Multe | Multe automatiche per ritardo | Richiede registro attivo, interruttore dedicato e tariffa positiva. Le tariffe per tipologia e materiale non aggirano il controllo. |
-| Prestiti → Multe | Blocco per debito | Richiede registro attivo, interruttore dedicato e soglia positiva. Funziona senza nuove multe automatiche. Scheda web e API mobile mostrano il blocco soltanto quando è effettivamente attivo. |
-| Prestiti → Multe | Riporto penalità per perdita e danno | Riporta soltanto importi già assegnati, compresi quelli precedenti. Il form mostra quantità e totale degli importi da riportare. La riattivazione riapre la scansione idempotente. |
-| Prestiti → Multe | Modalità di tolleranza | Soglia, come prima: oltre la tolleranza si conta dal primo giorno. Oppure abbuono: si sottraggono sempre i giorni di tolleranza. |
+| Modules → Users | Card printing | Enables single and sheet PDFs. Print settings can be prepared while the module is off. |
+| Modules → Users | Patron photos | Capture, display, change and deletion, independent of printing. Off, it also blocks the direct URLs and keeps photos out of the PDFs; stored files are kept. |
+| Modules → Public services | Visitor log | Enables recording new visits. |
+| Modules → Public services | Retention while the log is suspended | Applies retention while recording is off, also in catalogue mode. Starts off; the upgrade never starts a deletion. |
+| Modules → Public services | Retention days | Editable while the log is off. `0` always prevents automatic deletion. |
+| Loans → Patron rules | Patron type rules | Patron types, rules matrix, duration and limits per patron and material. Administrators can prepare the configuration while the module is off. |
+| Loans → Patron rules | Consultation-only copies | Enforces the physical restriction even with patron type rules off, at the desk, on the site, in the app, in SQL allocation and integrations. Switching it recalculates the availability of the affected books at once. |
+| Loans → Patron rules | Automatic card validity | Applies the patron type's duration to new registrations and approvals. Off, the stored expiry is kept; manual renewal stays available. |
+| Loans → Patron rules | Card renewal base | Today (the previous behaviour) or a future existing expiry. An expiry already past starts again from today. |
+| Loans → Calendar | Closures calendar | Suspends the calendar without deleting it. Administrators can prepare closures and holidays and preview them while it is off. Any preview year from 1900 to 2199. |
+| Loans → Fines | Patron ledger | Manual charges, payments, receipts, waivers and balance. It can run with all three automations below off. |
+| Loans → Fines | Automatic overdue fines | Requires the ledger, its own switch and a positive rate. Patron type and material rates cannot bypass it. |
+| Loans → Fines | Debt block | Requires the ledger, its own switch and a positive threshold. It works without automatic fines. The reader record and the Mobile API show the block only when it is actually in force. |
+| Loans → Fines | Mirror loss and damage penalties | Mirrors amounts already assessed, older ones included. The form shows how many amounts and the total. Switching it on reopens the idempotent scan. |
+| Loans → Fines | Grace mode | Threshold, as before: past the grace period every day counts from the first. Or waiver: the grace days are always subtracted. |
 
-Gli altri controlli restano nelle sezioni esistenti: inventario, MARC, schede catalografiche, fornitori, tipi RDA e importazione CSV. Inventario senza dichiarazione di perdita, scelta dei duplicati MARC, inviti email, campi facoltativi e contenuti della tessera continuano a richiedere le rispettive scelte esplicite.
+The other controls stay in their existing sections: stocktake, MARC (UNIMARC import/export included), catalogue cards, suppliers, RDA types and CSV import. Stocktake without declaring losses, MARC duplicate handling, email invitations, optional fields and card contents keep requiring their own explicit choices.
 
-Accanto ai campi ereditabili sono indicati i significati di vuoto e zero: rinnovi vietati, nessun limite, nessun tetto, nessuna tolleranza oppure disattivazione per tipologia. Il riepilogo delle regole e i valori ereditati della matrice restano disponibili.
+Next to the inheritable fields the form explains what empty and zero mean: renewals forbidden, no limit, no cap, no grace, or disabled for that patron type. The rules summary and the inherited values of the matrix stay available.
 
-## Garanzia sugli aggiornamenti
+## Upgrade guarantee
 
-**Se le multe non erano previste, l’aggiornamento non le introduce.**
+**If fines were not in use, the upgrade does not introduce them.**
 
-- Ogni nuovo controllo separato eredita lo stato del precedente controllo soltanto quando la preferenza è assente. Un valore salvato, compreso `0`, viene conservato.
-- Nuovi controlli assenti e registro precedentemente spento: multe automatiche, blocco e riporto penalità vengono salvati spenti, anche in presenza di tariffe positive, tipologie configurate o penalità pregresse.
-- Attivare successivamente il solo registro lascia spenti gli automatismi. Tariffe e soglie restano memorizzate per una scelta futura esplicita.
-- La migrazione non riporta penalità quando il registro o il relativo controllo sono spenti. Gli importi precedenti rimangono in `prestiti.sanzione`; i movimenti già esistenti rimangono conservati.
-- I vecchi moduli di salvataggio, che non inviano i nuovi campi, conservano le preferenze. Prima di cambiare il vecchio controllo vengono fissate le scelte ereditate, così non seguono accidentalmente la successiva riattivazione.
-- La modalità catalogo sospende la circolazione mantenendo gli interruttori salvati. La cancellazione delle presenze a registro sospeso richiede la propria attivazione esplicita.
-- Le nuove scelte di tolleranza e rinnovo mantengono i comportamenti precedenti come default. I prestiti esistenti mantengono la propria scadenza.
+- Each new split control inherits its former parent only while its preference is absent. A saved value, `0` included, is kept.
+- New controls absent and ledger previously off: automatic fines, debt block and penalty mirroring are saved off, even with positive rates, configured patron types or older penalties.
+- Switching on only the ledger later leaves the automations off. Rates and thresholds stay stored for a later explicit choice.
+- The migration mirrors no penalty while the ledger or its control is off. Older amounts stay in `prestiti.sanzione`; existing movements are kept.
+- Old save forms that do not post the new fields keep the preferences. Before the former parent changes, the inherited choices are frozen, so they do not follow a later re-activation by accident.
+- Catalogue mode suspends circulation and keeps the saved switches. Deleting visits while the log is suspended needs its own explicit switch.
+- The new grace and renewal options default to the previous behaviour. Existing loans keep their due date.
 
-Gli interruttori e le nuove regole di servizio sono riservati agli amministratori e ai ruoli con capacità di configurazione. L’accesso alla configurazione di un modulo spento conserva autenticazione, CSRF e controllo del ruolo; le rotte operative restano protette.
+The switches and the new service rules are reserved to administrators and roles that may configure. Configuration access to a module that is off keeps authentication, CSRF and the role check; the operational routes stay gated.
 
-## Verifiche dell’implementazione
+## Verification
 
-- **325 suite PHP superate, 0 saltate, 0 fallite**, su database MySQL temporaneo isolato.
-- **37 scenari di integrazione** in [`tests/stack-090-settings-flexibility.unit.php`](../../tests/stack-090-settings-flexibility.unit.php): i 25 richiesti, la regressione sugli aggiornamenti e 11 verifiche aggiuntive sui nuovi controlli.
-- Migrazione completa ripetuta con moduli accesi, spenti, combinazioni miste, modalità catalogo e schema reale 0.8.9. Fixture inclusa nel repository per rendere la verifica obbligatoria anche nei checkout senza cronologia.
-- Test specifico con registro spento, tariffe globali e di tipologia positive e penalità precedenti: due migrazioni non producono addebiti né riattivazioni. Accendere poi il solo registro lascia spenti gli automatismi.
-- PHPStan 2.1.56, configurazione completa del repository: nessun errore.
-- Gate delle migrazioni, schema e auto-riparazione dei plugin: superato.
-- Registro dei 18 controlli, distribuzione nei form, protezioni delle rotte, seed delle cinque lingue e traduzioni: verificati.
-- **25 test browser superati**: salvataggio dei controlli, tastiera, permessi, configurazione a modulo spento, calendario, foto e consultazione indipendenti.
-- Superati inoltre **40 test browser** su multe, tariffe per tipologia/materiale e foto, e **22 test** su tessere e regole lettore, compresa la corrispondenza tra data di conferma e rinnovo dalla scadenza futura.
-- Controllo visivo nel browser a 1280 px e 390 px: nessun overflow orizzontale nei nuovi gruppi di impostazioni.
+- **325 standalone PHP suites passed, 0 skipped, 0 failed**, on an isolated temporary MySQL database.
+- **37 integration scenarios** in [`tests/stack-090-settings-flexibility.unit.php`](../../tests/stack-090-settings-flexibility.unit.php): the 25 requested, the upgrade regression and 11 more on the new controls.
+- The full migration repeated with modules on, off, mixed, in catalogue mode and on the real 0.8.9 schema. The fixture is in the repository, so the check is mandatory in checkouts without history.
+- A dedicated test with the ledger off, positive global and typed rates and older penalties: two migrations produce no charge and no re-activation. Switching on only the ledger then leaves the automations off.
+- PHPStan 2.1.56 with the repository configuration: no errors.
+- Migration, schema and plugin self-heal gates: passed.
+- Registry of the 18 controls, form placement, route gates, seeds of the five locales and translations: verified.
+- **25 browser tests passed**: saving the controls, keyboard, permissions, configuration while off, calendar, independent photos and consultation.
+- Also **40 browser tests** on fines, typed/material rates and photos, and **22** on cards and patron rules, including the match between the confirmation date and renewal from a future expiry.
+- Visual check at 1280 px and 390 px: no horizontal overflow in the new settings groups.
 
-La precedente descrizione della PR lasciava aperta la decorrenza di San Francesco: la regola del 4 ottobre dal 2026 è confermata dall’entrata in vigore del 1° gennaio 2026 nella [legge 151/2025, Gazzetta Ufficiale](https://www.gazzettaufficiale.it/eli/id/2025/10/10/25G00153/sg). I test distinguono già il 2025 dal 2026.
+The previous PR description left the start of San Francesco open: the 4 October rule from 2026 is confirmed by the entry into force on 1 January 2026 of [law 151/2025, Gazzetta Ufficiale](https://www.gazzettaufficiale.it/eli/id/2025/10/10/25G00153/sg). The tests already tell 2025 from 2026.
 
-La documentazione OpenAPI descrive anche i tre nuovi flag di capacità (`automatic_fines`, `debt_block`, `consultation_only`) e chiarisce che la soglia di debito effettiva è nulla quando il blocco è spento.
+The OpenAPI document also describes the three new capability flags (`automatic_fines`, `debt_block`, `consultation_only`) and states that the effective debt threshold is null while the block is off.
 
-## CI sulle modifiche agli interruttori: tutti i workflow superati
+## CI on the switch changes: every workflow passed
 
-Commit funzionale verificato: `d9f36316b1ef39f409b5c3eff69e4c5b49613147`. Tutti i dieci run seguenti sono terminati con successo. I commit successivi aggiornano la relazione e la descrizione OpenAPI dei flag; il documento API completo è stato verificato come JSON valido.
+Functional commit verified: `d9f36316b1ef39f409b5c3eff69e4c5b49613147`. All ten runs below succeeded. The commits right after it only update this report and the OpenAPI description of the flags; the full API document was checked as valid JSON.
 
-| Workflow | Esito | Run |
+| Workflow | Result | Run |
 | --- | --- | --- |
-| Code Quality | Superato | [40852924644](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852924644) |
-| Database Compatibility | Superato | [40852926691](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852926691) |
-| E2E Test Suite | Superato | [40852928999](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852928999) |
-| Test Database Migrations | Superato | [40852931140](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852931140) |
-| Real Upgrade (admin UI) | Superato | [40852933844](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852933844) |
-| Upgrade Smoke Test | Superato | [40852936293](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852936293) |
-| Deep Regression Gate | Superato | [40852939135](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852939135) |
-| Browser Compatibility and DAST | Superato | [40852941339](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852941339) |
-| Security and Supply Chain | Superato | [40852943720](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852943720) |
-| CodeQL Security Analysis | Superato | [40852947181](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852947181) |
+| Code Quality | Passed | [40852924644](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852924644) |
+| Database Compatibility | Passed | [40852926691](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852926691) |
+| E2E Test Suite | Passed | [40852928999](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852928999) |
+| Test Database Migrations | Passed | [40852931140](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852931140) |
+| Real Upgrade (admin UI) | Passed | [40852933844](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852933844) |
+| Upgrade Smoke Test | Passed | [40852936293](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852936293) |
+| Deep Regression Gate | Passed | [40852939135](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852939135) |
+| Browser Compatibility and DAST | Passed | [40852941339](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852941339) |
+| Security and Supply Chain | Passed | [40852943720](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852943720) |
+| CodeQL Security Analysis | Passed | [40852947181](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40852947181) |
 
-La matrice database ha superato tutte le 325 suite su MySQL 8.0/8.4 e MariaDB 10.11/11.4. Gli E2E della 0.9.0 hanno superato **230 test di circolazione** e **253 di catalogazione**, oltre alla batteria generale dell’applicazione. La regressione approfondita ha superato **4/4 gruppi browser** e **5/5 installazioni localizzate**.
+The database matrix passed all 325 suites on MySQL 8.0/8.4 and MariaDB 10.11/11.4. The 0.9.0 E2E passed **230 circulation** and **253 cataloguing tests**, besides the general application suite. The deep regression passed **4/4 browser groups** and **5/5 localised installs**.
 
-## Workflow già verificati prima di questa estensione
+## Workflows verified before this extension
 
-Gli esiti seguenti riguardano esplicitamente i commit indicati; non vengono attribuiti alle modifiche successive.
+The results below refer only to the commits named; they are not claimed for later changes.
 
-| Workflow sulle correzioni `3960c194` | Esito | Run |
+| Workflow on the fixes `3960c194` | Result | Run |
 | --- | --- | --- |
-| Code Quality | Superato | [40830554173](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830554173) |
-| E2E Test Suite | Superato | [40830557203](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830557203) |
-| Browser Compatibility and DAST | Superato | [40830559955](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830559955) |
-| Deep Regression Gate | Superato | [40830562699](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830562699) |
-| Database Compatibility | Superato | [40830565681](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830565681) |
-| Security and Supply Chain | Superato | [40830568665](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830568665) |
-| Real Upgrade | Superato | [40830571304](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830571304) |
-| Upgrade Smoke Test | Superato | [40830574075](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830574075) |
-| Test Database Migrations | Superato | [40830576583](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830576583) |
-| CodeQL | Superato | [40830579689](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830579689) |
+| Code Quality | Passed | [40830554173](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830554173) |
+| E2E Test Suite | Passed | [40830557203](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830557203) |
+| Browser Compatibility and DAST | Passed | [40830559955](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830559955) |
+| Deep Regression Gate | Passed | [40830562699](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830562699) |
+| Database Compatibility | Passed | [40830565681](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830565681) |
+| Security and Supply Chain | Passed | [40830568665](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830568665) |
+| Real Upgrade | Passed | [40830571304](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830571304) |
+| Upgrade Smoke Test | Passed | [40830574075](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830574075) |
+| Test Database Migrations | Passed | [40830576583](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830576583) |
+| CodeQL | Passed | [40830579689](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40830579689) |
 
-La precedente suite di 26 scenari, commit `d72fa1d4`, ha superato [Code Quality](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40844504696) e la [matrice MySQL 8.0/8.4 e MariaDB 10.11/11.4](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40844508132).
+The earlier 26-scenario suite, commit `d72fa1d4`, passed [Code Quality](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40844504696) and the [MySQL 8.0/8.4 and MariaDB 10.11/11.4 matrix](https://github.com/fabiodalez-dev/Pinakes/actions/runs/40844508132).
 
-## Ulteriori opzioni di prodotto già proposte
+## Further product options
 
-Restano le proposte che ampliano il modello del calendario e i profili iniziali: aperture straordinarie per data e sede, preset di festività con ereditarietà per sede, riepilogo dei ritiri prima di applicare nuove chiusure e profili iniziali modificabili. L’estensione attuale applica le proposte sugli interruttori e sulle opzioni di calcolo; questi sviluppi del modello rimangono distinti e richiedono ulteriori implementazioni e verifiche.
+Two proposals that widen the calendar model are still open: one-off openings by date and branch, and holiday presets inherited per branch. A summary of the pickups affected before new closures are applied, and editable starting profiles, are also still proposals. They need their own implementation and verification.
