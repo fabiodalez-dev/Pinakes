@@ -238,18 +238,24 @@ final class MarcBookImporter
         if ($title === '' || $authors === []) {
             return null;
         }
-        $author = \App\Support\AuthorNormalizer::normalize($authors[0]);
+        $author = \App\Support\AuthorNormalizer::normalize(\App\Support\ExactSearch::quotedValue($authors[0]) ?? $authors[0]);
+        // Title and author compare with accents distinct (#501): under the
+        // unicode_ci collation "Haffner" equals "Häffner", and in overwrite
+        // mode a record would replace a different book.
+        $titleCond = \App\Support\ExactSearch::equalsCondition('l.titolo', $title);
+        $authorCond = \App\Support\ExactSearch::equalsCondition('a.nome', $author);
         $stmt = $this->db->prepare(
             'SELECT l.id FROM libri l
                JOIN libri_autori la ON la.libro_id = l.id
                JOIN autori a ON a.id = la.autore_id
-              WHERE l.deleted_at IS NULL AND l.titolo = ? AND a.nome = ?
-              ORDER BY ' . \App\Support\ExactSearch::exactFirstSql('l.titolo') . ', l.id LIMIT 1'
+              WHERE l.deleted_at IS NULL AND ' . $titleCond['sql'] . ' AND ' . $authorCond['sql'] . '
+              ORDER BY l.id LIMIT 1'
         );
         if ($stmt === false) {
             throw new \RuntimeException('Unable to prepare the duplicate lookup');
         }
-        $stmt->bind_param('sss', $title, $author, $title);
+        $params = [...$titleCond['params'], ...$authorCond['params']];
+        $stmt->bind_param($titleCond['types'] . $authorCond['types'], ...$params);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();

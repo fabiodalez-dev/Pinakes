@@ -26,6 +26,9 @@ class SuppliersController
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $input = (array) $request->getParsedBody();
         $data = SupplierRepository::normalize($input);
         $error = $this->validationError($input, $data);
@@ -45,6 +48,9 @@ class SuppliersController
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $fornitore = (new SupplierRepository($db))->getById($id);
         if ($fornitore === null) {
             return $response->withStatus(404);
@@ -54,6 +60,9 @@ class SuppliersController
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $repo = new SupplierRepository($db);
         if ($repo->getById($id) === null) {
             return $response->withStatus(404);
@@ -77,6 +86,9 @@ class SuppliersController
 
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         try {
             if ((new SupplierRepository($db))->delete($id)) {
                 $_SESSION['success_message'] = __('Fornitore eliminato. I libri collegati non hanno più un fornitore.');
@@ -123,5 +135,19 @@ class SuppliersController
         $html = ob_get_clean();
         $response->getBody()->write((string) $html);
         return $response;
+    }
+
+    /**
+     * Files updated before the 0.9.0 migration ran (or a deploy that skipped
+     * it): the suppliers table is not there yet, so every action answers
+     * with a message instead of a 500.
+     */
+    private function schemaMissing(mysqli $db, Response $response): ?Response
+    {
+        if ((new SupplierRepository($db))->isAvailable()) {
+            return null;
+        }
+        $_SESSION['error_message'] = __('Questa funzione sarà disponibile al termine dell\'aggiornamento del database.');
+        return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
     }
 }

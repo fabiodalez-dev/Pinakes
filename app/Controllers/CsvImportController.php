@@ -1945,9 +1945,9 @@ class CsvImportController
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         // #7: normalize the free-text contributor columns like every other writer
         // (BookRepository), so "Rossi, Mario" from a CSV matches "Mario Rossi".
-        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['traduttore']) : null;
-        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['illustratore']) : null;
-        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['curatore']) : null;
+        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['traduttore']) : null;
+        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['illustratore']) : null;
+        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['curatore']) : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
@@ -2268,9 +2268,9 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         // #7: normalize free-text contributor columns like every other writer.
-        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['traduttore']) : null;
-        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['illustratore']) : null;
-        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['curatore']) : null;
+        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['traduttore']) : null;
+        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['illustratore']) : null;
+        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['curatore']) : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 

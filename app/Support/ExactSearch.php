@@ -25,6 +25,9 @@ final class ExactSearch
     /** Straight and typographic quotes (mobile keyboards type „…“ and “…”). */
     private const QUOTES = '"“”„«»';
 
+    /** Stand-in for a literal inch mark while the query is tokenized (U+E000). */
+    private const INCH_PLACEHOLDER = "\u{E000}";
+
     /** Most words a single filter box turns into separate conditions. */
     public const MAX_FILTER_TERMS = 20;
 
@@ -41,7 +44,7 @@ final class ExactSearch
      */
     public static function tokenize(string $query): array
     {
-        $query = self::scrub($query);
+        $query = self::protectInchMarks(self::scrub($query));
         $q = '[' . preg_quote(self::QUOTES, '/') . ']';
         $parts = preg_split('/(' . $q . '[^' . preg_quote(self::QUOTES, '/') . ']*(?:' . $q . '|$))/u', $query, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
         if ($parts === false) {
@@ -58,7 +61,7 @@ final class ExactSearch
                 continue;
             }
             foreach (preg_split('/\s+/u', $part, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
-                $terms[] = ['term' => $word, 'exact' => false];
+                $terms[] = ['term' => self::restoreInchMarks($word), 'exact' => false];
             }
         }
         return $terms;
@@ -260,7 +263,40 @@ final class ExactSearch
 
     private static function hasQuote(string $value): bool
     {
-        return preg_match('/[' . preg_quote(self::QUOTES, '/') . ']/u', $value) === 1;
+        return preg_match('/[' . preg_quote(self::QUOTES, '/') . ']/u', self::protectInchMarks($value)) === 1;
+    }
+
+    /**
+     * A straight or closing double quote right after a digit, outside any
+     * quoted group, is an inch mark (`5" floppy`, `24" monitor`), not the start
+     * of an exact group: it is swapped for a private-use placeholder so the
+     * tokenizer keeps it as a literal character. Inside a group the same
+     * character still closes it (`"1984"`).
+     */
+    private static function protectInchMarks(string $value): string
+    {
+        if (!str_contains($value, '"') && !str_contains($value, '”')) {
+            return $value;
+        }
+        $chars = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $open = false;
+        $prev = '';
+        foreach ($chars as $i => $char) {
+            if (str_contains(self::QUOTES, $char)) {
+                if (!$open && ($char === '"' || $char === '”') && preg_match('/^\d$/u', $prev) === 1) {
+                    $chars[$i] = self::INCH_PLACEHOLDER;
+                } else {
+                    $open = !$open;
+                }
+            }
+            $prev = $chars[$i];
+        }
+        return implode('', $chars);
+    }
+
+    private static function restoreInchMarks(string $value): string
+    {
+        return str_replace(self::INCH_PLACEHOLDER, '"', $value);
     }
 
     private static function stripQuotes(string $value): string

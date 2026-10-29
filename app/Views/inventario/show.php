@@ -32,6 +32,10 @@ $counters = [
     'fuori_ambito' => [$outcomeLabels['fuori_ambito'], 'fa-external-link-alt'],
     'duplicate' => [__('Scansioni ripetute'), 'fa-clone'],
 ];
+if (($session['stato'] ?? '') === 'chiusa') {
+    // Frozen at close: the missing copies the administrator marked lost.
+    $counters['perse'] = [__('Segnate come perse'), 'fa-ban'];
+}
 $sessionShelf = (int) ($session['filtro']['scaffale_id'] ?? 0);
 ?>
 <div class="min-h-screen bg-gray-50 py-6">
@@ -294,7 +298,7 @@ unset($workspaceHeader);
                   <span>
                     <?= __("Segna come perse le copie mancanti") ?>
                     <span class="block text-xs text-gray-500"><?= $isAdmin
-                        ? __("Le copie in prestito, in restauro, in trasferimento o in manutenzione non vengono toccate.")
+                        ? __("Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.")
                         : __("Solo un amministratore può segnare come perse le copie mancanti.") ?></span>
                   </span>
                 </label>

@@ -8902,5 +8902,9 @@
   "Fornitore non assegnato": "Leverandør ikke tildelt",
   "In prestito o in attesa di ritiro": "Udlånt eller klar til afhentning",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "Eksemplaret står som udlånt eller klar til afhentning: tjek udlånet.",
-  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallet sammenlignes alfabetisk, ikke numerisk: A.10 kommer før A.2."
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallet sammenlignes alfabetisk, ikke numerisk: A.10 kommer før A.2.",
+  "Import già avviato: attendi la fine o ricarica il file.": "Importen er allerede i gang: vent, til den er færdig, eller upload filen igen.",
+  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Denne funktion bliver tilgængelig, når databaseopdateringen er færdig.",
+  "Segnate come perse": "Markeret som tabt",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke."
 }
