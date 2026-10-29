@@ -184,6 +184,8 @@ class PublisherRepository
 
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
+        // Quotes around the whole name are never stored, as in create() (#501).
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
         $indirizzo = \App\Support\HtmlHelper::decode($data['indirizzo'] ?? '');
         $telefono = \App\Support\HtmlHelper::decode($data['telefono'] ?? '');

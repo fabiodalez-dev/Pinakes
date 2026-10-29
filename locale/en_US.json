@@ -8801,5 +8801,8 @@
   "In prestito o in attesa di ritiro": "On loan or awaiting pickup",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan.",
   "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2.",
-  "Import già avviato: attendi la fine o ricarica il file.": "The import has already started: wait for it to finish or upload the file again."
+  "Import già avviato: attendi la fine o ricarica il file.": "The import has already started: wait for it to finish or upload the file again.",
+  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "This feature will be available once the database update has finished.",
+  "Segnate come perse": "Marked as lost",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched."
 }
