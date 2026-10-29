@@ -38,9 +38,11 @@ $expected = static function (string $path): ?string {
         in_array($path, ['/admin/books/{id:\d+}/catalogue-card', '/admin/books/catalogue-cards'], true) => 'catalogue_cards',
         str_starts_with($path, '/admin/suppliers') => 'suppliers',
         str_starts_with($path, '/admin/attendance') => 'visitor_log',
-        in_array($path, ['/admin/settings/cards', '/admin/users/{id:\d+}/card-pdf', '/admin/users/cards-pdf', '/admin/users/{id:\d+}/photo', '/admin/users/{id:\d+}/photo/delete'], true) => 'patron_cards',
+        in_array($path, ['/admin/settings/cards', '/admin/users/{id:\d+}/card-pdf', '/admin/users/cards-pdf', ], true) => 'patron_cards',
+        in_array($path, ['/admin/users/{id:\d+}/photo', '/admin/users/{id:\d+}/photo/delete'], true) => 'patron_photos',
+        $path === '/admin/books/copies/{id:\d+}/consultation' => 'consultation_only',
         str_starts_with($path, '/admin/users/import') => 'user_import',
-        str_starts_with($path, '/admin/settings/circulation'), $path === '/admin/books/copies/{id:\d+}/consultation' => 'circulation_rules',
+        str_starts_with($path, '/admin/settings/circulation') => 'circulation_rules',
         ($path === '/admin/calendar' || str_starts_with($path, '/admin/calendar/')) && $path !== '/admin/calendar/rotate-link' => 'closures_calendar',
         $path === '/admin/statistics/fines.csv', str_starts_with($path, '/admin/users/{id:\d+}/ledger/') => 'fines',
         default => null,
@@ -59,9 +61,9 @@ $routes = static function (string $source): array {
     foreach ($m[1] as $i => [$path, $offset]) {
         $next = $m[0][$i + 1][1] ?? strlen($source);
         $chunk = substr($source, $offset, $next - $offset);
-        $gate = preg_match("/FeatureGateMiddleware\\('([a-z_]+)'\\)/", $chunk, $g) === 1 ? $g[1] : null;
+        $gate = preg_match("/FeatureGateMiddleware\\('([a-z_]+)'(?:, configuration: true)?\\)/", $chunk, $g) === 1 ? $g[1] : null;
         // First ->add() after the handler closes (`})` or `$inventory('x'))`).
-        $first = $gate !== null && preg_match("/(?:\\}\\)|\\('[a-zA-Z]+'\\)\\))->add\\(new \\\\App\\\\Middleware\\\\FeatureGateMiddleware\\('{$gate}'\\)\\)/", $chunk) === 1;
+        $first = $gate !== null && preg_match("/(?:\\}\\)|\\('[a-zA-Z]+'\\)\\))->add\\(new \\\\App\\\\Middleware\\\\FeatureGateMiddleware\\('{$gate}'(?:, configuration: true)?\\)\\)/", $chunk) === 1;
         $out[] = ['path' => $path, 'gate' => $gate, 'first' => $first];
     }
     return $out;

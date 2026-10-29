@@ -22,9 +22,9 @@ const DB_HOST = process.env.E2E_DB_HOST || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 
 /** Same order and keys as Features::DEFAULTS. */
-const FEATURE_KEYS = ['stocktake', 'marc', 'visitor_log', 'catalogue_cards', 'suppliers', 'rda_types', 'patron_cards', 'user_import', 'circulation_rules', 'closures_calendar', 'fines'];
+const FEATURE_KEYS = ['stocktake', 'marc', 'visitor_log', 'catalogue_cards', 'suppliers', 'rda_types', 'patron_cards', 'user_import', 'circulation_rules', 'closures_calendar', 'fines', 'patron_photos', 'consultation_only', 'automatic_card_expiry', 'automatic_fines', 'debt_block', 'loss_penalties', 'attendance_retention'];
 /** Saved from Settings → Loans; every other key from Settings → Modules. */
-const LOANS_TAB_KEYS = ['circulation_rules', 'closures_calendar', 'fines'];
+const LOANS_TAB_KEYS = ['circulation_rules', 'closures_calendar', 'fines', 'consultation_only', 'automatic_card_expiry', 'automatic_fines', 'debt_block', 'loss_penalties'];
 
 function dbQuery(sql) {
   const args = [];
@@ -67,6 +67,8 @@ async function writeFeatures(values) {
 
 /** Switch $keys on for a spec's setup; returns the snapshot restoreFeatures() puts back. */
 async function enableFeatures(keys) {
+  // Module suites exercise their full domain; opt into the separate controls explicitly.
+  keys = [...new Set([...keys, ...(keys.includes('fines') ? ['automatic_fines', 'debt_block', 'loss_penalties'] : []), ...(keys.includes('patron_cards') ? ['patron_photos'] : [])])];
   const snapshot = readFeatures(keys);
   await writeFeatures(Object.fromEntries(keys.map((k) => [k, '1'])));
   return snapshot;

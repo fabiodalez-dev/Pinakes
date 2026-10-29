@@ -23,7 +23,8 @@ test.describe.serial('Feature toggle: patron cards and photos', () => {
   let readerId = 0;
 
   test.beforeAll(async ({ browser }) => {
-    snapshot = ft.readFeatures(['patron_cards']);
+    snapshot = ft.readFeatures(['patron_cards', 'patron_photos']);
+    await ft.writeFeatures({ patron_photos: '1' });
     ft.removeUsers('zz-ft-card-%@test.local');
     readerId = ft.createUser(READER, 'Test1234!', 'standard');
     page = await browser.newPage();
@@ -36,22 +37,22 @@ test.describe.serial('Feature toggle: patron cards and photos', () => {
     await page?.close();
   });
 
-  test('1. switched off: the Cards settings section is gone and ?tab=cards falls back', async () => {
+  test('1. printing off: administrators can still prepare card settings', async () => {
     await ft.setModuleInUi(page, 'patron_cards', false);
     await page.goto(`${ft.BASE}/admin/settings?tab=cards`);
-    await expect(page.locator('a[data-settings-section="cards"]')).toHaveCount(0);
-    await expect(page.locator('section[data-settings-panel="cards"]')).toHaveCount(0);
-    await expect(page.locator('section[data-settings-panel="general"]')).toBeVisible();
+    await expect(page.locator('a[data-settings-section="cards"]').first()).toBeAttached();
+    await expect(page.locator('section[data-settings-panel="cards"]')).toBeVisible();
+
   });
 
-  test('2. switched off: the reader record has neither the print button nor the photo panel', async () => {
+  test('2. printing off: photo capture and display remain available', async () => {
     await page.goto(`${ft.BASE}/admin/users/details/${readerId}`);
     await expect(page.locator('h1').first()).toBeVisible();
     await expect(page.locator('#print-card')).toHaveCount(0);
-    await expect(page.locator('#patron-card-section')).toHaveCount(0);
+    await expect(page.locator('#patron-card-section')).toBeVisible();
     await page.goto(`${ft.BASE}/admin/users/edit/${readerId}`);
     await expect(page.locator('input[name="email"]')).toBeVisible();
-    await expect(page.locator('#patron-photo-widget')).toHaveCount(0);
+    await expect(page.locator('#patron-photo-widget')).toBeVisible();
     await page.goto(`${ft.BASE}/admin/users`);
     await expect(page.locator('#bulk-cards-sheet')).toHaveCount(0);
   });
@@ -64,7 +65,8 @@ test.describe.serial('Feature toggle: patron cards and photos', () => {
     }
   });
 
-  test('4. switched off: a photo upload is refused and nothing is stored', async () => {
+  test('4. photos switched off independently: upload is refused and nothing is stored', async () => {
+    await ft.setModuleInUi(page, 'patron_photos', false);
     const csrf = await ft.csrfToken(page);
     const res = await page.request.post(`${ft.BASE}/admin/users/${readerId}/photo`, {
       headers: { Accept: 'application/json' },
@@ -82,10 +84,13 @@ test.describe.serial('Feature toggle: patron cards and photos', () => {
     await expect(page.locator('section[data-settings-panel="cards"]')).toBeVisible();
     await page.goto(`${ft.BASE}/admin/users/details/${readerId}`);
     await expect(page.locator('#print-card')).toBeVisible();
-    await expect(page.locator('#patron-card-section')).toBeVisible();
+    await expect(page.locator('#patron-card-section')).toHaveCount(0);
     const res = await page.request.get(`${ft.BASE}/admin/users/${readerId}/card-pdf`);
     expect(res.status()).toBe(200);
     expect(String(res.headers()['content-type'] || '')).toContain('application/pdf');
+    await page.goto(`${ft.BASE}/admin/users/edit/${readerId}`);
+    await expect(page.locator('#patron-photo-widget')).toHaveCount(0);
+    await ft.setModuleInUi(page, 'patron_photos', true);
     await page.goto(`${ft.BASE}/admin/users/edit/${readerId}`);
     await expect(page.locator('#patron-photo-widget')).toBeVisible();
   });

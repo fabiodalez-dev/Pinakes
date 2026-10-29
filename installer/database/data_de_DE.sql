@@ -207,7 +207,14 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('features', 'user_import', '1', 'Optionales Modul: Benutzerimport aus CSV'),
 ('features', 'circulation_rules', '1', 'Optionales Modul: Regeln nach Lesertyp'),
 ('features', 'closures_calendar', '1', 'Optionales Modul: Schließtage-Kalender'),
-('features', 'fines', '0', 'Optionales Modul: Gebühren und Kontobewegungen')
+('features', 'fines', '0', 'Optionales Modul: Gebühren und Kontobewegungen'),
+('features', 'patron_photos', '1', 'Optional control: patron_photos'),
+('features', 'consultation_only', '1', 'Optional control: consultation_only'),
+('features', 'automatic_card_expiry', '1', 'Optional control: automatic_card_expiry'),
+('features', 'automatic_fines', '0', 'Optional control: automatic_fines'),
+('features', 'debt_block', '0', 'Optional control: debt_block'),
+('features', 'loss_penalties', '0', 'Optional control: loss_penalties'),
+('features', 'attendance_retention', '0', 'Optional control: attendance_retention')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES

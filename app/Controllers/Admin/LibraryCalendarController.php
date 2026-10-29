@@ -41,7 +41,7 @@ class LibraryCalendarController
         $branches = $this->branches($db);
         $previewSede = isset($query['sede']) && is_numeric($query['sede']) && isset($branches[(int) $query['sede']]) ? (int) $query['sede'] : null;
 
-        $calendar = LibraryCalendar::fromDatabase($db);
+        $calendar = LibraryCalendar::fromDatabase($db, configuration: true);
         $closedWeekdays = $calendar->closedWeekdays();
         $closures = $this->closures($db);
 
@@ -331,9 +331,6 @@ class LibraryCalendarController
 
     private function guard(Response $response): ?Response
     {
-        if (($off = \App\Support\Features::requireOrRedirect('closures_calendar', $response)) !== null) {
-            return $off;
-        }
         if (\App\Support\Permissions::mayConfigure()) {
             return null;
         }
@@ -521,7 +518,7 @@ class LibraryCalendarController
             ? $query['holiday_region']
             : ($country === $selection['country'] ? $selection['region'] : '');
         $region = HolidayCalculator::normaliseRegion($country, $rawRegion);
-        $years = range($currentYear, $currentYear + HolidayPresets::YEARS_AHEAD);
+        $years = range(1900, 2199);
         $year = is_scalar($query['holiday_year'] ?? null) && in_array((int) $query['holiday_year'], $years, true) ? (int) $query['holiday_year'] : $currentYear;
         $savedHere = $selection['saved'] && $selection['country'] === $country && $selection['region'] === $region;
         $ticked = array_flip($selection['rules']);

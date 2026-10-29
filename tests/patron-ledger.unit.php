@@ -28,6 +28,7 @@ require $root . '/vendor/autoload.php';
 // The module under test is on, whatever features.* says in the database
 // this runs against (Settings → Modules / Loans).
 \App\Support\Features::override('fines', true);
+foreach (['automatic_fines', 'debt_block', 'loss_penalties'] as $control) { \App\Support\Features::override($control, true); }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $passed = 0;

@@ -84,11 +84,17 @@ class SettingsController
         // administrators like every CirculationSettingsController action, so
         // staff gets no data and the view renders no panel (the section is
         // absent from the settings catalogue for them too).
-        $circulationData = \App\Support\Permissions::mayConfigure() && \App\Support\Features::enabled('circulation_rules')
+        $circulationData = \App\Support\Permissions::mayConfigure()
             ? CirculationSettingsController::viewData($db)
             : null;
         // Optional modules (Settings → Modules): the saved switches.
         $moduleSettings = \App\Support\Features::snapshot();
+        $legacyPenaltyImpact = ['count' => 0, 'cents' => 0];
+        if (\App\Support\Permissions::mayConfigure() && \App\Services\PatronLedger::schemaReady($db)) {
+            $row = $db->query("SELECT COUNT(*) AS n, COALESCE(SUM(p.sanzione),0) AS amount FROM prestiti p WHERE p.sanzione > 0 AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT('penalty:',p.id))")->fetch_assoc();
+            $legacyPenaltyImpact = ['count' => (int) ($row['n'] ?? 0), 'cents' => \App\Services\FineParameters::decimalToCents($row['amount'] ?? 0)];
+        }
+        $attendanceRetentionDays = \App\Models\AttendanceRepository::retentionDays($repository);
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
         // Custom registration fields (issue #255) — edited from the email tab's
@@ -125,6 +131,8 @@ class SettingsController
             'loansSettings',
             'circulationData',
             'moduleSettings',
+            'attendanceRetentionDays',
+            'legacyPenaltyImpact',
             'contactMessages',
             'activeTab',
             'db',
@@ -1706,6 +1714,8 @@ class SettingsController
             'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
             // Plan §7: fines and debt block. Empty string = not set (disabled).
             'daily_fine'               => (string) ($repository->get('loans', 'daily_fine', '') ?? ''),
+            'fine_grace_mode'          => (string) $repository->get('loans', 'fine_grace_mode', 'threshold'),
+            'card_renewal_base'        => (string) $repository->get('loans', 'card_renewal_base', 'today'),
             'fine_grace_days'          => (int) ($repository->get('loans', 'fine_grace_days', '0') ?? 0),
             'fine_max_per_loan'        => (string) ($repository->get('loans', 'fine_max_per_loan', '') ?? ''),
             'debt_block_threshold'     => (string) ($repository->get('loans', 'debt_block_threshold', '') ?? ''),
@@ -1810,8 +1820,18 @@ class SettingsController
             $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
             // The three circulation modules of this tab (patron type rules,
             // closures calendar, fines): library policy, administrators only.
+            \App\Support\Features::preserveInherited($repository);
+            foreach (['fine_grace_mode' => ['threshold', 'deduct'], 'card_renewal_base' => ['today', 'expiry']] as $key => $allowed) {
+                if (isset($data[$key]) && is_string($data[$key]) && in_array($data[$key], $allowed, true)) {
+                    $repository->set('loans', $key, $data[$key]);
+                }
+            }
+            $lossWasOn = \App\Support\Features::enabled('loss_penalties');
             $calendarWasOn = \App\Support\Features::enabled('closures_calendar');
             $this->saveFeatureSwitches($repository, $data, \App\Support\Features::LOANS_TAB);
+            if (!$lossWasOn && \App\Support\Features::enabled('loss_penalties')) {
+                $repository->set('loans', 'legacy_penalties_backfilled', '0');
+            }
             // The calendar switched on applies its closures at once: a pending
             // pickup whose deadline now falls on a closed day moves to the
             // next open day, as when the calendar itself is saved.
@@ -1856,7 +1876,13 @@ class SettingsController
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
+        \App\Support\Features::preserveInherited($repository);
         $this->saveFeatureSwitches($repository, $data, \App\Support\Features::MODULES_TAB);
+        $retention = filter_var($data['attendance_retention_days'] ?? null, FILTER_VALIDATE_INT);
+        if ($retention !== false && $retention >= 0) {
+            $days = min(\App\Models\AttendanceRepository::MAX_RETENTION_DAYS, $retention);
+            $repository->set('attendance', 'retention_days', (string) $days);
+        }
 
         $_SESSION['success_message'] = __('Moduli aggiornati correttamente.');
         return $this->redirect($response, '/admin/settings?tab=modules');
@@ -1874,6 +1900,10 @@ class SettingsController
     {
         foreach ($keys as $key) {
             $field = 'feature_' . $key;
+            // Old pages/API clients do not know the new controls: absence preserves them.
+            if ((isset(\App\Support\Features::INHERITED[$key]) || $key === 'attendance_retention') && !array_key_exists($field, $data)) {
+                continue;
+            }
             $on = isset($data[$field]) && is_scalar($data[$field]) && (string) $data[$field] === '1';
             $repository->set('features', $key, $on ? '1' : '0');
         }

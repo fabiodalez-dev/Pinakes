@@ -22,7 +22,7 @@ use Slim\Psr7\Response as SlimResponse;
  */
 final class FeatureGateMiddleware implements MiddlewareInterface
 {
-    public function __construct(private string $feature)
+    public function __construct(private string $feature, private bool $configuration = false)
     {
         // Fail at boot on a typo, not at the first request.
         if (!in_array($feature, Features::keys(), true)) {
@@ -37,7 +37,7 @@ final class FeatureGateMiddleware implements MiddlewareInterface
 
     public function process(Request $request, RequestHandler $handler): Response
     {
-        if (Features::enabled($this->feature)) {
+        if (Features::enabled($this->feature) || ($this->configuration && \App\Support\Permissions::mayConfigure())) {
             return $handler->handle($request);
         }
 

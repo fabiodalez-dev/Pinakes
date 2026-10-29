@@ -60,7 +60,7 @@ final class CirculationPolicy
 
     private SettingsRepository $settings;
 
-    public function __construct(private mysqli $db, ?SettingsRepository $settings = null)
+    public function __construct(private mysqli $db, ?SettingsRepository $settings = null, private bool $configuration = false)
     {
         $this->settings = $settings ?? new SettingsRepository($db);
     }
@@ -368,7 +368,7 @@ final class CirculationPolicy
     public function debtBlockError(int $userId): ?string
     {
         // No ledger table (code deployed before its migration): no balance, no block.
-        if (!PatronLedger::active($this->db)) {
+        if (!PatronLedger::active($this->db) || !\App\Support\Features::enabled('debt_block')) {
             return null;
         }
         $threshold = FineParameters::moneyToCents($this->forUser($userId)->debtBlockThreshold);
@@ -626,7 +626,7 @@ final class CirculationPolicy
     /** Whether the copy is kept for in-house consultation only. */
     public function isConsultationCopy(int $copiaId): bool
     {
-        if (!$this->rulesActive()) {
+        if (!\App\Support\Features::enabled('consultation_only') || !$this->schemaReady()) {
             return false;
         }
         $stmt = $this->db->prepare('SELECT solo_consultazione FROM copie WHERE id = ?');
@@ -644,7 +644,7 @@ final class CirculationPolicy
      */
     public function onlyConsultationCopies(int $libroId): bool
     {
-        if (!$this->rulesActive()) {
+        if (!\App\Support\Features::enabled('consultation_only') || !$this->schemaReady()) {
             return false;
         }
         $stmt = $this->db->prepare(
@@ -668,23 +668,23 @@ final class CirculationPolicy
      */
     public function lendableCopySql(string $alias = 'c'): string
     {
-        if (!$this->rulesActive()) {
+        if (!\App\Support\Features::enabled('consultation_only') || !$this->schemaReady()) {
             return '1 = 1';
         }
         return ($alias !== '' ? $alias . '.' : '') . 'solo_consultazione = 0';
     }
 
     /**
-     * Whether patron types, the rules matrix and consultation-only copies
+     * Whether patron types and the rules matrix
      * apply: their tables exist AND the module is on (Settings -> Loans,
      * features.circulation_rules; also off in catalogue mode). Off, every
      * rule is the global layer, exactly as before 0.9.0, on every channel
      * at once (web, Mobile API, NCIP, maintenance), since they all resolve
-     * through this class. The data stays: switching back on restores it.
+     * through this class. Consultation uses its own switch. The data stays: switching back on restores it.
      */
     public function rulesActive(): bool
     {
-        return \App\Support\Features::enabled('circulation_rules') && $this->schemaReady();
+        return ($this->configuration || \App\Support\Features::enabled('circulation_rules')) && $this->schemaReady();
     }
 
     /**

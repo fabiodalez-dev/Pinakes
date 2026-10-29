@@ -134,6 +134,7 @@ try {
 
     // ── B. circulation rules ────────────────────────────────────────────────
     Features::override('circulation_rules', false);
+    Features::override('consultation_only', false);
     $policy = new CirculationPolicy($db);
     $check($policy->schemaReady() && !$policy->rulesActive(), 'B off: the tables exist, the rules do not apply');
     $check($policy->types() === [] && $policy->rules() === [], 'B off: no patron type and no rule');
@@ -145,6 +146,7 @@ try {
     $check(!$policy->isConsultationCopy($copyId) && !$policy->onlyConsultationCopies($bookId), 'B off: a consultation-only copy is lendable');
     $check($policy->forViewer(null, $bookId)->loanable === true, 'B off: the title is loanable for everybody');
     Features::override('circulation_rules', true);
+    Features::override('consultation_only', true);
     $policy = new CirculationPolicy($db);
     $check($policy->rulesActive() && $policy->types() !== [], 'B on: the seeded patron types apply');
     $check($policy->isConsultationCopy($copyId) && $policy->onlyConsultationCopies($bookId), 'B on: the consultation flag applies again');
@@ -159,12 +161,14 @@ try {
     $check($typeImporter->available(), 'B on: user import offers patron types');
     $defaultType = $policy->types()[$policy->defaultTypeId()];
     Features::override('circulation_rules', false);
+    Features::override('consultation_only', false);
     $check(!$typeImporter->available(), 'B off: an existing importer stops offering patron types');
     $check($typeImporter->assign($patron, (string) $defaultType['codice']) === 'skipped', 'B off: user import assigns no patron type');
     $check($db->query("SELECT tipologia_id FROM utenti WHERE id = {$patron}")->fetch_row()[0] === null, 'B off: the imported reader keeps their stored type');
     $fields = (new \ReflectionMethod(\App\Controllers\UserImportController::class, 'targetFields'))->invoke(new \App\Controllers\UserImportController(), $db);
     $check(!isset($fields['tipologia']), 'B off: the CSV mapping omits the patron type');
     Features::override('circulation_rules', true);
+    Features::override('consultation_only', true);
     $check($typeImporter->available(), 'B on: the same importer offers patron types again');
     $db->query("INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES ({$patron}, 'addebito_manuale', 100.00, 'ZZ_FTSVC debt', NOW())");
     $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'debt_block_threshold', '1.00') ON DUPLICATE KEY UPDATE setting_value = '1.00'");
@@ -182,6 +186,7 @@ try {
     $check((new \App\Support\NotificationService($db))->sendFineChargedNotification(PHP_INT_MAX) === false, 'C off: no fine_charged email');
     $check(PatronLedger::forDb($db)->balanceCents($patron) === 10000, 'C off: the rows already written stay');
     Features::override('fines', true);
+    foreach (['automatic_fines', 'debt_block', 'loss_penalties'] as $control) { Features::override($control, true); }
     $check((new CirculationPolicy($db))->debtBlockError($patron) === 'debt_block', 'C on: the same patron is blocked');
     $check(LoanEligibility::debtBlockSql('u', $db) !== '1 = 1', 'C on: the queue predicate checks the balance');
 
@@ -199,6 +204,7 @@ try {
     $check(PatronLedger::forDb($db)->chargeLossPenalty($lostLoan) === 0 && $penaltyRows() === 0, 'C2 off: the loss penalty stays in prestiti.sanzione only');
     $check($marker() === '0', 'C2 off: the legacy backfill is re-armed');
     Features::override('fines', true);
+    foreach (['automatic_fines', 'debt_block', 'loss_penalties'] as $control) { Features::override($control, true); }
     $db->query("DELETE FROM system_settings WHERE category = 'maintenance' AND setting_key = 'last_run'");
     (new \App\Support\MaintenanceService($db))->runAll();
     $check($penaltyRows() === 1 && $marker() === '1', 'C2 on: maintenance mirrors it into the ledger and records the scan again');

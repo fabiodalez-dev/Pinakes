@@ -100,6 +100,18 @@ class MaintenanceService
         return $this->runAll();
     }
 
+    /** Apply retention independently of new visit collection when explicitly enabled. */
+    public function purgeAttendance(): int
+    {
+        if (!Features::enabled('visitor_log') && !Features::enabled('attendance_retention')) {
+            return 0;
+        }
+        $attendance = new \App\Models\AttendanceRepository($this->db);
+        return $attendance->isAvailable()
+            ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
+            : 0;
+    }
+
     /**
      * Run all maintenance tasks immediately
      *
@@ -357,12 +369,7 @@ class MaintenanceService
         // configured number of days are deleted. 0 days = keep forever; with
         // no setting the default retention applies.
         try {
-            $attendance = new \App\Models\AttendanceRepository($this->db);
-            // Visitor log module off (Settings -> Modules): nothing is purged
-            // either, the rows wait for the module to be switched back on.
-            $results['attendance_purged'] = Features::enabled('visitor_log') && $attendance->isAvailable()
-                ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
-                : 0;
+            $results['attendance_purged'] = $this->purgeAttendance();
         } catch (\Throwable $e) {
             $results['errors'][] = 'purgeAttendance: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore pulizia presenze'), ['error' => $e->getMessage()]);

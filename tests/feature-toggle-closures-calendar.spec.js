@@ -60,51 +60,52 @@ test.describe.serial('Feature toggle: closures calendar', () => {
     expect(await closedDates()).toContain(closed);
   });
 
-  test('2. switched off from Settings → Loans: no sidebar entry, no calendar page, no button', async () => {
+  test('2. switched off: operational entry disappears but administrators can configure', async () => {
     await ft.setModuleInUi(page, 'closures_calendar', false);
     await expect(page.locator('#feature_closures_calendar')).not.toBeChecked();
-    await expect(page.locator('#open-closures-calendar')).toHaveCount(0);
+    await expect(page.locator('#open-closures-calendar')).toBeVisible();
     await expect(page.locator('a.nav-link[href$="/admin/calendar"]')).toHaveCount(0);
     await page.goto(`${ft.BASE}/admin/calendar`);
-    await expect(page).toHaveURL(/\/admin\/dashboard/);
+    await expect(page).toHaveURL(/\/admin\/calendar/);
   });
 
   test('3. switched off: the request calendar has no closed day', async () => {
     expect(await closedDates()).not.toContain(closed);
   });
 
-  test('4. switched off: a closure posted to the calendar is refused', async () => {
+  test('4. switched off: a closure can be prepared without affecting circulation', async () => {
     const csrf = await ft.csrfToken(page);
     const res = await page.request.post(`${ft.BASE}/admin/calendar/closures`, {
       form: { csrf_token: csrf, data_inizio: closed, data_fine: closed, descrizione: `${NOTE} refused` }, maxRedirects: 0,
     });
     expect(res.status()).toBe(302);
-    expect(ft.dbQuery(`SELECT COUNT(*) FROM calendario_chiusure WHERE descrizione=${ft.sqlString(NOTE + ' refused')}`)).toBe('0');
+    expect(ft.dbQuery(`SELECT COUNT(*) FROM calendario_chiusure WHERE descrizione=${ft.sqlString(NOTE + ' refused')}`)).toBe('1');
+    expect(await closedDates()).not.toContain(closed);
   });
 
-  test('5. switched off: no holiday card, and the holiday and yearly-closure forms are refused', async () => {
+  test('5. switched off: holiday validation and yearly configuration remain available', async () => {
     const holidayRows = () => ft.dbQuery('SELECT COUNT(*) FROM calendario_chiusure WHERE regola_festivita IS NOT NULL');
     const holidayChoice = () => ft.dbQuery("SELECT COALESCE(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) ORDER BY setting_key), '') FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'");
     const rowsBefore = holidayRows();
     const choiceBefore = holidayChoice();
     await page.goto(`${ft.BASE}/admin/calendar#calendar-preset`);
-    await expect(page).toHaveURL(/\/admin\/dashboard/);
-    await expect(page.locator('#calendar-preset')).toHaveCount(0);
-    await expect(page.locator('#calendar-yearly')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/admin\/calendar/);
+    await expect(page.locator('#calendar-preset')).toBeVisible();
+    await expect(page.locator('#calendar-yearly')).toBeVisible();
     const csrf = await ft.csrfToken(page);
     const post = (path, body) => page.request.post(`${ft.BASE}${path}`, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: new URLSearchParams(body).toString(), maxRedirects: 0,
     });
-    const preset = await post('/admin/calendar/preset', [['csrf_token', csrf], ['country', 'IT'], ['region', ''], ['rules[]', 'IT:easter_monday'], ['rules[]', 'IT:christmas']]);
+    const preset = await post('/admin/calendar/preset', [['csrf_token', csrf], ['country', 'INVALID'], ['region', ''], ['rules[]', 'IT:easter_monday'], ['rules[]', 'IT:christmas']]);
     expect(preset.status()).toBe(302);
-    expect(preset.headers()['location'] || '').toMatch(/\/admin\/dashboard/);
+    expect(preset.headers()['location'] || '').toMatch(/\/admin\/calendar/);
     expect(holidayRows()).toBe(rowsBefore);
     expect(holidayChoice()).toBe(choiceBefore);
     // The yearly closure is listed and not ticked: on, it would be switched off.
     const yearly = await post('/admin/calendar/yearly', [['csrf_token', csrf], ['listed[]', String(yearlyId)]]);
     expect(yearly.status()).toBe(302);
-    expect(yearly.headers()['location'] || '').toMatch(/\/admin\/dashboard/);
-    expect(ft.dbQuery(`SELECT attiva FROM calendario_chiusure WHERE id=${yearlyId}`)).toBe('1');
+    expect(yearly.headers()['location'] || '').toMatch(/\/admin\/calendar/);
+    expect(ft.dbQuery(`SELECT attiva FROM calendario_chiusure WHERE id=${yearlyId}`)).toBe('0');
   });
 
   test('6. switched back on: entry, page and the closure stored before are back', async () => {
@@ -121,7 +122,7 @@ test.describe.serial('Feature toggle: closures calendar', () => {
     await expect(page).toHaveURL(/\/admin\/calendar/);
     await expect(page.locator('body')).toContainText(NOTE);
     await expect(page.locator('#calendar-preset')).toBeVisible();
-    await expect(page.locator(`#yearly_closure_${yearlyId}`)).toBeChecked();
+    await expect(page.locator(`#yearly_closure_${yearlyId}`)).not.toBeChecked();
     expect(await closedDates()).toContain(closed);
   });
 });

@@ -158,7 +158,7 @@ require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
 
-  <?php if (\App\Support\Features::enabled('patron_cards')): // patron cards module ?>
+  <?php if (\App\Support\Features::enabled('patron_photos')): // photos are independent of printing ?>
   <section class="bg-white border border-gray-200 rounded-lg p-6" id="patron-card-section">
     <h2 class="text-lg font-medium text-gray-900"><?= __("Foto e tessera") ?></h2>
     <div class="mt-4 flex flex-col sm:flex-row gap-6">
@@ -175,12 +175,14 @@ unset($workspaceHeader);
       <div class="space-y-3 text-sm text-gray-600">
         <p><?= __("La foto compare sulla tessera stampata. È un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") ?></p>
         <div class="flex flex-wrap items-center gap-3">
+          <?php if (\App\Support\Features::enabled('patron_cards')): ?>
           <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=single'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
             <i class="fas fa-id-card mr-2"></i><?= __("Tessera singola (CR80)") ?>
           </a>
           <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=sheet'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
             <i class="fas fa-th mr-2"></i><?= __("Foglio A4") ?>
           </a>
+          <?php endif; ?>
           <a href="<?= htmlspecialchars(url('/admin/users/edit/' . $id) . '#patron-photo-widget', ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary">
             <i class="fas fa-camera mr-2"></i><?= $photoUrl !== null ? __("Cambia foto") : __("Aggiungi foto") ?>
           </a>
@@ -337,7 +339,7 @@ unset($workspaceHeader);
     </dl>
     <p class="text-xs text-gray-500 mt-3"><?= __("Le regole per tipo di materiale (Impostazioni → Circolazione) possono ridurre questi valori per singoli materiali.") ?></p>
     <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/renew-card'), ENT_QUOTES, 'UTF-8') ?>" class="mt-4"
-          data-swal-confirm="<?= htmlspecialchars(sprintf(__('Rinnovare la tessera fino al %s?'), format_date(\App\Support\PatronTypeAssignment::todayPlus($patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS), false, '/')), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm="<?= htmlspecialchars(sprintf(__('Rinnovare la tessera fino al %s?'), format_date($cardRenewalPreview ?? \App\Support\PatronTypeAssignment::todayPlus($patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS), false, '/')), ENT_QUOTES, 'UTF-8') ?>"
           data-swal-confirm-title="<?= htmlspecialchars(__('Rinnova tessera'), ENT_QUOTES, 'UTF-8') ?>"
           data-swal-confirm-button="<?= htmlspecialchars(__('Rinnova tessera'), ENT_QUOTES, 'UTF-8') ?>"
           data-swal-confirm-kind="action">

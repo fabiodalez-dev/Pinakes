@@ -28,6 +28,7 @@ require $root . '/vendor/autoload.php';
 // The module under test is on, whatever features.* says in the database
 // this runs against (Settings → Modules / Loans).
 \App\Support\Features::override('fines', true);
+foreach (['automatic_fines', 'debt_block', 'loss_penalties'] as $control) { \App\Support\Features::override($control, true); }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $passed = 0;
@@ -105,6 +106,8 @@ try {
     $check(!PatronLedger::schemaReady($db) && (new PatronLedger($db))->backfillLegacyPenalties() === null, 'pre-upgrade: the backfill reports the missing table (null), so maintenance keeps its marker unset');
     $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
     $check(!str_contains($fragment, 'movimenti_lettore') && str_contains($fragment, '1 = 1') && substr_count($fragment, '?') === 1, 'pre-upgrade: eligibleUserWhere() carries no debt predicate and still needs ONE placeholder');
+    $db->query("CREATE TABLE IF NOT EXISTS system_settings (id INT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(50), setting_key VARCHAR(100), setting_value TEXT, description TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY(category,setting_key))");
+    $db->query("INSERT IGNORE INTO system_settings (category, setting_key, setting_value) VALUES ('features','fines','1'),('features','loss_penalties','1')");
     $runMigration();
     PatronLedger::resetSchemaCache();
     \App\Services\CirculationPolicy::resetSchemaCache();

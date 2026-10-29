@@ -13,13 +13,13 @@ $moduleGroups = [
         'icon' => 'fa-users',
         'title' => __('Utenti'),
         'text' => __('Strumenti del modulo utenti: stampa delle tessere e caricamento massivo dei lettori.'),
-        'features' => ['patron_cards', 'user_import'],
+        'features' => ['patron_cards', 'patron_photos', 'user_import'],
     ],
     'public' => [
         'icon' => 'fa-door-open',
         'title' => __('Servizi al pubblico'),
         'text' => __('Servizi rivolti a chi entra in biblioteca.'),
-        'features' => ['visitor_log'],
+        'features' => ['visitor_log', 'attendance_retention'],
     ],
 ];
 ?>
@@ -52,6 +52,9 @@ $moduleGroups = [
             <p id="<?= htmlspecialchars($fieldId, ENT_QUOTES, 'UTF-8') ?>_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help($featureKey), ENT_QUOTES, 'UTF-8') ?></p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <?php if (isset(\App\Support\Features::INHERITED[$featureKey]) || $featureKey === 'attendance_retention'): ?>
+            <input type="hidden" name="<?= htmlspecialchars($fieldId, ENT_QUOTES, 'UTF-8') ?>" value="0">
+            <?php endif; ?>
             <input type="checkbox"
                    id="<?= htmlspecialchars($fieldId, ENT_QUOTES, 'UTF-8') ?>"
                    name="<?= htmlspecialchars($fieldId, ENT_QUOTES, 'UTF-8') ?>"
@@ -65,6 +68,15 @@ $moduleGroups = [
           </label>
         </div>
         <?php endforeach; ?>
+        <?php if ($groupKey === 'public'): ?>
+        <div class="border-t border-gray-100 pt-4">
+          <label for="attendance_retention_days" class="block text-sm font-medium text-gray-700 mb-2"><?= __('Giorni di conservazione delle presenze') ?></label>
+          <input type="number" id="attendance_retention_days" name="attendance_retention_days" min="0" max="<?= \App\Models\AttendanceRepository::MAX_RETENTION_DAYS ?>" value="<?= $attendanceRetentionDays ?? \App\Models\AttendanceRepository::DEFAULT_RETENTION_DAYS ?>" class="form-input">
+          <p class="text-xs text-gray-600 mt-1"><?= __('0 = nessuna cancellazione automatica. La durata si applica ai dati esistenti; non riattiva la raccolta.') ?></p>
+        </div>
+        <?php elseif ($groupKey === 'users'): ?>
+        <a class="text-sm underline" href="<?= htmlspecialchars(url('/admin/settings?tab=cards'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Configura le tessere anche a modulo spento') ?></a>
+        <?php endif; ?>
       </div>
     </div>
     <?php endforeach; ?>

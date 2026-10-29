@@ -18,6 +18,9 @@ $cardFormats = [
 ?>
       <!-- Card Settings -->
       <section data-settings-panel="cards" class="settings-panel <?php echo ($activeTab ?? '') === 'cards' ? 'block' : 'hidden'; ?>">
+        <?php if (!\App\Support\Features::enabled('patron_cards')): ?>
+        <p class="text-sm text-gray-600 mb-4" role="status"><?= __('Modulo spento: puoi preparare la configurazione. Le scelte diventeranno operative soltanto dopo l’attivazione nelle impostazioni.') ?></p>
+        <?php endif; ?>
         <form action="<?= htmlspecialchars(url('/admin/settings/cards'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars((string) Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 

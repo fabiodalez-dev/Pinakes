@@ -124,6 +124,15 @@
             <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
           </label>
         </div>
+        <?php $featureLocked = $modulesLocked; foreach (['consultation_only', 'automatic_card_expiry'] as $featureKey) { include __DIR__ . '/partials/feature-switch.php'; } ?>
+        <?php if (!$modulesLocked): ?><a class="text-sm underline" href="<?= htmlspecialchars(url('/admin/settings?tab=circulation'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Configura le regole anche a modulo spento') ?></a><?php endif; ?>
+        <div class="border-t border-gray-100 pt-4">
+          <label for="card_renewal_base" class="block text-sm font-medium text-gray-700 mb-2"><?= __('Calcola il rinnovo della tessera da') ?></label>
+          <select name="card_renewal_base" id="card_renewal_base" class="form-input" <?= $modulesLocked ? 'disabled' : '' ?>>
+            <option value="today" <?= ($loansSettings['card_renewal_base'] ?? 'today') === 'today' ? 'selected' : '' ?>><?= __('Oggi') ?></option>
+            <option value="expiry" <?= ($loansSettings['card_renewal_base'] ?? 'today') === 'expiry' ? 'selected' : '' ?>><?= __('Scadenza esistente, se futura; altrimenti oggi') ?></option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -156,7 +165,7 @@
             <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
           </label>
         </div>
-        <?php if (\App\Support\Features::enabled('closures_calendar')): ?>
+        <?php if (\App\Support\Permissions::mayConfigure()): ?>
         <a href="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="open-closures-calendar" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
           <i class="fas fa-calendar-alt"></i>
           <?= __("Gestisci il calendario chiusure") ?>
@@ -506,12 +515,12 @@
           <i class="fas fa-coins text-gray-500"></i>
           <?= __("Multe e blocco per debito") ?>
         </h2>
-        <p class="text-sm text-gray-600"><?= __("Addebita automaticamente una multa per ogni giorno di ritardo quando un prestito viene restituito dopo la scadenza. Con multa giornaliera a 0 le multe sono disattivate.") ?></p>
+        <p class="text-sm text-gray-600"><?= __("Addebita automaticamente una multa per ogni giorno di ritardo quando un prestito viene restituito dopo la scadenza. Le multe richiedono registro, interruttore dedicato e tariffa positiva.") ?></p>
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
           <div class="flex items-start gap-2">
             <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
             <div class="text-xs text-gray-700">
-              <?= __("Entro i giorni di tolleranza non si paga nulla; oltre, la multa conta ogni giorno di ritardo dal primo. Saldo, pagamenti e condoni si gestiscono dalla scheda del lettore, sezione Movimenti.") ?>
+              <?= __("La modalità di tolleranza determina quali giorni vengono addebitati. Saldo, pagamenti e condoni si gestiscono dalla scheda del lettore, sezione Movimenti.") ?>
             </div>
           </div>
         </div>
@@ -544,6 +553,18 @@
             <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
           </label>
         </div>
+        <?php $featureLocked = $finesLocked; foreach (['automatic_fines', 'debt_block', 'loss_penalties'] as $featureKey) { include __DIR__ . '/partials/feature-switch.php'; } ?>
+        <?php if (isset($legacyPenaltyImpact) && $legacyPenaltyImpact['count'] > 0): ?>
+        <p class="text-sm text-gray-600" data-testid="legacy-penalty-impact"><?= htmlspecialchars(sprintf(__('Attivando il riporto delle penalità, saranno registrati %s importi precedenti, per un totale di %s. Le multe per ritardo restano una scelta separata.'), (string) $legacyPenaltyImpact['count'], \App\Services\FineParameters::format($legacyPenaltyImpact['cents'])), ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+        <p class="text-sm text-gray-600"><?= __('Il registro può restare attivo con tutti gli automatismi spenti. Le tariffe per tipologia e materiale rispettano questi interruttori.') ?></p>
+        <div>
+          <label for="fine_grace_mode" class="block text-sm font-medium text-gray-700 mb-2"><?= __('Modalità di tolleranza della multa') ?></label>
+          <select name="fine_grace_mode" id="fine_grace_mode" class="form-input" <?= $finesLocked ? 'disabled' : '' ?>>
+            <option value="threshold" <?= ($loansSettings['fine_grace_mode'] ?? 'threshold') === 'threshold' ? 'selected' : '' ?>><?= __('Soglia: superata la tolleranza, conta dal primo giorno') ?></option>
+            <option value="deduct" <?= ($loansSettings['fine_grace_mode'] ?? 'threshold') === 'deduct' ? 'selected' : '' ?>><?= __('Abbuono: sottrai sempre i giorni di tolleranza') ?></option>
+          </select>
+        </div>
         <div class="border-t border-gray-100 pt-4">
           <label for="daily_fine" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Multa giornaliera") ?>
@@ -562,7 +583,7 @@
           </div>
           <p class="text-xs text-gray-500 mt-3">
             <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Importo addebitato per ogni giorno di ritardo. 0 = multe disattivate (predefinito).") ?>
+            <?= __("Tariffa globale per giorno. Vuoto o 0 = nessuna tariffa globale; le tipologie possono definirne una propria. Per sospendere tutte le multe usa l’interruttore dedicato.") ?>
           </p>
         </div>
         <div>
@@ -624,7 +645,7 @@
           </div>
           <p class="text-xs text-gray-500 mt-3">
             <i class="fas fa-info-circle mr-1"></i>
-            <?= __("Con un saldo a debito superiore a questa soglia il lettore non può ricevere nuovi prestiti, rinnovi o prenotazioni. Vuoto o 0 = nessun blocco.") ?>
+            <?= __("Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.") ?>
           </p>
         </div>
         <div class="flex items-center justify-between gap-4">

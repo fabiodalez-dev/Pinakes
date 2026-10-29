@@ -1182,7 +1182,7 @@ unset($workspaceHeader);
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">
-                  <?php if ((int) ($copia['solo_consultazione'] ?? 0) === 1 && \App\Support\Features::enabled('circulation_rules')): ?>
+                  <?php if ((int) ($copia['solo_consultazione'] ?? 0) === 1 && \App\Support\Features::enabled('consultation_only')): ?>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mr-1" data-testid="copy-consultation-badge"><i class="fas fa-eye mr-1"></i><?= __("Solo consultazione") ?></span>
                   <?php endif; ?>
                   <?php echo App\Support\HtmlHelper::e($copia['note'] ?? '-'); ?>
@@ -1202,7 +1202,7 @@ unset($workspaceHeader);
                     $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
                     $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                     ?>
-                    <?php if (array_key_exists('solo_consultazione', $copia) && \App\Support\Features::enabled('circulation_rules')): $copyConsultation = (int) $copia['solo_consultazione'] === 1; ?>
+                    <?php if (array_key_exists('solo_consultazione', $copia) && \App\Support\Features::enabled('consultation_only')): $copyConsultation = (int) $copia['solo_consultazione'] === 1; ?>
                     <form method="post" action="<?= htmlspecialchars(url('/admin/books/copies/' . (int) $copia['id'] . '/consultation'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
                       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
                       <input type="hidden" name="solo_consultazione" value="<?= $copyConsultation ? '0' : '1' ?>">

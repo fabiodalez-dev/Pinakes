@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 26 independently named integration scenarios for the 0.9.0 settings:
+ * 37 independently named integration scenarios for the 0.9.0 settings:
  * 25 configuration scenarios and upgrade preservation of saved choices.
  * Real controllers, persisted settings, feature gates and domain services;
  * no Features::override(), no source-text assertions, no network requests.
@@ -141,13 +141,14 @@ try {
         'loan_duration_days' => '30', 'pickup_expiry_days' => '3', 'max_renewals' => '3',
         'max_loan_duration_days' => '3650', 'feature_circulation_rules' => '1',
         'feature_closures_calendar' => '1', 'feature_fines' => '1',
+        'feature_automatic_fines' => '1', 'feature_debt_block' => '1', 'feature_loss_penalties' => '1',
     ], $extra);
     $saveLoans = static function (array $extra = []) use ($request, $db, $loansBody): void {
         (new SettingsController())->updateLoansSettings($request('/admin/settings/loans', $loansBody($extra)), new Response(), $db);
     };
 
     $test('01 Modules: a mixed selection persists and is read by the runtime', static function () use ($request, $db, $assert): void {
-        (new SettingsController())->updateModules($request('/admin/settings/modules', ['feature_marc' => '1', 'feature_user_import' => '1']), new Response(), $db);
+        (new SettingsController())->updateModules($request('/admin/settings/modules', ['feature_marc' => '1', 'feature_user_import' => '1', 'feature_patron_photos' => '0']), new Response(), $db);
         foreach (Features::MODULES_TAB as $key) {
             $assert(Features::enabled($key) === in_array($key, ['marc', 'user_import'], true), 'Saved switch is inert or wrong: ' . $key);
         }
@@ -244,13 +245,13 @@ try {
         $policy = (new CirculationPolicy($db))->forLoan($p, $b['id']);
         $assert($policy->maxRenewals === 0 && $policy->durationDays === 17, 'Zero and inheritance were conflated');
     });
-    $test('14 Disabling type rules uses global duration and ignores consultation, then restores both', static function () use ($db, $type, $book, $patron, $flag, $set, $assert): void {
+    $test('14 Disabling type rules preserves the independent consultation restriction', static function () use ($db, $type, $book, $patron, $flag, $set, $assert): void {
         $t = $type(['durata_prestito_giorni' => '9']); $p = $patron(); $b = $book();
         $db->query("UPDATE utenti SET tipologia_id={$t} WHERE id={$p}");
         $db->query("UPDATE copie SET solo_consultazione=1 WHERE id={$b['copy']}");
         $set('loans', 'loan_duration_days', '23'); $flag('circulation_rules', false);
         $off = (new CirculationPolicy($db))->forLoan($p, $b['id'], $b['copy']);
-        $assert($off->durationDays === 23 && $off->loanable, 'Off does not restore the global policy');
+        $assert($off->durationDays === 23 && !$off->loanable, 'Off does not restore the global policy');
         $flag('circulation_rules', true);
         $on = (new CirculationPolicy($db))->forLoan($p, $b['id'], $b['copy']);
         $assert($on->durationDays === 9 && !$on->loanable, 'The saved type or consultation flag was lost');
@@ -351,6 +352,132 @@ try {
         $flag('stocktake', true);
         $assert($service->summary($id) === $before && $before['mancanti'] === 1, 'Disabling stocktake damaged its frozen report');
         $assert($one("SELECT stato FROM copie WHERE id={$b['copy']}") === 'disponibile', 'Optional loss action was applied implicitly');
+    });
+
+
+    $test('27 Ledger-only mode ignores positive global and typed fine rates and debt thresholds', static function () use ($saveLoans, $db, $patron, $book, $loan, $type, $assert): void {
+        $saveLoans(['daily_fine' => '2', 'debt_block_threshold' => '1', 'feature_automatic_fines' => '0', 'feature_debt_block' => '0']);
+        $t = $type(['multa_giornaliera' => '3.00', 'soglia_blocco_debito' => '0.50']); $p = $patron();
+        $db->query("UPDATE utenti SET tipologia_id={$t} WHERE id={$p}");
+        $id = $loan($p, $book(), '2026-10-01', '2026-10-06'); $ledger = new PatronLedger($db);
+        $ledger->manualCharge($p, 1000, 'ZZ manual only', null);
+        $assert($ledger->chargeLateReturn($id) === 0 && !$ledger->previewLateFine($id)['enabled'], 'Disabled automatic fines still charge or preview');
+        $assert(!PatronLedger::isDebtBlocked($db, $p) && \App\Support\LoanEligibility::debtBlockSql('u', $db) === '1 = 1', 'Debt still blocks a channel');
+        $assert($ledger->balanceCents($p) === 1000 && Features::enabled('fines'), 'Manual ledger no longer works');
+    });
+    $test('28 Fine and debt switches work independently with positive retained amounts', static function () use ($saveLoans, $db, $patron, $book, $loan, $assert): void {
+        $saveLoans(['daily_fine' => '0.50', 'debt_block_threshold' => '1', 'feature_automatic_fines' => '0', 'feature_debt_block' => '1']);
+        $p = $patron(); $ledger = new PatronLedger($db); $ledger->manualCharge($p, 200, 'ZZ existing debt', null);
+        $id = $loan($p, $book(), '2026-10-01', '2026-10-04');
+        $assert($ledger->chargeLateReturn($id) === 0 && PatronLedger::isDebtBlocked($db, $p), 'Debt requires automatic fines');
+        $saveLoans(['daily_fine' => '0.50', 'debt_block_threshold' => '1', 'feature_automatic_fines' => '1', 'feature_debt_block' => '0']);
+        $assert($ledger->chargeLateReturn($id) === 150 && !PatronLedger::isDebtBlocked($db, $p), 'Fine generation requires a debt block');
+    });
+    $test('29 Loss mirroring and legacy backfill require their own switch and remain idempotent', static function () use ($saveLoans, $db, $patron, $book, $loan, $flag, $assert): void {
+        $saveLoans(['feature_loss_penalties' => '0']); $p = $patron(); $id = $loan($p, $book(), '2026-10-01', '2026-10-04');
+        $db->query("UPDATE prestiti SET stato='perso', sanzione=12.50 WHERE id={$id}"); $ledger = new PatronLedger($db);
+        $assert($ledger->chargeLossPenalty($id) === 0 && $ledger->backfillLegacyPenalties() === null, 'Loss opt-out created ledger charges');
+        $assert($ledger->balanceCents($p) === 0, 'A disabled loss mirror changed the balance');
+        $flag('loss_penalties', true); $ledger->backfillLegacyPenalties();
+        $assert($ledger->balanceCents($p) === 1250 && $ledger->chargeLossPenalty($id) === 0, 'Reactivation lost or doubled the assessed amount');
+    });
+    $test('30 Consultation restrictions survive type rules being off and can be independently suspended', static function () use ($db, $book, $patron, $flag, $assert): void {
+        $b = $book(); $p = $patron(); $db->query("UPDATE copie SET solo_consultazione=1 WHERE id={$b['copy']}");
+        $flag('circulation_rules', false); $flag('consultation_only', true); $policy = new CirculationPolicy($db);
+        $assert(!$policy->forLoan($p, $b['id'], $b['copy'])->loanable && $policy->onlyConsultationCopies($b['id']), 'Consultation depends on type rules');
+        $assert(str_contains($policy->lendableCopySql('c'), 'solo_consultazione'), 'SQL allocation ignores consultation');
+        $flag('consultation_only', false); $policy = new CirculationPolicy($db);
+        $assert($policy->forLoan($p, $b['id'], $b['copy'])->loanable && $policy->lendableCopySql() === '1 = 1', 'Consultation cannot be suspended');
+    });
+    $test('31 Photos are independent of card printing and disabled photos never enter a PDF', static function () use ($flag, $assert): void {
+        $flag('patron_cards', false); $flag('patron_photos', true);
+        $assert(Features::enabled('patron_photos') && !Features::enabled('patron_cards'), 'Photos require printing');
+        $file = tempnam(sys_get_temp_dir(), 'pinakes-photo-');
+        try {
+            $im = imagecreatetruecolor(12, 12); imagejpeg($im, $file); imagedestroy($im);
+            $card = ['name' => 'Photo test', 'code' => 'ZZPHOTO', 'expiry' => '', 'photo' => $file];
+            $settings = PatronCardSettings::defaults();
+            $visible = (new \App\Support\PatronCardPdf($settings, 'Library', null))->render([$card], 'single');
+            $flag('patron_photos', false); $flag('patron_cards', true);
+            $hidden = (new \App\Support\PatronCardPdf($settings, 'Library', null))->render([$card], 'single');
+            $assert(str_contains($visible, '/Subtype /Image') && !str_contains($hidden, '/Subtype /Image'), 'Photo switch does not control PDF embedding');
+        } finally { @unlink($file); }
+    });
+    $test('32 Retention can continue while collection is off, and zero days always prevents deletion', static function () use ($db, $flag, $set, $assert): void {
+        $db->query("INSERT INTO presenze (tipo,nome_ospite,created_at) VALUES ('ospite','ZZ old visit','2020-01-01 10:00:00')");
+        $id = (int) $db->insert_id; $flag('visitor_log', false); $flag('attendance_retention', false); $set('attendance', 'retention_days', '30');
+        $maintenance = new \App\Support\MaintenanceService($db);
+        $assert($maintenance->purgeAttendance() === 0, 'Suspended collection purges without consent');
+        $flag('attendance_retention', true); $set('attendance', 'retention_days', '0');
+        $assert($maintenance->purgeAttendance() === 0, 'Zero retention unexpectedly deletes');
+        $set('attendance', 'retention_days', '30');
+        $assert($maintenance->purgeAttendance() === 1, 'Retention cannot run with collection off');
+        $assert((int) $db->query("SELECT COUNT(*) FROM presenze WHERE id={$id}")->fetch_row()[0] === 0, 'Expired attendance survived purge');
+    });
+    $test('33 Fine grace can be a threshold or waived days, using the same typed daily rate', static function () use ($saveLoans, $db, $type, $patron, $book, $loan, $assert): void {
+        $saveLoans(['daily_fine' => '1', 'fine_grace_days' => '2', 'fine_grace_mode' => 'threshold']);
+        $t = $type(['multa_giornaliera' => '0.50']); $p = $patron(); $db->query("UPDATE utenti SET tipologia_id={$t} WHERE id={$p}");
+        $id = $loan($p, $book(), '2026-10-01', '2026-10-06'); $ledger = new PatronLedger($db);
+        $assert($ledger->previewLateFine($id, '2026-10-06')['cents'] === 250, 'Historical threshold changed');
+        $saveLoans(['daily_fine' => '1', 'fine_grace_days' => '2', 'fine_grace_mode' => 'deduct']);
+        $assert($ledger->chargeLateReturn($id) === 150, 'Waived days were not deducted from the typed rate');
+    });
+    $test('34 Automatic card expiry can be disabled while manual renewal retains today or future-expiry choices', static function () use ($db, $type, $patron, $flag, $set, $assert): void {
+        $t = $type(['durata_tessera_giorni' => '30']); $p = $patron();
+        $future = (new DateTimeImmutable(DateHelper::today()))->modify('+100 days')->format('Y-m-d');
+        $db->query("UPDATE utenti SET tipologia_id={$t}, data_scadenza_tessera='{$future}' WHERE id={$p}");
+        $flag('automatic_card_expiry', false);
+        $assert(\App\Support\PatronTypeAssignment::automaticCardExpiry($db, $t) === null, 'Automatic expiry ignores its switch');
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $p);
+        $assert($db->query("SELECT data_scadenza_tessera FROM utenti WHERE id={$p}")->fetch_row()[0] === $future, 'Approval reset an existing expiry');
+        $set('loans', 'card_renewal_base', 'expiry');
+        $assert(\App\Support\PatronTypeAssignment::renewCard($db, $p) === (new DateTimeImmutable($future))->modify('+30 days')->format('Y-m-d'), 'Renewal erased remaining validity');
+        $set('loans', 'card_renewal_base', 'today');
+        $assert(\App\Support\PatronTypeAssignment::renewCard($db, $p) === \App\Support\PatronTypeAssignment::todayPlus(30), 'Today default changed');
+    });
+    $test('35 Administrators can prepare disabled rules and calendars without activating runtime behaviour', static function () use ($db, $type, $set, $flag, $assert): void {
+        $t = $type(['durata_prestito_giorni' => '11']); $flag('circulation_rules', false); $flag('closures_calendar', false);
+        $data = CirculationSettingsController::viewData($db);
+        $assert(isset($data['types'][$t]) && $data['effective'][$t]->durationDays === 11 && (new CirculationPolicy($db))->types() === [], 'Configuration activated or hid disabled type rules');
+        $set('loans', 'closed_weekdays', '0');
+        $assert(!LibraryCalendar::fromDatabase($db)->hasRules() && LibraryCalendar::fromDatabase($db, configuration: true)->hasRules(), 'Draft calendar leaks into circulation');
+    });
+    $test('36 Old forms freeze absent granular preferences before enabling their former parent', static function () use ($request, $db, $settings, $flag, $assert): void {
+        $db->query("DELETE FROM system_settings WHERE category='features' AND setting_key IN ('automatic_fines','debt_block','loss_penalties','patron_photos','consultation_only','automatic_card_expiry')");
+        $flag('fines', false); $flag('patron_cards', false); $flag('circulation_rules', false);
+        $body = ['feature_fines' => '1', 'feature_circulation_rules' => '1', 'feature_closures_calendar' => '1', 'daily_fine' => '2', 'debt_block_threshold' => '1'];
+        (new SettingsController())->updateLoansSettings($request('/admin/settings/loans', $body), new Response(), $db);
+        foreach (['automatic_fines', 'debt_block', 'loss_penalties', 'consultation_only', 'automatic_card_expiry'] as $key) {
+            $assert($settings->get('features', $key) === '0' && !Features::enabled($key), 'A former parent silently enabled ' . $key);
+        }
+        (new SettingsController())->updateModules($request('/admin/settings/modules', ['feature_patron_cards' => '1']), new Response(), $db);
+        $assert(Features::enabled('patron_cards') && !Features::enabled('patron_photos'), 'Printing unexpectedly resumed photo collection');
+    });
+
+    $test('37 Repeated upgrades never enable fines or convert penalties when the old ledger was off', static function () use ($root, $db, $flag, $set, $type, $patron, $book, $loan, $assert): void {
+        $db->query("DELETE FROM system_settings WHERE category='features' AND setting_key IN ('automatic_fines','debt_block','loss_penalties','patron_photos','consultation_only','automatic_card_expiry')");
+        $flag('fines', false); $flag('patron_cards', false); $flag('circulation_rules', false);
+        $set('loans', 'daily_fine', '2.00'); $set('loans', 'debt_block_threshold', '1.00');
+        $t = $type(['multa_giornaliera' => '3.00', 'soglia_blocco_debito' => '0.50']); $p = $patron();
+        $db->query("UPDATE utenti SET tipologia_id={$t} WHERE id={$p}");
+        $id = $loan($p, $book(), '2026-10-01', '2026-10-06');
+        $db->query("UPDATE prestiti SET sanzione=12.50 WHERE id={$id}");
+        $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+        $sql = implode("\n", array_filter(explode("\n", $sql), static fn (string $line): bool => !str_starts_with(trim($line), '--')));
+        for ($pass = 0; $pass < 2; $pass++) {
+            foreach (explode(';', $sql) as $statement) {
+                if (trim($statement) === '') { continue; }
+                $result = $db->query($statement); if ($result instanceof mysqli_result) { $result->free(); }
+            }
+            ConfigStore::clearCache(); PatronLedger::resetSchemaCache();
+            foreach (['fines','automatic_fines','debt_block','loss_penalties','patron_photos','consultation_only','automatic_card_expiry'] as $key) {
+                $assert(!Features::stored($key), 'Upgrade silently enabled ' . $key);
+            }
+            $ledger = new PatronLedger($db);
+            $assert($ledger->chargeLateReturn($id) === 0 && $ledger->balanceCents($p) === 0, 'Upgrade created an unplanned financial charge');
+        }
+        $flag('fines', true);
+        $assert(!Features::enabled('automatic_fines') && !Features::enabled('debt_block') && !Features::enabled('loss_penalties'), 'Enabling the ledger implicitly enabled its automations');
     });
 
     $test('26 Repeated upgrades preserve saved settings and effective behaviour in every switch state', static function () use ($root, $db, $admin, $sandbox, $settings, $set, $flag, $book, $patron, $assert): void {
@@ -469,7 +596,7 @@ try {
         }
     });
 
-    $assert(count($cases) === 26, 'This suite must register exactly 26 scenarios');
+    $assert(count($cases) === 37, 'This suite must register exactly 37 scenarios');
     foreach ($cases as [$name, $body]) {
         try {
             $db->rollback();
@@ -505,5 +632,5 @@ try {
     if ($db instanceof mysqli) { $db->rollback(); $db->close(); }
     if ($admin instanceof mysqli) { $admin->query("DROP DATABASE IF EXISTS `{$sandbox}`"); $admin->close(); }
 }
-echo "Settings flexibility: {$passed}/26 passed, {$failed} failed\n";
-exit($passed === 26 && $failed === 0 ? 0 : 1);
+echo "Settings flexibility: {$passed}/37 passed, {$failed} failed\n";
+exit($passed === 37 && $failed === 0 ? 0 : 1);

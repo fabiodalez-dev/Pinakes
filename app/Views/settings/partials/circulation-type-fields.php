@@ -46,12 +46,14 @@ $tfGlobalMoneyByField = [
   <div>
     <label for="<?= $tfPrefix . '-' . $tfField ?>" class="block text-sm font-medium text-gray-700 mb-2"><?= htmlspecialchars(\App\Controllers\CirculationSettingsController::fieldLabel($tfField), ENT_QUOTES, 'UTF-8') ?></label>
     <input type="number" min="0" id="<?= $tfPrefix . '-' . $tfField ?>" name="<?= $tfField ?>" value="<?= htmlspecialchars($tfInt($tfField), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(sprintf(__('Eredita: %s'), $tfGlobal[$tfField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 placeholder:text-gray-400">
+    <p class="text-xs text-gray-500 mt-1"><?= in_array($tfField, ['max_prestiti', 'max_prenotazioni'], true) ? __('Vuoto = eredita; 0 = nessun limite.') : ($tfField === 'max_rinnovi' ? __('Vuoto = eredita; 0 = rinnovi vietati.') : ($tfField === 'giorni_tolleranza' ? __('Vuoto = eredita; 0 = nessuna tolleranza.') : __('Vuoto = eredita; inserisci un numero positivo.'))) ?></p>
   </div>
   <?php endforeach; ?>
   <?php foreach (\App\Controllers\CirculationSettingsController::TYPE_MONEY_FIELDS as $tfField): ?>
   <div>
     <label for="<?= $tfPrefix . '-' . $tfField ?>" class="block text-sm font-medium text-gray-700 mb-2"><?= htmlspecialchars(\App\Controllers\CirculationSettingsController::fieldLabel($tfField), ENT_QUOTES, 'UTF-8') ?></label>
     <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $tfPrefix . '-' . $tfField ?>" name="<?= $tfField ?>" value="<?= htmlspecialchars($tfMoney($tfField), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(sprintf(__('Eredita: %s'), $tfGlobalMoneyByField[$tfField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 placeholder:text-gray-400">
+    <p class="text-xs text-gray-500 mt-1"><?= $tfField === 'multa_massima_prestito' ? __('Vuoto = eredita; 0 = nessun tetto.') : __('Vuoto = eredita; 0 = disattiva per questa tipologia.') ?></p>
   </div>
   <?php endforeach; ?>
 </div>

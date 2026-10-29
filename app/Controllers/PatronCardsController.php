@@ -77,7 +77,7 @@ class PatronCardsController
     /** Stream the stored photo (never cached by shared caches). */
     public function photo(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        if (($off = \App\Support\Features::requireOrRedirect('patron_cards', $response)) !== null) {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_photos', $response)) !== null) {
             return $off;
         }
         if (!\App\Support\Permissions::can('users.manage')) {
@@ -103,7 +103,7 @@ class PatronCardsController
     /** Save a photo sent as multipart field `photo` (webcam frame or picked file). JSON reply. */
     public function uploadPhoto(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        if (($off = \App\Support\Features::requireOrRedirect('patron_cards', $response)) !== null) {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_photos', $response)) !== null) {
             return $off;
         }
         $guard = $this->editGuard($db, $id);
@@ -140,7 +140,7 @@ class PatronCardsController
     /** Remove the photo (the reader's right to erasure). JSON for fetch(), redirect for a plain form. */
     public function deletePhoto(Request $request, Response $response, mysqli $db, int $id): Response
     {
-        if (($off = \App\Support\Features::requireOrRedirect('patron_cards', $response)) !== null) {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_photos', $response)) !== null) {
             return $off;
         }
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');

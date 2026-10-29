@@ -159,6 +159,10 @@ final class ConfigStore
             'features' => array_map(static fn (string $v): bool => $v === '1', Features::DEFAULTS),
         ];
 
+        // NULL marks an absent granular preference, distinct from an explicit OFF.
+        foreach (Features::INHERITED as $key => $parent) {
+            $defaults['features'][$key] = null;
+        }
         $localizedDefaults = self::getLocaleDefaultTexts();
         if (!empty($localizedDefaults)) {
             $defaults = self::mergeRecursiveDistinct($defaults, $localizedDefaults);

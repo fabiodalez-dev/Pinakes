@@ -176,7 +176,7 @@ class LoanEligibility
      */
     public static function debtBlockSql(string $alias, \mysqli $db): string
     {
-        if (!\App\Services\PatronLedger::active($db)) {
+        if (!\App\Services\PatronLedger::active($db) || !Features::enabled('debt_block')) {
             return '1 = 1';
         }
         $threshold = self::debtThresholdSql($alias, $db);

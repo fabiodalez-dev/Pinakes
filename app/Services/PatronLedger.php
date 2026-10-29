@@ -217,7 +217,7 @@ final class PatronLedger
      */
     public function chargeLateReturn(int $loanId, ?int $staffId = null): int
     {
-        if (!self::active($this->db)) {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('automatic_fines')) {
             return 0;
         }
         $loan = $this->loanRow($loanId);
@@ -254,7 +254,7 @@ final class PatronLedger
         // backfill mirrors it (same key) once the module is back on; its
         // marker is re-armed here, because a library that already had fines
         // on has the scan recorded as done. Same transaction as the close.
-        if (!self::active($this->db)) {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('loss_penalties')) {
             $loan = $this->loanRow($loanId);
             if ($loan !== null && FineParameters::decimalToCents($loan['sanzione'] ?? 0) > 0) {
                 (new \App\Models\SettingsRepository($this->db))->set('loans', 'legacy_penalties_backfilled', '0');
@@ -407,7 +407,7 @@ final class PatronLedger
      */
     public function previewLateFine(int $loanId, ?string $returnDate = null): array
     {
-        if (!self::active($this->db)) {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('automatic_fines')) {
             return ['days' => 0, 'cents' => 0, 'enabled' => false];
         }
         $loan = $this->loanRow($loanId);
@@ -432,7 +432,7 @@ final class PatronLedger
      */
     public function accruedFines(int $userId): array
     {
-        if (!self::active($this->db)) {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('automatic_fines')) {
             return [];
         }
         $today = DateHelper::today();
@@ -483,7 +483,7 @@ final class PatronLedger
     {
         // null also while the fines module is off: the scan is not recorded
         // as done and runs when the module is switched back on.
-        if (!self::active($this->db)) {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('loss_penalties')) {
             return null;
         }
         $written = 0;

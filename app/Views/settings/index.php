@@ -893,7 +893,7 @@ unset($workspaceHeader);
       </section>
 
       <!-- Card Settings -->
-      <?php if (\App\Support\Features::enabled('patron_cards')) { include __DIR__ . '/cards-tab.php'; } ?>
+      <?php if (\App\Support\Features::enabled('patron_cards') || \App\Support\Permissions::mayConfigure()) { include __DIR__ . '/cards-tab.php'; } ?>
 
       <!-- Sharing Settings -->
       <section data-settings-panel="sharing" class="settings-panel <?php echo $activeTab === 'sharing' ? 'block' : 'hidden'; ?>">

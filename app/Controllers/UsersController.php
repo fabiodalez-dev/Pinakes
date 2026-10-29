@@ -813,6 +813,11 @@ class UsersController
         // Effective circulation rules of this patron (patron type → globals).
         $circulation = new \App\Services\CirculationPolicy($db);
         $patronPolicy = $circulation->forType($circulation->patronTypeOf($id));
+        $cardRenewalPreview = \App\Support\PatronTypeAssignment::renewalDate(
+            $patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS,
+            $utente['data_scadenza_tessera'],
+            (string) (new \App\Models\SettingsRepository($db))->get('loans', 'card_renewal_base', 'today')
+        );
         $patronTypeName = $patronPolicy->user->patronTypeName;
         $patronTypeIsOwn = isset($utente['tipologia_id']);
         // "Movimenti" section (plan §7): balance, ledger rows, fines accruing on

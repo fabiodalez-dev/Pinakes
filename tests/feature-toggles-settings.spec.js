@@ -177,4 +177,71 @@ test.describe.serial('Feature toggles: settings', () => {
       await en.close();
     }
   });
+  test('7. the ledger, automatic fines, debt block and loss mirroring save independently', async () => {
+    await ft.setModuleInUi(page, 'fines', true);
+    await ft.setModuleInUi(page, 'automatic_fines', false);
+    await ft.setModuleInUi(page, 'debt_block', true);
+    await ft.setModuleInUi(page, 'loss_penalties', false);
+    await page.reload();
+    await expect(page.locator('#feature_fines')).toBeChecked();
+    await expect(page.locator('#feature_automatic_fines')).not.toBeChecked();
+    await expect(page.locator('#feature_debt_block')).toBeChecked();
+    await expect(page.locator('#feature_loss_penalties')).not.toBeChecked();
+    const stored = ft.readFeatures(['fines', 'automatic_fines', 'debt_block', 'loss_penalties']);
+    expect(stored).toEqual({ fines: '1', automatic_fines: '0', debt_block: '1', loss_penalties: '0' });
+  });
+
+  test('8. disabled card and circulation modules can be configured without being activated', async () => {
+    const saved = ft.readFeatures(['patron_cards', 'circulation_rules']);
+    const code = `zz-staged-${RUN}`;
+    let oldTitle;
+    try {
+      await ft.writeFeatures({ patron_cards: '0', circulation_rules: '0' });
+      await page.goto(`${ft.BASE}/admin/settings?tab=cards`);
+      const cards = page.locator('section[data-settings-panel="cards"]');
+      await expect(cards).toBeVisible();
+      oldTitle = await cards.locator('[name="card_title"]').inputValue();
+      await cards.locator('[name="card_title"]').fill(`ZZ staged ${RUN}`);
+      await cards.locator('button[type="submit"]').click();
+      await page.waitForURL(/tab=cards/);
+      await expect(cards.locator('[name="card_title"]')).toHaveValue(`ZZ staged ${RUN}`);
+      await page.goto(`${ft.BASE}/admin/settings?tab=circulation`);
+      await page.locator('#circulation-new-type summary').click();
+      const form = page.locator('[data-testid="circulation-type-create"]');
+      await form.locator('[name="nome"]').fill(`ZZ staged ${RUN}`);
+      await form.locator('[name="codice"]').fill(code);
+      await form.locator('button[type="submit"]').click();
+      await page.waitForURL(/tab=circulation/);
+      expect(ft.dbQuery(`SELECT COUNT(*) FROM tipologie_lettore WHERE codice=${ft.sqlString(code)}`)).toBe('1');
+      expect(ft.readFeatures(['patron_cards', 'circulation_rules'])).toEqual({ patron_cards: '0', circulation_rules: '0' });
+    } finally {
+      if (oldTitle !== undefined) {
+        await page.goto(`${ft.BASE}/admin/settings?tab=cards`);
+        const cards = page.locator('section[data-settings-panel="cards"]');
+        await cards.locator('[name="card_title"]').fill(oldTitle);
+        await cards.locator('button[type="submit"]').click();
+        await page.waitForURL(/tab=cards/);
+      }
+      ft.dbQuery(`DELETE FROM tipologie_lettore WHERE codice=${ft.sqlString(code)}`);
+      await ft.restoreFeatures(saved);
+    }
+  });
+
+  test('9. configuration access while disabled remains reserved to administrators', async ({ browser }) => {
+    const saved = ft.readFeatures(['patron_cards', 'circulation_rules', 'closures_calendar']);
+    const staff = await browser.newPage();
+    try {
+      await ft.writeFeatures({ patron_cards: '0', circulation_rules: '0', closures_calendar: '0' });
+      await ft.loginAs(staff, STAFF_EMAIL, PASS);
+      for (const path of ['/admin/settings/circulation', '/admin/settings/cards', '/admin/calendar']) {
+        const res = await staff.request.get(`${ft.BASE}${path}`, { headers: { Accept: 'application/json' }, maxRedirects: 0 });
+        expect(res.status()).toBe(404);
+        expect((await res.json()).code).toBe('feature_disabled');
+      }
+    } finally {
+      await staff.close();
+      await ft.restoreFeatures(saved);
+    }
+  });
+
 });

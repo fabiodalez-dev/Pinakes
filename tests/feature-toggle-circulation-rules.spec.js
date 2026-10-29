@@ -29,8 +29,8 @@ test.describe.serial('Feature toggle: rules by patron type', () => {
   let typeId = 0;
 
   test.beforeAll(async ({ browser }) => {
-    snapshot = ft.readFeatures(['circulation_rules']);
-    await ft.writeFeatures({ circulation_rules: '1' });
+    snapshot = ft.readFeatures(['circulation_rules', 'consultation_only', 'automatic_card_expiry']);
+    await ft.writeFeatures({ circulation_rules: '1', consultation_only: '1' });
     ft.removeUsers('zz-ft-rules-%@test.local');
     bookId = mf.seedBook({ titolo: TITLE, copie_totali: 1, copie_disponibili: 1 });
     ft.dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato, solo_consultazione) VALUES (${bookId}, ${ft.sqlString(`ZZFTC-${RUN}`)}, 'disponibile', 1)`);
@@ -51,16 +51,16 @@ test.describe.serial('Feature toggle: rules by patron type', () => {
     await page?.close();
   });
 
-  test('1. switched off from Settings → Loans: the Circulation section and its pages are gone', async () => {
+  test('1. rules off: administrators can still configure circulation', async () => {
     await page.goto(`${ft.BASE}/admin/settings?tab=loans`);
     await expect(page.locator('#loans-circulation-rules')).toBeVisible();
     await ft.setModuleInUi(page, 'circulation_rules', false);
     await expect(page.locator('#feature_circulation_rules')).not.toBeChecked();
-    await expect(page.locator('a[data-settings-section="circulation"]')).toHaveCount(0);
+    await expect(page.locator('a[data-settings-section="circulation"]').first()).toBeAttached();
     await page.goto(`${ft.BASE}/admin/settings?tab=circulation`);
-    await expect(page.locator('section[data-settings-panel="general"]')).toBeVisible();
+    await expect(page.locator('section[data-settings-panel="circulation"]')).toBeVisible();
     await page.goto(`${ft.BASE}/admin/settings/circulation`);
-    await expect(page).toHaveURL(/\/admin\/dashboard/);
+    await expect(page).toHaveURL(/tab=circulation/);
   });
 
   test('2. switched off: no patron type in the user forms, the record or the users filter', async () => {
@@ -73,7 +73,12 @@ test.describe.serial('Feature toggle: rules by patron type', () => {
     await expect(page.locator('#patron_type_filter')).toHaveCount(0);
   });
 
-  test('3. switched off: a consultation-only copy is an ordinary lendable copy', async () => {
+  test('3. consultation survives rules off and has its own switch', async () => {
+    await page.goto(`${ft.BASE}/admin/books/${bookId}`);
+    await expect(page.locator('[data-testid="copy-consultation-badge"]')).toBeVisible();
+    await page.goto(`${ft.BASE}/libro/${bookId}`);
+    await expect(page.locator('#consultation-only')).toBeVisible();
+    await ft.setModuleInUi(page, 'consultation_only', false);
     await page.goto(`${ft.BASE}/admin/books/${bookId}`);
     await expect(page.locator('h1').first()).toContainText(TITLE);
     await expect(page.locator('[data-testid="copy-consultation-badge"]')).toHaveCount(0);
@@ -84,6 +89,7 @@ test.describe.serial('Feature toggle: rules by patron type', () => {
     const res = await page.request.post(`${ft.BASE}/admin/books/copies/${copyId}/consultation`, { form: { csrf_token: csrf, solo_consultazione: '0' }, maxRedirects: 0 });
     expect(res.status()).toBe(302);
     expect(ft.dbQuery(`SELECT solo_consultazione FROM copie WHERE id=${copyId}`)).toBe('1');
+    await ft.setModuleInUi(page, 'consultation_only', true);
   });
 
   test('4. switched off: saving the reader from the edit form keeps the patron type', async () => {
@@ -103,4 +109,33 @@ test.describe.serial('Feature toggle: rules by patron type', () => {
     await page.goto(`${ft.BASE}/libro/${bookId}`);
     await expect(page.locator('#consultation-only')).toBeVisible();
   });
+  test('6. card automation can be suspended and renewal confirmation matches a future expiry', async () => {
+    const previousBase = ft.dbQuery("SELECT COALESCE(MAX(setting_value), '') FROM system_settings WHERE category='loans' AND setting_key='card_renewal_base'");
+    try {
+      await ft.setModuleInUi(page, 'automatic_card_expiry', false);
+      await page.goto(`${ft.BASE}/admin/users/edit/${readerId}`);
+      await expect(page.locator('#card_auto')).toHaveCount(0);
+      await ft.setModuleInUi(page, 'automatic_card_expiry', true);
+      await page.goto(`${ft.BASE}/admin/users/edit/${readerId}`);
+      await expect(page.locator('#card_auto')).toBeVisible();
+      ft.dbQuery(`UPDATE tipologie_lettore SET durata_tessera_giorni=30 WHERE id=${typeId}`);
+      ft.dbQuery(`UPDATE utenti SET data_scadenza_tessera='2090-01-01' WHERE id=${readerId}`);
+      ft.dbQuery("INSERT INTO system_settings (category,setting_key,setting_value) VALUES ('loans','card_renewal_base','expiry') ON DUPLICATE KEY UPDATE setting_value='expiry'");
+      await require('./helpers/flush-cache').flushCache();
+      const expected = '2090-01-31';
+      const displayed = '31/01/2090';
+      await page.goto(`${ft.BASE}/admin/users/details/${readerId}`);
+      const form = page.locator('form[action$="/renew-card"]');
+      await expect(form).toHaveAttribute('data-swal-confirm', new RegExp(displayed));
+      await form.locator('button[type="submit"]').click();
+      await page.locator('.swal2-confirm').click();
+      await page.waitForLoadState('networkidle');
+      expect(ft.dbQuery(`SELECT data_scadenza_tessera FROM utenti WHERE id=${readerId}`)).toBe(expected);
+    } finally {
+      if (previousBase === '') ft.dbQuery("DELETE FROM system_settings WHERE category='loans' AND setting_key='card_renewal_base'");
+      else ft.dbQuery(`UPDATE system_settings SET setting_value=${ft.sqlString(previousBase)} WHERE category='loans' AND setting_key='card_renewal_base'`);
+      await require('./helpers/flush-cache').flushCache();
+    }
+  });
+
 });

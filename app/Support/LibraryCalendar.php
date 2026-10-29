@@ -107,13 +107,13 @@ final class LibraryCalendar
     }
 
     /** The calendar stored in the database (settings + closures table). */
-    public static function fromDatabase(\mysqli $db): self
+    public static function fromDatabase(\mysqli $db, bool $configuration = false): self
     {
         // Closures calendar module off (Settings -> Loans; also off in
         // catalogue mode): an empty calendar, so due dates, pickup deadlines
         // and fine days are those of a library open every day, as before
         // 0.9.0. The stored closures stay for when it is switched back on.
-        if (!Features::enabled('closures_calendar')) {
+        if (!$configuration && !Features::enabled('closures_calendar')) {
             return new self([], []);
         }
         $holidayRules = Holidays\HolidayPresets::calendarRules($db);

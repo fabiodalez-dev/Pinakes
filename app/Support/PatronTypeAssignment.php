@@ -73,6 +73,9 @@ final class PatronTypeAssignment
      */
     public static function automaticCardExpiry(mysqli $db, ?int $typeId): ?string
     {
+        if (!Features::enabled('automatic_card_expiry')) {
+            return null;
+        }
         $days = (new CirculationPolicy($db))->forType($typeId)->user->cardDurationDays;
         return $days !== null ? self::todayPlus($days) : null;
     }
@@ -154,7 +157,8 @@ final class PatronTypeAssignment
         }
         $policy = new CirculationPolicy($db);
         $days = $policy->forUser($userId)->cardDurationDays ?? self::DEFAULT_RENEWAL_DAYS;
-        $expiry = self::todayPlus($days);
+        $expiry = self::renewalDate($days, $user['data_scadenza_tessera'],
+            (string) (new \App\Models\SettingsRepository($db))->get('loans', 'card_renewal_base', 'today'));
         $state = $user['stato'] === 'scaduto' ? 'attivo' : (string) $user['stato'];
         $flagSql = self::hasExpiryWarningFlag($db) ? ', card_expiry_warning_sent_for = NULL' : '';
         $update = $db->prepare('UPDATE utenti SET data_scadenza_tessera = ?, stato = ?' . $flagSql . ' WHERE id = ?');
@@ -173,12 +177,26 @@ final class PatronTypeAssignment
         return $expiry;
     }
 
+    /** Shared by the confirmation preview and the actual renewal. */
+    public static function renewalDate(int $days, ?string $currentExpiry, string $baseMode = 'today'): string
+    {
+        $base = DateHelper::today();
+        if ($baseMode === 'expiry' && $currentExpiry !== null
+            && DateHelper::isISODateFormat($currentExpiry) && $currentExpiry > $base) {
+            $base = $currentExpiry;
+        }
+        return (new \DateTimeImmutable($base))->modify('+' . max(0, $days) . ' days')->format('Y-m-d');
+    }
+
     /**
      * Apply the patron type's card duration on registration approval: only
      * when the type sets one (otherwise the stored expiry is kept).
      */
     public static function applyCardDurationOnApproval(mysqli $db, int $userId): void
     {
+        if (!Features::enabled('automatic_card_expiry')) {
+            return;
+        }
         $policy = new CirculationPolicy($db);
         $days = $policy->forUser($userId)->cardDurationDays;
         if ($days === null) {

@@ -179,7 +179,7 @@ final class PatronCardPdf
         $pad = 3.0;
         $top = $y + $band + 3;
         $textX = $x + $pad;
-        if ($this->settings['show_photo']) {
+        if (($this->settings['show_photo'] && Features::enabled('patron_photos'))) {
             $this->photo($pdf, $x + $pad, $top, 22, 28, $card);
             $textX = $x + $pad + 22 + 3;
         }
@@ -247,7 +247,7 @@ final class PatronCardPdf
         $this->band($pdf, $x, $y, $w, $band);
         $pad = 3.0;
         $cursor = $y + $band + 3;
-        if ($this->settings['show_photo']) {
+        if (($this->settings['show_photo'] && Features::enabled('patron_photos'))) {
             $this->photo($pdf, $x + ($w - 26) / 2, $cursor, 26, 32, $card);
             $cursor += 34;
         } else {

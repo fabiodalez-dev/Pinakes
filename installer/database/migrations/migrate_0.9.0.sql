@@ -334,7 +334,8 @@ CREATE TABLE IF NOT EXISTS `movimenti_lettore` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Existing prestiti.sanzione amounts (assessed by hand when a copy was closed lost
--- or damaged) become ledger charges. prestiti.sanzione stays and is still written
+-- or damaged) become ledger charges only when the existing ledger and loss
+-- mirroring are enabled. Otherwise they remain solely in prestiti.sanzione. prestiti.sanzione stays and is still written
 -- as a mirror. The key penalty:<loan id> is the one the live return path uses, so
 -- the conversion happens exactly once, however many times the upgrade runs.
 -- Batches of 5000 loans in id order; each statement is its own short transaction
@@ -347,6 +348,8 @@ SET @fl_sql = 'INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, impo
         COALESCE(CAST(p.data_restituzione AS DATETIME), p.updated_at, p.created_at, NOW()), CONCAT(''penalty:'', p.id)
    FROM prestiti p
   WHERE p.sanzione > 0
+    AND EXISTS (SELECT 1 FROM system_settings WHERE category = ''features'' AND setting_key = ''fines'' AND setting_value = ''1'')
+    AND COALESCE((SELECT setting_value FROM system_settings WHERE category = ''features'' AND setting_key = ''loss_penalties''), ''1'') = ''1''
     AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT(''penalty:'', p.id))
   ORDER BY p.id
   LIMIT 5000
@@ -460,4 +463,33 @@ DEALLOCATE PREPARE ft_stmt;
 INSERT INTO system_settings (category, setting_key, setting_value, description)
 SELECT 'features', 'fines', @ft_val, 'Optional module: Fines and patron ledger' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'fines');
+-- Split controls inherit the former switch; explicit choices are never overwritten.
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'patron_cards'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'patron_photos', @ft_val, 'Optional control: patron_photos' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'patron_photos');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'circulation_rules'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'consultation_only', @ft_val, 'Optional control: consultation_only' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'consultation_only');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'circulation_rules'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'automatic_card_expiry', @ft_val, 'Optional control: automatic_card_expiry' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'automatic_card_expiry');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'fines'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'automatic_fines', @ft_val, 'Optional control: automatic_fines' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'automatic_fines');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'fines'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'debt_block', @ft_val, 'Optional control: debt_block' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'debt_block');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'fines'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'loss_penalties', @ft_val, 'Optional control: loss_penalties' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'loss_penalties');
+SET @ft_val = '0';
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'attendance_retention', @ft_val, 'Optional control: attendance_retention' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'attendance_retention');
 -- ── end feature toggles ──

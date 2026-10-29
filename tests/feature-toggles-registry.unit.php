@@ -28,7 +28,7 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
 };
 
 $keys = Features::keys();
-$check(count($keys) === 11, '11 optional modules (got ' . count($keys) . ')');
+$check(count($keys) === 18, '18 optional controls (got ' . count($keys) . ')');
 $check(array_keys(Features::FRESH) === $keys, 'FRESH lists the same keys as DEFAULTS, in the same order');
 $check(array_diff(array_merge(Features::MODULES_TAB, Features::LOANS_TAB), $keys) === [] && count(Features::MODULES_TAB) + count(Features::LOANS_TAB) === count($keys)
     && array_intersect(Features::MODULES_TAB, Features::LOANS_TAB) === [], 'every module is saved by exactly one settings tab');
@@ -92,7 +92,7 @@ foreach ($keys as $k) {
         $check(false, "migration seeds {$k}");
         continue;
     }
-    $value = $mm[1] === '@ft_val' ? '0' : $mm[2];
+    $value = $mm[1] === '@ft_val' ? (isset(Features::INHERITED[$k]) ? Features::DEFAULTS[Features::INHERITED[$k]] : '0') : $mm[2];
     $check($value === Features::DEFAULTS[$k], "migration seeds {$k} with the upgrade default " . Features::DEFAULTS[$k] . ($mm[1] === '@ft_val' ? ' (unless the library has data for it)' : ''));
 }
 
@@ -103,7 +103,7 @@ foreach (Features::MODULES_TAB as $k) {
 }
 $loansTab = (string) file_get_contents($root . '/app/Views/settings/loans-tab.php');
 foreach (Features::LOANS_TAB as $k) {
-    $check(str_contains($loansTab, "id=\"feature_{$k}\""), "Settings → Loans renders feature_{$k}");
+    $check(str_contains($loansTab, "id=\"feature_{$k}\"") || str_contains($loansTab, "'{$k}'"), "Settings → Loans renders feature_{$k}");
 }
 
 // Labels and help: a translation in every locale.
