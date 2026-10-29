@@ -8800,5 +8800,6 @@
   "Fornitore non assegnato": "Fournisseur non attribué",
   "In prestito o in attesa di ritiro": "Emprunté ou en attente de retrait",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "L'exemplaire est enregistré comme prêté ou en attente de retrait : vérifiez le prêt.",
-  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "L'intervalle est comparé par ordre alphabétique, pas numérique : A.10 vient avant A.2."
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "L'intervalle est comparé par ordre alphabétique, pas numérique : A.10 vient avant A.2.",
+  "Import già avviato: attendi la fine o ricarica il file.": "L'import est déjà en cours : attendez la fin ou rechargez le fichier."
 }

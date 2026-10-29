@@ -92,7 +92,7 @@ class UserImportController
         }
         $name = (string) $file->getClientFilename();
         if (!preg_match('/\.(csv|txt|tsv)$/i', $name)) {
-            return $this->json($response, ['success' => false, 'error' => __('Il file deve avere estensione .csv')], 400);
+            return $this->json($response, ['success' => false, 'error' => __('Il file deve avere estensione .tsv, .csv o .txt')], 400);
         }
         if ((int) $file->getSize() > UserImport::MAX_BYTES) {
             return $this->json($response, ['success' => false, 'error' => __('Il file supera la dimensione massima di 5 MB.')], 400);
@@ -174,6 +174,11 @@ class UserImportController
         $body = json_decode((string) $request->getBody(), true);
         if (!is_array($state) || !is_array($body) || !is_file((string) ($state['file'] ?? ''))) {
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
+        }
+        if (!empty($state['started'])) {
+            // A replayed start (double click, a second tab) would reset the
+            // counters and the position of a run already under way.
+            return $this->json($response, ['success' => false, 'error' => __('Import già avviato: attendi la fine o ricarica il file.')], 409);
         }
         $check = UserImport::validateMapping($body['mapping'] ?? null, $this->targetFields($db), (int) $state['columns']);
         if ($check['error'] !== null) {
