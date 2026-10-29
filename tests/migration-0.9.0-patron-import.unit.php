@@ -23,7 +23,7 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
     $checks++; echo "OK {$label}\n";
 };
 $type = static function () use ($db, $table): array {
-    $r = $db->query("SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}' AND COLUMN_NAME = 'import_type'");
+    $r = $db->query("SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_COMMENT, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}' AND COLUMN_NAME = 'import_type'");
     return $r->fetch_assoc() ?? [];
 };
 try {
@@ -35,10 +35,17 @@ try {
     $after = $type();
     $check(($after['COLUMN_TYPE'] ?? '') === "enum('csv','librarything','users')", 'the migration appends users and keeps the existing values in order');
     $check(($after['IS_NULLABLE'] ?? '') === 'NO' && ($after['COLUMN_COMMENT'] ?? '') === 'Type of import', 'NOT NULL and the comment survive the change');
+    $check(($after['COLLATION_NAME'] ?? '') === 'utf8mb4_unicode_ci', 'the column keeps utf8mb4_unicode_ci');
     $db->query("INSERT INTO {$table} (import_id, import_type, file_name) VALUES ('c','users','patrons.csv')");
     $check($db->query("SELECT GROUP_CONCAT(CONCAT(import_id,':',import_type) ORDER BY id) FROM {$table}")->fetch_row()[0] === 'a:csv,b:librarything,c:users', 'existing rows are preserved and a users row can be stored');
     $run();
     $check(($type()['COLUMN_TYPE'] ?? '') === "enum('csv','librarything','users')", 'a second run is a no-op');
+    // A table restored from a dump with a different default collation: the
+    // column must stay utf8mb4_unicode_ci, not inherit the table default.
+    $db->query("DROP TABLE {$table}");
+    $db->query("CREATE TABLE {$table} (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, import_id VARCHAR(36) NOT NULL, import_type ENUM('csv','librarything') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import', file_name VARCHAR(255) NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    $run();
+    $check(($type()['COLLATION_NAME'] ?? '') === 'utf8mb4_unicode_ci', 'a table default collation does not leak into the column');
     // A stacked section that already added another value must not lose it.
     $db->query("DELETE FROM {$table} WHERE import_type = 'users'");
     $db->query("ALTER TABLE {$table} MODIFY COLUMN import_type ENUM('csv','librarything','marc') NOT NULL COMMENT 'Type of import'");
