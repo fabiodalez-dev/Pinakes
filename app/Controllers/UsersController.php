@@ -706,7 +706,10 @@ class UsersController
             $lockUser->bind_param('i', $id);
             $lockUser->execute();
             $lockUser->close();
-            $loanCheck = $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count");
+            // Before the 0.9.0 migration there is no ledger to count.
+            $loanCheck = \App\Services\PatronLedger::schemaReady($db)
+                ? $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count")
+                : $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + 0 * ? AS count");
             $loanCheck->bind_param("ii", $id, $id);
             $loanCheck->execute();
             $loanResult = $loanCheck->get_result()->fetch_assoc();
