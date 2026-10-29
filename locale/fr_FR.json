@@ -8686,5 +8686,7 @@
   "In prestito o in attesa di ritiro": "Emprunté ou en attente de retrait",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "L'exemplaire est enregistré comme prêté ou en attente de retrait : vérifiez le prêt.",
   "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "L'intervalle est comparé par ordre alphabétique, pas numérique : A.10 vient avant A.2.",
-  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Cette fonction sera disponible une fois la mise à jour de la base de données terminée."
+  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Cette fonction sera disponible une fois la mise à jour de la base de données terminée.",
+  "Segnate come perse": "Marquées comme perdues",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Les exemplaires en prêt, en attente de retrait, endommagés, déjà perdus, en restauration, en transfert ou en maintenance ne sont pas modifiés."
 }
