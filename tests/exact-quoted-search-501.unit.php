@@ -50,6 +50,16 @@ check(
     'phrase in the middle keeps the surrounding words tolerant and collapses spaces'
 );
 check(ExactSearch::tokenize('""') === [] && ExactSearch::tokenize('"  "') === [], 'empty quotes yield no term');
+// An inch mark after a digit is a literal character, not the start of a group.
+check(ExactSearch::tokenize('5" floppy') === [['term' => '5"', 'exact' => false], ['term' => 'floppy', 'exact' => false]], 'inch mark after a digit stays literal');
+check(ExactSearch::tokenize('24” monitor "Häffner"') === [['term' => '24"', 'exact' => false], ['term' => 'monitor', 'exact' => false], ['term' => 'Häffner', 'exact' => true]], 'typographic inch mark is literal and a later group still opens');
+check(ExactSearch::tokenize('"1984" orwell') === [['term' => '1984', 'exact' => true], ['term' => 'orwell', 'exact' => false]], 'a quote after a digit still closes an open group');
+check(ExactSearch::parseFilter('5" floppy') === ['term' => '5" floppy', 'exact' => false], 'a value with only an inch mark is not quoted');
+check(ExactSearch::quotedValue('10"') === null, 'an inch mark is never a quoted name');
+// Quotes around a whole name are never stored (create, update, contributor text columns).
+check(\App\Support\AuthorNormalizer::normalizeStored('"Rolf Häffner"') === 'Rolf Häffner', 'stored contributor name drops whole-name quotes');
+check(\App\Support\AuthorNormalizer::normalizeStored('"Häffner, Rolf"') === 'Rolf Häffner', 'stored quoted inverted name is normalised without quotes');
+check(\App\Support\AuthorNormalizer::normalizeStored('"Pippo" Inzaghi') === '"Pippo" Inzaghi', 'a name with only a quoted part is kept as typed');
 check(ExactSearch::parseFilter('"Haffner"') === ['term' => 'Haffner', 'exact' => true], 'filter value in quotes is exact');
 check(ExactSearch::parseFilter('van der Berg') === ['term' => 'van der Berg', 'exact' => false], 'filter value without quotes stays one tolerant term');
 check(ExactSearch::filterCondition(['a.nome'], '"') === null, 'a lone quote adds no filter');

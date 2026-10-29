@@ -216,8 +216,9 @@ class AuthorRepository
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
 
         // Normalize author name to canonical format ("Name Surname")
-        // This ensures consistency when updating existing authors
-        $nome = \App\Support\AuthorNormalizer::normalize($nome);
+        // This ensures consistency when updating existing authors. Quotes
+        // around the whole name are never stored, as in create() (#501).
+        $nome = \App\Support\AuthorNormalizer::normalizeStored($nome);
 
         // Base columns always present.
         $assignments = ['nome=?', 'pseudonimo=?', 'data_nascita=?', 'data_morte=?', '`nazionalità`=?', 'biografia=?', 'sito_web=?'];
