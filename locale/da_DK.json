@@ -9140,5 +9140,7 @@
   "Vuoto = eredita; 0 = nessun tetto.": "Tom = nedarv; 0 = intet loft.",
   "Vuoto = eredita; 0 = disattiva per questa tipologia.": "Tom = nedarv; 0 = slå fra for denne lånertype.",
   "Tariffa globale per giorno. Vuoto o 0 = nessuna tariffa globale; le tipologie possono definirne una propria. Per sospendere tutte le multe usa l’interruttore dedicato.": "Global dagstakst. Tom eller 0 = ingen global takst; lånertyper kan have deres egen. Brug den særskilte indstilling til at stoppe alle forsinkelsesgebyrer.",
-  "Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.": "Global gældsgrænse. Tom eller 0 = ingen global blokering; lånertyper kan have deres egen grænse. Brug den særskilte indstilling til at stoppe alle gældsblokeringer."
+  "Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.": "Global gældsgrænse. Tom eller 0 = ingen global blokering; lånertyper kan have deres egen grænse. Brug den særskilte indstilling til at stoppe alle gældsblokeringer.",
+  "La foto è un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.": "Fotoet er en personoplysning: kun personalet kan se det, og det kan slettes når som helst.",
+  "chiusa anche %s": "også lukket %s"
 }

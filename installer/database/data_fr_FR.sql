@@ -203,18 +203,18 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('features', 'catalogue_cards', '1', 'Module facultatif: Fiches de catalogue'),
 ('features', 'suppliers', '1', 'Module facultatif: Fournisseurs'),
 ('features', 'rda_types', '1', 'Module facultatif: Types RDA'),
-('features', 'patron_cards', '1', 'Module facultatif: Cartes et photos des lecteurs'),
+('features', 'patron_cards', '1', 'Module facultatif: Impression des cartes'),
 ('features', 'user_import', '1', 'Module facultatif: Import des utilisateurs depuis un CSV'),
 ('features', 'circulation_rules', '1', 'Module facultatif: Règles par type de lecteur'),
 ('features', 'closures_calendar', '1', 'Module facultatif: Calendrier des fermetures'),
-('features', 'fines', '0', 'Module facultatif: Amendes et registre des mouvements'),
-('features', 'patron_photos', '1', 'Optional control: patron_photos'),
-('features', 'consultation_only', '1', 'Optional control: consultation_only'),
-('features', 'automatic_card_expiry', '1', 'Optional control: automatic_card_expiry'),
-('features', 'automatic_fines', '0', 'Optional control: automatic_fines'),
-('features', 'debt_block', '0', 'Optional control: debt_block'),
-('features', 'loss_penalties', '0', 'Optional control: loss_penalties'),
-('features', 'attendance_retention', '0', 'Optional control: attendance_retention')
+('features', 'fines', '0', 'Module facultatif: Registre des mouvements'),
+('features', 'patron_photos', '1', 'Module facultatif: Photos des lecteurs'),
+('features', 'consultation_only', '1', 'Module facultatif: Exemplaires en consultation sur place'),
+('features', 'automatic_card_expiry', '1', 'Module facultatif: Validité automatique des cartes'),
+('features', 'automatic_fines', '0', 'Module facultatif: Amendes automatiques de retard'),
+('features', 'debt_block', '0', 'Module facultatif: Blocage des prêts pour dette'),
+('features', 'loss_penalties', '0', 'Module facultatif: Reporter les pénalités de perte et de dommage dans le registre'),
+('features', 'attendance_retention', '0', 'Module facultatif: Conservation lorsque le registre des visites est suspendu')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES

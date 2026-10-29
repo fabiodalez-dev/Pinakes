@@ -33,7 +33,7 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
 $expected = static function (string $path): ?string {
     return match (true) {
         str_starts_with($path, '/admin/inventory') => 'stocktake',
-        in_array($path, ['/admin/books/import/marc', '/admin/books/import/marc/upload', '/admin/books/import/marc/chunk', '/admin/books/export/marc'], true) => 'marc',
+        in_array($path, ['/admin/books/import/marc', '/admin/books/import/marc/upload', '/admin/books/import/marc/chunk', '/admin/books/export/marc', '/admin/books/import-unimarc', '/admin/books/{id:[0-9]+}/export.unimarc.xml'], true) => 'marc',
         str_starts_with($path, '/admin/books/copy-cataloging') => 'marc',
         in_array($path, ['/admin/books/{id:\d+}/catalogue-card', '/admin/books/catalogue-cards'], true) => 'catalogue_cards',
         str_starts_with($path, '/admin/suppliers') => 'suppliers',

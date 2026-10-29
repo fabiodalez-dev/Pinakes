@@ -90,7 +90,8 @@ class SettingsController
         // Optional modules (Settings → Modules): the saved switches.
         $moduleSettings = \App\Support\Features::snapshot();
         $legacyPenaltyImpact = ['count' => 0, 'cents' => 0];
-        if (\App\Support\Permissions::mayConfigure() && \App\Services\PatronLedger::schemaReady($db)) {
+        // Only while loss mirroring is off: the notice describes switching it on.
+        if (\App\Support\Permissions::mayConfigure() && !\App\Support\Features::stored('loss_penalties') && \App\Services\PatronLedger::schemaReady($db)) {
             $row = $db->query("SELECT COUNT(*) AS n, COALESCE(SUM(p.sanzione),0) AS amount FROM prestiti p WHERE p.sanzione > 0 AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT('penalty:',p.id))")->fetch_assoc();
             $legacyPenaltyImpact = ['count' => (int) ($row['n'] ?? 0), 'cents' => \App\Services\FineParameters::decimalToCents($row['amount'] ?? 0)];
         }
@@ -1110,9 +1111,11 @@ class SettingsController
 
         // Handle catalogue mode setting (stored in 'system' category)
         $catalogueMode = isset($data['catalogue_mode']) && $data['catalogue_mode'] === '1' ? '1' : '0';
+        $consultationWasOn = \App\Support\Features::enabled('consultation_only');
         $repository->set('system', 'catalogue_mode', $catalogueMode);
         ConfigStore::set('system.catalogue_mode', $catalogueMode === '1');
         ConfigStore::clearCache();
+        $this->refreshConsultationAvailability($db, $consultationWasOn);
 
         $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
             ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
@@ -1828,7 +1831,9 @@ class SettingsController
             }
             $lossWasOn = \App\Support\Features::enabled('loss_penalties');
             $calendarWasOn = \App\Support\Features::enabled('closures_calendar');
+            $consultationWasOn = \App\Support\Features::enabled('consultation_only');
             $this->saveFeatureSwitches($repository, $data, \App\Support\Features::LOANS_TAB);
+            $this->refreshConsultationAvailability($db, $consultationWasOn);
             if (!$lossWasOn && \App\Support\Features::enabled('loss_penalties')) {
                 $repository->set('loans', 'legacy_penalties_backfilled', '0');
             }
@@ -1886,6 +1891,31 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Moduli aggiornati correttamente.');
         return $this->redirect($response, '/admin/settings?tab=modules');
+    }
+
+    /**
+     * The consultation-only switch decides which copies count as available
+     * (CirculationPolicy::lendableCopySql()). When its effective value
+     * changed, the stored availability of the books that have such a copy,
+     * the only ones whose count moves, is recalculated at once.
+     */
+    private function refreshConsultationAvailability(mysqli $db, bool $wasOn): void
+    {
+        if (\App\Support\Features::enabled('consultation_only') === $wasOn) {
+            return;
+        }
+        try {
+            $result = $db->query("SELECT DISTINCT c.libro_id FROM copie c JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL WHERE c.solo_consultazione = 1");
+            if (!$result instanceof \mysqli_result) {
+                return;
+            }
+            $integrity = new \App\Support\DataIntegrity($db);
+            foreach ($result->fetch_all(MYSQLI_NUM) as [$bookId]) {
+                $integrity->recalculateBookAvailability((int) $bookId);
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Consultation availability not recalculated: ' . $e->getMessage());
+        }
     }
 
     /**

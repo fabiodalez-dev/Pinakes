@@ -451,9 +451,10 @@ final class PatronLedger
         $stmt->close();
 
         $out = [];
+        $policy = new CirculationPolicy($this->db);
         foreach ($rows as $row) {
             $loanId = (int) $row['id'];
-            $params = FineParameters::forLoan($this->db, $loanId);
+            $params = FineParameters::forLoan($this->db, $loanId, $policy);
             $branch = self::branchOf($row);
             $cents = $this->calculator->lateFineCents($params, (string) $row['data_scadenza'], $today, $branch);
             if ($cents <= 0) {

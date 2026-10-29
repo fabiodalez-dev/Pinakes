@@ -160,7 +160,8 @@ unset($workspaceHeader);
 
   <?php if (\App\Support\Features::enabled('patron_photos')): // photos are independent of printing ?>
   <section class="bg-white border border-gray-200 rounded-lg p-6" id="patron-card-section">
-    <h2 class="text-lg font-medium text-gray-900"><?= __("Foto e tessera") ?></h2>
+    <?php $cardsOn = \App\Support\Features::enabled('patron_cards'); ?>
+    <h2 class="text-lg font-medium text-gray-900"><?= $cardsOn ? __("Foto e tessera") : __("Foto") ?></h2>
     <div class="mt-4 flex flex-col sm:flex-row gap-6">
       <div class="shrink-0">
         <?php if ($photoUrl !== null): ?>
@@ -173,9 +174,9 @@ unset($workspaceHeader);
         <?php endif; ?>
       </div>
       <div class="space-y-3 text-sm text-gray-600">
-        <p><?= __("La foto compare sulla tessera stampata. È un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") ?></p>
+        <p><?= $cardsOn ? __("La foto compare sulla tessera stampata. È un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") : __("La foto è un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") ?></p>
         <div class="flex flex-wrap items-center gap-3">
-          <?php if (\App\Support\Features::enabled('patron_cards')): ?>
+          <?php if ($cardsOn): ?>
           <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=single'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
             <i class="fas fa-id-card mr-2"></i><?= __("Tessera singola (CR80)") ?>
           </a>

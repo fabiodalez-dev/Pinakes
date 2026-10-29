@@ -20,18 +20,18 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('features', 'catalogue_cards', '1', 'Modulo opzionale: Schede catalografiche'),
 ('features', 'suppliers', '1', 'Modulo opzionale: Fornitori'),
 ('features', 'rda_types', '1', 'Modulo opzionale: Tipi RDA'),
-('features', 'patron_cards', '1', 'Modulo opzionale: Tessere e foto dei lettori'),
+('features', 'patron_cards', '1', 'Modulo opzionale: Stampa delle tessere'),
 ('features', 'user_import', '1', 'Modulo opzionale: Importazione utenti da CSV'),
 ('features', 'circulation_rules', '1', 'Modulo opzionale: Regole per tipologia di lettore'),
 ('features', 'closures_calendar', '1', 'Modulo opzionale: Calendario chiusure'),
-('features', 'fines', '0', 'Modulo opzionale: Multe e registro movimenti'),
-('features', 'patron_photos', '1', 'Optional control: patron_photos'),
-('features', 'consultation_only', '1', 'Optional control: consultation_only'),
-('features', 'automatic_card_expiry', '1', 'Optional control: automatic_card_expiry'),
-('features', 'automatic_fines', '0', 'Optional control: automatic_fines'),
-('features', 'debt_block', '0', 'Optional control: debt_block'),
-('features', 'loss_penalties', '0', 'Optional control: loss_penalties'),
-('features', 'attendance_retention', '0', 'Optional control: attendance_retention')
+('features', 'fines', '0', 'Modulo opzionale: Registro movimenti'),
+('features', 'patron_photos', '1', 'Modulo opzionale: Foto dei lettori'),
+('features', 'consultation_only', '1', 'Modulo opzionale: Copie in sola consultazione'),
+('features', 'automatic_card_expiry', '1', 'Modulo opzionale: Validità automatica delle tessere'),
+('features', 'automatic_fines', '0', 'Modulo opzionale: Multe automatiche per ritardo'),
+('features', 'debt_block', '0', 'Modulo opzionale: Blocco dei prestiti per debito'),
+('features', 'loss_penalties', '0', 'Modulo opzionale: Riporta penalità per perdita e danno nel registro'),
+('features', 'attendance_retention', '0', 'Modulo opzionale: Conservazione a registro presenze sospeso')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES

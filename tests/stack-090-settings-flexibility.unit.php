@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * 37 independently named integration scenarios for the 0.9.0 settings:
+ * 41 independently named integration scenarios for the 0.9.0 settings:
  * 25 configuration scenarios and upgrade preservation of saved choices.
  * Real controllers, persisted settings, feature gates and domain services;
  * no Features::override(), no source-text assertions, no network requests.
@@ -216,7 +216,8 @@ try {
         $flag('closures_calendar', false);
         $assert(LibraryCalendar::dueDate($db, '2038-12-31') === '2038-12-31', 'Disabled calendar still shifted dates');
         $flag('closures_calendar', true);
-        $assert(LibraryCalendar::dueDate($db, '2038-12-31') === '2039-01-01', 'Re-enabled calendar needs maintenance to work');
+        // 1 January 2039 is a Saturday: Friday 31 December in lieu and the day itself both close.
+        $assert(LibraryCalendar::dueDate($db, '2038-12-31') === '2039-01-02', 'Re-enabled calendar needs maintenance to work');
         $assert((int) $one("SELECT COUNT(*) FROM calendario_chiusure WHERE data_inizio='2038-12-31'") === 0, 'Reading a far date unexpectedly writes rows');
     });
     $test('11 A regional holiday can be unticked without deleting an inactive manual closure', static function () use ($db, $assert, $one): void {
@@ -497,6 +498,57 @@ try {
         $assert(!Features::enabled('automatic_fines') && !Features::enabled('debt_block') && !Features::enabled('loss_penalties'), 'Enabling the ledger implicitly enabled its automations');
     });
 
+    $test('38 Switching consultation-only copies recalculates the stored availability at once', static function () use ($saveLoans, $db, $book, $flag, $one, $assert): void {
+        $b = $book(); $plain = $book();
+        $db->query("UPDATE copie SET solo_consultazione=1 WHERE id={$b['copy']}");
+        $flag('consultation_only', true);
+        (new \App\Support\DataIntegrity($db))->recalculateBookAvailability($b['id']);
+        $available = static fn (int $id): int => (int) $one("SELECT copie_disponibili FROM libri WHERE id={$id}");
+        $assert($available($b['id']) === 0, 'A consultation-only copy was counted as available');
+        $saveLoans(['feature_consultation_only' => '0']);
+        $assert($available($b['id']) === 1, 'Switching consultation off left the stored availability stale');
+        $saveLoans(['feature_consultation_only' => '1']);
+        $assert($available($b['id']) === 0, 'Switching consultation on left the stored availability stale');
+        $assert($available($plain['id']) === 1, 'A book without consultation copies changed');
+    });
+    $test('39 The loan-returned email shows no fine while the ledger is off', static function () use ($db, $patron, $book, $loan, $flag, $assert): void {
+        $p = $patron(); $b = $book(); $id = $loan($p, $b, '2026-01-10', '2026-01-15');
+        $db->query("INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, chiave_idempotenza) VALUES ({$p}, {$id}, 'multa_ritardo', 1.50, 'ZZ late', 'late:{$id}')");
+        $line = new ReflectionMethod(\App\Support\NotificationService::class, 'returnedLoanFineLine');
+        $service = new \App\Support\NotificationService($db);
+        $flag('fines', true); PatronLedger::resetSchemaCache();
+        $assert($line->invoke($service, $id, 'it_IT') !== '', 'The fine line is missing with the ledger on');
+        $flag('fines', false); PatronLedger::resetSchemaCache();
+        $assert($line->invoke($service, $id, 'it_IT') === '', 'The fine line is shown with the ledger off');
+    });
+    $test('40 The supplier filter of the books list is ignored while suppliers are off', static function () use ($db, $book, $flag, $assert): void {
+        $with = $book(); $without = $book();
+        $db->query("INSERT INTO fornitori (nome) VALUES ('ZZ supplier filter')");
+        $supplier = (int) $db->insert_id;
+        $db->query("UPDATE libri SET fornitore_id={$supplier} WHERE id={$with['id']}");
+        $list = static function () use ($db, $supplier): array {
+            $request = (new ServerRequestFactory())->createServerRequest('GET', '/api/libri')
+                ->withQueryParams(['draw' => '1', 'length' => '500', 'fornitore_filter' => (string) $supplier]);
+            $body = (string) (new \App\Controllers\LibriApiController())->list($request, new Response(), $db)->getBody();
+            return array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), json_decode($body, true)['data'] ?? []);
+        };
+        $flag('suppliers', true);
+        $ids = $list();
+        $assert(in_array($with['id'], $ids, true) && !in_array($without['id'], $ids, true), 'The supplier filter does not apply while suppliers are on');
+        $flag('suppliers', false);
+        $ids = $list();
+        $assert(in_array($with['id'], $ids, true) && in_array($without['id'], $ids, true), 'A hidden supplier filter still narrows the list');
+    });
+    $test('41 A former Italian closure the library suspended starts unticked before the first selection', static function () use ($db, $assert): void {
+        $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale, attiva) VALUES ('2026-12-25','2026-12-25','Natale',1,0)");
+        $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale, attiva) VALUES ('2026-01-01','2026-01-01','Capodanno',1,1)");
+        $suspended = HolidayPresets::suspendedLegacyRules($db);
+        $assert(in_array('IT:christmas', $suspended, true), 'A suspended legacy closure is ticked by default');
+        $assert(!in_array('IT:new_year', $suspended, true), 'An active legacy closure is unticked by default');
+        $data = (new ReflectionMethod(LibraryCalendarController::class, 'holidayPreview'))->invoke(new LibraryCalendarController(), $db, ['holiday_country' => 'IT'], 2026);
+        $checked = array_column(array_filter($data['list'], static fn (array $h): bool => $h['checked']), 'id');
+        $assert(!in_array('IT:christmas', $checked, true) && in_array('IT:new_year', $checked, true), 'The first-selection defaults ignore the suspended closure');
+    });
     $test('26 Repeated upgrades preserve saved settings and effective behaviour in every switch state', static function () use ($root, $db, $admin, $sandbox, $settings, $set, $flag, $book, $patron, $assert): void {
         $p = $patron(); $b = $book();
         $db->query("UPDATE libri SET rda_content_type='prm' WHERE id={$b['id']}");
@@ -613,7 +665,7 @@ try {
         }
     });
 
-    $assert(count($cases) === 37, 'This suite must register exactly 37 scenarios');
+    $assert(count($cases) === 41, 'This suite must register exactly 41 scenarios');
     foreach ($cases as [$name, $body]) {
         try {
             $db->rollback();
@@ -649,5 +701,5 @@ try {
     if ($db instanceof mysqli) { $db->rollback(); $db->close(); }
     if ($admin instanceof mysqli) { $admin->query("DROP DATABASE IF EXISTS `{$sandbox}`"); $admin->close(); }
 }
-echo "Settings flexibility: {$passed}/37 passed, {$failed} failed\n";
+echo "Settings flexibility: {$passed}/41 passed, {$failed} failed\n";
 exit($passed === 37 && $failed === 0 ? 0 : 1);

@@ -2394,6 +2394,23 @@ class NotificationService {
     /**
      * Invia conferma di restituzione all'utente (GAP-1)
      */
+    /**
+     * {{multa}} of the loan-returned email (plan §7): the late fine left on
+     * this loan after any waiver. Empty when nothing was charged, so the
+     * line vanishes from the email of an install without fines, and empty
+     * while the ledger is off, even for an older charge.
+     */
+    private function returnedLoanFineLine(int $loanId, string $locale): string
+    {
+        if (!\App\Services\PatronLedger::active($this->db)) {
+            return '';
+        }
+        $cents = \App\Services\PatronLedger::forDb($this->db)->lateFineNetCents($loanId);
+        return $cents > 0
+            ? $this->translateInLocale('Multa per ritardo', $locale) . ': ' . \App\Services\FineParameters::format($cents, $locale)
+            : '';
+    }
+
     public function sendLoanReturnedNotification(int $loanId): bool {
         try {
             // CI-SOFT-DELETE-EXEMPT: the return-confirmation must reach the
@@ -2421,18 +2438,11 @@ class NotificationService {
             }
 
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
-            // {{multa}} (plan §7): the late fine left on this loan after any
-            // waiver, or a localised "no fine" when nothing was charged.
-            $lateFineCents = \App\Services\PatronLedger::forDb($this->db)->lateFineNetCents($loanId);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
                 'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $recipientLocale),
-                // Empty when nothing was charged, so the line vanishes from the
-                // email of an install without fines (zero-config equivalence).
-                'multa' => $lateFineCents > 0
-                    ? $this->translateInLocale('Multa per ritardo', $recipientLocale) . ': ' . \App\Services\FineParameters::format($lateFineCents, $recipientLocale)
-                    : '',
+                'multa' => $this->returnedLoanFineLine($loanId, $recipientLocale),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);

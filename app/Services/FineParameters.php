@@ -51,7 +51,8 @@ final class FineParameters
     /** Parameters that govern the late fine of one loan (its patron's type × its material). */
     public static function forLoan(mysqli $db, int $loanId, ?CirculationPolicy $policy = null): self
     {
-        return self::fromPolicy(($policy ?? new CirculationPolicy($db))->forExistingLoan($loanId), graceMode: (string) (new \App\Models\SettingsRepository($db))->get('loans', 'fine_grace_mode', 'threshold'));
+        $policy ??= new CirculationPolicy($db);
+        return self::fromPolicy($policy->forExistingLoan($loanId), graceMode: $policy->fineGraceMode());
     }
 
     /**
@@ -61,14 +62,15 @@ final class FineParameters
     public static function forUser(mysqli $db, int $userId, ?CirculationPolicy $policy = null): self
     {
         $policy ??= new CirculationPolicy($db);
-        return self::fromPolicy($policy->forType($policy->patronTypeOf($userId)), graceMode: (string) (new \App\Models\SettingsRepository($db))->get('loans', 'fine_grace_mode', 'threshold'));
+        return self::fromPolicy($policy->forType($policy->patronTypeOf($userId)), graceMode: $policy->fineGraceMode());
     }
 
     /** The global settings only (no patron type, no rule). */
     public static function global(mysqli $db): self
     {
-        $globals = (new CirculationPolicy($db))->globalLayer();
-        return self::fromPolicy(PolicyResolver::resolve([], $globals, PolicyResolver::resolveUser(null, $globals)), graceMode: (string) (new \App\Models\SettingsRepository($db))->get('loans', 'fine_grace_mode', 'threshold'));
+        $policy = new CirculationPolicy($db);
+        $globals = $policy->globalLayer();
+        return self::fromPolicy(PolicyResolver::resolve([], $globals, PolicyResolver::resolveUser(null, $globals)), graceMode: $policy->fineGraceMode());
     }
 
     /** Cents view of a resolved circulation policy. */

@@ -203,18 +203,18 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('features', 'catalogue_cards', '1', 'Optional module: Catalogue cards'),
 ('features', 'suppliers', '1', 'Optional module: Suppliers'),
 ('features', 'rda_types', '1', 'Optional module: RDA types'),
-('features', 'patron_cards', '1', 'Optional module: Patron cards and photos'),
+('features', 'patron_cards', '1', 'Optional module: Card printing'),
 ('features', 'user_import', '1', 'Optional module: User import from CSV'),
 ('features', 'circulation_rules', '1', 'Optional module: Rules by patron type'),
 ('features', 'closures_calendar', '1', 'Optional module: Closures calendar'),
-('features', 'fines', '0', 'Optional module: Fines and patron ledger'),
-('features', 'patron_photos', '1', 'Optional control: patron_photos'),
-('features', 'consultation_only', '1', 'Optional control: consultation_only'),
-('features', 'automatic_card_expiry', '1', 'Optional control: automatic_card_expiry'),
-('features', 'automatic_fines', '0', 'Optional control: automatic_fines'),
-('features', 'debt_block', '0', 'Optional control: debt_block'),
-('features', 'loss_penalties', '0', 'Optional control: loss_penalties'),
-('features', 'attendance_retention', '0', 'Optional control: attendance_retention')
+('features', 'fines', '0', 'Optional module: Patron ledger'),
+('features', 'patron_photos', '1', 'Optional module: Patron photos'),
+('features', 'consultation_only', '1', 'Optional module: Reference-only copies'),
+('features', 'automatic_card_expiry', '1', 'Optional module: Automatic card validity'),
+('features', 'automatic_fines', '0', 'Optional module: Automatic overdue fines'),
+('features', 'debt_block', '0', 'Optional module: Block borrowing for debt'),
+('features', 'loss_penalties', '0', 'Optional module: Post loss and damage penalties to the ledger'),
+('features', 'attendance_retention', '0', 'Optional module: Retention while the visitor log is suspended')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES

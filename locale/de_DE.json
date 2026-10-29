@@ -9140,5 +9140,7 @@
   "Vuoto = eredita; 0 = nessun tetto.": "Leer = erben; 0 = keine Obergrenze.",
   "Vuoto = eredita; 0 = disattiva per questa tipologia.": "Leer = erben; 0 = für diesen Lesertyp deaktivieren.",
   "Tariffa globale per giorno. Vuoto o 0 = nessuna tariffa globale; le tipologie possono definirne una propria. Per sospendere tutte le multe usa l’interruttore dedicato.": "Globaler Tagessatz. Leer oder 0 = kein globaler Satz; Lesertypen können eigene Sätze haben. Alle Säumnisgebühren über den eigenen Schalter aussetzen.",
-  "Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.": "Globale Schuldenschwelle. Leer oder 0 = keine globale Sperre; Lesertypen können eigene Schwellen festlegen. Alle Schuldensperren über den eigenen Schalter aussetzen."
+  "Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.": "Globale Schuldenschwelle. Leer oder 0 = keine globale Sperre; Lesertypen können eigene Schwellen festlegen. Alle Schuldensperren über den eigenen Schalter aussetzen.",
+  "La foto è un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.": "Das Foto ist ein personenbezogenes Datum: Nur das Personal sieht es, und es kann jederzeit gelöscht werden.",
+  "chiusa anche %s": "auch geschlossen: %s"
 }

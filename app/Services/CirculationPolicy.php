@@ -233,6 +233,14 @@ final class CirculationPolicy
         return $this->globals;
     }
 
+    private ?string $graceMode = null;
+
+    /** Settings → Loans → Fines: 'threshold' (the default) or 'deduct'; read once per instance. */
+    public function fineGraceMode(): string
+    {
+        return $this->graceMode ??= ($this->settings->get('loans', 'fine_grace_mode', 'threshold') === 'deduct' ? 'deduct' : 'threshold');
+    }
+
     /** An operator-typed amount ("2", "2,50") as a DECIMAL string, null when empty or malformed. */
     private static function moneyOrNull(?string $raw): ?string
     {

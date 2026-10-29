@@ -9140,5 +9140,7 @@
   "Vuoto = eredita; 0 = nessun tetto.": "Vide = hériter ; 0 = aucun plafond.",
   "Vuoto = eredita; 0 = disattiva per questa tipologia.": "Vide = hériter ; 0 = désactiver pour cette catégorie.",
   "Tariffa globale per giorno. Vuoto o 0 = nessuna tariffa globale; le tipologie possono definirne una propria. Per sospendere tutte le multe usa l’interruttore dedicato.": "Tarif journalier global. Vide ou 0 = aucun tarif global ; les catégories peuvent définir leur tarif. Utilisez la commande dédiée pour suspendre toutes les amendes.",
-  "Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.": "Seuil global de dette. Vide ou 0 = aucun blocage global ; les catégories peuvent définir leur seuil. Utilisez la commande dédiée pour suspendre tous les blocages."
+  "Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.": "Seuil global de dette. Vide ou 0 = aucun blocage global ; les catégories peuvent définir leur seuil. Utilisez la commande dédiée pour suspendre tous les blocages.",
+  "La foto è un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.": "La photo est une donnée personnelle : seul le personnel la voit et elle peut être supprimée à tout moment.",
+  "chiusa anche %s": "fermé aussi %s"
 }

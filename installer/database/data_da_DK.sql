@@ -20,18 +20,18 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('features', 'catalogue_cards', '1', 'Valgfrit modul: Katalogkort'),
 ('features', 'suppliers', '1', 'Valgfrit modul: Leverandører'),
 ('features', 'rda_types', '1', 'Valgfrit modul: RDA-typer'),
-('features', 'patron_cards', '1', 'Valgfrit modul: Lånerkort og fotos'),
+('features', 'patron_cards', '1', 'Valgfrit modul: Udskrivning af lånerkort'),
 ('features', 'user_import', '1', 'Valgfrit modul: Brugerimport fra CSV'),
 ('features', 'circulation_rules', '1', 'Valgfrit modul: Regler efter lånertype'),
 ('features', 'closures_calendar', '1', 'Valgfrit modul: Lukkekalender'),
-('features', 'fines', '0', 'Valgfrit modul: Gebyrer og bevægelser'),
-('features', 'patron_photos', '1', 'Optional control: patron_photos'),
-('features', 'consultation_only', '1', 'Optional control: consultation_only'),
-('features', 'automatic_card_expiry', '1', 'Optional control: automatic_card_expiry'),
-('features', 'automatic_fines', '0', 'Optional control: automatic_fines'),
-('features', 'debt_block', '0', 'Optional control: debt_block'),
-('features', 'loss_penalties', '0', 'Optional control: loss_penalties'),
-('features', 'attendance_retention', '0', 'Optional control: attendance_retention')
+('features', 'fines', '0', 'Valgfrit modul: Kontobevægelser'),
+('features', 'patron_photos', '1', 'Valgfrit modul: Lånerfotos'),
+('features', 'consultation_only', '1', 'Valgfrit modul: Eksemplarer til brug på stedet'),
+('features', 'automatic_card_expiry', '1', 'Valgfrit modul: Automatisk kortgyldighed'),
+('features', 'automatic_fines', '0', 'Valgfrit modul: Automatiske forsinkelsesgebyrer'),
+('features', 'debt_block', '0', 'Valgfrit modul: Bloker udlån ved gæld'),
+('features', 'loss_penalties', '0', 'Valgfrit modul: Overfør erstatning for tab og skade til kontoen'),
+('features', 'attendance_retention', '0', 'Valgfrit modul: Opbevaring mens besøgsregistrering er slået fra')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES

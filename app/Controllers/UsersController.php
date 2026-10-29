@@ -1123,7 +1123,8 @@ class UsersController
             $bindTypes .= $patronType['types'];
             array_push($bindValues, ...$patronType['params']);
         }
-        $patronTypeColumn = (new \App\Services\CirculationPolicy($db))->schemaReady() ? ', tipologia_id' : '';
+        // Same rule as the import: no patron type column while the module is off.
+        $patronTypeColumn = (new \App\Services\CirculationPolicy($db))->rulesActive() ? ', tipologia_id' : '';
 
         // Build the query - export ALL fields except sensitive ones (password, tokens)
         $query = "SELECT
