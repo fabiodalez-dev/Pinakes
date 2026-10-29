@@ -4,6 +4,13 @@
 // (readers without a type count under the default type), and the fines
 // section from the patron ledger (hidden with no fine and no movement).
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// visitor_log / stocktake / fines, so it switches them on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['visitor_log', 'stocktake', 'fines']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const h = require('./helpers/minor-features-090');
 
 test.skip(!h.configured, 'E2E credentials not configured');

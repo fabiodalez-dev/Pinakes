@@ -5,6 +5,13 @@
  * the website refuses, with stable codes; the debt block (plan §7) too.
  */
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// fines, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const F = require('./helpers/circulation-fixtures');
 const M = require('./helpers/mobile-api-fixtures');
 

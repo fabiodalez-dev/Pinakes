@@ -17,6 +17,13 @@
  * Run: /tmp/run-e2e.sh tests/stack-090-integration.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// fines, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const fs = require('fs');
 const path = require('path');
 const F = require('./helpers/circulation-fixtures');

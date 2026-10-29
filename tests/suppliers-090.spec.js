@@ -2,6 +2,13 @@
 // Suppliers (0.9.0): CRUD from the admin pages, assignment in the book form,
 // the book-list filter and "delete supplier → books keep existing, link NULL".
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// suppliers, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['suppliers']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const h = require('./helpers/minor-features-090');
 
 test.skip(!h.configured, 'E2E credentials not configured');

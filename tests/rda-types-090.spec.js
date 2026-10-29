@@ -4,6 +4,13 @@
 // output carrying the effective triple (derived types for every record, the
 // override when one is set: a book keeps txt/n/nc, an audiobook gets spw/s/sd).
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// rda_types, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['rda_types']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const h = require('./helpers/minor-features-090');
 
 test.skip(!h.configured, 'E2E credentials not configured');

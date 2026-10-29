@@ -3,6 +3,13 @@
 // Files are generated per run (tests/helpers/marc-fixtures.php), so titles and
 // ISBNs never collide with an earlier run; afterAll removes what the run made.
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// suppliers, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['suppliers']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { listServerDir, readServerFile, writeServerFile } = require('./helpers/server-files');
 const path = require('path');
 const { BASE, ROOT, dbQuery, sqlEscape, loginAsAdmin, marcFile, cleanupRun, uploadForPreview, confirmImport } = require('./helpers/marc-e2e');

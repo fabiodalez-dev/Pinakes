@@ -8,6 +8,13 @@
  * Run: /tmp/run-e2e.sh tests/debt-block.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// fines, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const { appTodayISO, appDateOffsetISO } = require('./helpers/app-date');
 
@@ -232,6 +239,8 @@ test.describe.serial('Debt block', () => {
     const resId = Number(dbQuery(`SELECT id FROM prenotazioni WHERE utente_id=${state.patronId} ORDER BY id DESC LIMIT 1`));
     const out = execFileSync('php', ['-r', `
       require 'vendor/autoload.php';
+      // Load .env like the cron bootstrap does, so ConfigStore (features.fines) reads this database.
+      Dotenv\\Dotenv::createImmutable(getcwd())->safeLoad();
       $env = Dotenv\\Dotenv::parse(file_get_contents('.env'));
       $sock = $env['DB_SOCKET'] ?? '';
       $db = ($sock !== '' && file_exists($sock))
