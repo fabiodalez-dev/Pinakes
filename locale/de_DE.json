@@ -8500,5 +8500,7 @@
   "Revisione inventariale annullata": "Bestandsrevision abgebrochen",
   "In prestito o in attesa di ritiro": "Ausgeliehen oder zur Abholung bereit",
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "Das Exemplar ist als ausgeliehen oder zur Abholung bereit erfasst: Prüfe die Ausleihe.",
-  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Der Bereich wird alphabetisch verglichen, nicht numerisch: A.10 steht vor A.2."
+  "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Der Bereich wird alphabetisch verglichen, nicht numerisch: A.10 steht vor A.2.",
+  "Segnate come perse": "Als verloren markiert",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Ausgeliehene, zur Abholung bereitliegende, beschädigte, bereits verlorene, in Restaurierung, im Transfer oder in Wartung befindliche Exemplare werden nicht verändert."
 }
