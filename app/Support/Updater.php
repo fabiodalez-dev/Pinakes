@@ -4094,9 +4094,9 @@ class Updater
     {
         // Schema probes cached earlier in this request (before the migration
         // created the circulation tables) must not survive into the recalc.
-        if (method_exists(\App\Services\CirculationPolicy::class, 'resetSchemaCache')) {
-            \App\Services\CirculationPolicy::resetSchemaCache();
-        }
+        // This runs from the Updater of the release that ships the classes,
+        // so they are always there.
+        \App\Services\CirculationPolicy::resetSchemaCache();
         try {
             $integrity = new \App\Support\DataIntegrity($this->db);
             $integrity->recalculateAllBookAvailability();
