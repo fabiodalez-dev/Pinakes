@@ -73,21 +73,31 @@ class LibraryCalendarController
             return $guard;
         }
         $data = (array) $request->getParsedBody();
+        // No field (every box unticked) reopens the whole week; anything that
+        // is not a list of weekdays 0-6 is refused whole, never half-saved.
         $raw = $data['closed_weekdays'] ?? [];
+        if (!is_array($raw)) {
+            $_SESSION['error_message'] = __('Giorno della settimana non valido.');
+            return $this->back($response);
+        }
         $days = [];
-        foreach (is_array($raw) ? $raw : [] as $value) {
-            if (is_scalar($value) && ctype_digit((string) $value) && (int) $value <= 6) {
-                $days[(int) $value] = (int) $value;
+        foreach ($raw as $value) {
+            if (!is_scalar($value) || !ctype_digit((string) $value) || (int) $value > 6) {
+                $_SESSION['error_message'] = __('Giorno della settimana non valido.');
+                return $this->back($response);
             }
+            $days[(int) $value] = (int) $value;
         }
         if (count($days) === 7) {
             $_SESSION['error_message'] = __('Almeno un giorno della settimana deve restare aperto.');
             return $this->back($response);
         }
         ksort($days);
-        (new SettingsRepository($db))->set('loans', 'closed_weekdays', implode(',', $days));
-        $this->calendarChanged($db);
-        $_SESSION['success_message'] = __('Giorni di chiusura settimanale salvati.');
+        $error = $this->commitChange($db, static function () use ($db, $days): ?string {
+            (new SettingsRepository($db))->set('loans', 'closed_weekdays', implode(',', $days));
+            return null;
+        });
+        $_SESSION[$error === null ? 'success_message' : 'error_message'] = $error ?? __('Giorni di chiusura settimanale salvati.');
         return $this->back($response);
     }
 
@@ -101,8 +111,14 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $row;
             return $this->back($response);
         }
-        $this->insertClosure($db, $row);
-        $this->calendarChanged($db);
+        $error = $this->commitChange($db, function () use ($db, $row): ?string {
+            $this->insertClosure($db, $row);
+            return $this->yearCoverageError($db, $row);
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->back($response);
+        }
         $_SESSION['success_message'] = __('Chiusura aggiunta.');
         return $this->back($response, substr($row['start'], 0, 7));
     }
@@ -121,13 +137,19 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $row;
             return $this->back($response, null, $id);
         }
-        $sede = $row['sede'];
-        $yearly = $row['yearly'] ? 1 : 0;
-        $stmt = $db->prepare('UPDATE calendario_chiusure SET data_inizio = ?, data_fine = ?, descrizione = ?, ricorrente_annuale = ?, sede_id = ? WHERE id = ?');
-        $stmt->bind_param('sssiii', $row['start'], $row['end'], $row['description'], $yearly, $sede, $id);
-        $stmt->execute();
-        $stmt->close();
-        $this->calendarChanged($db);
+        $error = $this->commitChange($db, function () use ($db, $row, $id): ?string {
+            $sede = $row['sede'];
+            $yearly = $row['yearly'] ? 1 : 0;
+            $stmt = $db->prepare('UPDATE calendario_chiusure SET data_inizio = ?, data_fine = ?, descrizione = ?, ricorrente_annuale = ?, sede_id = ? WHERE id = ?');
+            $stmt->bind_param('sssiii', $row['start'], $row['end'], $row['description'], $yearly, $sede, $id);
+            $stmt->execute();
+            $stmt->close();
+            return $this->yearCoverageError($db, $row);
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->back($response, null, $id);
+        }
         $_SESSION['success_message'] = __('Chiusura aggiornata.');
         return $this->back($response, substr($row['start'], 0, 7));
     }
@@ -137,12 +159,19 @@ class LibraryCalendarController
         if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
-        $stmt = $db->prepare('DELETE FROM calendario_chiusure WHERE id = ?');
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $deleted = $stmt->affected_rows > 0;
-        $stmt->close();
-        $this->calendarChanged($db);
+        $deleted = false;
+        $error = $this->commitChange($db, static function () use ($db, $id, &$deleted): ?string {
+            $stmt = $db->prepare('DELETE FROM calendario_chiusure WHERE id = ?');
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $deleted = $stmt->affected_rows > 0;
+            $stmt->close();
+            return null;
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->back($response);
+        }
         $_SESSION[$deleted ? 'success_message' : 'error_message'] = $deleted ? __('Chiusura eliminata.') : __('Chiusura non trovata.');
         return $this->back($response);
     }
@@ -160,14 +189,22 @@ class LibraryCalendarController
             return $this->back($response);
         }
         $added = 0;
-        foreach (LibraryCalendar::italianHolidays($year) as $holiday) {
-            $row = ['start' => $holiday['start'], 'end' => $holiday['end'], 'description' => $holiday['description'], 'yearly' => $holiday['yearly'], 'sede' => null];
-            if (!$this->alreadyClosed($db, $row)) {
-                $this->insertClosure($db, $row);
-                $added++;
+        // Under the calendar lock: two operators importing the same year
+        // cannot both pass alreadyClosed() and insert the same holiday.
+        $error = $this->commitChange($db, function () use ($db, $year, &$added): ?string {
+            foreach (LibraryCalendar::italianHolidays($year) as $holiday) {
+                $row = ['start' => $holiday['start'], 'end' => $holiday['end'], 'description' => $holiday['description'], 'yearly' => $holiday['yearly'], 'sede' => null];
+                if (!$this->alreadyClosed($db, $row)) {
+                    $this->insertClosure($db, $row);
+                    $added++;
+                }
             }
+            return null;
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->back($response);
         }
-        $this->calendarChanged($db);
         $_SESSION['success_message'] = __('Festività nazionali importate: %d nuove chiusure.', $added);
         return $this->back($response);
     }
@@ -208,32 +245,50 @@ class LibraryCalendarController
             return $this->back($response);
         }
         $data = (array) $request->getParsedBody();
-        $sede = $this->branchFrom($db, $data['sede_id'] ?? null);
+        $sede = $this->branchFromInput($db, $data['sede_id'] ?? null);
+        if ($sede === false) {
+            $_SESSION['error_message'] = __('Sede non trovata.');
+            return $this->back($response);
+        }
         $added = 0;
         $skipped = 0;
         $rejected = 0;
-        foreach (LibraryCalendar::parseIcs($ics) as $event) {
-            // The same limits as the form: a yearly event longer than a year
-            // would otherwise be stored as a closure of every day.
-            if ($this->spanError($event['start'], $event['end'], $event['yearly']) !== null) {
-                $rejected++;
-                continue;
+        $events = LibraryCalendar::parseIcs($ics);
+        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected): ?string {
+            foreach ($events as $event) {
+                // The same limits as the form: a yearly event longer than a
+                // year would otherwise be stored as a closure of every day.
+                if ($this->spanError($event['start'], $event['end'], $event['yearly']) !== null) {
+                    $rejected++;
+                    continue;
+                }
+                $row = [
+                    'start' => $event['start'],
+                    'end' => $event['end'],
+                    'description' => $event['description'] !== '' ? $event['description'] : __('Chiusura'),
+                    'yearly' => $event['yearly'],
+                    'sede' => $sede,
+                ];
+                if ($this->alreadyClosed($db, $row)) {
+                    $skipped++;
+                    continue;
+                }
+                $newId = $this->insertClosure($db, $row);
+                // Like the form: yearly rows that together close every day
+                // of the year are refused, the event is not kept.
+                if ($this->yearCoverageError($db, $row) !== null) {
+                    $this->deleteClosure($db, $newId);
+                    $rejected++;
+                    continue;
+                }
+                $added++;
             }
-            $row = [
-                'start' => $event['start'],
-                'end' => $event['end'],
-                'description' => $event['description'] !== '' ? $event['description'] : __('Chiusura'),
-                'yearly' => $event['yearly'],
-                'sede' => $sede,
-            ];
-            if ($this->alreadyClosed($db, $row)) {
-                $skipped++;
-                continue;
-            }
-            $this->insertClosure($db, $row);
-            $added++;
+            return null;
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->back($response);
         }
-        $this->calendarChanged($db);
         $_SESSION['success_message'] = $rejected > 0
             ? __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', $added, $skipped, $rejected)
             : __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);
@@ -243,17 +298,128 @@ class LibraryCalendarController
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     /**
-     * Every write ends here: the request sees the new calendar, and pending
-     * pickups whose deadline is now a closed day move to the next open day.
+     * Every write goes through here, under one named lock (two operators
+     * importing at once cannot both pass alreadyClosed()) and one
+     * transaction: the write, then the pending pickups whose deadline is now
+     * a closed day move to the next open day. A write that returns an error
+     * message, or any failure (the deadline move included), rolls the whole
+     * change back, so the expiry sweep never reads a calendar whose pickup
+     * deadlines were not moved. Null on success, otherwise the message.
+     *
+     * @param callable(): ?string $write
      */
-    private function calendarChanged(\mysqli $db): void
+    private function commitChange(\mysqli $db, callable $write): ?string
     {
-        LibraryCalendar::reset();
+        $lockName = $this->lockName($db);
         try {
-            LibraryCalendar::extendPickupDeadlines($db);
+            $stmt = $db->prepare('SELECT GET_LOCK(?, 10)');
+            $stmt->bind_param('s', $lockName);
+            $stmt->execute();
+            $acquired = (int) ($stmt->get_result()->fetch_row()[0] ?? 0) === 1;
+            $stmt->close();
         } catch (\Throwable $e) {
-            SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
+            SecureLogger::error('Calendar: lock not available: ' . $e->getMessage());
+            return __('Errore di salvataggio. Riprova più tardi.');
         }
+        if (!$acquired) {
+            return __('Un\'altra modifica del calendario è in corso: riprova tra poco.');
+        }
+        try {
+            $db->begin_transaction();
+            try {
+                $error = $write();
+                if ($error === null) {
+                    // The deadline move reads the new calendar.
+                    LibraryCalendar::reset();
+                    LibraryCalendar::extendPickupDeadlines($db);
+                    $db->commit();
+                    return null;
+                }
+                $db->rollback();
+                return $error;
+            } catch (\Throwable $e) {
+                $db->rollback();
+                SecureLogger::error('Calendar: change not saved: ' . $e->getMessage());
+                return __('Errore di salvataggio. Riprova più tardi.');
+            }
+        } finally {
+            // Committed or rolled back, this request reads the stored state.
+            LibraryCalendar::reset();
+            \App\Support\ConfigStore::clearCache();
+            try {
+                $release = $db->prepare('SELECT RELEASE_LOCK(?)');
+                $release->bind_param('s', $lockName);
+                $release->execute();
+                $release->get_result();
+                $release->close();
+            } catch (\Throwable) {
+                // Released with the connection anyway.
+            }
+        }
+    }
+
+    /** Schema-scoped and under GET_LOCK()'s 64 characters (see CopyRepository). */
+    private function lockName(\mysqli $db): string
+    {
+        $dbName = '';
+        try {
+            $res = $db->query('SELECT DATABASE()');
+            if ($res instanceof \mysqli_result) {
+                $dbName = (string) ($res->fetch_row()[0] ?? '');
+                $res->free();
+            }
+        } catch (\Throwable) {
+        }
+        return 'pinakes-calendar:' . md5($dbName);
+    }
+
+    /**
+     * Yearly closures repeat every year, so two rows each shorter than a year
+     * can still close every day together; nextOpenDay() would then run to its
+     * bound and a due date would land on a closed day. Checked after $row is
+     * written (inside the transaction), on the yearly rows that apply to its
+     * branch, or to the library and to every branch for a row without one.
+     * Null when some day of a common year stays open.
+     *
+     * @param array{start: string, end: string, description: string, yearly: bool, sede: ?int} $row
+     */
+    private function yearCoverageError(\mysqli $db, array $row): ?string
+    {
+        if (!$row['yearly']) {
+            return null;
+        }
+        $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE ricorrente_annuale = 1');
+        $rows = $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $calendar = new LibraryCalendar([], $rows);
+        $branches = [$row['sede']];
+        if ($row['sede'] === null) {
+            foreach ($rows as $stored) {
+                if ($stored['sede_id'] !== null) {
+                    $branches[] = (int) $stored['sede_id'];
+                }
+            }
+        }
+        foreach (array_unique($branches, SORT_REGULAR) as $branch) {
+            // A common year: Feb 29 open alone does not count.
+            $day = '2025-01-01';
+            $open = false;
+            for ($i = 0; $i < 365 && !$open; $i++) {
+                $open = $calendar->isOpen($day, $branch);
+                $day = LibraryCalendar::shift($day, 1);
+            }
+            if (!$open) {
+                return __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.');
+            }
+        }
+        return null;
+    }
+
+    private function deleteClosure(\mysqli $db, int $id): void
+    {
+        $stmt = $db->prepare('DELETE FROM calendario_chiusure WHERE id = ?');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
     }
 
     private function guard(Response $response, \mysqli $db): ?Response
@@ -311,9 +477,8 @@ class LibraryCalendarController
         }
         $description = is_string($data['descrizione'] ?? null) ? trim($data['descrizione']) : '';
         $description = mb_substr(preg_replace('/\s+/u', ' ', $description) ?? '', 0, 255);
-        $rawSede = $data['sede_id'] ?? null;
-        $sede = $this->branchFrom($db, $rawSede);
-        if ($sede === null && is_scalar($rawSede) && (string) $rawSede !== '' && (string) $rawSede !== '0') {
+        $sede = $this->branchFromInput($db, $data['sede_id'] ?? null);
+        if ($sede === false) {
             return __('Sede non trovata.');
         }
         return ['start' => $start, 'end' => $end, 'description' => $description, 'yearly' => $yearly, 'sede' => $sede];
@@ -352,6 +517,20 @@ class LibraryCalendarController
         return $found;
     }
 
+    /**
+     * The branch a form field names: null for "every branch" (field absent,
+     * empty or 0), false for anything else that is not an existing branch
+     * (an unknown or deleted id, garbage, an array), which the caller refuses
+     * instead of storing a closure for every branch.
+     */
+    private function branchFromInput(\mysqli $db, mixed $raw): int|false|null
+    {
+        if ($raw === null || $raw === '' || $raw === '0' || $raw === 0) {
+            return null;
+        }
+        return $this->branchFrom($db, $raw) ?? false;
+    }
+
     private function branchFrom(\mysqli $db, mixed $raw): ?int
     {
         if (!is_scalar($raw) || !ctype_digit((string) $raw) || (int) $raw <= 0) {
@@ -362,14 +541,16 @@ class LibraryCalendarController
     }
 
     /** @param array{start: string, end: string, description: string, yearly: bool, sede: ?int} $row */
-    private function insertClosure(\mysqli $db, array $row): void
+    private function insertClosure(\mysqli $db, array $row): int
     {
         $yearly = $row['yearly'] ? 1 : 0;
         $sede = $row['sede'];
         $stmt = $db->prepare('INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale, sede_id) VALUES (?, ?, ?, ?, ?)');
         $stmt->bind_param('sssii', $row['start'], $row['end'], $row['description'], $yearly, $sede);
         $stmt->execute();
+        $id = (int) $stmt->insert_id;
         $stmt->close();
+        return $id;
     }
 
     /**
