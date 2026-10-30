@@ -151,12 +151,19 @@ test.describe.serial('A. closures calendar and visitor-log retention are reserve
     }
     expect(F.dbQuery("SELECT IFNULL(MAX(setting_value),'') FROM system_settings WHERE category='attendance' AND setting_key='retention_days'")).toBe(savedRetention);
     expect(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE id=${presenzaId}`), 'the old visit is still there').toBe(1);
-    // The administrator's purge removes it.
-    await adminPage.goto(`${F.BASE}/admin/attendance`);
-    await adminPage.locator('#attendance-purge-form button[type="submit"]').click();
-    const confirm = adminPage.locator('.swal2-confirm');
-    if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
-    await expect.poll(() => F.dbInt(`SELECT COUNT(*) FROM presenze WHERE id=${presenzaId}`), { timeout: 15000 }).toBe(0);
+    // The administrator's purge removes it. The purge deletes every visit
+    // older than the retention, not only this one: the other rows are
+    // snapshotted first and put back afterwards, so the shared DB keeps them.
+    const otherVisits = F.stashRows('presenze', `id<>${presenzaId}`);
+    try {
+      await adminPage.goto(`${F.BASE}/admin/attendance`);
+      await adminPage.locator('#attendance-purge-form button[type="submit"]').click();
+      const confirm = adminPage.locator('.swal2-confirm');
+      if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
+      await expect.poll(() => F.dbInt(`SELECT COUNT(*) FROM presenze WHERE id=${presenzaId}`), { timeout: 15000 }).toBe(0);
+    } finally {
+      F.unstashRows(otherVisits);
+    }
   });
 });
 
