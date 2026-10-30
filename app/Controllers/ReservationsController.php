@@ -588,14 +588,20 @@ class ReservationsController
 
                 // The window as stored: approval may still move the due date
                 // over a closure of the assigned copy's branch.
-                $storedWindow = $this->db->prepare('SELECT data_prestito, data_scadenza FROM prestiti WHERE id = ?');
-                $storedWindow->bind_param('i', $loanRequestId);
-                $storedWindow->execute();
-                $storedRow = $storedWindow->get_result()->fetch_assoc();
-                $storedWindow->close();
-                if (is_array($storedRow)) {
-                    $startDate = (string) ($storedRow['data_prestito'] ?? $startDate);
-                    $endDate = (string) ($storedRow['data_scadenza'] ?? $endDate);
+                // The request is already committed: a failed read only loses
+                // the refinement, never the success the reader must see.
+                try {
+                    $storedWindow = $this->db->prepare('SELECT data_prestito, data_scadenza FROM prestiti WHERE id = ?');
+                    $storedWindow->bind_param('i', $loanRequestId);
+                    $storedWindow->execute();
+                    $storedRow = $storedWindow->get_result()->fetch_assoc();
+                    $storedWindow->close();
+                    if (is_array($storedRow)) {
+                        $startDate = (string) ($storedRow['data_prestito'] ?? $startDate);
+                        $endDate = (string) ($storedRow['data_scadenza'] ?? $endDate);
+                    }
+                } catch (\Throwable $windowError) {
+                    \App\Support\SecureLogger::warning('ReservationsController: stored window not readable', ['error' => $windowError->getMessage()]);
                 }
 
                 $response->getBody()->write(json_encode([

@@ -74,7 +74,11 @@ class NotificationService {
                 $start = new \DateTimeImmutable(substr($windowStart, 0, 10));
                 $end = new \DateTimeImmutable(substr($deadline, 0, 10));
                 if ($end >= $start) {
-                    return (string) min($this->pickupExpiryDays(), (int) $start->diff($end)->days);
+                    // Open days only (closures calendar): a closed day inside
+                    // the window is not a day to collect the book; calendar
+                    // days without closures.
+                    $openDays = LibraryCalendar::forDb($this->db)->openDaysBetween($start->format('Y-m-d'), $end->format('Y-m-d'));
+                    return (string) min($this->pickupExpiryDays(), $openDays);
                 }
             } catch (\Throwable) {
             }

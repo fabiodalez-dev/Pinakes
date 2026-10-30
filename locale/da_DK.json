@@ -9051,5 +9051,8 @@
   "Import già avviato: attendi la fine o ricarica il file.": "Importen er allerede i gang: vent, til den er færdig, eller upload filen igen.",
   "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Denne funktion bliver tilgængelig, når databaseopdateringen er færdig.",
   "Segnate come perse": "Markeret som tabt",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke.",
+  "Giorno della settimana non valido.": "Ugyldig ugedag.",
+  "Un'altra modifica del calendario è in corso: riprova tra poco.": "En anden ændring af kalenderen er i gang: prøv igen om lidt.",
+  "Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Med denne årlige lukning ville biblioteket være lukket hele året: mindst én dag skal forblive åben."
 }

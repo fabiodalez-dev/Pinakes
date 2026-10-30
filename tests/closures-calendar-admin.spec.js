@@ -42,6 +42,9 @@ function weekday(iso) {
 const RUN = Date.now().toString().slice(-7);
 const TAG = `E2E-CAL-${RUN}`;
 let startMaxId = 0;
+// The preset rows carry the holiday names, not TAG: their ids are recorded so
+// the teardown removes exactly what this suite added.
+const presetIds = [];
 let prevWeekdays = null;
 let sedeId = 0;
 let today = '';
@@ -95,7 +98,10 @@ test.describe('Closures calendar — admin page', () => {
   });
 
   test.afterAll(async () => {
-    db(`DELETE FROM calendario_chiusure WHERE id > ${startMaxId}`);
+    // Only the rows this suite created: TAG in the description, or a preset
+    // row recorded when it was imported. A closure another run added in the
+    // meantime is left alone.
+    db(`DELETE FROM calendario_chiusure WHERE descrizione LIKE '${TAG}%'${presetIds.length ? ` OR id IN (${presetIds.join(',')})` : ''}`);
     if (prevWeekdays === '') {
       db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     } else {
@@ -246,10 +252,14 @@ test.describe('Closures calendar — admin page', () => {
   const presetYear = () => parseInt(today.slice(0, 4), 10) + 1;
 
   test('Preset 1: importing the Italian holidays adds 10 yearly holidays plus Easter and Easter Monday', async () => {
+    const beforeImport = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
     await page.goto(`${BASE}/admin/calendar`);
     await page.selectOption('#preset_year', String(presetYear()));
     await submitAndLand(page, '#import-preset');
     await expect(page.locator('body')).toContainText(/Festività nazionali importate/);
+    const presetYearValue = presetYear();
+    const added = db(`SELECT GROUP_CONCAT(id) FROM calendario_chiusure WHERE id > ${beforeImport} AND sede_id IS NULL AND (ricorrente_annuale=1 OR YEAR(data_inizio)=${presetYearValue}) AND descrizione IN ('Natale','Santo Stefano','Capodanno','Epifania','Ferragosto','Ognissanti','Immacolata Concezione','Festa della Liberazione','Festa del Lavoro','Festa della Repubblica','Pasqua','Lunedì dell''Angelo (Pasquetta)')`);
+    if (added && added !== 'NULL') presetIds.push(...added.split(',').map((id) => parseInt(id, 10)).filter((id) => id > 0));
     const count = parseInt(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE id > ${startMaxId} AND descrizione IN ('Natale','Santo Stefano','Capodanno','Epifania','Ferragosto','Ognissanti','Immacolata Concezione','Festa della Liberazione','Festa del Lavoro','Festa della Repubblica') AND ricorrente_annuale=1`), 10);
     // Fixed holidays already present before this run are not duplicated.
     expect(count).toBeLessThanOrEqual(10);

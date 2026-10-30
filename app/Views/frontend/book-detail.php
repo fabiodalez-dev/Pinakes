@@ -1668,6 +1668,21 @@ document.addEventListener('DOMContentLoaded', function() {
       return counted < days ? addDaysToIso(startIso, days) : day;
     }
 
+    // Open days after `fromIso` up to and including `toIso` (the
+    // LibraryCalendar::openDaysBetween rule); calendar days without closures.
+    function openDaysBetweenIso(fromIso, toIso, closedSet) {
+      const span = daysBetweenIso(fromIso, toIso);
+      if (!Number.isFinite(span) || span <= 0) return 0;
+      if (!closedSet || closedSet.size === 0) return span;
+      let count = 0;
+      let day = fromIso;
+      for (let i = 0; i < span; i++) {
+        day = addDaysToIso(day, 1);
+        if (!closedSet.has(day)) count++;
+      }
+      return count;
+    }
+
     function loanWindowFrom(startIso, availabilityByDate, defaultDays, maxDays, closedSet) {
       const lookAhead = Math.max(defaultDays, maxDays || defaultDays);
       // The longest end can pass lookAhead when it skips closed days: the
@@ -2099,9 +2114,9 @@ document.addEventListener('DOMContentLoaded', function() {
               if (effectiveEndDate && effectiveEndDate < pickupDeadline) {
                 pickupDeadline = effectiveEndDate;
               }
-              // The days actually available: fewer than the setting when the
-              // loan ends first (same rule as the pickup emails).
-              const spanDays = Math.round((Date.parse(pickupDeadline) - Date.parse(storedStart)) / 86400000);
+              // The open days actually available: fewer than the setting when
+              // the loan ends first (same rule as the pickup emails).
+              const spanDays = openDaysBetweenIso(storedStart, pickupDeadline, closedDaySet);
               // Same count as the pickup emails: never more than the setting,
               // fewer when the loan ends first (closed days do not add any).
               const pickupDays = Number.isFinite(spanDays) && spanDays >= 0 ? Math.min(pickupExpiryDays, spanDays) : pickupExpiryDays;
@@ -2148,7 +2163,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await res.json();
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              window.SwalApp.success(undefined, <?= json_encode(__("Prenotazione effettuata per "), JSON_HEX_TAG) ?> + date);
+              // The day the server stored: a closed start day moves forward.
+              const storedStart = typeof result.start_date === 'string' && result.start_date ? result.start_date : date;
+              window.SwalApp.success(undefined, <?= json_encode(__("Prenotazione effettuata per "), JSON_HEX_TAG) ?> + storedStart);
             } else {
               window.SwalApp.error(undefined, (result.message || <?= json_encode(__("Impossibile creare la prenotazione"), JSON_HEX_TAG) ?>));
             }

@@ -1304,6 +1304,12 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
+                // A closure of the assigned copy's branch counts too: the
+                // reader could not come in there today either.
+                if ($copiaId !== null && !LibraryCalendar::forDb($this->db)->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
                 // stessa transazione dell'UPDATE (regola di progetto).
@@ -1514,6 +1520,12 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
+                // A closure of the copy's branch today: the pickup cannot
+                // expire on a day the reader could not come in.
+                if ($copiaId !== null && !$calendar->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
                 // stessa transazione dell'UPDATE (regola di progetto).
