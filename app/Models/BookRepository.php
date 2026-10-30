@@ -1656,7 +1656,10 @@ class BookRepository
                     if (!is_string($data[$c])) { continue; }
                     $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
-                    $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
+                    // The text column is a display cache: a name typed in quotes
+                    // (exact spelling, #501) was already resolved to its entity
+                    // by the controller; the quotes are not part of the name.
+                    $cols[$c] = \App\Support\AuthorNormalizer::normalizeStored((string) $data[$c]);
                 } elseif ($c === 'luogo_pubblicazione') {
                     // Same rule as create()/update(): trimmed, and a blank
                     // value is not written (it would overwrite their NULL).

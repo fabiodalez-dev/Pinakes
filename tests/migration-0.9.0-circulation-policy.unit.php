@@ -2,14 +2,14 @@
 declare(strict_types=1);
 
 /**
- * Run the REAL migrate_0.9.0.sql (circulation policy section) against a
+ * Run the REAL migrate_0.9.0-rc.1.sql (circulation policy section) against a
  * sandbox seeded with the 0.8.9 shape of `utenti` and `copie`, twice.
  *
  * Every identifier the migration touches is renamed to a run-scoped sandbox
  * name (tables and the foreign key, whose name is database-global), so the
  * real tables are never altered.
  *
- * Run: php tests/migration-0.9.0-circulation-policy.unit.php (or the tests/migration-0.9.0.unit.php dispatcher)
+ * Run: php tests/migration-0.9.0-circulation-policy.unit.php (or the tests/migration-0.9.0-rc.1.unit.php dispatcher)
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -31,11 +31,11 @@ $names = [
     'copie' => "zz_m090_c_{$run}",
     'fk_utenti_tipologia' => "zz_m090_fk_{$run}",
 ];
-$file = dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0.sql';
+$file = dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0-rc.1.sql';
 $source = (string) file_get_contents($file);
 // Only the circulation section: other features add their own sections.
 if (!preg_match('/-- ── Circulation policy:.*?-- ── end Circulation policy ──/s', $source, $m)) {
-    fwrite(STDERR, "FAIL: circulation section not found in migrate_0.9.0.sql\n");
+    fwrite(STDERR, "FAIL: circulation section not found in migrate_0.9.0-rc.1.sql\n");
     exit(1);
 }
 $section = (string) preg_replace('/^--.*$/m', '', $m[0]);
@@ -128,7 +128,7 @@ try {
         $check(preg_match("/`email_templates` VALUES \\(29,'card_expiring','{$locale}',[^\\n]*\\{\\{data_scadenza_tessera\\}\\}[^\\n]*\\{\\{giorni_rimasti\\}\\}/", $data) === 1, "fresh {$locale} install seeds the card_expiring email template");
     }
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', (string) $version, '<='), 'the release includes the migration');
+    $check(version_compare('0.9.0-rc.1', (string) $version, '<='), 'the release includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
 } catch (Throwable $e) {
     echo $e->getMessage() . "\n";
