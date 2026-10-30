@@ -2,7 +2,9 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
-## [0.9.0] - Unreleased
+## [0.9.0-rc.1]
+
+Release candidate: published as a GitHub prerelease, offered only to installations that opt in with `UPDATER_CHANNEL=rc` or `UPDATER_ALLOW_PRERELEASE=1`. Every new module can be switched off in Settings → Modules and Settings → Loans; an upgraded installation keeps its settings, and stocktake, suppliers, the visitor log, RDA overrides and fines start switched off there (a library that already used one of them on an earlier 0.9.0 build keeps it on).
 
 ### Inventory stocktake
 
