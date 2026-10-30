@@ -14,16 +14,26 @@ class SupplierRepository
     /** Writable columns, in form order. */
     public const FIELDS = ['nome', 'referente', 'email', 'telefono', 'sito_web', 'indirizzo', 'partita_iva', 'note'];
 
+    /** Size of `fornitori.sito_web`. */
+    private const WEBSITE_MAX = 255;
+
     public function __construct(private mysqli $db)
     {
     }
 
-    /** True once the 0.9.0 migration created the table. */
+    /**
+     * True once the 0.9.0 migration created both the table and the
+     * `libri.fornitore_id` column: a half-applied migration must not reach
+     * the queries that join the two.
+     */
     public function isAvailable(): bool
     {
         try {
-            $res = $this->db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fornitori'");
-            return $res instanceof \mysqli_result && $res->num_rows > 0;
+            $res = $this->db->query(
+                "SELECT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fornitori')
+                      + (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'fornitore_id') AS c"
+            );
+            return $res instanceof \mysqli_result && (int) ($res->fetch_assoc()['c'] ?? 0) === 2;
         } catch (\Throwable) {
             return false;
         }
@@ -39,10 +49,11 @@ class SupplierRepository
         if (!$this->isAvailable()) {
             return [];
         }
-        $sql = 'SELECT f.*, COUNT(l.id) AS libri_count
+        // A correlated count instead of JOIN + GROUP BY f.id: MariaDB's
+        // ONLY_FULL_GROUP_BY does not accept f.* grouped by the key alone.
+        $sql = 'SELECT f.*,
+                       (SELECT COUNT(*) FROM libri l WHERE l.fornitore_id = f.id AND l.deleted_at IS NULL) AS libri_count
                 FROM fornitori f
-                LEFT JOIN libri l ON l.fornitore_id = f.id AND l.deleted_at IS NULL
-                GROUP BY f.id
                 ORDER BY f.nome ASC, f.id ASC';
         $rows = [];
         $res = $this->db->query($sql);
@@ -99,7 +110,12 @@ class SupplierRepository
         return $id;
     }
 
-    /** @param array<string, ?string> $data normalized by normalize() */
+    /**
+     * Save a supplier. FALSE when it no longer exists (deleted meanwhile);
+     * a save that changes nothing on an existing row is still TRUE.
+     *
+     * @param array<string, ?string> $data normalized by normalize()
+     */
     public function update(int $id, array $data): bool
     {
         $values = $this->orderedValues($data);
@@ -108,8 +124,13 @@ class SupplierRepository
         $values[] = $id;
         $stmt->bind_param(str_repeat('s', count(self::FIELDS)) . 'i', ...$values);
         $ok = $stmt->execute();
+        $changed = $stmt->affected_rows > 0;
         $stmt->close();
-        return $ok;
+        if (!$ok) {
+            return false;
+        }
+        // affected_rows is 0 both for "no row" and "same values": re-read.
+        return $changed || $this->getById($id) !== null;
     }
 
     /** Deleting a supplier unlinks its books (FK ON DELETE SET NULL). */
@@ -131,12 +152,14 @@ class SupplierRepository
      */
     public static function normalize(array $input): array
     {
-        $limits = ['nome' => 255, 'referente' => 150, 'email' => 255, 'telefono' => 30, 'sito_web' => 255, 'partita_iva' => 20, 'indirizzo' => 2000, 'note' => 5000];
+        // The website is not cut: websiteUrl() refuses one that does not fit
+        // the column once the scheme is added, and a cut URL is a wrong one.
+        $limits = ['nome' => 255, 'referente' => 150, 'email' => 255, 'telefono' => 30, 'partita_iva' => 20, 'indirizzo' => 2000, 'note' => 5000];
         $out = [];
         foreach (self::FIELDS as $field) {
             $raw = $input[$field] ?? null;
             $value = is_scalar($raw) ? trim((string) $raw) : '';
-            if ($value !== '') {
+            if ($value !== '' && isset($limits[$field])) {
                 $value = mb_substr($value, 0, $limits[$field]);
             }
             $out[$field] = $value === '' ? null : $value;
@@ -153,8 +176,9 @@ class SupplierRepository
     /**
      * Fields of a submission that carry a value normalize() would have to
      * drop: 'email' when it is not an e-mail address, 'sito_web' when it is
-     * not an http(s) URL once the scheme is added. The controller refuses the
-     * form on these instead of saving NULL with a success message.
+     * not an http(s) URL of at most 255 characters once the scheme is added.
+     * The controller refuses the form on these instead of saving NULL with a
+     * success message.
      *
      * @param array<string, mixed> $input
      * @return list<string>
@@ -178,12 +202,18 @@ class SupplierRepository
         return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
     }
 
-    /** The website as an http(s) URL (a missing scheme becomes https), or NULL when it is not a URL. */
+    /**
+     * The website as an http(s) URL (a missing scheme becomes https), or NULL
+     * when it is not a URL or, scheme included, exceeds the 255-character column.
+     */
     private static function websiteUrl(string $raw): ?string
     {
         $url = $raw;
         if (!preg_match('#^https?://#i', $url)) {
             $url = 'https://' . ltrim($url, '/');
+        }
+        if (mb_strlen($url) > self::WEBSITE_MAX) {
+            return null;
         }
         return filter_var($url, FILTER_VALIDATE_URL) !== false ? $url : null;
     }

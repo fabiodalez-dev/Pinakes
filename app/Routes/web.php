@@ -2619,8 +2619,8 @@ return function (App $app): void {
     $app->get('/admin/suppliers', function ($request, $response) use ($app) {
         return (new \App\Controllers\SuppliersController())->index($request, $response, $app->getContainer()->get('db'));
     })->add(new AdminAuthMiddleware());
-    $app->get('/admin/suppliers/create', function ($request, $response) {
-        return (new \App\Controllers\SuppliersController())->createForm($request, $response);
+    $app->get('/admin/suppliers/create', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->createForm($request, $response, $app->getContainer()->get('db'));
     })->add(new AdminAuthMiddleware());
     $app->post('/admin/suppliers/create', function ($request, $response) use ($app) {
         return (new \App\Controllers\SuppliersController())->store($request, $response, $app->getContainer()->get('db'));

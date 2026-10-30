@@ -83,6 +83,10 @@ checkMinor(array_keys($s) === SupplierRepository::FIELDS, 'normalize() returns e
 checkMinor(SupplierRepository::invalidFields(['email' => 'not-an-email', 'sito_web' => 'not a url']) === ['email', 'sito_web'], 'the form is refused on an e-mail or website that is not one');
 checkMinor(SupplierRepository::invalidFields(['email' => ' ordini@example.org ', 'sito_web' => 'www.rossi.it']) === [] && SupplierRepository::invalidFields(['email' => '', 'sito_web' => null]) === [], 'a valid or blank e-mail and website pass');
 checkMinor(SupplierRepository::invalidFields(['sito_web' => 'javascript:alert(1)']) === ['sito_web'], 'a non-http website is refused, not silently dropped');
+$longHost = 'www.rossi.it/' . str_repeat('a', 242); // 255 chars as typed, 263 once https:// is added
+checkMinor(mb_strlen($longHost) === 255 && SupplierRepository::invalidFields(['sito_web' => $longHost]) === ['sito_web'] && SupplierRepository::normalize(['sito_web' => $longHost])['sito_web'] === null, 'a website over 255 characters once https:// is added is refused, never cut');
+$fits = 'https://www.rossi.it/' . str_repeat('b', 234);
+checkMinor(mb_strlen($fits) === 255 && SupplierRepository::invalidFields(['sito_web' => $fits]) === [] && SupplierRepository::normalize(['sito_web' => $fits])['sito_web'] === $fits, 'a 255-character website is kept whole');
 
 checkMinor(MarcImportController::supplierApplies('created', 'skip') && MarcImportController::supplierApplies('created', 'fill') && MarcImportController::supplierApplies('updated', 'overwrite'), 'an import batch supplier goes on created books and on overwritten ones');
 checkMinor(!MarcImportController::supplierApplies('skipped', 'overwrite') && !MarcImportController::supplierApplies('updated', 'fill') && !MarcImportController::supplierApplies('updated', 'skip'), 'skipped duplicates and books only completed in their empty fields keep their supplier');
