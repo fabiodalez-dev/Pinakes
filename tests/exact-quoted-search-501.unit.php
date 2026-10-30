@@ -60,6 +60,12 @@ check(ExactSearch::quotedValue('10"') === null, 'an inch mark is never a quoted 
 check(\App\Support\AuthorNormalizer::normalizeStored('"Rolf Häffner"') === 'Rolf Häffner', 'stored contributor name drops whole-name quotes');
 check(\App\Support\AuthorNormalizer::normalizeStored('"Häffner, Rolf"') === 'Rolf Häffner', 'stored quoted inverted name is normalised without quotes');
 check(\App\Support\AuthorNormalizer::normalizeStored('"Pippo" Inzaghi') === '"Pippo" Inzaghi', 'a name with only a quoted part is kept as typed');
+check(\App\Support\AuthorNormalizer::normalizeStored('Rossi, Mario; Bianchi, Luca') === 'Mario Rossi; Luca Bianchi', 'a stored list normalises each inverted name on its own');
+check(\App\Support\AuthorNormalizer::normalizeStored('"Rolf Häffner" | Mario Rossi; Mario Rossi') === 'Rolf Häffner; Mario Rossi', 'a stored list drops each name\'s quotes, joins with "; " and keeps no duplicate');
+$lt = (new \ReflectionClass(\App\Controllers\LibraryThingImportController::class))->newInstanceWithoutConstructor();
+$ltCache = new \ReflectionMethod($lt, 'normalizeContributorField');
+check($ltCache->invoke($lt, '"Hüffner, Rolf"; Mario Rossi') === 'Rolf Hüffner; Mario Rossi', 'LibraryThing cache column: a quoted inverted translator is stored canonical and without quotes');
+check($ltCache->invoke($lt, '"Rolf Hüffner" | "Rolf Hüffner"') === 'Rolf Hüffner', 'LibraryThing cache column: the quoted duplicate collapses with the plain one');
 check(ExactSearch::parseFilter('"Haffner"') === ['term' => 'Haffner', 'exact' => true], 'filter value in quotes is exact');
 check(ExactSearch::parseFilter('van der Berg') === ['term' => 'van der Berg', 'exact' => false], 'filter value without quotes stays one tolerant term');
 check(ExactSearch::filterCondition(['a.nome'], '"') === null, 'a lone quote adds no filter');
