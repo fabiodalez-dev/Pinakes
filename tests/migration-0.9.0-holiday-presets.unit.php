@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Run the REAL "holiday presets" section of migrate_0.9.0.sql, twice, against
+ * Run the REAL "holiday presets" section of migrate_0.9.0-rc.1.sql, twice, against
  * a sandbox whose calendario_chiusure is the one the "closures calendar"
  * section creates (the table as it was before this section, with rows the
  * former Italian preset stored), and check its effect and idempotency.
@@ -32,10 +32,10 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
     echo "OK {$label}\n";
 };
 
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 $section = static function (string $name) use ($migration): string {
     if (preg_match('/-- ── ' . preg_quote($name, '/') . ' ──(.*?)-- ── end ' . preg_quote($name, '/') . ' ──/s', $migration, $m) !== 1) {
-        fwrite(STDERR, "{$name} section not found in migrate_0.9.0.sql\n");
+        fwrite(STDERR, "{$name} section not found in migrate_0.9.0-rc.1.sql\n");
         exit(1);
     }
     return $m[1];
@@ -102,7 +102,7 @@ try {
     $check(str_contains($schema, "`regola_festivita` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,\n  `attiva` tinyint(1) NOT NULL DEFAULT '1',") && str_contains($schema, 'KEY `idx_calendario_chiusure_regola` (`regola_festivita`)'), 'schema.sql has both columns and the index');
     $check(strpos($migration, '-- ── holiday presets ──') > strpos($migration, '-- ── end closures calendar ──'), 'the section runs after the table is created');
     $version = json_decode((string) file_get_contents($root . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'the release version includes the migration');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'the release version includes the migration');
     $db->close();
     echo "SUCCESS {$checks} migration checks\n";
     $exit = 0;

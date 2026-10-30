@@ -60,7 +60,7 @@ try {
 $tableExists = static fn (string $t): bool => (int) $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '" . $db->real_escape_string($t) . "'")->fetch_row()[0] === 1;
 foreach (['calendario_chiusure', 'tipologie_lettore', 'movimenti_lettore', 'presenze', 'fornitori'] as $t) {
     if (!$tableExists($t)) {
-        fwrite(STDERR, "FAIL: {$t} missing — apply migrate_0.9.0.sql first\n");
+        fwrite(STDERR, "FAIL: {$t} missing — apply migrate_0.9.0-rc.1.sql first\n");
         exit(1);
     }
 }

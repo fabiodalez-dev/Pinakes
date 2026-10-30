@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 /**
- * Run the real MARC section of migrate_0.9.0.sql against a scoped copy of the
+ * Run the real MARC section of migrate_0.9.0-rc.1.sql against a scoped copy of the
  * 0.8.9 import_logs table, twice: import_type gains 'marc', existing rows and
  * the other values survive, and a second run changes nothing. A second table
  * that another 0.9.0 section already extended ('users') proves the enum is
@@ -11,11 +11,11 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 $env = Dotenv\Dotenv::parse(file_get_contents(dirname(__DIR__) . '/.env'));
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
 $table = 'zz_mig090_marc_' . bin2hex(random_bytes(4));
-$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0.sql');
+$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 $start = strpos($file, '-- ── MARC bulk import / copy cataloguing ──');
 $end = strpos($file, '-- ── end MARC bulk import / copy cataloguing ──');
 if ($start === false || $end === false) {
-    fwrite(STDERR, "FAIL the MARC section is not delimited in migrate_0.9.0.sql\n");
+    fwrite(STDERR, "FAIL the MARC section is not delimited in migrate_0.9.0-rc.1.sql\n");
     exit(1);
 }
 $source = substr($file, $start, $end - $start);
@@ -64,7 +64,7 @@ try {
     // Other 0.9.0 sections may add their own values after marc.
     $check(preg_match("/`import_type` enum\\('csv','librarything','marc'[,)]/", (string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql')) === 1, 'fresh install has the marc value');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'the release includes the migration');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'the release includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
 } finally {
     $db->query("DROP TABLE IF EXISTS {$table}");

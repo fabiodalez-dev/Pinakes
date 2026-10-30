@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Run the REAL "feature toggles" section of migrate_0.9.0.sql, the way the
+ * Run the REAL "feature toggles" section of migrate_0.9.0-rc.1.sql, the way the
  * Updater does (comment lines dropped, split on ';'), against sandbox
  * databases, and check effect and idempotency.
  *
@@ -42,9 +42,9 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
     echo "OK {$label}\n";
 };
 
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 if (preg_match('/-- ── feature toggles ──(.*?)-- ── end feature toggles ──/s', $migration, $m) !== 1) {
-    fwrite(STDERR, "feature toggles section not found in migrate_0.9.0.sql\n");
+    fwrite(STDERR, "feature toggles section not found in migrate_0.9.0-rc.1.sql\n");
     exit(1);
 }
 $section = $m[1];
@@ -186,7 +186,7 @@ try {
             }
         } while ($db->more_results() && $db->next_result());
         $run($db, $migration);
-        $check($rows($db) === $sorted(Features::DEFAULTS), 'D: the full migrate_0.9.0.sql on the 0.8.9 schema seeds the upgrade defaults');
+        $check($rows($db) === $sorted(Features::DEFAULTS), 'D: the full migrate_0.9.0-rc.1.sql on the 0.8.9 schema seeds the upgrade defaults');
         $run($db, $migration);
         $check($rows($db) === $sorted(Features::DEFAULTS), 'D: the full file a second time changes nothing');
         $db->close();
@@ -195,7 +195,7 @@ try {
     }
 
     $version = json_decode((string) file_get_contents($root . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'the release version includes the migration');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'the release version includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
     $exit = 0;
 } catch (\Throwable $e) {

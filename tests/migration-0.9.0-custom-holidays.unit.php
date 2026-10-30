@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Run the REAL "custom holidays" section of migrate_0.9.0.sql, twice, against
+ * Run the REAL "custom holidays" section of migrate_0.9.0-rc.1.sql, twice, against
  * a sandbox with the sedi table, and check that festivita_personalizzate is
  * created exactly as in schema.sql, that a second run changes nothing and
  * that deleting a branch deletes its holidays.
@@ -36,9 +36,9 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
     echo "OK {$label}\n";
 };
 
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 if (preg_match('/-- ── custom holidays ──(.*?)-- ── end custom holidays ──/s', $migration, $m) !== 1) {
-    fwrite(STDERR, "custom holidays section not found in migrate_0.9.0.sql\n");
+    fwrite(STDERR, "custom holidays section not found in migrate_0.9.0-rc.1.sql\n");
     exit(1);
 }
 $section = $m[1];

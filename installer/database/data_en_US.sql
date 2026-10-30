@@ -195,7 +195,7 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 -- Optional modules (Settings > Modules / Loans): fresh-install defaults
--- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0.sql).
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0-rc.1.sql).
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('features', 'stocktake', '1', 'Optional module: Inventory stocktake'),
 ('features', 'marc', '1', 'Optional module: MARC import and export'),

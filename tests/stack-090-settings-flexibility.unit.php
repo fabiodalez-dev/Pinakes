@@ -480,7 +480,7 @@ try {
         $db->query("UPDATE utenti SET tipologia_id={$t} WHERE id={$p}");
         $id = $loan($p, $book(), '2026-10-01', '2026-10-06');
         $db->query("UPDATE prestiti SET sanzione=12.50 WHERE id={$id}");
-        $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+        $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
         $sql = implode("\n", array_filter(explode("\n", $sql), static fn (string $line): bool => !str_starts_with(trim($line), '--')));
         for ($pass = 0; $pass < 2; $pass++) {
             foreach (explode(';', $sql) as $statement) {
@@ -561,7 +561,7 @@ try {
         (new PatronLedger($db))->manualCharge($p, 400, 'ZZ upgrade existing debt', null);
         // Existing data would activate the migration's RC defaults. An explicit
         // saved OFF must still win; a saved ON must survive a default of OFF.
-        $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+        $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
         $sql = implode("\n", array_filter(explode("\n", $sql), static fn (string $line): bool => !str_starts_with(trim($line), '--')));
         $statements = array_filter(explode(';', $sql), static fn (string $statement): bool => trim($statement) !== '');
         $capture = static function () use ($db, $settings, $p, $b): array {

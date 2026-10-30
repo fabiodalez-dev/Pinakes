@@ -9,7 +9,7 @@ declare(strict_types=1);
  * slot database (one branch only, suspended, module off).
  *
  * The database part runs against the slot DB (.env or E2E_DB_*) after
- * migrate_0.9.0.sql, and removes every row it adds.
+ * migrate_0.9.0-rc.1.sql, and removes every row it adds.
  * Run: php tests/custom-holidays.unit.php
  */
 
@@ -147,7 +147,7 @@ $db = $socket !== '' && file_exists($socket)
     : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), $user, $pw, $name, (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
 $db->set_charset('utf8mb4');
 if (!CustomHolidays::schemaReady($db)) {
-    fwrite(STDERR, "FAIL: festivita_personalizzate missing — apply migrate_0.9.0.sql first\n");
+    fwrite(STDERR, "FAIL: festivita_personalizzate missing — apply migrate_0.9.0-rc.1.sql first\n");
     exit(1);
 }
 $branch = null;
