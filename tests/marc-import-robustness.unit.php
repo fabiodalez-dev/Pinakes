@@ -141,6 +141,12 @@ $partial = ['isbn13' => '9780140449136', 'titolo' => 'New title'] + \App\Support
 [$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial)), ['isbn10' => '8845292614', 'traduttore' => 'Old Translator'] + $existing);
 $check($row['isbn10'] === '8845292614' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value');
 $check($over['tipo_media'] === false, 'overwrite: a record without a media type leaves the book\'s');
+$numberOnly = ['titolo' => 'Old title', 'numero_serie' => '7'] + \App\Support\Marc\MarcBookData::empty();
+$numberParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($numberOnly));
+[$fillNumber, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $numberOnly, $numberParsed, $existing);
+$check($fillNumber['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '7', 'fill: a record with only the series number fills it and keeps the series name');
+[$overNumber, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $numberOnly, $numberParsed, ['numero_serie' => '2'] + $existing);
+$check($overNumber['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '7', 'overwrite: a record with only the series number replaces the number, the series name is kept');
 // An overwrite that changes the media type clears the RDA overrides the
 // record does not carry (they described the old material).
 $allColumns = static fn (string $column): bool => true;
@@ -269,6 +275,67 @@ if (!is_file($envFile)) {
             $authorStmt->bind_param('s', $authorLike);
             $authorStmt->execute();
             $authorStmt->close();
+        }
+    }
+}
+
+// 5. A cover downloaded for a book row that is not updated is removed.
+$check(MarcCoverFetcher::discard('/uploads/copertine/../../index.php') === null && is_file($root . '/public/index.php'), 'discard() never leaves the covers folder');
+if (is_file($envFile) && function_exists('imagecreatetruecolor')) {
+    $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
+    $coverDb = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $coverDb->set_charset('utf8mb4');
+    if (!is_dir($coversDir)) {
+        mkdir($coversDir, 0775, true);
+    }
+    $source = $coversDir . '/zzmr_orphan_' . bin2hex(random_bytes(3)) . '.png';
+    imagepng(imagecreatetruecolor(4, 4), $source);
+    $before = glob($coversDir . '/copertina_*') ?: [];
+    try {
+        $importer = new MarcBookImporter($coverDb, MarcBookImporter::MODE_SKIP, true, new MarcCoverFetcher());
+        $writeCover = new ReflectionMethod(MarcBookImporter::class, 'writeCover');
+        $counters = ['covers' => 0];
+        $warnings = [];
+        // No book has id 0: the UPDATE matches no row.
+        $writeCover->invokeArgs($importer, [0, absoluteUrl('/uploads/copertine/' . basename($source)), null, &$counters, &$warnings]);
+        $after = glob($coversDir . '/copertina_*') ?: [];
+        $check($warnings === [] && array_values(array_diff($after, $before)) === [] && $counters['covers'] === 0, 'a cover fetched for a book row that is not updated is removed and not counted');
+    } finally {
+        @unlink($source);
+        foreach (array_diff(glob($coversDir . '/copertina_*') ?: [], $before) as $leftover) {
+            @unlink($leftover);
+        }
+    }
+} else {
+    echo "  SKIP orphan cover check: no .env or no GD\n";
+}
+
+// 6. The MARC export leaves desiderata requests out: MARC has no field for
+//    the flag, so a request would reach the recipient as a holding.
+if (is_file($envFile)) {
+    $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
+    $exportDb = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $exportDb->set_charset('utf8mb4');
+    if ($exportDb->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'")->num_rows === 0) {
+        echo "  SKIP desiderata export check: libri.is_desiderata missing\n";
+    } else {
+        $tag = 'ZZMX' . strtoupper(bin2hex(random_bytes(3)));
+        $ids = [];
+        try {
+            foreach ([0, 1] as $wanted) {
+                $exportDb->query("INSERT INTO libri (titolo, is_desiderata) VALUES ('{$tag} {$wanted}', {$wanted})");
+                $ids[$wanted] = (int) $exportDb->insert_id;
+            }
+            $books = new ReflectionMethod(\App\Controllers\MarcExportController::class, 'books');
+            $exported = [];
+            foreach ($books->invoke(new \App\Controllers\MarcExportController(), $exportDb, array_values($ids)) as [$row]) {
+                $exported[] = (int) $row['id'];
+            }
+            $check($exported === [$ids[0]], 'the MARC export skips a desiderata request even when it is selected');
+        } finally {
+            foreach ($ids as $id) {
+                $exportDb->query("DELETE FROM libri WHERE id = {$id}");
+            }
         }
     }
 }
