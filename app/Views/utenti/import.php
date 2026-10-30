@@ -77,6 +77,13 @@ unset($workspaceHeader);
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) $csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <label for="user_import_file" class="block text-sm font-medium text-gray-700 mb-2"><?= __("File CSV degli utenti") ?></label>
             <input type="file" name="csv_file" id="user_import_file" accept=".csv,.tsv,.txt,text/csv" required class="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg bg-gray-50 p-2">
+            <label for="user_import_delimiter" class="block text-sm font-medium text-gray-700 mb-2 mt-4"><?= __("Separatore") ?></label>
+            <select name="delimiter" id="user_import_delimiter" class="form-input">
+              <option value=""><?= __("Automatico") ?></option>
+              <option value=";">;</option>
+              <option value=",">,</option>
+              <option value="tab">TAB</option>
+            </select>
             <div class="pk-form-actions mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div class="text-sm text-gray-600">
                 <div class="flex items-center">
@@ -244,8 +251,19 @@ unset($workspaceHeader);
       body: JSON.stringify(payload),
     });
     let data = null;
-    try { data = await res.json(); } catch (e) { throw new Error(T.invalidResponse); }
-    if (!res.ok || !data || data.success !== true) { throw new Error((data && data.error) || T.invalidResponse); }
+    try { data = await res.json(); } catch (e) {
+      // Not our JSON: a proxy or gateway answered (timeout), the request may
+      // still have run on the server.
+      const err = new Error(T.invalidResponse);
+      err.transient = true;
+      throw err;
+    }
+    if (!res.ok || !data || data.success !== true) {
+      const err = new Error((data && data.error) || T.invalidResponse);
+      err.status = res.status;
+      err.processed = data && Number.isInteger(data.processed) ? data.processed : null;
+      throw err;
+    }
     return data;
   }
 
@@ -323,9 +341,28 @@ unset($workspaceHeader);
     const total = started.total_rows;
     let start = 0;
     let last = null;
+    let retries = 0;
     try {
       while (true) {
-        last = await postJson('/admin/users/import/chunk', { start });
+        try {
+          last = await postJson('/admin/users/import/chunk', { start });
+        } catch (err) {
+          // A block that failed in transit may have been written anyway: the
+          // server answers 409 with the position it reached, and the import
+          // resumes from there. A network error retries the same block,
+          // which the server then accepts or answers with that 409.
+          const resumable = err.status === 409 && err.processed !== null;
+          const transient = err.transient === true || err instanceof TypeError;
+          if ((!resumable && !transient) || retries >= 3) { throw err; }
+          retries++;
+          if (resumable) {
+            start = err.processed;
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
+          }
+          continue;
+        }
+        retries = 0;
         start = last.processed;
         const pct = total > 0 ? Math.min(100, Math.round(start * 100 / total)) : 100;
         $('user-import-progress-bar').style.width = pct + '%';
@@ -349,6 +386,7 @@ unset($workspaceHeader);
         + '</td><td class="px-4 py-3 text-gray-600">' + esc(T.types[e.type] || e.type) + '</td><td class="px-4 py-3 text-gray-600">' + esc(e.message) + '</td></tr>').join('');
       $('user-import-errors').classList.remove('hidden');
     }
+    if (last.log_error) { showError(last.log_error); }
     if (last.import_id && errors.length > 0) {
       const link = $('user-import-download-errors');
       link.href = BASE + '/admin/users/import/errors?import_id=' + encodeURIComponent(last.import_id);

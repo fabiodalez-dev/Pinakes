@@ -8732,7 +8732,6 @@
   "Valore non valido per il campo \"%s\".": "Invalid value for the field \"%s\".",
   "Fascia con logo e nome della biblioteca, foto a sinistra, nome, codice e scadenza a destra.": "Band with the library logo and name, photo on the left, name, code and expiry on the right.",
   "Essenziale": "Minimal",
-  "Senza foto: nome grande e codice a barre su tutta la larghezza.": "No photo: large name and a full-width barcode.",
   "Verticale": "Portrait",
   "Tessera in verticale con la foto al centro (9 per foglio A4).": "Portrait card with the photo in the centre (9 per A4 sheet).",
   "Codice a barre (Code128)": "Barcode (Code128)",
@@ -8741,7 +8740,6 @@
   "Leggibile anche con la fotocamera dello smartphone.": "Also readable with a smartphone camera.",
   "Una tessera per pagina, 85,6×54mm: per stampanti di tessere.": "One card per page, 85.6×54mm: for card printers.",
   "Foglio A4 da 10": "A4 sheet of 10",
-  "Dieci tessere per foglio A4 con i bordi di taglio.": "Ten cards per A4 sheet with cut lines.",
   "Configurazione Tessere": "Card configuration",
   "Scegli il layout delle tessere della biblioteca e il codice che le identifica al banco prestiti.": "Choose the layout of the library cards and the code that identifies them at the loan desk.",
   "La tessera si stampa dalla scheda dell'utente o, per più utenti insieme, dalla selezione nell'elenco utenti.": "A card is printed from the user's page or, for several users at once, from the selection in the user list.",
@@ -8805,5 +8803,11 @@
   "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "This feature will be available once the database update has finished.",
   "Segnate come perse": "Marked as lost",
   "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched.",
-  "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Supplier not assigned: it was deleted during the import."
+  "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Supplier not assigned: it was deleted during the import.",
+  "Il file dell'import non è più disponibile: caricalo di nuovo.": "The import file is no longer available: upload it again.",
+  "Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.": "Import completed, but the history entry was not saved: the error report cannot be downloaded.",
+  "Separatore": "Separator",
+  "La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.": "The reader's photo was not removed: delete it from the reader's page.",
+  "Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.": "No photo: large name and a full-width code (barcode or QR).",
+  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Ten cards per A4 sheet (nine with the Portrait layout), with cut lines."
 }

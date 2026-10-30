@@ -35,6 +35,14 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class UserImportController
 {
     private const SESSION_KEY = 'user_import';
+    /**
+     * Error-report entries kept in the session (and in import_logs): a file
+     * of thousands of bad rows must not grow the session without bound. The
+     * failed/duplicate counters keep counting past it.
+     */
+    public const MAX_STORED_ERRORS = 500;
+    /** Upload form values of the separator choice; anything else means "detect". */
+    private const DELIMITERS = [';' => ';', ',' => ',', 'tab' => "\t"];
 
     public function page(Request $request, Response $response, mysqli $db): Response
     {
@@ -83,7 +91,9 @@ class UserImportController
         if (!\App\Support\Permissions::can('users.manage')) {
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
-        $this->discardSessionFile();
+        // The staged file of a run already in the session is replaced only
+        // once the new upload proved valid (below): a refused upload leaves
+        // the import in progress intact.
         UserImport::sweepStaleUploads(self::uploadDir());
 
         $file = $request->getUploadedFiles()['csv_file'] ?? null;
@@ -110,7 +120,10 @@ class UserImportController
         // is converted here, once, so every later step reads clean text.
         ['text' => $text, 'converted' => $converted] = UserImport::toUtf8($bytes);
         unset($bytes);
-        $delimiter = UserImport::detectDelimiter(array_slice(explode("\n", $text, 6), 0, 5));
+        // The separator chosen on the form wins; otherwise it is detected on
+        // the first logical records (a quoted cell may span several lines).
+        $chosen = (array) ($request->getParsedBody() ?? []);
+        $delimiter = self::DELIMITERS[is_string($chosen['delimiter'] ?? null) ? $chosen['delimiter'] : ''] ?? UserImport::detectDelimiter(UserImport::sampleRecords($text, 5));
         if ($delimiter === null) {
             return $this->json($response, ['success' => false, 'error' => __('File CSV non valido: usa ";", "," o TAB come separatore.')], 400);
         }
@@ -143,6 +156,7 @@ class UserImportController
         }
 
         $fields = $this->targetFields($db);
+        $this->discardSessionFile();
         $_SESSION[self::SESSION_KEY] = [
             'file' => $saved,
             'name' => mb_substr($name, 0, 255),
@@ -212,18 +226,29 @@ class UserImportController
         if (!\App\Support\Permissions::can('users.manage')) {
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
-        $state = $_SESSION[self::SESSION_KEY] ?? null;
         $body = json_decode((string) $request->getBody(), true);
-        if (!is_array($state) || empty($state['started']) || !is_array($body)) {
+        if (!is_array($_SESSION[self::SESSION_KEY] ?? null) || empty($_SESSION[self::SESSION_KEY]['started']) || !is_array($body)) {
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
         }
+        // Every change below lands in the session at once, row by row: when
+        // a request dies mid-chunk (timeout, fatal error), PHP still saves
+        // the session at shutdown, so the position survives and the page
+        // resumes from it instead of replaying the rows already written.
+        $state = &$_SESSION[self::SESSION_KEY];
         $start = max(0, (int) ($body['start'] ?? 0));
         // Chunks are processed in order exactly once: a replayed request (a
-        // retry after a timeout) must not insert the same rows again.
+        // retry after a timeout) must not insert the same rows again. The
+        // answer carries the position to resume from.
         if ($start !== (int) $state['next']) {
-            return $this->json($response, ['success' => false, 'error' => __('Blocco di righe non valido.')], 409);
+            return $this->json($response, ['success' => false, 'error' => __('Blocco di righe non valido.'), 'processed' => (int) $state['next']], 409);
         }
         $total = (int) $state['total'];
+        if (!is_file((string) $state['file'])) {
+            // Swept or deleted meanwhile: touch() would recreate it empty and
+            // the run would end as if the remaining rows did not exist.
+            unset($_SESSION[self::SESSION_KEY]);
+            return $this->json($response, ['success' => false, 'error' => __('Il file dell\'import non è più disponibile: caricalo di nuovo.')], 409);
+        }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
 
         try {
@@ -297,6 +322,7 @@ class UserImportController
                 }
             } finally {
                 $line++;
+                $state['next'] = $start + $processed;
             }
         }
 
@@ -315,18 +341,18 @@ class UserImportController
 
         if ($done) {
             $payload['import_id'] = $this->finish($db, $state);
+            if ($payload['import_id'] === '') {
+                // The accounts are created and counted either way; only the
+                // history entry (and the downloadable report) is missing.
+                $payload['log_error'] = __('Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.');
+            }
             $payload['invite_failed'] = (int) $state['invite_failed'];
             $payload['errors'] = array_slice($state['errors'], 0, 50);
+            $summary = ['created' => $state['created'], 'duplicates' => $state['duplicates'], 'failed' => $state['failed']];
             $this->discardSessionFile();
+            unset($state);
             unset($_SESSION[self::SESSION_KEY]);
-            SecureLogger::info('Users imported from CSV', [
-                'created' => $state['created'],
-                'duplicates' => $state['duplicates'],
-                'failed' => $state['failed'],
-                'by' => $_SESSION['user']['id'] ?? null,
-            ]);
-        } else {
-            $_SESSION[self::SESSION_KEY] = $state;
+            SecureLogger::info('Users imported from CSV', $summary + ['by' => $_SESSION['user']['id'] ?? null]);
         }
         return $this->json($response, $payload);
     }
@@ -340,8 +366,9 @@ class UserImportController
             foreach ($state['errors'] as $error) {
                 $logger->addError((int) $error['line'], (string) $error['title'], (string) $error['message'], (string) $error['type']);
             }
-            $logger->complete((int) $state['total']);
-            return $logger->getImportId();
+            // complete() reports a failed write by returning false: the id of
+            // a log that was never completed must not reach the page.
+            return $logger->complete((int) $state['total']) ? $logger->getImportId() : '';
         } catch (\Throwable $e) {
             SecureLogger::error('[UserImport] could not write the import log: ' . $e->getMessage());
             return '';
@@ -419,13 +446,26 @@ class UserImportController
     private function rowError(array &$state, int $line, string $label, string $message, string $type): void
     {
         $state['failed']++;
-        $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => $message, 'type' => $type];
+        self::report($state, ['line' => $line, 'title' => $label, 'message' => $message, 'type' => $type]);
     }
 
     private function duplicate(array &$state, int $line, string $label, string $message): void
     {
         $state['duplicates']++;
-        $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => $message, 'type' => 'duplicate'];
+        self::report($state, ['line' => $line, 'title' => $label, 'message' => $message, 'type' => 'duplicate']);
+    }
+
+    /**
+     * Add an entry to the run's error report, up to MAX_STORED_ERRORS.
+     *
+     * @param array<string,mixed> $state
+     * @param array{line:int, title:string, message:string, type:string} $entry
+     */
+    public static function report(array &$state, array $entry): void
+    {
+        if (count((array) ($state['errors'] ?? [])) < self::MAX_STORED_ERRORS) {
+            $state['errors'][] = $entry;
+        }
     }
 
     /**
@@ -462,7 +502,7 @@ class UserImportController
     {
         $warn = static function (string $message, \Throwable $e) use (&$state, $line, $label, $userId): void {
             SecureLogger::error('[UserImport] post-insert step failed', ['line' => $line, 'user_id' => $userId, 'error' => $e->getMessage()]);
-            $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => $message, 'type' => 'warning'];
+            self::report($state, ['line' => $line, 'title' => $label, 'message' => $message, 'type' => 'warning']);
         };
         if ($parsed['custom'] !== []) {
             try {
@@ -473,7 +513,7 @@ class UserImportController
         }
         try {
             if ($patronTypes->assign($userId, $parsed['tipologia']) === 'unknown') {
-                $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => sprintf(__('Tipologia lettore sconosciuta: %s (assegnata quella predefinita)'), (string) $parsed['tipologia']), 'type' => 'warning'];
+                self::report($state, ['line' => $line, 'title' => $label, 'message' => sprintf(__('Tipologia lettore sconosciuta: %s (assegnata quella predefinita)'), (string) $parsed['tipologia']), 'type' => 'warning']);
             }
         } catch (\Throwable $e) {
             $warn(__('Utente importato, ma la tipologia lettore non è stata assegnata.'), $e);
@@ -490,7 +530,7 @@ class UserImportController
                 $state['invited']++;
             } else {
                 $state['invite_failed']++;
-                $state['errors'][] = ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito non è stato inviato.'), 'type' => 'email'];
+                self::report($state, ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito non è stato inviato.'), 'type' => 'email']);
             }
         }
     }

@@ -19,6 +19,8 @@ final class UserImport
     public const MAX_BYTES = 5 * 1024 * 1024;
     public const CHUNK_SIZE = 10;
     public const PREVIEW_ROWS = 5;
+    /** Physical lines sampleRecords() reads at most. */
+    public const MAX_SAMPLE_LINES = 50;
     /**
      * An uploaded CSV holds patrons' personal data. One that no import has
      * read for this long (the tab was closed, the session expired, the
@@ -362,7 +364,38 @@ final class UserImport
     }
 
     /**
-     * Delimiter of a CSV sample (the header and the first few lines): the one
+     * The first $max logical CSV records of $text, for detectDelimiter(): a
+     * quoted cell may hold line breaks ("Via Roma 1\nint. 3"), so physical
+     * lines are joined until the quotes balance — enclosure '"', a doubled
+     * '""' inside a cell keeps the count even. At most MAX_SAMPLE_LINES
+     * physical lines are read, so an unbalanced quote cannot scan the file.
+     *
+     * @return list<string>
+     */
+    public static function sampleRecords(string $text, int $max): array
+    {
+        $records = [];
+        $buffer = null;
+        $offset = 0;
+        $length = strlen($text);
+        for ($read = 0; $read < self::MAX_SAMPLE_LINES && $offset < $length && count($records) < $max; $read++) {
+            $end = strpos($text, "\n", $offset);
+            $line = $end === false ? substr($text, $offset) : substr($text, $offset, $end - $offset);
+            $offset = $end === false ? $length : $end + 1;
+            $buffer = $buffer === null ? $line : $buffer . "\n" . $line;
+            if (substr_count($buffer, '"') % 2 === 0) {
+                $records[] = $buffer;
+                $buffer = null;
+            }
+        }
+        if ($buffer !== null && count($records) < $max) {
+            $records[] = $buffer;
+        }
+        return $records;
+    }
+
+    /**
+     * Delimiter of a CSV sample (the header and the first few records): the one
      * of ";", "," and TAB that splits the lines into columns most consistently,
      * or null when none splits the header at all.
      *
