@@ -266,7 +266,11 @@ final class ActionsController
                     $loanId = isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null;
                     $startDate = $status === 'prenotato' ? $this->loanStartDate($loanId) : null;
                     $message = match ($status) {
-                        'prenotato' => __('Prestito approvato: potrai ritirare il libro dal %s.', LoanWindow::displayDate($startDate ?? $today)),
+                        // Without the stored start the day is not promised:
+                        // today would be wrong when the library is closed.
+                        'prenotato' => $startDate !== null
+                            ? __('Prestito approvato: potrai ritirare il libro dal %s.', LoanWindow::displayDate($startDate))
+                            : __('Prestito prenotato con successo'),
                         'da_ritirare' => __('Prestito approvato. Il libro è in attesa di ritiro.'),
                         default => __('Richiesta di prestito inviata. In attesa di approvazione.'),
                     };
