@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 /**
- * Run the REAL "minor features" section of migrate_0.9.0.sql against scoped
+ * Run the REAL "minor features" section of migrate_0.9.0-rc.1.sql against scoped
  * sandbox tables seeded with the 0.8.9 shape, twice: it must create presenze
  * and fornitori, add libri.fornitore_id (index + FK ON DELETE SET NULL) and
  * the three RDA override columns, keep existing rows untouched, and be a
@@ -11,11 +11,11 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 $env = Dotenv\Dotenv::parse(file_get_contents(dirname(__DIR__) . '/.env'));
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
 
-$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0.sql');
+$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 $start = strpos($file, '-- ── minor features');
 $end = strpos($file, '-- ── end minor features ──');
 if ($start === false || $end === false || $end < $start) {
-    throw new RuntimeException('FAIL the minor-features section markers are missing from migrate_0.9.0.sql');
+    throw new RuntimeException('FAIL the minor-features section markers are missing from migrate_0.9.0-rc.1.sql');
 }
 $section = substr($file, $start, $end - $start);
 
@@ -101,7 +101,7 @@ try {
         && str_contains($schema, '`fornitore_id` int DEFAULT NULL') && str_contains($schema, 'CONSTRAINT `fk_libri_fornitore`')
         && str_contains($schema, '`rda_content_type` varchar(10)') && str_contains($schema, '`rda_media_type` varchar(10)') && str_contains($schema, '`rda_carrier_type` varchar(10)'), 'fresh install (schema.sql) has the same tables and columns');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'the release includes the migration (0.9.0 <= version.json)');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'the release includes the migration (0.9.0 <= version.json)');
     echo "ALL {$checks} PASS\n";
 } finally {
     $db->query('SET FOREIGN_KEY_CHECKS = 0');

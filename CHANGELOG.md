@@ -50,11 +50,11 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 
 ### Migration
 
-- `migrate_0.9.0.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` (with `esito_chiusura`, the bucket frozen at close; added with a guard to a table an earlier build created) and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
-- `migrate_0.9.0.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`, appended to the enum computed from the current one, so the order of the sections does not matter. Idempotent; existing rows are untouched.
-- `migrate_0.9.0.sql`, section "minor features": creates `presenze` (visitor log) and `fornitori` (suppliers), adds `libri.fornitore_id` (ON DELETE SET NULL) and the nullable `libri.rda_content_type`, `rda_media_type`, `rda_carrier_type` overrides. Additive and idempotent.
-- `migrate_0.9.0.sql`, section "patron-cards-import": `import_logs.import_type` gains the value `users`; the new enum is computed from the current one, so `marc` and any value added by another section are kept.
-- `migrate_0.9.0.sql`, section "Circulation policy": creates `tipologie_lettore` and `regole_prestito`, seeds the default "Standard" type with every rule NULL, adds `utenti.tipologia_id` (FK `ON DELETE SET NULL`), `utenti.card_expiry_warning_sent_for` and `copie.solo_consultazione`. Idempotent; no existing row changes.
+- `migrate_0.9.0-rc.1.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` (with `esito_chiusura`, the bucket frozen at close; added with a guard to a table an earlier build created) and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
+- `migrate_0.9.0-rc.1.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`, appended to the enum computed from the current one, so the order of the sections does not matter. Idempotent; existing rows are untouched.
+- `migrate_0.9.0-rc.1.sql`, section "minor features": creates `presenze` (visitor log) and `fornitori` (suppliers), adds `libri.fornitore_id` (ON DELETE SET NULL) and the nullable `libri.rda_content_type`, `rda_media_type`, `rda_carrier_type` overrides. Additive and idempotent.
+- `migrate_0.9.0-rc.1.sql`, section "patron-cards-import": `import_logs.import_type` gains the value `users`; the new enum is computed from the current one, so `marc` and any value added by another section are kept.
+- `migrate_0.9.0-rc.1.sql`, section "Circulation policy": creates `tipologie_lettore` and `regole_prestito`, seeds the default "Standard" type with every rule NULL, adds `utenti.tipologia_id` (FK `ON DELETE SET NULL`), `utenti.card_expiry_warning_sent_for` and `copie.solo_consultazione`. Idempotent; no existing row changes.
 
 ## [0.8.9]
 
