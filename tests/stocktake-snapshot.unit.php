@@ -28,7 +28,7 @@ if ($db->query("SHOW TABLES LIKE 'inventario_sessioni'")->num_rows === 0) {
         fwrite(STDERR, "FAIL inventario_sessioni missing (schema not installed)\n");
         exit(1);
     }
-    echo "SKIP: inventario_sessioni table missing — apply migrate_0.9.0.sql first\n";
+    echo "SKIP: inventario_sessioni table missing — apply migrate_0.9.0-rc.1.sql first\n";
     exit(0);
 }
 
