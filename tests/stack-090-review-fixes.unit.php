@@ -15,6 +15,9 @@ declare(strict_types=1);
  *  17    stocktake classification order (a turned-up copy stays out of scope)
  *  18-19 source guard: new searches go through ExactSearch, the suppliers
  *        box applies the quote rule in the browser
+ *  20    the suppliers box tokenises like ExactSearch::tokenize() (inch marks,
+ *        unclosed quotes, typographic quotes) and lower-cases locale-free;
+ *        the parity half runs the view's own script under node when present
  *
  * Run: php tests/stack-090-review-fixes.unit.php   (exit 0 iff every check passes)
  */
@@ -28,6 +31,7 @@ use App\Support\Marc\Iso2709Reader;
 use App\Support\Marc\Marc21LibriMapper;
 use App\Support\Marc\MarcBookData;
 use App\Support\Marc\MarcBookImporter;
+use App\Support\ExactSearch;
 use App\Support\Marc\MarcRecord;
 
 $root = dirname(__DIR__);
@@ -174,6 +178,36 @@ $check($offenders === [], '18 no bare "LIKE ?" on typed input in the 0.9.0 searc
 $view = (string) file_get_contents($root . '/app/Views/fornitori/index.php');
 $check(!str_contains($view, ".includes(q)") && str_contains($view, '[^"“”„«»]') && str_contains($view, "normalize('NFD')") && str_contains($view, 'search_fornitore_hint'),
     '19 the suppliers box tokenises quoted groups, folds accents for plain words and shows the quote hint');
+
+// 20: the browser tokenizer of the suppliers box against ExactSearch.
+$guardOk = !str_contains($view, 'toLocaleLowerCase') && str_contains($view, 'protectInchMarks');
+$parityNote = 'node not found, source guard only';
+$node = trim((string) shell_exec('command -v node 2>/dev/null'));
+if ($guardOk && $node !== '') {
+    $start = strpos($view, '    const QUOTES');
+    $end = strpos($view, "    search.addEventListener('input'");
+    $cases = ['12"', 'monitor 24" lcd', '"1984"', '"Thomas Mann" buddenbrooks', '„Häffner“ rolf', '"unclosed run  to end',
+        '5” floppy', '«Il  Mulino» 3"', 'abc "12" x', 'IKEA', '"ACME  Books"', 'x 7""y z"', '"12" monitor'];
+    $expected = [];
+    foreach ($cases as $case) {
+        $row = [];
+        foreach (ExactSearch::tokenize($case) as ['term' => $term, 'exact' => $exact]) {
+            $row[] = ['term' => $exact
+                ? mb_strtolower((string) \Normalizer::normalize($term, \Normalizer::FORM_C))
+                : mb_strtolower((string) preg_replace('/\p{Mn}/u', '', (string) \Normalizer::normalize($term, \Normalizer::FORM_D))), 'exact' => $exact];
+        }
+        $expected[] = $row;
+    }
+    $tmp = tempnam(sys_get_temp_dir(), 'supplier-tok');
+    $script = $start !== false && $end !== false && $end > $start ? substr($view, $start, $end - $start) : 'throw new Error("script not found")';
+    file_put_contents($tmp, 'const terms = (function () {' . $script . '; return terms; })();'
+        . 'process.stdout.write(JSON.stringify(' . json_encode($cases, JSON_UNESCAPED_UNICODE) . '.map(terms)));');
+    $actual = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($tmp) . ' 2>&1'), true);
+    @unlink($tmp);
+    $guardOk = $actual === $expected;
+    $parityNote = $guardOk ? 'node parity on ' . count($cases) . ' queries' : 'node output differs from ExactSearch::tokenize()';
+}
+$check($guardOk, '20 the suppliers box tokenises like ExactSearch (inch marks, unclosed quotes) and lower-cases locale-free (' . $parityNote . ')');
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);
