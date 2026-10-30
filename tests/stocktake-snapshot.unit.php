@@ -123,6 +123,11 @@ try {
     $check(($categories['mancante'] ?? 0) === 3 && ($categories['trovata'] ?? 0) === 1 && ($categories['in_prestito'] ?? 0) === 2, 'the report rows list the same buckets');
     $c2Rows = array_values(array_filter($service->reportRows($sessionId), static fn (array $r): bool => $r['categoria'] === 'mancante' && $r['codice'] === "{$p}-C2"));
     $check(count($c2Rows) === 1 && $c2Rows[0]['titolo'] === "{$p} B1", 'a copy deleted during the stocktake keeps the code and title frozen at opening in the report');
+    $csvBody = (string) (new App\Controllers\InventoryController())->exportCsv((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $sessionId)->getBody();
+    $csvRows = array_map(static fn (string $line): array => str_getcsv($line, ',', '"', ''), array_values(array_filter(preg_split('/\r\n|\n/', substr($csvBody, 3)) ?: [], static fn (string $l): bool => $l !== '')));
+    $mediaByCode = array_column(array_slice($csvRows, 1), 8, 1);
+    $check(count($csvRows[0]) === 9 && $csvRows[0][8] === __('Tipo media'), 'the CSV export ends with the media type column');
+    $check(($mediaByCode["{$p}-C1"] ?? null) === __('Libro') && ($mediaByCode["{$p}-NOPE"] ?? null) === '', 'a copy carries its media type, an unknown code an empty cell rather than a default');
 
     // Probe: record the session state at the instant a copy turns 'perso'.
     // close() must claim the session before it marks anything, so scans that

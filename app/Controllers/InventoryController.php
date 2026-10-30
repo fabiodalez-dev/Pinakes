@@ -388,18 +388,19 @@ class InventoryController
         }
         $labels = self::outcomeLabels();
         $writer = Csv::writerToString(',', "'");
-        $writer->insertOne([__('Esito'), __('Codice copia'), __('Titolo'), __('Tipo media'), __('Collocazione'), __('Scaffale atteso'), __('Stato copia'), __('Operatore'), __('Data scansione')]);
+        $writer->insertOne([__('Esito'), __('Codice copia'), __('Titolo'), __('Collocazione'), __('Scaffale atteso'), __('Stato copia'), __('Operatore'), __('Data scansione'), __('Tipo media')]);
         foreach ($service->reportRows($id) as $row) {
             $writer->insertOne([
                 $labels[$row['categoria']] ?? $row['categoria'],
                 $row['codice'],
                 $row['titolo'],
-                $row['tipo_media'] !== '' ? \App\Support\MediaLabels::tipoMediaDisplayName($row['tipo_media']) : '',
                 $row['collocazione'],
                 $row['scaffale_atteso'],
                 $row['stato_copia'],
                 $row['operatore'],
                 $row['quando'] !== '' ? format_date($row['quando'], true, '/') : '',
+                // Last column, so the positions spreadsheets and scripts already read stay put.
+                $row['tipo_media'] !== '' ? \App\Support\MediaLabels::tipoMediaDisplayName($row['tipo_media']) : '',
             ]);
         }
         $response->getBody()->write("\xEF\xBB\xBF" . $writer->toString());
