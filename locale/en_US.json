@@ -9246,5 +9246,6 @@
   "Prossime date": "Next dates",
   "Quale": "Which",
   "Sabato: anche il venerdì prima; domenica: anche il lunedì dopo": "Saturday: also the Friday before; Sunday: also the Monday after",
-  "Se cade nel fine settimana": "If it falls on a weekend"
+  "Se cade nel fine settimana": "If it falls on a weekend",
+  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Some holidays chosen for %1$s are no longer in the list and no longer close the library: %2$s. Tick the matching holidays and save the choice again."
 }

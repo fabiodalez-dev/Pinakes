@@ -9246,5 +9246,6 @@
   "Prossime date": "Næste datoer",
   "Quale": "Hvilken",
   "Sabato: anche il venerdì prima; domenica: anche il lunedì dopo": "Lørdag: også fredagen før; søndag: også mandagen efter",
-  "Se cade nel fine settimana": "Hvis den falder i en weekend"
+  "Se cade nel fine settimana": "Hvis den falder i en weekend",
+  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Nogle helligdage valgt for %1$s findes ikke længere på listen og lukker ikke længere biblioteket: %2$s. Sæt kryds ved de tilsvarende helligdage, og gem valget igen."
 }

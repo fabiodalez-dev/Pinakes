@@ -287,6 +287,33 @@ test.describe('Holidays for every country and calendar', () => {
     expect(db(`SELECT COUNT(*) FROM festivita_personalizzate WHERE nome=${S(TAG + ' ghost branch')}`)).toBe('0');
   });
 
+  test('13. a chosen holiday the dataset no longer knows is named on the page, not silently dropped', async () => {
+    const before = ['holiday_country', 'holiday_region', 'holiday_rules'].map((k) => getSetting('calendar', k));
+    setSetting('calendar', 'holiday_country', 'IT');
+    setSetting('calendar', 'holiday_region', '');
+    setSetting('calendar', 'holiday_rules', '["IT:new_year","IT:zz_vanished_rule","IT:christmas"]');
+    try {
+      await page.goto(`${BASE}/admin/calendar`);
+      const notice = page.locator('[data-holiday-missing]');
+      await expect(notice).toBeVisible();
+      await expect(notice).toContainText('zz_vanished_rule');
+      await expect(notice).not.toContainText('new_year');
+      // The known choices are still ticked; the vanished one is not a row.
+      await expect(page.locator('input[data-holiday-rule][value="IT:christmas"]')).toBeChecked();
+      await expect(page.locator('[data-holiday-row="IT:zz_vanished_rule"]')).toHaveCount(0);
+      // Another country previewed: the notice is about the saved selection, so it stays.
+      await chooseCountry(page, 'DE');
+      await expect(page.locator('[data-holiday-missing]')).toContainText('zz_vanished_rule');
+      // Saving the choice again stores only known ids and the notice goes.
+      await chooseCountry(page, 'IT');
+      await Promise.all([page.waitForURL(/\/admin\/calendar/), page.locator('#import-preset').click()]);
+      await expect(page.locator('[data-holiday-missing]')).toHaveCount(0);
+      expect(db("SELECT setting_value FROM system_settings WHERE category='calendar' AND setting_key='holiday_rules'")).not.toContain('zz_vanished_rule');
+    } finally {
+      ['holiday_country', 'holiday_region', 'holiday_rules'].forEach((k, i) => setSetting('calendar', k, before[i]));
+    }
+  });
+
   test('12. staff cannot add, change, suspend or delete a holiday of the library; a form without its token is refused', async ({ browser }) => {
     const id = db(`SELECT id FROM festivita_personalizzate WHERE nome=${S(TAG + ' impossible')}`);
     const snapshot = () => db(`SELECT CONCAT(COUNT(*), '|', COALESCE(SUM(attiva), 0), '|', COALESCE(GROUP_CONCAT(nome ORDER BY id), '')) FROM festivita_personalizzate WHERE nome LIKE ${S(TAG + '%')}`);

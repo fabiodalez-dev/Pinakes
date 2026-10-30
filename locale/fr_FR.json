@@ -9246,5 +9246,6 @@
   "Prossime date": "Prochaines dates",
   "Quale": "Lequel",
   "Sabato: anche il venerdì prima; domenica: anche il lunedì dopo": "Samedi : aussi le vendredi précédent ; dimanche : aussi le lundi suivant",
-  "Se cade nel fine settimana": "S’il tombe un week-end"
+  "Se cade nel fine settimana": "S’il tombe un week-end",
+  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Certains jours fériés choisis pour %1$s ne figurent plus dans la liste et ne ferment plus la bibliothèque : %2$s. Cochez les jours fériés correspondants et enregistrez à nouveau le choix."
 }

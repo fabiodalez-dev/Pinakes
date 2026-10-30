@@ -630,6 +630,10 @@ class LibraryCalendarController
             'list' => $list,
             'saved' => $savedHere,
             'schema' => HolidayPresets::schemaReady($db),
+            // Chosen ids the dataset no longer knows: shown whatever country
+            // is being previewed, since they are the saved selection's.
+            'missing' => $selection['saved'] ? $selection['missing'] : [],
+            'missing_country' => HolidayCalculator::countryNames()[$selection['country']] ?? $selection['country'],
         ];
     }
 
