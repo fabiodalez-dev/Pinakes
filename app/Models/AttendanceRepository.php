@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Support\DateHelper;
+use App\Support\Permissions;
 use mysqli;
 
 /**
@@ -48,7 +49,10 @@ class AttendanceRepository
         if ($card === '' || mb_strlen($card) > 20) {
             return null;
         }
-        $stmt = $this->db->prepare('SELECT id, nome, cognome, stato FROM utenti WHERE codice_tessera = ? LIMIT 1');
+        // Same reach as the loan borrower search: an operator with a custom
+        // role only resolves the reader accounts they may lend to.
+        $scope = Permissions::accountScopeSql('', Permissions::SCOPE_BORROWER);
+        $stmt = $this->db->prepare('SELECT id, nome, cognome, stato FROM utenti WHERE codice_tessera = ?' . $scope . ' LIMIT 1');
         $stmt->bind_param('s', $card);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -195,10 +199,13 @@ class AttendanceRepository
     public function recent(int $limit = 10): array
     {
         $limit = max(1, min(50, $limit));
+        // The scope sits in the ON clause: a visit by an account outside the
+        // operator's reach stays in the feed, only without the name.
+        $scope = Permissions::accountScopeSql('u', Permissions::SCOPE_BORROWER);
         $res = $this->db->query(
             'SELECT p.created_at, p.tipo, p.nome_ospite, u.nome, u.cognome
              FROM presenze p
-             LEFT JOIN utenti u ON u.id = p.utente_id
+             LEFT JOIN utenti u ON u.id = p.utente_id' . $scope . '
              ORDER BY p.created_at DESC, p.id DESC
              LIMIT ' . $limit
         );
