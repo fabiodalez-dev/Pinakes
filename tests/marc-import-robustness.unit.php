@@ -225,6 +225,34 @@ if (!is_file($envFile)) {
             $check(($after['formato'] ?? '') === ($before['formato'] ?? '') && ($after['prezzo'] ?? null) === ($before['prezzo'] ?? null), 'overwrite: the format and the price are left as they were');
             (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'tipo_media' => 'libro'], $counters, $warnings);
             $check(($mediaRow()['tipo_media'] ?? '') === 'dvd', 'fill: the media type the book has is left');
+
+            // Title + first author without an ISBN: the author resolves as the
+            // import links it, so a re-import of the same record finds the book.
+            $dedupTitle = 'ZZMR' . $run . ' dedup Werke';
+            $umlaut = 'ZZMR' . $run . ' Häffner';
+            $db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($umlaut) . "')");
+            $umlautId = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo) VALUES ('" . $db->real_escape_string($dedupTitle) . "')");
+            $umlautBook = (int) $db->insert_id;
+            $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$umlautBook}, {$umlautId}, 'principale')");
+            $plainRecord = ['titolo' => $dedupTitle, 'autori' => 'ZZMR' . $run . ' Haffner'];
+            $skip = new MarcBookImporter($db, MarcBookImporter::MODE_SKIP, false);
+            $check($skip->findExisting($plainRecord) === $umlautBook, 'dedup: with only Häffner on file, a Haffner record finds the book the import would link to');
+            $skip->import($plainRecord, $counters, $warnings);
+            $skip->import($plainRecord, $counters, $warnings);
+            $countStmt = $db->prepare('SELECT COUNT(*) FROM libri WHERE titolo = ? AND deleted_at IS NULL');
+            $countStmt->bind_param('s', $dedupTitle);
+            $countStmt->execute();
+            $check((int) $countStmt->get_result()->fetch_row()[0] === 1, 'dedup: importing that record twice leaves one book');
+            $countStmt->close();
+            $plain = 'ZZMR' . $run . ' Haffner';
+            $db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($plain) . "')");
+            $plainId = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo) VALUES ('" . $db->real_escape_string($dedupTitle) . "')");
+            $plainBook = (int) $db->insert_id;
+            $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$plainBook}, {$plainId}, 'principale')");
+            $check($skip->findExisting($plainRecord) === $plainBook, 'dedup: once Haffner is on file too, the Haffner record matches his book, not Häffner\'s');
+            $check($skip->findExisting(['titolo' => 'ZZMR' . $run . ' dedup Wérke', 'autori' => $plain]) === null, 'dedup: a title that differs by an accent is another book');
         } finally {
             $db->query("DROP TRIGGER IF EXISTS {$trigger}");
             $like = 'ZZMR' . $run . '%';
@@ -239,6 +267,11 @@ if (!is_file($envFile)) {
                 $db->query("DELETE FROM libri WHERE id = {$bookId}");
             }
             $stmt->close();
+            $authorLike = 'ZZMR' . $run . ' %';
+            $authorStmt = $db->prepare('DELETE FROM autori WHERE nome LIKE ? AND id NOT IN (SELECT autore_id FROM libri_autori)');
+            $authorStmt->bind_param('s', $authorLike);
+            $authorStmt->execute();
+            $authorStmt->close();
         }
     }
 }
