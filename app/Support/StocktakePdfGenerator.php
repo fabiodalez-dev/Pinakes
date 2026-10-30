@@ -75,6 +75,9 @@ class StocktakePdfGenerator
             [$labels['fuori_ambito'] ?? 'fuori_ambito', $summary['fuori_ambito'] ?? 0],
             [$labels['duplicata'] ?? 'duplicata', $summary['duplicate'] ?? 0],
         ];
+        if (($session['stato'] ?? '') === 'chiusa') {
+            $pairs[] = [__('Segnate come perse'), $summary['perse'] ?? 0];
+        }
         $pdf->SetFillColor(245, 245, 245);
         foreach ($pairs as $i => [$label, $value]) {
             $pdf->Cell(60, 6, (string) $label, 1, 0, 'L', $i % 2 === 0);

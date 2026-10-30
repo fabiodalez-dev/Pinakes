@@ -16,6 +16,33 @@ namespace App\Support;
 class AuthorNormalizer
 {
     /**
+     * The form of a contributor name that is WRITTEN to a text column
+     * (traduttore, illustratore, curatore, a renamed author or publisher).
+     * Quotes typed around the whole name mean "exact spelling" (#501) and are
+     * a lookup instruction, never part of the stored name, exactly as when an
+     * author record is created.
+     */
+    public static function normalizeStored(string $name): string
+    {
+        // A cache column holds a '; '-joined list (the separator ContributorSync
+        // and the importers use, '|' accepted on input). Each name is
+        // normalised on its own: run as one string, the comma rule turned
+        // "Rossi, Mario; Bianchi, Luca" into "Mario; Bianchi, Luca Rossi" and
+        // the quotes of one listed name were never removed.
+        if (preg_match('/[;|]/u', $name) === 1) {
+            $names = [];
+            foreach (preg_split('/\s*[;|]\s*/u', trim($name)) ?: [] as $part) {
+                $part = self::normalize(ExactSearch::quotedValue($part) ?? $part);
+                if ($part !== '' && !in_array($part, $names, true)) {
+                    $names[] = $part;
+                }
+            }
+            return implode('; ', $names);
+        }
+        return self::normalize(ExactSearch::quotedValue($name) ?? $name);
+    }
+
+    /**
      * Normalize an author name to a canonical format: "Name Surname"
      *
      * Examples:

@@ -56,6 +56,17 @@ final class MarcXmlReader implements \IteratorAggregate
             $own = [];
             $more = $this->reader->read();
             while ($more) {
+                if ($this->reader->nodeType === \XMLReader::DOC_TYPE) {
+                    // MARCXML has no DTD. A document type declaration can only
+                    // bring entity definitions, and with LIBXML_PARSEHUGE their
+                    // expansion is not capped ("billion laughs"): stop before
+                    // any of them is used.
+                    yield $position + 1 => new MarcReadError(
+                        $position + 1,
+                        'XML with a document type declaration (DOCTYPE) is not accepted'
+                    );
+                    return;
+                }
                 if ($this->reader->nodeType === \XMLReader::ELEMENT && $this->reader->localName === 'record') {
                     $node = @$this->reader->expand();
                     if ($node instanceof \DOMElement && self::isMarcRecord($node)) {

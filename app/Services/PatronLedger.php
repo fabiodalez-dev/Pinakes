@@ -120,6 +120,9 @@ final class PatronLedger
 
     public function balanceCents(int $userId): int
     {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
         $stmt = $this->db->prepare('SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore WHERE utente_id = ?');
         $stmt->bind_param('i', $userId);
         $stmt->execute();
@@ -131,6 +134,9 @@ final class PatronLedger
     /** Balance right after movement $movementId (receipts show the balance at that moment). */
     public function balanceAfterCents(int $userId, int $movementId): int
     {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
         $stmt = $this->db->prepare('SELECT COALESCE(SUM(importo), 0) FROM movimenti_lettore WHERE utente_id = ? AND id <= ?');
         $stmt->bind_param('ii', $userId, $movementId);
         $stmt->execute();
@@ -156,6 +162,9 @@ final class PatronLedger
      */
     public function movements(int $userId, int $limit = 500, int $offset = 0): array
     {
+        if (!self::schemaReady($this->db)) {
+            return [];
+        }
         $limit = max(1, min(5000, $limit));
         $offset = max(0, $offset);
         $stmt = $this->db->prepare(
@@ -181,6 +190,9 @@ final class PatronLedger
     /** Number of ledger rows of $userId (the reader record pages through them). */
     public function movementCount(int $userId): int
     {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
         $stmt = $this->db->prepare('SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?');
         $stmt->bind_param('i', $userId);
         $stmt->execute();
@@ -192,6 +204,9 @@ final class PatronLedger
     /** @return array<string, mixed>|null */
     public function movement(int $movementId): ?array
     {
+        if (!self::schemaReady($this->db)) {
+            return null;
+        }
         $stmt = $this->db->prepare(
             "SELECT m.*, TRIM(CONCAT(COALESCE(op.nome, ''), ' ', COALESCE(op.cognome, ''))) AS operatore
                FROM movimenti_lettore m
@@ -285,6 +300,9 @@ final class PatronLedger
      */
     public function reverseLateFine(int $loanId, string $reason, ?int $staffId = null): int
     {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
         $charged = $this->loanSum($loanId, "tipo = 'multa_ritardo' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%')");
         if ($charged <= 0) {
             return 0;
@@ -331,6 +349,9 @@ final class PatronLedger
      */
     public function lateFineNetCents(int $loanId): int
     {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
         return max(0, $this->loanSum(
             $loanId,
             "tipo = 'multa_ritardo' OR tipo = 'condono'
@@ -352,6 +373,9 @@ final class PatronLedger
     /** Days late recorded with the most recent late fine of a loan (0 if none). */
     public function lateFineDays(int $loanId): int
     {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
         $stmt = $this->db->prepare("SELECT descrizione FROM movimenti_lettore WHERE prestito_id = ? AND tipo = 'multa_ritardo' ORDER BY id DESC LIMIT 1");
         $stmt->bind_param('i', $loanId);
         $stmt->execute();
@@ -396,6 +420,9 @@ final class PatronLedger
             $this->lockUser($userId);
             $id = $this->replayedMovement($userId, $requestKey, 'addebito_manuale', $cents, null, self::clip($description))
                 ?? $this->insert($userId, null, 'addebito_manuale', $cents, self::clip($description), null, $staffId, $requestKey);
+            if ($id === null) {
+                throw new \InvalidArgumentException('duplicate_request');
+            }
         });
         return (int) $id;
     }
@@ -568,6 +595,10 @@ final class PatronLedger
                 throw new \InvalidArgumentException('amount_exceeds_balance');
             }
             $id = $this->insert($userId, $loanId, $type, -$cents, $text !== null ? self::clip($text) : null, $method, $staffId, $requestKey);
+            if ($id === null) {
+                // The key was taken in between: report it, never a fake success.
+                throw new \InvalidArgumentException('duplicate_request');
+            }
         });
         return (int) $id;
     }
@@ -587,15 +618,19 @@ final class PatronLedger
         if ($requestKey === null) {
             return null;
         }
-        $stmt = $this->db->prepare('SELECT id, tipo, importo, metodo_pagamento, descrizione FROM movimenti_lettore WHERE chiave_idempotenza = ? AND utente_id = ?');
-        $stmt->bind_param('si', $requestKey, $userId);
+        // Looked up by key alone: a key is unique across the whole ledger, so a
+        // key already used for another patron is a duplicate too, never a
+        // fresh movement whose insert would silently do nothing.
+        $stmt = $this->db->prepare('SELECT id, utente_id, tipo, importo, metodo_pagamento, descrizione FROM movimenti_lettore WHERE chiave_idempotenza = ?');
+        $stmt->bind_param('s', $requestKey);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         if (!is_array($row)) {
             return null;
         }
-        $same = (string) $row['tipo'] === $type
+        $same = (int) $row['utente_id'] === $userId
+            && (string) $row['tipo'] === $type
             && FineParameters::decimalToCents($row['importo']) === $signedCents
             && (string) ($row['metodo_pagamento'] ?? '') === (string) ($method ?? '')
             && (string) ($row['descrizione'] ?? '') === (string) ($text ?? '');

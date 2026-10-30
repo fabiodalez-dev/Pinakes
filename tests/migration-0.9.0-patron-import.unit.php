@@ -1,16 +1,16 @@
 <?php
 declare(strict_types=1);
 /**
- * Run the real patron-cards-import section of migrate_0.9.0.sql against a
+ * Run the real patron-cards-import section of migrate_0.9.0-rc.1.sql against a
  * scoped copy of the 0.8.9 import_logs table, twice.
  */
 require dirname(__DIR__) . '/vendor/autoload.php';
 $env = Dotenv\Dotenv::parse(file_get_contents(dirname(__DIR__) . '/.env'));
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
 $table = 'zz_mig090_pci_' . bin2hex(random_bytes(4));
-$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0.sql');
+$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 if (!preg_match('/-- ── patron-cards-import ──(.*?)-- ── end patron-cards-import ──/s', $file, $m)) {
-    throw new RuntimeException('FAIL the patron-cards-import section is missing from migrate_0.9.0.sql');
+    throw new RuntimeException('FAIL the patron-cards-import section is missing from migrate_0.9.0-rc.1.sql');
 }
 $source = preg_replace('/^--.*$/m', '', $m[1]);
 $source = preg_replace('/\bimport_logs\b/', $table, $source);
@@ -23,7 +23,7 @@ $check = static function (bool $ok, string $label) use (&$checks): void {
     $checks++; echo "OK {$label}\n";
 };
 $type = static function () use ($db, $table): array {
-    $r = $db->query("SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}' AND COLUMN_NAME = 'import_type'");
+    $r = $db->query("SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_COMMENT, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$table}' AND COLUMN_NAME = 'import_type'");
     return $r->fetch_assoc() ?? [];
 };
 try {
@@ -35,10 +35,17 @@ try {
     $after = $type();
     $check(($after['COLUMN_TYPE'] ?? '') === "enum('csv','librarything','users')", 'the migration appends users and keeps the existing values in order');
     $check(($after['IS_NULLABLE'] ?? '') === 'NO' && ($after['COLUMN_COMMENT'] ?? '') === 'Type of import', 'NOT NULL and the comment survive the change');
+    $check(($after['COLLATION_NAME'] ?? '') === 'utf8mb4_unicode_ci', 'the column keeps utf8mb4_unicode_ci');
     $db->query("INSERT INTO {$table} (import_id, import_type, file_name) VALUES ('c','users','patrons.csv')");
     $check($db->query("SELECT GROUP_CONCAT(CONCAT(import_id,':',import_type) ORDER BY id) FROM {$table}")->fetch_row()[0] === 'a:csv,b:librarything,c:users', 'existing rows are preserved and a users row can be stored');
     $run();
     $check(($type()['COLUMN_TYPE'] ?? '') === "enum('csv','librarything','users')", 'a second run is a no-op');
+    // A table restored from a dump with a different default collation: the
+    // column must stay utf8mb4_unicode_ci, not inherit the table default.
+    $db->query("DROP TABLE {$table}");
+    $db->query("CREATE TABLE {$table} (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, import_id VARCHAR(36) NOT NULL, import_type ENUM('csv','librarything') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import', file_name VARCHAR(255) NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    $run();
+    $check(($type()['COLLATION_NAME'] ?? '') === 'utf8mb4_unicode_ci', 'a table default collation does not leak into the column');
     // A stacked section that already added another value must not lose it.
     $db->query("DELETE FROM {$table} WHERE import_type = 'users'");
     $db->query("ALTER TABLE {$table} MODIFY COLUMN import_type ENUM('csv','librarything','marc') NOT NULL COMMENT 'Type of import'");
@@ -48,7 +55,7 @@ try {
     // start with the 0.8.9 values and contain users.
     $check(preg_match("/`import_type` enum\\('csv','librarything'(?:,'[a-z_]+')*,'users'(?:,'[a-z_]+')*\\)/", (string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql')) === 1, 'fresh install includes the users value');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'release includes the migration');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'release includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
 } finally {
     $db->query("DROP TABLE IF EXISTS {$table}");

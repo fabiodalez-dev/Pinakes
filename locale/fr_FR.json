@@ -9247,5 +9247,9 @@
   "Quale": "Lequel",
   "Sabato: anche il venerdì prima; domenica: anche il lunedì dopo": "Samedi : aussi le vendredi précédent ; dimanche : aussi le lundi suivant",
   "Se cade nel fine settimana": "S’il tombe un week-end",
-  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Certains jours fériés choisis pour %1$s ne figurent plus dans la liste et ne ferment plus la bibliothèque : %2$s. Cochez les jours fériés correspondants et enregistrez à nouveau le choix."
+  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Certains jours fériés choisis pour %1$s ne figurent plus dans la liste et ne ferment plus la bibliothèque : %2$s. Cochez les jours fériés correspondants et enregistrez à nouveau le choix.",
+  "Import già avviato: attendi la fine o ricarica il file.": "L'import est déjà en cours : attendez la fin ou rechargez le fichier.",
+  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Cette fonction sera disponible une fois la mise à jour de la base de données terminée.",
+  "Segnate come perse": "Marquées comme perdues",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Les exemplaires en prêt, en attente de retrait, endommagés, déjà perdus, en restauration, en transfert ou en maintenance ne sont pas modifiés."
 }

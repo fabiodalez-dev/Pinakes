@@ -60,6 +60,13 @@ class MarcExportController
             'user_id' => $_SESSION['user']['id'] ?? null,
         ]);
 
+        // The records are written while the download is sent: release the
+        // session lock first, or every other request of this user (another
+        // tab, an import chunk) waits for the whole export.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         return $response
             ->withBody(new GeneratorStream($this->generate($db, $format, $ids)))
             ->withHeader('Content-Type', $contentType)

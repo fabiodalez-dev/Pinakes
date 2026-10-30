@@ -4092,6 +4092,12 @@ class Updater
      */
     private function recalculateAfterMigrations(): void
     {
+        // Schema probes cached earlier in this request (before the migration
+        // created the circulation tables) must not survive into the recalc.
+        // This runs from the Updater of the release that ships the classes,
+        // so they are always there.
+        \App\Services\CirculationPolicy::resetSchemaCache();
+        \App\Services\PatronLedger::resetSchemaCache();
         try {
             $integrity = new \App\Support\DataIntegrity($this->db);
             $integrity->recalculateAllBookAvailability();

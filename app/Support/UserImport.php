@@ -8,7 +8,7 @@ namespace App\Support;
  * recognised, how one row becomes a valid account record.
  *
  * Nothing here touches the database, so it is unit-tested directly
- * (tests/user-import.unit.php); UserImportController does the I/O.
+ * (tests/patron-cards-import.unit.php); UserImportController does the I/O.
  *
  * Passwords are never imported: there is no target field for them, and a
  * column called "password" is never recognised. Imported readers choose their

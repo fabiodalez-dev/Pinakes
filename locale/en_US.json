@@ -9247,5 +9247,9 @@
   "Quale": "Which",
   "Sabato: anche il venerdì prima; domenica: anche il lunedì dopo": "Saturday: also the Friday before; Sunday: also the Monday after",
   "Se cade nel fine settimana": "If it falls on a weekend",
-  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Some holidays chosen for %1$s are no longer in the list and no longer close the library: %2$s. Tick the matching holidays and save the choice again."
+  "Alcune festività scelte per %1$s non sono più nell'elenco e non chiudono più la biblioteca: %2$s. Spunta le festività corrispondenti e salva di nuovo la scelta.": "Some holidays chosen for %1$s are no longer in the list and no longer close the library: %2$s. Tick the matching holidays and save the choice again.",
+  "Import già avviato: attendi la fine o ricarica il file.": "The import has already started: wait for it to finish or upload the file again.",
+  "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "This feature will be available once the database update has finished.",
+  "Segnate come perse": "Marked as lost",
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched."
 }

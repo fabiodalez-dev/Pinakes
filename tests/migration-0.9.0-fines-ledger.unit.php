@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Runs the REAL fines-ledger section of migrate_0.9.0.sql against a sandbox
+ * Runs the REAL fines-ledger section of migrate_0.9.0-rc.1.sql against a sandbox
  * database seeded with the 0.8.9 shape of utenti/prestiti, twice:
  *  - movimenti_lettore is created with its keys and foreign keys;
  *  - every prestiti.sanzione > 0 becomes exactly one ledger charge
@@ -66,7 +66,7 @@ try {
 }
 
 // The real section of the migration file, statement by statement (no ';' in its literals).
-$sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+$sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 $start = strpos($sql, '-- ── fines-ledger');
 $end = strpos($sql, '-- ── end fines-ledger ──');
 $section = $start !== false && $end !== false ? substr($sql, $start, $end - $start) : '';
@@ -194,7 +194,7 @@ try {
     $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
     $check(str_contains($schema, 'CREATE TABLE `movimenti_lettore`') && str_contains($schema, 'UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`)'), 'fresh install (schema.sql) has the same table');
     $version = (string) (json_decode((string) file_get_contents($root . '/version.json'), true)['version'] ?? '');
-    $check(version_compare('0.9.0', $version, '<='), 'migration version 0.9.0 <= version.json (' . $version . ')');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'migration version 0.9.0 <= version.json (' . $version . ')');
 } finally {
     $db->query("DROP DATABASE IF EXISTS `{$sandbox}`");
 }

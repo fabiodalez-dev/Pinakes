@@ -616,7 +616,7 @@ unset($workspaceHeader);
             <?php if (\App\Support\Features::enabled('rda_types')): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Tipologia RDA") ?></dt>
-              <dd class="text-gray-900 font-medium" id="book-rda-types" data-rda="<?= htmlspecialchars(implode('/', $rdaEffective), ENT_QUOTES, 'UTF-8') ?>"><?php echo App\Support\HtmlHelper::e(implode(' · ', $rdaParts)); ?></dd>
+              <dd class="text-gray-900 font-medium" id="book-rda-types" data-rda="<?= htmlspecialchars(implode('/', $rdaEffective), ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars(implode(' · ', $rdaParts), ENT_QUOTES, 'UTF-8'); ?></dd>
             </div>
             <?php endif; ?>
             <?php

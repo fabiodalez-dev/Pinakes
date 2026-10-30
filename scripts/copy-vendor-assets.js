@@ -12,7 +12,7 @@ const path = require('path');
 /**
  * Recursively copy directory
  */
-function copyDir(src, dest) {
+function copyDir(src, dest, skip = []) {
     // Create destination directory if it doesn't exist
     if (!fs.existsSync(dest)) {
         fs.mkdirSync(dest, { recursive: true });
@@ -25,6 +25,9 @@ function copyDir(src, dest) {
         const srcPath = path.join(src, entry.name);
         const destPath = path.join(dest, entry.name);
 
+        if (skip.includes(entry.name)) {
+            continue;
+        }
         if (entry.isDirectory()) {
             copyDir(srcPath, destPath);
         } else {
@@ -58,11 +61,14 @@ const assets = [
         // tinymce bump is not followed by the refreshed files.
         name: 'TinyMCE',
         from: 'node_modules/tinymce',
-        to: 'public/assets/tinymce'
+        to: 'public/assets/tinymce',
+        // Top-level only: the 300 KB upstream changelog is not committed
+        // (.gitignore) and must not reach the release ZIP either.
+        skip: ['CHANGELOG.md']
     }
 ];
 
-console.log('📦 Copying vendor assets to public/assets/vendor...\n');
+console.log('📦 Copying vendor assets to public/assets...\n');
 
 let successCount = 0;
 let errorCount = 0;
@@ -80,7 +86,7 @@ for (const asset of assets) {
         }
 
         // Copy directory
-        copyDir(srcPath, destPath);
+        copyDir(srcPath, destPath, asset.skip || []);
         console.log(`✓ ${asset.name}: ${asset.from} → ${asset.to}`);
         successCount++;
     } catch (error) {

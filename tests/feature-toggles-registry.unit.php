@@ -84,8 +84,8 @@ foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
 }
 
 // Migration: the static upgrade defaults; the data-dependent ones fall back to '0'.
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
-$check(preg_match('/-- ── feature toggles ──(.*?)-- ── end feature toggles ──/s', $migration, $sec) === 1, 'migrate_0.9.0.sql has the feature toggles section');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
+$check(preg_match('/-- ── feature toggles ──(.*?)-- ── end feature toggles ──/s', $migration, $sec) === 1, 'migrate_0.9.0-rc.1.sql has the feature toggles section');
 $section = $sec[1] ?? '';
 foreach ($keys as $k) {
     if (preg_match("/SELECT 'features', '{$k}', ('([01])'|@ft_val),/", $section, $mm) !== 1) {

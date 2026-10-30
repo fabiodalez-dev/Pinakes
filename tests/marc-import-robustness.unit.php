@@ -52,6 +52,25 @@ for ($i = 1; $i <= MarcImportController::MAX_LISTED_DUPLICATES + 50; $i++) {
 $check(count($state['errors']) === MarcImportController::MAX_LISTED_DUPLICATES, 'duplicates beyond the cap are not listed one by one');
 $check(($state['errors'][0]['type'] ?? '') === 'duplicate' && ($state['errors'][0]['line'] ?? 0) === 1, 'the first duplicates keep their position and type');
 
+// 1b. Parse errors, failed records and cover warnings: all counted, a capped number listed.
+$state = ['errors' => []];
+$over = MarcImportController::MAX_LISTED_ISSUES + 30;
+for ($i = 1; $i <= $over; $i++) {
+    MarcImportController::listIssue($state, ['line' => $i, 'title' => 'T' . $i, 'message' => 'cover host down', 'type' => 'cover']);
+    MarcImportController::listIssue($state, ['line' => $i, 'title' => 'T' . $i, 'message' => 'bad record', 'type' => 'parse']);
+}
+MarcImportController::listIssue($state, ['line' => 1, 'title' => 'V', 'message' => 'invalid', 'type' => 'validation']);
+$check(count($state['errors']) === 2 * MarcImportController::MAX_LISTED_ISSUES + 1, 'each issue type is listed up to MAX_LISTED_ISSUES');
+$check(MarcImportController::failedCount($state) === $over + 1, 'failed counts every parse and validation issue, listed or not');
+$check(MarcImportController::failedCount(['errors' => [['type' => 'parse'], ['type' => 'cover'], ['type' => 'validation']]]) === 2, 'a state without counters falls back to the listed errors');
+
+// 1c. MARCXML with a DOCTYPE is refused before any entity is expanded.
+$doctype = '<?xml version="1.0"?><!DOCTYPE c [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;&a;">]>'
+    . '<collection xmlns="http://www.loc.gov/MARC21/slim"><record><leader>00000nam a2200000 a 4500</leader>'
+    . '<datafield tag="245" ind1="0" ind2="0"><subfield code="a">&b;</subfield></datafield></record></collection>';
+$items = iterator_to_array(\App\Support\Marc\MarcXmlReader::fromString($doctype));
+$check(count($items) === 1 && reset($items) instanceof \App\Support\Marc\MarcReadError, 'a MARCXML file with a DOCTYPE yields one read error and no record');
+
 // 2. Local cover copies take their extension from the image bytes.
 $coversDir = $root . '/public/uploads/copertine';
 $copyLocal = new ReflectionMethod(MarcCoverFetcher::class, 'copyLocal');

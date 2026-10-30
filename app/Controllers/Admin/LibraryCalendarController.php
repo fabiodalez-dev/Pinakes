@@ -31,7 +31,7 @@ class LibraryCalendarController
 
     public function index(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $query = $request->getQueryParams();
@@ -89,7 +89,7 @@ class LibraryCalendarController
 
     public function saveWeekdays(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $data = (array) $request->getParsedBody();
@@ -113,7 +113,7 @@ class LibraryCalendarController
 
     public function store(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $row = $this->validatedClosure($db, (array) $request->getParsedBody());
@@ -129,7 +129,7 @@ class LibraryCalendarController
 
     public function update(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         if (!$this->closureExists($db, $id)) {
@@ -158,7 +158,7 @@ class LibraryCalendarController
 
     public function delete(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         if ($this->isPresetRow($db, $id)) {
@@ -178,7 +178,7 @@ class LibraryCalendarController
     /** Add a holiday of the library's own (Settings → Calendar → custom holidays). */
     public function storeCustom(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         return $this->saveCustom($request, $response, $db, null);
@@ -186,7 +186,7 @@ class LibraryCalendarController
 
     public function updateCustom(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         if (CustomHolidays::find($db, $id) === null) {
@@ -198,7 +198,7 @@ class LibraryCalendarController
 
     public function deleteCustom(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $deleted = CustomHolidays::schemaReady($db) && CustomHolidays::delete($db, $id);
@@ -210,7 +210,7 @@ class LibraryCalendarController
     /** Switch a custom holiday on or off without deleting it. */
     public function toggleCustom(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $row = CustomHolidays::find($db, $id);
@@ -258,7 +258,7 @@ class LibraryCalendarController
      */
     public function importPreset(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $data = (array) $request->getParsedBody();
@@ -298,7 +298,7 @@ class LibraryCalendarController
      */
     public function saveYearly(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         if (!HolidayPresets::schemaReady($db)) {
@@ -334,7 +334,7 @@ class LibraryCalendarController
 
     public function importIcs(Request $request, Response $response, \mysqli $db): Response
     {
-        if ($guard = $this->guard($response)) {
+        if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $files = $request->getUploadedFiles();
@@ -416,13 +416,25 @@ class LibraryCalendarController
         }
     }
 
-    private function guard(Response $response): ?Response
+    private function guard(Response $response, \mysqli $db): ?Response
     {
-        if (\App\Support\Permissions::mayConfigure()) {
-            return null;
+        if (!\App\Support\Permissions::mayConfigure()) {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
         }
-        $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
-        return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+        // Files updated before the 0.9.0 migration ran: the closures table is
+        // not there yet, and every page and action of the calendar reads it.
+        try {
+            $res = $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure'");
+            $ready = $res instanceof \mysqli_result && $res->num_rows > 0;
+        } catch (\Throwable) {
+            $ready = false;
+        }
+        if (!$ready) {
+            $_SESSION['error_message'] = __('Questa funzione sarà disponibile al termine dell\'aggiornamento del database.');
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+        }
+        return null;
     }
 
     private function back(Response $response, ?string $month = null, ?int $editId = null): Response

@@ -38,6 +38,8 @@ class MarcImportController
      * import log by one entry per record.
      */
     public const MAX_LISTED_DUPLICATES = 100;
+    /** Parse errors, failed records and cover warnings listed per type (all are counted). */
+    public const MAX_LISTED_ISSUES = 500;
     private const EXTENSIONS = ['mrc', 'marc', 'iso', 'dat', 'xml', 'marcxml'];
 
     public function showImportPage(Request $request, Response $response, \mysqli $db): Response
@@ -211,17 +213,17 @@ class MarcImportController
                 $processed++;
                 $line = json_decode($raw, true);
                 if (!is_array($line)) {
-                    $state['errors'][] = ['line' => $processed, 'title' => '', 'message' => __('Record non leggibile'), 'type' => 'parse'];
+                    self::listIssue($state, ['line' => $processed, 'title' => '', 'message' => __('Record non leggibile'), 'type' => 'parse']);
                     continue;
                 }
                 $position = (int) ($line['p'] ?? $processed);
                 if (isset($line['e'])) {
-                    $state['errors'][] = [
+                    self::listIssue($state, [
                         'line' => $position,
                         'title' => (string) ($line['x'] ?? ''),
                         'message' => (string) $line['e'],
                         'type' => 'parse',
-                    ];
+                    ]);
                     continue;
                 }
                 $bookData = is_array($line['d'] ?? null) ? $line['d'] : [];
@@ -241,10 +243,10 @@ class MarcImportController
                         }
                     }
                     foreach ($warnings as $warning) {
-                        $state['errors'][] = ['line' => $position, 'title' => $title, 'message' => $warning, 'type' => 'cover'];
+                        self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => $warning, 'type' => 'cover']);
                     }
                 } catch (\Throwable $e) {
-                    $state['errors'][] = ['line' => $position, 'title' => $title, 'message' => $e->getMessage(), 'type' => 'validation'];
+                    self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => $e->getMessage(), 'type' => 'validation']);
                     \App\Support\SecureLogger::warning('[MARC import] record failed', ['position' => $position, 'error' => $e->getMessage()]);
                 }
             }
@@ -266,7 +268,7 @@ class MarcImportController
         $complete = $processed >= (int) $state['total_rows'];
         $counters = (array) $state['counters'];
         $errors = (array) $state['errors'];
-        $failed = count(array_filter($errors, static fn (array $e): bool => in_array($e['type'] ?? '', ['validation', 'parse'], true)));
+        $failed = self::failedCount($state);
         $importId = null;
         if ($complete) {
             $importId = $this->persistHistory($db, $state, $failed);
@@ -302,6 +304,41 @@ class MarcImportController
     public static function supplierApplies(string $action, string $mode): bool
     {
         return $action === 'created' || ($action === 'updated' && $mode === MarcBookImporter::MODE_OVERWRITE);
+    }
+
+    /**
+     * Record a parse error, a failed record or a cover warning. Every one is
+     * counted; only the first MAX_LISTED_ISSUES of each type are kept in the
+     * session and in import_logs, so a 20,000-record file with an unreachable
+     * cover host does not rewrite an ever-growing session on every chunk.
+     *
+     * @param array<string, mixed> $state
+     * @param array{line:int,title:string,message:string,type:string} $issue
+     */
+    public static function listIssue(array &$state, array $issue): void
+    {
+        $type = $issue['type'];
+        $counts = (array) ($state['issue_counts'] ?? []);
+        $counts[$type] = (int) ($counts[$type] ?? 0) + 1;
+        $state['issue_counts'] = $counts;
+        if ($counts[$type] <= self::MAX_LISTED_ISSUES) {
+            $state['errors'][] = $issue;
+        }
+    }
+
+    /**
+     * Records that could not be imported (parse + validation), including the
+     * ones beyond the listed cap.
+     *
+     * @param array<string, mixed> $state
+     */
+    public static function failedCount(array $state): int
+    {
+        if (isset($state['issue_counts']) && is_array($state['issue_counts'])) {
+            return (int) ($state['issue_counts']['parse'] ?? 0) + (int) ($state['issue_counts']['validation'] ?? 0);
+        }
+        $errors = (array) ($state['errors'] ?? []);
+        return count(array_filter($errors, static fn (array $e): bool => in_array($e['type'] ?? '', ['validation', 'parse'], true)));
     }
 
     /**
