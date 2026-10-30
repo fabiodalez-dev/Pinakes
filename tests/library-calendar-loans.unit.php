@@ -39,7 +39,7 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
 };
 
 if ($db->query("SHOW TABLES LIKE 'calendario_chiusure'")->num_rows === 0) {
-    echo "calendario_chiusure missing: run migrate_0.9.0.sql first\n";
+    echo "calendario_chiusure missing: run migrate_0.9.0-rc.1.sql first\n";
     exit(1);
 }
 

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Run the REAL "closures calendar" section of migrate_0.9.0.sql, twice,
+ * Run the REAL "closures calendar" section of migrate_0.9.0-rc.1.sql, twice,
  * against a sandbox database seeded with the 0.8.9 schema (the schema.sql of
  * the last release, read from git; the 0.8.9 `sedi` table alone in a shallow
  * clone), and check its effect and idempotency.
@@ -63,9 +63,9 @@ CREATE TABLE `sedi` (
 SQL;
 }
 
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 if (preg_match('/-- ── closures calendar ──(.*?)-- ── end closures calendar ──/s', $migration, $m) !== 1) {
-    fwrite(STDERR, "closures calendar section not found in migrate_0.9.0.sql\n");
+    fwrite(STDERR, "closures calendar section not found in migrate_0.9.0-rc.1.sql\n");
     exit(1);
 }
 $section = $m[1];
@@ -126,7 +126,7 @@ try {
     $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
     $check(str_contains($schema, 'CREATE TABLE `calendario_chiusure`') && str_contains($schema, '`fk_calendario_chiusure_sede`'), 'fresh install (schema.sql) has the table');
     $version = json_decode((string) file_get_contents($root . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'the release version includes the migration');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'the release version includes the migration');
     $db->close();
     echo "SUCCESS {$checks} migration checks\n";
     $exit = 0;
