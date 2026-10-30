@@ -8804,5 +8804,6 @@
   "Import già avviato: attendi la fine o ricarica il file.": "The import has already started: wait for it to finish or upload the file again.",
   "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "This feature will be available once the database update has finished.",
   "Segnate come perse": "Marked as lost",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched.",
+  "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Supplier not assigned: it was deleted during the import."
 }

@@ -8804,5 +8804,6 @@
   "Import già avviato: attendi la fine o ricarica il file.": "Importen er allerede i gang: vent, til den er færdig, eller upload filen igen.",
   "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Denne funktion bliver tilgængelig, når databaseopdateringen er færdig.",
   "Segnate come perse": "Markeret som tabt",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke.",
+  "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Leverandør ikke tildelt: den blev slettet under importen."
 }

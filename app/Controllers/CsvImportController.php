@@ -364,7 +364,6 @@ class CsvImportController
         $chunkSize = max(1, min($chunkSize, self::CHUNK_SIZE)); // Capped at CHUNK_SIZE
 
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
-        $supplierId = (int) ($importData['fornitore_id'] ?? 0);
 
         // #380: field families the user allowed this import to update on books
         // that already exist. A family absent from the session (pre-#380 upload
@@ -447,15 +446,17 @@ class CsvImportController
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
 
-                // The batch's supplier goes on new books only: an existing
-                // book keeps its own. The row is already committed and
-                // counted, so a failure here is logged, not a failed row.
-                if ($supplierId > 0 && $action === 'created') {
-                    try {
-                        \App\Support\CataloguingExtras::assignSupplier($db, (int) $bookId, $supplierId);
-                    } catch (\Throwable $supplierError) {
-                        \App\Support\SecureLogger::warning('[CSV] supplier not assigned', ['line' => $lineNumber, 'book_id' => (int) $bookId, 'message' => $supplierError->getMessage()]);
-                    }
+                // The batch supplier was written in the row's transaction
+                // (importParsedRow); a write error failed the whole row. A
+                // supplier deleted during the import leaves the book
+                // imported but without it: reported, not a failed row.
+                if ($upsertResult['supplier_missing']) {
+                    $importData['errors'][] = [
+                        'line' => $lineNumber,
+                        'title' => (string) ($parsedData['titolo'] ?? ''),
+                        'message' => __('Fornitore non assegnato: è stato eliminato durante l\'importazione.'),
+                        'type' => 'supplier',
+                    ];
                 }
 
                 // Scraping (if enabled and ISBN exists)
@@ -556,7 +557,8 @@ class CsvImportController
                 $failedCount = 0;
                 foreach ($importData['errors'] as $err) {
                     $type = is_array($err) ? ($err['type'] ?? 'validation') : 'validation';
-                    if ($type !== 'scraping') {
+                    // Scraping and supplier notes concern books that were imported.
+                    if (!in_array($type, ['scraping', 'supplier'], true)) {
                         $failedCount++;
                     }
                 }
@@ -708,7 +710,9 @@ class CsvImportController
      * @param array<string, mixed> $importData
      * @param int|null $existingBookId the book to update when $resolveExisting is false
      * @param bool $resolveExisting true: match by ID/ISBN-13/EAN/title+author as the CSV import does
-     * @return array{id: int, action: string}
+     * @return array{id: int, action: string, supplier_missing: bool} supplier_missing:
+     *         the batch supplier ($importData['fornitore_id']) was deleted before
+     *         this created book could be linked to it
      */
     public function importParsedRow(
         \mysqli $db,
@@ -724,6 +728,7 @@ class CsvImportController
         foreach (['imported', 'updated', 'authors_created', 'publishers_created'] as $counter) {
             $importData[$counter] = (int) ($importData[$counter] ?? 0);
         }
+        $supplierMissing = false;
         $db->begin_transaction();
         try {
             // Resolve the target before creating any related entity. On an
@@ -878,6 +883,15 @@ class CsvImportController
                 );
             }
 
+            // The batch supplier (CSV import, 0.9.0) goes on the books the
+            // import creates, inside the row's transaction: a created book is
+            // never committed without it, so no retry has to complete it.
+            // An existing book keeps its own supplier.
+            $batchSupplierId = (int) ($importData['fornitore_id'] ?? 0);
+            if ($batchSupplierId > 0 && $action === 'created') {
+                $supplierMissing = !\App\Support\CataloguingExtras::assignSupplier($db, (int) $bookId, $batchSupplierId);
+            }
+
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollback();
@@ -908,7 +922,7 @@ class CsvImportController
             \App\Support\SecureLogger::warning('[' . $this->importSource . ' import] book.save.after listener failed (row already committed)', ['book_id' => $bookId, 'error' => $hookError->getMessage()]);
         }
 
-        return ['id' => (int) $bookId, 'action' => (string) $action];
+        return ['id' => (int) $bookId, 'action' => (string) $action, 'supplier_missing' => $supplierMissing];
     }
 
     /**
