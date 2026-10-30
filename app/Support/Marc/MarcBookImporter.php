@@ -238,24 +238,29 @@ final class MarcBookImporter
         if ($title === '' || $authors === []) {
             return null;
         }
-        $author = \App\Support\AuthorNormalizer::normalize(\App\Support\ExactSearch::quotedValue($authors[0]) ?? $authors[0]);
-        // Title and author compare with accents distinct (#501): under the
-        // unicode_ci collation "Haffner" equals "Häffner", and in overwrite
-        // mode a record would replace a different book.
+        // The first author is resolved exactly as the import will link it
+        // (CsvImportController::getOrCreateAuthor() -> findByCanonicalName():
+        // quotes mean exact spelling, otherwise accents are folded but the
+        // exact spelling wins when both are on file). Comparing names here with
+        // another rule made a re-import create the same book again. The title
+        // compares with accents distinct (#501), so a record never overwrites
+        // a different book whose title only differs by an accent.
+        $authorId = (new \App\Models\AuthorRepository($this->db))->findByCanonicalName($authors[0]);
+        if ($authorId === null) {
+            return null;
+        }
         $titleCond = \App\Support\ExactSearch::equalsCondition('l.titolo', $title);
-        $authorCond = \App\Support\ExactSearch::equalsCondition('a.nome', $author);
         $stmt = $this->db->prepare(
             'SELECT l.id FROM libri l
                JOIN libri_autori la ON la.libro_id = l.id
-               JOIN autori a ON a.id = la.autore_id
-              WHERE l.deleted_at IS NULL AND ' . $titleCond['sql'] . ' AND ' . $authorCond['sql'] . '
+              WHERE l.deleted_at IS NULL AND la.autore_id = ? AND ' . $titleCond['sql'] . '
               ORDER BY l.id LIMIT 1'
         );
         if ($stmt === false) {
             throw new \RuntimeException('Unable to prepare the duplicate lookup');
         }
-        $params = [...$titleCond['params'], ...$authorCond['params']];
-        $stmt->bind_param($titleCond['types'] . $authorCond['types'], ...$params);
+        $params = [$authorId, ...$titleCond['params']];
+        $stmt->bind_param('i' . $titleCond['types'], ...$params);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
