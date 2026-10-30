@@ -58,6 +58,10 @@ function restoreSetting(key, value) {
   if (value === null) F.dbQuery(`DELETE FROM system_settings WHERE category='loans' AND setting_key=${F.sqlStr(key)}`);
   else F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', ${F.sqlStr(key)}, ${F.sqlStr(value)}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
 }
+// Drops the file-backed settings cache used when APCu is off (local slots).
+// With APCu (CI) this is a no-op: the settings these specs change are read
+// through SettingsRepository, which is not cached, and email settings are
+// refreshed by saving a settings tab through the app.
 function clearConfigCache() {
   const cacheDir = path.join(__dirname, '..', 'storage', 'cache');
   if (!fs.existsSync(cacheDir)) return;

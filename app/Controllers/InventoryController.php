@@ -320,7 +320,7 @@ class InventoryController
         if ($markLost && !$this->isAdmin()) {
             // Destructive: AdminAuthMiddleware admits Staff and custom roles too.
             $_SESSION['error_message'] = __('Solo un amministratore può chiudere la revisione segnando come perse le copie mancanti.');
-            return $this->redirect($response, $back)->withStatus(302);
+            return $this->redirect($response, $back);
         }
         if ($markLost) {
             // The session is claimed before the copies are marked, so a close
@@ -343,9 +343,11 @@ class InventoryController
             ? sprintf(__('Revisione chiusa: %d copie mancanti segnate come perse.'), $result['marked'])
             : __('Revisione chiusa: le copie mancanti sono rimaste invariate.');
         if ($result['failed'] > 0) {
-            $_SESSION['error_message'] = sprintf(__('%d copie non sono state aggiornate: controlla il registro degli errori.'), $result['failed']);
+            // One alert: the close happened, but some copies need attention.
+            $_SESSION['error_message'] = $message . ' ' . sprintf(__('%d copie non sono state aggiornate: controlla il registro degli errori.'), $result['failed']);
+        } else {
+            $_SESSION['success_message'] = $message;
         }
-        $_SESSION['success_message'] = $message;
         return $this->redirect($response, $back);
     }
 
@@ -398,7 +400,7 @@ class InventoryController
                 $row['scaffale_atteso'],
                 $row['stato_copia'],
                 $row['operatore'],
-                $row['quando'],
+                $row['quando'] !== '' ? format_date($row['quando'], true, '/') : '',
             ]);
         }
         $response->getBody()->write("\xEF\xBB\xBF" . $writer->toString());
