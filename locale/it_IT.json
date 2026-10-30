@@ -8502,5 +8502,10 @@
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.",
   "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.",
   "Segnate come perse": "Segnate come perse",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.",
+  "%d copie mancanti segnate come perse.": "%d copie mancanti segnate come perse.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "La chiusura non ha segnato come perse %d copie mancanti.",
+  "Segnare come perse le copie mancanti rimaste?": "Segnare come perse le copie mancanti rimaste?",
+  "Segna come perse": "Segna come perse",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura"
 }

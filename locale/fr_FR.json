@@ -8502,5 +8502,10 @@
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "L'exemplaire est enregistré comme prêté ou en attente de retrait : vérifiez le prêt.",
   "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "L'intervalle est comparé par ordre alphabétique, pas numérique : A.10 vient avant A.2.",
   "Segnate come perse": "Marquées comme perdues",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Les exemplaires en prêt, en attente de retrait, endommagés, déjà perdus, en restauration, en transfert ou en maintenance ne sont pas modifiés."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Les exemplaires en prêt, en attente de retrait, endommagés, déjà perdus, en restauration, en transfert ou en maintenance ne sont pas modifiés.",
+  "%d copie mancanti segnate come perse.": "%d exemplaires manquants marqués comme perdus.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "La clôture n’a pas marqué %d exemplaires manquants comme perdus.",
+  "Segnare come perse le copie mancanti rimaste?": "Marquer comme perdus les exemplaires manquants restants ?",
+  "Segna come perse": "Marquer comme perdus",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Récolement : exemplaires manquants marqués comme perdus après la clôture"
 }

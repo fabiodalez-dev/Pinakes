@@ -8502,5 +8502,10 @@
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "The copy is recorded as on loan or awaiting pickup: check the loan.",
   "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "The range is compared alphabetically, not numerically: A.10 comes before A.2.",
   "Segnate come perse": "Marked as lost",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Copies on loan, awaiting pickup, damaged, already lost, under restoration, in transfer or in maintenance are not touched.",
+  "%d copie mancanti segnate come perse.": "%d missing copies marked as lost.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "The close did not mark %d missing copies as lost.",
+  "Segnare come perse le copie mancanti rimaste?": "Mark the remaining missing copies as lost?",
+  "Segna come perse": "Mark as lost",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Stocktake: missing copies marked as lost after the close"
 }
