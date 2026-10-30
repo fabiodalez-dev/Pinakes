@@ -8572,5 +8572,10 @@
   "La copia risulta in prestito o in attesa di ritiro: verifica il prestito.": "Eksemplaret står som udlånt eller klar til afhentning: tjek udlånet.",
   "Intervallo confrontato in ordine alfabetico, non numerico: A.10 viene prima di A.2.": "Intervallet sammenlignes alfabetisk, ikke numerisk: A.10 kommer før A.2.",
   "Segnate come perse": "Markeret som tabt",
-  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke."
+  "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Eksemplarer, der er udlånt, venter på afhentning, er beskadigede, allerede tabt, under restaurering, under overførsel eller i vedligeholdelse, røres ikke.",
+  "%d copie mancanti segnate come perse.": "%d manglende eksemplarer markeret som tabt.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "Afslutningen markerede ikke %d manglende eksemplarer som tabt.",
+  "Segnare come perse le copie mancanti rimaste?": "Markér de resterende manglende eksemplarer som tabt?",
+  "Segna come perse": "Markér som tabt",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Optælling: manglende eksemplarer markeret som tabt efter afslutningen"
 }

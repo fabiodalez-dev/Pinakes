@@ -1483,6 +1483,7 @@ CREATE TABLE `inventario_sessioni` (
   `chiusa_da` int DEFAULT NULL,
   `chiusa_il` datetime DEFAULT NULL,
   `note` text COLLATE utf8mb4_unicode_ci,
+  `azione_mancanti` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_inventario_sessioni_stato` (`stato`),
   KEY `idx_inventario_sessioni_sede` (`sede_id`),
@@ -1499,6 +1500,8 @@ CREATE TABLE `inventario_attese` (
   `scaffale_atteso` int DEFAULT NULL,
   `stato_all_apertura` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `codice_atteso` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `titolo_atteso` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`sessione_id`,`copia_id`),
   KEY `idx_inventario_attese_copia` (`copia_id`),
   CONSTRAINT `fk_inventario_attese_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE

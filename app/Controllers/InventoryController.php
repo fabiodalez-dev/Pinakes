@@ -146,6 +146,10 @@ class InventoryController
             'scans' => $service->scans($id, $mine ? $operatorId : null, 50),
             'mineOnly' => $mine,
             'reportRows' => $session['stato'] === 'aperta' ? [] : $service->reportRows($id),
+            // A mark-lost close that did not reach every copy can be completed here.
+            'pendingLost' => $session['stato'] === 'chiusa' && ($session['azione_mancanti'] ?? null) === 'perso'
+                ? $service->pendingLostCount($id)
+                : 0,
             'filterLabels' => $filterLabels,
             'isAdmin' => $this->isAdmin(),
             'outcomeLabels' => self::outcomeLabels(),
@@ -199,7 +203,15 @@ class InventoryController
     private function scanShelf(array $data): ?int
     {
         $shelf = $data['scaffale_corrente'] ?? null;
-        return is_scalar($shelf) && (int) $shelf > 0 ? (int) $shelf : null;
+        // Only a whole positive number is a shelf: (int) '1junk' would be shelf 1
+        // and file copies expected elsewhere as misplaced.
+        if (is_int($shelf)) {
+            return $shelf > 0 ? $shelf : null;
+        }
+        if (is_string($shelf) && ctype_digit($shelf) && (int) $shelf > 0) {
+            return (int) $shelf;
+        }
+        return null;
     }
 
     public function scan(Request $request, Response $response, mysqli $db, int $id): Response
@@ -270,7 +282,7 @@ class InventoryController
         $data = (array) $request->getParsedBody();
         $service = new StocktakeService($db);
         try {
-            $codes = StocktakeService::parseCodeList((string) $file->getStream());
+            $codes = StocktakeService::parseCodeList((string) $file->getStream(), $extension === 'csv');
             $result = $service->importCodes($id, $codes, $this->operatorId(), $this->scanShelf($data));
         } catch (\InvalidArgumentException | \DomainException $e) {
             $_SESSION['error_message'] = $e->getMessage();
@@ -294,22 +306,33 @@ class InventoryController
     public function close(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $data = (array) $request->getParsedBody();
-        $markLost = ($data['azione_mancanti'] ?? '') === 'perso';
         $back = '/admin/inventory/' . $id;
+        $action = $data['azione_mancanti'] ?? 'nessuna';
+        if (!in_array($action, ['nessuna', 'perso'], true)) {
+            // Closing is irreversible: never read an unknown choice as "leave them".
+            $_SESSION['error_message'] = __('Azione non valida.');
+            return $this->redirect($response, $back);
+        }
+        $markLost = $action === 'perso';
         if ($markLost && !$this->isAdmin()) {
             // Destructive: AdminAuthMiddleware admits Staff and custom roles too.
             $_SESSION['error_message'] = __('Solo un amministratore può chiudere la revisione segnando come perse le copie mancanti.');
             return $this->redirect($response, $back);
         }
         if ($markLost) {
-            // The session is claimed before the copies are marked, so a close
-            // cut off halfway cannot be retried from the page: let it finish
-            // even on a whole-catalogue session or if the browser goes away.
+            // The session is claimed before the copies are marked: let the
+            // marking finish even on a whole-catalogue session or if the
+            // browser goes away. A run cut off anyway is completed by posting
+            // "perso" again on the closed session (resumeMarkLost()).
             @set_time_limit(0);
             ignore_user_abort(true);
         }
+        $service = new StocktakeService($db);
+        $resume = $markLost && ($service->find($id)['stato'] ?? null) === 'chiusa';
         try {
-            $result = (new StocktakeService($db))->close($id, $markLost, $this->operatorId());
+            $result = $resume
+                ? $service->resumeMarkLost($id, $this->operatorId())
+                : $service->close($id, $markLost, $this->operatorId());
         } catch (\DomainException $e) {
             $_SESSION['error_message'] = $e->getMessage();
             return $this->redirect($response, $back);
@@ -318,9 +341,11 @@ class InventoryController
             $_SESSION['error_message'] = __('Impossibile chiudere la revisione. Riprova più tardi.');
             return $this->redirect($response, $back);
         }
-        $message = $markLost
-            ? sprintf(__('Revisione chiusa: %d copie mancanti segnate come perse.'), $result['marked'])
-            : __('Revisione chiusa: le copie mancanti sono rimaste invariate.');
+        $message = $resume
+            ? sprintf(__('%d copie mancanti segnate come perse.'), $result['marked'])
+            : ($markLost
+                ? sprintf(__('Revisione chiusa: %d copie mancanti segnate come perse.'), $result['marked'])
+                : __('Revisione chiusa: le copie mancanti sono rimaste invariate.'));
         if ($result['failed'] > 0) {
             // One alert: the close happened, but some copies need attention.
             $_SESSION['error_message'] = $message . ' ' . sprintf(__('%d copie non sono state aggiornate: controlla il registro degli errori.'), $result['failed']);
@@ -363,7 +388,7 @@ class InventoryController
         }
         $labels = self::outcomeLabels();
         $writer = Csv::writerToString(',', "'");
-        $writer->insertOne([__('Esito'), __('Codice copia'), __('Titolo'), __('Collocazione'), __('Scaffale atteso'), __('Stato copia'), __('Operatore'), __('Data scansione')]);
+        $writer->insertOne([__('Esito'), __('Codice copia'), __('Titolo'), __('Collocazione'), __('Scaffale atteso'), __('Stato copia'), __('Operatore'), __('Data scansione'), __('Tipo media')]);
         foreach ($service->reportRows($id) as $row) {
             $writer->insertOne([
                 $labels[$row['categoria']] ?? $row['categoria'],
@@ -374,6 +399,8 @@ class InventoryController
                 $row['stato_copia'],
                 $row['operatore'],
                 $row['quando'] !== '' ? format_date($row['quando'], true, '/') : '',
+                // Last column, so the positions spreadsheets and scripts already read stay put.
+                $row['tipo_media'] !== '' ? \App\Support\MediaLabels::tipoMediaDisplayName($row['tipo_media']) : '',
             ]);
         }
         $response->getBody()->write("\xEF\xBB\xBF" . $writer->toString());

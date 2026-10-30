@@ -121,6 +121,13 @@ try {
 
     $categories = array_count_values(array_column($service->reportRows($sessionId), 'categoria'));
     $check(($categories['mancante'] ?? 0) === 3 && ($categories['trovata'] ?? 0) === 1 && ($categories['in_prestito'] ?? 0) === 2, 'the report rows list the same buckets');
+    $c2Rows = array_values(array_filter($service->reportRows($sessionId), static fn (array $r): bool => $r['categoria'] === 'mancante' && $r['codice'] === "{$p}-C2"));
+    $check(count($c2Rows) === 1 && $c2Rows[0]['titolo'] === "{$p} B1", 'a copy deleted during the stocktake keeps the code and title frozen at opening in the report');
+    $csvBody = (string) (new App\Controllers\InventoryController())->exportCsv((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $sessionId)->getBody();
+    $csvRows = array_map(static fn (string $line): array => str_getcsv($line, ',', '"', ''), array_values(array_filter(preg_split('/\r\n|\n/', substr($csvBody, 3)) ?: [], static fn (string $l): bool => $l !== '')));
+    $mediaByCode = array_column(array_slice($csvRows, 1), 8, 1);
+    $check(count($csvRows[0]) === 9 && $csvRows[0][8] === __('Tipo media'), 'the CSV export ends with the media type column');
+    $check(($mediaByCode["{$p}-C1"] ?? null) === __('Libro') && ($mediaByCode["{$p}-NOPE"] ?? null) === '', 'a copy carries its media type, an unknown code an empty cell rather than a default');
 
     // Probe: record the session state at the instant a copy turns 'perso'.
     // close() must claim the session before it marks anything, so scans that
@@ -139,7 +146,7 @@ try {
     $check($one("SELECT stato FROM copie WHERE id = {$c8}") === 'danneggiato' && $one("SELECT stato FROM copie WHERE id = {$c9}") === 'perso' && $one("SELECT stato FROM copie WHERE id = {$c10}") === 'in_restauro', 'a damaged copy is not overwritten to lost; copies out of circulation at opening are untouched');
     $check((int) $one("SELECT copie_disponibili FROM libri WHERE id = {$b1}") === 1, 'book availability is recalculated (1 of the 3 remaining copies)');
     $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$b1} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 1, 'an ActivityLog entry records the copy declared lost');
-    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$sessionId}") === 'chiusa', 'the session is closed');
+    $check($one("SELECT CONCAT(stato, ':', azione_mancanti) FROM inventario_sessioni WHERE id = {$sessionId}") === 'chiusa:perso', 'the session is closed and remembers it was closed with "mark lost"');
     $check($one("SELECT GROUP_CONCAT(CONCAT(copia_id, ':', esito_chiusura) ORDER BY copia_id) FROM inventario_attese WHERE sessione_id = {$sessionId}") === "{$c1}:trovata,{$c2}:mancante,{$c6}:persa,{$c3}:in_prestito,{$c7}:in_prestito,{$c8}:mancante", 'closing freezes each expected copy\'s bucket: the scan outcome, on loan, missing, or lost when the close marked it');
     $closedSummary = $service->summary($sessionId);
     $check($closedSummary['trovate'] === 1 && $closedSummary['fuori_posto'] === 0 && $closedSummary['in_prestito'] === 2 && $closedSummary['mancanti'] === 3 && $closedSummary['perse'] === 1 && $closedSummary['attese'] === 6, 'the closed summary reads found 1, on loan 2, missing 3 of which 1 marked lost');
@@ -155,6 +162,11 @@ try {
     $second = $service->open('ZZST2 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $second;
     $check((int) $one("SELECT totale_attese FROM inventario_sessioni WHERE id = {$second}") === 3, 'a collocation range opens on B2 alone (C3, C5, C7)');
+    // The index lists every open session; the limit only trims closed history.
+    $listed = array_map(static fn (array $r): int => (int) $r['id'], $service->listSessions(1));
+    $openIds = array_map('intval', array_column($db->query("SELECT id FROM inventario_sessioni WHERE stato = 'aperta'")->fetch_all(), 0));
+    $check(array_diff($openIds, $listed) === [] && in_array($second, $listed, true), 'listSessions() returns every open session whatever the limit');
+    $check(count($listed) - count($openIds) <= 1, 'the limit applies to closed and cancelled sessions only');
     $import = $service->importCodes($second, StocktakeService::parseCodeList("codice\n{$p}-C5\n{$p}-C5\n{$p}-C1\n{$p}-C7\n"), null, null);
     $check($import['total'] === 4 && $import['outcomes']['trovata'] === 1 && $import['outcomes']['duplicata'] === 1 && $import['outcomes']['fuori_ambito'] === 1 && $import['outcomes']['in_prestito'] === 1, 'an uploaded list is classified line by line; a copy waiting for pickup is reported with the lent ones');
     // A copy recorded as lost is outside every snapshot; when it turns up the
@@ -260,6 +272,25 @@ try {
     $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'mancante', 'the frozen report stays missing when marking lost fails');
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$atomicSession}") === 'chiusa', 'the retried close succeeds even when marking a book lost fails');
     $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$atomicBook} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 0, 'the rolled-back loss writes no copy audit event');
+
+    // The session is closed, so close() cannot be repeated: the copies the
+    // mark-lost close did not reach are completed from the closed session.
+    $check($service->pendingLostCount($atomicSession) === 1, 'the copy the close failed to mark is pending');
+    $check($refused(static fn () => $service->resumeMarkLost($second, null)), 'a cancelled session cannot resume marking');
+    $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
+    $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $atomicSession . '/close')
+        ->withParsedBody(['azione_mancanti' => 'perso']);
+    (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $atomicSession);
+    $check($one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'perso', 'posting "mark lost" again on the closed session marks the copy it missed');
+    $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'persa' && $one("SELECT copie_disponibili FROM libri WHERE id = {$atomicBook}") === '0', 'the resumed marking freezes the bucket and recalculates availability');
+    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0], 'resuming again finds nothing left to mark');
+    $fifth = $service->open('ZZST5 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $fifth;
+    $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fifth . '/close')
+        ->withParsedBody(['azione_mancanti' => 'bogus']);
+    $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
+    (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $fifth);
+    $check(($_SESSION['error_message'] ?? '') === __('Azione non valida.') && $one("SELECT stato FROM inventario_sessioni WHERE id = {$fifth}") === 'aperta', 'an unknown missing-copies action is refused and the session stays open');
 
     echo "SUCCESS {$checks} stocktake snapshot checks\n";
 } finally {
