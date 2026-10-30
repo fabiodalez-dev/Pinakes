@@ -1,16 +1,16 @@
 <?php
 declare(strict_types=1);
 /**
- * Run the real patron-cards-import section of migrate_0.9.0.sql against a
+ * Run the real patron-cards-import section of migrate_0.9.0-rc.1.sql against a
  * scoped copy of the 0.8.9 import_logs table, twice.
  */
 require dirname(__DIR__) . '/vendor/autoload.php';
 $env = Dotenv\Dotenv::parse(file_get_contents(dirname(__DIR__) . '/.env'));
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
 $table = 'zz_mig090_pci_' . bin2hex(random_bytes(4));
-$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0.sql');
+$file = (string) file_get_contents(dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0-rc.1.sql');
 if (!preg_match('/-- ── patron-cards-import ──(.*?)-- ── end patron-cards-import ──/s', $file, $m)) {
-    throw new RuntimeException('FAIL the patron-cards-import section is missing from migrate_0.9.0.sql');
+    throw new RuntimeException('FAIL the patron-cards-import section is missing from migrate_0.9.0-rc.1.sql');
 }
 $source = preg_replace('/^--.*$/m', '', $m[1]);
 $source = preg_replace('/\bimport_logs\b/', $table, $source);
@@ -55,7 +55,7 @@ try {
     // start with the 0.8.9 values and contain users.
     $check(preg_match("/`import_type` enum\\('csv','librarything'(?:,'[a-z_]+')*,'users'(?:,'[a-z_]+')*\\)/", (string) file_get_contents(dirname(__DIR__) . '/installer/database/schema.sql')) === 1, 'fresh install includes the users value');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', $version, '<='), 'release includes the migration');
+    $check(version_compare('0.9.0-rc.1', $version, '<='), 'release includes the migration');
     echo "SUCCESS {$checks} migration checks\n";
 } finally {
     $db->query("DROP TABLE IF EXISTS {$table}");

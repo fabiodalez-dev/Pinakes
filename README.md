@@ -27,7 +27,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.9.0
 
-**Stocktake, MARC in and out, and the circulation tools of a full library system.** One additive migration (`migrate_0.9.0.sql`); an installation that never opens the new pages and settings behaves exactly as before. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Stocktake, MARC in and out, and the circulation tools of a full library system.** One additive migration (`migrate_0.9.0-rc.1.sql`); an installation that never opens the new pages and settings behaves exactly as before. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 - **Inventory stocktake** (`/admin/inventory`): sessions over a bookcase, shelf, genre or collocation range, scanning by barcode reader, camera or uploaded list, a live found / misplaced / on loan / missing report with PDF and CSV, and an optional "mark missing as lost" reserved to administrators.
 - **MARC bulk import and export, copy cataloguing**: ISO 2709 and MARCXML (MARC 21, UNIMARC, danMARC2, MARC-8) imported in chunks with a preview, the catalogue or a selection exported as MARC 21, MARCXML or UNIMARC, and records searched and imported from other catalogues over SRU.

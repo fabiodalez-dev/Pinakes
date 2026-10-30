@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Run the REAL "Inventory stocktake" section of migrate_0.9.0.sql, twice,
+ * Run the REAL "Inventory stocktake" section of migrate_0.9.0-rc.1.sql, twice,
  * against sandbox copies of the 0.8.9 tables it depends on (sedi, utenti,
  * ruoli). Every name the section creates or references is prefixed so the
  * sandbox never touches the installed tables or their constraint names.
@@ -17,7 +17,7 @@ $env = Dotenv\Dotenv::parse((string) file_get_contents(dirname(__DIR__) . '/.env
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
 $db->set_charset('utf8mb4');
 
-$file = dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0.sql';
+$file = dirname(__DIR__) . '/installer/database/migrations/migrate_0.9.0-rc.1.sql';
 $source = (string) file_get_contents($file);
 $start = strpos($source, '-- ── Inventory stocktake ──');
 $end = strpos($source, '-- ── end Inventory stocktake ──');
@@ -115,7 +115,7 @@ try {
     $check(str_contains($schema, "`esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,"), 'fresh install creates inventario_attese.esito_chiusura');
     $check(str_contains($schema, "('Revisore inventario', '[\"backend.access\",\"inventory.manage\"]')"), 'fresh install seeds the stocktake preset');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
-    $check(version_compare('0.9.0', (string) $version, '<='), 'the release includes migrate_0.9.0.sql');
+    $check(version_compare('0.9.0-rc.1', (string) $version, '<='), 'the release includes migrate_0.9.0-rc.1.sql');
     echo "SUCCESS {$checks} migration checks\n";
 } finally {
     foreach ([$scans, $expected, $sessions, $p . 'ruoli', $p . 'utenti', $p . 'sedi'] as $table) {
