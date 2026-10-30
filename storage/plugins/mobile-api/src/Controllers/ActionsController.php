@@ -159,8 +159,15 @@ final class ActionsController
             $ledger = \App\Services\PatronLedger::forDb($this->db);
             $params = \App\Services\FineParameters::forUser($this->db, $userId);
             $balance = $ledger->balanceCents($userId);
+            // Paged like the staff lists (opaque `cursor`, `limit` up to 200,
+            // the previous fixed page size, still the default): one row more
+            // than the page tells whether older movements exist.
+            $limit = \App\Plugins\MobileApi\Support\StaffPaging::limit($request, 200, 200);
+            $offset = \App\Plugins\MobileApi\Support\StaffPaging::offset($request);
+            $rows = $ledger->movements($userId, $limit + 1, $offset);
+            $hasMore = count($rows) > $limit;
             $items = [];
-            foreach ($ledger->movements($userId, 200) as $m) {
+            foreach (array_slice($rows, 0, $limit) as $m) {
                 $cents = \App\Services\FineParameters::decimalToCents($m['importo']);
                 $items[] = [
                     'id'           => (int) $m['id'],
@@ -193,7 +200,7 @@ final class ActionsController
                 'debt_block_threshold_cents' => $threshold,
                 'debt_blocked'           => $threshold !== null && $balance > $threshold,
                 'items'                  => $items,
-            ], ['count' => count($items)], 200);
+            ], \App\Plugins\MobileApi\Support\StaffPaging::meta(count($items), $limit, $offset, $hasMore), 200);
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] my movements failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Movimenti non disponibili.'), 500);
@@ -1341,7 +1348,9 @@ final class ActionsController
             case 'debt_block':
                 // Same code as before for existing app builds; the message
                 // says the balance is the reason.
-                return ResponseEnvelope::error($response, 'not_eligible', \App\Support\LoanEligibility::errorMessage('debt_block'), 403);
+                // meta.reason tells it apart from a suspended account or an
+                // expired card (Mobile API 1.9.0, as the changelog says).
+                return ResponseEnvelope::error($response, 'not_eligible', \App\Support\LoanEligibility::errorMessage('debt_block'), 403, ['reason' => 'debt_block']);
             case 'book_not_found':
                 return ResponseEnvelope::error($response, 'not_found', __('Libro non trovato.'), 404);
             case 'past_date':
