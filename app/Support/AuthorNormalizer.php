@@ -29,9 +29,11 @@ class AuthorNormalizer
         // normalised on its own: run as one string, the comma rule turned
         // "Rossi, Mario; Bianchi, Luca" into "Mario; Bianchi, Luca Rossi" and
         // the quotes of one listed name were never removed.
-        if (preg_match('/[;|]/u', $name) === 1) {
+        // Decoded first, as ContributorSync::splitNames() does: the ';' of an
+        // HTML entity (O&#039;Brien) is not a list separator.
+        if (preg_match('/[;|]/u', HtmlHelper::decode($name)) === 1) {
             $names = [];
-            foreach (preg_split('/\s*[;|]\s*/u', trim($name)) ?: [] as $part) {
+            foreach (ContributorSync::splitNames($name) as $part) {
                 $part = self::normalize(ExactSearch::quotedValue($part) ?? $part);
                 if ($part !== '' && !in_array($part, $names, true)) {
                     $names[] = $part;
