@@ -150,7 +150,7 @@ class MarcImportController
             'mode' => $mode,
             'covers' => !empty($data['download_covers']),
             // Validated once here; a supplier deleted during the import is
-            // simply not assigned (CataloguingExtras::assignSupplier).
+            // not assigned, and each book left without it is listed.
             'fornitore_id' => CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
             'offset' => 0,
             'processed' => 0,
@@ -225,10 +225,14 @@ class MarcImportController
                         self::listSkippedDuplicate($state, $position, $title, (int) $result['id']);
                     }
                     if ($supplierId > 0 && $result['id'] !== null && self::supplierApplies((string) $result['action'], (string) $state['mode'])) {
+                        // Listed under its own type: the book is imported
+                        // and counted, only its supplier link is missing.
                         try {
-                            CataloguingExtras::assignSupplier($db, (int) $result['id'], $supplierId);
+                            if (!CataloguingExtras::assignSupplier($db, (int) $result['id'], $supplierId)) {
+                                self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => __('Fornitore non assegnato: è stato eliminato durante l\'importazione.'), 'type' => 'supplier']);
+                            }
                         } catch (\Throwable $e) {
-                            $warnings[] = __('Fornitore non assegnato') . ': ' . $e->getMessage();
+                            self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => __('Fornitore non assegnato') . ': ' . $e->getMessage(), 'type' => 'supplier']);
                             \App\Support\SecureLogger::warning('[MARC import] supplier not assigned', ['libro_id' => (int) $result['id'], 'error' => $e->getMessage()]);
                         }
                     }
