@@ -133,6 +133,9 @@ try {
     $check($ledger->backfillLegacyPenalties(1) === 1, 'a penalty the migration did not reach is converted by the backfill');
     $check($ledger->backfillLegacyPenalties() === 0 && $scalar("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:15'") === '1', '...exactly once');
     $check($ledger->chargeLossPenalty(15) === 0, 'the live path (same key) does not double it either');
+    $db->query("INSERT INTO prestiti (id, utente_id, stato, sanzione, data_restituzione) VALUES (16, 2, 'perso', 1.00, '2026-07-02'), (17, 2, 'perso', 2.00, '2026-07-03')");
+    $check($ledger->backfillLegacyPenalties(1, 1) === null, 'a backfill stopped by its batch limit with rows left reports "not done" (null), so maintenance keeps its marker unset');
+    $check($ledger->backfillLegacyPenalties(1, 5) === 1, '...and the next pass converts the rest and reports done');
 
     echo "Email templates: {{multa}} reaches a stored loan_returned default (SettingsRepository::ensureEmailTemplates)\n";
     $repo = new \App\Models\SettingsRepository($db);
@@ -175,6 +178,16 @@ try {
             $repo->ensureEmailTemplates($defaults($locale), $locale);
             $again = $repo->getEmailTemplate('loan_returned', $locale);
             $check(is_array($again) && (string) $again['body'] === (string) $row['body'], "{$locale}: a second pass changes nothing (idempotent)");
+        }
+        if ($locale !== 'it_IT') {
+            // A non-Italian install whose row still holds the Italian text an
+            // older release seeded (no {{multa}} line, Italian subject): it is
+            // translated to the current localized default, subject included.
+            $italian = \App\Support\SettingsMailTemplates::get('loan_returned', 'it_IT');
+            $seedRow($locale, (string) \App\Support\SettingsMailTemplates::retiredBodies('loan_returned', 'it_IT')[0], (string) $italian['subject']);
+            $repo->ensureEmailTemplates($defaults($locale), $locale);
+            $row = $repo->getEmailTemplate('loan_returned', $locale);
+            $check(is_array($row) && trim((string) $row['body']) === trim($current) && (string) $row['subject'] === (string) $defaults($locale)['loan_returned']['subject'], "{$locale}: a row still in the pre-0.9.0 Italian text gets the localized default and subject");
         }
         $custom = str_replace('</h2>', ' (customised)</h2>', (string) $retired[0]);
         $seedRow($locale, $custom, 'My subject');
