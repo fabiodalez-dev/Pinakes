@@ -24,6 +24,21 @@ class AuthorNormalizer
      */
     public static function normalizeStored(string $name): string
     {
+        // A cache column holds a '; '-joined list (the separator ContributorSync
+        // and the importers use, '|' accepted on input). Each name is
+        // normalised on its own: run as one string, the comma rule turned
+        // "Rossi, Mario; Bianchi, Luca" into "Mario; Bianchi, Luca Rossi" and
+        // the quotes of one listed name were never removed.
+        if (preg_match('/[;|]/u', $name) === 1) {
+            $names = [];
+            foreach (preg_split('/\s*[;|]\s*/u', trim($name)) ?: [] as $part) {
+                $part = self::normalize(ExactSearch::quotedValue($part) ?? $part);
+                if ($part !== '' && !in_array($part, $names, true)) {
+                    $names[] = $part;
+                }
+            }
+            return implode('; ', $names);
+        }
         return self::normalize(ExactSearch::quotedValue($name) ?? $name);
     }
 

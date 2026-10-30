@@ -149,7 +149,14 @@ $same($dedupBook, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'au
 $same($dedupBook, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "\"Haffner, {$given}\""]), 'CSV dedup: a quoted inverted Haffner matches too');
 $same(null, $findExisting->invoke($csv, $db, ['titolo' => $dedupTitle, 'autori' => "\"{$given} Häffner\""]), 'CSV dedup: a quoted Häffner is a different person and does not match the book by Haffner');
 
+// The typed contributor branch of updateOptionals() runs after the entity
+// sync: it must write the cache column without the whole-name quotes.
+(new \App\Models\BookRepository($db))->updateOptionals($dedupBook, ['traduttore' => "\"Hüffner, {$given}\"", 'curatore' => "\"{$given} Höffner\"; Mario Rossi"]);
+$cached = $db->query("SELECT traduttore, curatore FROM libri WHERE id = {$dedupBook}")->fetch_assoc();
+$same("{$given} Hüffner", $cached['traduttore'] ?? null, 'updateOptionals: a quoted inverted translator is cached canonical and without quotes');
+$same("{$given} Höffner; Mario Rossi", $cached['curatore'] ?? null, 'updateOptionals: only the whole-name quotes go; a list keeps its names');
+
 $typed = $periodicals->resolve(["new:\"Verlag {$given} Hüffner\""]);
 $ok(count($typed) === 1 && $nameOf('editori', $typed[0]) === "Verlag {$given} Hüffner" && $typed[0] !== $pubPlain, 'periodicals: a quoted typed publisher is a new one, stored without quotes');
 
-Exact501::finish(51);
+Exact501::finish(53);
