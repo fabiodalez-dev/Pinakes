@@ -25,8 +25,8 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 
 ### Migration
 
-- `migrate_0.9.0.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` (with `esito_chiusura`, the bucket frozen at close; added with a guard to a table an earlier build created) and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
-- `migrate_0.9.0.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`. Idempotent; existing rows are untouched.
+- `migrate_0.9.0-rc.1.sql`, section "Inventory stocktake": creates `inventario_sessioni`, `inventario_attese` (with `esito_chiusura`, the bucket frozen at close; added with a guard to a table an earlier build created) and `inventario_scansioni` (UNIQUE `sessione_id, copia_id`) and seeds the "Revisore inventario" role. Additive and idempotent; nothing existing changes.
+- `migrate_0.9.0-rc.1.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`. Idempotent; existing rows are untouched.
 
 ## [0.8.9]
 

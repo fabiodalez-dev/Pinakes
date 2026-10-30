@@ -888,7 +888,10 @@ class LibraryThingImportController
 
         $normalized = [];
         foreach ($this->splitContributorList($value, '/\s*[;|]\s*/u') as $part) {
-            $name = \App\Support\AuthorNormalizer::normalize($part);
+            // Written to the libri.* display cache only: whole-name quotes mean
+            // exact spelling (#501) and stay on the value ContributorSync gets
+            // from parseLibraryThingRow(), never in the stored text.
+            $name = \App\Support\AuthorNormalizer::normalizeStored($part);
             if ($name !== '' && !in_array($name, $normalized, true)) {
                 $normalized[] = $name;
             }
