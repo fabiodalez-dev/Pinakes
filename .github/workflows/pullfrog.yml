@@ -28,7 +28,7 @@ permissions:
 jobs:
   pullfrog:
     name: Pullfrog agent
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45 # Two bounded attempts plus checkout and cleanup.
     env:
       # Whether a second subscription token is configured. Only the presence is

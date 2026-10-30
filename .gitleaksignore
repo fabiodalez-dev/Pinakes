@@ -1,0 +1,39 @@
+# Gitleaks fingerprints (commit:path:rule:line) for findings in the full-history
+# scan that are documentation examples or published test vectors, not secrets.
+# The pull_request and push runs only scan the changed range; the scheduled and
+# manual runs scan every commit and were failing on these 28 entries.
+#
+# api-book-scraper docs and views: placeholder keys in curl examples
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/api-book-scraper/README.md:stripe-access-token:43
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/api-book-scraper/SERVER_IMPLEMENTATION_GUIDE.md:stripe-access-token:89
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/api-book-scraper/SERVER_IMPLEMENTATION_GUIDE.md:stripe-access-token:113
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/api-book-scraper/SERVER_IMPLEMENTATION_GUIDE.md:curl-auth-header:1034
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/api-book-scraper/SERVER_IMPLEMENTATION_GUIDE.md:curl-auth-header:1039
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/api-book-scraper/SERVER_IMPLEMENTATION_GUIDE.md:curl-auth-header:1043
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:app/Views/admin/plugins.php:stripe-access-token:426
+84f14515c448bbadf6ee55cec463ba858a32faa4:app/Views/admin/plugins.php:stripe-access-token:474
+c9453c46fe2225531790a2edc90c25b1cb667f05:app/Views/admin/plugins.php:stripe-access-token:474
+# Settings page and admin docs: "your-api-key-here" style curl examples
+16ba645f1f990600f69d3842ce3bcd319fbe15f0:app/Views/settings/advanced-tab.php:curl-auth-header:607
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:app/Views/settings/advanced-tab.php:curl-auth-header:684
+e851035fbe920538a6bf8fc5980312891e4eb878:admin/configurazione.md:curl-auth-header:546
+# z39-server plugin: array literals matched by the generic rule
+412253a18455260a5a793b04df36acc23712e7d2:storage/plugins/z39-server/Z39ServerPlugin.php:generic-api-key:122
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/z39-server/Z39ServerPlugin.php:generic-api-key:126
+b868a6b5d2180172b101171ac9eb98ae3e65ce5f:storage/plugins/z39-server/Z39ServerPlugin.php:generic-api-key:169
+# French translation strings matched by the generic rule
+ad01c97eb68aefad0c1067adfd8377d8f882fa89:locale/fr_FR.json:generic-api-key:2861
+3511b34a1e45f1f59a02cd2ebedf36f7dfe32f3e:locale/fr_FR.json:generic-api-key:2867
+8cfb76efc76183f5fdffb702d682238b2b5dcaac:locale/fr_FR.json:generic-api-key:2871
+320d3a3df0475fbe34d765e50b243499bd5b1414:locale/fr_FR.json:generic-api-key:2874
+9d70038db598cccc7ab2f2f5941e1ff3a66a75cb:locale/fr_FR.json:generic-api-key:4439
+# Update scripts: option names matched by the generic rule
+03a8f3e1f75140af13b065d9b52b1d41ebf63e96:scripts/manual-update.php:generic-api-key:443
+5e4ea3f42c694595559f9122932a0eb9fec023e7:scripts/manual-upgrade.php:generic-api-key:569
+f0b1f8b5d473119235892e5dcec8860937eb8f67:test-updater/manual-update.php:generic-api-key:443
+# Tests: RFC 8291 Appendix A web-push vectors and fixture strings
+abbe641a9221c29f1ed009bde2873835b53c20f7:tests/mobile-webpush-encryption.unit.php:private-key:25
+abbe641a9221c29f1ed009bde2873835b53c20f7:tests/mobile-webpush-encryption.unit.php:generic-api-key:34
+ac4fcabc00953f3fd5f5c9d59fe5fb5da7f744cb:tests/schema-integrity.spec.js:generic-api-key:91
+5eb52517f88d1ea3fadfffc1f92af21dbd9a1da2:tests/schema-integrity.spec.js:generic-api-key:117
+8cfea8b8d47a8df9efef4d203ca96d8697203908:tests/security-hardening.spec.js:generic-api-key:37
