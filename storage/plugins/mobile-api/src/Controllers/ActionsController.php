@@ -665,6 +665,7 @@ final class ActionsController
             ];
 
             $data += \App\Support\Permissions::describe(\App\Support\Permissions::viewer($userId, $this->db));
+            $data['patron_type'] = $this->patronTypeOf($userId);
 
             // Fields the administrator has hidden (Settings -> Registration) are
             // omitted from the payload and listed in hidden_fields, so the app
@@ -680,6 +681,34 @@ final class ActionsController
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] get profile failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Profilo non disponibile.'), 500);
+        }
+    }
+
+    /**
+     * The patron type that governs the reader's circulation rules (Pinakes
+     * 0.9.0): their own, else the library's default one. Null with the
+     * module off, before the migration, or when no type exists. A failure
+     * here never takes the profile down with it.
+     *
+     * @return array{id: int, code: string, name: string}|null
+     */
+    private function patronTypeOf(int $userId): ?array
+    {
+        try {
+            $policy = new \App\Services\CirculationPolicy($this->db);
+            $typeId = $policy->patronTypeOf($userId);
+            $type = $typeId !== null ? ($policy->types()[$typeId] ?? null) : null;
+            if (!is_array($type)) {
+                return null;
+            }
+            return [
+                'id'   => (int) $type['id'],
+                'code' => (string) ($type['codice'] ?? ''),
+                'name' => \App\Support\HtmlHelper::decode((string) ($type['nome'] ?? '')),
+            ];
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[MobileApi] patron type lookup failed: ' . $e->getMessage());
+            return null;
         }
     }
 

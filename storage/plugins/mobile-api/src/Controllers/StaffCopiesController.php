@@ -54,11 +54,32 @@ final class StaffCopiesController
         if (array_key_exists('notes', $json) && $json['notes'] !== null && !is_string($json['notes'])) {
             return ResponseEnvelope::error($response, 'validation_error', __('Valore non valido.'), 422, ['field' => 'notes']);
         }
+        if (array_key_exists('consultation_only', $json) && !is_bool($json['consultation_only'])) {
+            return ResponseEnvelope::error($response, 'validation_error', __('Valore non valido.'), 422, ['field' => 'consultation_only']);
+        }
         try {
             $reader = new StaffCopyReader($this->db);
             $row = $reader->row($id);
             if ($row === null) {
                 return $this->notFound($response);
+            }
+            // Consultation only (Pinakes 0.9.0): the same toggle as the book
+            // page, with its refusals (a copy held by a loan, a pickup or a
+            // copy-bound request) and its queue promotion when it is lendable
+            // again. Status and notes, when sent too, are applied after it.
+            if (array_key_exists('consultation_only', $json)) {
+                if (!$reader->consultationActive()) {
+                    return ResponseEnvelope::error($response, 'feature_disabled', __('Funzione non disponibile su questa istanza.'), 404);
+                }
+                $refused = $this->setConsultation($id, $json['consultation_only'] === true);
+                if ($refused !== null) {
+                    return ResponseEnvelope::error($response, 'conflict', $refused, 409);
+                }
+                if (!array_key_exists('status', $json) && !array_key_exists('notes', $json)) {
+                    $copy = $reader->copy($id);
+                    return $copy === null ? $this->notFound($response) : ResponseEnvelope::success($response, $copy);
+                }
+                $row = $reader->row($id) ?? $row;
             }
             $current = (string) $row['stato'];
             $target = is_string($json['status'] ?? null) ? (string) $json['status'] : $current;
@@ -95,6 +116,27 @@ final class StaffCopiesController
         } catch (\Throwable $e) {
             return $this->fail($response, 'copy update', $e);
         }
+    }
+
+    /**
+     * Mark the copy consultation only, or lendable again, through
+     * CopyController::toggleConsultation(). Returns the refusal message, or
+     * null when the copy now has the requested flag.
+     */
+    private function setConsultation(int $id, bool $consultation): ?string
+    {
+        $db = $this->db;
+        $outcome = Delegation::run(static fn (): ResponseInterface => (new CopyController())->toggleConsultation(
+            Delegation::request('POST', '/admin/books/copies/' . $id . '/consultation', ['solo_consultazione' => $consultation ? '1' : '0']),
+            new SlimResponse(),
+            $db,
+            $id
+        ));
+        $error = $outcome->flash('error_message');
+        if ($error !== null || $outcome->errorCode() !== null) {
+            return $error ?? __('Operazione non consentita nello stato attuale.');
+        }
+        return null;
     }
 
     public function delete(ServerRequestInterface $request, ResponseInterface $response, int $id): ResponseInterface

@@ -1542,6 +1542,11 @@ final class OpenApiController
                     'description' => 'Built-in fields the admin has hidden (Settings -> Registration). They are omitted from this payload and ignored by PATCH /me, which keeps the stored value. Empty when every field is shown.',
                     'items'       => ['type' => 'string', 'enum' => ['sesso', 'cod_fiscale']],
                 ],
+                'patron_type'       => [
+                    'type'        => ['object', 'null'],
+                    'description' => 'Since 1.9.0 (Pinakes 0.9.0): the patron type whose circulation rules apply to the reader, their own or the library default. Null with circulation_rules off or when no type exists.',
+                    'properties'  => ['id' => ['type' => 'integer'], 'code' => ['type' => 'string'], 'name' => ['type' => 'string']],
+                ],
             ],
         ];
     }
