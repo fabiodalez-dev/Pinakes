@@ -82,6 +82,16 @@ $check(UserImport::detectDelimiter(["a;b;c\n", "1;2;3\n"]) === ';' && UserImport
 $check(UserImport::detectDelimiter(["Nome;Cognome;Indirizzo\n", "Mario;Rossi;Via Roma 1, int. 3, scala B, piano 2, 00100 Roma\n", "Anna;Bianchi;Piazza Dante 5, int. 1, scala A, 20100 Milano, MI\n"]) === ';', 'a ";" file whose addresses hold more commas than there are separators is still a ";" file');
 $check(UserImport::detectDelimiter(["Nome,Cognome,Note\n", "\"Rossi, Mario\",x,\"a;b;c\"\n", "\"Bianchi; Anna\",y,\"d;e\"\n"]) === ',', 'a "," file with quoted fields full of semicolons is a "," file: a separator inside quotes never counts');
 $check(UserImport::detectDelimiter(["Nome\tCognome\tNote\n", "a\tb\tc, d; e\n"]) === "\t", 'a TAB file is a TAB file whatever its cells hold');
+$multiline = "nome;cognome;indirizzo\r\nMaria;Rossi;\"Via Roma 1,\nint. 3, scala B,\n00100 Roma\"\r\nLuca;Bianchi;\"Piazza \"\"Dante\"\", 5\"\r\nAnna;Verdi;x\r\n";
+$records = UserImport::sampleRecords($multiline, 5);
+$check(count($records) === 4 && str_contains($records[1], "int. 3, scala B,\n00100 Roma") && str_starts_with($records[2], 'Luca;'), 'the delimiter sample is made of logical records: a quoted cell spanning lines stays one record, a doubled quote keeps the balance');
+$check(count(UserImport::sampleRecords($multiline, 2)) === 2 && UserImport::detectDelimiter($records) === ';', 'the sample stops at the requested count and every record splits like the header');
+$check(count(UserImport::sampleRecords("a;b\n\"open\n" . str_repeat("x\n", 200), 5)) === 2, 'an unbalanced quote reads at most MAX_SAMPLE_LINES lines');
+$capped = ['errors' => []];
+for ($i = 0; $i < \App\Controllers\UserImportController::MAX_STORED_ERRORS + 20; $i++) {
+    \App\Controllers\UserImportController::report($capped, ['line' => $i, 'title' => '', 'message' => 'x', 'type' => 'validation']);
+}
+$check(count($capped['errors']) === \App\Controllers\UserImportController::MAX_STORED_ERRORS, 'the error report kept in the session is capped');
 $check(UserImport::detectDelimiter(["Nome\n", "Mario\n", "Anna\n"]) === null && UserImport::detectDelimiter([]) === null && UserImport::detectDelimiter([false]) === null, 'one column, or nothing, is no delimiter');
 $check(UserImport::detectDelimiter(["Nome;Cognome;E-mail\n"]) === ';' && UserImport::detectDelimiter(["Nome;Cognome;E-mail\n", ""]) === ';', 'a header alone tells the delimiter when it has more than one column');
 
@@ -159,7 +169,11 @@ try {
 
     $img = imagecreatetruecolor(1600, 1200);
     imagefill($img, 0, 0, (int) imagecolorallocate($img, 200, 30, 30));
-    $src = tempnam(sys_get_temp_dir(), 'pci') . '.png';
+    // Rename the reserved temp file rather than append to its name: tempnam()
+    // creates it, and the suffixed copy alone would be cleaned up.
+    $reserved = tempnam(sys_get_temp_dir(), 'pci');
+    $src = $reserved . '.png';
+    rename($reserved, $src);
     imagepng($img, $src);
     $check(PatronPhoto::store($db, $userId, $src) === null, 'a PNG is accepted');
     $stored = PatronPhoto::storedFor($db, $userId);
@@ -183,18 +197,61 @@ try {
     $jpeg = (string) ob_get_clean();
     $tiff = "MM\x00\x2a\x00\x00\x00\x08" . "\x00\x01" . "\x01\x12\x00\x03\x00\x00\x00\x01\x00\x06\x00\x00" . "\x00\x00\x00\x00";
     $app1 = "Exif\x00\x00" . $tiff;
+    $withOrientation = static function (string $jpeg, int $orientation): string {
+        $tiff = "MM\x00\x2a\x00\x00\x00\x08" . "\x00\x01" . "\x01\x12\x00\x03\x00\x00\x00\x01" . pack('n', $orientation) . "\x00\x00" . "\x00\x00\x00\x00";
+        $app1 = "Exif\x00\x00" . $tiff;
+        return substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($app1) + 2) . $app1 . substr($jpeg, 2);
+    };
     file_put_contents($src, substr($jpeg, 0, 2) . "\xFF\xE1" . pack('n', strlen($app1) + 2) . $app1 . substr($jpeg, 2));
-    if (function_exists('exif_read_data')) {
-        $check(PatronPhoto::store($db, $userId, $src) === null, 'a JPEG with EXIF orientation is accepted');
-        $rotatedPath = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
-        $photoFiles[] = $rotatedPath;
-        $rotatedInfo = $rotatedPath !== null ? getimagesize($rotatedPath) : false;
-        $check($rotatedInfo !== false && $rotatedInfo[1] > $rotatedInfo[0], 'EXIF Orientation 6 is applied: the stored photo is upright (portrait)');
+    // Read without the exif extension too, so the rotation never depends on it.
+    $check(PatronPhoto::jpegOrientation((string) file_get_contents($src)) === 6 && PatronPhoto::jpegOrientation($jpeg) === null && PatronPhoto::jpegOrientation('not a jpeg') === null, 'the EXIF Orientation is read from the APP1 block directly');
+    $check(PatronPhoto::orientationTransform(5) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 90] && PatronPhoto::orientationTransform(7) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => -90]
+        && PatronPhoto::orientationTransform(2) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 0] && PatronPhoto::orientationTransform(4) === ['flip' => IMG_FLIP_VERTICAL, 'angle' => 0]
+        && PatronPhoto::orientationTransform(1) === ['flip' => null, 'angle' => 0] && PatronPhoto::orientationTransform(null) === ['flip' => null, 'angle' => 0], 'every EXIF orientation maps to a mirror and a rotation');
+    $check(PatronPhoto::store($db, $userId, $src) === null, 'a JPEG with EXIF orientation is accepted');
+    $rotatedPath = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+    $photoFiles[] = $rotatedPath;
+    $rotatedInfo = $rotatedPath !== null ? getimagesize($rotatedPath) : false;
+    $check($rotatedInfo !== false && $rotatedInfo[1] > $rotatedInfo[0], 'EXIF Orientation 6 is applied: the stored photo is upright (portrait)');
+    // Orientation 5 (transpose) and 7 (transverse) on a landscape image whose
+    // left half is red: transposed the red half is on top, transversed at the bottom.
+    $halves = imagecreatetruecolor(400, 200);
+    imagefill($halves, 0, 0, (int) imagecolorallocate($halves, 20, 20, 220));
+    imagefilledrectangle($halves, 0, 0, 199, 199, (int) imagecolorallocate($halves, 220, 20, 20));
+    ob_start();
+    imagejpeg($halves, null, 95);
+    $halvesJpeg = (string) ob_get_clean();
+    $isRed = static function (\GdImage $img, int $x, int $y): bool {
+        $c = imagecolorat($img, $x, $y);
+        return (($c >> 16) & 0xFF) > 150 && ($c & 0xFF) < 100;
+    };
+    foreach ([5 => true, 7 => false] as $orientation => $redOnTop) {
+        file_put_contents($src, $withOrientation($halvesJpeg, $orientation));
+        $ok = PatronPhoto::store($db, $userId, $src) === null;
+        $out = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+        $photoFiles[] = $out;
+        $img = $out !== null ? imagecreatefromjpeg($out) : false;
+        $check($ok && $img !== false && imagesx($img) === 200 && imagesy($img) === 400 && $isRed($img, 100, 50) === $redOnTop && $isRed($img, 100, 350) === !$redOnTop, "EXIF Orientation {$orientation} is mirrored and rotated upright");
     }
     file_put_contents($src, "<?php echo 'x';");
     $check(PatronPhoto::store($db, $userId, $src) === 'invalid_image', 'a non-image is refused');
     $check(PatronPhoto::absolutePath('patron_photos/../../.env') === null && PatronPhoto::absolutePath('/etc/passwd') === null, 'a tampered reference never resolves');
+    // A photo for an account that does not exist leaves no file behind.
+    file_put_contents($src, $halvesJpeg);
+    $filesBefore = count(glob(PatronPhoto::directory() . '/*.jpg') ?: []);
+    $check(PatronPhoto::store($db, 2147483000, $src) === 'db' && count(glob(PatronPhoto::directory() . '/*.jpg') ?: []) === $filesBefore, 'a photo for a missing account is refused and its file removed');
     $current = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+    // A file that cannot be removed keeps its reference, so it is never orphaned.
+    $dirMode = fileperms(PatronPhoto::directory()) & 0777;
+    @chmod(PatronPhoto::directory(), 0555);
+    clearstatcache();
+    if (!is_writable(PatronPhoto::directory())) {
+        $kept = PatronPhoto::delete($db, $userId) === false && PatronPhoto::storedFor($db, $userId) !== null && $current !== null && is_file($current);
+        @chmod(PatronPhoto::directory(), $dirMode);
+        $check($kept, 'a photo file that cannot be removed keeps its reference');
+    } else {
+        @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
+    }
     $check(PatronPhoto::delete($db, $userId) && PatronPhoto::storedFor($db, $userId) === null && $current !== null && !is_file($current), 'delete removes the reference and the file');
     @unlink($src);
 
@@ -218,6 +275,37 @@ try {
         @unlink($f);
     }
     @rmdir($sweepDir);
+
+    // The chunk endpoint: the position to resume from, a vanished staged file,
+    // and an upload refused before it replaces the import in progress.
+    $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $importer = new \App\Controllers\UserImportController();
+    $requests = new \Slim\Psr7\Factory\ServerRequestFactory();
+    $responses = new \Slim\Psr7\Factory\ResponseFactory();
+    $streams = new \Slim\Psr7\Factory\StreamFactory();
+    $call = static function (string $action, array $json) use ($importer, $requests, $responses, $streams, $db): array {
+        $request = $requests->createServerRequest('POST', '/admin/users/import/' . $action)->withBody($streams->createStream((string) json_encode($json)));
+        $response = $importer->{$action}($request, $responses->createResponse(), $db);
+        return [$response->getStatusCode(), json_decode((string) $response->getBody(), true)];
+    };
+    $uploads = dirname(__DIR__) . '/writable/uploads';
+    if (!is_dir($uploads)) {
+        mkdir($uploads, 0755, true);
+    }
+    $staged = $uploads . '/user_import_' . bin2hex(random_bytes(12)) . '.csv';
+    file_put_contents($staged, "nome;cognome;email\nZz;Import;zz-import@example.invalid\n");
+    $running = ['file' => $staged, 'name' => 't.csv', 'delimiter' => ';', 'total' => 1, 'columns' => 3, 'started' => true, 'next' => 0,
+        'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0, 'failed' => 0,
+        'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []];
+    $_SESSION['user_import'] = $running;
+    [$status, $json] = $call('chunk', ['start' => 10]);
+    $check($status === 409 && ($json['processed'] ?? null) === 0 && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block out of sequence is refused with the position to resume from');
+    [$status] = $call('upload', []);
+    $check($status === 400 && is_file($staged) && ($_SESSION['user_import'] ?? null) === $running, 'a refused upload leaves the staged file and the import in progress intact');
+    unlink($staged);
+    [$status, $json] = $call('chunk', ['start' => 0]);
+    $check($status === 409 && !isset($json['processed']) && !is_file($staged) && !isset($_SESSION['user_import']), 'a vanished staged file ends the import with 409 instead of being recreated empty');
+    $_SESSION = [];
 
     // The user import's error report is served under the users permission.
     $check(\App\Support\Permissions::permissionForPath('/admin/users/import/errors') === 'users.manage', 'the user import error report needs users.manage, not catalog.manage');
