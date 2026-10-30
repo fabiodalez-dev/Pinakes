@@ -8577,5 +8577,6 @@
   "La chiusura non ha segnato come perse %d copie mancanti.": "Afslutningen markerede ikke %d manglende eksemplarer som tabt.",
   "Segnare come perse le copie mancanti rimaste?": "Markér de resterende manglende eksemplarer som tabt?",
   "Segna come perse": "Markér som tabt",
-  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Optælling: manglende eksemplarer markeret som tabt efter afslutningen"
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Optælling: manglende eksemplarer markeret som tabt efter afslutningen",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Importen er fuldført, men historikken blev ikke gemt. Prøv igen for at gemme den."
 }

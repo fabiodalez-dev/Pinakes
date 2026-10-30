@@ -8577,5 +8577,6 @@
   "La chiusura non ha segnato come perse %d copie mancanti.": "The close did not mark %d missing copies as lost.",
   "Segnare come perse le copie mancanti rimaste?": "Mark the remaining missing copies as lost?",
   "Segna come perse": "Mark as lost",
-  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Stocktake: missing copies marked as lost after the close"
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Stocktake: missing copies marked as lost after the close",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import complete, but its history was not saved. Try again to save it."
 }

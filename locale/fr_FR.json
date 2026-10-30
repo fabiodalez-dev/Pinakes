@@ -8577,5 +8577,6 @@
   "La chiusura non ha segnato come perse %d copie mancanti.": "La clôture n’a pas marqué %d exemplaires manquants comme perdus.",
   "Segnare come perse le copie mancanti rimaste?": "Marquer comme perdus les exemplaires manquants restants ?",
   "Segna come perse": "Marquer comme perdus",
-  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Récolement : exemplaires manquants marqués comme perdus après la clôture"
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Récolement : exemplaires manquants marqués comme perdus après la clôture",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer."
 }

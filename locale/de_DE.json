@@ -8577,5 +8577,6 @@
   "La chiusura non ha segnato come perse %d copie mancanti.": "Beim Abschluss wurden %d fehlende Exemplare nicht als verloren markiert.",
   "Segnare come perse le copie mancanti rimaste?": "Die verbleibenden fehlenden Exemplare als verloren markieren?",
   "Segna come perse": "Als verloren markieren",
-  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Bestandsrevision: fehlende Exemplare nach dem Abschluss als verloren markiert"
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Bestandsrevision: fehlende Exemplare nach dem Abschluss als verloren markiert",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import abgeschlossen, aber der Verlauf wurde nicht gespeichert. Versuche es erneut, um ihn zu speichern."
 }
