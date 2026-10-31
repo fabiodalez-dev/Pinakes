@@ -826,7 +826,7 @@ class LibraryCalendarController
      * statutory holidays (optional ones stay unticked).
      *
      * @param array<mixed> $query
-     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool}
+     * @return array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool, unknown_country: string}
      */
     private function holidayPreview(\mysqli $db, array $query, int $currentYear): array
     {
@@ -868,6 +868,9 @@ class LibraryCalendarController
             // is being previewed, since they are the saved selection's.
             'missing' => $selection['saved'] ? $selection['missing'] : [],
             'missing_country' => HolidayCalculator::countryNames()[$selection['country']] ?? $selection['country'],
+            // A stored country no longer known: the page warns instead of
+            // silently showing the default country as if nothing was saved.
+            'unknown_country' => $selection['unknown_country'],
         ];
     }
 

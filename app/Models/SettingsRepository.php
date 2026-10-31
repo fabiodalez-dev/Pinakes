@@ -210,12 +210,14 @@ class SettingsRepository
                     $haveTranslation = trim((string) $template['subject']) !== trim((string) $existing['subject'])
                         || trim((string) $template['body']) !== trim((string) $existing['body']);
                     if ($stillItalian && $haveTranslation) {
+                        // The text is translated; a template the administrator
+                        // switched off stays off.
                         $this->saveEmailTemplate(
                             $name,
                             $template['subject'],
                             $template['body'],
                             $template['description'] ?? null,
-                            true,
+                            (int) ($existing['active'] ?? 1) === 1,
                             $locale
                         );
                         continue;

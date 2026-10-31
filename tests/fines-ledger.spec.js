@@ -89,7 +89,7 @@ const balanceCents = () => Math.round(Number(dbQuery(`SELECT COALESCE(SUM(import
 // Run-scoped: the accounts, books and roles of this RUN only, so a second
 // run on the same database keeps its loans and movements. Leftovers of a
 // crashed run (older than a day) go in a separate pass.
-const RUN_EMAILS = [PATRON_EMAIL, `zz-fines-staff-${RUN}@test.local`, `zz-fines-role-${RUN}@test.local`];
+const RUN_EMAILS = [PATRON_EMAIL, `zz-fines-staff-${RUN}@test.local`, `zz-fines-role-${RUN}@test.local`, `zz-fines-other-${RUN}@test.local`];
 function purge(userCond, bookCond, roleCond) {
   dbQuery(`DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id=m.utente_id WHERE ${userCond}`);
   dbQuery(`DELETE p FROM prestiti p JOIN libri l ON l.id=p.libro_id WHERE ${bookCond}`);
@@ -268,9 +268,16 @@ test.describe.serial('Fines and patron ledger', () => {
     expect(res.headers()['content-type']).toContain('application/pdf');
     const body = await res.body();
     expect(body.subarray(0, 4).toString()).toBe('%PDF');
-    // Another reader's receipt id under this reader's URL is a 404, not a leak.
-    const otherId = Number(dbQuery(`SELECT COALESCE(MAX(id),0)+1000 FROM movimenti_lettore`));
-    expect((await page.request.get(`${BASE}/admin/users/${state.patronId}/ledger/receipt/${otherId}`)).status()).toBe(404);
+    // A real payment of ANOTHER reader, asked for under this reader's URL, is a
+    // 404, not a leak (its own URL serves it, so the 404 comes from the owner check).
+    const otherEmail = `zz-fines-other-${RUN}@test.local`;
+    dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, privacy_accettata) VALUES ('${`ZZO${RUN}`.slice(0, 20)}', 'Zz', 'Other', '${otherEmail}', 'x', 'attivo', 1, 'standard', 1)`);
+    const otherPatron = Number(dbQuery(`SELECT id FROM utenti WHERE email='${otherEmail}'`));
+    dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione) VALUES (${otherPatron}, 'addebito_manuale', 1.00, 'zz other')`);
+    dbQuery(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, metodo_pagamento) VALUES (${otherPatron}, 'pagamento', -1.00, 'zz other', 'contanti')`);
+    const otherPayment = Number(dbQuery(`SELECT id FROM movimenti_lettore WHERE utente_id=${otherPatron} AND tipo='pagamento'`));
+    expect((await page.request.get(`${BASE}/admin/users/${otherPatron}/ledger/receipt/${otherPayment}`)).status()).toBe(200);
+    expect((await page.request.get(`${BASE}/admin/users/${state.patronId}/ledger/receipt/${otherPayment}`)).status()).toBe(404);
   });
 
   test('6. a manual charge needs a description and raises the balance', async () => {
@@ -293,7 +300,8 @@ test.describe.serial('Fines and patron ledger', () => {
     expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId} AND tipo='condono'`))).toBe(0);
     // ...and the server refuses it too (a request built by hand).
     const csrf = await page.locator('#ledger-waive-form input[name="csrf_token"]').inputValue();
-    const forged = await page.request.post(`${BASE}/admin/users/${state.patronId}/ledger/waive`, { form: { csrf_token: csrf, importo: '2', motivazione: '  ' }, maxRedirects: 0 });
+    const formKey = await page.locator('#ledger-waive-form input[name="request_key"]').inputValue();
+    const forged = await page.request.post(`${BASE}/admin/users/${state.patronId}/ledger/waive`, { form: { csrf_token: csrf, importo: '2', motivazione: '  ', request_key: formKey }, maxRedirects: 0 });
     expect(forged.status()).toBe(302);
     expect(forged.headers().location).toContain('ledger_error=reason_required');
     // With a reason it is recorded.

@@ -85,22 +85,27 @@ $cuts = [];
 $bytes = MarcExportController::serializeIso('unimarc', $long, [], [], null, $cuts, $level);
 $check($bytes !== null && $level === 'full' && count($cuts) === 1 && str_contains($cuts[0], 'field 330') && strlen($bytes) < 99999,
     '6 UNIMARC: one description over the field limit is cut inside the full record, and that cut is the one reported');
+// The cut must shorten the description, not drop it: 330 $a still holds its opening.
+$summary = $bytes !== null ? (string) Iso2709Reader::parse(substr($bytes, 0, -1))->subfield('330', 'a') : '';
+$check(strlen($summary) > 1000 && str_starts_with($long['descrizione'], $summary),
+    '6b UNIMARC: field 330 $a keeps a prefix of the oversized description');
 $crowd = array_map(static fn (int $i): array => ['nome' => 'Autore ' . str_repeat('n', 200) . " {$i}", 'ruolo' => $i === 1 ? 'principale' : 'co-autore'], range(1, 700));
 $pubs = array_map(static fn (int $i): array => ['nome' => "Editore {$i}"], range(1, 30));
 $cuts = [];
 $bytes = MarcExportController::serializeIso('marc21', $long, $crowd, $pubs, null, $cuts, $level);
 $reduced = $bytes !== null ? Iso2709Reader::parse(substr($bytes, 0, -1)) : null;
 $names = [];
-$publishers = 0;
+$publishers = [];
 foreach ($reduced !== null ? $reduced->fields() : [] as $field) {
     if (in_array($field->tag, ['100', '700'], true)) {
         $names[] = (string) $field->subfield('a');
     }
     if (in_array($field->tag, ['260', '264'], true)) {
-        $publishers += count($field->subfieldValues('b'));
+        array_push($publishers, ...$field->subfieldValues('b'));
     }
 }
-$check($level === 'reduced' && count($names) >= 1 && count($names) <= 20 && str_ends_with($names[0], ' 1') && $publishers >= 1 && $publishers <= 5,
+$check($level === 'reduced' && count($names) === 20 && str_ends_with($names[0], ' 1') && str_ends_with($names[19], ' 20')
+    && count($publishers) === 5 && $publishers[0] === 'Editore 1' && $publishers[4] === 'Editore 5',
     '7 700 authors and 30 publishers: the reduced record keeps the first 20 authors and 5 publishers instead of dropping the book');
 
 echo "MARC import: RDA overrides and the media type\n";
@@ -167,7 +172,7 @@ foreach ($files as $rel) {
         $offenders[] = "{$rel} (missing)";
         continue;
     }
-    if (preg_match_all('/[^\n]*\bLIKE\s+\?[^\n]*/i', $src, $hits) > 0) {
+    if (preg_match_all('/[^\n]*\bLIKE\s+(?:\?|:\w+|CONCAT\s*\()[^\n]*/i', $src, $hits) > 0) {
         foreach ($hits[0] as $line) {
             $ok = false;
             foreach ($allowed[$rel] ?? [] as $fragment) {
@@ -179,7 +184,7 @@ foreach ($files as $rel) {
         }
     }
 }
-$check($offenders === [], '18 no bare "LIKE ?" on typed input in the 0.9.0 search code' . ($offenders !== [] ? ' — ' . implode(' | ', $offenders) : ''));
+$check($offenders === [], '18 no bare LIKE on typed input (?, :name or CONCAT) in the 0.9.0 search code' . ($offenders !== [] ? ' — ' . implode(' | ', $offenders) : ''));
 $view = (string) file_get_contents($root . '/app/Views/fornitori/index.php');
 $check(!str_contains($view, ".includes(q)") && str_contains($view, 'QUOTES.includes(ch)') && str_contains($view, "normalize('NFD')") && str_contains($view, 'search_fornitore_hint'),
     '19 the suppliers box tokenises quoted groups, folds accents for plain words and shows the quote hint');
