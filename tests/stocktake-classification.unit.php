@@ -66,7 +66,7 @@ $check($rejects(['scaffale_id' => ['1']]), 'an array value is refused');
 // normalizeCode
 $check(S::normalizeCode("  INV-001\r\n") === 'INV-001', 'a wedge scanner suffix (CR/LF) is stripped');
 $check(S::normalizeCode("\x02INV-002\x03") === 'INV-002', 'STX/ETX framing is stripped');
-$check(mb_strlen(S::normalizeCode(str_repeat('9', 300))) === S::MAX_CODE_LENGTH, 'a code is capped to the column width');
+$check(S::normalizeCode(str_repeat('9', 300)) === str_repeat('9', 300), 'a long code is never cut short: scan() and importCodes() refuse it instead');
 
 // parseCodeList
 $txt = "\xEF\xBB\xBFINV-1\nINV-2\r\n\r\nINV-1\n   \nINV-3";

@@ -8439,6 +8439,7 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "Optællingen er ikke længere åben: der kan ikke registreres flere scanninger.",
   "Codice mancante.": "Kode mangler.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "Filen indeholder for mange koder: højst %d pr. upload.",
+  "Codice troppo lungo: al massimo %d caratteri.": "Koden er for lang: højst %d tegn.",
   "Revisione inventariale": "Lageroptælling",
   "Aperta il": "Åbnet",
   "Sede": "Afdeling",

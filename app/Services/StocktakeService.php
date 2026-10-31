@@ -148,12 +148,24 @@ final class StocktakeService
         return $filter;
     }
 
-    /** A scanned or typed code, without the control characters some wedge scanners append. */
+    /**
+     * A scanned or typed code, without the control characters some wedge
+     * scanners append. Never shortened: a code longer than MAX_CODE_LENGTH is
+     * refused by assertCodeLength(), since its first characters could be the
+     * whole code of another copy.
+     */
     public static function normalizeCode(string $code): string
     {
         $code = preg_replace('/[\x00-\x1F\x7F]+/u', '', $code) ?? '';
-        $code = trim($code);
-        return mb_substr($code, 0, self::MAX_CODE_LENGTH);
+        return trim($code);
+    }
+
+    /** @throws \InvalidArgumentException when the code does not fit the column */
+    private static function assertCodeLength(string $code): void
+    {
+        if (mb_strlen($code) > self::MAX_CODE_LENGTH) {
+            throw new \InvalidArgumentException(sprintf(__('Codice troppo lungo: al massimo %d caratteri.'), self::MAX_CODE_LENGTH));
+        }
     }
 
     /**
@@ -450,6 +462,7 @@ final class StocktakeService
         if ($code === '') {
             throw new \InvalidArgumentException(__('Codice mancante.'));
         }
+        self::assertCodeLength($code);
         $this->assertOpen($sessionId);
         return $this->record($sessionId, $code, $operatorId, $scanShelf);
     }
@@ -464,6 +477,11 @@ final class StocktakeService
     {
         if (count($codes) > self::MAX_UPLOAD_CODES) {
             throw new \InvalidArgumentException(sprintf(__('Il file contiene troppi codici: al massimo %d per caricamento.'), self::MAX_UPLOAD_CODES));
+        }
+        // Checked before anything is recorded: a file refused halfway would
+        // leave its first codes behind, and the retry would find them duplicate.
+        foreach ($codes as $code) {
+            self::assertCodeLength(self::normalizeCode($code));
         }
         $this->assertOpen($sessionId);
         $outcomes = array_fill_keys(self::OUTCOMES, 0);

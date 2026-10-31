@@ -173,6 +173,22 @@ try {
     // operator is told it was found, not that it is outside the filter (review #504).
     $c9Scan = $service->scan($second, "{$p}-C9", null, null);
     $check($c9Scan['esito'] === 'fuori_ambito' && $c9Scan['fuori_circolazione'] === true && $c9Scan['stato_copia'] === 'perso', 'a lost copy that turns up is flagged as out of circulation with its recorded state');
+    // A code longer than the column is refused, never cut down to the code of
+    // another copy (review #504): here the first 100 characters are C100's code.
+    $longCode = $addCopy($b1, str_repeat('L', StocktakeService::MAX_CODE_LENGTH - strlen($p) - 1));
+    $longText = (string) $one("SELECT numero_inventario FROM copie WHERE id = {$longCode}");
+    $scansBefore = (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}");
+    $tooLong = static function (callable $fn): bool {
+        try {
+            $fn();
+            return false;
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+    };
+    $check(mb_strlen($longText) === StocktakeService::MAX_CODE_LENGTH && $tooLong(static fn () => $service->scan($second, $longText . 'Z', null, null)), 'a scanned code one character longer than a stored code is refused');
+    $check($tooLong(static fn () => $service->importCodes($second, ["{$p}-C3", $longText . 'Z'], null, null)), 'an uploaded list holding a code that is too long is refused');
+    $check((int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}") === $scansBefore, 'a refused code records nothing, and neither do the codes before it in the file');
     $service->cancel($second, null);
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'cancelling leaves every copy as it was');
 
