@@ -77,6 +77,15 @@ try {
     $check($one("SELECT descrizione FROM calendario_chiusure WHERE regola_festivita = 'IT:christmas'") === 'Natale', 'the native name is the description');
     $check($count("regola_festivita IS NOT NULL AND sede_id IS NOT NULL") === 0, 'preset rows are for every branch');
     $sel = HolidayPresets::selection($db);
+    $check($sel['missing'] === [], 'nothing is missing after a fresh apply');
+    // A stored id the table no longer knows (a dataset regeneration accepted
+    // with --accept-removed): kept out of the rules, reported as missing.
+    $db->query("UPDATE system_settings SET setting_value = '[\"IT:new_year\",\"IT:zz_vanished\",\"IT:easter_monday\",\"IT:christmas\"]' WHERE category = 'calendar' AND setting_key = 'holiday_rules'");
+    $stale = HolidayPresets::selection($db);
+    $check($stale['rules'] === ['IT:new_year', 'IT:easter_monday', 'IT:christmas'] && $stale['missing'] === ['IT:zz_vanished'], 'a vanished id is reported as missing and not evaluated');
+    $check(count(LibraryCalendar::fromDatabase($db, configuration: true)->closedDatesBetween("{$today}", substr($today, 0, 4) . '-12-31')) > 0, 'the calendar still loads with a vanished id in the selection');
+    $db->query("UPDATE system_settings SET setting_value = '[\"IT:new_year\",\"IT:easter_monday\",\"IT:christmas\"]' WHERE category = 'calendar' AND setting_key = 'holiday_rules'");
+    $sel = HolidayPresets::selection($db);
     $check($sel['saved'] && $sel['country'] === 'IT' && $sel['rules'] === ['IT:new_year', 'IT:easter_monday', 'IT:christmas'], 'the choice is saved');
 
     // 2. Applying again changes nothing.

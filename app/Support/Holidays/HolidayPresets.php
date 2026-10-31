@@ -73,8 +73,11 @@ final class HolidayPresets
 
     /**
      * What the library chose. 'saved' is false while nothing was ever applied.
+     * 'missing' lists the chosen ids of that country that the rule table or
+     * the dataset no longer knows (a regeneration run with --accept-removed,
+     * a hand edit): they close nothing any more, and the calendar page says so.
      *
-     * @return array{country: string, region: string, rules: list<string>, saved: bool}
+     * @return array{country: string, region: string, rules: list<string>, saved: bool, missing: list<string>}
      */
     public static function selection(\mysqli $db): array
     {
@@ -87,7 +90,7 @@ final class HolidayPresets
      * locking current read, including inside an existing REPEATABLE READ
      * transaction whose ordinary reads may still see an older snapshot.
      *
-     * @return array{country: string, region: string, rules: list<string>, saved: bool}
+     * @return array{country: string, region: string, rules: list<string>, saved: bool, missing: list<string>}
      */
     private static function readSelection(\mysqli $db, bool $forUpdate = false): array
     {
@@ -113,7 +116,38 @@ final class HolidayPresets
                 $rules[] = $id;
             }
         }
-        return ['country' => $country, 'region' => $region, 'rules' => $saved ? self::filterIds($country, $region, $rules) : [], 'saved' => $saved];
+        return [
+            'country' => $country,
+            'region' => $region,
+            'rules' => $saved ? self::filterIds($country, $region, $rules) : [],
+            'saved' => $saved,
+            'missing' => $saved ? self::missingIds($country, $region, $rules) : [],
+        ];
+    }
+
+    /**
+     * The stored ids of $country that no rule of $country / $region carries
+     * any more: a holiday removed from the dataset, or an id that changed in
+     * a regeneration accepted with --accept-removed. Ids of other countries
+     * are not reported (apply() never stores them). Order kept, no duplicates.
+     *
+     * @param list<string> $ids
+     * @return list<string>
+     */
+    public static function missingIds(string $country, string $region, array $ids): array
+    {
+        $country = strtoupper($country);
+        $known = [];
+        foreach (HolidayCalculator::rulesFor($country, $region) as $rule) {
+            $known[$country . ':' . (string) $rule['id']] = true;
+        }
+        $out = [];
+        foreach ($ids as $id) {
+            if (str_starts_with($id, $country . ':') && !isset($known[$id]) && !in_array($id, $out, true)) {
+                $out[] = $id;
+            }
+        }
+        return $out;
     }
 
     /**
