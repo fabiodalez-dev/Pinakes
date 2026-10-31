@@ -287,6 +287,14 @@ try {
     $check($one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'perso', 'posting "mark lost" again on the closed session marks the copy it missed');
     $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'persa' && $one("SELECT copie_disponibili FROM libri WHERE id = {$atomicBook}") === '0', 'the resumed marking freezes the bucket and recalculates availability');
     $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0], 'resuming again finds nothing left to mark');
+    // A copy is handled after the close: the resume must not undo it. The
+    // close is moved an hour back so "changed after the close" does not hang
+    // on both writes landing in the same second.
+    $db->query("UPDATE inventario_sessioni SET chiusa_il = chiusa_il - INTERVAL 1 HOUR WHERE id = {$atomicSession}");
+    $db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$atomicCopy}");
+    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
+    $db->query("UPDATE inventario_attese SET esito_chiusura = 'mancante' WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}");
+    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
     $fifth = $service->open('ZZST5 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $fifth;
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fifth . '/close')
