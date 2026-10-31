@@ -1468,6 +1468,10 @@ return function (App $app): void {
         $controller = new \App\Controllers\UserImportController();
         return $controller->chunk($request, $response, $app->getContainer()->get('db'));
     })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/import/cancel', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->cancel($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // CSV Export route for users
     $app->get('/admin/users/export/csv', function ($request, $response) use ($app) {

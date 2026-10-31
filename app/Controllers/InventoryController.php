@@ -163,6 +163,9 @@ class InventoryController
             'isAdmin' => $this->isAdmin(),
             'outcomeLabels' => self::outcomeLabels(),
             'scaffali' => (new \App\Models\CollocationRepository($db))->getScaffali(),
+            // Who opened, closed, cancelled or resumed the session: the book
+            // feeds never show these entity events.
+            'history' => \App\Support\ActivityLog::forEntity($db, 'inventario_sessioni', $id),
         ]);
     }
 

@@ -555,9 +555,16 @@ class ReservationsController
                 // ?string: the persisted state ('prenotato' scheduled loan /
                 // 'da_ritirare' immediate pickup) on success, null when the
                 // request stays pending (setting off / approval failed).
+                $approved = null;
                 $loanState = $autoApproveEnabled
-                    ? $this->autoApproveLoanRequest($request, $loanRequestId, true)
+                    ? $this->autoApproveLoanRequest($request, $loanRequestId, true, $approved)
                     : null;
+                // The due date the approval wrote (it may have moved over a
+                // closure of the assigned copy's branch): the fallback below
+                // when the stored window cannot be read back.
+                if (is_array($approved) && is_string($approved['data_scadenza'] ?? null) && \App\Support\DateHelper::isISODateFormat($approved['data_scadenza'])) {
+                    $endDate = $approved['data_scadenza'];
+                }
 
                 if ($loanState === null) {
                     // Send notification to admins (an auto-approved request no
@@ -590,8 +597,10 @@ class ReservationsController
                 // over a closure of the assigned copy's branch.
                 // The request is already committed: a failed read only loses
                 // the refinement, never the success the reader must see.
+                $pickupDeadline = null;
+                $pickupDays = null;
                 try {
-                    $storedWindow = $this->db->prepare('SELECT data_prestito, data_scadenza FROM prestiti WHERE id = ?');
+                    $storedWindow = $this->db->prepare('SELECT data_prestito, data_scadenza, copia_id, pickup_deadline FROM prestiti WHERE id = ?');
                     $storedWindow->bind_param('i', $loanRequestId);
                     $storedWindow->execute();
                     $storedRow = $storedWindow->get_result()->fetch_assoc();
@@ -599,6 +608,9 @@ class ReservationsController
                     if (is_array($storedRow)) {
                         $startDate = (string) ($storedRow['data_prestito'] ?? $startDate);
                         $endDate = (string) ($storedRow['data_scadenza'] ?? $endDate);
+                        if ($loanState !== null) {
+                            [$pickupDeadline, $pickupDays] = $this->expectedPickup($startDate, $endDate, $storedRow);
+                        }
                     }
                 } catch (\Throwable $windowError) {
                     \App\Support\SecureLogger::warning('ReservationsController: stored window not readable', ['error' => $windowError->getMessage()]);
@@ -616,6 +628,12 @@ class ReservationsController
                     // The stored window (closed days already skipped).
                     'start_date' => $startDate,
                     'end_date' => $endDate,
+                    // An approved loan's pickup deadline and open pickup days,
+                    // with the closures of the assigned copy's branch (null
+                    // when unknown: the page then computes them itself). For
+                    // a scheduled loan it is the estimate activation applies.
+                    'pickup_deadline' => $pickupDeadline,
+                    'pickup_days' => $pickupDays,
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
@@ -645,7 +663,37 @@ class ReservationsController
      * UserActionsController::autoApproveLoanRequest — a failure deliberately
      * leaves the request pending so an administrator can still process it.
      */
-    private function autoApproveLoanRequest($request, int $loanId, ?bool $knownEnabled = null): ?string
+    /**
+     * The pickup deadline and open pickup days of an approved request, from
+     * its stored row: the deadline already stored for a loan awaiting pickup,
+     * otherwise the one activation will set (LibraryCalendar::pickupDeadline
+     * with the assigned copy's branch, capped at the due date). The days
+     * follow the pickup emails: never more than the setting, fewer when the
+     * loan ends first or closed days fall inside the window.
+     *
+     * @param array<string, mixed> $row prestiti row (copia_id, pickup_deadline)
+     * @return array{0: ?string, 1: ?int}
+     */
+    private function expectedPickup(string $startDate, string $endDate, array $row): array
+    {
+        if (!\App\Support\DateHelper::isISODateFormat($startDate)) {
+            return [null, null];
+        }
+        $copiaId = !empty($row['copia_id']) ? (int) $row['copia_id'] : null;
+        $setting = max(1, (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'pickup_expiry_days', '3') ?? 3));
+        $stored = $row['pickup_deadline'] !== null ? substr((string) $row['pickup_deadline'], 0, 10) : '';
+        $deadline = \App\Support\DateHelper::isISODateFormat($stored)
+            ? $stored
+            : \App\Support\LibraryCalendar::pickupDeadline($this->db, $startDate, $setting, \App\Support\DateHelper::isISODateFormat($endDate) ? $endDate : null, $copiaId);
+        $openDays = \App\Support\LibraryCalendar::forDb($this->db)->openDaysBetween($startDate, $deadline, \App\Support\LibraryCalendar::branchOfCopy($this->db, $copiaId));
+        return [$deadline, min($setting, $openDays)];
+    }
+
+    /**
+     * @param array<mixed>|null $approved set to the approval's JSON
+     *        body (data_scadenza, copia_id…) when the loan was approved
+     */
+    private function autoApproveLoanRequest($request, int $loanId, ?bool $knownEnabled = null, ?array &$approved = null): ?string
     {
         // When the caller already captured the setting under the book lock it
         // passes that decision in $knownEnabled. Legacy/internal callers may omit
@@ -675,6 +723,7 @@ class ReservationsController
                 // so the response can describe the real outcome instead of
                 // assuming "awaiting pickup".
                 $body = json_decode((string) $result->getBody(), true);
+                $approved = is_array($body) ? $body : null;
                 return is_array($body) && isset($body['loan_state']) && is_string($body['loan_state'])
                     ? $body['loan_state']
                     : 'da_ritirare';

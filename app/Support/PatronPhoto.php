@@ -31,6 +31,12 @@ final class PatronPhoto
     /** Largest decoded image accepted (16 megapixels, about 64 MB in GD). */
     public const MAX_PIXELS = 16000000;
     private const NAME_PATTERN = '/^patron_photos\/(\d+)-[a-f0-9]{16}\.jpg$/D';
+    /**
+     * A file of a reader that no reference points to is swept once it is
+     * older than this: a younger one may belong to a store() of the same
+     * reader that has written its file but not yet its reference.
+     */
+    public const ORPHAN_GRACE_SECONDS = 300;
 
     /** Absolute directory holding the photos (created on first use). */
     public static function directory(): string
@@ -133,15 +139,20 @@ final class PatronPhoto
             SecureLogger::error('[PatronPhoto] cannot record the photo', ['user_id' => $userId, 'error' => $e->getMessage()]);
             return 'db';
         }
-        if ($previous !== null && $previous !== $name) {
-            self::deleteFile($previous);
+        if ($previous !== null && $previous !== $name && !self::deleteFile($previous)) {
+            // The new photo is in place; the old file is now unreferenced.
+            // It is logged, and the next store() or delete() of this reader
+            // retries it through sweepOrphans().
+            SecureLogger::error('[PatronPhoto] cannot delete the replaced photo file', ['user_id' => $userId, 'file' => $previous]);
         }
+        self::sweepOrphans($userId, $name);
         return null;
     }
 
     /**
-     * Remove the user's photo: the file, then the reference. True when none is
-     * left. When the file cannot be removed the reference stays, so the photo
+     * Remove the user's photo: the file, then the reference. True when the
+     * photo is gone (a replacement stored meanwhile by another request is
+     * kept). When the file cannot be removed the reference stays, so the photo
      * is still known (and deletable) instead of lingering on disk unreferenced.
      */
     public static function delete(mysqli $db, int $userId): bool
@@ -157,13 +168,9 @@ final class PatronPhoto
             return false;
         }
         try {
-            $stmt = $db->prepare('UPDATE utenti SET foto_profilo_url = NULL WHERE id = ?');
-            if ($stmt === false) {
-                throw new \RuntimeException($db->error);
-            }
-            $stmt->bind_param('i', $userId);
-            $stmt->execute();
-            $stmt->close();
+            // Not cleared: another request stored a new photo meanwhile, and
+            // that one stays (it is what the sweep below keeps).
+            $current = self::clearReference($db, $userId, $previous) ? null : self::storedFor($db, $userId);
         } catch (\Throwable $e) {
             // The file is already gone: a reference to a missing file shows
             // no photo (absolutePath() checks the file), and the next delete
@@ -171,7 +178,58 @@ final class PatronPhoto
             SecureLogger::error('[PatronPhoto] cannot clear the photo', ['user_id' => $userId, 'error' => $e->getMessage()]);
             return false;
         }
+        self::sweepOrphans($userId, $current);
         return true;
+    }
+
+    /**
+     * Clear the reference only while it is still $expected, the value whose
+     * file was just removed: a photo stored meanwhile by another request is
+     * a valid replacement and keeps its reference. True when the row changed.
+     */
+    public static function clearReference(mysqli $db, int $userId, ?string $expected): bool
+    {
+        $stmt = $db->prepare('UPDATE utenti SET foto_profilo_url = NULL WHERE id = ? AND foto_profilo_url <=> ?');
+        if ($stmt === false) {
+            throw new \RuntimeException($db->error);
+        }
+        try {
+            $stmt->bind_param('is', $userId, $expected);
+            $stmt->execute();
+            return $stmt->affected_rows === 1;
+        } finally {
+            $stmt->close();
+        }
+    }
+
+    /**
+     * Remove the files of a reader other than $keep that are older than
+     * ORPHAN_GRACE_SECONDS: the leftovers of a replaced or deleted photo whose
+     * unlink failed earlier. Returns how many were removed.
+     */
+    public static function sweepOrphans(int $userId, ?string $keep, ?int $now = null): int
+    {
+        if ($userId <= 0) {
+            return 0;
+        }
+        $now ??= time();
+        $keepPath = $keep !== null ? self::absolutePath($keep) : null;
+        $removed = 0;
+        foreach (glob(self::directory() . '/' . $userId . '-*.jpg') ?: [] as $file) {
+            if ($file === $keepPath || preg_match(self::NAME_PATTERN, self::DIR . '/' . basename($file)) !== 1) {
+                continue;
+            }
+            $mtime = @filemtime($file);
+            if ($mtime === false || $mtime > $now - self::ORPHAN_GRACE_SECONDS) {
+                continue;
+            }
+            if (@unlink($file)) {
+                $removed++;
+            } else {
+                SecureLogger::error('[PatronPhoto] cannot delete an orphaned photo file', ['user_id' => $userId, 'file' => basename($file)]);
+            }
+        }
+        return $removed;
     }
 
     /**

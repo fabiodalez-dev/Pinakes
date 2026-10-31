@@ -9,6 +9,7 @@
 /** @var array<string,string> $outcomeLabels */
 /** @var list<array<string,mixed>> $scaffali */
 /** @var int $pendingLost */
+/** @var list<array<string,mixed>> $history */
 $sessionId = (int) $session['id'];
 $isOpen = $session['stato'] === 'aperta';
 $base = '/admin/inventory/' . $sessionId;
@@ -373,6 +374,33 @@ unset($workspaceHeader);
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($history !== []): ?>
+        <!-- Session history: opened, closed, cancelled, missing copies marked lost later -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200" id="inventory-history">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900 flex items-center">
+              <i class="fas fa-history text-gray-600 mr-2"></i>
+              <?= __("Cronologia") ?>
+            </h2>
+          </div>
+          <div class="p-6">
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+              <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-100">
+                  <?php foreach ($history as $event): $who = trim((string) ($event['operator_name'] ?? '')); ?>
+                  <tr class="hover:bg-gray-50" data-event="<?= htmlspecialchars((string) ($event['event'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                    <td class="px-4 py-3 text-gray-600 text-xs"><?= htmlspecialchars(format_date((string) ($event['data_modifica'] ?? ''), true, '/'), ENT_QUOTES, 'UTF-8') ?></td>
+                    <td class="px-4 py-3 text-gray-900 font-medium"><?= htmlspecialchars(__(App\Support\ActivityLog::eventLabel((string) ($event['event'] ?? ''), (string) ($event['azione'] ?? ''))), ENT_QUOTES, 'UTF-8') ?></td>
+                    <td class="px-4 py-3 text-gray-700 text-xs"><?= htmlspecialchars($who !== '' ? $who : __('Sistema'), ENT_QUOTES, 'UTF-8') ?></td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

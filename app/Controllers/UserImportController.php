@@ -39,9 +39,18 @@ class UserImportController
     /**
      * Error-report entries kept in the session (and in import_logs): a file
      * of thousands of bad rows must not grow the session without bound. The
-     * failed/duplicate counters keep counting past it.
+     * failed/duplicate counters keep counting past it; one `truncated` entry
+     * after the last says so.
      */
     public const MAX_STORED_ERRORS = 500;
+    /**
+     * A started run whose last request is older than this is abandoned (the
+     * tab was closed, the answer to start was lost): another upload may then
+     * replace it and "Annulla import" may close it. A live run sends a chunk
+     * every few seconds, and PHP's session lock already serialises requests
+     * of the same session, so a run in progress is never cut short.
+     */
+    public const IDLE_SECONDS = 300;
     /** Upload form values of the separator choice; anything else means "detect". */
     private const DELIMITERS = [';' => ';', ',' => ',', 'tab' => "\t"];
 
@@ -62,6 +71,7 @@ class UserImportController
         }
         UserImport::sweepStaleUploads(self::uploadDir());
         $patronTypes = (new PatronTypeImport($db))->available();
+        $resumeImport = self::resumable($_SESSION[self::SESSION_KEY] ?? null);
         ob_start();
         require __DIR__ . '/../Views/utenti/import.php';
         $content = ob_get_clean();
@@ -100,6 +110,17 @@ class UserImportController
         @ini_set('display_errors', '0');
         if (!\App\Support\Permissions::can('users.manage')) {
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
+        }
+        // A run still under way (another tab) is never replaced: its next
+        // block would find the session gone and lose its position.
+        $current = $_SESSION[self::SESSION_KEY] ?? null;
+        if (is_array($current) && self::isRunning($current)) {
+            return $this->json($response, [
+                'success' => false,
+                'error' => __('Un import è già in corso: attendi la fine o riprendilo da questa pagina.'),
+                'processed' => (int) ($current['next'] ?? 0),
+                'total_rows' => (int) ($current['total'] ?? 0),
+            ], 409);
         }
         // The staged file of a run already in the session is replaced only
         // once the new upload proved valid (below): a refused upload leaves
@@ -166,7 +187,7 @@ class UserImportController
         }
 
         $fields = $this->targetFields($db);
-        $this->discardSessionFile();
+        $this->closeSessionImport($db);
         $_SESSION[self::SESSION_KEY] = [
             'file' => $saved,
             'name' => mb_substr($name, 0, 255),
@@ -203,9 +224,16 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
         }
         if (!empty($state['started'])) {
-            // A replayed start (double click, a second tab) would reset the
-            // counters and the position of a run already under way.
-            return $this->json($response, ['success' => false, 'error' => __('Import già avviato: attendi la fine o ricarica il file.')], 409);
+            // A replayed start (double click, a second tab, a lost answer)
+            // would reset the counters and the position of a run already
+            // under way: the answer carries that position, so the page
+            // resumes the run instead.
+            return $this->json($response, [
+                'success' => false,
+                'error' => __('Import già avviato: attendi la fine o ricarica il file.'),
+                'processed' => (int) ($state['next'] ?? 0),
+                'total_rows' => (int) ($state['total'] ?? 0),
+            ], 409);
         }
         $check = UserImport::validateMapping($body['mapping'] ?? null, $this->targetFields($db), (int) $state['columns']);
         if ($check['error'] !== null) {
@@ -223,6 +251,7 @@ class UserImportController
         $state['seen_emails'] = [];
         $state['seen_codes'] = [];
         $state['next'] = 0;
+        $state['active_at'] = time();
         $_SESSION[self::SESSION_KEY] = $state;
 
         return $this->json($response, [
@@ -243,6 +272,13 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
         $body = json_decode((string) $request->getBody(), true);
+        if (is_array($_SESSION[self::SESSION_KEY] ?? null) && !empty($_SESSION[self::SESSION_KEY]['finished']) && is_array($_SESSION[self::SESSION_KEY]['result'] ?? null)) {
+            // The run is over: this is the retry of a last block whose answer
+            // was lost (a gateway timeout while the invitations went out).
+            // Replaying the final answer shows the summary instead of an
+            // error that would invite uploading the same file again.
+            return $this->json($response, $_SESSION[self::SESSION_KEY]['result']);
+        }
         if (!is_array($_SESSION[self::SESSION_KEY] ?? null) || empty($_SESSION[self::SESSION_KEY]['started']) || !is_array($body)) {
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
         }
@@ -266,6 +302,7 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Il file dell\'import non è più disponibile: caricalo di nuovo.')], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
+        $state['active_at'] = time(); // driven by a page: not abandoned (isRunning())
 
         try {
             $reader = Csv::readerFromPath((string) $state['file'], (string) $state['delimiter']);
@@ -339,6 +376,7 @@ class UserImportController
             } finally {
                 $line++;
                 $state['next'] = $start + $processed;
+                $state['active_at'] = time();
             }
         }
 
@@ -367,14 +405,91 @@ class UserImportController
             $summary = ['created' => $state['created'], 'duplicates' => $state['duplicates'], 'failed' => $state['failed']];
             $this->discardSessionFile();
             unset($state);
-            unset($_SESSION[self::SESSION_KEY]);
+            // Only the final answer is kept, for a retry of this request;
+            // the next upload or a visit to the page replaces it.
+            $_SESSION[self::SESSION_KEY] = ['finished' => true, 'result' => $payload];
             SecureLogger::info('Users imported from CSV', $summary + ['by' => $_SESSION['user']['id'] ?? null]);
         }
         return $this->json($response, $payload);
     }
 
+    /**
+     * "Annulla import" on an interrupted run: the rows already written stay
+     * (they are real accounts now) and go into the import history as a
+     * partial run; the staged file and the session state are released. A run
+     * still active is refused, so a second tab cannot cut it short.
+     */
+    public function cancel(Request $request, Response $response, mysqli $db): Response
+    {
+        @ini_set('display_errors', '0');
+        if (!\App\Support\Permissions::can('users.manage')) {
+            return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
+        }
+        $state = $_SESSION[self::SESSION_KEY] ?? null;
+        if (!is_array($state) || empty($state['started']) || !empty($state['finished'])) {
+            unset($_SESSION[self::SESSION_KEY]);
+            return $this->json($response, ['success' => true, 'import_id' => null]);
+        }
+        if (self::isRunning($state)) {
+            return $this->json($response, [
+                'success' => false,
+                'error' => sprintf(__('L\'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.'), (int) ceil(self::IDLE_SECONDS / 60)),
+                'processed' => (int) ($state['next'] ?? 0),
+            ], 409);
+        }
+        $importId = $this->closeSessionImport($db);
+        return $this->json($response, ['success' => true, 'import_id' => $importId]);
+    }
+
+    /**
+     * Position of an interrupted run the page can resume, or null.
+     *
+     * @return array{name:string, processed:int, total:int}|null
+     */
+    public static function resumable(mixed $state): ?array
+    {
+        if (!is_array($state) || empty($state['started']) || !empty($state['finished'])) {
+            return null;
+        }
+        return [
+            'name' => (string) ($state['name'] ?? ''),
+            'processed' => (int) ($state['next'] ?? 0),
+            'total' => (int) ($state['total'] ?? 0),
+        ];
+    }
+
+    /** A started run whose last request is recent enough to be still driven by a page. */
+    private static function isRunning(array $state): bool
+    {
+        return !empty($state['started']) && empty($state['finished'])
+            && (int) ($state['active_at'] ?? 0) > time() - self::IDLE_SECONDS;
+    }
+
+    /**
+     * Release the session's import: a started run is written to the import
+     * history first (as far as it got), so the accounts it created are not
+     * left without a trace. Returns that run's import_id, or null.
+     */
+    private function closeSessionImport(mysqli $db): ?string
+    {
+        $state = $_SESSION[self::SESSION_KEY] ?? null;
+        $importId = null;
+        if (is_array($state) && !empty($state['started']) && empty($state['finished'])) {
+            $importId = $this->finish($db, $state, (int) ($state['next'] ?? 0));
+            SecureLogger::info('User import closed before its end', [
+                'processed' => (int) ($state['next'] ?? 0),
+                'total' => (int) ($state['total'] ?? 0),
+                'created' => (int) ($state['created'] ?? 0),
+                'by' => $_SESSION['user']['id'] ?? null,
+            ]);
+        }
+        $this->discardSessionFile();
+        unset($_SESSION[self::SESSION_KEY]);
+        return $importId;
+    }
+
     /** Write the run into import_logs; returns its import_id ('' when logging failed). */
-    private function finish(mysqli $db, array $state): string
+    private function finish(mysqli $db, array $state, ?int $rows = null): string
     {
         try {
             $logger = new ImportLogger($db, 'users', (string) $state['name'], isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null);
@@ -384,7 +499,7 @@ class UserImportController
             }
             // complete() reports a failed write by returning false: the id of
             // a log that was never completed must not reach the page.
-            return $logger->complete((int) $state['total']) ? $logger->getImportId() : '';
+            return $logger->complete($rows ?? (int) $state['total']) ? $logger->getImportId() : '';
         } catch (\Throwable $e) {
             SecureLogger::error('[UserImport] could not write the import log: ' . $e->getMessage());
             return '';
@@ -472,15 +587,25 @@ class UserImportController
     }
 
     /**
-     * Add an entry to the run's error report, up to MAX_STORED_ERRORS.
+     * Add an entry to the run's error report, up to MAX_STORED_ERRORS. The
+     * first entry past the cap becomes one `truncated` notice, so the report
+     * says it is incomplete instead of silently disagreeing with the counters.
      *
      * @param array<string,mixed> $state
      * @param array{line:int, title:string, message:string, type:string} $entry
      */
     public static function report(array &$state, array $entry): void
     {
-        if (count((array) ($state['errors'] ?? [])) < self::MAX_STORED_ERRORS) {
+        $count = count((array) ($state['errors'] ?? []));
+        if ($count < self::MAX_STORED_ERRORS) {
             $state['errors'][] = $entry;
+        } elseif ($count === self::MAX_STORED_ERRORS) {
+            $state['errors'][] = [
+                'line' => $entry['line'],
+                'title' => '',
+                'message' => sprintf(__('Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.'), self::MAX_STORED_ERRORS),
+                'type' => 'truncated',
+            ];
         }
     }
 
