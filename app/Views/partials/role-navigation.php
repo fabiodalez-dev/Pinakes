@@ -6,6 +6,7 @@ $links = [
     'loans.manage' => ['/admin/loans', __('Prestiti')],
     'users.manage' => ['/admin/users', __('Utenti')],
     'settings.manage' => ['/admin/settings', __('Impostazioni')],
+    'inventory.manage' => ['/admin/inventory', __('Revisione inventariale')],
 ];
 foreach ($links as $permission => [$path, $label]):
     if (!Permissions::can($permission)) { continue; }

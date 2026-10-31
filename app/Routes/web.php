@@ -1787,6 +1787,29 @@ return function (App $app): void {
         return $controller->destroy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Inventory stocktake (inventory.manage; closing with "mark lost" re-checks admin inline)
+    // Slim binds route closures to the container, so they must not be static.
+    $inventory = function (string $method) use ($app): \Closure {
+        return function ($request, $response, $args) use ($app, $method) {
+            $controller = new \App\Controllers\InventoryController();
+            $db = $app->getContainer()->get('db');
+            return isset($args['id'])
+                ? $controller->{$method}($request, $response, $db, (int) $args['id'])
+                : $controller->{$method}($request, $response, $db);
+        };
+    };
+    $app->get('/admin/inventory', $inventory('index'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory', $inventory('store'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}', $inventory('show'))->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}/state', $inventory('state'))->add(new AdminAuthMiddleware());
+    // Scanning is a burst workload (wedge scanners read several codes a second).
+    $app->post('/admin/inventory/{id:\d+}/scan', $inventory('scan'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(600, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory/{id:\d+}/upload', $inventory('upload'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory/{id:\d+}/close', $inventory('close'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory/{id:\d+}/cancel', $inventory('cancel'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}/report.csv', $inventory('exportCsv'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}/report.pdf', $inventory('exportPdf'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+
     // Placement (protected admin)
     $app->get('/admin/placement', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();

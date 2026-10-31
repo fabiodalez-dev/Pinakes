@@ -1470,6 +1470,59 @@ CREATE TABLE IF NOT EXISTS mobile_push_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+-- Inventory stocktake (0.9.0): sessions, expected-copy snapshot, scans.
+CREATE TABLE `inventario_sessioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sede_id` int DEFAULT NULL,
+  `filtro` json DEFAULT NULL,
+  `stato` enum('aperta','chiusa','annullata') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'aperta',
+  `totale_attese` int NOT NULL DEFAULT '0',
+  `aperta_da` int DEFAULT NULL,
+  `aperta_il` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `chiusa_da` int DEFAULT NULL,
+  `chiusa_il` datetime DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `azione_mancanti` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_inventario_sessioni_stato` (`stato`),
+  KEY `idx_inventario_sessioni_sede` (`sede_id`),
+  KEY `idx_inventario_sessioni_aperta_da` (`aperta_da`),
+  KEY `idx_inventario_sessioni_chiusa_da` (`chiusa_da`),
+  CONSTRAINT `fk_inventario_sessioni_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_inventario_sessioni_aperta_da` FOREIGN KEY (`aperta_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_inventario_sessioni_chiusa_da` FOREIGN KEY (`chiusa_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `inventario_attese` (
+  `sessione_id` int NOT NULL,
+  `copia_id` int NOT NULL,
+  `scaffale_atteso` int DEFAULT NULL,
+  `stato_all_apertura` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `codice_atteso` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `titolo_atteso` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`sessione_id`,`copia_id`),
+  KEY `idx_inventario_attese_copia` (`copia_id`),
+  CONSTRAINT `fk_inventario_attese_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `inventario_scansioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `sessione_id` int NOT NULL,
+  `copia_id` int DEFAULT NULL,
+  `codice_letto` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `esito` enum('trovata','fuori_posto','in_prestito','sconosciuta','duplicata','fuori_ambito') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `scansionato_da` int DEFAULT NULL,
+  `scansionato_il` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_inventario_scansioni_copia` (`sessione_id`,`copia_id`),
+  KEY `idx_inventario_scansioni_operatore` (`sessione_id`,`scansionato_da`),
+  KEY `idx_inventario_scansioni_utente` (`scansionato_da`),
+  CONSTRAINT `fk_inventario_scansioni_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_inventario_scansioni_utente` FOREIGN KEY (`scansionato_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -1483,4 +1536,5 @@ CREATE TABLE IF NOT EXISTS mobile_push_log (
 INSERT IGNORE INTO ruoli (nome, permessi) VALUES
 ('Catalogatore', '["backend.access","catalog.manage"]'),
 ('Addetto prestiti', '["backend.access","loans.manage"]'),
-('Archivista', '["backend.access","catalog.manage","digital.manage","digital.access"]');
+('Archivista', '["backend.access","catalog.manage","digital.manage","digital.access"]'),
+('Revisore inventario', '["backend.access","inventory.manage"]');

@@ -64,6 +64,7 @@ final class ActivityLog
         'copy.created' => 'Copia fisica aggiunta',
         'copy.updated' => 'Copia fisica aggiornata',
         'copy.deleted' => 'Copia fisica eliminata',
+        'copy.inventory_lost' => 'Copia dichiarata persa in revisione inventariale',
         'import.created' => 'Libro creato tramite importazione',
         'import.updated' => 'Libro aggiornato tramite importazione',
         'enrich.updated' => 'Metadati arricchiti',
@@ -96,6 +97,11 @@ final class ActivityLog
         'subscription.created' => 'Abbonamento creato',
         'subscription.updated' => 'Abbonamento aggiornato',
         'subscription.deleted' => 'Abbonamento eliminato',
+        // Inventory stocktake sessions (recordEntityEvent on inventario_sessioni)
+        'inventory.opened' => 'Revisione inventariale aperta',
+        'inventory.closed' => 'Revisione inventariale chiusa',
+        'inventory.cancelled' => 'Revisione inventariale annullata',
+        'inventory.lost_resumed' => 'Revisione inventariale: copie mancanti segnate come perse dopo la chiusura',
     ];
 
     /** @var array<string,string> */
