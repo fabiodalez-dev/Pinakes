@@ -6,7 +6,8 @@ declare(strict_types=1);
  *  - when the result cap is reached, the remaining servers are listed in the
  *    report as not queried instead of disappearing from it;
  *  - an URL with the scheme's default port written out (https://host:443)
- *    is the same endpoint as the one without it.
+ *    is the same endpoint as the one without it, for the cover fetcher and
+ *    for the in-process local SRU client alike.
  *
  * Offline: every server answers through a fake client. The database is only
  * read (the duplicate check), never written.
@@ -15,6 +16,7 @@ declare(strict_types=1);
 
 use App\Support\Marc\MarcCoverFetcher;
 use Plugins\Z39Server\Classes\CopyCataloging;
+use Plugins\Z39Server\Classes\LocalSruClient;
 use Plugins\Z39Server\Classes\SruClient;
 
 $root = dirname(__DIR__);
@@ -39,6 +41,22 @@ echo "Default ports\n";
 $check(MarcCoverFetcher::effectivePort((array) parse_url('https://host/api/sru')) === MarcCoverFetcher::effectivePort((array) parse_url('https://host:443/api/sru')), '01 https://host and https://host:443 are the same port');
 $check(MarcCoverFetcher::effectivePort((array) parse_url('http://host/x')) === 80 && MarcCoverFetcher::effectivePort((array) parse_url('http://host:8081/x')) === 8081, '02 http defaults to 80, an explicit port wins');
 $check(MarcCoverFetcher::effectivePort((array) parse_url('https://host/x')) !== MarcCoverFetcher::effectivePort((array) parse_url('http://host/x')), '03 http and https defaults differ');
+
+echo "Local SRU endpoint\n";
+// LocalSruClient::isLocalUrl compares a target with this installation's own
+// /api/sru, built from APP_CANONICAL_URL: the default HTTPS port written out
+// or left implicit, on either side, is the same endpoint.
+$savedCanonical = $_ENV['APP_CANONICAL_URL'] ?? null;
+$_ENV['APP_CANONICAL_URL'] = 'https://catalogo.example.org';
+$check(LocalSruClient::isLocalUrl('https://catalogo.example.org/api/sru') && LocalSruClient::isLocalUrl('https://catalogo.example.org:443/api/sru'), '03a the own SRU URL is local with the HTTPS port implicit and explicit');
+$_ENV['APP_CANONICAL_URL'] = 'https://catalogo.example.org:443';
+$check(LocalSruClient::isLocalUrl('https://catalogo.example.org/api/sru') && LocalSruClient::isLocalUrl('https://catalogo.example.org:443/api/sru'), '03b a canonical URL that spells out :443 still matches both forms');
+$check(!LocalSruClient::isLocalUrl('https://catalogo.example.org:8443/api/sru') && !LocalSruClient::isLocalUrl('http://catalogo.example.org:443/api/sru'), '03c another port, or http on 443, is not this server');
+if ($savedCanonical === null) {
+    unset($_ENV['APP_CANONICAL_URL']);
+} else {
+    $_ENV['APP_CANONICAL_URL'] = $savedCanonical;
+}
 
 $envFile = $root . '/.env';
 if (!is_file($envFile)) {

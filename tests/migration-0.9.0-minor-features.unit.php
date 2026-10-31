@@ -100,6 +100,7 @@ try {
     $check(str_contains($schema, 'CREATE TABLE `presenze`') && str_contains($schema, 'CREATE TABLE `fornitori`')
         && str_contains($schema, '`fornitore_id` int DEFAULT NULL') && str_contains($schema, 'CONSTRAINT `fk_libri_fornitore`')
         && str_contains($schema, '`rda_content_type` varchar(10)') && str_contains($schema, '`rda_media_type` varchar(10)') && str_contains($schema, '`rda_carrier_type` varchar(10)'), 'fresh install (schema.sql) has the same tables and columns');
+    $check(preg_match('/CONSTRAINT `fk_presenze_utente` FOREIGN KEY \(`utente_id`\) REFERENCES `utenti` \(`id`\) ON DELETE SET NULL\b/', $schema) === 1, 'fresh install (schema.sql) anonymises a visit on member deletion: fk_presenze_utente is ON DELETE SET NULL');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
     $check(version_compare('0.9.0-rc.1', $version, '<='), 'the release includes the migration (0.9.0 <= version.json)');
     echo "ALL {$checks} PASS\n";

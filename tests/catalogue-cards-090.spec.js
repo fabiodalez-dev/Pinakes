@@ -14,12 +14,14 @@ const TITLE_A = `Schedario A ${TOKEN}`;
 const TITLE_B = `Schedario B ${TOKEN}`;
 const TITLE_DELETED = `Schedario cancellato ${TOKEN}`;
 
-/** 125 × 75 mm landscape = 354.33 × 212.60 pt. */
+/** 125 × 75 mm landscape = 354.33 × 212.60 pt, on every page of the PDF. */
 function expectCardSize(buffer) {
-  const m = buffer.toString('latin1').match(/\/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+([\d.]+)\s+([\d.]+)\s*\]/);
-  expect(m, 'the PDF declares a MediaBox').not.toBeNull();
-  expect(Math.abs(parseFloat(m[1]) - 354.33)).toBeLessThan(0.1);
-  expect(Math.abs(parseFloat(m[2]) - 212.6)).toBeLessThan(0.1);
+  const boxes = [...buffer.toString('latin1').matchAll(/\/MediaBox\s*\[\s*0(?:\.0+)?\s+0(?:\.0+)?\s+([\d.]+)\s+([\d.]+)\s*\]/g)];
+  expect(boxes.length, 'the PDF declares a MediaBox').toBeGreaterThan(0);
+  for (const [box, width, height] of boxes) {
+    expect(Math.abs(parseFloat(width) - 354.33), `${box} is 125 mm wide`).toBeLessThan(0.1);
+    expect(Math.abs(parseFloat(height) - 212.6), `${box} is 75 mm high`).toBeLessThan(0.1);
+  }
 }
 
 test.describe.serial('Catalogue cards (schede catalografiche)', () => {

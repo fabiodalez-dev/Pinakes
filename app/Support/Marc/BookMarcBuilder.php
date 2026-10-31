@@ -252,8 +252,11 @@ final class BookMarcBuilder
      */
     public static function unimarc(array $row, array $authors, array $publishers, ?array $genre, bool $extended = false): MarcRecord
     {
-        // Label/06 (type of record) from the media type, as in MARC 21.
-        $record = new MarcRecord(substr_replace(self::UNIMARC_LEADER_TEMPLATE, MarcMediaType::leaderType(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null), 6, 1));
+        // Label/06 (type of record) from the media type, as in MARC 21;
+        // label/07 (bibliographic level) is 's' for a serial, 'm' otherwise.
+        $isSerial = self::isSerialRecord($row);
+        $leader = substr_replace(self::UNIMARC_LEADER_TEMPLATE, MarcMediaType::leaderType(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null), 6, 1);
+        $record = new MarcRecord(substr_replace($leader, $isSerial ? 's' : 'm', 7, 1));
         $record->setFormat('UNIMARC');
 
         // 001 — Record identifier
@@ -271,6 +274,10 @@ final class BookMarcBuilder
                 $record->addDataField('010', ' ', ' ', [['a', (string) $row[$col]]]);
                 break;
             }
+        }
+        // 011 — ISSN, for a serial (the UNIMARC counterpart of MARC 21 022).
+        if ($isSerial && !empty($row['issn'])) {
+            $record->addDataField('011', ' ', ' ', [['a', (string) $row['issn']]]);
         }
         $ean = trim((string) ($row['ean'] ?? ''));
         $isbn13Digits = preg_replace('/\D/', '', (string) ($row['isbn13'] ?? ''));
