@@ -8477,7 +8477,7 @@
   "Solo le mie scansioni": "Only my scans",
   "Nessuna scansione registrata.": "No scans recorded.",
   "Chiudi la revisione": "Close the stocktake",
-  "Scegli cosa fare con le copie mancanti. La disponibilità dei libri viene ricalcolata.": "Choose what to do with the missing copies. Book availability is recalculated.",
+  "Scegli cosa fare con le copie mancanti. Se le segni come perse, la disponibilità dei libri viene ricalcolata; altrimenti non cambia.": "Choose what to do with the missing copies. Marking them as lost recalculates book availability; leaving them as they are does not change it.",
   "Chiudere la revisione? Non sarà più possibile registrare scansioni.": "Close the stocktake? No more scans can be recorded afterwards.",
   "Chiudi revisione": "Close stocktake",
   "Lascia le copie mancanti come sono": "Leave the missing copies as they are",

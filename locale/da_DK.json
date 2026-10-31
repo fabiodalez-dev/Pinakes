@@ -8477,7 +8477,7 @@
   "Solo le mie scansioni": "Kun mine scanninger",
   "Nessuna scansione registrata.": "Ingen scanninger registreret.",
   "Chiudi la revisione": "Luk optællingen",
-  "Scegli cosa fare con le copie mancanti. La disponibilità dei libri viene ricalcolata.": "Vælg, hvad der skal ske med de manglende eksemplarer. Bøgernes tilgængelighed genberegnes.",
+  "Scegli cosa fare con le copie mancanti. Se le segni come perse, la disponibilità dei libri viene ricalcolata; altrimenti non cambia.": "Vælg, hvad der skal ske med de manglende eksemplarer. Markeres de som tabt, genberegnes bøgernes tilgængelighed; ellers ændres den ikke.",
   "Chiudere la revisione? Non sarà più possibile registrare scansioni.": "Luk optællingen? Derefter kan der ikke registreres flere scanninger.",
   "Chiudi revisione": "Luk optælling",
   "Lascia le copie mancanti come sono": "Lad de manglende eksemplarer være som de er",

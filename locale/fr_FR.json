@@ -8477,7 +8477,7 @@
   "Solo le mie scansioni": "Seulement mes scans",
   "Nessuna scansione registrata.": "Aucun scan enregistré.",
   "Chiudi la revisione": "Clôturer le récolement",
-  "Scegli cosa fare con le copie mancanti. La disponibilità dei libri viene ricalcolata.": "Choisissez quoi faire des exemplaires manquants. La disponibilité des livres est recalculée.",
+  "Scegli cosa fare con le copie mancanti. Se le segni come perse, la disponibilità dei libri viene ricalcolata; altrimenti non cambia.": "Choisissez quoi faire des exemplaires manquants. Les marquer comme perdus recalcule la disponibilité des livres ; les laisser tels quels ne la modifie pas.",
   "Chiudere la revisione? Non sarà più possibile registrare scansioni.": "Clôturer le récolement ? Plus aucun scan ne pourra être enregistré.",
   "Chiudi revisione": "Clôturer le récolement",
   "Lascia le copie mancanti come sono": "Laisser les exemplaires manquants tels quels",
