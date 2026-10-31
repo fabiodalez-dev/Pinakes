@@ -8439,6 +8439,9 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "La revisione non è più aperta: non si possono registrare altre scansioni.",
   "Codice mancante.": "Codice mancante.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "Il file contiene troppi codici: al massimo %d per caricamento.",
+  "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.": "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.",
+  "Annullata il": "Annullata il",
+  "Codice troppo lungo: al massimo %d caratteri.": "Codice troppo lungo: al massimo %d caratteri.",
   "Revisione inventariale": "Revisione inventariale",
   "Aperta il": "Aperta il",
   "Sede": "Sede",
@@ -8815,5 +8818,8 @@
   "Segnare come perse le copie mancanti rimaste?": "Segnare come perse le copie mancanti rimaste?",
   "Segna come perse": "Segna come perse",
   "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura",
-  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla."
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.",
+  "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.",
+  "Il catalogo SBN non permette la ricerca per ISSN.": "Il catalogo SBN non permette la ricerca per ISSN.",
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo."
 }

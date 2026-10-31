@@ -22,6 +22,11 @@ class MarcExportController
 {
     public const FORMATS = ['marc21', 'marcxml', 'unimarc'];
     private const PAGE = 200;
+
+    /** The reduced record (third attempt): texts cut here, at most these many authors and publishers. */
+    public const REDUCED_TEXT_LENGTH = 200;
+    public const REDUCED_AUTHORS = 20;
+    public const REDUCED_PUBLISHERS = 5;
     private const MAX_SELECTED = 1000;
 
     public function export(Request $request, Response $response, \mysqli $db): Response
@@ -156,7 +161,7 @@ class MarcExportController
         $attempts = [
             'full' => [$row, $authors, $publishers],
             'shortened' => [self::shortenTexts($row), $authors, $publishers],
-            'reduced' => [self::shortenTexts($row, 200), array_slice($authors, 0, 20), array_slice($publishers, 0, 5)],
+            'reduced' => [self::shortenTexts($row, self::REDUCED_TEXT_LENGTH), array_slice($authors, 0, self::REDUCED_AUTHORS), array_slice($publishers, 0, self::REDUCED_PUBLISHERS)],
         ];
         foreach ($attempts as $name => [$r, $a, $p]) {
             $record = $format === 'unimarc'
