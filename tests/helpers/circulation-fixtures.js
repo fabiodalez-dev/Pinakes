@@ -20,13 +20,17 @@ const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const CONFIGURED = Boolean(ADMIN_EMAIL && ADMIN_PASS && DB_USER && DB_NAME);
 
+// The SQL goes in on stdin, not as `-e <sql>`: one command-line argument is
+// capped (128 KiB on Linux, E2BIG beyond it), and a stashRows() restore of a
+// large table is far bigger than that. The client stays in batch mode (-B)
+// and stops at the first failing statement, as with -e.
 function dbQuery(sql) {
-  const args = ['--default-character-set=utf8mb4', '-N', '-B', '-e', sql];
+  const args = ['--default-character-set=utf8mb4', '-N', '-B'];
   if (DB_HOST) args.push('-h', DB_HOST);
   if (DB_PORT) args.push('-P', DB_PORT);
   if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER, DB_NAME);
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 15000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
+  return execFileSync('mysql', args, { input: sql, encoding: 'utf-8', timeout: 15000, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
 const dbInt = (sql) => parseInt(dbQuery(sql) || '0', 10);
 const sqlStr = (v) => "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
@@ -253,26 +257,87 @@ async function setPluginActive(page, name, active) {
 /**
  * Snapshot the rows of a table (optionally filtered by `where`) so they can be
  * put back verbatim. Every value travels hex-encoded, so quotes, backslashes
- * and non-ASCII text survive the mysql batch output unchanged.
+ * and non-ASCII text survive the mysql batch output unchanged. Each row also
+ * keeps its primary key, for a restore limited to the snapshot rows.
  */
 function stashRows(table, where = '') {
-  const cols = dbQuery(`SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=${sqlStr(table)}`);
+  const colsOf = (extra) => dbQuery(`SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=${sqlStr(table)}${extra}`);
+  const cols = colsOf('');
   if (!cols) throw new Error(`table ${table} has no columns`);
-  const select = cols.split(',')
-    .map((c) => `IFNULL(CONCAT('CONVERT(X''', HEX(CAST(\`${c}\` AS CHAR)), ''' USING utf8mb4)'), 'NULL')`)
-    .join(", ',', ");
+  const pk = colsOf(" AND COLUMN_KEY='PRI'");
+  const literal = (c) => `IFNULL(CONCAT('CONVERT(X''', HEX(CAST(\`${c}\` AS CHAR)), ''' USING utf8mb4)'), 'NULL')`;
+  const values = cols.split(',').map(literal).join(", ',', ");
+  const key = pk ? pk.split(',').map(literal).join(", ',', ") : "''";
   const filter = where ? ` WHERE ${where}` : '';
-  const rows = dbQuery(`SELECT CONCAT(${select}) FROM \`${table}\`${filter}`).split('\n').filter(Boolean);
-  return { table, filter, cols: cols.split(',').map((c) => `\`${c}\``).join(','), rows };
+  const rows = dbQuery(`SELECT CONCAT(${values}), CONCAT(${key}) FROM \`${table}\`${filter}`)
+    .split('\n').filter(Boolean)
+    .map((line) => { const [v, k] = line.split('\t'); return { values: v, key: k || '' }; });
+  const quote = (list) => list.split(',').map((c) => `\`${c}\``).join(',');
+  return { table, filter, cols: quote(cols), pk: pk ? quote(pk) : '', rows };
 }
 
-/** Put back a stashRows() snapshot in one transaction: all of it or nothing. */
-function unstashRows(s) {
+/**
+ * Put back a stashRows() snapshot in one transaction: all of it or nothing.
+ * By default every row matching the snapshot filter is replaced by the
+ * snapshot. With { onlySnapshotRows: true } only the snapshot's own rows
+ * (by primary key) are deleted and re-inserted, so a row added after the
+ * snapshot is left alone.
+ */
+function unstashRows(s, { onlySnapshotRows = false } = {}) {
   if (!s) return;
-  const sql = ['START TRANSACTION', `DELETE FROM \`${s.table}\`${s.filter}`];
-  for (const values of s.rows) sql.push(`INSERT INTO \`${s.table}\` (${s.cols}) VALUES (${values})`);
+  const sql = ['START TRANSACTION'];
+  if (onlySnapshotRows) {
+    if (!s.pk) throw new Error(`table ${s.table} has no primary key: cannot restore only the snapshot rows`);
+    for (const row of s.rows) sql.push(`DELETE FROM \`${s.table}\` WHERE (${s.pk}) = (${row.key})`);
+  } else {
+    sql.push(`DELETE FROM \`${s.table}\`${s.filter}`);
+  }
+  for (const row of s.rows) sql.push(`INSERT INTO \`${s.table}\` (${s.cols}) VALUES (${row.values})`);
   sql.push('COMMIT');
   dbQuery(sql.join(';\n'));
+}
+
+/**
+ * State of one system_settings row: { exists: false } when there is no row,
+ * else { exists: true, value } with value null for SQL NULL. The value is
+ * read hex-encoded, so SQL NULL, the text "NULL", an empty string and
+ * surrounding whitespace all come back exactly as stored.
+ */
+function readSettingState(category, key) {
+  const raw = dbQuery(`SELECT IF(setting_value IS NULL, 'n', CONCAT('s', HEX(setting_value))) FROM system_settings WHERE category=${sqlStr(category)} AND setting_key=${sqlStr(key)} LIMIT 1`);
+  if (raw === '') return { exists: false, value: null };
+  return { exists: true, value: raw === 'n' ? null : Buffer.from(raw.slice(1), 'hex').toString('utf8') };
+}
+
+/** Put a system_settings row back to a readSettingState() snapshot. */
+function restoreSettingState(category, key, state) {
+  if (!state.exists) {
+    dbQuery(`DELETE FROM system_settings WHERE category=${sqlStr(category)} AND setting_key=${sqlStr(key)}`);
+    return;
+  }
+  const value = state.value === null ? 'NULL' : sqlStr(state.value);
+  dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES (${sqlStr(category)}, ${sqlStr(key)}, ${value}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+}
+
+/**
+ * Switch a plugin on or off from a fresh browser context logged in as the
+ * administrator, for cleanup that must not depend on a page the suite set up
+ * (its context or login may be the very step that failed). Does nothing,
+ * and opens no context, when the plugin is already in that state.
+ * @param {import('@playwright/test').Browser} browser
+ * @param {string} name
+ * @param {boolean} active
+ */
+async function setPluginActiveFresh(browser, name, active) {
+  if (pluginActive(name) === active) return;
+  const ctx = await browser.newContext();
+  try {
+    const page = await ctx.newPage();
+    await loginAsAdmin(page);
+    await setPluginActive(page, name, active);
+  } finally {
+    await ctx.close();
+  }
 }
 
 /** Run every cleanup step even when an earlier one throws; rethrow the first error. */
@@ -291,5 +356,6 @@ module.exports = {
   loginAs, loginAsAdmin, openCirculationTab, createTypeViaUi, setMatrixCell,
   fillAutocomplete, staffLoan, requestFromBookPage, copyCodeOf,
   appTodayISO, appDateOffsetISO,
-  pluginActive, setPluginActive, stashRows, unstashRows, runAll,
+  pluginActive, setPluginActive, setPluginActiveFresh, stashRows, unstashRows, runAll,
+  readSettingState, restoreSettingState,
 };
