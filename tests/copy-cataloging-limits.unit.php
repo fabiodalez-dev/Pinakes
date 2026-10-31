@@ -9,8 +9,13 @@ declare(strict_types=1);
  *    is the same endpoint as the one without it, for the cover fetcher and
  *    for the in-process local SRU client alike.
  *
+ *  - a disabled configured server is neither offered nor queried, the book
+ *    data kept in the session has a size cap, an ISSN search on SBN says it
+ *    is not supported, and the history counts each chosen id once.
+ *
  * Offline: every server answers through a fake client. The database is only
- * read (the duplicate check), never written.
+ * read (the duplicate check), except for one import_logs row the history
+ * check writes and removes.
  * Run: php tests/copy-cataloging-limits.unit.php   (exit 0 iff every check passes)
  */
 
@@ -121,6 +126,66 @@ if (!is_file($envFile)) {
     $fifth = array_values(array_filter($cut['servers'], static fn (array $r): bool => $r['name'] === 'Server 5'))[0] ?? [];
     $check(count($cut['results']) === 100 && ($fifth['count'] ?? null) === 4 && ($fifth['total'] ?? null) === 500, '08 a server cut by the cap reports the records listed (4), not the 24 it sent');
     $check(array_sum(array_column($cut['servers'], 'count')) === count($cut['results']), '09 the report counts add up to the results on the page');
+
+    echo "Disabled servers\n";
+    $withOff = $configured;
+    $withOff[1]['enabled'] = false;
+    $withOff[] = ['name' => 'LoC off', 'url' => 'http://lx2.loc.gov:210/LCDB', 'enabled' => false];
+    $ccOff = new CopyCataloging($db, null, $withOff, false, false, 15, $factory);
+    $offered = $ccOff->servers();
+    $check(!isset($offered['cfg:1']) && isset($offered['cfg:0']) && !isset($offered['cfg:6']) && !isset($offered['preset:loc']), '10 a disabled configured server is not offered, nor the preset it replaces');
+    $queried = [];
+    $offAnswer = $ccOff->search(['cfg:0', 'cfg:1'], 'title', 'x', 2);
+    $check($queried === ['Server 1'] && count($offAnswer['servers']) === 1, '11 a disabled server named in the request is not queried');
+
+    echo "Stored size cap\n";
+    $bigFactory = static function (array $server) use (&$queried): SruClient {
+        return new class ([$server], $queried) extends SruClient {
+            /** @param list<string> $log */
+            public function __construct(array $servers, private array &$log)
+            {
+                parent::__construct($servers);
+            }
+
+            public function searchServer(array $server, string $cql, int $max = 10): array
+            {
+                $this->log[] = (string) $server['name'];
+                $records = [];
+                for ($i = 1; $i <= $max; $i++) {
+                    $records[] = ['data' => ['titolo' => "ZZCC {$server['name']} {$i}", 'descrizione' => str_repeat('d', 600 * 1024)], 'flavour' => 'marc21', 'marc' => null];
+                }
+                return ['total' => 500, 'records' => $records, 'error' => null];
+            }
+        };
+    };
+    $queried = [];
+    $ccBig = new CopyCataloging($db, null, $configured, false, false, 15, $bigFactory);
+    $big = $ccBig->search(['cfg:0', 'cfg:1'], 'title', 'x', 25);
+    $storedSize = strlen((string) json_encode(array_column($_SESSION['copy_cataloging_results'] ?? [], 'data')));
+    $check(count($big['results']) === 6 && $storedSize <= CopyCataloging::MAX_STORED_BYTES, '12 the book data kept in the session stops at the size cap (6 records of 600 KiB under 4 MiB)');
+    $check($queried === ['Server 1'] && ($big['servers'][0]['count'] ?? null) === 6 && ($big['servers'][1]['error'] ?? null) === __('Limite di dimensione dei risultati raggiunto: catalogo non interrogato.'), '13 the next server is reported as not queried because of the size cap');
+
+    echo "SBN and ISSN\n";
+    $ccSbn = new CopyCataloging($db, null, [], true, false, 15, $factory);
+    $sbnIssn = $ccSbn->search(['sbn'], 'issn', '0391-6170', 5);
+    $check($sbnIssn['results'] === [] && ($sbnIssn['servers'][0]['error'] ?? null) === __('Il catalogo SBN non permette la ricerca per ISSN.'), '14 an ISSN search on SBN says the catalogue has no ISSN index instead of a free-text search');
+
+    echo "History counts\n";
+    $_SESSION['copy_cataloging_results'] = [];
+    $imp = $ccSbn->import(['zz-gone', 'zz-gone', 'zz-gone'], 'skip', false);
+    $logged = null;
+    if (($imp['import_id'] ?? null) !== null) {
+        $logStmt = $db->prepare('SELECT total_rows FROM import_logs WHERE import_id = ?');
+        $logStmt->bind_param('s', $imp['import_id']);
+        $logStmt->execute();
+        $logged = (int) ($logStmt->get_result()->fetch_row()[0] ?? -1);
+        $logStmt->close();
+        $delStmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
+        $delStmt->bind_param('s', $imp['import_id']);
+        $delStmt->execute();
+        $delStmt->close();
+    }
+    $check($imp['failed'] === 1 && $logged === 1, '15 the history counts an id sent three times once, as the import handles it');
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";

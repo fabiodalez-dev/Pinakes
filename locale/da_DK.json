@@ -8578,5 +8578,7 @@
   "Segnare come perse le copie mancanti rimaste?": "Markér de resterende manglende eksemplarer som tabt?",
   "Segna come perse": "Markér som tabt",
   "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Optælling: manglende eksemplarer markeret som tabt efter afslutningen",
-  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Importen er fuldført, men historikken blev ikke gemt. Prøv igen for at gemme den."
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Importen er fuldført, men historikken blev ikke gemt. Prøv igen for at gemme den.",
+  "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Grænsen for resultaternes størrelse er nået: kataloget blev ikke søgt.",
+  "Il catalogo SBN non permette la ricerca per ISSN.": "SBN-kataloget understøtter ikke søgning efter ISSN."
 }

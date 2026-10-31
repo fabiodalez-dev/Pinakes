@@ -8578,5 +8578,7 @@
   "Segnare come perse le copie mancanti rimaste?": "Marquer comme perdus les exemplaires manquants restants ?",
   "Segna come perse": "Marquer comme perdus",
   "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Récolement : exemplaires manquants marqués comme perdus après la clôture",
-  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer."
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer.",
+  "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
+  "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN."
 }
