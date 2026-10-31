@@ -462,6 +462,17 @@ $bytesCrowdUni = \App\Controllers\MarcExportController::serializeIso('unimarc', 
 $check($bytesCrowd !== null && $levelCrowd === 'reduced' && Iso2709Reader::parse(substr($bytesCrowd, 0, -1))->subfield('245', 'a') === 'T'
     && $bytesCrowdUni !== null && $levelCrowdUni === 'reduced', '74b a book that overflows even shortened (700 authors) is exported as a reduced record, never skipped');
 
+require_once $root . '/storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php';
+$oai = (new ReflectionClass(\App\Plugins\OaiPmhServer\OaiPmhServerPlugin::class))->newInstanceWithoutConstructor();
+$single = null;
+try {
+    $single = (new ReflectionMethod($oai, 'bookToFittingIso2709'))->invoke($oai, $huge + ['copertina_url' => 'https://img.example.org/c.jpg', 'classificazione_dewey' => '853'], $crowd, [], null);
+} catch (\OverflowException) {
+    $single = null;
+}
+$singleRecord = is_string($single) ? Iso2709Reader::parse(substr($single, 0, -1)) : null;
+$check($singleRecord !== null && count($singleRecord->fieldsByTag('700')) + count($singleRecord->fieldsByTag('701')) <= \App\Controllers\MarcExportController::REDUCED_AUTHORS
+    && $singleRecord->first('856') === null && $singleRecord->first('676') === null, '74c the single UNIMARC download of the same book is the reduced record too, still without the extended fields');
 echo "Language names round trip\n";
 $roundTrip = true;
 foreach (['ita', 'eng', 'fre', 'ger', 'rus', 'chi', 'jpn', 'fin', 'gre', 'lat', 'ice', 'cze', 'hun', 'rum', 'tur', 'heb', 'kor', 'tha', 'grc', 'nor'] as $code) {
