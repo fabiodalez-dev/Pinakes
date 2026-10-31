@@ -943,6 +943,25 @@ final class StocktakeService
         return $rows;
     }
 
+    /** How many rows reportRows() returns, counted without loading them. */
+    public function reportRowCount(int $sessionId): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT (SELECT COUNT(*) FROM inventario_attese a '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            . 'WHERE a.sessione_id = ? AND s.id IS NULL) '
+            . '+ (SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = ?)'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('ii', $sessionId, $sessionId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return (int) ($row[0] ?? 0);
+    }
+
     /**
      * Most recent scans first; with $operatorId only that operator's. A null
      * $limit returns them all (the report); the live list asks for a page.

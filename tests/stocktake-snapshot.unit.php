@@ -215,6 +215,23 @@ try {
     $check(str_contains($cancelledMeta, __('Annullata il') . ': ') && !str_contains($cancelledMeta, __('Chiusa il')), 'the PDF of a cancelled session says when it was cancelled, not closed');
     $check(str_contains($closedMeta, __('Chiusa il') . ': ') && !str_contains($closedMeta, __('Annullata il')), 'the PDF of a closed session says when it was closed');
     $check(str_starts_with($pdfGenerator->generate((array) $service->find($second), $service->summary($second), $service->reportRows($second), [], []), '%PDF'), 'the PDF of a cancelled session is still generated');
+    $check($service->reportRowCount($sessionId) === count($service->reportRows($sessionId)) && $service->reportRowCount($second) === count($service->reportRows($second)), 'reportRowCount() counts exactly the report rows');
+    // A report too large for one TCPDF request is refused (review #504),
+    // pointing at the CSV export instead of exhausting memory.
+    $big = $service->open('ZZST big ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
+    $sessionIds[] = $big;
+    $bigRows = App\Support\StocktakePdfGenerator::MAX_ROWS + 1;
+    // Placeholder rows from a digits cross join (no recursive CTE: MySQL and
+    // MariaDB cap its depth with different variables).
+    $digits = '(SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9)';
+    $db->query("INSERT INTO inventario_attese (sessione_id, copia_id, codice_atteso, titolo_atteso) SELECT {$big}, 2000000000 + t.n, CONCAT('{$p}-BIG-', t.n), 'ZZST big' FROM (SELECT d1.d + 10 * d2.d + 100 * d3.d + 1000 * d4.d + 10000 * d5.d AS n FROM {$digits} d1, {$digits} d2, {$digits} d3, {$digits} d4, {$digits} d5) t WHERE t.n < {$bigRows}");
+    $check((int) $one("SELECT COUNT(*) FROM inventario_attese WHERE sessione_id = {$big}") === $bigRows, 'the large session holds one row over the PDF limit');
+    $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
+    $pdfResponse = (new App\Controllers\InventoryController())->exportPdf((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $big);
+    $check($pdfResponse->getStatusCode() === 302 && str_ends_with($pdfResponse->getHeaderLine('Location'), '/admin/inventory/' . $big) && (string) $pdfResponse->getBody() === '', 'a report over the PDF row limit is not rendered: the export goes back to the session');
+    $check(($_SESSION['error_message'] ?? '') === sprintf(__('Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.'), $bigRows, App\Support\StocktakePdfGenerator::MAX_ROWS), 'with a message that points to the CSV report');
+    $smallResponse = (new App\Controllers\InventoryController())->exportPdf((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $second);
+    $check($smallResponse->getStatusCode() === 200 && str_starts_with((string) $smallResponse->getBody(), '%PDF'), 'a report within the limit is still exported as PDF');
 
     // A close or cancel that loses the race against another transition does nothing.
     $refused = static function (callable $fn): bool {

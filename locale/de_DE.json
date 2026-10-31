@@ -8439,6 +8439,7 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "Die Revision ist nicht mehr offen: Es können keine weiteren Scans erfasst werden.",
   "Codice mancante.": "Code fehlt.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "Die Datei enthält zu viele Codes: höchstens %d pro Upload.",
+  "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.": "Der Bericht hat zu viele Zeilen für ein PDF (%d, höchstens %d): Lade den CSV-Bericht herunter.",
   "Annullata il": "Storniert am",
   "Codice troppo lungo: al massimo %d caratteri.": "Code zu lang: höchstens %d Zeichen.",
   "Revisione inventariale": "Bestandsrevision",

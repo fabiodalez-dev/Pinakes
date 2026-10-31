@@ -13,6 +13,15 @@ class StocktakePdfGenerator
 {
     private const FONT = 'dejavusans';
 
+    /**
+     * Report rows a PDF may hold (about 220 pages). TCPDF builds the whole
+     * document in memory within one request, so a stocktake of the whole
+     * catalogue could exhaust memory_limit or max_execution_time: past this
+     * the export is refused and the CSV report, written row by row, is the
+     * way to get it.
+     */
+    public const MAX_ROWS = 10000;
+
     /** Report sections in reading order: what needs attention first. */
     private const SECTIONS = ['mancante', 'fuori_posto', 'in_prestito', 'sconosciuta', 'fuori_ambito', 'duplicata', 'trovata'];
 

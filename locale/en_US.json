@@ -8439,6 +8439,7 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "The stocktake is no longer open: no more scans can be recorded.",
   "Codice mancante.": "Missing code.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "The file contains too many codes: at most %d per upload.",
+  "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.": "The report has too many rows for a PDF (%d, at most %d): download the CSV report.",
   "Annullata il": "Cancelled on",
   "Codice troppo lungo: al massimo %d caratteri.": "Code too long: at most %d characters.",
   "Revisione inventariale": "Inventory stocktake",
