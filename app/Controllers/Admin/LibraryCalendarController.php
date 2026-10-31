@@ -450,17 +450,6 @@ class LibraryCalendarController
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     /**
-     * Every write goes through here, under one named lock (two operators
-     * importing at once cannot both pass alreadyClosed()) and one
-     * transaction: the write, then the pending pickups whose deadline is now
-     * a closed day move to the next open day. A write that returns an error
-     * message, or any failure (the deadline move included), rolls the whole
-     * change back, so the expiry sweep never reads a calendar whose pickup
-     * deadlines were not moved. Null on success, otherwise the message.
-     *
-     * @param callable(): ?string $write
-     */
-    /**
      * After a write that runs in its own transaction (holiday presets, yearly
      * switches, the library's own holidays): drop the cached calendar and move
      * the pickup deadlines that now fall on a closed day.
@@ -475,6 +464,17 @@ class LibraryCalendarController
         }
     }
 
+    /**
+     * Every write goes through here, under one named lock (two operators
+     * importing at once cannot both pass alreadyClosed()) and one
+     * transaction: the write, then the pending pickups whose deadline is now
+     * a closed day move to the next open day. A write that returns an error
+     * message, or any failure (the deadline move included), rolls the whole
+     * change back, so the expiry sweep never reads a calendar whose pickup
+     * deadlines were not moved. Null on success, otherwise the message.
+     *
+     * @param callable(): ?string $write
+     */
     private function commitChange(\mysqli $db, callable $write): ?string
     {
         $lockName = $this->lockName($db);
