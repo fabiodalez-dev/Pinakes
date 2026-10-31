@@ -156,15 +156,18 @@ try {
     $branch = (int) $db->insert_id;
     Features::override('closures_calendar', true);
     // A connection lost after the schema was checked (the check is cached per
-    // connection) leaves an open calendar, not an exception in a due date.
+    // connection) raises: an open calendar read from a dead connection would
+    // let a loan write store a due date on a closed day (LibraryCalendar::
+    // loadClosures() never reads a failure as "no closures").
     $broken = $socket !== '' && file_exists($socket) ? new mysqli(null, $user, $pw, $name, 0, $socket) : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), $user, $pw, $name, (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $eq(CustomHolidays::schemaReady($broken), true, 'the second connection sees the table');
     $db->query('KILL ' . (int) $broken->thread_id);
     try {
-        $eq(LibraryCalendar::fromDatabase($broken)->isOpen('2031-03-04'), true, 'unreadable holiday rules fall back to an open calendar');
+        $outcome = LibraryCalendar::fromDatabase($broken)->isOpen('2031-03-04') ? 'open calendar' : 'closed day';
     } catch (Throwable $e) {
-        $eq(get_class($e) . ': ' . $e->getMessage(), 'no exception', 'unreadable holiday rules fall back to an open calendar');
+        $outcome = get_class($e) . ': ' . $e->getMessage();
     }
+    $eq($outcome, 'RuntimeException: LibraryCalendar: closures not readable', 'an unreadable calendar raises instead of reading as open');
     $add = static function (array $data) use ($db, $branch): int {
         $row = CustomHolidays::validate(array_replace(['nome' => 'ZZ custom', 'attiva' => '1'], $data), [$branch]);
         if (!is_array($row)) {
