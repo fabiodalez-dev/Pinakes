@@ -46,6 +46,15 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 $useSocket = $socket !== '' && file_exists($socket);
 $sandbox = getenv('MIG_SANDBOX_DB') ?: ((getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? 'pinakes')) . '_migfines');
+if (preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandbox) !== 1) {
+    fwrite(STDERR, "FAIL: invalid sandbox database name '{$sandbox}'\n");
+    exit(1);
+}
+// The sandbox is dropped: refuse any name that is a real database this run could mean.
+if (in_array(strtolower($sandbox), array_map('strtolower', array_filter([(string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')], static fn (string $name): bool => $name !== '')), true)) {
+    fwrite(STDERR, "FAIL: the sandbox name is the installation's own database. Name a disposable one.\n");
+    exit(1);
+}
 try {
     $user = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
     $pass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
