@@ -43,6 +43,15 @@ $same($authorUmlaut, $authors->findByCanonicalName("Häffner, {$given}"), 'autho
 $same($authorPlain, $authors->findByCanonicalName("Haffner, {$given}"), 'author: the inverted "Haffner, Given" form resolves to Haffner');
 $same($authorUmlaut, $authors->findByName("{$given} Häffner"), 'author: findByName() follows the same rule');
 
+// Editing an author stores the name as creating it does: one record holds one
+// name, so a '|' in it is kept, and quotes around the whole name are dropped.
+$authorPipe = $authors->create(['nome' => "{$given} | Hüffner Gruppe"]);
+$authors->update($authorPipe, ['nome' => "{$given} | Hüffner Gruppe"]);
+$authorName = static fn(int $id): string => (string) $db->query("SELECT nome FROM autori WHERE id = {$id}")->fetch_column();
+$same("{$given} | Hüffner Gruppe", $authorName($authorPipe), 'author update: a "|" in one name is kept, as create() keeps it');
+$authors->update($authorPipe, ['nome' => "\"Hüffner Gruppe, {$given}\""]);
+$same("{$given} Hüffner Gruppe", $authorName($authorPipe), 'author update: whole-name quotes are dropped and the name is normalised');
+
 // ── PublisherRepository (book form, bulk edit, mobile API) ─────────────────
 $publishers = new PublisherRepository($db);
 $same($pubUmlaut, $publishers->findByName("Verlag {$given} Häffner"), 'publisher: the exact umlaut spelling wins');
@@ -159,4 +168,4 @@ $same("{$given} Höffner; Mario Rossi", $cached['curatore'] ?? null, 'updateOpti
 $typed = $periodicals->resolve(["new:\"Verlag {$given} Hüffner\""]);
 $ok(count($typed) === 1 && $nameOf('editori', $typed[0]) === "Verlag {$given} Hüffner" && $typed[0] !== $pubPlain, 'periodicals: a quoted typed publisher is a new one, stored without quotes');
 
-Exact501::finish(53);
+Exact501::finish(55);
