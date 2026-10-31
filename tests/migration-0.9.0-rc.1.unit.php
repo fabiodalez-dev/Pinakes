@@ -25,9 +25,30 @@ if ($sections === [] || $tests === []) {
     fwrite(STDERR, "FAIL migrate_0.9.0-rc.1.sql needs delimited sections, each with a tests/migration-0.9.0-<feature>.unit.php\n");
     exit(1);
 }
-if (count($tests) < count($sections)) {
-    fwrite(STDERR, sprintf("FAIL %d migration sections (%s) but only %d section tests\n", count($sections), implode(', ', $sections), count($tests)));
-    exit(1);
+// Each section names its own test explicitly: a slug derived from the title
+// would let a renamed section silently pick up (or lose) the wrong test, and
+// a bare count lets one extra test hide a section that has none. A section in
+// this map that the SQL does not (yet) carry is simply not checked.
+$sectionTests = [
+    'Inventory stocktake' => 'migration-0.9.0-stocktake.unit.php',
+    'MARC bulk import / copy cataloguing' => 'migration-0.9.0-marc.unit.php',
+    'minor features: visitor log, suppliers, RDA overrides' => 'migration-0.9.0-minor-features.unit.php',
+    'patron-cards-import' => 'migration-0.9.0-patron-import.unit.php',
+    'Circulation policy: patron types, rules matrix, consultation-only copies' => 'migration-0.9.0-circulation-policy.unit.php',
+    'closures calendar' => 'migration-0.9.0-closures-calendar.unit.php',
+    'fines-ledger (Phase 4: fines, patron ledger, debt block)' => 'migration-0.9.0-fines-ledger.unit.php',
+];
+$testNames = array_map('basename', $tests);
+foreach ($sections as $section) {
+    $expected = $sectionTests[$section] ?? null;
+    if ($expected === null) {
+        fwrite(STDERR, "FAIL migration section \"{$section}\" has no entry in the section-to-test map of " . basename(__FILE__) . "\n");
+        exit(1);
+    }
+    if (!in_array($expected, $testNames, true)) {
+        fwrite(STDERR, "FAIL migration section \"{$section}\" expects tests/{$expected}, which does not exist\n");
+        exit(1);
+    }
 }
 $php = PHP_BINARY;
 foreach ($tests as $test) {
