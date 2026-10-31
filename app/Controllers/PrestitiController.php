@@ -187,9 +187,11 @@ class PrestitiController
         // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
         $defaultDataPrestito = \App\Support\DateHelper::today();
         $loanSettings = new \App\Models\SettingsRepository($db);
-        $defaultLoanDays = $loanSettings->loanDurationDays();
+        $defaultLoanDays = (new \App\Services\CirculationPolicy($db, $loanSettings))->defaults()->durationDays;
         $allowMultipleLoansSameBook = $loanSettings->allowsMultipleLoansSameBook();
-        $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
+        $defaultDataScadenza = \App\Services\CirculationPolicy::dueDateFor($defaultDataPrestito, $defaultLoanDays, $db);
+        // Closed days for the admin pickers (closures calendar), one year ahead.
+        $closedDates = \App\Support\LibraryCalendar::forDb($db)->closedDatesBetween($defaultDataPrestito, \App\Support\LibraryCalendar::shift($defaultDataPrestito, 400));
         $loanSubmissionToken = \App\Support\OneTimeFormToken::issue('loan.create');
 
         ob_start();
@@ -266,14 +268,16 @@ class PrestitiController
         if (!\App\Support\DateHelper::isISODateFormat($data_prestito)) {
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
         }
-        if (empty($data_scadenza)) {
-            // Default loan duration read from admin settings (fallback: 30 days)
-            $loanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
+        $typedDueDate = !empty($data_scadenza);
+        if (!$typedDueDate) {
+            // Default loan duration from the circulation rules of this patron
+            // and title (fallback: the global loans settings, 30 days).
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($utente_id, $libro_id)->durationDays;
             $startDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $data_prestito);
             if ($startDate === false) {
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
             }
-            $data_scadenza = $startDate->modify("+{$loanDays} days")->format('Y-m-d');
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($startDate->format('Y-m-d'), $loanDays, $db);
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -298,6 +302,10 @@ class PrestitiController
         // (confronto lessicografico sicuro: entrambe validate Y-m-d qui sopra)
         if ($data_scadenza <= $data_prestito) {
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
+        }
+        if ($typedDueDate) {
+            // A typed due date on a closed day moves to the next open day.
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_scadenza, 0, $db);
         }
 
         // A newly-created active loan whose entire window is already over is
@@ -386,19 +394,14 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=' . $eligibilityError)->withStatus(302);
             }
 
-            // Enforce max active loans per user (admin setting; 0 = no limit)
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('i', $utente_id);
-                $cntStmt->execute();
-                $cntResult = $cntStmt->get_result();
-                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
-                    $db->rollback();
-                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=max_loans_reached')->withStatus(302);
-                }
+            // Circulation rules of this patron and title (CirculationPolicy):
+            // loanability and active-loan limits (0 = no limit), counted under
+            // the user lock above.
+            $circulation = new \App\Services\CirculationPolicy($db);
+            $limitError = $circulation->loanLimitError($circulation->forLoan($utente_id, $libro_id), $utente_id);
+            if ($limitError !== null) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=' . $limitError)->withStatus(302);
             }
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan).
@@ -450,6 +453,12 @@ class PrestitiController
                 }
 
                 $forcedCopyId = (int) $codeRow['id'];
+
+                // A copy kept for in-house consultation is never lent.
+                if ((new \App\Services\CirculationPolicy($db))->isConsultationCopy($forcedCopyId)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=not_loanable')->withStatus(302);
+                }
 
                 // Multiple open rows for one borrower/title must represent
                 // different physical items even when their date windows do not
@@ -519,6 +528,7 @@ class PrestitiController
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti own
                         WHERE own.copia_id = c.id
@@ -566,6 +576,19 @@ class PrestitiController
                 || in_array($lockedCopy['stato'], ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
+            }
+
+            // The copy is known only now: a due date closed at its branch moves
+            // to the branch's next open day, and the longer window is checked
+            // again for capacity (the copy overlap check below uses it too).
+            $branchDue = \App\Services\CirculationPolicy::dueDateFor($data_scadenza, 0, $db, (int) $selectedCopy['id']);
+            if ($branchDue !== $data_scadenza) {
+                $branchCapacity = new \App\Services\CapacityService($db);
+                if (!$branchCapacity->hasFreeCapacity($libro_id, $data_prestito, $branchDue)) {
+                    $db->rollback();
+                    return $this->noCapacityRedirect($response, $branchCapacity, $libro_id, $data_prestito, $branchDue);
+                }
+                $data_scadenza = $branchDue;
             }
 
             // Race condition check to prevent double-booking
@@ -643,7 +666,8 @@ class PrestitiController
                     // immediato/futuro ed evitare lo scarto di un giorno a mezzanotte.
                     $settingsRepo = new \App\Models\SettingsRepository($db);
                     $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
-                    $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
+                    // Open days only (closures calendar); identical to +N days without closures.
+                    $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays, null, (int) $selectedCopy['id']);
                     // Cap alla fine della finestra del prestito (L1), come
                     // approveLoan/activateScheduledLoans: una deadline oltre
                     // data_scadenza permetterebbe di confermare il ritiro di un
@@ -861,7 +885,7 @@ class PrestitiController
 
         // Lettura NON bloccante della riga corrente: serve libro_id per il lock
         // canonico (P3) e i valori correnti per completare i campi non inviati.
-        $check = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=?');
+        $check = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id, data_prestito, data_scadenza, copia_id FROM prestiti WHERE id=?');
         $check->bind_param('i', $id);
         $check->execute();
         $current = $check->get_result()->fetch_assoc();
@@ -879,6 +903,10 @@ class PrestitiController
         $libroId = (int) $current['libro_id'];
         $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $current['utente_id'];
         $newPrestito = (string) ($updateData['data_prestito'] ?? $current['data_prestito']);
+        // Closures calendar: a submitted due date on a closed day moves forward.
+        if (isset($updateData['data_scadenza']) && \App\Support\DateHelper::isISODateFormat((string) $updateData['data_scadenza'])) {
+            $updateData['data_scadenza'] = \App\Services\CirculationPolicy::dueDateFor((string) $updateData['data_scadenza'], 0, $db, $current['copia_id'] !== null ? (int) $current['copia_id'] : null);
+        }
         $newScadenza = (string) ($updateData['data_scadenza'] ?? $current['data_scadenza']);
 
         // Valida il range date (M6a): una scadenza precedente alla partenza
@@ -1060,18 +1088,11 @@ class PrestitiController
                 // Cap prestiti attivi del NUOVO utente (M6): stesso enforcement di
                 // store() — senza, la riassegnazione admin aggira silenziosamente
                 // max_active_loans_per_user.
-                $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-                if ($maxLoans > 0) {
-                    $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                    $cntStmt->bind_param('i', $newUserId);
-                    $cntStmt->execute();
-                    $cntResult = $cntStmt->get_result();
-                    $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                    $cntStmt->close();
-                    if ($activeCount >= $maxLoans) {
-                        $db->rollback();
-                        return $response->withHeader('Location', url('/admin/loans') . '?error=max_loans_reached')->withStatus(302);
-                    }
+                $circulation = new \App\Services\CirculationPolicy($db);
+                $limitError = $circulation->loanLimitError($circulation->forExistingLoan($id, $newUserId), $newUserId);
+                if ($limitError !== null) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=' . $limitError)->withStatus(302);
                 }
             }
 
@@ -1260,7 +1281,7 @@ class PrestitiController
                     $pickupRecalc->close();
                 } elseif ((string) $locked['stato'] === 'da_ritirare') {
                     $pickupDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'pickup_expiry_days', '3') ?? 3);
-                    $pickupDeadline = (new \DateTimeImmutable($todayApp))->modify('+' . $pickupDays . ' days')->format('Y-m-d');
+                    $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $todayApp, $pickupDays, null, !empty($locked['copia_id']) ? (int) $locked['copia_id'] : null);
                     if ($pickupDeadline > $newScadenza) {
                         $pickupDeadline = $newScadenza;
                     }
@@ -1298,10 +1319,7 @@ class PrestitiController
             if ($newScadenza > $oldScadenza
                 && in_array((string) $locked['stato'], ['in_corso', 'in_ritardo'], true)) {
                 try {
-                    $maxRenewals = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_renewals', '3') ?? 3);
-                    if ($maxRenewals < 0) {
-                        $maxRenewals = 3;
-                    }
+                    $maxRenewals = (new \App\Services\CirculationPolicy($db))->forExistingLoan($id)->maxRenewals;
                     (new NotificationService($db))->sendLoanRenewedNotification($id, $maxRenewals);
                 } catch (\Throwable $notifError) {
                     SecureLogger::warning('Loan update renewal notification failed', ['loan_id' => $id, 'error' => $notifError->getMessage()]);
@@ -1386,6 +1404,10 @@ class PrestitiController
         $prestito = $result->fetch_assoc();
         $stmt->close();
 
+        // Plan §7: the late fine a return today would charge, shown before the
+        // operator confirms (with the option to waive it on the spot).
+        $finePreview = \App\Services\PatronLedger::forDb($db)->previewLateFine($id);
+
         ob_start();
         require __DIR__ . '/../Views/prestiti/restituito_prestito.php';
         $content = ob_get_clean();
@@ -1428,6 +1450,15 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_penalty')->withStatus(302);
         }
         $sanzione = number_format((float) $penaltyRaw, 2, '.', '');
+
+        // Late-fine waiver at the desk (plan §7): the operator may waive the
+        // fine shown on the return screen, but only with a reason. Checked
+        // before any write so a refused waiver leaves the loan open.
+        $waiveFine = isset($data['waive_fine']) && is_scalar($data['waive_fine']) && (string) $data['waive_fine'] === '1';
+        $waiveReason = trim((string) (is_scalar($data['waive_reason'] ?? null) ? $data['waive_reason'] : ''));
+        if ($waiveFine && $waiveReason === '') {
+            return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=waiver_reason_required')->withStatus(302);
+        }
 
         // La riparazione NON è un esito di prestito: `prestiti.stato` non ha stati
         // 'manutenzione'/'in_restauro'. Un rientro-con-riparazione chiude il prestito
@@ -1478,7 +1509,7 @@ class PrestitiController
             // (attivo=1, in_corso/in_ritardo) è restituibile (BUG4/D10 — niente
             // doppia elaborazione, niente TypeError su copia_id nullo).
             $stmt = $db->prepare("
-                SELECT libro_id, copia_id, stato, data_scadenza
+                SELECT libro_id, copia_id, utente_id, stato, data_scadenza
                 FROM prestiti
                 WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
                 FOR UPDATE
@@ -1521,6 +1552,18 @@ class PrestitiController
             if ($loanAffected < 1) {
                 // Un'altra richiesta ha già chiuso questo prestito tra la SELECT e l'UPDATE.
                 throw new \RuntimeException('Prestito non più restituibile (race).');
+            }
+
+            // Patron ledger (plan §7), same transaction as the close: the late
+            // fine (idempotent key late:<id>, 0 when fines are disabled) and the
+            // amount assessed for a lost/damaged copy (penalty:<id>, mirrored
+            // from prestiti.sanzione, which stays the source for emails/audit).
+            $ledger = \App\Services\PatronLedger::forDb($db);
+            $ledgerStaffId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
+            $lateFineCents = $ledger->chargeLateReturn($id, $ledgerStaffId);
+            $ledger->chargeLossPenalty($id, $ledgerStaffId);
+            if ($waiveFine && $lateFineCents > 0) {
+                $ledger->waive((int) $loan['utente_id'], $lateFineCents, $waiveReason, $ledgerStaffId, $id);
             }
 
             // Mappa esito-rientro → stato copia (form di RESTITUZIONE). Le due voci
@@ -1672,6 +1715,13 @@ class PrestitiController
                 } catch (\Throwable $e) {
                     SecureLogger::warning('Loan returned notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
                 }
+                if ($lateFineCents > 0 && !$waiveFine) {
+                    try {
+                        (new NotificationService($db))->sendFineChargedNotification($id);
+                    } catch (\Throwable $e) {
+                        SecureLogger::warning('Fine charged notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
+                    }
+                }
             } elseif (in_array($loan_stato, ['perso', 'danneggiato'], true)) {
                 try {
                     (new NotificationService($db))->sendLoanCopyOutcomeNotification($id);
@@ -1786,6 +1836,15 @@ class PrestitiController
         }
         $prestito = $result->fetch_assoc();
         $stmt->close();
+
+        // Plan §7: fine accruing on an open overdue loan (shown, written only at
+        // return) and the late fine already charged on a closed one.
+        $ledger = \App\Services\PatronLedger::forDb($db);
+        $loanFineAccruedCents = ((int) ($prestito['attivo'] ?? 0) === 1 && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true))
+            ? (int) $ledger->previewLateFine($id)['cents']
+            : 0;
+        // Fines module off: the charged fine is not shown (the row stays).
+        $loanFineChargedCents = \App\Services\PatronLedger::active($db) ? $ledger->lateFineNetCents($id) : 0;
 
         ob_start();
         require __DIR__ . '/../Views/prestiti/dettagli_prestito.php';
@@ -2002,7 +2061,8 @@ class PrestitiController
                     $copyOverlap,
                     $update,
                     $expectedBookByLoan,
-                    $conflict
+                    $conflict,
+                    $db
                 );
                 if ($applied === null) {
                     $copyOverlap->close();
@@ -2032,15 +2092,11 @@ class PrestitiController
         // PER prestito: un invio fallito non ferma né il batch (già durevole)
         // né le conferme degli altri prestiti.
         if ($extendedLoanIds !== []) {
-            $settingsRepo = new \App\Models\SettingsRepository($db);
-            $maxRenewals = (int) ($settingsRepo->get('loans', 'max_renewals', '3') ?? 3);
-            if ($maxRenewals < 0) {
-                $maxRenewals = 3;
-            }
+            $circulation = new \App\Services\CirculationPolicy($db);
             $notifier = new NotificationService($db);
             foreach ($extendedLoanIds as $extendedLoanId) {
                 try {
-                    $notifier->sendLoanRenewedNotification($extendedLoanId, $maxRenewals);
+                    $notifier->sendLoanRenewedNotification($extendedLoanId, $circulation->forExistingLoan($extendedLoanId)->maxRenewals);
                 } catch (\Throwable $notifError) {
                     SecureLogger::warning('Bulk extend renewal notification failed', ['loan_id' => $extendedLoanId, 'error' => $notifError->getMessage()]);
                 }
@@ -2067,7 +2123,8 @@ class PrestitiController
         \mysqli_stmt $copyOverlap,
         \mysqli_stmt $update,
         array $expectedBookByLoan,
-        array &$conflict = []
+        array &$conflict = [],
+        ?\mysqli $db = null
     ): ?int {
         $loanId = (int) $loan['id'];
         $bookId = (int) $loan['libro_id'];
@@ -2086,7 +2143,8 @@ class PrestitiController
         // extending from its due date.
         $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
         $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
-        $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
+        // With the connection, a new due date on a closed day moves forward.
+        $newDueDate = \App\Services\CirculationPolicy::dueDateFor($base->format('Y-m-d'), $days, $db, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
 
         // Apply each accepted extension immediately inside the transaction, so the
         // next capacity check sees all earlier proposed extensions too.
@@ -2100,7 +2158,7 @@ class PrestitiController
         $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
         if (!$capacity->hasFreeCapacity($bookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
             $blocked = $capacity->renewalConflictDates($bookId, $loanId, $copyId, $currentDue, $newDueDate);
-            $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'));
+            $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'), $db !== null ? \App\Support\LibraryCalendar::forDb($db) : null, $db !== null ? \App\Support\LibraryCalendar::branchOfCopy($db, $copyId) : null);
             return null;
         }
 
@@ -2110,7 +2168,7 @@ class PrestitiController
             if ((bool) $copyOverlap->get_result()->fetch_row()) {
                 // The loan's own copy is needed by a later loan: name that day.
                 $blocked = $capacity->renewalConflictDates($bookId, $loanId, $copyId, $currentDue, $newDueDate);
-                $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'));
+                $conflict = \App\Support\LoanWindow::renewalRedirectParams($currentDue, $blocked, $base->format('Y-m-d'), $db !== null ? \App\Support\LibraryCalendar::forDb($db) : null, $db !== null ? \App\Support\LibraryCalendar::branchOfCopy($db, $copyId) : null);
                 return null;
             }
         }
@@ -2143,7 +2201,7 @@ class PrestitiController
 
         // Get current loan
         $stmt = $db->prepare("
-            SELECT id, libro_id, utente_id, data_scadenza, stato, renewals, attivo
+            SELECT id, libro_id, utente_id, data_scadenza, stato, renewals, attivo, copia_id
             FROM prestiti
             WHERE id = ?
         ");
@@ -2202,12 +2260,11 @@ class PrestitiController
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=' . $eligibilityError))->withStatus(302);
         }
 
-        // Check renewal limit (max_renewals configurabile, default 3) — F2
-        $settingsRepo = new \App\Models\SettingsRepository($db);
-        $maxRenewals = (int) ($settingsRepo->get('loans', 'max_renewals', '3') ?? 3);
-        if ($maxRenewals < 0) {
-            $maxRenewals = 3;
-        }
+        // Check renewal limit (max_renewals configurabile, default 3) — F2.
+        // Limit and renewal length come from the circulation rules of this
+        // loan's patron and material (CirculationPolicy).
+        $renewPolicy = (new \App\Services\CirculationPolicy($db))->forExistingLoan($id);
+        $maxRenewals = $renewPolicy->maxRenewals;
         $currentRenewals = (int) $loan['renewals'];
         if ($currentRenewals >= $maxRenewals) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
@@ -2217,17 +2274,21 @@ class PrestitiController
 
         // Durata del rinnovo dalla setting di durata prestito (M5b): il vecchio
         // '+14 days' hardcoded ignorava la configurazione dell'admin.
-        $renewDays = $settingsRepo->loanDurationDays();
+        $renewDays = $renewPolicy->renewalDays;
 
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];
-        $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . " +{$renewDays} days"));
+        $loanCopyId = isset($loan['copia_id']) ? (int) $loan['copia_id'] : null;
+        $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays, $db, $loanCopyId);
         // Optional shorter renewal: the day before a scheduled loan or a
         // reservation, as the refusal below proposes ("Rinnova fino al D").
         // A real day, after the current due date, never past the standard
         // renewal.
         $rawDue = $data['new_due_date'] ?? '';
         $requestedDue = is_string($rawDue) ? trim($rawDue) : '';
+        if ($requestedDue !== '' && \App\Support\DateHelper::isISODateFormat($requestedDue)) {
+            $requestedDue = \App\Services\CirculationPolicy::dueDateFor($requestedDue, 0, $db, $loanCopyId);
+        }
         if (!is_string($rawDue) || ($requestedDue !== '' && !\App\Support\DateHelper::isISODateFormat($requestedDue))) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -2308,7 +2369,7 @@ class PrestitiController
 
             // Use the locked values for calculations (in case they changed)
             $currentDueDate = $lockedLoan['data_scadenza'];
-            $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . " +{$renewDays} days"));
+            $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays, $db, $lockedLoan['copia_id'] !== null ? (int) $lockedLoan['copia_id'] : null);
             if ($requestedDue !== '') {
                 // Re-bound under the lock: the due date may have moved meanwhile.
                 if ($requestedDue <= (string) $currentDueDate || $requestedDue > $proposedNewDueDate) {
@@ -2339,9 +2400,9 @@ class PrestitiController
             $capacity = new \App\Services\CapacityService($db);
             // A refusal names the longest renewal still possible (LoanWindow),
             // and which loan it is about, so the page can offer "renew until D".
-            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate): string {
+            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $db, $copiaId): string {
                 return http_build_query(['error' => 'extension_conflicts', 'loan_id' => $id]
-                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked));
+                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, null, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId)));
             };
             if (!$capacity->hasFreeCapacity($libroId, $extensionStart, $extensionEnd, excludePrestitoId: $id)) {
                 $blocked = $capacity->renewalConflictDates($libroId, $id, $copiaId, (string) $currentDueDate, $extensionEnd);

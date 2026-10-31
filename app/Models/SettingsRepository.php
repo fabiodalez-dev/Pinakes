@@ -108,26 +108,33 @@ class SettingsRepository
     }
 
     /**
-     * Configured default loan duration. Invalid or missing values retain the
-     * historical 30-day fallback in every loan creation/update path.
+     * Configured default loan duration (global rule, no patron context).
+     *
+     * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).
      */
     public function loanDurationDays(): int
     {
-        $days = (int) ($this->get('loans', 'loan_duration_days', '30') ?? 30);
-        return $days >= 1 ? $days : 30;
+        return (new \App\Services\CirculationPolicy($this->db, $this))->defaults()->durationDays;
     }
 
-    /** Maximum duration of a reader's request, including an explicit end date. */
+    /**
+     * Maximum duration of a reader's request, including an explicit end date.
+     *
+     * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).
+     */
     public function maxLoanDurationDays(): int
     {
-        $days = (int) ($this->get('loans', 'max_loan_duration_days', '90') ?? 90);
-        return $days >= 1 ? $days : 90;
+        return (new \App\Services\CirculationPolicy($this->db, $this))->defaults()->maxRequestDays;
     }
 
-    /** Default for reader requests and their calendars; staff loans retain their own duration. */
+    /**
+     * Default for reader requests and their calendars; staff loans retain their own duration.
+     *
+     * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).
+     */
     public function requestLoanDurationDays(): int
     {
-        return min($this->loanDurationDays(), $this->maxLoanDurationDays());
+        return (new \App\Services\CirculationPolicy($this->db, $this))->defaults()->requestDurationDays();
     }
 
     /**
@@ -189,8 +196,17 @@ class SettingsRepository
             if ($existing !== null) {
                 if (isset($italianBase[$name])) {
                     $base = $italianBase[$name];
+                    // The Italian text as shipped now, or as an earlier
+                    // release shipped it (SettingsMailTemplates::retiredBodies():
+                    // loan_returned before its {{multa}} line), so a row left
+                    // in Italian by an older install still gets translated.
+                    $storedBody = trim(str_replace("\r\n", "\n", (string) $existing['body']));
+                    $italianBodies = array_map(
+                        static fn (string $body): string => trim(str_replace("\r\n", "\n", $body)),
+                        array_merge([(string) $base['body']], \App\Support\SettingsMailTemplates::retiredBodies($name, 'it_IT'))
+                    );
                     $stillItalian = trim((string) $existing['subject']) === trim((string) $base['subject'])
-                        && trim((string) $existing['body']) === trim((string) $base['body']);
+                        && in_array($storedBody, $italianBodies, true);
                     $haveTranslation = trim((string) $template['subject']) !== trim((string) $existing['subject'])
                         || trim((string) $template['body']) !== trim((string) $existing['body']);
                     if ($stillItalian && $haveTranslation) {
@@ -202,8 +218,10 @@ class SettingsRepository
                             true,
                             $locale
                         );
+                        continue;
                     }
                 }
+                $this->healRetiredDefault($name, $existing, $template, $locale);
                 continue;
             }
             $this->saveEmailTemplate(
@@ -215,6 +233,43 @@ class SettingsRepository
                 $locale
             );
         }
+    }
+
+    /**
+     * A stored row that still equals a default this template shipped with
+     * BEFORE the current one (SettingsMailTemplates::retiredBodies(): the
+     * 0.9.0 loan_returned without its {{multa}} line) gets the current body,
+     * so a new placeholder reaches an upgraded install. Any other text is a
+     * customisation and is left exactly as it is; the subject, the description
+     * and the active flag of the row are kept. Idempotent: once healed the row
+     * equals the current default and matches nothing retired.
+     *
+     * @param array<string, mixed> $existing
+     * @param array{subject:string, body:string, description?:string} $template
+     */
+    private function healRetiredDefault(string $name, array $existing, array $template, string $locale): bool
+    {
+        $canon = static fn (string $html): string => trim(str_replace("\r\n", "\n", $html));
+        $stored = $canon((string) $existing['body']);
+        $current = $canon((string) $template['body']);
+        if ($stored === '' || $stored === $current) {
+            return false;
+        }
+        foreach (\App\Support\SettingsMailTemplates::retiredBodies($name, $locale) as $retired) {
+            if ($stored !== $canon($retired) && $stored !== $canon(\App\Support\EmailLayout::normalizeContent($retired))) {
+                continue;
+            }
+            $this->saveEmailTemplate(
+                $name,
+                (string) $existing['subject'],
+                $template['body'],
+                isset($existing['description']) ? (string) $existing['description'] : ($template['description'] ?? null),
+                (int) ($existing['active'] ?? 1) === 1,
+                $locale
+            );
+            return true;
+        }
+        return false;
     }
 
     /**

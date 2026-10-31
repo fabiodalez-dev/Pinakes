@@ -80,18 +80,20 @@ class PublicApiController
             $types .= 's';
         }
 
-        if ($author !== null && $author !== '') {
-            $authorLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $author) . '%';
+        // Quoted value = exact spelling, accents included (#501).
+        $authorCond = ($author !== null && $author !== '')
+            ? \App\Support\ExactSearch::filterCondition(['a.nome', 'a.pseudonimo'], $author)
+            : null;
+        if ($authorCond !== null) {
             $conditions[] = 'EXISTS (
                 SELECT 1 FROM libri_autori la
                 JOIN autori a ON la.autore_id = a.id
                 WHERE la.libro_id = l.id
                 AND la.ruolo IN (\'principale\', \'co-autore\')
-                AND (a.nome LIKE ? ESCAPE \'\\\\\' OR a.pseudonimo LIKE ? ESCAPE \'\\\\\')
+                AND ' . $authorCond['sql'] . '
             )';
-            $params[] = $authorLike;
-            $params[] = $authorLike;
-            $types .= 'ss';
+            array_push($params, ...$authorCond['params']);
+            $types .= $authorCond['types'];
         }
 
         if (empty($conditions)) {

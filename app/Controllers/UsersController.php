@@ -54,6 +54,9 @@ class UsersController
         $roleChoices = $db !== null && ($_SESSION['user']['tipo_utente'] ?? '') === 'admin' ? (new \App\Models\CustomRoleRepository($db))->all() : [];
         $availableLocales = \App\Support\I18n::getAvailableLocales();
         $selectedLocale = $this->installationLocale();
+        $patronTypes = $db !== null ? \App\Support\PatronTypeAssignment::choices($db) : [];
+        $patronTypeId = null;
+        $defaultPatronTypeId = $db !== null ? (new \App\Services\CirculationPolicy($db))->defaultTypeId() : null;
         ob_start();
         require __DIR__ . '/../Views/utenti/crea_utente.php';
         $content = ob_get_clean();
@@ -172,6 +175,20 @@ class UsersController
             $codiceTessera = $codiceTesseraInput !== '' ? $codiceTesseraInput : $this->generateTessera($db);
             $dataScadenzaTessera = $dataScadenzaInput !== '' ? $dataScadenzaInput : null;
         }
+        // Patron type (circulation rules) and, when asked, the card expiry it
+        // implies (today + the type's card duration). The checkbox is ticked
+        // by default on this form, so it fills an empty date only: a date the
+        // librarian typed wins. (The edit form opts in explicitly and
+        // recomputes, see update().)
+        $patronTypeId = \App\Support\PatronTypeAssignment::fromSubmission($db, $data);
+        // The form pre-fills a 5-year date as a suggestion and flags it
+        // (card_expiry_prefilled=1) until the librarian edits the field: that
+        // date is not "typed", the type's card duration replaces it, and it
+        // stays when the type has no card duration.
+        $expiryTyped = $dataScadenzaInput !== '' && (string) ($data['card_expiry_prefilled'] ?? '0') !== '1';
+        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto']) && !$expiryTyped) {
+            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId) ?? $dataScadenzaTessera;
+        }
 
         $stato = (string) ($data['stato'] ?? ($isAdmin ? 'attivo' : 'attivo'));
         if (!in_array($stato, ['attivo', 'sospeso', 'scaduto'], true)) {
@@ -243,6 +260,7 @@ class UsersController
             );
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
+            \App\Support\PatronTypeAssignment::save($db, $userId, $patronTypeId);
         } catch (\Throwable $e) {
             $code = ($e instanceof \mysqli_sql_exception) ? \App\Support\UniqueViolation::errorCode($e) : 'db_error';
             if ($code === 'db_error') {
@@ -324,6 +342,10 @@ class UsersController
         // Custom registration field values (issue #255) — shown read-only so the
         // admin can see community handles (e.g. Telegram) alongside the account.
         $customFieldValues = \App\Support\RegistrationFields::labelledValuesForUser($db, $id);
+
+        $patronTypeId = isset($utente['tipologia_id']) ? (int) $utente['tipologia_id'] : null;
+        $patronTypes = \App\Support\PatronTypeAssignment::choices($db, $patronTypeId);
+        $defaultPatronTypeId = (new \App\Services\CirculationPolicy($db))->defaultTypeId();
 
         ob_start();
         require __DIR__ . '/../Views/utenti/modifica_utente.php';
@@ -460,6 +482,11 @@ class UsersController
                 $dataScadenzaTessera = $dataScadenzaInput !== '' ? $dataScadenzaInput : null;
             }
         }
+        $originalPatronType = isset($original['tipologia_id']) ? (int) $original['tipologia_id'] : null;
+        $patronTypeId = \App\Support\PatronTypeAssignment::fromSubmission($db, $data, $originalPatronType);
+        if (!$isAdmin && in_array($role, ['standard', 'premium'], true) && !empty($data['card_auto'])) {
+            $dataScadenzaTessera = \App\Support\PatronTypeAssignment::automaticCardExpiry($db, $patronTypeId) ?? $dataScadenzaTessera;
+        }
 
         $stato = (string) ($data['stato'] ?? ($original['stato'] ?? 'attivo'));
         if (!in_array($stato, ['attivo', 'sospeso', 'scaduto'], true)) {
@@ -553,6 +580,9 @@ class UsersController
                 $id
             );
             $stmt->execute();
+            if ($patronTypeId !== $originalPatronType) {
+                \App\Support\PatronTypeAssignment::save($db, $id, $patronTypeId);
+            }
         } catch (\Throwable $e) {
             // $stmt stays null if prepare() itself threw — guard the close().
             if ($stmt instanceof \mysqli_stmt) {
@@ -664,48 +694,75 @@ class UsersController
         if (!$userToDelete) { return $response->withStatus(404); }
         if (!\App\Support\UserRoleAssignment::canEdit($userToDelete)) { return $response->withStatus(403); }
 
-        // Check for any loans (active or not) to preserve history
-        $loanCheck = $db->prepare("SELECT COUNT(*) as count FROM prestiti WHERE utente_id = ?");
-        $loanCheck->bind_param("i", $id);
-        $loanCheck->execute();
-        $loanResult = $loanCheck->get_result()->fetch_assoc();
-        $loanCheck->close();
+        // Check for any loans (active or not) to preserve history. Ledger rows
+        // (payments, charges) are history too: a reader with movements is
+        // suspended like one with loans, never erased with the ledger. The
+        // check and the delete run under the user row lock that ledger writes
+        // and loan limits take too, so a payment committed in between cannot
+        // be erased by the cascade.
+        $db->begin_transaction();
+        try {
+            $lockUser = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+            $lockUser->bind_param('i', $id);
+            $lockUser->execute();
+            $lockUser->close();
+            // Before the 0.9.0 migration there is no ledger to count.
+            $loanCheck = \App\Services\PatronLedger::schemaReady($db)
+                ? $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count")
+                : $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + 0 * ? AS count");
+            $loanCheck->bind_param("ii", $id, $id);
+            $loanCheck->execute();
+            $loanResult = $loanCheck->get_result()->fetch_assoc();
+            $loanCheck->close();
 
-        if ($loanResult['count'] > 0) {
-            // Cannot delete user with loan history - mark as suspended instead
-            $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
-            $updateStmt->bind_param("i", $id);
-            $updateStmt->execute();
-            $updateStmt->close();
+            if ($loanResult['count'] > 0) {
+                // Cannot delete user with loan history - mark as suspended instead
+                $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
+                $updateStmt->bind_param("i", $id);
+                $updateStmt->execute();
+                $updateStmt->close();
+                $db->commit();
 
-            // Audit logging
-            \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
-                'user_id' => $id,
-                'user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
-                'user_email' => $userToDelete['email'],
-                'loan_count' => $loanResult['count'],
-                'deleted_by' => $_SESSION['user']['id'] ?? 'unknown'
-            ]);
+                // The photo is personal data and goes with the account even when
+                // the record itself is kept for the loan history. delete() unlinks
+                // the file and clears the reference; its failures are logged, never
+                // thrown, so the request completes either way and says so.
+                $photoRemoved = \App\Support\PatronPhoto::delete($db, $id);
 
-            $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
-            return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
-        }
+                // Audit logging
+                \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
+                    'user_id' => $id,
+                    'user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
+                    'user_email' => $userToDelete['email'],
+                    'loan_count' => $loanResult['count'],
+                    'deleted_by' => $_SESSION['user']['id'] ?? 'unknown'
+                ]);
 
-        // No loans - safe to delete
-        $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        $success = $stmt->execute();
-        $error = $stmt->error;
-        $stmt->close();
+                $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
+                if (!$photoRemoved) {
+                    $_SESSION['error_message'] = __('La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.');
+                }
+                return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
+            }
 
-        if (!$success) {
+            // No loans - safe to delete
+            $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $stmt->close();
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
             \App\Support\SecureLogger::error('User deletion failed', [
                 'user_id' => $id,
-                'mysqli_error' => $error,
+                'mysqli_error' => $e->getMessage(),
             ]);
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
             return $response->withHeader('Location', url('/admin/users?error=db_error'))->withStatus(302);
         }
+
+        // The photo is personal data: it goes with the account.
+        \App\Support\PatronPhoto::deleteFile($userToDelete['foto_profilo_url'] ?? null);
 
         // Audit logging for user deletion
         \App\Support\SecureLogger::info('User deleted', [
@@ -758,6 +815,32 @@ class UsersController
             $prestiti[] = $row;
         }
         $loanStmt->close();
+
+        // Effective circulation rules of this patron (patron type → globals).
+        $circulation = new \App\Services\CirculationPolicy($db);
+        $patronPolicy = $circulation->forType($circulation->patronTypeOf($id));
+        $cardRenewalPreview = \App\Support\PatronTypeAssignment::renewalDate(
+            $patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS,
+            $utente['data_scadenza_tessera'],
+            (string) (new \App\Models\SettingsRepository($db))->get('loans', 'card_renewal_base', 'today')
+        );
+        $patronTypeName = $patronPolicy->user->patronTypeName;
+        $patronTypeIsOwn = isset($utente['tipologia_id']);
+        // "Movimenti" section (plan §7): balance, ledger rows, fines accruing on
+        // open overdue loans (shown, not written), and who may act on them.
+        $ledger = \App\Services\PatronLedger::forDb($db);
+        $ledgerBalanceCents = $ledger->balanceCents($id);
+        // 200 rows per page, newest first; ?ledger_page=N reaches older ones.
+        $ledgerPerPage = 200;
+        $ledgerTotal = $ledger->movementCount($id);
+        $ledgerPages = max(1, (int) ceil($ledgerTotal / $ledgerPerPage));
+        $ledgerPage = min($ledgerPages, max(1, (int) ($request->getQueryParams()['ledger_page'] ?? 1)));
+        $ledgerMovements = $ledger->movements($id, $ledgerPerPage, ($ledgerPage - 1) * $ledgerPerPage);
+        $ledgerAccrued = $ledger->accruedFines($id);
+        $ledgerParams = \App\Services\FineParameters::forUser($db, $id);
+        $ledgerCanManage = \App\Support\Permissions::can('loans.manage');
+        // Fines module off (Settings -> Loans): no Movimenti section.
+        $ledgerEnabled = \App\Services\PatronLedger::active($db);
 
         ob_start();
         require __DIR__ . '/../Views/utenti/dettagli_utente.php';
@@ -874,6 +957,9 @@ class UsersController
         }
         $stmt->close();
 
+        // Card validity from the patron type, when it sets one.
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+
         // Invia email di attivazione con link di verifica
         $notifier = new NotificationService($db);
         $notifier->sendUserActivationWithVerification($userId, $token);
@@ -932,6 +1018,9 @@ class UsersController
         }
         $stmt->close();
 
+        // Card validity from the patron type, when it sets one.
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+
         // Invia email di benvenuto
         $notifier = new NotificationService($db);
         $notifier->sendUserAccountApproved($userId);
@@ -941,6 +1030,41 @@ class UsersController
             'Location',
             "/admin/users/details/{$userId}?success=activated_directly"
         )->withStatus(302);
+    }
+
+    /**
+     * "Rinnova tessera": new expiry = today + the patron type's card duration
+     * (365 days when the type sets none); an expired account is reactivated.
+     */
+    public function renewCard(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if ($guard = $this->guardAdminStaff($response)) {
+            return $guard;
+        }
+        $stmt = $db->prepare('SELECT * FROM utenti WHERE id = ? LIMIT 1');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$user) {
+            return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
+        }
+        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
+            && !\App\Support\UserRoleAssignment::canEdit($user)) {
+            return $response->withStatus(403);
+        }
+        try {
+            $expiry = \App\Support\PatronTypeAssignment::renewCard($db, $id);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Users] card renewal failed for user ' . $id, ['error' => $e->getMessage()]);
+            $expiry = null;
+        }
+        if ($expiry === null) {
+            $_SESSION['error_message'] = __('Impossibile rinnovare la tessera di questo account.');
+        } else {
+            $_SESSION['success_message'] = sprintf(__('Tessera rinnovata fino al %s.'), format_date($expiry, false, '/'));
+        }
+        return $response->withHeader('Location', url('/admin/users/details/' . $id))->withStatus(302);
     }
 
     /**
@@ -967,13 +1091,14 @@ class UsersController
         $bindValues = [];
 
         // Search text filter (nome, cognome, email)
-        if (!empty($searchText)) {
-            $whereClauses[] = "(nome LIKE ? OR cognome LIKE ? OR email LIKE ?)";
-            $searchParam = "%{$searchText}%";
-            for ($i = 0; $i < 3; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
+        // Quoted value = exact spelling, accents included (#501), as in the list.
+        $search = !empty($searchText)
+            ? \App\Support\ExactSearch::filterCondition(['nome', 'cognome', 'email', 'telefono', 'codice_tessera', "CONCAT(nome, ' ', cognome)", "CONCAT(cognome, ' ', nome)"], (string) $searchText)
+            : null;
+        if ($search !== null) {
+            $whereClauses[] = $search['sql'];
+            $bindTypes .= $search['types'];
+            array_push($bindValues, ...$search['params']);
         }
 
         // Role filter
@@ -997,12 +1122,22 @@ class UsersController
             $bindValues[] = $createdFrom;
         }
 
+        // Patron type filter (users without a type belong to the default one)
+        $patronType = \App\Support\PatronTypeAssignment::filterCondition($db, $params['patron_type_filter'] ?? '');
+        if ($patronType !== null) {
+            $whereClauses[] = $patronType['sql'];
+            $bindTypes .= $patronType['types'];
+            array_push($bindValues, ...$patronType['params']);
+        }
+        // Same rule as the import: no patron type column while the module is off.
+        $patronTypeColumn = (new \App\Services\CirculationPolicy($db))->rulesActive() ? ', tipologia_id' : '';
+
         // Build the query - export ALL fields except sensitive ones (password, tokens)
         $query = "SELECT
             id, codice_tessera, nome, cognome, email, telefono, indirizzo,
             data_nascita, sesso, data_registrazione, data_scadenza_tessera,
             stato, tipo_utente, cod_fiscale, note_utente, email_verificata,
-            data_ultimo_accesso, created_at, updated_at
+            data_ultimo_accesso, created_at, updated_at{$patronTypeColumn}
         FROM utenti";
 
         if (!empty($whereClauses)) {
@@ -1050,6 +1185,8 @@ class UsersController
             __('Data Scadenza Tessera'),
             __('Stato'),
             __('Tipo Utente'),
+            __('Tipologia lettore'),
+            __('Codice tipologia lettore'),
             __('Codice Fiscale'),
             __('Note Utente'),
             __('Email Verificata'),
@@ -1065,6 +1202,8 @@ class UsersController
         // (nome, email, note) that start with = + - @.
         $writer = Csv::writerToStream($stream, ';', "'");
         $writer->insertOne($headers);
+        // One policy for the whole file: the patron types are read once.
+        $exportPolicy = new \App\Services\CirculationPolicy($db);
 
         foreach ($utenti as $utente) {
             $row = [
@@ -1081,6 +1220,10 @@ class UsersController
                 isset($utente['data_scadenza_tessera']) ? format_date($utente['data_scadenza_tessera'], false, '/') : '',
                 $utente['stato'] ?? '',
                 $utente['tipo_utente'] ?? '',
+                \App\Support\PatronTypeAssignment::nameOf($db, $utente['tipologia_id'] ?? null, $exportPolicy),
+                // The code beside the name: the import resolves by code first,
+                // so this file re-imports exactly where the same types exist.
+                \App\Support\PatronTypeAssignment::codeOf($db, $utente['tipologia_id'] ?? null, $exportPolicy),
                 $utente['cod_fiscale'] ?? '',
                 $utente['note_utente'] ?? '',
                 ($utente['email_verificata'] ?? 0) == 1 ? 'Sì' : 'No',

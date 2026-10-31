@@ -445,7 +445,16 @@ class BibframeLinkedDataPlugin
             ];
         }
 
-        $work['bf:content'] = ['@type' => 'bf:Content', '@id' => 'http://id.loc.gov/vocabulary/contentTypes/txt'];
+        // RDA content/media/carrier: the same effective types the book page
+        // shows (derived from libri.tipo_media, the cataloguer's per-record
+        // override when set; 0.9.0). A book keeps the historical text /
+        // unmediated / volume; a DVD, disc or audiobook now carries its own
+        // types instead of a book's.
+        $rdaEffective = \App\Support\RdaTypes::effective($book);
+        $work['bf:content'] = [
+            '@type' => 'bf:Content',
+            '@id'   => \App\Support\RdaTypes::uri('content', $rdaEffective['content']),
+        ];
 
         // No owl:sameAs on the Work: a VIAF id identifies a PERSON, so linking
         // the Work to its author's VIAF cluster would assert that the book IS
@@ -517,8 +526,8 @@ class BibframeLinkedDataPlugin
                 '@type'        => 'bf:Title',
                 'bf:mainTitle' => $instanceMainTitleVal,
             ],
-            'bf:carrier' => ['@id' => 'http://id.loc.gov/vocabulary/carriers/nc'],
-            'bf:media'   => ['@id' => 'http://id.loc.gov/vocabulary/mediaTypes/n'],
+            'bf:carrier' => ['@id' => \App\Support\RdaTypes::uri('carrier', $rdaEffective['carrier'])],
+            'bf:media'   => ['@id' => \App\Support\RdaTypes::uri('media', $rdaEffective['media'])],
         ];
 
         // Identifiers

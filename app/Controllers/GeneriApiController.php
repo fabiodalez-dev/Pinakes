@@ -14,23 +14,27 @@ class GeneriApiController
         $limit = min(50, (int) ($request->getQueryParams()['limit'] ?? 20));
 
         $results = [];
-        if (strlen($query) >= 1) {
-            $searchTerm = "%{$query}%";
+        $search = \App\Support\ExactSearch::filterCondition(['g.nome'], $query);
+        if ($search !== null) {
+            ['term' => $term, 'exact' => $exact] = \App\Support\ExactSearch::parseFilter($query);
+            $prefixMatch = \App\Support\ExactSearch::likeSql('g.nome', $exact);
             $stmt = $db->prepare("
                 SELECT g.id, g.nome, g.parent_id,
                        p.nome AS parent_nome,
                        CASE WHEN g.parent_id IS NULL THEN 'genere' ELSE 'sottogenere' END AS tipo
                 FROM generi g
                 LEFT JOIN generi p ON g.parent_id = p.id
-                WHERE g.nome LIKE ?
+                WHERE {$search['sql']}
                 ORDER BY
-                    CASE WHEN g.nome LIKE ? THEN 0 ELSE 1 END,
+                    CASE WHEN {$prefixMatch} THEN 0 ELSE 1 END,
                     g.parent_id IS NULL DESC,
                     g.nome
                 LIMIT ?
             ");
-            $exactMatch = "{$query}%";
-            $stmt->bind_param('ssi', $searchTerm, $exactMatch, $limit);
+            // The WHERE holds one placeholder per word when the box mixes
+            // words and quotes (`storia "arte"`): bind whatever it carries.
+            $prefixPattern = substr(\App\Support\ExactSearch::likePattern($term), 1);
+            $stmt->bind_param($search['types'] . 'si', ...[...$search['params'], $prefixPattern, $limit]);
             $stmt->execute();
             $result = $stmt->get_result();
 

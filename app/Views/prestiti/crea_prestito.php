@@ -106,6 +106,12 @@ unset($workspaceHeader);
         case 'max_loans_reached':
           echo __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti. Restituisci un libro prima di crearne un altro.');
           break;
+        case 'media_limit_reached':
+          echo __('L\'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.');
+          break;
+        case 'not_loanable':
+          echo __('Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.');
+          break;
         case 'copy_not_found':
           echo __('Nessuna copia trovata con questo codice inventario.');
           break;
@@ -114,6 +120,12 @@ unset($workspaceHeader);
           break;
         case 'copy_not_available':
           echo __('La copia indicata non è disponibile per il periodo richiesto.');
+          break;
+        case 'user_not_found':
+        case 'user_suspended':
+        case 'card_expired':
+        case 'debt_block':
+          echo htmlspecialchars(\App\Support\LoanEligibility::errorMessage($errorKey), ENT_QUOTES, 'UTF-8');
           break;
         case 'duplicate_submission':
           echo __("La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.");
@@ -149,7 +161,7 @@ unset($workspaceHeader);
       <label for="utente_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Utente") ?> *</label>
       <div class="pk-copy-code-group mt-1 flex gap-2">
         <div class="relative flex-1">
-          <input type="text" id="utente_search" placeholder="<?= htmlspecialchars(__('Cerca per nome, cognome, telefono, email o tessera'), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
+          <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" type="text" id="utente_search" placeholder="<?= htmlspecialchars(__('Cerca per nome, cognome, telefono, email o tessera'), ENT_QUOTES, 'UTF-8') ?>" class="block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white <?= $presetUserLocked ? 'bg-gray-100 cursor-not-allowed' : '' ?>" autocomplete="off" value="<?= htmlspecialchars($presetUserName, ENT_QUOTES, 'UTF-8') ?>" <?= $presetUserLocked ? 'readonly' : '' ?>>
           <div id="utente_suggest" class="suggestions-box"></div>
         </div>
         <?php if ($meUserId > 0 && !$presetUserLocked): ?>
@@ -172,7 +184,7 @@ unset($workspaceHeader);
     <!-- Ricerca Libro -->
     <div class="relative">
       <label for="libro_search" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Libro") ?> *</label>
-      <input type="text" id="libro_search" placeholder="<?= htmlspecialchars(__('Cerca per titolo, ISBN o EAN'), ENT_QUOTES, 'UTF-8') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off" value="<?= htmlspecialchars($oldBookTitle, ENT_QUOTES, 'UTF-8') ?>">
+      <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" type="text" id="libro_search" placeholder="<?= htmlspecialchars(__('Cerca per titolo, ISBN o EAN'), ENT_QUOTES, 'UTF-8') ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white" autocomplete="off" value="<?= htmlspecialchars($oldBookTitle, ENT_QUOTES, 'UTF-8') ?>">
       <div id="libro_suggest" class="suggestions-box"></div>
       <input type="hidden" name="libro_id" id="libro_id" value="<?= $oldBookId ?>" required />
       <!-- Availability indicator -->
@@ -395,6 +407,7 @@ unset($workspaceHeader);
 
       // Translations
       const i18n = {
+        closedDay: <?= json_encode(__("Biblioteca chiusa"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         noResults: <?= json_encode(__("Nessun risultato"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         available: <?= json_encode(__("Disponibile"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         notAvailable: <?= json_encode(__("Non disponibile ora"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
@@ -421,7 +434,22 @@ unset($workspaceHeader);
       const defaultLoanDays = <?= (int) $defaultLoanDays ?>;
       // Staff use the configured duration; availability.loan_duration_days is
       // the reader default, which may be shortened by the reader's maximum.
-      const effectiveLoanDays = defaultLoanDays;
+      // Once a borrower and a book are chosen, the availability answer carries
+      // the duration of THAT patron type and material (staff_loan_duration_days).
+      let effectiveLoanDays = defaultLoanDays;
+      // Closures calendar: days the library is closed. Disabled in both
+      // pickers (today stays selectable: a desk may record a loan while
+      // closed to the public); a proposed due date steps to an open day.
+      const closedDates = <?= json_encode(array_values($closedDates ?? []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      const closedSet = new Set(closedDates);
+      const closedDisable = closedDates.filter(function(d) { return d !== appToday; });
+      function toOpenDay(isoDate, step) {
+        let day = isoDate;
+        for (let i = 0; i < 400 && closedSet.has(day); i++) {
+          day = addDaysToIso(day, step);
+        }
+        return day;
+      }
 
       function addDaysToIso(isoDate, days) {
         const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate || '');
@@ -459,9 +487,10 @@ unset($workspaceHeader);
           }
         }
         if (firstBlocked === null) {
-          return { endDate: addDaysToIso(startIso, defaultDays), maxDays: defaultDays, firstBlocked: null, capped: false };
+          return { endDate: toOpenDay(addDaysToIso(startIso, defaultDays), 1), maxDays: defaultDays, firstBlocked: null, capped: false };
         }
-        const endDate = addDaysToIso(firstBlocked, -1);
+        // Capped: stepping forward would run into the blocked day, so step back.
+        const endDate = toOpenDay(addDaysToIso(firstBlocked, -1), -1);
         return { endDate, maxDays: daysBetweenIso(startIso, endDate), firstBlocked, capped: true };
       }
 
@@ -475,7 +504,7 @@ unset($workspaceHeader);
       // typed is never replaced by a later availability fetch; one this code
       // proposed follows the new subject (another book or borrower may have no
       // conflict, or a different one).
-      let autoProposedEnd = null;
+      let autoProposedEnd = <?= json_encode($oldDataScadenza === '' ? ($defaultDataScadenza ?? null) : null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       function setLoanLimitHint(text) {
         const hint = document.getElementById('data_scadenza_hint');
         if (!hint) return;
@@ -544,6 +573,13 @@ unset($workspaceHeader);
 
         // Don't color past dates
         if (isoDate < today) {
+          return;
+        }
+
+        if (closedSet.has(isoDate) && isoDate !== today) {
+          dayElem.classList.add('closed-day');
+          dayElem.setAttribute('title', i18n.closedDay);
+          dayElem.style.textDecoration = 'line-through';
           return;
         }
 
@@ -647,6 +683,7 @@ unset($workspaceHeader);
         // swaps in the native date picker on mobile, which shows neither the
         // availability colours nor the occupied days.
         disableMobile: true,
+        disable: closedDisable,
         onDayCreate: colorCalendarDates,
         onChange: function(selectedDates, dateStr) {
           if (dateStr) {
@@ -674,6 +711,7 @@ unset($workspaceHeader);
         minDate: dataPrestitoEl.value || appToday,
         locale: localeObj || undefined,
         disableMobile: true,
+        disable: closedDisable,
         onDayCreate: colorCalendarDates
       });
 
@@ -768,6 +806,8 @@ unset($workspaceHeader);
             if (requestId !== availabilityRequestId) return;
 
             if (data.success && data.availability) {
+              const staffDays = parseInt(data.availability.staff_loan_duration_days, 10);
+              effectiveLoanDays = Number.isFinite(staffDays) && staffDays > 0 ? staffDays : defaultLoanDays;
               const blockedByReservation = data.availability.has_active_reservation === true;
               // Build availabilityByDate map (same structure as frontend)
               availabilityByDate = {};

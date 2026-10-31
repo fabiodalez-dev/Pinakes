@@ -1,6 +1,6 @@
 <?php
 /** One catalogue for settings navigation, page identity and direct links. */
-return [
+$settingsCatalogue = [
     'general' => ['group' => __('Biblioteca'), 'label' => __('Identità'), 'description' => __('Nome, logo e informazioni della biblioteca mostrate nel sito.'), 'icon' => 'fa-building'],
     'email' => ['group' => __('Comunicazione'), 'label' => __('Email'), 'description' => __('Configura il servizio di invio email e verifica la consegna.'), 'icon' => 'fa-envelope'],
     'registration' => ['group' => __('Biblioteca'), 'label' => __('Registrazione'), 'description' => __('Gestisci iscrizioni, approvazioni e campi degli utenti.'), 'icon' => 'fa-user-plus'],
@@ -10,7 +10,27 @@ return [
     'privacy' => ['group' => __('Sito e sistema'), 'label' => __('Privacy'), 'description' => __('Gestisci informativa, cookie e preferenze di consenso.'), 'icon' => 'fa-shield-alt'],
     'messages' => ['group' => __('Comunicazione'), 'label' => __('Messaggi'), 'description' => __('Consulta le richieste ricevute dal modulo di contatto.'), 'icon' => 'fa-inbox'],
     'labels' => ['group' => __('Biblioteca'), 'label' => __('Etichette'), 'description' => __('Imposta formato e contenuto delle etichette da stampare.'), 'icon' => 'fa-barcode'],
+    'cards' => ['group' => __('Biblioteca'), 'label' => __('Tessere'), 'description' => __('Imposta layout, codice e retro delle tessere della biblioteca da stampare.'), 'icon' => 'fa-id-card'],
     'sharing' => ['group' => __('Sito e sistema'), 'label' => __('Condivisione'), 'description' => __('Personalizza le anteprime e i contenuti condivisi dal sito.'), 'icon' => 'fa-share-alt'],
     'advanced' => ['group' => __('Sito e sistema'), 'label' => __('Avanzate'), 'description' => __('Gestisci integrazioni e configurazioni avanzate del sistema.'), 'icon' => 'fa-cogs'],
     'loans' => ['group' => __('Biblioteca'), 'label' => __('Prestiti'), 'description' => __('Configura le regole e le automazioni della circolazione.'), 'icon' => 'fa-book-open'],
 ];
+// Patron types and the rules matrix are library policy: administrators and
+// custom roles with the settings permission only (CirculationSettingsController
+// guards every page and form the same way). Staff reaches the settings page,
+// but neither sees the section in the navigation nor reaches its tab:
+// ?tab=circulation falls back to the default section like an unknown tab.
+// Administrators can prepare the configuration while the module is off.
+if (\App\Support\Permissions::mayConfigure()) {
+    $settingsCatalogue['circulation'] = ['group' => __('Biblioteca'), 'label' => __('Circolazione'), 'description' => __('Tipologie di lettore e regole di prestito per tipo di materiale.'), 'icon' => 'fa-id-badge'];
+}
+// Optional modules: switching one off is library policy, so the tab follows
+// the same administrators-only rule (staff reaches the settings, not this).
+if (\App\Support\Permissions::mayConfigure()) {
+    $settingsCatalogue['modules'] = ['group' => __('Sito e sistema'), 'label' => __('Moduli'), 'description' => __('Attiva o disattiva i moduli opzionali della biblioteca.'), 'icon' => 'fa-toggle-on'];
+}
+// The library cards tab belongs to the patron cards module.
+if (!\App\Support\Features::enabled('patron_cards') && !\App\Support\Permissions::mayConfigure()) {
+    unset($settingsCatalogue['cards']);
+}
+return $settingsCatalogue;

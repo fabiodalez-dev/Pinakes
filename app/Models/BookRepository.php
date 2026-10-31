@@ -517,17 +517,17 @@ class BookRepository
         if ($this->hasColumn('traduttore') && array_key_exists('traduttore', $data)) {
             $val = $data['traduttore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
-            $addField('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
+            $addField('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalizeStored($val) : null);
         }
         if ($this->hasColumn('illustratore') && array_key_exists('illustratore', $data)) {
             $val = $data['illustratore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
-            $addField('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
+            $addField('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalizeStored($val) : null);
         }
         if ($this->hasColumn('curatore') && array_key_exists('curatore', $data)) {
             $val = $data['curatore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
-            $addField('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
+            $addField('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalizeStored($val) : null);
         }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
@@ -881,17 +881,17 @@ class BookRepository
         if ($this->hasColumn('traduttore') && array_key_exists('traduttore', $data)) {
             $val = $data['traduttore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
-            $addSet('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
+            $addSet('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalizeStored($val) : null);
         }
         if ($this->hasColumn('illustratore') && array_key_exists('illustratore', $data)) {
             $val = $data['illustratore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
-            $addSet('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
+            $addSet('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalizeStored($val) : null);
         }
         if ($this->hasColumn('curatore') && array_key_exists('curatore', $data)) {
             $val = $data['curatore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
-            $addSet('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
+            $addSet('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalizeStored($val) : null);
         }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
@@ -1656,7 +1656,10 @@ class BookRepository
                     if (!is_string($data[$c])) { continue; }
                     $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
-                    $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
+                    // The text column is a display cache: a name typed in quotes
+                    // (exact spelling, #501) was already resolved to its entity
+                    // by the controller; the quotes are not part of the name.
+                    $cols[$c] = \App\Support\AuthorNormalizer::normalizeStored((string) $data[$c]);
                 } elseif ($c === 'luogo_pubblicazione') {
                     // Same rule as create()/update(): trimmed, and a blank
                     // value is not written (it would overwrite their NULL).
@@ -1714,13 +1717,13 @@ class BookRepository
         if ($this->hasColumn('traduttore') && !$traduttoreProvided
             && !array_key_exists('traduttori_ids', $data)
             && !empty($data['scraped_translator'])) {
-            $cols['traduttore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_translator']);
+            $cols['traduttore'] = \App\Support\AuthorNormalizer::normalizeStored((string) $data['scraped_translator']);
         }
         $illustratoreProvided = array_key_exists('illustratore', $data) && $data['illustratore'] !== '' && $data['illustratore'] !== null;
         if ($this->hasColumn('illustratore') && !$illustratoreProvided
             && !array_key_exists('illustratori_ids', $data)
             && !empty($data['scraped_illustrator'])) {
-            $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
+            $cols['illustratore'] = \App\Support\AuthorNormalizer::normalizeStored((string) $data['scraped_illustrator']);
         }
         if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols)) {
             $formato = trim((string) ($data['formato'] ?? ($data['scraped_formato'] ?? '')));

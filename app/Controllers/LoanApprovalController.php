@@ -336,8 +336,9 @@ class LoanApprovalController
             // applicato solo alla creazione/richiesta, ma approvando più richieste pendenti
             // su libri diversi un admin poteva superarlo. Conta i prestiti attivi escluso
             // quello in approvazione; il lock sulla riga libro sopra serializza.
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
+            $circulation = new \App\Services\CirculationPolicy($db);
+            $approvalPolicy = $circulation->forExistingLoan($loanId);
+            if (!$approvalPolicy->loanable || $approvalPolicy->hasQuantityLimits()) {
                 // Serialize concurrent approvals for the SAME user on DIFFERENT books:
                 // the libri lock above only serializes this loan's book, so two
                 // parallel approvals could both read activeCount below the cap and
@@ -347,16 +348,15 @@ class LoanApprovalController
                 $userLockStmt->execute();
                 $userLockStmt->close();
 
-                $cntStmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE utente_id = ? AND id != ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('ii', $utenteId, $loanId);
-                $cntStmt->execute();
-                $activeCount = (int) ($cntStmt->get_result()->fetch_assoc()['c'] ?? 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
+                $limitError = $circulation->loanLimitError($approvalPolicy, $utenteId, $loanId);
+                if ($limitError !== null) {
                     $db->rollback();
                     $response->getBody()->write(json_encode([
                         'success' => false,
-                        'message' => __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti')
+                        'error' => $limitError,
+                        'message' => $limitError === 'max_loans_reached'
+                            ? __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti')
+                            : \App\Support\LoanEligibility::errorMessage($limitError),
                     ]));
                     return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
                 }
@@ -374,7 +374,8 @@ class LoanApprovalController
                 $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
                 // Base su $today (timezone applicativo) per coerenza con la
                 // classificazione immediato/futuro a cavallo della mezzanotte.
-                $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
+                // Open days only (closures calendar); identical to +N days without closures.
+                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays);
                 // Cap alla fine della finestra del prestito (L1): una deadline oltre
                 // data_scadenza permetterebbe di confermare il ritiro di un prestito
                 // già scaduto e terrebbe la copia impegnata oltre la finestra.
@@ -399,6 +400,7 @@ class LoanApprovalController
                     WHERE c.id = ?
                     AND c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -455,6 +457,7 @@ class LoanApprovalController
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
                     AND c.stato IN ('disponibile', 'prenotato')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti own
                         WHERE own.copia_id = c.id
@@ -535,6 +538,37 @@ class LoanApprovalController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // The copy is known only now: a due date closed at its branch moves
+            // to the branch's next open day when the longer window still fits
+            // (otherwise the requested date stays, as before the calendar).
+            if ($dataScadenza !== null && $dataScadenza !== '') {
+                $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $dataScadenza, 0, $db, (int) $selectedCopy['id']);
+                if ($branchDue !== $dataScadenza
+                    && (new \App\Services\CapacityService($db))->hasFreeCapacity($libroId, (string) $dataPrestito, $branchDue, excludePrestitoId: $loanId)) {
+                    // The selected copy must be free on the added days too
+                    // (same occupancy predicate as the recheck below).
+                    $extraStart = \App\Support\LibraryCalendar::shift((string) $dataScadenza, 1);
+                    $extraStmt = $db->prepare("
+                        SELECT 1 FROM prestiti
+                        WHERE copia_id = ? AND id != ?
+                        AND data_prestito <= ?
+                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
+                        AND (
+                            (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
+                            OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                        )
+                        LIMIT 1
+                    ");
+                    $extraStmt->bind_param('iisss', $selectedCopy['id'], $loanId, $branchDue, $today, $extraStart);
+                    $extraStmt->execute();
+                    $extraBusy = (bool) $extraStmt->get_result()->fetch_row();
+                    $extraStmt->close();
+                    if (!$extraBusy) {
+                        $dataScadenza = $branchDue;
+                    }
+                }
+            }
+
             // Occupazione canonica #157: la copia è tenuta da un prestito attivo
             // OPPURE da un pending di conversione prenotazione che ha già una
             // copia (attivo=0, stato='pendente', copia_id valorizzato). Omettere
@@ -600,21 +634,29 @@ class LoanApprovalController
                 throw new \RuntimeException(__('Impossibile aggiornare lo stato della copia'));
             }
 
+            // The pickup days count the open days of the chosen copy's branch.
+            if ($pickupDeadline !== null) {
+                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays, null, (int) $selectedCopy['id']);
+                if ($dataScadenza !== null && $dataScadenza !== '' && $pickupDeadline > $dataScadenza) {
+                    $pickupDeadline = $dataScadenza;
+                }
+            }
+
             // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile
             if ($pickupDeadline !== null) {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?{$pickupNotificationResetSql}
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?, data_scadenza = ?{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
-                $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $pickupDeadline, $loanId);
+                $stmt->bind_param('sissi', $newState, $selectedCopy['id'], $pickupDeadline, $dataScadenza, $loanId);
             } else {
                 $stmt = $db->prepare("
                     UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL{$pickupNotificationResetSql}
+                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL, data_scadenza = ?{$pickupNotificationResetSql}
                     WHERE id = ? AND stato = 'pendente'
                 ");
-                $stmt->bind_param('sii', $newState, $selectedCopy['id'], $loanId);
+                $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $dataScadenza, $loanId);
             }
             $stmt->execute();
             $stmt->close();
@@ -1491,6 +1533,12 @@ class LoanApprovalController
             $stmt->execute();
             $stmt->close();
 
+            // Late fine into the patron ledger in the same transaction (plan §7).
+            $lateFineCents = \App\Services\PatronLedger::forDb($db)->chargeLateReturn(
+                $loanId,
+                isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null
+            );
+
             // Update copy status (only if not in a non-lendable state)
             $copyAvailable = false;
             if ($copiaId) {
@@ -1544,6 +1592,14 @@ class LoanApprovalController
                 $reassignmentService->flushDeferredNotifications();
             }
             $reservationManager->flushDeferredNotifications();
+
+            if ($lateFineCents > 0) {
+                try {
+                    (new \App\Support\NotificationService($db))->sendFineChargedNotification($loanId);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Fine charged notification failed', ['loan_id' => $loanId, 'error' => $e->getMessage()]);
+                }
+            }
 
             // Notify wishlist users AFTER commit, only if book has available copies
             try {

@@ -257,6 +257,16 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->df('856', '4', ' ', [['u', (string) $record['public_url']]]));
         }
 
+        // 856 — the cover image, for copy cataloguing between Pinakes
+        // installations (and any client that reads 856 $u). Additive: the
+        // record URL above is unchanged.
+        if (!empty($record['copertina_url'])) {
+            $recordEl->appendChild($this->df('856', '4', ' ', [
+                ['u', $this->absoluteCoverUrl((string) $record['copertina_url'])],
+                ['z', 'Cover image'],
+            ]));
+        }
+
         // 801 — Originating source
         $recordEl->appendChild($this->df('801', ' ', '0', [
             ['a', $country],

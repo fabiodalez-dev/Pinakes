@@ -22,6 +22,11 @@ namespace App\Support;
  *   solo per tipo_utente standard/premium: admin e staff non hanno tessera
  *   (un trigger DB la azzera).
  *
+ * - saldo a debito oltre la soglia della tipologia lettore
+ *   (tipologie_lettore.soglia_blocco_debito), altrimenti di quella globale
+ *   (Impostazioni → Prestiti → Multe, loans.debt_block_threshold);
+ *   0/vuoto = nessun blocco -> 'debt_block'.
+ *
  * Il confronto date usa DateHelper::today() così PHP e MySQL concordano
  * sul confine di giornata (vedi docblock di DateHelper::today()).
  */
@@ -31,7 +36,7 @@ class LoanEligibility
      * Verifica l'idoneità di un utente a richiedere/ricevere un prestito.
      *
      * @return string|null Codice errore ('user_not_found', 'user_suspended',
-     *                     'card_expired') oppure null se l'utente è idoneo.
+     *                     'card_expired', 'debt_block') oppure null se l'utente è idoneo.
      * @phpstan-impure Reads mutable database state; repeated calls can differ.
      */
     public static function checkUser(\mysqli $db, int $userId): ?string
@@ -62,6 +67,12 @@ class LoanEligibility
             return 'card_expired';
         }
 
+        // Debt block (plan §7): threshold of the patron type, else the global one.
+        $debt = (new \App\Services\CirculationPolicy($db))->debtBlockError($userId);
+        if ($debt !== null) {
+            return $debt;
+        }
+
         return null;
     }
 
@@ -77,6 +88,19 @@ class LoanEligibility
                 return __('Utente sospeso: prestiti non consentiti');
             case 'card_expired':
                 return __('Tessera scaduta: rinnovala per richiedere prestiti');
+            // Circulation rules (CirculationPolicy: patron type × material).
+            case 'max_loans_reached':
+                return __('Hai raggiunto il numero massimo di prestiti attivi consentiti');
+            case 'media_limit_reached':
+                return __('Hai raggiunto il numero massimo di prestiti per questo tipo di materiale');
+            case 'not_loanable':
+                return __('Questo materiale è solo in consultazione: non può essere preso in prestito');
+            case 'reservations_disabled':
+                return __('Le prenotazioni non sono consentite per la tua tipologia di lettore');
+            case 'reservation_limit_reached':
+                return __('Hai raggiunto il numero massimo di prenotazioni e richieste in attesa');
+            case 'debt_block':
+                return __('Saldo a debito oltre la soglia consentita: prestiti bloccati fino al pagamento');
             default:
                 return __('Utente non idoneo al prestito');
         }
@@ -117,8 +141,16 @@ class LoanEligibility
      *
      * Requires ONE positional placeholder bound to the application date.
      * $alias is a fixed table alias supplied by application code.
+     *
+     * The debt block reads its thresholds (patron type, default type, global
+     * setting) inside the fragment, so no caller has to bind an extra value:
+     * with no threshold anywhere the predicate is the pre-0.9.0 one. The
+     * balance subquery is served by the covering index
+     * movimenti_lettore(utente_id, importo). $db is probed once per request
+     * for the 0.9.0 tables (code ships before its migration runs): without
+     * the ledger table the fragment carries no debt predicate at all.
      */
-    public static function eligibleUserWhere(string $alias): string
+    public static function eligibleUserWhere(string $alias, \mysqli $db): string
     {
         return "(
                     {$alias}.stato = 'attivo'
@@ -127,6 +159,54 @@ class LoanEligibility
                         OR {$alias}.data_scadenza_tessera IS NULL
                         OR {$alias}.data_scadenza_tessera >= ?
                     )
+                    AND " . self::debtBlockSql($alias, $db) . "
                 )";
+    }
+
+    /**
+     * SQL twin of CirculationPolicy::debtBlockError(): true when the user is
+     * NOT debt-blocked. $alias is the `utenti` alias, a fixed literal.
+     *
+     * Threshold, first non-NULL of: the patron's own type, the default type
+     * (first predefinita = 1 in display order, as CirculationPolicy::types()),
+     * the global loans.debt_block_threshold when it is a well-formed amount.
+     * A threshold of NULL or 0 never blocks. With no movimenti_lettore table
+     * or with the fines module off (PatronLedger::active()) nobody is
+     * blocked: "1 = 1".
+     */
+    public static function debtBlockSql(string $alias, \mysqli $db): string
+    {
+        if (!\App\Services\PatronLedger::active($db) || !Features::enabled('debt_block')) {
+            return '1 = 1';
+        }
+        $threshold = self::debtThresholdSql($alias, $db);
+        return "(
+                        COALESCE({$threshold}, 0) <= 0
+                        OR " . \App\Services\PatronLedger::balanceSql($alias . '.id') . " <= {$threshold}
+                    )";
+    }
+
+    /**
+     * SQL expression for the debt threshold that applies to the `utenti` row
+     * $alias (NULL = none). Without the patron type tables
+     * (CirculationPolicy::schemaReady()) only the global setting applies.
+     */
+    public static function debtThresholdSql(string $alias, \mysqli $db): string
+    {
+        $global = "(SELECT CAST(REPLACE(dbt_g.setting_value, ',', '.') AS DECIMAL(10,2)) FROM system_settings dbt_g
+                          WHERE dbt_g.category = 'loans' AND dbt_g.setting_key = 'debt_block_threshold'
+                            AND dbt_g.setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2}){0,1}$'
+                          LIMIT 1)";
+        if (!(new \App\Services\CirculationPolicy($db))->rulesActive()) {
+            return $global;
+        }
+        return "COALESCE(
+                        (SELECT dbt_t.soglia_blocco_debito FROM tipologie_lettore dbt_t
+                          WHERE dbt_t.id = COALESCE(
+                              (SELECT dbt_o.id FROM tipologie_lettore dbt_o WHERE dbt_o.id = {$alias}.tipologia_id),
+                              (SELECT dbt_d.id FROM tipologie_lettore dbt_d WHERE dbt_d.predefinita = 1
+                                ORDER BY dbt_d.ordinamento ASC, dbt_d.nome ASC, dbt_d.id ASC LIMIT 1))),
+                        {$global}
+                    )";
     }
 }

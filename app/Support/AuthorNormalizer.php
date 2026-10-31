@@ -16,6 +16,38 @@ namespace App\Support;
 class AuthorNormalizer
 {
     /**
+     * The form of a contributor name that is WRITTEN to a text column
+     * (traduttore, illustratore, curatore, a renamed author or publisher).
+     * Quotes typed around the whole name mean "exact spelling" (#501) and are
+     * a lookup instruction, never part of the stored name, exactly as when an
+     * author record is created.
+     */
+    public static function normalizeStored(string $name): string
+    {
+        // A cache column holds a '; '-joined list (the separator ContributorSync
+        // and the importers use, '|' accepted on input). Each name is
+        // normalised on its own: run as one string, the comma rule turned
+        // "Rossi, Mario; Bianchi, Luca" into "Mario; Bianchi, Luca Rossi" and
+        // the quotes of one listed name were never removed.
+        // Decoded first, as ContributorSync::splitNames() does: the ';' of an
+        // HTML entity (O&#039;Brien) is not a list separator.
+        if (preg_match('/[;|]/u', HtmlHelper::decode($name)) === 1) {
+            $names = [];
+            foreach (ContributorSync::splitNames($name) as $part) {
+                $part = self::normalize(ExactSearch::quotedValue($part) ?? $part);
+                if ($part !== '' && !in_array($part, $names, true)) {
+                    $names[] = $part;
+                }
+            }
+            return implode('; ', $names);
+        }
+        // A single name is decoded too, so it is cached the way the same
+        // name inside a list is (O&#039;Brien → O'Brien).
+        $name = HtmlHelper::decode($name);
+        return self::normalize(ExactSearch::quotedValue($name) ?? $name);
+    }
+
+    /**
      * Normalize an author name to a canonical format: "Name Surname"
      *
      * Examples:
@@ -24,11 +56,24 @@ class AuthorNormalizer
      * - "Marx, Karl Heinrich" → "Karl Heinrich Marx"
      * - "De Filippo, Eduardo" → "Eduardo De Filippo"
      *
+     * A name typed wholly in quotes (`"Häffner, Rolf"`) means "this exact
+     * spelling" (#501): the quotes are kept, around the canonical form
+     * (`"Rolf Häffner"`), so the save and lookup paths still see a whole-value
+     * quoted string (ExactSearch::quotedValue()) and the person is the one
+     * written that way. Without this the quotes ended up inside the swapped
+     * name (`Rolf" "Häffner`) and were stored as part of it.
+     *
      * @param string $name The author name in any format
      * @return string Normalized name in "Name Surname" format
      */
     public static function normalize(string $name): string
     {
+        $quoted = ExactSearch::quotedValue($name);
+        if ($quoted !== null) {
+            $inner = self::normalize($quoted);
+            return $inner === '' ? '' : '"' . $inner . '"';
+        }
+
         $name = trim($name);
 
         if ($name === '') {
@@ -78,8 +123,9 @@ class AuthorNormalizer
      */
     public static function toSearchForm(string $name): string
     {
-        // First normalize the name
-        $normalized = self::normalize($name);
+        // First normalize the name. Quotes are a lookup instruction, never
+        // part of the name: a quoted candidate compares on the name inside.
+        $normalized = self::normalize(ExactSearch::quotedValue($name) ?? $name);
 
         if ($normalized === '') {
             return '';
@@ -108,7 +154,7 @@ class AuthorNormalizer
      */
     public static function getSearchVariants(string $name): array
     {
-        $normalized = self::normalize($name);
+        $normalized = self::normalize(ExactSearch::quotedValue($name) ?? $name);
 
         if ($normalized === '') {
             return [];

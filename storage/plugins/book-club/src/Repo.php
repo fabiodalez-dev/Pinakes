@@ -183,11 +183,12 @@ class Repo
         $lockName = $this->scopedPublisherLockName();
         $this->acquirePublisherLock($lockName);
         try {
-            $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
+            // Exact spelling first when the collation also admits "Haffner" for "Häffner" (#501).
+            $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY ' . \App\Support\ExactSearch::exactFirstSql('nome') . ', id ASC LIMIT 1');
             if ($sel === false) {
                 throw new \RuntimeException('publisher lookup prepare failed');
             }
-            $sel->bind_param('s', $name);
+            $sel->bind_param('ss', $name, $name);
             if (!$sel->execute()) {
                 $err = $sel->error;
                 $sel->close();

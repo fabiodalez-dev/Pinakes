@@ -693,7 +693,7 @@ class Z39ServerPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->importUnimarcAction($request, $response);
-        })->add($csrfMiddleware)->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
 
         // GET /admin/books/{id}/export.unimarc.xml — single-book UNIMARC export.
         $app->get('/admin/books/{id:[0-9]+}/export.unimarc.xml', function (
@@ -702,7 +702,7 @@ class Z39ServerPlugin
             array $args
         ) use ($plugin): ResponseInterface {
             return $plugin->exportUnimarcAction($request, $response, (int) $args['id']);
-        })->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($adminMiddleware);
 
         // GET /admin/books/soggettario-search?q= — Nuovo Soggettario autocomplete.
         $app->get('/admin/books/soggettario-search', function (
@@ -730,6 +730,28 @@ class Z39ServerPlugin
             return $plugin->applyAuthorityAction($request, $response, (int) $args['id']);
         })->add($csrfMiddleware)->add($adminMiddleware);
 
+        // ── Copy cataloguing: SRU search across catalogues + import ────────
+        $app->get('/admin/books/copy-cataloging', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->copyCatalogingPageAction($request, $response);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($adminMiddleware);
+
+        $app->post('/admin/books/copy-cataloging/search', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->copyCatalogingSearchAction($request, $response);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/books/copy-cataloging/import', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->copyCatalogingImportAction($request, $response);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
+
         \App\Support\SecureLogger::debug('[Z39 Server Plugin] Routes registered', [
             'routes' => [
                 '/api/sru', '/api/sbn/search',
@@ -737,8 +759,78 @@ class Z39ServerPlugin
                 '/admin/books/import-unimarc',
                 '/admin/books/{id}/export.unimarc.xml', '/admin/books/soggettario-search',
                 '/admin/authors/{id}/lookup-ccn', '/admin/authors/{id}/apply-authority',
+                '/admin/books/copy-cataloging', '/admin/books/copy-cataloging/search',
+                '/admin/books/copy-cataloging/import',
             ]
         ]);
+    }
+
+    /** The copy cataloguing service, on the plugin's configured servers. */
+    private function copyCataloging(): \Plugins\Z39Server\Classes\CopyCataloging
+    {
+        require_once __DIR__ . '/classes/CopyCataloging.php';
+        $servers = json_decode($this->getSetting('servers', '[]'), true);
+        return new \Plugins\Z39Server\Classes\CopyCataloging(
+            $this->db,
+            $this->pluginId,
+            is_array($servers) ? array_values(array_filter($servers, 'is_array')) : [],
+            $this->isSettingEnabled('enable_sbn', true),
+            $this->isSettingEnabled('server_enabled', true) || $this->isSettingEnabled('enable_server'),
+            (int) $this->getSetting('sru_timeout', '15')
+        );
+    }
+
+    /** GET /admin/books/copy-cataloging */
+    public function copyCatalogingPageAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $copyServers = $this->copyCataloging()->servers();
+        $title = __('Copy cataloging');
+        ob_start();
+        include __DIR__ . '/views/copy-cataloging.php';
+        $content = (string) ob_get_clean();
+        ob_start();
+        require dirname(__DIR__, 3) . '/app/Views/layout.php';
+        $response->getBody()->write((string) ob_get_clean());
+        return $response->withHeader('Content-Type', 'text/html');
+    }
+
+    /** POST /admin/books/copy-cataloging/search — JSON {servers, index, term, max} */
+    public function copyCatalogingSearchAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        @ini_set('display_errors', '0');
+        @set_time_limit(120);
+        $payload = json_decode((string) $request->getBody(), true);
+        $payload = is_array($payload) ? $payload : (array) $request->getParsedBody();
+        $term = trim((string) ($payload['term'] ?? ''));
+        $index = (string) ($payload['index'] ?? 'any');
+        $servers = array_values(array_filter(array_map('strval', (array) ($payload['servers'] ?? []))));
+        if ($term === '' || $servers === []) {
+            return $this->jsonResponse($response, ['success' => false, 'error' => __('Indica cosa cercare e almeno un catalogo')], 400);
+        }
+        if (mb_strlen($term) > 200) {
+            $term = mb_substr($term, 0, 200);
+        }
+        $result = $this->copyCataloging()->search($servers, $index, $term, (int) ($payload['max'] ?? 10));
+        return $this->jsonResponse($response, ['success' => true] + $result);
+    }
+
+    /** POST /admin/books/copy-cataloging/import — JSON {ids, duplicates, covers} */
+    public function copyCatalogingImportAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        @ini_set('display_errors', '0');
+        @set_time_limit(300);
+        $payload = json_decode((string) $request->getBody(), true);
+        $payload = is_array($payload) ? $payload : (array) $request->getParsedBody();
+        $ids = array_values(array_filter(array_map('strval', (array) ($payload['ids'] ?? []))));
+        if ($ids === []) {
+            return $this->jsonResponse($response, ['success' => false, 'error' => __('Seleziona almeno un record da importare')], 400);
+        }
+        $result = $this->copyCataloging()->import(
+            array_slice($ids, 0, 100),
+            (string) ($payload['duplicates'] ?? 'skip'),
+            !empty($payload['covers'])
+        );
+        return $this->jsonResponse($response, ['success' => true] + $result);
     }
 
     /**

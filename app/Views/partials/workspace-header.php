@@ -10,8 +10,8 @@
 $workspacePath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
 $workspacePath = substr($workspacePath, strlen(\App\Support\HtmlHelper::getBasePath()));
 $workspaceSection = match (true) {
-    preg_match('#^/admin/(settings|languages|cms)(?:/|$)#', $workspacePath) === 1 => __('Impostazioni'),
-    preg_match('#^/admin/(books|authors|publishers|genres|series|placement|opere|espressioni)#', $workspacePath) === 1 => __('Catalogo'),
+    preg_match('#^/admin/(settings|languages|cms|calendar)(?:/|$)#', $workspacePath) === 1 => __('Impostazioni'),
+    preg_match('#^/admin/(books|authors|publishers|genres|series|placement|inventory|opere|espressioni)#', $workspacePath) === 1 => __('Catalogo'),
     preg_match('#^/admin/(loans|reservations|users)#', $workspacePath) === 1 => __('Circolazione'),
     str_starts_with($workspacePath, '/admin/periodicals') => __('Emeroteca'),
     str_starts_with($workspacePath, '/admin/archives') => __('Archivi'),
@@ -29,7 +29,7 @@ $workspaceParentPaths = [
     '/admin/books', '/admin/authors', '/admin/publishers', '/admin/genres', '/admin/series',
     '/admin/users', '/admin/loans', '/admin/reservations', '/admin/archives',
     '/admin/periodicals', '/admin/book-club', '/admin/plugins', '/admin/languages',
-    '/admin/opere', '/admin/espressioni', '/admin/themes',
+    '/admin/opere', '/admin/espressioni', '/admin/themes', '/admin/inventory',
 ];
 foreach ($workspaceParentPaths as $workspaceParentPath) {
     if (str_starts_with($workspacePath, $workspaceParentPath . '/')) {

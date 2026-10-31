@@ -1,0 +1,312 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Support;
+
+/**
+ * Quoted "exact spelling" search terms (issue #501).
+ *
+ * Text columns use utf8mb4_unicode_ci, which folds accents: `haffner` matches
+ * `Häffner`, `muller` matches `Müller`. That stays the default because it lets
+ * people search without typing every diacritic. Wrapping a term in double
+ * quotes opts out: `"haffner"` matches only Haffner, and a quoted group with
+ * spaces (`"thomas mann"`) must appear as that exact phrase. Letter case is
+ * still ignored inside quotes.
+ *
+ * The comparison is `LOWER(expr) COLLATE utf8mb4_bin LIKE LOWER(?)`: LOWER()
+ * removes case, the binary collation keeps accents distinct. It is spelled this
+ * way instead of an accent-sensitive collation because those have different
+ * names on MySQL 8 (utf8mb4_0900_as_ci) and MariaDB (uca1400_as_ci) and do not
+ * exist on older servers, while utf8mb4_bin exists everywhere.
+ */
+final class ExactSearch
+{
+    /** Straight and typographic quotes (mobile keyboards type „…“ and “…”). */
+    private const QUOTES = '"“”„«»';
+
+    /** Stand-in for a literal inch mark while the query is tokenized (U+E000). */
+    private const INCH_PLACEHOLDER = "\u{E000}";
+
+    /** Most words a single filter box turns into separate conditions. */
+    public const MAX_FILTER_TERMS = 20;
+
+    private function __construct()
+    {
+    }
+
+    /**
+     * Split a free-text query into terms. Quoted groups become one exact term
+     * (inner whitespace collapsed); an unclosed quote runs to the end of the
+     * query. Everything else is split on whitespace into tolerant terms.
+     *
+     * @return list<array{term: string, exact: bool}>
+     */
+    public static function tokenize(string $query): array
+    {
+        $query = self::protectInchMarks(self::scrub($query));
+        $q = '[' . preg_quote(self::QUOTES, '/') . ']';
+        $parts = preg_split('/(' . $q . '[^' . preg_quote(self::QUOTES, '/') . ']*(?:' . $q . '|$))/u', $query, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            $parts = [$query];
+        }
+
+        $terms = [];
+        foreach ($parts as $part) {
+            if (preg_match('/^' . $q . '/u', $part) === 1) {
+                $inner = self::collapse(self::stripQuotes($part));
+                if ($inner !== '') {
+                    $terms[] = ['term' => $inner, 'exact' => true];
+                }
+                continue;
+            }
+            foreach (preg_split('/\s+/u', $part, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+                $terms[] = ['term' => self::restoreInchMarks($word), 'exact' => false];
+            }
+        }
+        return $terms;
+    }
+
+    /**
+     * Parse a single-value column filter (admin list "Name" box) into ONE
+     * term, for callers that can only bind one pattern (prefix ordering,
+     * in-PHP matching). The value is exact only when it is quoted as a
+     * whole: every token is a quoted group (`"Häffner"`, `"Thomas" "Mann"`,
+     * the groups joined into one phrase). A value that mixes quoted and
+     * unquoted words (`"häffner" rolf`) is not one exact phrase: it comes
+     * back tolerant, with the quotes dropped so they are never searched as
+     * literal characters. Callers that can bind one condition per word use
+     * filterCondition(), which keeps each word's own rule.
+     *
+     * @return array{term: string, exact: bool}
+     */
+    public static function parseFilter(string $value): array
+    {
+        $value = trim(self::scrub($value));
+        $tokens = self::tokenize($value);
+        if ($tokens === []) {
+            // Only quotes (or nothing): no term, so no filter.
+            return ['term' => self::hasQuote($value) ? '' : $value, 'exact' => self::hasQuote($value)];
+        }
+        if (!self::hasQuote($value)) {
+            return ['term' => $value, 'exact' => false];
+        }
+        $words = self::collapse(implode(' ', array_column($tokens, 'term')));
+        $wholeQuoted = !in_array(false, array_column($tokens, 'exact'), true);
+        return ['term' => $words, 'exact' => $wholeQuoted];
+    }
+
+    /**
+     * The name inside a value typed wholly in quotes (`"Rolf Häffner"`), or
+     * null otherwise. Used where a name is SAVED rather than searched: quotes
+     * there mean "this exact spelling is a different person/publisher", and
+     * they are never part of the stored name. A name that only contains a
+     * quoted part (`"Il Mulino", Bologna`, `"Pippo" Inzaghi`) is not quoted
+     * as a whole and is kept exactly as typed.
+     */
+    public static function quotedValue(string $value): ?string
+    {
+        ['term' => $term, 'exact' => $exact] = self::parseFilter($value);
+        return $exact && $term !== '' ? $term : null;
+    }
+
+    /**
+     * WHERE fragment for "$expr is exactly $value": accents distinct, case
+     * ignored. For lookups by a name taken from a link (author page, publisher
+     * filter), where the collation would otherwise treat `Haffner` and
+     * `Häffner` as the same name. The plain `=` stays first so an index on
+     * $expr still narrows the rows; the binary comparison then drops the
+     * accent-folded matches.
+     *
+     * @return array{sql: string, params: list<string>, types: string}
+     */
+    public static function equalsCondition(string $expr, string $value): array
+    {
+        return [
+            'sql' => "({$expr} = ? AND LOWER({$expr}) COLLATE utf8mb4_bin = LOWER(?))",
+            'params' => [$value, $value],
+            'types' => 'ss',
+        ];
+    }
+
+    /**
+     * Same as equalsCondition() for a list of accepted values (IN).
+     *
+     * @param list<string> $values
+     * @return array{sql: string, params: list<string>, types: string}|null
+     */
+    public static function inCondition(string $expr, array $values): ?array
+    {
+        if ($values === []) {
+            return null;
+        }
+        $plain = implode(',', array_fill(0, count($values), '?'));
+        $lowered = implode(',', array_fill(0, count($values), 'LOWER(?)'));
+        return [
+            'sql' => "({$expr} IN ({$plain}) AND LOWER({$expr}) COLLATE utf8mb4_bin IN ({$lowered}))",
+            'params' => array_merge($values, $values),
+            'types' => str_repeat('s', 2 * count($values)),
+        ];
+    }
+
+    /**
+     * ORDER BY fragment that puts the exact spelling (accents included, case
+     * ignored) first among rows an accent-folding `$expr = ?` admitted. Bind
+     * the same value again. Used by find-by-name lookups so an existing
+     * `Häffner` wins over `Haffner` when both are on file, also when the
+     * incoming name differs only in case.
+     */
+    public static function exactFirstSql(string $expr): string
+    {
+        return "(LOWER({$expr}) COLLATE utf8mb4_bin = LOWER(?)) DESC";
+    }
+
+    /**
+     * WHERE fragment for a single-value filter matched against any of $exprs
+     * (OR), honouring quotes via parseFilter(). Null when nothing is left to
+     * match (e.g. the value was only a quote).
+     *
+     * A box with more than one term is not one phrase: every term must
+     * match, each with its own rule, as in wordsCondition() and the main
+     * search box. That covers mixed words (`archivio "haffner"`) and several
+     * quoted groups alike: `"Thomas" "Mann"` is two exact words in any
+     * order, exactly as in the book search, and `"Thomas Mann"` is the
+     * phrase. parseFilter() joins the groups only for callers that can bind
+     * a single pattern.
+     *
+     * @param list<string> $exprs
+     * @return array{sql: string, params: list<string>, types: string}|null
+     */
+    public static function filterCondition(array $exprs, string $value): ?array
+    {
+        $tokens = self::tokenize($value);
+        if (count($tokens) > 1 && in_array(true, array_column($tokens, 'exact'), true)) {
+            // Same budget as the other word searches: a pasted wall of words
+            // must not turn into thousands of placeholders.
+            return self::wordsCondition($exprs, $value, self::MAX_FILTER_TERMS);
+        }
+        ['term' => $term, 'exact' => $exact] = self::parseFilter($value);
+        if ($term === '' || $exprs === []) {
+            return null;
+        }
+        $sql = [];
+        $params = [];
+        foreach ($exprs as $expr) {
+            $sql[] = self::likeSql($expr, $exact);
+            $params[] = self::likePattern($term);
+        }
+        return [
+            'sql' => '(' . implode(' OR ', $sql) . ')',
+            'params' => $params,
+            'types' => str_repeat('s', count($params)),
+        ];
+    }
+
+    /**
+     * WHERE fragment for a multi-word query: every term (see tokenize()) must
+     * match at least one of $exprs. Null when the query has no usable term.
+     *
+     * @param list<string> $exprs
+     * @return array{sql: string, params: list<string>, types: string}|null
+     */
+    public static function wordsCondition(array $exprs, string $query, ?int $maxTerms = null): ?array
+    {
+        $sql = [];
+        $params = [];
+        $terms = self::tokenize($query);
+        if ($maxTerms !== null) {
+            $terms = array_slice($terms, 0, max(0, $maxTerms));
+        }
+        foreach ($terms as ['term' => $term, 'exact' => $exact]) {
+            $or = [];
+            foreach ($exprs as $expr) {
+                $or[] = self::likeSql($expr, $exact);
+                $params[] = self::likePattern($term);
+            }
+            $sql[] = '(' . implode(' OR ', $or) . ')';
+        }
+        if ($sql === [] || $exprs === []) {
+            return null;
+        }
+        return [
+            'sql' => '(' . implode(' AND ', $sql) . ')',
+            'params' => $params,
+            'types' => str_repeat('s', count($params)),
+        ];
+    }
+
+    /**
+     * SQL for "$expr contains the bound pattern". Bind likePattern($term).
+     */
+    public static function likeSql(string $expr, bool $exact): string
+    {
+        return $exact
+            ? "LOWER({$expr}) COLLATE utf8mb4_bin LIKE LOWER(?) ESCAPE '\\\\'"
+            : "{$expr} LIKE ? ESCAPE '\\\\'";
+    }
+
+    /** `%term%` with LIKE metacharacters escaped (backslash is the ESCAPE char). */
+    public static function likePattern(string $term): string
+    {
+        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    /**
+     * Replace invalid UTF-8 so the /u regexes cannot fail. A failed split
+     * would yield no term at all, and "no term" means "no filter": a garbled
+     * query would then list the whole catalogue instead of nothing.
+     */
+    private static function scrub(string $value): string
+    {
+        return mb_check_encoding($value, 'UTF-8') ? $value : mb_scrub($value, 'UTF-8');
+    }
+
+    private static function hasQuote(string $value): bool
+    {
+        return preg_match('/[' . preg_quote(self::QUOTES, '/') . ']/u', self::protectInchMarks($value)) === 1;
+    }
+
+    /**
+     * A straight or closing double quote right after a digit, outside any
+     * quoted group, is an inch mark (`5" floppy`, `24" monitor`), not the start
+     * of an exact group: it is swapped for a private-use placeholder so the
+     * tokenizer keeps it as a literal character. Inside a group the same
+     * character still closes it (`"1984"`).
+     */
+    private static function protectInchMarks(string $value): string
+    {
+        if (!str_contains($value, '"') && !str_contains($value, '”')) {
+            return $value;
+        }
+        $chars = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $open = false;
+        $prev = '';
+        foreach ($chars as $i => $char) {
+            if (str_contains(self::QUOTES, $char)) {
+                if (!$open && ($char === '"' || $char === '”') && preg_match('/^\d$/u', $prev) === 1) {
+                    $chars[$i] = self::INCH_PLACEHOLDER;
+                } else {
+                    $open = !$open;
+                }
+            }
+            $prev = $chars[$i];
+        }
+        return implode('', $chars);
+    }
+
+    private static function restoreInchMarks(string $value): string
+    {
+        return str_replace(self::INCH_PLACEHOLDER, '"', $value);
+    }
+
+    private static function stripQuotes(string $value): string
+    {
+        $q = preg_quote(self::QUOTES, '/');
+        return (string) preg_replace('/^[' . $q . ']+|[' . $q . ']+$/u', '', trim($value));
+    }
+
+    private static function collapse(string $value): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', $value));
+    }
+}

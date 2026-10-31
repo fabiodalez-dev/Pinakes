@@ -153,11 +153,16 @@ try {
     logMessage("- Expired reservations (prenotato -> scaduto): " . $results['expired_reservations']);
     logMessage("- Expired pickups (da_ritirare -> scaduto): " . $results['expired_pickups']);
     logMessage("- Overdue loans updated (in_corso -> in_ritardo): " . $results['overdue_loans_updated']);
+    logMessage("- Visitor log rows purged (retention): " . ($results['attendance_purged'] ?? 0));
+    logMessage("- Holiday rows added (movable holidays, two years ahead): " . ($results['holiday_rows_added'] ?? 0));
 
     // Notification results (counts returned at top-level by MaintenanceService::runAll)
     logMessage("Notifications sent:");
     logMessage("  - Expiration warnings: " . $results['expiration_warnings']);
     logMessage("  - Overdue notifications: " . $results['overdue_notifications']);
+    logMessage("  - Loan recalls: " . $results['loan_recalls']);
+    logMessage("  - Pickup reminders: " . $results['pickup_reminders']);
+    logMessage("  - Card expiry warnings: " . $results['card_expiry_warnings']);
     logMessage("  - Wishlist notifications: " . $results['wishlist_notifications']);
     logMessage("  - Reservation availability notifications retried: " . $results['reservation_notifications_retried']);
     logMessage("  - Pickup-ready notifications retried: " . $results['pickup_notifications_retried']);

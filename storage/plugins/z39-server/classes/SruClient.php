@@ -78,6 +78,212 @@ class SruClient
         return null;
     }
 
+    /** Largest SRU response body read, in bytes (16 MiB). */
+    public const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+
+    /** Search indexes the copy cataloguing page offers. */
+    public const SEARCH_INDEXES = ['title', 'author', 'isbn', 'issn', 'any'];
+
+    /** Default CQL index names (SRU context sets dc, bath, cql). */
+    private const DEFAULT_CQL_INDEXES = [
+        'title' => 'dc.title',
+        'author' => 'dc.creator',
+        'isbn' => 'bath.isbn',
+        'issn' => 'bath.issn',
+        'any' => 'cql.serverChoice',
+    ];
+
+    /** CQL relations a server configuration may ask for on an index. */
+    private const CQL_RELATIONS = ['=', '==', 'all', 'any', 'adj', 'exact'];
+
+    /**
+     * The CQL query for one search on one server: the server's own index name
+     * when its configuration maps one (`indexes`), else the standard one.
+     * Text terms are always quoted, backslash-escaping embedded quotes per the
+     * CQL specification; an ISBN or ISSN is reduced to its digits and sent
+     * bare unless the server wants it quoted (`quote_search_terms`).
+     *
+     * An index is mapped as a name (`'any' => 'woe'`, searched with `=`) or
+     * with the relation the server needs (`'any' => ['index' => 'woe',
+     * 'relation' => 'all']`): the DNB's `woe="Kafka Prozess"` finds nothing,
+     * `woe all "Kafka Prozess"` finds every record with both words.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function cqlFor(array $server, string $index, string $term): string
+    {
+        $index = in_array($index, self::SEARCH_INDEXES, true) ? $index : 'any';
+        $term = trim((string) preg_replace('/\s+/u', ' ', $term));
+        if ($index === 'isbn' || $index === 'issn') {
+            $term = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $term));
+        }
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        if ($cqlIndex === '') {
+            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index];
+        }
+        // Words are always quoted: a bare term with an apostrophe (dell'arte)
+        // or equal to a CQL keyword (and, or, not) is not valid CQL. Only the
+        // digits of an ISBN or ISSN go bare, unless the server asks otherwise.
+        $quote = !in_array($index, ['isbn', 'issn'], true) || !empty($server['quote_search_terms']);
+        $value = $quote ? '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $term) . '"' : $term;
+        return $cqlIndex . ($relation === '=' ? '=' : ' ' . $relation . ' ') . $value;
+    }
+
+    /**
+     * The CQL index name and relation a server configuration maps one of
+     * SEARCH_INDEXES to: '' and '=' when it maps none.
+     *
+     * @param array<string, mixed> $server
+     * @return array{0: string, 1: string}
+     */
+    public static function indexSpec(array $server, string $index): array
+    {
+        $indexes = is_array($server['indexes'] ?? null) ? $server['indexes'] : [];
+        $spec = $indexes[$index] ?? '';
+        if (is_array($spec)) {
+            $relation = strtolower(trim((string) ($spec['relation'] ?? '=')));
+            return [
+                trim((string) ($spec['index'] ?? '')),
+                in_array($relation, self::CQL_RELATIONS, true) ? $relation : '=',
+            ];
+        }
+        return [trim((string) $spec), '='];
+    }
+
+    /**
+     * Copy cataloguing: run one CQL query on every enabled server and return
+     * up to $max records from each, read with the shared MARC library.
+     *
+     * @return list<array{server: string, total: int, records: list<array<string, mixed>>, error: ?string}>
+     */
+    public function search(string $cql, int $max = 10): array
+    {
+        $out = [];
+        foreach ($this->servers as $server) {
+            if (empty($server['enabled']) || empty($server['url'])) {
+                continue;
+            }
+            $out[] = ['server' => (string) ($server['name'] ?? $server['url'])] + $this->searchServer($server, $cql, $max);
+        }
+        return $out;
+    }
+
+    /**
+     * One CQL query on one server. Each record comes back as its book data
+     * (MarcBookData shape), the MARC flavour it was read as and, for a MARC
+     * record, the record itself (MarcRecord::toArray()) for the detail view.
+     * A failing server answers with `error` instead of throwing.
+     *
+     * @param array<string, mixed> $server
+     * @return array{total: int, records: list<array<string, mixed>>, error: ?string}
+     */
+    public function searchServer(array $server, string $cql, int $max = 10): array
+    {
+        $max = max(1, min(50, $max));
+        $url = (string) ($server['url'] ?? '');
+        try {
+            if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+                throw new \RuntimeException('Invalid server URL');
+            }
+            $syntax = strtolower((string) ($server['syntax'] ?? 'marcxml'));
+            if ($syntax === 'dbc-opensearch') {
+                $params = ['action' => 'search', 'query' => $cql, 'outputType' => 'xml', 'objectFormat' => 'marcxchange', 'start' => 1, 'stepValue' => $max];
+            } else {
+                $params = [
+                    'operation' => 'searchRetrieve',
+                    'version' => (string) ($server['version'] ?? '1.1'),
+                    'query' => $cql,
+                    'recordSchema' => $syntax === 'danmarc2' ? 'marcxchange' : (string) ($server['syntax'] ?? 'marcxml'),
+                    'maximumRecords' => $max,
+                ];
+            }
+            static $lastRequest = [];
+            $this->enforceRateLimit($url, $lastRequest);
+            $xml = $this->fetchUrl($url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params));
+            if ($xml === null) {
+                // HTTP 200 with no body is not "no records": an SRU answer always
+                // carries a searchRetrieveResponse, even for zero hits.
+                throw new \RuntimeException('Empty response from server');
+            }
+            return $this->readSearchResponse($xml, $syntax, $max);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[SruClient] search failed', ['server' => $server['name'] ?? $url, 'error' => $e->getMessage()]);
+            return ['total' => 0, 'records' => [], 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * @return array{total: int, records: list<array<string, mixed>>, error: ?string}
+     */
+    private function readSearchResponse(string $xml, string $syntax, int $max): array
+    {
+        $dom = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $dom->loadXML($xml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            throw new \RuntimeException('Invalid XML response');
+        }
+        $xpath = new DOMXPath($dom);
+        // Only a diagnostic of the response itself ends the search: the
+        // <diagnostics> element directly under the root, or the <error>
+        // our own endpoint and some servers answer with. A diagnostic inside
+        // a record's <recordData> (a surrogate: the BnF answers "erreur de
+        // traitement" for one hit of many) only means that record cannot be
+        // read; the MARC reader below skips it, the others are returned.
+        $diagnostic = $xpath->query(
+            "/*/*[local-name()='diagnostics']/*[local-name()='diagnostic']/*[local-name()='message']"
+            . " | /*[local-name()='error']/*[local-name()='message']"
+            . " | /*[local-name()='searchResponse']/*[local-name()='error']"
+        )->item(0);
+        if ($diagnostic !== null) {
+            throw new \RuntimeException(trim((string) $diagnostic->nodeValue));
+        }
+        $totalNode = $xpath->query("//*[local-name()='numberOfRecords'] | //*[local-name()='hitCount']")->item(0);
+        $records = [];
+
+        if ($syntax === 'dc' || $syntax === 'oai_dc') {
+            foreach ($xpath->query("//*[local-name()='recordData']") ?: [] as $recordData) {
+                if (count($records) >= $max) {
+                    break;
+                }
+                $single = new DOMDocument();
+                $single->appendChild($single->importNode($recordData, true));
+                $singleXpath = new DOMXPath($single);
+                $singleXpath->registerNamespace('dc', 'http://purl.org/dc/elements/1.1/');
+                $singleXpath->registerNamespace('oai_dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
+                $book = $this->parseDublinCore($singleXpath);
+                if ($book !== null) {
+                    unset($book['_isbns']);
+                    $records[] = ['flavour' => 'dc', 'marc' => null, 'data' => \App\Support\Marc\MarcBookData::fromScrape($book)];
+                }
+            }
+        } else {
+            foreach (\App\Support\Marc\MarcXmlReader::fromString($xml) as $item) {
+                if (count($records) >= $max) {
+                    break;
+                }
+                if (!$item instanceof \App\Support\Marc\MarcRecord) {
+                    continue;
+                }
+                $flavour = \App\Support\Marc\MarcFormat::detectFlavour($item);
+                if (in_array($syntax, ['danmarc2', 'dbc-opensearch'], true)) {
+                    $flavour = \App\Support\Marc\MarcFormat::DANMARC2;
+                } elseif (in_array($syntax, ['unimarc', 'unimarcxchange', 'unimarcxml'], true) && $flavour !== \App\Support\Marc\MarcFormat::DANMARC2) {
+                    $flavour = \App\Support\Marc\MarcFormat::UNIMARC;
+                }
+                $records[] = [
+                    'flavour' => $flavour,
+                    'marc' => $item->toArray(),
+                    'data' => \App\Support\Marc\MarcFormat::mapperFor($flavour)->map($item),
+                ];
+            }
+        }
+        $total = $totalNode !== null ? (int) $totalNode->nodeValue : count($records);
+        return ['total' => max($total, count($records)), 'records' => $records, 'error' => null];
+    }
+
     /**
      * Query server with retry logic
      */
@@ -216,12 +422,16 @@ class SruClient
         $recordSchema = strtolower($server['syntax'] ?? 'marcxml');
 
         // Build CQL query with custom index mapping
-        $cqlIndex = $index;
-        if (isset($server['indexes'][$index])) {
-            $cqlIndex = $server['indexes'][$index];
-        } elseif ($index === 'isbn') {
-            $cqlIndex = 'isbn';
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        // DBC OpenSearch has its own index names (below): it keeps the bare one.
+        $dbcIndex = $cqlIndex === '' ? $index : $cqlIndex;
+        if ($cqlIndex === '') {
+            // An unconfigured server gets the standard index (bath.isbn), as the
+            // copy cataloguing search does: a bare "isbn" is not a CQL index
+            // every SRU server resolves.
+            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
         }
+        $relation = $relation === '=' ? '=' : ' ' . $relation . ' ';
 
         // Build query parameters
         // quote_search_terms: some servers (e.g. BNF) require the term wrapped in CQL quotes.
@@ -232,7 +442,7 @@ class SruClient
         $params = [
             'operation' => 'searchRetrieve',
             'version' => $version,
-            'query' => $cqlIndex . '=' . $quotedTerm,
+            'query' => $cqlIndex . $relation . $quotedTerm,
             'recordSchema' => $recordSchema,
             'maximumRecords' => 1
         ];
@@ -247,7 +457,7 @@ class SruClient
         if ($recordSchema === 'dbc-opensearch') {
             $params = [
                 'action' => 'search',
-                'query' => ($cqlIndex === 'isbn' ? 'term.isbn' : $cqlIndex) . '=' . $quotedTerm,
+                'query' => ($dbcIndex === 'isbn' ? 'term.isbn' : $dbcIndex) . $relation . $quotedTerm,
                 'outputType' => 'xml',
                 'objectFormat' => 'marcxchange',
                 'start' => 1,
@@ -348,6 +558,10 @@ class SruClient
             'user_agent'      => 'Pinakes/1.0 (Z39.50/SRU Client)',
             'verify'          => $this->verifySsl,
             'ssrf_guard'      => true,
+            // A searchRetrieve answer of up to 50 MARC records stays far below
+            // this; a remote catalogue cannot exhaust memory (or the session
+            // the copy cataloguing results are kept in) with an oversized one.
+            'max_bytes'       => self::MAX_RESPONSE_BYTES,
         ]);
 
         if (!$res['ok']) {
@@ -890,13 +1104,7 @@ class SruClient
      */
     public static function pagesOf(string $extent, bool $anyNumber = true): string
     {
-        if (preg_match('/(\d+)\s*(?:p|pp|pages?|pagine|pag|s|sider|sidor|seiten|sivua|str|stron)(?![\p{L}])/iu', $extent, $m) === 1) {
-            return $m[1];
-        }
-        if ($anyNumber && preg_match('/(\d+)/', $extent, $m) === 1) {
-            return $m[1];
-        }
-        return '';
+        return \App\Support\Marc\ContributorSorter::pagesOf($extent, $anyNumber);
     }
 
     /**
@@ -909,13 +1117,7 @@ class SruClient
      */
     public static function sortContributor(array &$book, array &$contributors, string $name, string $role): void
     {
-        if ($role === 'author') {
-            if (!in_array($name, $book['authors'], true)) {
-                $book['authors'][] = $name;
-            }
-        } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
-            $contributors[$role][] = $name;
-        }
+        \App\Support\Marc\ContributorSorter::sortContributor($book, $contributors, $name, $role);
     }
 
     /**
@@ -927,14 +1129,7 @@ class SruClient
      */
     public static function applyContributors(array &$book, array $contributors): void
     {
-        if ($contributors['editor'] !== []) {
-            $book['editor'] = $contributors['editor'];
-        }
-        foreach (['translator', 'illustrator', 'colorist'] as $role) {
-            if ($contributors[$role] !== []) {
-                $book[$role] = $contributors[$role][0];
-            }
-        }
+        \App\Support\Marc\ContributorSorter::applyContributors($book, $contributors);
     }
 
     /**

@@ -22,11 +22,17 @@ ob_start();
           <p class="text-gray-600"><?= __("Esplora e gestisci gli utenti registrati alla biblioteca") ?></p>
 
 
-      <div class="flex md:hidden mb-4">
+      <div class="flex md:hidden mb-4 gap-3">
         <a href="<?= htmlspecialchars(url('/admin/users/create'), ENT_QUOTES, 'UTF-8') ?>" class="w-full px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center">
           <i class="fas fa-user-plus mr-2"></i>
           <?= __("Nuovo Utente") ?>
         </a>
+        <?php if (\App\Support\Features::enabled('user_import')): ?>
+        <a href="<?= htmlspecialchars(url('/admin/users/import'), ENT_QUOTES, 'UTF-8') ?>" class="w-full px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center justify-center border border-gray-300">
+          <i class="fas fa-file-import mr-2"></i>
+          <?= __("Importa CSV") ?>
+        </a>
+        <?php endif; ?>
       </div>
     <?php
 $workspaceHeader['context'] = (string) ob_get_clean();
@@ -34,6 +40,12 @@ ob_start();
 ?>
 
         <div class="hidden md:flex items-center gap-3">
+          <?php if (\App\Support\Features::enabled('user_import')): ?>
+          <a href="<?= htmlspecialchars(url('/admin/users/import'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
+            <i class="fas fa-file-import mr-2"></i>
+            <?= __("Importa CSV") ?>
+          </a>
+          <?php endif; ?>
           <a href="<?= htmlspecialchars(url('/admin/users/create'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-user-plus mr-2"></i>
             <?= __("Nuovo Utente") ?>
@@ -193,7 +205,7 @@ unset($workspaceHeader);
               <i class="fas fa-search mr-1"></i>
               <?= __("Cerca testo") ?>
             </label>
-            <input id="search_text" placeholder="<?= htmlspecialchars(__('Nome, cognome, email...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
+            <input title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" id="search_text" placeholder="<?= htmlspecialchars(__('Nome, cognome, email...'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" />
           </div>
 
           <div>
@@ -222,6 +234,22 @@ unset($workspaceHeader);
               <option value="scaduto"><?= __("Scaduto") ?></option>
             </select>
           </div>
+
+          <?php $patronTypeFilterOptions = isset($db) && $db instanceof \mysqli ? (new \App\Services\CirculationPolicy($db))->types() : []; ?>
+          <?php if ($patronTypeFilterOptions !== []): ?>
+          <div>
+            <label for="patron_type_filter" class="form-label">
+              <i class="fas fa-id-badge mr-1"></i>
+              <?= __("Tipologia lettore") ?>
+            </label>
+            <select id="patron_type_filter" class="form-input">
+              <option value=""><?= __("Tutte le tipologie") ?></option>
+              <?php foreach ($patronTypeFilterOptions as $ptId => $pt): ?>
+              <option value="<?= (int) $ptId ?>"><?= htmlspecialchars((string) ((string) $pt['nome']), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
 
           <div>
             <label for="created_from" class="form-label">
@@ -281,6 +309,9 @@ unset($workspaceHeader);
           <table id="utenti-table" class="display nowrap" style="width:100%">
             <thead>
               <tr>
+                <th class="text-center">
+                  <input type="checkbox" id="select-all" aria-label="<?= htmlspecialchars(__('Seleziona tutti'), ENT_QUOTES, 'UTF-8') ?>" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
+                </th>
                 <th><?= __("Nome") ?></th>
                 <th><?= __("Email") ?></th>
                 <th><?= __("Telefono") ?></th>
@@ -292,6 +323,30 @@ unset($workspaceHeader);
           </table>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Actions Bar (Fixed at bottom viewport, respects sidebar) -->
+<div id="bulk-actions-bar" class="books-bulk-actions hidden fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+  <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <span class="text-sm font-medium text-gray-700">
+        <span id="selected-count">0</span> <?= __("selezionati") ?>
+      </span>
+      <button id="deselect-all" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <?= __("Deseleziona tutti") ?>
+      </button>
+    </div>
+    <div class="books-bulk-buttons">
+      <?php if (\App\Support\Features::enabled('patron_cards')): ?>
+      <button id="bulk-cards-sheet" class="btn-primary">
+        <i class="fas fa-id-card mr-2"></i><?= __("Stampa tessere (A4)") ?>
+      </button>
+      <button id="bulk-cards-single" class="btn-secondary">
+        <i class="fas fa-id-card mr-2"></i><?= __("Stampa tessere singole") ?>
+      </button>
+      <?php endif; ?>
     </div>
   </div>
 </div>
@@ -342,6 +397,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const i18nDelete = <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>;
   // Only administrators may delete accounts (UsersController::delete refuses everyone else).
   const canDeleteUsers = <?= json_encode(($_SESSION['user']['tipo_utente'] ?? '') === 'admin') ?>;
+  const i18nSelect = <?= json_encode(__("Seleziona"), JSON_HEX_TAG) ?>;
+  // Selection for the bulk card print, kept across pages of the server-side table.
+  const selectedUsers = new Set();
 
   // Initialize DataTable with modern features
   const table = new DataTable('#utenti-table', {
@@ -361,6 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
           search_text: $('#search_text').val(),
           role_filter: $('#role_filter').val(),
           status_filter: $('#status_filter').val(),
+          patron_type_filter: $('#patron_type_filter').val() || '',
           created_from: $('#created_from').val()
         };
       },
@@ -372,6 +431,20 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     },
     columns: [
+      {
+        data: null,
+        orderable: false,
+        searchable: false,
+        width: '40px',
+        className: 'text-center align-middle',
+        render: function(_, __, row) {
+          if (!row || row.id == null) return '';
+          const id = Number(row.id);
+          const checked = selectedUsers.has(id) ? 'checked' : '';
+          const label = escapeHtml(i18nSelect + ': ' + decodeHtml(row.nome || '') + ' ' + decodeHtml(row.cognome || ''));
+          return `<input type="checkbox" class="row-select w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" data-id="${id}" aria-label="${label}" ${checked} />`;
+        }
+      },
       {
         data: 'nome',
         render: function(data, type, row) {
@@ -480,7 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     ],
-    order: [[0, 'asc']], // Order by nome (utente column)
+    order: [[1, 'asc']], // Order by nome (utente column; column 0 is the selection checkbox)
     pageLength: 25,
     lengthMenu: [
       [10, 25, 50, 100, -1],
@@ -503,6 +576,44 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Bulk selection → library cards PDF (same interaction as the books list).
+  function updateBulkActionsBar() {
+    document.getElementById('selected-count').textContent = selectedUsers.size;
+    // The bar only carries the card printing actions (patron cards module).
+    document.getElementById('bulk-actions-bar').classList.toggle('hidden', selectedUsers.size === 0 || !document.getElementById('bulk-cards-sheet'));
+  }
+  document.getElementById('utenti-table').addEventListener('change', function(e) {
+    if (!e.target.classList || !e.target.classList.contains('row-select')) return;
+    const id = parseInt(e.target.dataset.id, 10);
+    if (e.target.checked) selectedUsers.add(id); else selectedUsers.delete(id);
+    updateBulkActionsBar();
+  });
+  document.getElementById('select-all').addEventListener('change', function() {
+    document.querySelectorAll('#utenti-table .row-select').forEach(cb => {
+      cb.checked = this.checked;
+      const id = parseInt(cb.dataset.id, 10);
+      if (this.checked) selectedUsers.add(id); else selectedUsers.delete(id);
+    });
+    updateBulkActionsBar();
+  });
+  table.on('draw', function() {
+    const boxes = document.querySelectorAll('#utenti-table .row-select');
+    document.getElementById('select-all').checked = boxes.length > 0 && Array.from(boxes).every(cb => cb.checked);
+  });
+  document.getElementById('deselect-all').addEventListener('click', function() {
+    selectedUsers.clear();
+    document.querySelectorAll('#utenti-table .row-select').forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    updateBulkActionsBar();
+  });
+  function openCards(format) {
+    if (selectedUsers.size === 0) return;
+    const ids = Array.from(selectedUsers).join(',');
+    window.open((window.BASE_PATH || '') + '/admin/users/cards-pdf?format=' + format + '&ids=' + encodeURIComponent(ids), '_blank', 'noopener');
+  }
+  document.getElementById('bulk-cards-sheet')?.addEventListener('click', () => openCards('sheet'));
+  document.getElementById('bulk-cards-single')?.addEventListener('click', () => openCards('single'));
+
   // Scroll shadow effect for mobile
   function initializeScrollShadow() {
     const scrollContainer = document.querySelector('.overflow-x-auto');
@@ -523,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Filter event handlers
-  $('#search_text, #role_filter, #status_filter, #created_from').on('keyup change', function() {
+  $('#search_text, #role_filter, #status_filter, #patron_type_filter, #created_from').on('keyup change', function() {
     table.ajax.reload();
   });
 
@@ -556,7 +667,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (clearBtn) {
       clearBtn.addEventListener('click', function() {
         // Clear all filter inputs
-        $('#search_text, #role_filter, #status_filter, #created_from').val('');
+        $('#search_text, #role_filter, #status_filter, #patron_type_filter, #created_from').val('');
 
         // Reload table
         table.ajax.reload();
@@ -660,6 +771,12 @@ document.addEventListener('DOMContentLoaded', function() {
         params.append('status_filter', statusFilter);
       }
 
+      // Patron type filter
+      const patronTypeFilter = document.getElementById('patron_type_filter')?.value || '';
+      if (patronTypeFilter) {
+        params.append('patron_type_filter', patronTypeFilter);
+      }
+
       // Created from filter
       const createdFrom = document.getElementById('created_from')?.value || '';
       if (createdFrom) {
@@ -709,6 +826,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (r && r.value) params.set('role_filter', r.value);
       if (st && st.value) params.set('status_filter', st.value);
       if (cf && cf.value) params.set('created_from', cf.value);
+      const pt = document.getElementById('patron_type_filter');
+      if (pt && pt.value) params.set('patron_type_filter', pt.value);
       const base = (window.BASE_PATH || '') + '/admin/users/export-pdf';
       const qs = params.toString();
       window.location.href = qs ? `${base}?${qs}` : base;
@@ -845,8 +964,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   /* Make Nome column much bigger on mobile */
-  #utenti-table th:first-child,
-  #utenti-table td:first-child {
+  #utenti-table th:nth-child(2),
+  #utenti-table td:nth-child(2) {
     min-width: 250px !important;
     width: 250px !important;
   }
@@ -900,4 +1019,14 @@ document.addEventListener('DOMContentLoaded', function() {
     padding: 0.375rem 0.75rem;
   }
 }
+
+/* Bulk actions bar - respects the sidebar (same rules as the books list) */
+.books-bulk-actions { left: 0; }
+@media (min-width: 1024px) {
+  .books-bulk-actions { left: 16rem; }
+}
+@media (min-width: 1280px) {
+  .books-bulk-actions { left: 18rem; }
+}
+.books-bulk-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 </style>

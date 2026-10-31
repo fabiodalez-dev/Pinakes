@@ -1,0 +1,218 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Models\SupplierRepository;
+use mysqli;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+/**
+ * Admin CRUD for suppliers (`fornitori`), modelled on the publishers pages.
+ */
+class SuppliersController
+{
+    /** Session key holding a refused submission, so the form shows it again. */
+    private const OLD_INPUT = 'supplier_form_old';
+
+    public function index(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        $fornitori = (new SupplierRepository($db))->listWithCounts();
+        return $this->render($response, 'index.php', ['fornitori' => $fornitori]);
+    }
+
+    public function createForm(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        return $this->render($response, 'form.php', ['fornitore' => null, 'old' => $this->takeOldInput(null)]);
+    }
+
+    public function store(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        $input = (array) $request->getParsedBody();
+        $data = SupplierRepository::normalize($input);
+        $error = $this->validationError($input, $data);
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            $this->keepOldInput($input, null);
+            return $response->withHeader('Location', url('/admin/suppliers/create'))->withStatus(302);
+        }
+        try {
+            (new SupplierRepository($db))->create($data);
+            $_SESSION['success_message'] = __('Fornitore creato con successo.');
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('SuppliersController::store error', ['exception' => get_class($e), 'code' => $e->getCode()]);
+            $_SESSION['error_message'] = __('Impossibile salvare il fornitore. Riprova più tardi.');
+        }
+        return $response->withHeader('Location', url('/admin/suppliers'))->withStatus(302);
+    }
+
+    public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        $fornitore = (new SupplierRepository($db))->getById($id);
+        if ($fornitore === null) {
+            return $response->withStatus(404);
+        }
+        return $this->render($response, 'form.php', ['fornitore' => $fornitore, 'old' => $this->takeOldInput($id)]);
+    }
+
+    public function update(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        $repo = new SupplierRepository($db);
+        if ($repo->getById($id) === null) {
+            return $response->withStatus(404);
+        }
+        $input = (array) $request->getParsedBody();
+        $data = SupplierRepository::normalize($input);
+        $error = $this->validationError($input, $data);
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            $this->keepOldInput($input, $id);
+            return $response->withHeader('Location', url('/admin/suppliers/edit/' . $id))->withStatus(302);
+        }
+        try {
+            if ($repo->update($id, $data)) {
+                $_SESSION['success_message'] = __('Fornitore aggiornato con successo.');
+            } else {
+                $_SESSION['error_message'] = __('Fornitore non trovato.');
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('SuppliersController::update error', ['id' => $id, 'exception' => get_class($e), 'code' => $e->getCode()]);
+            $_SESSION['error_message'] = __('Impossibile salvare il fornitore. Riprova più tardi.');
+        }
+        return $response->withHeader('Location', url('/admin/suppliers'))->withStatus(302);
+    }
+
+    public function delete(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        try {
+            if ((new SupplierRepository($db))->delete($id)) {
+                $_SESSION['success_message'] = __('Fornitore eliminato. I libri collegati non hanno più un fornitore.');
+            } else {
+                $_SESSION['error_message'] = __('Fornitore non trovato.');
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('SuppliersController::delete error', ['id' => $id, 'exception' => get_class($e), 'code' => $e->getCode()]);
+            $_SESSION['error_message'] = __('Impossibile eliminare il fornitore. Riprova più tardi.');
+        }
+        return $response->withHeader('Location', url('/admin/suppliers'))->withStatus(302);
+    }
+
+    /**
+     * The message that refuses a submission, or NULL when it can be saved:
+     * the name is required, and an e-mail or website that is not one is
+     * refused rather than silently dropped by normalize().
+     *
+     * @param array<string, mixed> $input raw form data
+     * @param array<string, ?string> $data the same data, normalized
+     */
+    private function validationError(array $input, array $data): ?string
+    {
+        $messages = [];
+        if ($data['nome'] === null) {
+            $messages[] = __('Il nome del fornitore è obbligatorio.');
+        }
+        foreach (SupplierRepository::invalidFields($input) as $field) {
+            $messages[] = $field === 'email'
+                ? __('L\'email del fornitore non è un indirizzo valido.')
+                : __('Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.');
+        }
+        return $messages === [] ? null : implode(' ', $messages);
+    }
+
+    /**
+     * Remember a refused submission (the form's own fields only, as typed)
+     * for the form it redirects back to; $id tells the create form (NULL)
+     * from a given supplier's edit form.
+     *
+     * @param array<string, mixed> $input raw form data
+     */
+    private function keepOldInput(array $input, ?int $id): void
+    {
+        $fields = [];
+        foreach (SupplierRepository::FIELDS as $field) {
+            $raw = $input[$field] ?? null;
+            $fields[$field] = is_scalar($raw) ? (string) $raw : '';
+        }
+        $_SESSION[self::OLD_INPUT] = ['id' => $id, 'fields' => $fields];
+    }
+
+    /**
+     * The refused submission for this form, consumed on read; NULL when
+     * there is none or it belongs to another form.
+     *
+     * @return array<string, string>|null
+     */
+    private function takeOldInput(?int $id): ?array
+    {
+        $old = $_SESSION[self::OLD_INPUT] ?? null;
+        unset($_SESSION[self::OLD_INPUT]);
+        if (!is_array($old) || ($old['id'] ?? null) !== $id || !is_array($old['fields'] ?? null)) {
+            return null;
+        }
+        return $old['fields'];
+    }
+
+    /** @param array<string, mixed> $data */
+    private function render(Response $response, string $view, array $data): Response
+    {
+        ob_start();
+        require __DIR__ . '/../Views/fornitori/' . $view;
+        $content = ob_get_clean();
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+        $response->getBody()->write((string) $html);
+        return $response;
+    }
+
+    /**
+     * Files updated before the 0.9.0 migration ran (or a deploy that skipped
+     * it): the suppliers table is not there yet, so every action answers
+     * with a message instead of a 500.
+     */
+    private function schemaMissing(mysqli $db, Response $response): ?Response
+    {
+        if ((new SupplierRepository($db))->isAvailable()) {
+            return null;
+        }
+        $_SESSION['error_message'] = __('Questa funzione sarà disponibile al termine dell\'aggiornamento del database.');
+        return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+    }
+}

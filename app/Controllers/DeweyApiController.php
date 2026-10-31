@@ -319,19 +319,20 @@ class DeweyApiController
         $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
         $results = [];
         try {
+            ['term' => $query, 'exact' => $exact] = \App\Support\ExactSearch::parseFilter($query);
             if (mb_strlen($query) >= 2) {
                 $data = $this->loadDeweyData();
                 if ($this->isNewFormat($data)) {
-                    $needle = self::foldForSearch($query);
+                    $needle = $exact ? mb_strtolower($query, 'UTF-8') : self::foldForSearch($query);
                     $byCode = [];
                     $byName = [];
-                    $walk = function (array $nodes) use (&$walk, &$byCode, &$byName, $query, $needle): void {
+                    $walk = function (array $nodes) use (&$walk, &$byCode, &$byName, $query, $needle, $exact): void {
                         foreach ($nodes as $node) {
                             $code = (string) ($node['code'] ?? '');
                             $name = (string) ($node['name'] ?? '');
                             if ($code !== '' && str_starts_with($code, $query)) {
                                 $byCode[$code] = ['code' => $code, 'name' => $name];
-                            } elseif ($name !== '' && str_contains(self::foldForSearch($name), $needle)) {
+                            } elseif ($name !== '' && str_contains($exact ? mb_strtolower($name, 'UTF-8') : self::foldForSearch($name), $needle)) {
                                 $byName[$code] = ['code' => $code, 'name' => $name];
                             }
                             if (!empty($node['children']) && is_array($node['children'])) {

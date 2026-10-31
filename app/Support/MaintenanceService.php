@@ -43,7 +43,7 @@ class MaintenanceService
      * non basta, due admin in sessioni diverse eseguirebbero entrambi runAll().
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, loan_recalls?: int, pickup_reminders?: int, card_expiry_warnings?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -100,6 +100,18 @@ class MaintenanceService
         return $this->runAll();
     }
 
+    /** Apply retention independently of new visit collection when explicitly enabled. */
+    public function purgeAttendance(): int
+    {
+        if (!Features::enabled('visitor_log') && !Features::enabled('attendance_retention')) {
+            return 0;
+        }
+        $attendance = new \App\Models\AttendanceRepository($this->db);
+        return $attendance->isAvailable()
+            ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
+            : 0;
+    }
+
     /**
      * Run all maintenance tasks immediately
      *
@@ -107,7 +119,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
+     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
      */
     public function runAll(): array
     {
@@ -147,7 +159,7 @@ class MaintenanceService
         }
     }
 
-    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} */
+    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, errors: array} */
     private function runAllLocked(): array
     {
         $results = [
@@ -160,6 +172,9 @@ class MaintenanceService
             'overdue_loans_updated' => 0,
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
+            'loan_recalls' => 0,
+            'pickup_reminders' => 0,
+            'card_expiry_warnings' => 0,
             'wishlist_notifications' => 0,
             'reservation_notifications_retried' => 0,
             'pickup_notifications_retried' => 0,
@@ -177,6 +192,33 @@ class MaintenanceService
             }
         } catch (\Throwable $e) {
             $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
+        }
+
+        // 0.9.0 (plan §7): convert any prestiti.sanzione the migration's
+        // batches did not reach into ledger rows. Marker-guarded so the scan
+        // runs until it completes once; new penalties are written live with
+        // the same idempotency key. The marker is written only after a scan
+        // that ran to the end: with the ledger table still missing (code
+        // deployed before its migration) the backfill returns null and a
+        // failed batch throws, so the next pass tries again.
+        try {
+            $settingsRepo = new \App\Models\SettingsRepository($this->db);
+            if ($settingsRepo->get('loans', 'legacy_penalties_backfilled', '0') !== '1'
+                && \App\Services\PatronLedger::forDb($this->db)->backfillLegacyPenalties() !== null) {
+                $settingsRepo->set('loans', 'legacy_penalties_backfilled', '1');
+            }
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'legacyPenaltyBackfill: ' . $e->getMessage();
+        }
+
+        // Holiday presets (0.9.0): the movable holidays the library ticked get
+        // their rows up to two years ahead, so a new year never starts with
+        // Easter missing. Before the due dates and pickups of this pass.
+        try {
+            $results['holiday_rows_added'] = $this->extendHolidayRows();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'extendHolidayRows: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore festività'), ['error' => $e->getMessage()]);
         }
 
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
@@ -248,7 +290,9 @@ class MaintenanceService
             $notificationResults = $this->runNotifications();
             $results['expiration_warnings'] = $notificationResults['expiration_warnings'];
             $results['overdue_notifications'] = $notificationResults['overdue_notifications'];
+            $results['loan_recalls'] = $notificationResults['loan_recalls'];
             $results['pickup_reminders'] = $notificationResults['pickup_reminders'];
+            $results['card_expiry_warnings'] = $notificationResults['card_expiry_warnings'];
             $results['wishlist_notifications'] = $notificationResults['wishlist_notifications'];
         } catch (\Throwable $e) {
             $results['errors'][] = 'runNotifications: ' . $e->getMessage();
@@ -319,6 +363,16 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'cleanupExpiredSessions: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore pulizia sessioni scadute'), ['error' => $e->getMessage()]);
+        }
+
+        // Visitor log retention (GDPR, 0.9.0): visits older than the
+        // configured number of days are deleted. 0 days = keep forever; with
+        // no setting the default retention applies.
+        try {
+            $results['attendance_purged'] = $this->purgeAttendance();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'purgeAttendance: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore pulizia presenze'), ['error' => $e->getMessage()]);
         }
 
         // Generic post-maintenance hook, fired as the TRUE last step so
@@ -427,6 +481,26 @@ class MaintenanceService
     }
 
     /**
+     * The rows of the chosen movable holidays up to two years ahead
+     * (HolidayPresets::ensureYears()). Skipped while the closures calendar
+     * is switched off (features.closures_calendar): no row is written, and the
+     * ones missing are added by the first pass after it is switched back on.
+     * Pending pickups are re-checked when rows were added.
+     */
+    public function extendHolidayRows(): int
+    {
+        if (!Features::enabled('closures_calendar')) {
+            return 0;
+        }
+        $added = \App\Support\Holidays\HolidayPresets::ensureYears($this->db);
+        if ($added > 0) {
+            LibraryCalendar::reset();
+            LibraryCalendar::extendPickupDeadlines($this->db);
+        }
+        return $added;
+    }
+
+    /**
      * Generate ICS calendar file for loans and reservations
      *
      * Creates an iCalendar (.ics) file in storage/calendar/ containing
@@ -450,14 +524,16 @@ class MaintenanceService
      * Delegates to NotificationService to send loan expiration warnings,
      * overdue loan notifications, and wishlist availability alerts.
      *
-     * @return array{expiration_warnings: int, overdue_notifications: int, pickup_reminders: int, wishlist_notifications: int, errors: array} Notification counts and any errors
+     * @return array{expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, errors: array} Notification counts and any errors
      */
     public function runNotifications(): array
     {
         $results = [
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
+            'loan_recalls' => 0,
             'pickup_reminders' => 0,
+            'card_expiry_warnings' => 0,
             'wishlist_notifications' => 0,
             'errors' => []
         ];
@@ -466,9 +542,14 @@ class MaintenanceService
             $notificationService = new NotificationService($this->db);
             $notifResults = $notificationService->runAutomaticNotifications();
 
+            // Every counter runAutomaticNotifications() reports, so the cron
+            // log of full-maintenance.php names the recalls and the card
+            // expiry warnings it sent, like automatic-notifications.php does.
             $results['expiration_warnings'] = $notifResults['expiration_warnings'] ?? 0;
             $results['overdue_notifications'] = $notifResults['overdue_notifications'] ?? 0;
+            $results['loan_recalls'] = $notifResults['loan_recalls'] ?? 0;
             $results['pickup_reminders'] = $notifResults['pickup_reminders'] ?? 0;
+            $results['card_expiry_warnings'] = $notifResults['card_expiry_warnings'] ?? 0;
             $results['wishlist_notifications'] = $notifResults['wishlist_notifications'] ?? 0;
 
             if (!empty($notifResults['errors'])) {
@@ -924,6 +1005,7 @@ class MaintenanceService
                         FROM copie c
                         WHERE c.libro_id = ?
                           AND c.stato IN ('disponibile', 'prenotato')
+                          AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
                           AND NOT EXISTS (
                               SELECT 1
                               FROM prestiti own
@@ -977,7 +1059,8 @@ class MaintenanceService
                 // data_scadenza (L1): senza il cap un prestito con finestra corta
                 // restava ritirabile (e la copia bloccata) oltre la fine del
                 // prestito stesso.
-                $pickupDeadline = date('Y-m-d', strtotime($today . " +{$pickupDays} days"));
+                // Open days only (closures calendar); identical to +N days without closures.
+                $pickupDeadline = LibraryCalendar::pickupDeadline($this->db, $today, $pickupDays, null, $copiaId);
                 if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $pickupDeadline) {
                     $pickupDeadline = $loan['data_scadenza'];
                 }
@@ -1077,7 +1160,7 @@ class MaintenanceService
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'attiva'
             AND " . \App\Support\LoanEligibility::promotableReservationWhere('p') . "
-            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
+            AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db) . "
             ORDER BY p.libro_id, p.queue_position ASC
         ");
 
@@ -1178,6 +1261,10 @@ class MaintenanceService
     public function checkExpiredReservations(): int
     {
         $today = DateHelper::today();
+        // Closures calendar: nothing expires on a day the library is closed.
+        if (!LibraryCalendar::forDb($this->db)->isOpen($today)) {
+            return 0;
+        }
 
         // Find expired reservations. Oltre alle conversioni promosse
         // (origine='prenotazione'), anche le richieste dirette e NCIP mai
@@ -1256,6 +1343,12 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
+                // A closure of the assigned copy's branch counts too: the
+                // reader could not come in there today either.
+                if ($copiaId !== null && !LibraryCalendar::forDb($this->db)->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
                 // stessa transazione dell'UPDATE (regola di progetto).
@@ -1391,10 +1484,15 @@ class MaintenanceService
     public function checkExpiredPickups(): int
     {
         $today = DateHelper::today();
+        // Closures calendar: nothing expires on a day the library is closed.
+        $calendar = LibraryCalendar::forDb($this->db);
+        if (!$calendar->isOpen($today)) {
+            return 0;
+        }
 
         // Find expired pickups (da_ritirare with pickup_deadline passed)
         $stmt = $this->db->prepare("
-            SELECT id, libro_id, copia_id, utente_id
+            SELECT id, libro_id, copia_id, utente_id, pickup_deadline
             FROM prestiti
             WHERE stato = 'da_ritirare'
             AND attivo = 1
@@ -1411,6 +1509,10 @@ class MaintenanceService
         $result = $stmt->get_result();
         $expiredPickups = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
+        // A deadline that fell on a day later declared closed was already moved
+        // to the next open day when the calendar changed
+        // (LibraryCalendar::extendPickupDeadlines()), so the stored deadline is
+        // the one rule every path reads.
 
         $expiredCount = 0;
         $integrity = new DataIntegrity($this->db);
@@ -1457,6 +1559,12 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
+                // A closure of the copy's branch today: the pickup cannot
+                // expire on a day the reader could not come in.
+                if ($copiaId !== null && !$calendar->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
                 // stessa transazione dell'UPDATE (regola di progetto).

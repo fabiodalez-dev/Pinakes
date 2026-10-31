@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+/**
+ * Pure late-fine arithmetic: no database, no clock.
+ *
+ * Rules (plan §7, decision 5):
+ * - days late = OPEN days strictly after the due date up to and including the
+ *   return date. The "is open day" callable decides which days count (the
+ *   closures calendar, wired by PatronLedger::forDb()); the default counts
+ *   every day. It also receives the branch of the loaned copy, so a closure
+ *   of that branch only does not count either.
+ * - the grace period is a THRESHOLD, as in SLiMS: up to graceDays late there is
+ *   no fine; once a loan is later than that, every late day is charged from
+ *   day one. In deduct mode the grace days are always subtracted instead.
+ * - the optional cap per loan limits the total;
+ * - the total never exceeds PatronLedger::MAX_AMOUNT_CENTS, and the day walk
+ *   stops at MAX_DAYS with or without a calendar.
+ */
+final class FineCalculator
+{
+    /** Upper bound on the day walk, so a corrupt date cannot spin for years. */
+    private const MAX_DAYS = 3660;
+
+    /** @var (callable(string, ?int): bool)|null */
+    private $isOpenDay;
+
+    /**
+     * @param (callable(string, ?int): bool)|null $isOpenDay receives a Y-m-d
+     *        date and the branch id (null = whole library) and returns false
+     *        for a day the library is closed.
+     */
+    public function __construct(?callable $isOpenDay = null)
+    {
+        $this->isOpenDay = $isOpenDay;
+    }
+
+    /** Open days the item was kept after $dueDate, up to $returnDate ($branchId = the copy's branch). */
+    public function daysLate(string $dueDate, string $returnDate, ?int $branchId = null): int
+    {
+        $due = self::parse($dueDate);
+        $returned = self::parse($returnDate);
+        if ($due === null || $returned === null || $returned <= $due) {
+            return 0;
+        }
+
+        // The bound applies on both branches, so a calendar never changes the
+        // count of a loan a decade overdue (every day open = plain span).
+        $span = min((int) $due->diff($returned)->days, self::MAX_DAYS);
+        if ($this->isOpenDay === null) {
+            return $span;
+        }
+
+        $open = 0;
+        $day = $due;
+        for ($i = 0; $i < $span; $i++) {
+            $day = $day->modify('+1 day');
+            if (($this->isOpenDay)($day->format('Y-m-d'), $branchId)) {
+                $open++;
+            }
+        }
+        return $open;
+    }
+
+    /** Late fine in cents for a loan due on $dueDate and returned on $returnDate. */
+    public function lateFineCents(FineParameters $params, string $dueDate, string $returnDate, ?int $branchId = null): int
+    {
+        if (!$params->finesEnabled()) {
+            return 0;
+        }
+        $days = $this->daysLate($dueDate, $returnDate, $branchId);
+        if ($days <= $params->graceDays) {
+            return 0;
+        }
+        $chargedDays = $params->graceMode === 'deduct' ? $days - $params->graceDays : $days;
+        $amount = $chargedDays * $params->dailyFineCents;
+        if ($params->maxFinePerLoanCents !== null) {
+            $amount = min($amount, $params->maxFinePerLoanCents);
+        }
+        // Never more than the ledger can store (DECIMAL(10,2)): the preview,
+        // the accruing figure and the charge at return all read this bound.
+        return min($amount, PatronLedger::MAX_AMOUNT_CENTS);
+    }
+
+    private static function parse(string $date): ?\DateTimeImmutable
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            return null;
+        }
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date, new \DateTimeZone('UTC'));
+        return $parsed instanceof \DateTimeImmutable && $parsed->format('Y-m-d') === $date ? $parsed : null;
+    }
+}

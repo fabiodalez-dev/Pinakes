@@ -23,7 +23,7 @@ final class StaffLoanReader
     public const BUCKETS = ['pending', 'pickup', 'scheduled', 'active', 'overdue', 'history', 'all'];
     public const RESERVATION_STATES = ['attiva', 'completata', 'annullata', 'all'];
 
-    private ?int $maxRenewals = null;
+    private ?\App\Services\CirculationPolicy $circulation = null;
 
     public function __construct(private mysqli $db)
     {
@@ -104,12 +104,14 @@ final class StaffLoanReader
         }
 
         $q = trim((string) ($filters['q'] ?? ''));
-        if ($q !== '') {
-            $like = '%' . $q . '%';
-            $where[] = "(l.titolo LIKE ? OR u.nome LIKE ? OR u.cognome LIKE ? OR CONCAT(u.nome, ' ', u.cognome) LIKE ?
-                         OR u.email LIKE ? OR u.codice_tessera LIKE ? OR c.numero_inventario LIKE ?)";
-            $types .= 'sssssss';
-            array_push($params, $like, $like, $like, $like, $like, $like, $like);
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $q !== ''
+            ? \App\Support\ExactSearch::filterCondition(['l.titolo', 'u.nome', 'u.cognome', "CONCAT(u.nome, ' ', u.cognome)", 'u.email', 'u.codice_tessera', 'c.numero_inventario'], $q)
+            : null;
+        if ($search !== null) {
+            $where[] = $search['sql'];
+            $types .= $search['types'];
+            array_push($params, ...$search['params']);
         }
         foreach (['user_id' => 'p.utente_id', 'book_id' => 'p.libro_id'] as $key => $column) {
             $value = (int) ($filters[$key] ?? 0);
@@ -212,6 +214,7 @@ final class StaffLoanReader
             => (int) ($this->scalar('SELECT COUNT(*)' . $join . ' WHERE ' . $where, $types, $params) ?? 0);
 
         $settings = new \App\Models\SettingsRepository($this->db);
+        $defaults = $this->circulation()->defaults();
 
         return [
             'pending'        => $count("p.stato = 'pendente'"),
@@ -228,22 +231,45 @@ final class StaffLoanReader
             'returned_today' => $count('p.data_restituzione = ?', 's', [$today]),
             'today'          => $today,
             'settings'       => [
-                'loan_duration_days'             => $settings->loanDurationDays(),
+                'loan_duration_days'             => $defaults->durationDays,
                 'pickup_expiry_days'             => (int) ($settings->get('loans', 'pickup_expiry_days', '3') ?? 3),
-                'max_renewals'                   => $this->maxRenewals(),
-                'max_active_loans_per_user'      => (int) ($settings->get('loans', 'max_active_loans_per_user', '0') ?? 0),
+                'max_renewals'                   => $defaults->maxRenewals,
+                'max_active_loans_per_user'      => $defaults->maxActiveLoans,
                 'allow_multiple_loans_same_book' => $settings->allowsMultipleLoansSameBook(),
             ],
         ];
     }
 
+    /** The global renewal limit (no patron context). */
     public function maxRenewals(): int
     {
-        if ($this->maxRenewals === null) {
-            $this->maxRenewals = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_renewals', '3') ?? 3);
-        }
+        return $this->circulation()->defaults()->maxRenewals;
+    }
 
-        return $this->maxRenewals;
+    /**
+     * Renewal limit of one loan row: the circulation rules of its patron and
+     * material (CirculationPolicy), the global limit when the row lacks ids.
+     *
+     * @param array<string, mixed> $r
+     */
+    public function maxRenewalsFor(array $r): int
+    {
+        if (!isset($r['utente_id'], $r['libro_id'])) {
+            return $this->maxRenewals();
+        }
+        // The renewal limit depends on the patron type and the material only
+        // (a consultation copy changes whether it is lent, not how often it is
+        // renewed), and both lookups are memoised per list: no per-row copy query.
+        $circulation = $this->circulation();
+        return $circulation->forType(
+            $circulation->patronTypeOf((int) $r['utente_id']),
+            $circulation->mediaOf((int) $r['libro_id'])
+        )->maxRenewals;
+    }
+
+    private function circulation(): \App\Services\CirculationPolicy
+    {
+        return $this->circulation ??= new \App\Services\CirculationPolicy($this->db);
     }
 
     // ─── Reservations ───────────────────────────────────────────────────────
@@ -291,11 +317,14 @@ final class StaffLoanReader
             $params[] = $status;
         }
         $q = trim((string) ($filters['q'] ?? ''));
-        if ($q !== '') {
-            $like = '%' . $q . '%';
-            $where[] = "(l.titolo LIKE ? OR u.nome LIKE ? OR u.cognome LIKE ? OR CONCAT(u.nome, ' ', u.cognome) LIKE ? OR u.email LIKE ? OR u.codice_tessera LIKE ?)";
-            $types .= 'ssssss';
-            array_push($params, $like, $like, $like, $like, $like, $like);
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $q !== ''
+            ? \App\Support\ExactSearch::filterCondition(['l.titolo', 'u.nome', 'u.cognome', "CONCAT(u.nome, ' ', u.cognome)", 'u.email', 'u.codice_tessera'], $q)
+            : null;
+        if ($search !== null) {
+            $where[] = $search['sql'];
+            $types .= $search['types'];
+            array_push($params, ...$search['params']);
         }
         foreach (['user_id' => 'r.utente_id', 'book_id' => 'r.libro_id'] as $key => $column) {
             $value = (int) ($filters[$key] ?? 0);
@@ -358,13 +387,16 @@ final class StaffLoanReader
      */
     public function users(string $q, int $limit): array
     {
-        $like = '%' . $q . '%';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.telefono', 'u.email', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)"], $q);
+        if ($search === null) {
+            return [];
+        }
         $rows = $this->all(
-            self::USER_SELECT . " WHERE (u.nome LIKE ? OR u.cognome LIKE ? OR u.telefono LIKE ? OR u.email LIKE ?
-                                     OR u.codice_tessera LIKE ? OR CONCAT(u.nome, ' ', u.cognome) LIKE ?)"
+            self::USER_SELECT . ' WHERE ' . $search['sql']
                 . \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER) . " ORDER BY u.cognome, u.nome, u.id LIMIT ?",
-            'ssssssi',
-            [$like, $like, $like, $like, $like, $like, $limit]
+            $search['types'] . 'i',
+            [...$search['params'], $limit]
         );
 
         return array_map(fn (array $r): array => $this->mapUser($r), $rows);
@@ -430,7 +462,7 @@ final class StaffLoanReader
             $daysOverdue = (int) ((new \DateTimeImmutable($due))->diff(new \DateTimeImmutable($today))->days ?: 0);
         }
         $penalty = $r['sanzione'] ?? null;
-        $maxRenewals = $this->maxRenewals();
+        $maxRenewals = $this->maxRenewalsFor($r);
         $processedBy = isset($r['processed_by'], $r['pb_nome'])
             ? ['id' => (int) $r['processed_by'], 'name' => self::name($r['pb_nome'], $r['pb_cognome'] ?? '')]
             : null;

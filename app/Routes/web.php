@@ -718,6 +718,17 @@ return function (App $app): void {
         return $controller->updateLabels($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Library cards (patron-cards-import): the tab lives in /admin/settings like
+    // the labels one; the GET form of the address opens that tab.
+    $app->get('/admin/settings/cards', function ($request, $response) {
+        return $response->withHeader('Location', url('/admin/settings?tab=cards'))->withStatus(302);
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_cards', configuration: true))->add(new AdminAuthMiddleware());
+    $app->post('/admin/settings/cards', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->updateCards($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_cards', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/settings/sharing', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
@@ -760,11 +771,59 @@ return function (App $app): void {
         return $controller->flushAllCaches($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Optional modules (Settings → Modules). Administrators only: the
+    // controller re-checks mayConfigure() inline, as for the policy settings.
+    $app->post('/admin/settings/modules', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->updateModules($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/settings/loans', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->updateLoansSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Circulation policy: patron types and rules matrix (Settings → Circulation)
+    $app->get('/admin/settings/circulation', function ($request, $response) {
+        return (new \App\Controllers\CirculationSettingsController())->index($request, $response);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->createType($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/settings/circulation/types/{id:\d+}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->editForm($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->updateType($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->deleteType($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}/default', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->setDefault($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/types/{id:\d+}/move', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->moveType($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/settings/circulation/rules', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\CirculationSettingsController())->saveRules($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('circulation_rules', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API Settings Routes
     $app->post('/admin/settings/api/toggle', function ($request, $response) use ($app) {
@@ -790,6 +849,68 @@ return function (App $app): void {
         $controller = new SettingsController();
         return $controller->deleteApiKey($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Closures calendar (Admin Only): weekly closed days, closure intervals,
+    // holiday presets, yearly closures on/off, ICS import. Every action re-checks mayConfigure() inline.
+    $app->get('/admin/calendar', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->index($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/weekdays', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->saveWeekdays($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/closures', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->store($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/closures/{id:\d+}/update', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->update($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/closures/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->delete($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/preset', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->importPreset($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->storeCustom($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays/{id:\d+}/update', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->updateCustom($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays/{id:\d+}/toggle', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->toggleCustom($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/custom-holidays/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->deleteCustom($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/yearly', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->saveYearly($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/calendar/import-ics', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\Admin\LibraryCalendarController())->importIcs($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('closures_calendar', configuration: true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Language Management Routes (Admin Only)
     $app->get('/admin/languages', function ($request, $response) use ($app) {
@@ -1193,6 +1314,13 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    // Fines report CSV (plan §7): charged / collected / waived per month.
+    $app->get('/admin/statistics/fines.csv', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\StatsController();
+        return $controller->finesCsv($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('fines'))->add(new AdminAuthMiddleware());
+
     // Simple stats APIs used by header quick stats (require authentication)
     $app->get('/api/stats/books-count', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -1260,16 +1388,86 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // Patron ledger (plan §7): payments, manual charges, waivers, payment receipt.
+    $app->post('/admin/users/{id:\d+}/ledger/payment', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->payment($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('fines'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/ledger/charge', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->charge($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('fines'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/ledger/waive', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->waive($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('fines'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/{id:\d+}/ledger/receipt/{movement:\d+}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->receipt($request, $response, $db, (int) $args['id'], (int) $args['movement']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('fines'))->add(new AdminAuthMiddleware());
     $app->post('/admin/users/{id:\d+}/approve-and-send-activation', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->approveAndSendActivation($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/renew-card', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\UsersController())->renewCard($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/users/{id:\d+}/activate-directly', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->activateDirectly($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Library cards, patron photo and user CSV import (patron-cards-import).
+    $app->get('/admin/users/{id:\d+}/card-pdf', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\PatronCardsController();
+        return $controller->cardPdf($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_cards'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/cards-pdf', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\PatronCardsController();
+        return $controller->bulkPdf($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_cards'))->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/{id:\d+}/photo', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\PatronCardsController();
+        return $controller->photo($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_photos'))->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/photo', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\PatronCardsController();
+        return $controller->uploadPhoto($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_photos'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/photo/delete', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\PatronCardsController();
+        return $controller->deletePhoto($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('patron_photos'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/import', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->page($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/import/example', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->example($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/import/errors', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->downloadErrors($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/import/upload', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->upload($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/import/start', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->start($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // No RateLimitMiddleware on /chunk: same rationale as the book import (#113),
+    // one sequential request per chunk, bound to the session's import.
+    $app->post('/admin/users/import/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UserImportController();
+        return $controller->chunk($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('user_import'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // CSV Export route for users
     $app->get('/admin/users/export/csv', function ($request, $response) use ($app) {
@@ -1451,9 +1649,10 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
 
     // CSV Import routes
-    $app->get('/admin/books/import', function ($request, $response) {
+    $app->get('/admin/books/import', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CsvImportController();
-        return $controller->showImportPage($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->showImportPage($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->get('/admin/books/import/example', function ($request, $response) {
@@ -1490,6 +1689,39 @@ return function (App $app): void {
     // /prepare, /chunk) rely on AdminAuthMiddleware + CsrfMiddleware; the
     // chunk loop is further bounded by the session-scoped import_id.
     // See issue #113 for the original rate-limit regression.
+
+    // MARC bulk import (ISO 2709 / MARCXML; MARC 21, UNIMARC, danMARC2) on
+    // the CSV import infrastructure: upload + preview, then chunks. No
+    // RateLimitMiddleware on /chunk for the same reason as the CSV chunk (#113).
+    $app->get('/admin/books/import/marc', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->showImportPage($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/import/marc/upload', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->upload($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/import/marc/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->chunk($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/import/marc/discard', function ($request, $response) {
+        $controller = new \App\Controllers\MarcImportController();
+        return $controller->discard($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // MARC bulk export: whole catalogue or ?ids= selection, streamed.
+    $app->get('/admin/books/export/marc', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcExportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->export($request, $response, $db);
+    })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware());
 
     // LibraryThing Plugin Routes
 
@@ -1646,6 +1878,12 @@ return function (App $app): void {
         return $controller->updateCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/books/copies/{id:\d+}/consultation', function ($request, $response, $args) use ($app) {
+        $controller = new \App\Controllers\CopyController();
+        $db = $app->getContainer()->get('db');
+        return $controller->toggleConsultation($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('consultation_only'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/books/copies/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
@@ -1786,6 +2024,29 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->destroy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Inventory stocktake (inventory.manage; closing with "mark lost" re-checks admin inline)
+    // Slim binds route closures to the container, so they must not be static.
+    $inventory = function (string $method) use ($app): \Closure {
+        return function ($request, $response, $args) use ($app, $method) {
+            $controller = new \App\Controllers\InventoryController();
+            $db = $app->getContainer()->get('db');
+            return isset($args['id'])
+                ? $controller->{$method}($request, $response, $db, (int) $args['id'])
+                : $controller->{$method}($request, $response, $db);
+        };
+    };
+    $app->get('/admin/inventory', $inventory('index'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory', $inventory('store'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}', $inventory('show'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}/state', $inventory('state'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new AdminAuthMiddleware());
+    // Scanning is a burst workload (wedge scanners read several codes a second).
+    $app->post('/admin/inventory/{id:\d+}/scan', $inventory('scan'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(600, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory/{id:\d+}/upload', $inventory('upload'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory/{id:\d+}/close', $inventory('close'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/inventory/{id:\d+}/cancel', $inventory('cancel'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}/report.csv', $inventory('exportCsv'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/inventory/{id:\d+}/report.pdf', $inventory('exportPdf'))->add(new \App\Middleware\FeatureGateMiddleware('stocktake'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     // Placement (protected admin)
     $app->get('/admin/placement', function ($request, $response) use ($app) {
@@ -2563,6 +2824,54 @@ return function (App $app): void {
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Suppliers (0.9.0): the publishers' CRUD shape, catalogue permission.
+    $app->get('/admin/suppliers', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->index($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('suppliers'))->add(new AdminAuthMiddleware());
+    $app->get('/admin/suppliers/create', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->createForm($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('suppliers'))->add(new AdminAuthMiddleware());
+    $app->post('/admin/suppliers/create', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->store($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('suppliers'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/suppliers/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\SuppliersController())->editForm($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('suppliers'))->add(new AdminAuthMiddleware());
+    $app->post('/admin/suppliers/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\SuppliersController())->update($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('suppliers'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/suppliers/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\SuppliersController())->delete($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('suppliers'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // ISBD catalogue cards (0.9.0): one book, or the books selected in the list.
+    $app->get('/admin/books/{id:\d+}/catalogue-card', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\CatalogueCardController())->single($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\FeatureGateMiddleware('catalogue_cards'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/books/catalogue-cards', function ($request, $response) use ($app) {
+        return (new \App\Controllers\CatalogueCardController())->bulk($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('catalogue_cards'))->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+
+    // Visitor log kiosk (0.9.0). Front-desk surface: loans permission.
+    $app->get('/admin/attendance', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->index($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('visitor_log'))->add(new AdminAuthMiddleware());
+    $app->get('/admin/attendance/export.csv', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->exportCsv($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('visitor_log'))->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/scan', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->scan($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('visitor_log'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(120, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/guest', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->guest($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('visitor_log'))->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(120, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/settings', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->saveSettings($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('visitor_log'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/purge', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->purge($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\FeatureGateMiddleware('visitor_log'))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API Libri by Author/Publisher
     $app->get('/api/libri/author/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\LibriApiController();
@@ -2869,7 +3178,12 @@ return function (App $app): void {
                     // page, admin loan and reservation forms): the configured
                     // default, capped by the maximum the request endpoints enforce.
                     'loan_duration_days' => $availability['loan_duration_days'] ?? null,
-                    'max_loan_duration_days' => $availability['max_loan_duration_days'] ?? null
+                    'max_loan_duration_days' => $availability['max_loan_duration_days'] ?? null,
+                    // Staff loan length for this borrower's patron type and
+                    // this material (CirculationPolicy), for the admin form.
+                    'staff_loan_duration_days' => $availability['staff_loan_duration_days'] ?? null,
+                    // Closures calendar: days the library is closed (not a start/pickup day).
+                    'closed_dates' => $availability['closed_dates'] ?? []
                 ]
             ];
             $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
@@ -3701,6 +4015,8 @@ return function (App $app): void {
         'collocazione' => 'placement',
         'recensioni'   => 'reviews',
         'statistiche'  => 'statistics',
+        'presenze'     => 'attendance',
+        'fornitori'    => 'suppliers',
     ];
 
     /** @var array<string,string> $actionSegmentMap Italian action words → English */

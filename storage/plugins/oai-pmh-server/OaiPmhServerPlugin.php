@@ -14,6 +14,10 @@ class CannotDisseminateFormatException extends \RuntimeException
 }
 
 use App\Support\HookManager;
+use App\Support\Marc\BookMarcBuilder;
+use App\Support\Marc\Iso2709Writer;
+use App\Support\Marc\MarcLanguage;
+use App\Support\Marc\MarcXmlWriter;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -91,13 +95,6 @@ class OaiPmhServerPlugin
     private const MAG_NS = 'http://www.iccu.sbn.it/metaAG1.pdf';
     private const MAG_SCHEMA = 'https://www.iccu.sbn.it/pagine/metadigit.xsd';
     private const NS_MARCXCHANGE = 'info:lc/xmlns/marcxchange-v2';
-    /**
-     * UNIMARC leader template (record length and base address are filled by
-     * the ISO 2709 serializer): n a m, pos 8-9 blank (pos 9 undefined in
-     * UNIMARC), indicator/subfield counts 2 2, pos 17-19 blank (full level,
-     * pos 18 blank because ISBD punctuation is not emitted), entry map 4500.
-     */
-    private const UNIMARC_LEADER_TEMPLATE = '00000nam  2200000   4500';
     private const SCHEMA_MARCXCHANGE = 'http://www.loc.gov/standards/iso25577/marcxchange-2-0.xsd';
 
     public function setPluginId(int $pluginId): void
@@ -1766,28 +1763,6 @@ class OaiPmhServerPlugin
     // ── MARCXML for books ─────────────────────────────────────────────────────
 
     /**
-     * Return the responsibility entry that must own the main-entry field.
-     * A principal creator always wins even if a caller supplied contributors
-     * or co-authors first; co-author is only the legacy fallback.
-     *
-     * @param list<array<string, mixed>> $authors
-     */
-    private function primaryCreatorIndex(array $authors): ?int
-    {
-        $coauthorIndex = null;
-        foreach ($authors as $index => $author) {
-            $role = (string) ($author['ruolo'] ?? '');
-            if ($role === 'principale') {
-                return $index;
-            }
-            if ($role === 'co-autore' && $coauthorIndex === null) {
-                $coauthorIndex = $index;
-            }
-        }
-        return $coauthorIndex;
-    }
-
-    /**
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
      * @param list<array<string, mixed>>        $publishers
@@ -1800,207 +1775,19 @@ class OaiPmhServerPlugin
         array $publishers,
         ?array $genre
     ): void {
-        $xw->startElementNs(null, 'record', 'http://www.loc.gov/MARC21/slim');
+        // The MARC 21 record itself comes from the shared builder, which the
+        // bulk MARC export also uses (App\Support\Marc\BookMarcBuilder).
+        $record = BookMarcBuilder::marc21($row, $authors, $publishers, $genre);
+
+        $xw->startElementNs(null, 'record', MarcXmlWriter::NS_MARC21);
+        // Declared on the record itself, as oai_dc and UNIMARC do: the record
+        // stays a valid document when a harvester lifts it out of the envelope.
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
-            'http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
-
-        // Leader: type 'a' (language material), bibliographic level 'm'
-        // (monograph), 's' for a serial. Leader/18 stays blank: the record
-        // carries no ISBD punctuation, so 'i' (ISBD) would be a false claim.
-        $xw->writeElement('leader', '00000na' . ($this->isSerialRecord($row) ? 's' : 'm') . ' a2200000   4500');
-
-        // 001 — Control number (book id)
-        $this->marcControlField($xw, '001', (string) $row['id']);
-
-        // 003 — MARC organization code
-        $this->marcControlField($xw, '003', 'IT-Pinakes');
-
-        // 005 — Date/time of latest transaction
-        $ts = strtotime((string) ($row['updated_at'] ?? 'now')) ?: time();
-        $this->marcControlField($xw, '005', gmdate('YmdHis', $ts) . '.0');
-
-        // 008 — Fixed-length data elements (exactly 40 characters)
-        $this->marcControlField($xw, '008', $this->marc21Field008($row));
-
-        // 020 — ISBN
-        if (!empty($row['isbn13'])) {
-            $this->marcDataField($xw, '020', ' ', ' ', [['a', (string) $row['isbn13']]]);
-        }
-        if (!empty($row['isbn10'])) {
-            $this->marcDataField($xw, '020', ' ', ' ', [['a', (string) $row['isbn10']]]);
-        }
-
-        // 022 — ISSN of the resource itself: serials only. On a monograph the
-        // ISSN belongs to its series and is carried in 490 $x below.
-        if (!empty($row['issn']) && $this->isSerialRecord($row)) {
-            $this->marcDataField($xw, '022', ' ', ' ', [['a', (string) $row['issn']]]);
-        }
-
-        // 040 — Cataloging source
-        $this->marcDataField($xw, '040', ' ', ' ', [
-            ['a', 'IT-Pinakes'],
-            ['b', 'ita'],
-            ['e', 'rda'],
-            ['c', 'IT-Pinakes'],
-        ]);
-
-        // 041 — Language
-        if (!empty($row['lingua'])) {
-            $this->marcDataField($xw, '041', '0', ' ', [
-                ['a', $this->iso639_3ToMarc((string) $row['lingua'])],
-            ]);
-        }
-
-        // 082 — Dewey classification
-        if (!empty($row['classificazione_dewey'])) {
-            $this->marcDataField($xw, '082', '0', '4', [
-                ['a', (string) $row['classificazione_dewey']],
-                ['2', '23'],
-            ]);
-        }
-
-        // 100/700 — creators and role-aware contributors.
-        $primaryCreatorIndex = $this->primaryCreatorIndex($authors);
-        foreach ($authors as $index => $a) {
-            $name = (string) $a['nome'];
-            $role = (string) ($a['ruolo'] ?? '');
-            $relator = match ($role) {
-                'traduttore' => 'translator',
-                'illustratore' => 'illustrator',
-                'curatore' => 'editor',
-                'colorista' => 'colorist',
-                default => 'author',
-            };
-            if ($index === $primaryCreatorIndex) {
-                $this->marcDataField($xw, '100', '1', ' ', [
-                    ['a', $name],
-                    ['e', $relator],
-                ]);
-            } else {
-                $this->marcDataField($xw, '700', '1', ' ', [
-                    ['a', $name],
-                    ['e', $relator],
-                ]);
-            }
-        }
-
-        // 245 — Title statement
-        $titleSubs = [['a', (string) ($row['titolo'] ?? '')]];
-        if (!empty($row['sottotitolo'])) {
-            $titleSubs[] = ['b', (string) $row['sottotitolo']];
-        }
-        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
-        if (!empty($row['traduttore']) && !in_array('traduttore', $entityRoles, true)) {
-            $titleSubs[] = ['c', 'traduzione di ' . (string) $row['traduttore']];
-        }
-        $ind1 = $primaryCreatorIndex !== null ? '1' : '0';
-        $this->marcDataField($xw, '245', $ind1, '0', $titleSubs);
-
-        // 250 — Edition
-        if (!empty($row['edizione'])) {
-            $this->marcDataField($xw, '250', ' ', ' ', [['a', (string) $row['edizione']]]);
-        }
-
-        // 264 — Production/Publication (RDA). MARC21 $b (publisher name) is
-        // repeatable, so multiple publishers become repeated $b in one 264.
-        $pubSubs = [];
-        // $a — place of publication, as printed (core 0.7.89).
-        if (!empty($row['luogo_pubblicazione'])) {
-            $pubSubs[] = ['a', (string) $row['luogo_pubblicazione']];
-        }
-        foreach ($publishers as $pub) {
-            if (!empty($pub['nome'])) {
-                $pubSubs[] = ['b', (string) $pub['nome']];
-            }
-        }
-        if (!empty($row['anno_pubblicazione'])) {
-            $pubSubs[] = ['c', (string) $row['anno_pubblicazione']];
-        }
-        if (!empty($pubSubs)) {
-            $this->marcDataField($xw, '264', ' ', '1', $pubSubs);
-        }
-
-        // 300 — Physical description
-        $physSubs = [];
-        if (!empty($row['numero_pagine'])) {
-            $physSubs[] = ['a', (string) $row['numero_pagine'] . ' pages'];
-        }
-        if (!empty($row['dimensioni'])) {
-            $physSubs[] = ['c', (string) $row['dimensioni']];
-        }
-        if (!empty($physSubs)) {
-            $this->marcDataField($xw, '300', ' ', ' ', $physSubs);
-        }
-
-        // 490 — Series statement
-        if (!empty($row['collana'])) {
-            $serSubs = [['a', (string) $row['collana']]];
-            if (!empty($row['issn']) && !$this->isSerialRecord($row)) {
-                $serSubs[] = ['x', (string) $row['issn']];
-            }
-            if (!empty($row['numero_serie'])) {
-                $serSubs[] = ['v', (string) $row['numero_serie']];
-            }
-            $this->marcDataField($xw, '490', '0', ' ', $serSubs);
-        }
-
-        // 520 — Summary
-        $desc = !empty($row['descrizione_plain']) ? $row['descrizione_plain'] : ($row['descrizione'] ?? '');
-        if ($desc !== '') {
-            $this->marcDataField($xw, '520', ' ', ' ', [['a', strip_tags((string) $desc)]]);
-        }
-
-        // 650 — Subject
-        if ($genre !== null && !empty($genre['nome'])) {
-            $this->marcDataField($xw, '650', ' ', '4', [['a', (string) $genre['nome']]]);
-        }
-        if (!empty($row['parole_chiave'])) {
-            foreach (explode(',', (string) $row['parole_chiave']) as $kw) {
-                $kw = trim($kw);
-                if ($kw !== '') {
-                    $this->marcDataField($xw, '650', ' ', '4', [['a', $kw]]);
-                }
-            }
-        }
-
-        // 700 — legacy contributors not already represented by entities.
-        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
-        foreach (['traduttore' => 'translator', 'illustratore' => 'illustrator', 'curatore' => 'editor'] as $col => $role) {
-            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
-                $this->marcDataField($xw, '700', '1', ' ', [
-                    ['a', (string) $row[$col]],
-                    ['e', $role],
-                ]);
-            }
-        }
-
+            MarcXmlWriter::NS_MARC21 . ' ' . MarcXmlWriter::SCHEMA_MARC21);
+        $xw->writeElement('leader', $record->leader());
+        MarcXmlWriter::writeFields($xw, $record);
         $xw->endElement(); // record
-    }
-
-    private function marcControlField(\XMLWriter $xw, string $tag, string $text): void
-    {
-        $xw->startElement('controlfield');
-        $xw->writeAttribute('tag', $tag);
-        $xw->text($text);
-        $xw->endElement();
-    }
-
-    /**
-     * @param list<array{0: string, 1: string}> $subfields
-     */
-    private function marcDataField(\XMLWriter $xw, string $tag, string $ind1, string $ind2, array $subfields): void
-    {
-        $xw->startElement('datafield');
-        $xw->writeAttribute('tag', $tag);
-        $xw->writeAttribute('ind1', $ind1);
-        $xw->writeAttribute('ind2', $ind2);
-        foreach ($subfields as [$code, $value]) {
-            $xw->startElement('subfield');
-            $xw->writeAttribute('code', $code);
-            $xw->text($value);
-            $xw->endElement();
-        }
-        $xw->endElement();
     }
 
     // ── UNIMARC for books ─────────────────────────────────────────────────────
@@ -2034,250 +1821,11 @@ class OaiPmhServerPlugin
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
             self::NS_MARCXCHANGE . ' ' . self::SCHEMA_MARCXCHANGE);
 
-        $xw->writeElement('leader', self::UNIMARC_LEADER_TEMPLATE);
-
-        foreach ($this->unimarcFields($row, $authors, $publishers, $genre) as [$tag, $ind1, $ind2, $data]) {
-            if ($ind1 === null || $ind2 === null || is_string($data)) {
-                $this->marcControlField($xw, $tag, is_string($data) ? $data : '');
-            } else {
-                $this->marcDataField($xw, $tag, $ind1, $ind2, $data);
-            }
-        }
+        $record = BookMarcBuilder::unimarc($row, $authors, $publishers, $genre);
+        $xw->writeElement('leader', $record->leader());
+        MarcXmlWriter::writeFields($xw, $record);
 
         $xw->endElement(); // record
-    }
-
-    /**
-     * The UNIMARC Bibliographic fields of a book, in tag order — one source
-     * for the MARCXchange writer and the ISO 2709 serializer, so the two
-     * downloads can never disagree. Control fields (001-005) carry their
-     * value as a string and null indicators.
-     *
-     * @param array<string, mixed>             $row
-     * @param list<array<string, mixed>>        $authors
-     * @param list<array<string, mixed>>        $publishers
-     * @param array<string, mixed>|null         $genre
-     * @return list<array{0: string, 1: ?string, 2: ?string, 3: string|list<array{0: string, 1: string}>}>
-     */
-    private function unimarcFields(array $row, array $authors, array $publishers, ?array $genre): array
-    {
-        $fields = [];
-
-        // 001 — Record identifier
-        $fields[] = ['001', null, null, (string) $row['id']];
-        // 003 — Persistent record identifier source (repository base URL)
-        $fields[] = ['003', null, null, absoluteUrl('/')];
-        // 005 — Version identifier: date/time of the latest modification
-        $updated = strtotime((string) ($row['updated_at'] ?? '')) ?: time();
-        $fields[] = ['005', null, null, gmdate('YmdHis', $updated) . '.0'];
-
-        // 010 — ISBN only. 073 — EAN (an EAN that is just the ISBN-13 again
-        // is not repeated).
-        foreach (['isbn13', 'isbn10'] as $col) {
-            if (!empty($row[$col])) {
-                $fields[] = ['010', ' ', ' ', [['a', (string) $row[$col]]]];
-                break;
-            }
-        }
-        $ean = trim((string) ($row['ean'] ?? ''));
-        $isbn13Digits = preg_replace('/\D/', '', (string) ($row['isbn13'] ?? ''));
-        if ($ean !== '' && preg_replace('/\D/', '', $ean) !== $isbn13Digits) {
-            $fields[] = ['073', ' ', ' ', [['a', $ean]]];
-        }
-
-        // 100 — General processing data
-        $langCode = $this->iso639_3ToMarc((string) ($row['lingua'] ?? 'italiano'));
-        $fields[] = ['100', ' ', ' ', [['a', $this->unimarcField100a($row)]]];
-
-        // 101 — Language of the item
-        $fields[] = ['101', '0', ' ', [['a', $langCode]]];
-
-        // 102 — Country of publication
-        $fields[] = ['102', ' ', ' ', [['a', 'IT']]];
-
-        // 200 — Title and statement of responsibility
-        $subs200 = [['a', (string) ($row['titolo'] ?? '')]];
-        if (!empty($row['sottotitolo'])) {
-            $subs200[] = ['e', (string) $row['sottotitolo']];
-        }
-        $primaryCreatorIndex = $this->primaryCreatorIndex($authors);
-        if ($primaryCreatorIndex !== null) {
-            $subs200[] = ['f', (string) $authors[$primaryCreatorIndex]['nome']];
-        }
-        $fields[] = ['200', '1', ' ', $subs200];
-
-        // 205 — Edition statement
-        if (!empty($row['edizione'])) {
-            $fields[] = ['205', ' ', ' ', [['a', (string) $row['edizione']]]];
-        }
-
-        // 210 — Publication, distribution. $c (publisher name) is repeatable,
-        // so multiple publishers become repeated $c in one 210.
-        $subs210 = [];
-        if (!empty($row['luogo_pubblicazione'])) {
-            $subs210[] = ['a', (string) $row['luogo_pubblicazione']];
-        }
-        foreach ($publishers as $pub) {
-            if (!empty($pub['nome'])) {
-                $subs210[] = ['c', (string) $pub['nome']];
-            }
-        }
-        $year = (string) ($row['anno_pubblicazione'] ?? '');
-        if ($year !== '') {
-            $subs210[] = ['d', $year];
-        }
-        if ($subs210 !== []) {
-            $fields[] = ['210', ' ', ' ', $subs210];
-        }
-
-        // 215 — Physical description
-        $subs215 = [];
-        if (!empty($row['numero_pagine'])) {
-            $subs215[] = ['a', $row['numero_pagine'] . ' p.'];
-        }
-        if (!empty($row['dimensioni'])) {
-            $subs215[] = ['d', (string) $row['dimensioni']];
-        }
-        if ($subs215 !== []) {
-            $fields[] = ['215', ' ', ' ', $subs215];
-        }
-
-        // 225 — Series (UNIMARC equivalent of MARC21 490)
-        if (!empty($row['collana'])) {
-            $subs225 = [['a', (string) $row['collana']]];
-            if (!empty($row['numero_serie'])) {
-                $subs225[] = ['v', (string) $row['numero_serie']];
-            }
-            $fields[] = ['225', '0', ' ', $subs225];
-        }
-
-        // 330 — Summary / abstract
-        $desc = !empty($row['descrizione_plain']) ? $row['descrizione_plain'] : ($row['descrizione'] ?? '');
-        if ($desc !== '') {
-            $fields[] = ['330', ' ', ' ', [['a', strip_tags((string) $desc)]]];
-        }
-
-        // 606 — Subject: genre, then keywords
-        if ($genre !== null && !empty($genre['nome'])) {
-            $fields[] = ['606', ' ', ' ', [['a', (string) $genre['nome']]]];
-        }
-        if (!empty($row['parole_chiave'])) {
-            foreach (explode(',', (string) $row['parole_chiave']) as $kw) {
-                $kw = trim($kw);
-                if ($kw !== '') {
-                    $fields[] = ['606', ' ', ' ', [['a', $kw]]];
-                }
-            }
-        }
-
-        // 700/701 — primary and alternative intellectual responsibility.
-        // 702 — secondary responsibility (translator, illustrator, etc.).
-        $responsibility = [];
-        foreach ($authors as $index => $a) {
-            $role = (string) ($a['ruolo'] ?? '');
-            $isCreator = in_array($role, ['principale', 'co-autore'], true);
-            $tag = $isCreator ? ($index === $primaryCreatorIndex ? '700' : '701') : '702';
-            $relCode = match ($role) {
-                'traduttore'   => '730',
-                'curatore'     => '340',
-                'illustratore' => '440',
-                'colorista'    => '410',
-                default        => '070',
-            };
-            [$ind2, $nameSubs] = $this->unimarcPersonalName((string) $a['nome']);
-            $nameSubs[] = ['4', $relCode];
-            $responsibility[$tag][] = [$tag, ' ', $ind2, $nameSubs];
-        }
-        foreach (['700', '701', '702'] as $tag) {
-            foreach ($responsibility[$tag] ?? [] as $field) {
-                $fields[] = $field;
-            }
-        }
-
-        // 801 — Originating source
-        $fields[] = ['801', ' ', '0', [
-            ['a', 'IT'],
-            ['b', 'Pinakes'],
-            ['c', gmdate('Ymd')],
-        ]];
-
-        return $fields;
-    }
-
-    /**
-     * UNIMARC 100 $a — general processing data, exactly 36 positions:
-     *   0-7 date entered (YYYYMMDD) · 8 type of publication date (d single
-     *   known date, u unknown) · 9-12 date 1 · 13-16 date 2 · 17-19 target
-     *   audience · 20 government publication (y not a government
-     *   publication) · 21 modified record (0) · 22-24 language of
-     *   cataloguing · 25 transliteration (y none) · 26-29 character set
-     *   (50 = ISO 10646) · 30-33 additional character sets · 34-35 script
-     *   of title (ba = Latin).
-     *
-     * @param array<string, mixed> $row
-     */
-    private function unimarcField100a(array $row): string
-    {
-        $entered = strtotime((string) ($row['created_at'] ?? '')) ?: time();
-        $year    = trim((string) ($row['anno_pubblicazione'] ?? ''));
-        $known   = strlen($year) === 4 && ctype_digit($year);
-
-        $value = date('Ymd', $entered)
-            . ($known ? 'd' : 'u')
-            . ($known ? $year : '    ')
-            . '    '
-            . '   '
-            . 'y'
-            . '0'
-            . $this->cataloguingLanguage()
-            . 'y'
-            . '50  '
-            . '    '
-            . 'ba';
-
-        return $value;
-    }
-
-    /** ISO 639-2/B language of cataloguing, from the installation locale. */
-    private function cataloguingLanguage(): string
-    {
-        try {
-            $locale = \App\Support\I18n::getInstallationLocale();
-        } catch (\Throwable) {
-            $locale = 'it_IT';
-        }
-        return match (strtolower(substr($locale, 0, 2))) {
-            'en'    => 'eng',
-            'de'    => 'ger',
-            'fr'    => 'fre',
-            'da'    => 'dan',
-            default => 'ita',
-        };
-    }
-
-    /**
-     * UNIMARC personal name (7XX): [ind2, subfields]. A name that can be
-     * inverted ("Surname, Forename", or a multi-word name whose last word is
-     * taken as the surname) is entered under the surname — ind2 1, $a surname
-     * $b forename; a single-word name stays in direct order — ind2 0, $a.
-     *
-     * @return array{0: string, 1: list<array{0: string, 1: string}>}
-     */
-    private function unimarcPersonalName(string $name): array
-    {
-        $name = trim(preg_replace('/\s+/u', ' ', $name) ?? $name);
-        if (str_contains($name, ',')) {
-            [$surname, $forename] = array_map('trim', explode(',', $name, 2));
-            if ($surname !== '' && $forename !== '') {
-                return ['1', [['a', $surname], ['b', $forename]]];
-            }
-        }
-        $words = $name === '' ? [] : explode(' ', $name);
-        if (count($words) >= 2) {
-            $surname = (string) array_pop($words);
-            return ['1', [['a', $surname], ['b', implode(' ', $words)]]];
-        }
-        return ['0', [['a', $name]]];
     }
 
     // ── MODS 3.7 for books ────────────────────────────────────────────────────
@@ -4299,44 +3847,12 @@ class OaiPmhServerPlugin
     }
 
     /**
-     * Convert common language name/code to ISO 639-2/B three-letter MARC code
-     * ('und' when unknown). A multi-language value uses its first language.
-     */
-    private function iso639_3ToMarc(string $lang): string
-    {
-        $first = $this->languageList($lang)[0] ?? '';
-        return $this->languageCode($first) ?? 'und';
-    }
-
-    /**
      * ISO 639-2/B code for one stored language (Italian/English/native name,
      * ISO 639-1 or 639-2 code), or null when it is not recognised.
      */
     private function languageCode(string $lang): ?string
     {
-        static $map = [
-            'italiano' => 'ita', 'italian' => 'ita', 'it' => 'ita', 'ita' => 'ita',
-            'inglese' => 'eng', 'english' => 'eng', 'en' => 'eng', 'eng' => 'eng',
-            'francese' => 'fre', 'français' => 'fre', 'french' => 'fre', 'fr' => 'fre', 'fre' => 'fre', 'fra' => 'fre',
-            'tedesco' => 'ger', 'deutsch' => 'ger', 'german' => 'ger', 'de' => 'ger', 'ger' => 'ger', 'deu' => 'ger',
-            'spagnolo' => 'spa', 'español' => 'spa', 'spanish' => 'spa', 'es' => 'spa', 'spa' => 'spa',
-            'portoghese' => 'por', 'português' => 'por', 'portuguese' => 'por', 'pt' => 'por', 'por' => 'por',
-            'danese' => 'dan', 'dansk' => 'dan', 'danish' => 'dan', 'da' => 'dan', 'dan' => 'dan',
-            'olandese' => 'dut', 'nederlands' => 'dut', 'dutch' => 'dut', 'nl' => 'dut', 'dut' => 'dut', 'nld' => 'dut',
-            'svedese' => 'swe', 'svenska' => 'swe', 'swedish' => 'swe', 'sv' => 'swe', 'swe' => 'swe',
-            'norvegese' => 'nor', 'norsk' => 'nor', 'norwegian' => 'nor', 'no' => 'nor', 'nor' => 'nor',
-            'russo' => 'rus', 'russian' => 'rus', 'ru' => 'rus', 'rus' => 'rus',
-            'polacco' => 'pol', 'polski' => 'pol', 'polish' => 'pol', 'pl' => 'pol', 'pol' => 'pol',
-            'greco' => 'gre', 'greek' => 'gre', 'el' => 'gre', 'gre' => 'gre', 'ell' => 'gre',
-            'greco antico' => 'grc', 'grc' => 'grc',
-            'latino' => 'lat', 'latin' => 'lat', 'la' => 'lat', 'lat' => 'lat',
-            'cinese' => 'chi', 'chinese' => 'chi', 'zh' => 'chi', 'chi' => 'chi', 'zho' => 'chi',
-            'giapponese' => 'jpn', 'japanese' => 'jpn', 'ja' => 'jpn', 'jpn' => 'jpn',
-            'arabo' => 'ara', 'arabic' => 'ara', 'ar' => 'ara', 'ara' => 'ara',
-            'catalano' => 'cat', 'català' => 'cat', 'catalan' => 'cat', 'ca' => 'cat', 'cat' => 'cat',
-        ];
-        $key = mb_strtolower(trim($lang));
-        return $map[$key] ?? null;
+        return MarcLanguage::codeFor($lang);
     }
 
     /**
@@ -4346,8 +3862,7 @@ class OaiPmhServerPlugin
      */
     private function languageList(string $lang): array
     {
-        $parts = preg_split('/\s*[,;\/]\s*/', trim($lang)) ?: [];
-        return array_values(array_filter(array_map('trim', $parts), static fn (string $p): bool => $p !== ''));
+        return MarcLanguage::listOf($lang);
     }
 
     /** DCMI Type Vocabulary term for a libri.tipo_media value. */
@@ -4366,43 +3881,6 @@ class OaiPmhServerPlugin
     private function isSerialRecord(array $row): bool
     {
         return in_array(strtolower((string) ($row['tipo_media'] ?? '')), ['periodical', 'serial', 'periodico', 'rivista'], true);
-    }
-
-    /**
-     * MARC 21 008 for books/serials: exactly 40 positions (same layout as the
-     * Z39.50 server's MARCXMLFormatter::generateField008()).
-     *   00-05 date entered (YYMMDD), 06 date type, 07-10 date 1, 11-14 date 2,
-     *   15-17 place of publication, 35-37 language, 39 cataloguing source.
-     *
-     * @param array<string, mixed> $row
-     */
-    private function marc21Field008(array $row): string
-    {
-        $field = str_repeat(' ', 40);
-        $created = strtotime((string) ($row['created_at'] ?? '')) ?: time();
-        $field = substr_replace($field, date('ymd', $created), 0, 6);
-
-        $isSerial = $this->isSerialRecord($row);
-        $field = substr_replace($field, $isSerial ? 'c' : 's', 6, 1);
-
-        $year = trim((string) ($row['anno_pubblicazione'] ?? ''));
-        if ($year !== '' && ctype_digit($year) && strlen($year) <= 4) {
-            $field = substr_replace($field, str_pad($year, 4, '0', STR_PAD_LEFT), 7, 4);
-        }
-        if ($isSerial) {
-            // Continuing resource still published: date 2 = 9999.
-            $field = substr_replace($field, '9999', 11, 4);
-        }
-
-        // Place of publication unknown/unspecified.
-        $field = substr_replace($field, 'xx ', 15, 3);
-
-        if (trim((string) ($row['lingua'] ?? '')) !== '') {
-            $field = substr_replace($field, $this->iso639_3ToMarc((string) $row['lingua']), 35, 3);
-        }
-
-        // 39 — cataloguing source: 'd' (other than a national agency).
-        return substr_replace($field, 'd', 39, 1);
     }
 
     private function oaiError(\XMLWriter $xw, string $code, string $message): void
@@ -4486,7 +3964,19 @@ class OaiPmhServerPlugin
         $publishers = $this->fetchPublishersForBook($id, !empty($row['editore_id']) ? (int) $row['editore_id'] : null);
         $genre      = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
 
-        $binary   = $this->bookToIso2709($row, $authors, $publishers, $genre);
+        try {
+            $binary = $this->bookToIso2709($row, $authors, $publishers, $genre);
+        } catch (\OverflowException) {
+            // Over the 99,999-byte ISO 2709 limit: the long free texts are
+            // shortened as the bulk MARC export does, else the record cannot
+            // be an ISO 2709 record at all.
+            try {
+                $binary = $this->bookToIso2709(\App\Controllers\MarcExportController::shortenTexts($row), $authors, $publishers, $genre);
+            } catch (\OverflowException $e) {
+                $response->getBody()->write(json_encode(['error' => true, 'message' => 'Record too long for ISO 2709: ' . $e->getMessage()]));
+                return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
+            }
+        }
         $filename = 'unimarc-' . $id . '.mrc';
 
         $response->getBody()->write($binary);
@@ -4602,52 +4092,10 @@ class OaiPmhServerPlugin
         array $publishers,
         ?array $genre
     ): string {
-        $FT = "\x1E"; // Field terminator
-        $RT = "\x1D"; // Record terminator
-        $SF = "\x1F"; // Subfield delimiter
-
-        // Each entry: [tag, ind1|null, ind2|null, data_string]
-        // Control fields (001-009): ind1/ind2 = null
-        /** @var list<array{0:string,1:string|null,2:string|null,3:string}> $fields */
-        $fields = [];
-        foreach ($this->unimarcFields($row, $authors, $publishers, $genre) as [$tag, $ind1, $ind2, $data]) {
-            if (is_string($data)) {
-                $fields[] = [$tag, null, null, $data];
-                continue;
-            }
-            $encoded = '';
-            foreach ($data as [$code, $value]) {
-                $encoded .= $SF . $code . $value;
-            }
-            $fields[] = [$tag, $ind1, $ind2, $encoded];
-        }
-
-        // ── Build directory and field data section ─────────────────────────────
-        $directory = '';
-        $fieldData = '';
-        $pos       = 0;
-
-        foreach ($fields as [$tag, $ind1, $ind2, $data]) {
-            $isControl   = ($ind1 === null);
-            $fieldContent = $isControl ? ($data . $FT) : ($ind1 . $ind2 . $data . $FT);
-            $len          = strlen($fieldContent);
-            $directory   .= $tag . sprintf('%04d', $len) . sprintf('%05d', $pos);
-            $fieldData   .= $fieldContent;
-            $pos         += $len;
-        }
-        $directory .= $FT; // directory block ends with field terminator
-
-        $baseAddr     = 24 + strlen($directory);
-        $recordLength = $baseAddr + strlen($fieldData) + 1; // +1 for record terminator
-
-        // Same leader as the MARCXchange record (UNIMARC_LEADER_TEMPLATE),
-        // with the record length (00-04) and base address (12-16) filled in.
-        $leader = sprintf('%05d', $recordLength)
-            . substr(self::UNIMARC_LEADER_TEMPLATE, 5, 7)
-            . sprintf('%05d', $baseAddr)
-            . substr(self::UNIMARC_LEADER_TEMPLATE, 17);
-
-        return $leader . $directory . $fieldData . $RT;
+        // Same record as the MARCXchange download, serialized by the shared
+        // ISO 2709 writer: leader length (00-04) and base address (12-16)
+        // filled in, every other leader position as the template says.
+        return Iso2709Writer::serialize(BookMarcBuilder::unimarc($row, $authors, $publishers, $genre));
     }
 
     // ── Digital-assets admin UI ───────────────────────────────────────────────

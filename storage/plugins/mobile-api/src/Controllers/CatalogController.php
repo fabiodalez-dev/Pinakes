@@ -674,14 +674,16 @@ final class CatalogController
                 $bind[]  = (int) $author;
                 $types  .= 'i';
             } else {
-                $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
-                                         WHERE la_a.libro_id = l.id
-                                           AND la_a.ruolo IN ('principale', 'co-autore')
-                                           AND (a_a.nome LIKE ? ESCAPE '\\\\' OR a_a.pseudonimo LIKE ? ESCAPE '\\\\'))";
-                $authorLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $author) . '%';
-                $bind[]  = $authorLike;
-                $bind[]  = $authorLike;
-                $types  .= 'ss';
+                // Quoted value = exact spelling, accents included (#501).
+                $authorCond = \App\Support\ExactSearch::filterCondition(['a_a.nome', 'a_a.pseudonimo'], $author);
+                if ($authorCond !== null) {
+                    $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
+                                             WHERE la_a.libro_id = l.id
+                                               AND la_a.ruolo IN ('principale', 'co-autore')
+                                               AND {$authorCond['sql']})";
+                    array_push($bind, ...$authorCond['params']);
+                    $types .= $authorCond['types'];
+                }
             }
         }
 
@@ -699,15 +701,20 @@ final class CatalogController
                     $types .= 'i';
                 }
             } else {
-                $publisherLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $publisher) . '%';
-                $conditions[] = $hasJunction
-                    ? "(e.nome LIKE ? ESCAPE '\\\\' OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND e_p.nome LIKE ? ESCAPE '\\\\'))"
-                    : "e.nome LIKE ? ESCAPE '\\\\'";
-                $bind[] = $publisherLike;
-                $types .= 's';
-                if ($hasJunction) {
-                    $bind[] = $publisherLike;
-                    $types .= 's';
+                // Quoted value = exact spelling, accents included (#501).
+                // A mixed value (`"häffner" verlag`) keeps each word's rule.
+                $primaryCond = \App\Support\ExactSearch::filterCondition(['e.nome'], $publisher);
+                $linkedCond = \App\Support\ExactSearch::filterCondition(['e_p.nome'], $publisher);
+                if ($primaryCond !== null && $linkedCond !== null) {
+                    $conditions[] = $hasJunction
+                        ? "({$primaryCond['sql']} OR EXISTS (SELECT 1 FROM libri_editori le_p JOIN editori e_p ON e_p.id = le_p.editore_id WHERE le_p.libro_id = l.id AND {$linkedCond['sql']}))"
+                        : $primaryCond['sql'];
+                    array_push($bind, ...$primaryCond['params']);
+                    $types .= $primaryCond['types'];
+                    if ($hasJunction) {
+                        array_push($bind, ...$linkedCond['params']);
+                        $types .= $linkedCond['types'];
+                    }
                 }
             }
         }
@@ -838,6 +845,12 @@ final class CatalogController
                     // Upper bound POST /reservations accepts for end_date (Mobile API 1.8.2).
                     'max_loan_duration_days' => (int) ($avail['max_loan_duration_days'] ?? 90),
                 ];
+            // The reader's circulation rules for this title (Pinakes 0.9.0,
+            // additive): consultation-only material is not requestable and a
+            // patron type without reservations cannot join the waitlist.
+            $viewer = (new \App\Services\CirculationPolicy($this->db))->forViewer($userId > 0 ? $userId : null, $bookId);
+            $data['loanable'] = $viewer->loanable;
+            $data['reservations_enabled'] = $viewer->user->reservationsEnabled;
 
             return ResponseEnvelope::success($response, $data, []);
         } catch (\Throwable $e) {
@@ -852,7 +865,7 @@ final class CatalogController
      * route GET /staff/books/{id}/availability (Mobile API 1.7.0).
      *
      * @param array<string, mixed> $avail
-     * @return array{total_copies:int, earliest_available:mixed, unavailable_dates:list<mixed>, days:list<array<string, mixed>>}
+     * @return array{total_copies:int, earliest_available:mixed, unavailable_dates:list<mixed>, closed_dates:list<mixed>, days:list<array<string, mixed>>}
      */
     public static function mapAvailability(array $avail): array
     {
@@ -860,6 +873,9 @@ final class CatalogController
             'total_copies'       => (int) ($avail['total_copies'] ?? 0),
             'earliest_available' => $avail['earliest_available'] ?? null,
             'unavailable_dates'  => array_values((array) ($avail['unavailable_dates'] ?? [])),
+            // Closures calendar (additive): days the library is closed, which
+            // cannot be a start/pickup day; a return date on one moves forward.
+            'closed_dates'       => array_values((array) ($avail['closed_dates'] ?? [])),
             'days'               => self::normalizeMobileAvailabilityDays(
                 array_values((array) ($avail['days'] ?? [])),
                 (int) ($avail['total_copies'] ?? 0)

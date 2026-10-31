@@ -35,7 +35,7 @@ concurrency:
 jobs:
   upgrade-smoke:
     name: Upgrade from latest release → verify schema
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       mysql:

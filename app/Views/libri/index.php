@@ -4,6 +4,9 @@
  */
 $title = "Libri";
 $libri = $data['libri'];
+$fornitoriFilter = $data['fornitori'] ?? [];
+// A positive integer or 0: (int) on an array or "3abc" would pick a supplier by accident.
+$fornitoreUrl = (int) (filter_var($_GET['fornitore'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0);
 ?>
 <!-- Enhanced Books Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
@@ -51,9 +54,20 @@ ob_start();
             <a href="<?= htmlspecialchars(url('/admin/books/export/csv'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
               <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?>
             </a>
-            <a href="<?= htmlspecialchars(url('/admin/books/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+            <a href="<?= htmlspecialchars(url('/admin/books/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
               <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing") ?>
             </a>
+            <?php if (\App\Support\Features::enabled('marc')): ?>
+            <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=marc21'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <i class="fas fa-file-code mr-2"></i><?= __("MARC 21 (.mrc)") ?>
+            </a>
+            <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=marcxml'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <i class="fas fa-file-code mr-2"></i><?= __("MARCXML") ?>
+            </a>
+            <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=unimarc'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <i class="fas fa-file-code mr-2"></i><?= __("UNIMARC (.mrc)") ?>
+            </a>
+            <?php endif; ?>
           </div>
         </div>
         <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary w-full">
@@ -84,9 +98,20 @@ ob_start();
               <a href="<?= htmlspecialchars(url('/admin/books/export/csv'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg">
                 <i class="fas fa-file-csv mr-2"></i><?= __("CSV Standard") ?>
               </a>
-              <a href="<?= htmlspecialchars(url('/admin/books/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
+              <a href="<?= htmlspecialchars(url('/admin/books/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
+              <?php if (\App\Support\Features::enabled('marc')): ?>
+              <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=marc21'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" data-marc-export="marc21">
+                <i class="fas fa-file-code mr-2"></i><?= __("MARC 21 (.mrc)") ?>
+              </a>
+              <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=marcxml'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" data-marc-export="marcxml">
+                <i class="fas fa-file-code mr-2"></i><?= __("MARCXML") ?>
+              </a>
+              <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=unimarc'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg" data-marc-export="unimarc">
+                <i class="fas fa-file-code mr-2"></i><?= __("UNIMARC (.mrc)") ?>
+              </a>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -102,6 +127,16 @@ ob_start();
               <a href="<?= htmlspecialchars(url('/admin/books/import/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-upload-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
+              <?php if (\App\Support\Features::enabled('marc')): ?>
+              <a href="<?= htmlspecialchars(url('/admin/books/import/marc'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <i class="fas fa-file-import mr-2"></i><?= __("MARC (ISO 2709 / MARCXML)") ?>
+              </a>
+              <?php endif; ?>
+              <?php if (!empty($copyCatalogingAvailable)): ?>
+              <a href="<?= htmlspecialchars(url('/admin/books/copy-cataloging'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <i class="fas fa-search-plus mr-2"></i><?= __("Copy cataloging (SRU)") ?>
+              </a>
+              <?php endif; ?>
               <hr class="border-gray-200">
               <a href="<?= htmlspecialchars(url('/admin/imports-history'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
                 <i class="fas fa-history mr-2"></i><?= __("Storico Import") ?>
@@ -138,8 +173,9 @@ unset($workspaceHeader);
             <label for="search_text" class="form-label books-filter-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_text" type="text" placeholder="<?= htmlspecialchars(__('Titolo, sottotitolo, descrizione...'), ENT_QUOTES, 'UTF-8') ?>"
+            <input id="search_text" type="text" aria-describedby="search_text_hint" placeholder="<?= htmlspecialchars(__('Titolo, sottotitolo, descrizione...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
+            <p id="search_text_hint" class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?></p>
           </div>
 
           <!-- ISBN/EAN -->
@@ -299,6 +335,21 @@ unset($workspaceHeader);
             <input id="acq_to" type="date"
                    class="form-input" />
           </div>
+
+          <!-- Supplier -->
+          <?php if (\App\Support\Features::enabled('suppliers')): ?>
+          <div>
+            <label for="fornitore_filter" class="form-label books-filter-label">
+              <i class="fas fa-truck mr-1"></i><?= __("Fornitore") ?>
+            </label>
+            <select id="fornitore_filter" class="form-input">
+              <option value=""><?= __("Tutti i fornitori") ?></option>
+              <?php foreach ($fornitoriFilter as $fid => $fname): ?>
+                <option value="<?= (int) $fid ?>" <?= $fornitoreUrl === (int) $fid ? 'selected' : '' ?>><?= htmlspecialchars((string) ($fname), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -360,6 +411,16 @@ unset($workspaceHeader);
           <button id="bulk-export" class="btn-secondary">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
+          <?php if (\App\Support\Features::enabled('marc')): ?>
+          <button id="bulk-export-marc" class="btn-secondary">
+            <i class="fas fa-file-code mr-2"></i><?= __("Esporta in MARC") ?>
+          </button>
+          <?php endif; ?>
+          <?php if (\App\Support\Features::enabled('catalogue_cards')): ?>
+          <button id="bulk-catalogue-cards" class="btn-secondary">
+            <i class="fas fa-address-card mr-2"></i><?= __("Schede catalografiche") ?>
+          </button>
+          <?php endif; ?>
           <button id="bulk-assign-collana" class="btn-secondary">
             <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
           </button>
@@ -419,6 +480,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let genereUrlFilter = initialGenere;
   let sottogenereUrlFilter = initialSottogenere;
   const initialKeywords = urlParams.get('keywords') || '';
+  // "Libri di questo fornitore" opens the list with ?fornitore=N preselected.
+  const initialFornitore = <?= (int) $fornitoreUrl ?>;
   const initialCollana = urlParams.get('collana') || '';
   let collanaFilter = initialCollana;
 
@@ -614,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
     stateLoadCallback: function(settings) {
       // When URL filters are active, reset saved pagination to page 1
       // to avoid "Showing 2501 to 44 of 44" when saved state had a high page offset
-      const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere;
+      const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere || initialFornitore > 0;
       let raw = null;
       try {
         raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
@@ -655,7 +718,8 @@ document.addEventListener('DOMContentLoaded', function() {
           anno_from: document.getElementById('anno_from').value,
           anno_to: document.getElementById('anno_to').value,
           collana: collanaFilter,
-          tipo_media: document.getElementById('tipo_media_filter').value
+          tipo_media: document.getElementById('tipo_media_filter').value,
+          fornitore_filter: document.getElementById('fornitore_filter')?.value || 0
         };
       },
       dataSrc: function(json) {
@@ -845,6 +909,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('.row-select').forEach(cb => {
         cb.addEventListener('change', handleRowSelect);
       });
+      syncSelectAll();
       updateBulkActionsBar();
     }
   });
@@ -873,13 +938,19 @@ document.addEventListener('DOMContentLoaded', function() {
     updateActiveFilters();
   });
 
-  ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
+  ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'fornitore_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', reloadDebounced);
       el.addEventListener('change', reloadDebounced);
     }
   });
+
+  // A supplier preselected from the URL sits in the closed "more filters"
+  // panel: show it as an active filter chip from the start.
+  if (initialFornitore > 0) {
+    updateActiveFilters();
+  }
 
   // Active filters display
   function updateActiveFilters() {
@@ -909,6 +980,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const tipoMedia = document.getElementById('tipo_media_filter').value;
     if (tipoMedia) filters.push({ key: 'tipo_media_filter', label: `${<?= json_encode(__("Tipo Media"), JSON_HEX_TAG) ?>}: ${tipoMedia}`, icon: 'fa-compact-disc' });
 
+    const fornitoreSel = document.getElementById('fornitore_filter');
+    if (fornitoreSel && fornitoreSel.value) {
+      filters.push({ key: 'fornitore_filter', label: `${<?= json_encode(__("Fornitore"), JSON_HEX_TAG) ?>}: ${fornitoreSel.options[fornitoreSel.selectedIndex].text}`, icon: 'fa-truck' });
+    }
+
     const genere = document.getElementById('filter_genere').value;
     if (genere && document.getElementById('genere_id').value) {
       filters.push({ key: 'genere', label: `${<?= json_encode(__("Genere"), JSON_HEX_TAG) ?>}: ${genere}`, icon: 'fa-tags' });
@@ -937,6 +1013,7 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (key === 'editore') { document.getElementById('filter_editore').value = ''; document.getElementById('editore_filter').value = ''; }
     else if (key === 'stato_filter') document.getElementById('stato_filter').value = '';
     else if (key === 'tipo_media_filter') document.getElementById('tipo_media_filter').value = '';
+    else if (key === 'fornitore_filter') document.getElementById('fornitore_filter').value = '';
     else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; genereUrlFilter = 0; sottogenereUrlFilter = 0; }
     table.ajax.reload();
     updateActiveFilters();
@@ -944,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Clear all filters
   document.getElementById('clear-filters').addEventListener('click', function() {
-    ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
+    ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'fornitore_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -1037,7 +1114,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.target.checked) selectedBooks.add(id);
     else selectedBooks.delete(id);
     updateBulkActionsBar();
-    document.getElementById('select-all').checked = selectedBooks.size > 0 && selectedBooks.size === document.querySelectorAll('.row-select').length;
+    syncSelectAll();
+  }
+
+  // "Select all" reflects the rows on screen: the selection survives paging,
+  // so on a new page the box starts unticked unless every row there is selected.
+  function syncSelectAll() {
+    const boxes = Array.from(document.querySelectorAll('.row-select'));
+    document.getElementById('select-all').checked = boxes.length > 0 && boxes.every(cb => cb.checked);
   }
 
   document.getElementById('select-all').addEventListener('change', function() {
@@ -1437,11 +1521,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Bulk ISBD catalogue cards (PDF, one card per page)
+  document.getElementById('bulk-catalogue-cards')?.addEventListener('click', function() {
+    if (selectedBooks.size === 0) return;
+    const maxCards = <?= json_encode(\App\Controllers\CatalogueCardController::MAX_BULK, JSON_HEX_TAG) ?>;
+    if (selectedBooks.size > maxCards) {
+      // The server prints at most maxCards cards: say so instead of silently dropping the rest.
+      Swal.fire({
+        icon: 'warning',
+        title: <?= json_encode(__('Troppi libri selezionati'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        text: <?= json_encode(__('Si possono stampare al massimo %d schede alla volta: selezionane di meno.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>.replace('%d', maxCards)
+      });
+      return;
+    }
+    const ids = Array.from(selectedBooks).join(',');
+    window.open(`${window.BASE_PATH}/admin/books/catalogue-cards?ids=${encodeURIComponent(ids)}`, '_blank', 'noopener');
+  });
+
   // Bulk export
   document.getElementById('bulk-export').addEventListener('click', function() {
     if (selectedBooks.size === 0) return;
     const ids = Array.from(selectedBooks).join(',');
     window.location.href = `${window.BASE_PATH}/admin/books/export/csv?ids=${ids}`;
+  });
+
+  // Bulk MARC export of the selection: MARC 21, MARCXML or UNIMARC
+  document.getElementById('bulk-export-marc')?.addEventListener('click', async function() {
+    if (selectedBooks.size === 0) return;
+    const choice = await Swal.fire({
+      title: __('Esporta in MARC'),
+      input: 'select',
+      inputOptions: { marc21: __('MARC 21 (.mrc)'), marcxml: __('MARCXML'), unimarc: __('UNIMARC (.mrc)') },
+      inputValue: 'marc21',
+      showCancelButton: true,
+      confirmButtonText: __('Esporta'),
+      cancelButtonText: __('Annulla')
+    });
+    if (!choice.isConfirmed || !choice.value) return;
+    const ids = Array.from(selectedBooks).join(',');
+    window.location.href = `${window.BASE_PATH}/admin/books/export/marc?format=${encodeURIComponent(choice.value)}&ids=${ids}`;
   });
 
   // View toggle
@@ -1786,7 +1904,7 @@ table#libri-table { border: 1px solid #e5e7eb; width: 100% !important; }
   .books-filter-grid > #clear-filters,
   .books-recent-searches { flex: 0 0 auto; }
   .books-recent-searches > button { width: auto; }
-  .books-bulk-buttons { grid-template-columns: repeat(4, auto); }
+  .books-bulk-buttons { grid-template-columns: repeat(3, auto); }
 }
 
 .books-scroll-hint { display: none; }

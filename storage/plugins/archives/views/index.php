@@ -221,8 +221,10 @@ unset($workspaceHeader);
                 <?= __("Ricerca (titolo, reference code, descrizione)") ?>
             </label>
             <input id="arc-q" type="search" name="q" value="<?= $e($q) ?>"
+                   aria-describedby="arc-q-hint"
                    placeholder="<?= $e(__("es. IT-MI-001 o Fondo Rossi")) ?>"
                    class="form-input">
+            <p id="arc-q-hint" class="text-xs text-gray-500 mt-1"><?= $e(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.')) ?></p>
         </div>
         <div>
             <label for="arc-level" class="form-label">
