@@ -143,6 +143,31 @@ $emptyClient = new class ([$server]) extends SruClient {
 };
 $empty = $emptyClient->searchServer($server, 'q', 5);
 $check($empty['error'] !== null && $empty['records'] === [], '18 an HTTP 200 with an empty body is reported as an error, not as zero records');
+// A transient transport failure on the first request is retried (within
+// the rate limit); an HTTP 4xx is not.
+$flaky = new class ([$server], $sru) extends SruClient {
+    public int $calls = 0;
+    public function __construct(array $servers, private string $xml, private string $failure = 'Connection failed', private int $failures = 1)
+    {
+        parent::__construct($servers);
+    }
+    protected function fetchUrl(string $url): ?string
+    {
+        $this->calls++;
+        if ($this->calls <= $this->failures) {
+            throw new \RuntimeException($this->failure);
+        }
+        return $this->xml;
+    }
+};
+$flakyAnswer = $flaky->searchServer($server, 'bib.title=x', 3);
+$check($flakyAnswer['error'] === null && count($flakyAnswer['records']) === 3 && $flaky->calls === 2, '18b a search whose first request fails in transit is retried and returns its records');
+$notFound = new (get_class($flaky))([$server], $sru, 'HTTP 404 error from server', 5);
+$notFoundAnswer = $notFound->searchServer($server, 'bib.title=x', 3);
+$check($notFoundAnswer['error'] !== null && $notFound->calls === 1, '18c an HTTP 4xx answer is not retried');
+$down = new (get_class($flaky))([$server], $sru, 'Connection failed', 99);
+$downAnswer = $down->searchServer($server, 'bib.title=x', 3);
+$check($downAnswer['error'] === 'Connection failed' && $down->calls === 3, '18d a server that stays down is tried a bounded number of times (1 + 2 retries), then reported');
 $plain = ['name' => 'Plain', 'url' => 'https://plain.example.org/sru', 'enabled' => true];
 $isbnClient = new SearchFixtureClient([$plain], $sru);
 $isbnClient->searchByIsbn('978-88-452-9261-3');
