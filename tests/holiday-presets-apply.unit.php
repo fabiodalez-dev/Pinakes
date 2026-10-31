@@ -236,6 +236,35 @@ try {
         $other->close();
     }
 
+    // 14. A stored country that is no longer known is reported, not hidden:
+    // the selection reads as unsaved (nothing is applied from it) but names
+    // the stored code, and the calendar page receives it for its warning.
+    $storedSelection = $one("SELECT GROUP_CONCAT(CONCAT_WS('=', setting_key, setting_value) ORDER BY setting_key SEPARATOR '\n') FROM system_settings WHERE category = 'calendar' AND setting_key IN ('holiday_country', 'holiday_region', 'holiday_rules')");
+    try {
+        $db->query("UPDATE system_settings SET setting_value = 'xq' WHERE category = 'calendar' AND setting_key = 'holiday_country'");
+        $sel = HolidayPresets::selection($db);
+        $check($sel['saved'] === false && $sel['rules'] === [], 'an unknown stored country is not a saved selection');
+        $check(($sel['unknown_country'] ?? null) === 'XQ', 'the unknown stored country code is reported');
+        $check(HolidayPresets::calendarRules($db) === null, 'an unknown stored country still applies no preset rules');
+        $preview = new ReflectionMethod(App\Controllers\Admin\LibraryCalendarController::class, 'holidayPreview');
+        $preview->setAccessible(true);
+        $card = $preview->invoke(new App\Controllers\Admin\LibraryCalendarController(), $db, [], 2026);
+        $check(($card['unknown_country'] ?? null) === 'XQ' && $card['saved'] === false, 'the calendar page receives the unknown country for its warning');
+        HolidayPresets::apply($db, 'IT', '', ['IT:christmas'], $today);
+        $check(HolidayPresets::selection($db)['unknown_country'] === '', 'a known saved country reports no unknown country');
+        $db->query("DELETE FROM system_settings WHERE category = 'calendar' AND setting_key IN ('holiday_country', 'holiday_region', 'holiday_rules')");
+        $check(HolidayPresets::selection($db)['unknown_country'] === '', 'nothing stored reports no unknown country');
+    } finally {
+        $db->query("DELETE FROM system_settings WHERE category = 'calendar' AND setting_key IN ('holiday_country', 'holiday_region', 'holiday_rules')");
+        foreach (array_filter(explode("\n", $storedSelection)) as $pair) {
+            [$key, $value] = explode('=', $pair, 2);
+            $restore = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', ?, ?)");
+            $restore->bind_param('ss', $key, $value);
+            $restore->execute();
+            $restore->close();
+        }
+    }
+
     $db->close();
     echo "SUCCESS {$checks} holiday preset checks\n";
     $exit = 0;

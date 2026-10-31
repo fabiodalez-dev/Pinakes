@@ -17,7 +17,7 @@
  * @var list<array<string, mixed>> $customHolidays
  * @var array<string, mixed>|null $customEditing
  * @var bool $customSchema
- * @var array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool} $holidays
+ * @var array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool, unknown_country: string} $holidays
  */
 
 $csrf = \App\Support\Csrf::ensureToken();
@@ -186,6 +186,14 @@ unset($workspaceHeader);
       <div class="p-6 space-y-4">
         <p class="text-sm text-gray-600"><?= __("Scegli il paese (e la regione, dove serve) e spunta le festività in cui la biblioteca è chiusa. Le festività fisse diventano chiusure annuali, quelle mobili sono ricalcolate ogni anno. Togliere la spunta rimuove solo quella festività; le chiusure aggiunte a mano o da file ICS non vengono toccate.") ?></p>
         <p class="text-sm text-gray-600"><?= __("Le date sono calcolate dalle regole ufficiali note; la biblioteca sceglie quali applicare e può sempre aggiungere chiusure a mano.") ?></p>
+        <?php if ($holidays['unknown_country'] !== ''): ?>
+          <div class="bg-yellow-50 border border-yellow-200 rounded p-3" role="alert" data-holiday-unknown-country>
+            <p class="text-sm text-yellow-800">
+              <i class="fas fa-exclamation-triangle"></i>
+              <?= $e(sprintf(__('Il paese salvato per le festività (%s) non è più disponibile: le festività scelte non vengono più aggiornate né calcolate per gli anni futuri. Scegli il paese, spunta le festività e salva di nuovo la scelta.'), $holidays['unknown_country'])) ?>
+            </p>
+          </div>
+        <?php endif; ?>
         <form method="GET" action="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="holiday-filter" class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label for="holiday_country" class="form-label"><i class="fas fa-globe mr-1"></i><?= __("Paese") ?></label>

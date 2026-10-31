@@ -73,8 +73,12 @@ final class HolidayPresets
 
     /**
      * What the library chose. 'saved' is false while nothing was ever applied.
+     * 'unknown_country' is the stored country code when it is set but no
+     * longer a known country (a hand edit, a country dropped from the data):
+     * 'saved' is then false as well, so the calendar page says why the
+     * library's holidays are no longer kept up to date.
      *
-     * @return array{country: string, region: string, rules: list<string>, saved: bool}
+     * @return array{country: string, region: string, rules: list<string>, saved: bool, unknown_country: string}
      */
     public static function selection(\mysqli $db): array
     {
@@ -87,7 +91,7 @@ final class HolidayPresets
      * locking current read, including inside an existing REPEATABLE READ
      * transaction whose ordinary reads may still see an older snapshot.
      *
-     * @return array{country: string, region: string, rules: list<string>, saved: bool}
+     * @return array{country: string, region: string, rules: list<string>, saved: bool, unknown_country: string}
      */
     private static function readSelection(\mysqli $db, bool $forUpdate = false): array
     {
@@ -102,6 +106,7 @@ final class HolidayPresets
         $result->free();
         $country = strtoupper($values['holiday_country'] ?? '');
         $saved = $country !== '' && HolidayCalculator::country($country) !== null;
+        $unknownCountry = $country !== '' && !$saved ? $country : '';
         if (!$saved) {
             $country = self::defaultCountry();
         }
@@ -113,7 +118,7 @@ final class HolidayPresets
                 $rules[] = $id;
             }
         }
-        return ['country' => $country, 'region' => $region, 'rules' => $saved ? self::filterIds($country, $region, $rules) : [], 'saved' => $saved];
+        return ['country' => $country, 'region' => $region, 'rules' => $saved ? self::filterIds($country, $region, $rules) : [], 'saved' => $saved, 'unknown_country' => $unknownCountry];
     }
 
     /**
