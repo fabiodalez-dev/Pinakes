@@ -57,6 +57,8 @@ $check(UserImport::validateMapping([0 => 'nome', 1 => 'email', 2 => 'email'], $f
 $check(UserImport::validateMapping([0 => 'nome', 1 => 'email', 2 => 'password'], $fields, 3)['error'] !== null, 'an unknown target (password) is refused');
 $check(UserImport::validateMapping([0 => 'nome', 1 => 'email', 9 => 'cognome'], $fields, 3)['mapping'] === [0 => 'nome', 1 => 'email'], 'a column index outside the file is ignored');
 $check(UserImport::validateMapping('x', $fields, 3)['error'] !== null, 'a non-array mapping is refused');
+$check(UserImport::validateMapping(json_decode('{"1":"nome","01":"email"}', true), $fields, 3)['error'] !== null, 'a non-canonical column key ("01") is refused instead of aliasing column 1');
+$check(UserImport::validateMapping(json_decode('{"0":"nome","1x":"email"}', true), $fields, 3)['error'] !== null && UserImport::validateMapping(json_decode('{"0":"nome","1":"email"}', true), $fields, 3)['mapping'] === [0 => 'nome', 1 => 'email'], 'only canonical integer keys are accepted, as JSON sends them');
 
 // ── UserImport: rows ────────────────────────────────────────────────────
 $map = [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'data_nascita', 4 => 'sesso', 5 => 'locale', 6 => 'codice_tessera', 7 => 'custom:7', 8 => 'note_utente'];
