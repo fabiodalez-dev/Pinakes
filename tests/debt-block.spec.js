@@ -64,16 +64,25 @@ function newBook(key, available) {
 }
 const balanceCents = () => Math.round(Number(dbQuery(`SELECT COALESCE(SUM(importo),0) FROM movimenti_lettore WHERE utente_id=${state.patronId}`)) * 100);
 
+// Run-scoped: only this run's reader and books, so a concurrent run on the
+// same database keeps its fixtures. Leftovers of a crashed run (older than a
+// day) go in a separate pass.
+function purge(userCond, bookCond) {
+  dbQuery(`DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id=m.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE r FROM prenotazioni r JOIN utenti u ON u.id=r.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE p FROM prestiti p JOIN libri l ON l.id=p.libro_id WHERE ${bookCond}`);
+  dbQuery(`DELETE p FROM prestiti p JOIN utenti u ON u.id=p.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE ${bookCond}`);
+  dbQuery(`DELETE lm FROM log_modifiche lm JOIN libri l ON l.id=lm.record_id AND lm.tabella='libri' WHERE ${bookCond}`);
+  dbQuery(`DELETE l FROM libri l WHERE ${bookCond}`);
+  dbQuery(`DELETE s FROM user_sessions s JOIN utenti u ON u.id=s.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE u FROM utenti u WHERE ${userCond}`);
+}
 function cleanup() {
-  dbQuery(`DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id=m.utente_id WHERE u.email LIKE 'zz-debt-%@test.local'`);
-  dbQuery(`DELETE r FROM prenotazioni r JOIN utenti u ON u.id=r.utente_id WHERE u.email LIKE 'zz-debt-%@test.local'`);
-  dbQuery(`DELETE p FROM prestiti p JOIN libri l ON l.id=p.libro_id WHERE l.titolo LIKE 'ZZ\\_DEBT\\_%'`);
-  dbQuery(`DELETE p FROM prestiti p JOIN utenti u ON u.id=p.utente_id WHERE u.email LIKE 'zz-debt-%@test.local'`);
-  dbQuery(`DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE l.titolo LIKE 'ZZ\\_DEBT\\_%'`);
-  dbQuery(`DELETE lm FROM log_modifiche lm JOIN libri l ON l.id=lm.record_id AND lm.tabella='libri' WHERE l.titolo LIKE 'ZZ\\_DEBT\\_%'`);
-  dbQuery(`DELETE FROM libri WHERE titolo LIKE 'ZZ\\_DEBT\\_%'`);
-  dbQuery(`DELETE FROM user_sessions WHERE utente_id IN (SELECT id FROM utenti WHERE email LIKE 'zz-debt-%@test.local')`);
-  dbQuery(`DELETE FROM utenti WHERE email LIKE 'zz-debt-%@test.local'`);
+  purge(`u.email='${esc(PATRON_EMAIL)}'`, `l.titolo LIKE '${esc(TITLE_PREFIX.replace(/_/g, '\\_'))}\\_%'`);
+}
+function cleanupStale() {
+  purge("u.email LIKE 'zz-debt-%@test.local' AND u.created_at < NOW() - INTERVAL 1 DAY", "l.titolo LIKE 'ZZ\\_DEBT\\_%' AND l.created_at < NOW() - INTERVAL 1 DAY");
 }
 
 async function loginAdmin(page) {
@@ -133,6 +142,7 @@ test.describe.serial('Debt block', () => {
 
   test.beforeAll(async ({ browser }) => {
     for (const k of SETTING_KEYS) saved[k] = readSetting(k);
+    cleanupStale();
     cleanup();
     restoreSetting('auto_approve_requests', '0');
     dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, email_verificata, tipo_utente, privacy_accettata, locale) VALUES ('${`ZZD${RUN}`.slice(0, 20)}', 'Zz', '${SURNAME}', '${PATRON_EMAIL}', '${esc(phpHash(PATRON_PASS))}', 'attivo', 1, 'standard', 1, 'it_IT')`);

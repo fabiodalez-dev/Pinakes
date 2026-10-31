@@ -109,10 +109,18 @@ class StocktakePdfGenerator
             $pdf->SetFillColor(249, 249, 249);
             $fill = false;
             foreach ($sectionRows as $row) {
-                foreach ($cols as $c) {
-                    $pdf->Cell($c['w'], 5.5, $this->fit((string) ($row[$c['key']] ?? ''), $c['w']), 1, 0, 'L', $fill);
+                // The copy code is what staff look for on the shelf: it wraps
+                // instead of being cut, so two long codes never print alike.
+                $code = (string) ($row['codice'] ?? '');
+                $height = max(1, $pdf->getNumLines($code, $cols[0]['w'])) * 4.5 + 1;
+                if ($pdf->GetY() + $height > $pdf->getPageHeight() - $pdf->getBreakMargin()) {
+                    $pdf->AddPage();
                 }
-                $pdf->Ln();
+                foreach ($cols as $c) {
+                    $text = $c['key'] === 'codice' ? $code : $this->fit((string) ($row[$c['key']] ?? ''), $c['w']);
+                    $pdf->MultiCell($c['w'], $height, $text, 1, 'L', $fill, 0, null, null, true, 0, false, true, $height, 'M');
+                }
+                $pdf->Ln($height);
                 $fill = !$fill;
             }
             $pdf->Ln(3);

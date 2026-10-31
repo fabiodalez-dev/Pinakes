@@ -294,6 +294,99 @@ try {
         $db->query("DELETE FROM tipologie_lettore WHERE id = {$ownType}");
         $setType($defaultType, $savedDefaultThreshold === null ? null : (string) $savedDefaultThreshold);
     }
+
+    // G. The ledger routes on the account a custom desk role targets: reader
+    //    accounts only (never Staff or an administrator), and without
+    //    users.manage the redirect lands on the loans page, not on a 403.
+    $deskReader = $newUser('dsk');
+    $deskStaff = $newUser('stf');
+    $db->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$deskStaff}");
+    // The operator id is recorded on the movement: any existing account will do.
+    $_SESSION = ['user' => ['id' => $deskStaff, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['backend.access', 'loans.manage']]];
+    $ledgerPost = static fn (array $body): \Psr\Http\Message\ServerRequestInterface => (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/0/ledger/charge')->withParsedBody($body);
+    $ledgerController = new \App\Controllers\PatronLedgerController();
+    $resp = $ledgerController->charge($ledgerPost(['importo' => '1,00', 'descrizione' => 'zz desk']), new \Slim\Psr7\Response(), $db, $deskStaff);
+    $check($resp->getStatusCode() === 403 && $count("utente_id = {$deskStaff}") === 0, 'a loans.manage custom role cannot charge a Staff account');
+    $resp = $ledgerController->receipt($ledgerPost([]), new \Slim\Psr7\Response(), $db, $deskStaff, 1);
+    $check($resp->getStatusCode() === 403, '...nor download its receipts');
+    $resp = $ledgerController->charge($ledgerPost(['importo' => '1,00', 'descrizione' => 'zz desk']), new \Slim\Psr7\Response(), $db, $deskReader);
+    $check($resp->getStatusCode() === 302 && str_ends_with($resp->getHeaderLine('Location'), '/admin/loans') && ($_SESSION['success_message'] ?? '') === __('Addebito registrato.') && $count("utente_id = {$deskReader}") === 1, 'on a reader account it charges and, without users.manage, lands on the loans page with the outcome');
+    unset($_SESSION['success_message']);
+    $resp = $ledgerController->receipt($ledgerPost([]), new \Slim\Psr7\Response(), $db, $deskReader, 999999999);
+    $check($resp->getStatusCode() === 404, 'a receipt for a payment that is not there is a 404');
+    $_SESSION['user']['permissions'][] = 'users.manage';
+    $resp = $ledgerController->charge($ledgerPost(['importo' => '2,00', 'descrizione' => 'zz desk 2']), new \Slim\Psr7\Response(), $db, $deskReader);
+    $check(str_contains($resp->getHeaderLine('Location'), '/admin/users/details/' . $deskReader), 'with users.manage it goes back to the reader record');
+    $_SESSION = [];
+
+    // H. Mobile API: GET /me/movements pages through the ledger (cursor,
+    //    has_more), and a debt block says so in meta.reason.
+    $mobileSrc = $root . '/storage/plugins/mobile-api/src';
+    foreach (['Support/ResponseEnvelope.php', 'Support/CursorCodec.php', 'Support/StaffPaging.php', 'Support/AppAuthMiddleware.php', 'Support/CirculationOutcome.php', 'Support/Input.php', 'Support/JsonBody.php', 'Controllers/ActionsController.php'] as $file) {
+        require_once $mobileSrc . '/' . $file;
+    }
+    $pagedReader = $newUser('pg');
+    for ($i = 1; $i <= 5; $i++) {
+        (new PatronLedger($db))->manualCharge($pagedReader, 100 * $i, "zz page {$i}", null);
+    }
+    $actions = new \App\Plugins\MobileApi\Controllers\ActionsController($db);
+    $mobileGet = static function (array $query) use ($pagedReader): \Psr\Http\Message\ServerRequestInterface {
+        return (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/v1/me/movements')
+            ->withQueryParams($query)
+            ->withAttribute(\App\Plugins\MobileApi\Support\AppAuthMiddleware::ATTR_USER, ['id' => $pagedReader]);
+    };
+    $decode = static function (\Psr\Http\Message\ResponseInterface $r): array {
+        $r->getBody()->rewind();
+        return (array) json_decode((string) $r->getBody()->getContents(), true);
+    };
+    $page1 = $decode($actions->myMovements($mobileGet(['limit' => '2']), new \Slim\Psr7\Response()));
+    $check(count($page1['data']['items'] ?? []) === 2 && ($page1['meta']['has_more'] ?? null) === true && is_string($page1['meta']['next_cursor'] ?? null), '/me/movements: a page of 2 out of 5 says has_more with a next_cursor');
+    $page3 = $decode($actions->myMovements($mobileGet(['limit' => '2', 'cursor' => \App\Plugins\MobileApi\Support\CursorCodec::encode(['o' => 4])]), new \Slim\Psr7\Response()));
+    $check(count($page3['data']['items'] ?? []) === 1 && ($page3['meta']['has_more'] ?? null) === false && array_key_exists('next_cursor', $page3['meta'] ?? []) && $page3['meta']['next_cursor'] === null, '...the last page has the oldest movement and no more');
+    $all = $decode($actions->myMovements($mobileGet([]), new \Slim\Psr7\Response()));
+    $check(count($all['data']['items'] ?? []) === 5 && ($all['meta']['count'] ?? 0) === 5 && ($all['meta']['has_more'] ?? null) === false, '...without parameters every movement comes back as before (up to 200)');
+    $mapError = new ReflectionMethod($actions, 'mapActionError');
+    $blocked = $decode($mapError->invoke($actions, new \Slim\Psr7\Response(), 'debt_block'));
+    $check(($blocked['error']['code'] ?? $blocked['code'] ?? '') === 'not_eligible' && ($blocked['meta']['reason'] ?? '') === 'debt_block', 'a debt block answers not_eligible with meta.reason = debt_block');
+
+    // I. The rules matrix posted by a form rendered before the fine columns
+    //    existed (no grace/fine/fine_max fields) keeps the stored values; a
+    //    field sent empty clears it.
+    $savedRules = $db->query('SELECT * FROM regole_prestito')->fetch_all(MYSQLI_ASSOC);
+    try {
+        $media = array_key_first(\App\Controllers\CirculationSettingsController::mediaTypes());
+        $db->query('DELETE FROM regole_prestito');
+        $stmt = $db->prepare("INSERT INTO regole_prestito (tipologia_id, tipo_media, durata_prestito_giorni, giorni_tolleranza, multa_giornaliera, multa_massima_prestito) VALUES (0, ?, 14, 3, 0.75, 9.00)");
+        $stmt->bind_param('s', $media);
+        $stmt->execute();
+        $stmt->close();
+        $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+        $saveRules = static function (array $cell) use ($db, $media): void {
+            $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/settings/circulation/rules')
+                ->withParsedBody(['rules' => [0 => [$media => $cell]]]);
+            (new \App\Controllers\CirculationSettingsController())->saveRules($request, new \Slim\Psr7\Response(), $db);
+        };
+        $rule = static fn (): ?array => $db->query("SELECT durata_prestito_giorni, giorni_tolleranza, multa_giornaliera, multa_massima_prestito FROM regole_prestito WHERE tipologia_id = 0 AND tipo_media = '" . $db->real_escape_string((string) $media) . "'")->fetch_assoc();
+        $saveRules(['loanable' => '', 'max' => '', 'duration' => '21', 'renewals' => '', 'renewal_days' => '']);
+        $r = $rule();
+        $check($r !== null && (int) $r['durata_prestito_giorni'] === 21 && (int) $r['giorni_tolleranza'] === 3 && $r['multa_giornaliera'] === '0.75' && $r['multa_massima_prestito'] === '9.00', 'rules matrix: an older form without the fine fields keeps grace, fine and cap as stored');
+        $saveRules(['loanable' => '', 'max' => '', 'duration' => '21', 'renewals' => '', 'renewal_days' => '', 'grace' => '', 'fine' => '', 'fine_max' => '']);
+        $r = $rule();
+        $check($r !== null && $r['giorni_tolleranza'] === null && $r['multa_giornaliera'] === null && $r['multa_massima_prestito'] === null, '...fields sent empty clear them');
+        $saveRules(['loanable' => '', 'max' => '', 'duration' => '', 'renewals' => '', 'renewal_days' => '', 'grace' => '', 'fine' => '', 'fine_max' => '']);
+        $check($rule() === null, '...and an all-empty cell still removes its rule');
+    } finally {
+        $_SESSION = [];
+        $db->query('DELETE FROM regole_prestito');
+        foreach ($savedRules as $row) {
+            $cols = array_keys($row);
+            $stmt = $db->prepare('INSERT INTO regole_prestito (`' . implode('`, `', $cols) . '`) VALUES (' . implode(', ', array_fill(0, count($cols), '?')) . ')');
+            $values = array_values($row);
+            $stmt->bind_param(str_repeat('s', count($cols)), ...$values);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
 } finally {
     foreach ($savedSettings as $k => $v) {
         $setSetting($k, $v);

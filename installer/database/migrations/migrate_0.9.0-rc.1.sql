@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS `inventario_sessioni` (
   `chiusa_da` int DEFAULT NULL,
   `chiusa_il` datetime DEFAULT NULL,
   `note` text COLLATE utf8mb4_unicode_ci,
+  `azione_mancanti` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_inventario_sessioni_stato` (`stato`),
   KEY `idx_inventario_sessioni_sede` (`sede_id`),
@@ -33,6 +34,8 @@ CREATE TABLE IF NOT EXISTS `inventario_attese` (
   `scaffale_atteso` int DEFAULT NULL,
   `stato_all_apertura` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `codice_atteso` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `titolo_atteso` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`sessione_id`,`copia_id`),
   KEY `idx_inventario_attese_copia` (`copia_id`),
   CONSTRAINT `fk_inventario_attese_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE
@@ -60,6 +63,32 @@ CREATE TABLE IF NOT EXISTS `inventario_scansioni` (
 -- created by an earlier build of 0.9.0; a fresh CREATE above already has it.
 SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_attese' AND COLUMN_NAME = 'esito_chiusura');
 SET @sql = IF(@col_exists = 0, 'ALTER TABLE inventario_attese ADD COLUMN esito_chiusura varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER stato_all_apertura', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- inventario_attese.codice_atteso / titolo_atteso freeze the copy's inventory code and
+-- the book title when the session is opened, so a copy deleted during the stocktake is
+-- still identifiable in the report. Added for tables created by an earlier build of
+-- 0.9.0; a fresh CREATE above already has them. Older snapshot rows stay NULL and the
+-- report falls back to the live copy, as before.
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_attese' AND COLUMN_NAME = 'codice_atteso');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE inventario_attese ADD COLUMN codice_atteso varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER esito_chiusura', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_attese' AND COLUMN_NAME = 'titolo_atteso');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE inventario_attese ADD COLUMN titolo_atteso varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER codice_atteso', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- inventario_sessioni.azione_mancanti records what the close chose for the missing
+-- copies ('nessuna' or 'perso'), so a mark-lost close cut off halfway can be completed
+-- later from the closed session. NULL while open, cancelled, or closed by an earlier build.
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_sessioni' AND COLUMN_NAME = 'azione_mancanti');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE inventario_sessioni ADD COLUMN azione_mancanti varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER note', 'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

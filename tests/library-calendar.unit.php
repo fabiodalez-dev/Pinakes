@@ -84,7 +84,7 @@ $eq($leap->isOpen('2027-03-01'), true, 'and does not close Mar 1 in other years'
 $eq(LibraryCalendar::spanDays('2026-01-01', '2026-01-01'), 0, 'spanDays: same day is 0');
 $eq(LibraryCalendar::spanDays('2026-01-01', '2026-12-31'), 364, 'spanDays: a year less a day is 364');
 $eq(LibraryCalendar::spanDays('2026-01-01', 'nope'), -1, 'spanDays: not a date is -1');
-$eq(LibraryCalendar::MAX_YEARLY_SPAN_DAYS, 364, 'the yearly limit is a year less a day');
+$eq(LibraryCalendar::MAX_YEARLY_SPAN_DAYS, 363, 'the yearly limit is a year less two days (a 364-day span leaves only Feb 29 open)');
 $decade = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2035-12-31', 'yearly' => true]]);
 $eq($decade->isOpen('2030-06-15'), false, 'a ten-year yearly row closes a day inside its interval');
 $eq($decade->isOpen('2040-06-15'), true, 'and leaves an arbitrary later date open (it does not close every day)');
@@ -92,13 +92,17 @@ $eq($decade->isOpen('2025-06-15'), true, 'nor an earlier one');
 $twoYears = new LibraryCalendar([], [['start' => '2020-03-01', 'end' => '2022-02-28', 'yearly' => true]]);
 $eq($twoYears->isOpen('2021-07-01'), false, 'a two-year yearly row closes its own days');
 $eq($twoYears->isOpen('2026-07-01'), true, 'and not the same day years later');
+$longest = new LibraryCalendar([], [['start' => '2026-06-01', 'end' => '2027-05-30', 'yearly' => true]]);
+$eq($longest->isOpen('2030-12-25'), false, 'a 363-day yearly span (Jun 1 - May 30) still recurs and wraps');
+$eq($longest->isOpen('2030-05-30'), false, 'its last month-day is closed');
+$eq($longest->isOpen('2030-05-31'), true, 'and May 31 stays open every year');
+$eq($longest->nextOpenDay('2030-12-25'), '2031-05-31', 'so a due date inside it reaches an open day');
+$eq($longest->hasRules(), true, 'it is a rule');
 $fullYear = new LibraryCalendar([], [['start' => '2026-06-01', 'end' => '2027-05-31', 'yearly' => true]]);
-$eq($fullYear->isOpen('2030-12-25'), false, 'a 364-day yearly span (Jun 1 - May 31) still recurs and wraps');
-$eq($fullYear->isOpen('2030-05-31'), false, 'its last month-day is closed');
-$eq($fullYear->hasRules(), true, 'it is a rule');
-$oneDayMore = new LibraryCalendar([], [['start' => '2026-06-01', 'end' => '2027-06-01', 'yearly' => true]]);
-$eq($oneDayMore->isOpen('2030-12-25'), true, 'a 365-day yearly span does not recur');
-$eq($oneDayMore->isOpen('2026-12-25'), false, 'but closes its own interval');
+$eq($fullYear->isOpen('2030-12-25'), true, 'a 364-day yearly span (Jun 1 - May 31) would close every day: it does not recur');
+$eq($fullYear->isOpen('2026-12-25'), false, 'but closes its own interval');
+$leapOnly = new LibraryCalendar([], [['start' => '2024-03-01', 'end' => '2025-02-28', 'yearly' => true]]);
+$eq($leapOnly->isOpen('2026-07-01'), true, 'a Mar 1 - Feb 28 yearly span (only Feb 29 left) does not recur either');
 
 // ── A one-off closure longer than the scan bound is stepped over whole ───
 // A once closure may span ten years (MAX_ONCE_SPAN_DAYS) while a scan walks
@@ -221,6 +225,37 @@ $eq(LibraryCalendar::parseIcs($utcIcs, 1000, 'UTC')[0]['start'], '2026-04-10', '
 $tenYears = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nDTEND;VALUE=DATE:20360101\nRRULE:FREQ=YEARLY\nSUMMARY:decade\nEND:VEVENT\nEND:VCALENDAR\n");
 $eq([$tenYears[0]['start'], $tenYears[0]['end'], $tenYears[0]['yearly']], ['2026-01-01', '2035-12-31', true], 'ICS: a ten-year yearly event is parsed as stored');
 $eq(LibraryCalendar::spanDays($tenYears[0]['start'], $tenYears[0]['end']) > LibraryCalendar::MAX_YEARLY_SPAN_DAYS, true, 'ICS: and exceeds the yearly limit the import applies');
+
+// DTEND is exclusive for timed events too: one ending at local midnight does
+// not close the next day; a zero-length event at midnight keeps its day.
+$midnight = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261224T100000\nDTEND:20261225T000000\nSUMMARY:m\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T000000\nDTEND:20261224T000000\nSUMMARY:zero\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T090000Z\nDTEND:20261225T230000Z\nSUMMARY:utc midnight\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T100000\nDTEND:20261225T000100\nSUMMARY:past midnight\nEND:VEVENT\nEND:VCALENDAR\n", 1000, 'Europe/Rome');
+$eq([$midnight[0]['start'], $midnight[0]['end']], ['2026-12-24', '2026-12-24'], 'ICS: a timed DTEND at midnight is exclusive');
+$eq([$midnight[1]['start'], $midnight[1]['end']], ['2026-12-24', '2026-12-24'], 'ICS: a zero-length event at midnight keeps its day');
+$eq([$midnight[2]['start'], $midnight[2]['end']], ['2026-12-24', '2026-12-25'], 'ICS: a UTC DTEND that is local midnight (Dec 26 00:00 Rome) ends on Dec 25');
+$eq([$midnight[3]['start'], $midnight[3]['end']], ['2026-12-24', '2026-12-25'], 'ICS: a DTEND one minute past midnight closes that day');
+
+// TZID: the time is read in that zone, then in the app timezone.
+$tzid = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;TZID=America/New_York:20260410T230000\nSUMMARY:ny\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;TZID=\"Europe/Rome\":20260410T230000\nSUMMARY:quoted\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;TZID=Not/AZone:20260410T230000\nSUMMARY:unknown\nEND:VEVENT\nEND:VCALENDAR\n", 1000, 'Europe/Rome');
+$eq($tzid[0]['start'], '2026-04-11', 'ICS: 23:00 in New York is Apr 11 in Europe/Rome');
+$eq($tzid[1]['start'], '2026-04-10', 'ICS: a quoted TZID equal to the app timezone keeps the day');
+$eq($tzid[2]['start'], '2026-04-10', 'ICS: an unknown TZID is read as floating');
+
+// Only a plain yearly rule recurs; bounded, sparser or positional rules are
+// imported as their first occurrence.
+$rule = static fn (string $rrule): bool => LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260601\nRRULE:{$rrule}\nEND:VEVENT\nEND:VCALENDAR\n")[0]['yearly'];
+$eq($rule('FREQ=YEARLY'), true, 'RRULE: FREQ=YEARLY recurs');
+$eq($rule('FREQ=YEARLY;INTERVAL=1;BYMONTH=6;BYMONTHDAY=1'), true, 'RRULE: restating DTSTART still recurs');
+$eq($rule('FREQ=YEARLY;COUNT=3'), false, 'RRULE: COUNT is a first occurrence only');
+$eq($rule('FREQ=YEARLY;UNTIL=20280601'), false, 'RRULE: UNTIL is a first occurrence only');
+$eq($rule('FREQ=YEARLY;BYMONTH=6;BYDAY=1MO'), false, 'RRULE: a positional weekday is a first occurrence only');
+$eq($rule('FREQ=YEARLY;BYDAY=MO;BYSETPOS=1'), false, 'RRULE: BYSETPOS is a first occurrence only');
+$eq($rule('FREQ=YEARLY;INTERVAL=2'), false, 'RRULE: every other year is a first occurrence only');
+$eq($rule('FREQ=MONTHLY'), false, 'RRULE: a monthly rule is a first occurrence only');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
 
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";

@@ -196,8 +196,17 @@ class SettingsRepository
             if ($existing !== null) {
                 if (isset($italianBase[$name])) {
                     $base = $italianBase[$name];
+                    // The Italian text as shipped now, or as an earlier
+                    // release shipped it (SettingsMailTemplates::retiredBodies():
+                    // loan_returned before its {{multa}} line), so a row left
+                    // in Italian by an older install still gets translated.
+                    $storedBody = trim(str_replace("\r\n", "\n", (string) $existing['body']));
+                    $italianBodies = array_map(
+                        static fn (string $body): string => trim(str_replace("\r\n", "\n", $body)),
+                        array_merge([(string) $base['body']], \App\Support\SettingsMailTemplates::retiredBodies($name, 'it_IT'))
+                    );
                     $stillItalian = trim((string) $existing['subject']) === trim((string) $base['subject'])
-                        && trim((string) $existing['body']) === trim((string) $base['body']);
+                        && in_array($storedBody, $italianBodies, true);
                     $haveTranslation = trim((string) $template['subject']) !== trim((string) $existing['subject'])
                         || trim((string) $template['body']) !== trim((string) $existing['body']);
                     if ($stillItalian && $haveTranslation) {

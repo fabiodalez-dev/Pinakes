@@ -698,6 +698,10 @@ final class OpenApiController
                     'description' => 'Patron ledger (since 1.9.0): balance (positive = owed), charges, payments, waivers and reversals, newest first, plus the fines accruing today on overdue loans (charged only at return). Amounts in cents and as decimal strings in `currency`.',
                     'operationId' => 'getMeMovements',
                     'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [
+                        ['name' => 'limit', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200, 'default' => 200], 'description' => 'Movements per page (max 200)'],
+                        ['name' => 'cursor', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string'], 'description' => 'Opaque `meta.next_cursor` of the previous page; `meta.has_more` says whether older movements exist'],
+                    ],
                     'responses'   => [
                         '200' => ['description' => 'Balance and movements.', 'content' => ['application/json' => ['schema' => [
                             'allOf' => [['$ref' => '#/components/schemas/Envelope']],
@@ -776,6 +780,7 @@ final class OpenApiController
                         ],
                         '400' => ['$ref' => '#/components/responses/UnprocessableEntity'],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '403' => ['description' => 'not_eligible: the account is suspended or its card has expired, or (Mobile API 1.9.0) the balance owed is above the debt threshold, with meta.reason = debt_block.', 'content' => $json],
                         '409' => ['description' => 'Overlap or book unavailable. For not_available, when the start day is free but a scheduled loan or reservation begins inside the requested window, error.message names the longest loan still possible and meta carries max_duration_days, max_end_date and first_conflict_date (Mobile API 1.8.2) so the client can propose that return date. Circulation rules of the reader\'s patron type (Mobile API 1.9.0): max_loans_reached, media_limit_reached (limit for this material type), not_loanable (consultation only), reservations_disabled, reservation_limit_reached.', 'content' => $json],
                         '422' => ['description' => 'Invalid book id or date, or end_date beyond max_loan_duration_days (max_duration_exceeded).', 'content' => $json],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
