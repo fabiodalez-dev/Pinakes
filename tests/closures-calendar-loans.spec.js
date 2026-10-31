@@ -50,6 +50,8 @@ let prevWeekdays = '';
 let readerId = 0;
 let today = '';
 let loanDays = 30;
+// The reader's default request duration: min(loan duration, max duration).
+let requestDays = 30;
 let pickupDays = 3;
 /** @type {Record<string, {id: number, inv: string}>} */
 const books = {};
@@ -59,6 +61,24 @@ function closeDay(from, to = from) {
 }
 function clearClosures() {
   db(`DELETE FROM calendario_chiusure WHERE descrizione='${TAG}'`);
+}
+// The first open day from `day` on, as the application computes it for a loan
+// with no branch: this run's closures and any already stored, plus the weekly
+// closed days. An existing closure next to a test date moves the expected
+// date with it instead of failing the assertion.
+function nextOpenInDb(day) {
+  const weekly = db("SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'), '')")
+    .split(',').filter((d) => /^[0-6]$/.test(d.trim())).map(Number);
+  const closures = db('SELECT CONCAT(data_inizio,\'|\',data_fine,\'|\',ricorrente_annuale,\'|\',DATEDIFF(data_fine,data_inizio)) FROM calendario_chiusure WHERE sede_id IS NULL')
+    .split('\n').filter(Boolean).map((line) => line.split('|'));
+  const closed = (iso) => (weekly.length < 7 && weekly.includes(weekday(iso))) || closures.some(([from, to, yearly, span]) => {
+    if (yearly !== '1' || Number(span) > 363) return iso >= from && iso <= to;
+    const md = iso.slice(5), a = from.slice(5), b = to.slice(5);
+    return b < a ? (md >= a || md <= b) : (md >= a && md <= b);
+  });
+  let result = day;
+  for (let i = 0; i < 1100 && closed(result); i++) result = addDays(result, 1);
+  return result;
 }
 function setWeekdays(value) {
   db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${value}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
@@ -116,8 +136,9 @@ test.describe('Closures calendar — circulation', () => {
     loanDays = parseInt(db("SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='loan_duration_days'), '30')"), 10) || 30;
     const maxDays = parseInt(db("SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='max_loan_duration_days'), '90')"), 10) || 90;
     loanDays = Math.min(loanDays, 3650);
-    // The reader's default request duration is min(loan, max): keep the spec on one number.
-    expect(maxDays).toBeGreaterThanOrEqual(loanDays);
+    // Staff loans use loan_duration_days; the reader's request defaults to
+    // min(loan, max), a valid setup when max is the smaller one.
+    requestDays = Math.min(loanDays, maxDays);
     pickupDays = Math.max(1, parseInt(db("SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='pickup_expiry_days'), '3')"), 10) || 3);
 
     const hash = execFileSync('php', ['-r', `echo password_hash('${READER_PASS}', PASSWORD_DEFAULT);`], { encoding: 'utf-8' }).trim();
@@ -141,7 +162,9 @@ test.describe('Closures calendar — circulation', () => {
     if (prevWeekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     else setWeekdays(prevWeekdays);
     const ids = Object.values(books).map((b) => b.id).join(',') || '0';
-    db(`DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids}))`);
+    // related_id also holds message, user, reservation and review ids: only
+    // the loan notifications (the loan types, or a general one about loans).
+    db(`DELETE FROM admin_notifications WHERE (type IN ('new_loan_request','overdue_loan') OR (type='general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids}))`);
     db(`DELETE FROM prestiti WHERE libro_id IN (${ids})`);
     db(`DELETE FROM prenotazioni WHERE libro_id IN (${ids})`);
     db(`DELETE FROM copie WHERE libro_id IN (${ids})`);
@@ -157,7 +180,7 @@ test.describe('Closures calendar — circulation', () => {
     closeDay(defaultDue);
     await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
     await page.goto(`${BASE}/admin/loans/create`);
-    await expect(page.locator('#data_scadenza')).toHaveValue(addDays(defaultDue, 1));
+    await expect(page.locator('#data_scadenza')).toHaveValue(nextOpenInDb(addDays(defaultDue, 1)));
   });
 
   test('Admin 2: closed days are disabled in both pickers, today stays selectable', async ({ page }) => {
@@ -188,7 +211,7 @@ test.describe('Closures calendar — circulation', () => {
     // The library announces a closure on that very day while the form is open.
     closeDay(due);
     await submitLoanForm(page);
-    expect(db(`SELECT data_scadenza FROM prestiti WHERE libro_id=${books.store.id} AND utente_id=${readerId}`)).toBe(addDays(due, 1));
+    expect(db(`SELECT data_scadenza FROM prestiti WHERE libro_id=${books.store.id} AND utente_id=${readerId}`)).toBe(nextOpenInDb(addDays(due, 1)));
   });
 
   test('Admin 4: the pickup deadline counts open days only', async ({ page }) => {
@@ -373,7 +396,7 @@ test.describe('Closures calendar — circulation', () => {
     await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
     await renewFromBookPage(page, books.renew, loanId);
     await expect.poll(() => db(`SELECT CONCAT(data_scadenza,'|',renewals) FROM prestiti WHERE id=${loanId}`), { timeout: 8000 })
-      .toBe(`${addDays(due, loanDays + 1)}|1`);
+      .toBe(`${nextOpenInDb(addDays(due, loanDays + 1))}|1`);
   });
 
   test('Renew 2: a renewal ending on a weekly closed day moves to the next open day', async ({ page }) => {
@@ -383,7 +406,7 @@ test.describe('Closures calendar — circulation', () => {
     setWeekdays(String(weekday(raw)));
     await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
     await renewFromBookPage(page, books.weekly, loanId);
-    await expect.poll(() => db(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`), { timeout: 8000 }).toBe(addDays(raw, 1));
+    await expect.poll(() => db(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`), { timeout: 8000 }).toBe(nextOpenInDb(addDays(raw, 1)));
   });
 
   // ── Reader's request calendar ────────────────────────────────────────────
@@ -438,13 +461,13 @@ test.describe('Closures calendar — circulation', () => {
       return { status: res.status, body: await res.json() };
     }, { id: books.crafted.id, start: closed });
     expect(sent.body.success, JSON.stringify(sent.body)).toBe(true);
-    expect(sent.body.start_date).toBe(addDays(closed, 1));
-    expect(db(`SELECT data_prestito FROM prestiti WHERE libro_id=${books.crafted.id} AND utente_id=${readerId} ORDER BY id DESC LIMIT 1`)).toBe(addDays(closed, 1));
+    expect(sent.body.start_date).toBe(nextOpenInDb(addDays(closed, 1)));
+    expect(db(`SELECT data_prestito FROM prestiti WHERE libro_id=${books.crafted.id} AND utente_id=${readerId} ORDER BY id DESC LIMIT 1`)).toBe(nextOpenInDb(addDays(closed, 1)));
   });
 
   test('Request 4: a request whose return date falls on a closed day is saved with the next open day', async ({ page }) => {
     const start = addDays(today, 1);
-    closeDay(addDays(start, loanDays));
+    closeDay(addDays(start, requestDays));
     await loginAs(page, READER_EMAIL, READER_PASS);
     await openRequestModal(page, books.request);
     await page.evaluate((iso) => { /** @type {any} */ (document.querySelector('#swal-date-start'))._flatpickr.setDate(iso, true); }, start);
@@ -452,6 +475,6 @@ test.describe('Closures calendar — circulation', () => {
     await page.locator('.swal2-confirm').click();
     await page.waitForSelector('.swal2-icon-success', { timeout: 15000 });
     expect(db(`SELECT CONCAT(data_prestito,'|',data_scadenza) FROM prestiti WHERE libro_id=${books.request.id} AND utente_id=${readerId} ORDER BY id DESC LIMIT 1`))
-      .toBe(`${start}|${addDays(start, loanDays + 1)}`);
+      .toBe(`${start}|${nextOpenInDb(addDays(start, requestDays + 1))}`);
   });
 });

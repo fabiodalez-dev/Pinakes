@@ -9256,6 +9256,7 @@
   "Giorno della settimana non valido.": "Ugyldig ugedag.",
   "Un'altra modifica del calendario è in corso: riprova tra poco.": "En anden ændring af kalenderen er i gang: prøv igen om lidt.",
   "Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Med denne årlige lukning ville biblioteket være lukket hele året: mindst én dag skal forblive åben.",
+  "Con questi giorni di chiusura settimanale e le chiusure annuali la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Med disse ugentlige lukkedage og de årlige lukninger ville biblioteket være lukket hele året: mindst én dag skal forblive åben.",
   "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Leverandør ikke tildelt: den blev slettet under importen.",
   "Il file dell'import non è più disponibile: caricalo di nuovo.": "Importfilen er ikke længere tilgængelig: upload den igen.",
   "Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.": "Importen er gennemført, men historikken blev ikke gemt: fejlrapporten kan ikke downloades.",
@@ -9271,5 +9272,14 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Importen er fuldført, men historikken blev ikke gemt. Prøv igen for at gemme den.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Grænsen for resultaternes størrelse er nået: kataloget blev ikke søgt.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "SBN-kataloget understøtter ikke søgning efter ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Denne forhåndsvisning er blevet erstattet af en anden uploadet fil: upload filen igen for at importere den."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Denne forhåndsvisning er blevet erstattet af en anden uploadet fil: upload filen igen for at importere den.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Rapporten er begrænset til %d poster: senere rækker vises ikke, men de er medregnet i tællingerne.",
+  "Report troncato": "Rapport afkortet",
+  "Un import è già in corso: attendi la fine o riprendilo da questa pagina.": "En import er allerede i gang: vent til den er færdig, eller genoptag den fra denne side.",
+  "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.": "Importen er stadig aktiv: genoptag den, eller prøv igen om %d minutter.",
+  "Import interrotto": "Import afbrudt",
+  "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d af %d rækker behandlet. Du kan genoptage den, hvor den stoppede, eller lukke den: de brugere, der allerede er oprettet, bevares.",
+  "Annulla import": "Annuller import",
+  "Riprendi import": "Genoptag import",
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Brugeren blev ikke slettet: brugerens foto kan ikke fjernes fra disken. Prøv igen, eller kontrollér rettighederne til mappen storage."
 }

@@ -711,6 +711,10 @@ class LoanApprovalController
                 // drifting from the authoritative computation above.
                 'loan_state' => $newState,
                 'is_future_loan' => $isFutureLoan,
+                // The window as written: the due date may have moved over a
+                // closure of the assigned copy's branch.
+                'data_scadenza' => $dataScadenza,
+                'copia_id' => (int) $selectedCopy['id'],
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 

@@ -259,6 +259,26 @@ $eq($rule('FREQ=YEARLY;BYMONTH=6;BYDAY=1MO'), false, 'RRULE: a positional weekda
 $eq($rule('FREQ=YEARLY;BYDAY=MO;BYSETPOS=1'), false, 'RRULE: BYSETPOS is a first occurrence only');
 $eq($rule('FREQ=YEARLY;INTERVAL=2'), false, 'RRULE: every other year is a first occurrence only');
 $eq($rule('FREQ=MONTHLY'), false, 'RRULE: a monthly rule is a first occurrence only');
+// BYMONTH/BYMONTHDAY recur only as DTSTART's own month and day: another
+// value names a different day, so the row is DTSTART once, not every year.
+$eq($rule('FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25'), false, 'RRULE: BYMONTH/BYMONTHDAY other than DTSTART is a first occurrence only');
+$eq($rule('FREQ=YEARLY;BYMONTH=6'), true, 'RRULE: BYMONTH equal to DTSTART still recurs');
+$eq($rule('FREQ=YEARLY;BYMONTHDAY=2'), false, 'RRULE: a BYMONTHDAY other than DTSTART is a first occurrence only');
+$eq($rule('FREQ=YEARLY;BYMONTHDAY=-1'), false, 'RRULE: a negative BYMONTHDAY is a first occurrence only');
+$early = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nRRULE:FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25\nDTSTART;VALUE=DATE:20260601\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nRRULE:FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25\nDTSTART;VALUE=DATE:20261225\nEND:VEVENT\nEND:VCALENDAR\n");
+$eq([$early[0]['start'], $early[0]['yearly'], $early[1]['yearly']], ['2026-06-01', false, true], 'RRULE: checked against DTSTART even when the rule comes first');
+
+// EXDATE: a stored yearly closure cannot skip a year, so the event is its
+// first occurrence only; with DTSTART itself excluded nothing is left.
+$exdate = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260815\nRRULE:FREQ=YEARLY\nEXDATE;VALUE=DATE:20270815\nSUMMARY:skip one\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nEXDATE;VALUE=DATE:20280101,20260815\nDTSTART;VALUE=DATE:20260815\nRRULE:FREQ=YEARLY\nSUMMARY:first excluded\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;TZID=Europe/Rome:20261224T090000\nRRULE:FREQ=YEARLY\nEXDATE;TZID=Europe/Rome:20271224T090000\nSUMMARY:timed\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20261225\nRRULE:FREQ=YEARLY\nSUMMARY:plain\nEND:VEVENT\nEND:VCALENDAR\n", 1000, 'Europe/Rome');
+$eq(array_column($exdate, 'description'), ['skip one', 'timed', 'plain'], 'EXDATE: an event whose DTSTART is excluded is left out');
+$eq([$exdate[0]['start'], $exdate[0]['yearly']], ['2026-08-15', false], 'EXDATE: a yearly event with an excluded year is imported once');
+$eq($exdate[1]['yearly'], false, 'EXDATE: a timed EXDATE with TZID disables the recurrence too');
+$eq($exdate[2]['yearly'], true, 'EXDATE: without one the yearly event still recurs');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
 
 // Selected holidays are evaluated for the date being asked for, independently
@@ -291,6 +311,28 @@ $eq($longJump->nextOpenDay('2026-10-29'), '2036-01-02', 'a long closure jump als
 $introducedHoliday = new LibraryCalendar([], [], $rules('IT', 'san_francesco'));
 $eq($introducedHoliday->isOpen('2025-10-04'), true, 'a dynamic holiday respects its first year');
 $eq($introducedHoliday->isOpen('2036-10-04'), false, 'a holiday with a first year keeps closing beyond the preview window');
+
+// ── The request calendar's toOpenDayIso() (book-detail.php), run in node ──
+// A closure longer than any fixed step bound must still be crossed whole.
+$viewSrc = (string) file_get_contents(dirname(__DIR__) . '/app/Views/frontend/book-detail.php');
+$node = trim((string) shell_exec('command -v node 2>/dev/null'));
+if ($node === '') {
+    echo "SKIP toOpenDayIso: node not available\n";
+} elseif (preg_match('/function addDaysToIso\(.*?\n    }\n/s', $viewSrc, $addFn) !== 1 || preg_match('/function toOpenDayIso\(.*?\n    }\n/s', $viewSrc, $openFn) !== 1) {
+    $check(false, 'toOpenDayIso and addDaysToIso found in book-detail.php');
+} else {
+    $closedYears = [];
+    for ($d = '2026-01-01'; $d <= '2027-03-10'; $d = LibraryCalendar::shift($d, 1)) {
+        $closedYears[] = $d; // 434 consecutive closed days
+    }
+    $js = $addFn[0] . $openFn[0] . 'const s = new Set(' . json_encode($closedYears) . ');'
+        . 'process.stdout.write(JSON.stringify([toOpenDayIso("2026-01-01", 1, s), toOpenDayIso("2027-03-10", -1, s), toOpenDayIso("2025-12-31", 1, s), toOpenDayIso("2026-06-01", 1, new Set())]));';
+    $script = tempnam(sys_get_temp_dir(), 'opendays') . '.js';
+    file_put_contents($script, $js);
+    $out = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
+    @unlink($script);
+    $eq($out, ['2027-03-11', '2025-12-31', '2025-12-31', '2026-06-01'], 'toOpenDayIso crosses a 434-day closure both ways and leaves open days alone');
+}
 
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";
 exit($failures === 0 ? 0 : 1);

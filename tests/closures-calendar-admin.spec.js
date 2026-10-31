@@ -7,6 +7,9 @@
 // Run: /tmp/run-e2e.sh tests/closures-calendar-admin.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -45,6 +48,9 @@ let startMaxId = 0;
 let prevHolidayRows = '';
 let prevHolidaySettings = '';
 let prevWeekdays = null;
+// The original loans.closed_weekdays, kept outside the database: a run killed
+// after beforeAll cleared it would otherwise read '' as the original next time.
+const WEEKDAYS_STASH = path.join(os.tmpdir(), `pinakes-e2e-closed-weekdays-${DB_NAME.replace(/[^\w-]/g, '_')}.json`);
 let sedeId = 0;
 let today = '';
 // A month far enough ahead that no seeded closure of this run lands in it by accident.
@@ -87,7 +93,12 @@ test.describe('Closures calendar — admin page', () => {
     startMaxId = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
     prevHolidayRows = db("SELECT IFNULL(GROUP_CONCAT(CONCAT_WS('|', id, IFNULL(regola_festivita,'-'), descrizione, attiva) ORDER BY id SEPARATOR ';'), '') FROM calendario_chiusure");
     prevHolidaySettings = db("SELECT IFNULL(GROUP_CONCAT(CONCAT_WS('|', setting_key, setting_value) SEPARATOR ';'), '') FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
-    prevWeekdays = db("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    let stashed = null;
+    try { stashed = JSON.parse(fs.readFileSync(WEEKDAYS_STASH, 'utf-8')); } catch { /* no interrupted run */ }
+    prevWeekdays = stashed && typeof stashed.value === 'string'
+      ? stashed.value
+      : db("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    fs.writeFileSync(WEEKDAYS_STASH, JSON.stringify({ value: prevWeekdays }));
     db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     db(`INSERT INTO sedi (nome) VALUES ('${TAG} Succursale')`);
     sedeId = parseInt(db(`SELECT id FROM sedi WHERE nome='${TAG} Succursale'`), 10);
@@ -110,10 +121,14 @@ test.describe('Closures calendar — admin page', () => {
       const [key, value] = row.split('|');
       db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar','${key}','${value}')`);
     }
-    if (prevWeekdays === '') {
-      db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
-    } else {
-      db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${prevWeekdays}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+    // null: beforeAll never read the original, so nothing was changed.
+    if (prevWeekdays !== null) {
+      if (!/^[0-6](,[0-6])*$/.test(prevWeekdays)) {
+        db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+      } else {
+        db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${prevWeekdays}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+      }
+      try { fs.unlinkSync(WEEKDAYS_STASH); } catch { /* already gone */ }
     }
     if (sedeId) db(`DELETE FROM sedi WHERE id=${sedeId}`);
     await page?.close();
