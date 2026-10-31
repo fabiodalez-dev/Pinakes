@@ -354,6 +354,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function showError(message) {
         previewBtn.disabled = false;
+        // A chunk error keeps the server state (position, counters): a new
+        // click on Confirm resumes from there instead of a dead button.
+        document.getElementById('confirmImportBtn').disabled = !upload;
         document.getElementById('import-progress-container').classList.add('hidden');
         window.SwalApp.error(T.error, message);
     }
@@ -403,6 +406,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('cancelImportBtn').addEventListener('click', () => {
+        // Drop the staged records on the server too, not only the preview.
+        fetch(BASE_PATH + '/admin/books/import/marc/discard', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrf() }
+        }).catch(() => {});
         upload = null;
         document.getElementById('marc-preview').classList.add('hidden');
         previewBtn.disabled = false;

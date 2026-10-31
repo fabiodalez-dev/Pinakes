@@ -418,11 +418,15 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           // Supplier (0.9.0). $fornitori is id => name, loaded by the controller.
           $supplierOptions = isset($fornitori) && is_array($fornitori) ? $fornitori : [];
           $currentSupplier = (int) ($book['fornitore_id'] ?? 0);
+          // A stored supplier missing from the options (list not loaded) must
+          // not be posted back as "no supplier": the select is then disabled,
+          // so the field is not submitted and the stored value is kept.
+          $supplierLocked = $currentSupplier > 0 && !isset($supplierOptions[$currentSupplier]);
           ?>
           <div class="form-grid-3 mt-4">
             <div>
               <label for="fornitore_id" class="form-label"><?= __("Fornitore") ?></label>
-              <select id="fornitore_id" name="fornitore_id" class="form-input">
+              <select id="fornitore_id" name="fornitore_id" class="form-input"<?= $supplierLocked ? ' disabled' : '' ?>>
                 <option value=""><?= __("Nessun fornitore") ?></option>
                 <?php foreach ($supplierOptions as $supplierId => $supplierName): ?>
                   <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) ($supplierName), ENT_QUOTES, 'UTF-8') ?></option>

@@ -130,7 +130,16 @@ class MarcImportController
                 }
                 $total++;
                 $line = $this->stageLine((int) $position, $item, $flavour);
-                fwrite($out, json_encode($line, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
+                $encoded = json_encode($line, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+                $bytes = ($encoded === false ? '' : $encoded) . "\n";
+                // A short or failed write (full disk, quota) must not be counted:
+                // the chunks would import a truncated staging file and report success.
+                if ($encoded === false || fwrite($out, $bytes) !== strlen($bytes)) {
+                    fclose($out);
+                    @unlink($staging);
+                    \App\Support\SecureLogger::error('[MARC import] cannot write staging file', ['record' => $total]);
+                    return $this->json($response, ['success' => false, 'error' => __('Impossibile salvare il file caricato')], 500);
+                }
                 if (isset($line['e'])) {
                     $unreadable++;
                 }
@@ -144,7 +153,12 @@ class MarcImportController
             \App\Support\SecureLogger::error('[MARC import] cannot read upload', ['error' => $e->getMessage()]);
             return $this->json($response, ['success' => false, 'error' => __('Impossibile leggere il file caricato')], 400);
         }
-        fclose($out);
+        if (!fclose($out)) {
+            // The last buffered bytes are flushed here: a failure loses records too.
+            @unlink($staging);
+            \App\Support\SecureLogger::error('[MARC import] cannot close staging file', ['records' => $total]);
+            return $this->json($response, ['success' => false, 'error' => __('Impossibile salvare il file caricato')], 500);
+        }
         if ($total === 0) {
             @unlink($staging);
             return $this->json($response, ['success' => false, 'error' => __('Il file non contiene record MARC riconoscibili (ISO 2709 o MARCXML)')], 400);
@@ -157,7 +171,7 @@ class MarcImportController
             'mode' => $mode,
             'covers' => !empty($data['download_covers']),
             // Validated once here; a supplier deleted during the import is
-            // simply not assigned (CataloguingExtras::assignSupplier).
+            // not assigned, and each book left without it is listed.
             'fornitore_id' => CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
             'offset' => 0,
             'processed' => 0,
@@ -235,10 +249,14 @@ class MarcImportController
                         self::listSkippedDuplicate($state, $position, $title, (int) $result['id']);
                     }
                     if ($supplierId > 0 && $result['id'] !== null && self::supplierApplies((string) $result['action'], (string) $state['mode'])) {
+                        // Listed under its own type: the book is imported
+                        // and counted, only its supplier link is missing.
                         try {
-                            CataloguingExtras::assignSupplier($db, (int) $result['id'], $supplierId);
+                            if (!CataloguingExtras::assignSupplier($db, (int) $result['id'], $supplierId)) {
+                                self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => __('Fornitore non assegnato: è stato eliminato durante l\'importazione.'), 'type' => 'supplier']);
+                            }
                         } catch (\Throwable $e) {
-                            $warnings[] = __('Fornitore non assegnato') . ': ' . $e->getMessage();
+                            self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => __('Fornitore non assegnato') . ': ' . $e->getMessage(), 'type' => 'supplier']);
                             \App\Support\SecureLogger::warning('[MARC import] supplier not assigned', ['libro_id' => (int) $result['id'], 'error' => $e->getMessage()]);
                         }
                     }
@@ -272,6 +290,12 @@ class MarcImportController
         $importId = null;
         if ($complete) {
             $importId = $this->persistHistory($db, $state, $failed);
+            if ($importId === null) {
+                // The books are in, but the history and the error list are not:
+                // keep the session so the page can ask again (a retry at the
+                // final position imports nothing and only saves the history).
+                return $this->json($response, ['success' => false, 'error' => __('Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.')], 500);
+            }
             $this->discardStaging();
         }
 
@@ -436,6 +460,13 @@ class MarcImportController
             \App\Support\SecureLogger::error('[MARC import] history not saved', ['error' => $e->getMessage()]);
             return null;
         }
+    }
+
+    /** The preview was cancelled: drop the staged records now instead of at the next upload. */
+    public function discard(Request $request, Response $response): Response
+    {
+        $this->discardStaging();
+        return $this->json($response, ['success' => true]);
     }
 
     private function discardStaging(): void

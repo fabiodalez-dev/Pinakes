@@ -328,8 +328,11 @@ test('7. the PDF and CSV reports download with the expected content', async ({ p
   expect(csv.charCodeAt(0)).toBe(0xfeff); // BOM for spreadsheet apps
   const rows = parseCsv(csv.slice(1));
   expect(rows[0].slice(0, 5)).toEqual(['Esito', 'Codice copia', 'Titolo', 'Collocazione', 'Scaffale atteso']);
+  expect(rows[0][8]).toBe('Tipo media');
   const byCode = Object.fromEntries(rows.slice(1).map((r) => [r[1], r]));
   expect(byCode[code('A4')].slice(0, 3)).toEqual(['Mancante', code('A4'), `${TAG} B1`]);
+  expect(byCode[code('A4')][8]).toBe('Libro');
+  expect(byCode[`${TAG}-NOPE`][8]).toBe(''); // an unknown code has no media type, not a default one
   expect(byCode[code('A2')][0]).toBe('Fuori posto');
   expect(byCode[code('A2')][4]).toBe(`[${TAG}X] Stocktake X`);
   expect(byCode[code('L1')][0]).toBe('In prestito o in attesa di ritiro');

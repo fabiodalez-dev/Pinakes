@@ -13,21 +13,30 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 class SuppliersController
 {
+    /** Session key holding a refused submission, so the form shows it again. */
+    private const OLD_INPUT = 'supplier_form_old';
+
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
             return $off;
         }
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
         $fornitori = (new SupplierRepository($db))->listWithCounts();
         return $this->render($response, 'index.php', ['fornitori' => $fornitori]);
     }
 
-    public function createForm(Request $request, Response $response): Response
+    public function createForm(Request $request, Response $response, mysqli $db): Response
     {
         if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
             return $off;
         }
-        return $this->render($response, 'form.php', ['fornitore' => null]);
+        if (($missing = $this->schemaMissing($db, $response)) !== null) {
+            return $missing;
+        }
+        return $this->render($response, 'form.php', ['fornitore' => null, 'old' => $this->takeOldInput(null)]);
     }
 
     public function store(Request $request, Response $response, mysqli $db): Response
@@ -43,6 +52,7 @@ class SuppliersController
         $error = $this->validationError($input, $data);
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
+            $this->keepOldInput($input, null);
             return $response->withHeader('Location', url('/admin/suppliers/create'))->withStatus(302);
         }
         try {
@@ -67,7 +77,7 @@ class SuppliersController
         if ($fornitore === null) {
             return $response->withStatus(404);
         }
-        return $this->render($response, 'form.php', ['fornitore' => $fornitore]);
+        return $this->render($response, 'form.php', ['fornitore' => $fornitore, 'old' => $this->takeOldInput($id)]);
     }
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
@@ -87,11 +97,15 @@ class SuppliersController
         $error = $this->validationError($input, $data);
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
+            $this->keepOldInput($input, $id);
             return $response->withHeader('Location', url('/admin/suppliers/edit/' . $id))->withStatus(302);
         }
         try {
-            $repo->update($id, $data);
-            $_SESSION['success_message'] = __('Fornitore aggiornato con successo.');
+            if ($repo->update($id, $data)) {
+                $_SESSION['success_message'] = __('Fornitore aggiornato con successo.');
+            } else {
+                $_SESSION['error_message'] = __('Fornitore non trovato.');
+            }
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('SuppliersController::update error', ['id' => $id, 'exception' => get_class($e), 'code' => $e->getCode()]);
             $_SESSION['error_message'] = __('Impossibile salvare il fornitore. Riprova più tardi.');
@@ -140,6 +154,39 @@ class SuppliersController
                 : __('Il sito web del fornitore non è un indirizzo valido: indica un URL http(s), ad esempio https://www.esempio.it.');
         }
         return $messages === [] ? null : implode(' ', $messages);
+    }
+
+    /**
+     * Remember a refused submission (the form's own fields only, as typed)
+     * for the form it redirects back to; $id tells the create form (NULL)
+     * from a given supplier's edit form.
+     *
+     * @param array<string, mixed> $input raw form data
+     */
+    private function keepOldInput(array $input, ?int $id): void
+    {
+        $fields = [];
+        foreach (SupplierRepository::FIELDS as $field) {
+            $raw = $input[$field] ?? null;
+            $fields[$field] = is_scalar($raw) ? (string) $raw : '';
+        }
+        $_SESSION[self::OLD_INPUT] = ['id' => $id, 'fields' => $fields];
+    }
+
+    /**
+     * The refused submission for this form, consumed on read; NULL when
+     * there is none or it belongs to another form.
+     *
+     * @return array<string, string>|null
+     */
+    private function takeOldInput(?int $id): ?array
+    {
+        $old = $_SESSION[self::OLD_INPUT] ?? null;
+        unset($_SESSION[self::OLD_INPUT]);
+        if (!is_array($old) || ($old['id'] ?? null) !== $id || !is_array($old['fields'] ?? null)) {
+            return null;
+        }
+        return $old['fields'];
     }
 
     /** @param array<string, mixed> $data */

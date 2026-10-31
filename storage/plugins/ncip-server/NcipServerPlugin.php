@@ -1988,33 +1988,43 @@ class NcipServerPlugin
                               OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL))
                    ), '9999-12-31') DESC,
                    c.numero_inventario ASC
-                 LIMIT 1 FOR UPDATE";
+                 FOR UPDATE";
             $copyParams[] = $dueDate;
             $copyTypes .= 's';
 
             $copy = $this->db->prepare($copySql);
             $copy->bind_param($copyTypes, ...$copyParams);
             $copy->execute();
-            $copyRow = $copy->get_result()->fetch_assoc();
+            $copyRows = $copy->get_result()->fetch_all(MYSQLI_ASSOC);
             $copy->close();
-            if (!$copyRow) {
+            if ($copyRows === []) {
                 $failureReason = 'no_copy';
                 $this->db->rollback();
                 return null;
             }
-            $copyId = (int) $copyRow['id'];
 
             // The copy is known only now: a due date closed at its branch moves
             // to the branch's next open day, as PrestitiController::store() does
             // for a desk loan, and the longer window is checked again, for the
             // title's capacity and for the copy's own commitments (the copy was
-            // selected free up to the shorter date only). Both locks are held.
-            $branchDue = \App\Services\CirculationPolicy::dueDateFor($dueDate, 0, $this->db, $copyId);
-            if ($branchDue !== $dueDate) {
+            // selected free up to the shorter date only). When that longer
+            // window does not fit, the next candidate (in the same preference
+            // order) is tried: another branch may be open on the original due
+            // date. Every candidate is locked.
+            $copyId = null;
+            $chosenDue = $dueDate;
+            $lastFailure = 'no_copy';
+            foreach ($copyRows as $copyRow) {
+                $candidateId = (int) $copyRow['id'];
+                $branchDue = \App\Services\CirculationPolicy::dueDateFor($dueDate, 0, $this->db, $candidateId);
+                if ($branchDue === $dueDate) {
+                    $copyId = $candidateId;
+                    $chosenDue = $dueDate;
+                    break;
+                }
                 if (!$capacity->hasFreeCapacity($bookId, $today, $branchDue)) {
-                    $failureReason = 'no_capacity';
-                    $this->db->rollback();
-                    return null;
+                    $lastFailure = 'no_capacity';
+                    continue;
                 }
                 $busy = $this->db->prepare(
                     "SELECT 1 FROM prestiti p
@@ -2027,17 +2037,24 @@ class NcipServerPlugin
                             OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL))
                      LIMIT 1 FOR UPDATE"
                 );
-                $busy->bind_param('isss', $copyId, $branchDue, $today, $today);
+                $busy->bind_param('isss', $candidateId, $branchDue, $today, $today);
                 $busy->execute();
                 $copyBusy = (bool) $busy->get_result()->fetch_row();
                 $busy->close();
                 if ($copyBusy) {
-                    $failureReason = 'no_copy';
-                    $this->db->rollback();
-                    return null;
+                    $lastFailure = 'no_copy';
+                    continue;
                 }
-                $dueDate = $branchDue;
+                $copyId = $candidateId;
+                $chosenDue = $branchDue;
+                break;
             }
+            if ($copyId === null) {
+                $failureReason = $lastFailure;
+                $this->db->rollback();
+                return null;
+            }
+            $dueDate = $chosenDue;
 
             $ins   = $this->db->prepare(
                 "INSERT INTO prestiti

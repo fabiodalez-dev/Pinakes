@@ -60,12 +60,12 @@ class AttendanceController
         $body = (array) $request->getParsedBody();
         $repo = new AttendanceRepository($db);
         $card = is_string($body['codice_tessera'] ?? null) ? $body['codice_tessera'] : '';
-        $member = $repo->findMemberByCard($card);
-        if ($member === null) {
-            $_SESSION['error_message'] = __('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.');
-            return $this->back($response);
-        }
         try {
+            $member = $repo->findMemberByCard($card);
+            if ($member === null) {
+                $_SESSION['error_message'] = __('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.');
+                return $this->back($response);
+            }
             $repo->recordMember($member['id'], $this->rememberBranch($repo, $body));
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('Attendance scan failed', ['exception' => get_class($e), 'code' => $e->getCode()]);

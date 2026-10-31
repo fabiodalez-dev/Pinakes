@@ -4,7 +4,7 @@ use App\Support\Csrf;
 
 $cardLayouts = [
   ['key' => 'classic', 'name' => __('Classica'), 'desc' => __('Fascia con logo e nome della biblioteca, foto a sinistra, nome, codice e scadenza a destra.')],
-  ['key' => 'minimal', 'name' => __('Essenziale'), 'desc' => __('Senza foto: nome grande e codice a barre su tutta la larghezza.')],
+  ['key' => 'minimal', 'name' => __('Essenziale'), 'desc' => __('Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.')],
   ['key' => 'portrait', 'name' => __('Verticale'), 'desc' => __('Tessera in verticale con la foto al centro (9 per foglio A4).')],
 ];
 $cardCodeTypes = [
@@ -13,7 +13,7 @@ $cardCodeTypes = [
 ];
 $cardFormats = [
   ['key' => 'single', 'name' => __('Tessera singola (CR80)'), 'desc' => __('Una tessera per pagina, 85,6×54mm: per stampanti di tessere.')],
-  ['key' => 'sheet', 'name' => __('Foglio A4 da 10'), 'desc' => __('Dieci tessere per foglio A4 con i bordi di taglio.')],
+  ['key' => 'sheet', 'name' => __('Foglio A4 da 10'), 'desc' => __('Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.')],
 ];
 ?>
       <!-- Card Settings -->

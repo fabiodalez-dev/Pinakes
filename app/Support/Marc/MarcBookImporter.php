@@ -70,7 +70,9 @@ final class MarcBookImporter
         'lingua' => ['lingua'],
         'edizione' => ['edizione'],
         'pagine' => ['numero_pagine'],
-        'collana' => ['collana'],
+        // A record with only the number in the series (225/490 $v) still
+        // carries the family: the book's series name is kept, its number filled.
+        'collana' => ['collana', 'numero_serie'],
         'dewey' => ['classificazione_dewey'],
         'keywords' => ['parole_chiave'],
         'description' => ['descrizione'],
@@ -458,16 +460,26 @@ final class MarcBookImporter
         if ($path === '') {
             return;
         }
+        // The file name is unique: if no book row ends up pointing at it,
+        // nothing ever will, so it is removed instead of left on disk.
+        $attached = false;
         try {
             $stmt = $this->db->prepare('UPDATE libri SET copertina_url = ? WHERE id = ? AND deleted_at IS NULL');
-            if ($stmt === false) {
-                return;
+            if ($stmt !== false) {
+                $stmt->bind_param('si', $path, $bookId);
+                $stmt->execute();
+                $attached = $stmt->affected_rows > 0;
+                $stmt->close();
             }
-            $stmt->bind_param('si', $path, $bookId);
-            $stmt->execute();
-            $stmt->close();
         } catch (\Throwable $e) {
+            if (!$attached) {
+                MarcCoverFetcher::discard($path);
+            }
             $warnings[] = __('Copertina non scaricata') . ': ' . $e->getMessage();
+            return;
+        }
+        if (!$attached) {
+            MarcCoverFetcher::discard($path);
             return;
         }
         $counters['covers']++;

@@ -383,10 +383,11 @@ test.describe('Reader request on a closed day', () => {
         ctx.users.push(userId);
         const token = await F.login(request, email, PASS, 'circ-closed');
         const bookId = await staffBook(request, 'Circ closed today', 1);
-        setSetting('auto_approve_requests', '1');
-        setSetting('closed_weekdays', '');
-        F.dbExec(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('${ctx.today}', '${ctx.today}', '${TAG}')`);
         try {
+            // Inside the try: a failed setup still restores both settings.
+            setSetting('auto_approve_requests', '1');
+            setSetting('closed_weekdays', '');
+            F.dbExec(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('${ctx.today}', '${ctx.today}', '${TAG}')`);
             const r = await F.api(request, 'POST', '/reservations', { token, body: { book_id: bookId } });
             expect(r.status, r.text.slice(0, 300)).toBe(201);
             expect(r.json.data.type).toBe('loan');

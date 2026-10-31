@@ -42,6 +42,9 @@ class CirculationSettingsController
         'grace' => ['giorni_tolleranza', 0, 365],
     ];
 
+    /** Matrix cell fields added with the fines: absent from an older form, kept as stored. */
+    private const RULE_FIELDS_KEPT_WHEN_ABSENT = ['grace'];
+
     /** Matrix cell money fields: form key => column. */
     private const RULE_MONEY_FIELDS = [
         'fine' => 'multa_giornaliera',
@@ -362,17 +365,26 @@ class CirculationSettingsController
         $cells = is_array($data['rules'] ?? null) ? $data['rules'] : [];
         $validTypes = array_merge([CirculationPolicy::ALL_TYPES], array_keys($policy->types()));
         $media = array_keys(self::mediaTypes());
+        // A form rendered before the fine columns were in the matrix (an open
+        // tab during the upgrade) does not send them: an absent field keeps
+        // the stored value, only a field sent empty clears it.
+        $existing = $policy->rules();
         $rows = [];
         foreach ($validTypes as $typeId) {
             foreach ($media as $m) {
                 $cell = $cells[$typeId][$m] ?? [];
                 $cell = is_array($cell) ? $cell : [];
+                $stored = $existing[$typeId . '|' . $m] ?? [];
                 $row = ['prestabile' => null];
                 $loanable = (string) ($cell['loanable'] ?? '');
                 if ($loanable === '1' || $loanable === '0') {
                     $row['prestabile'] = (int) $loanable;
                 }
                 foreach (self::RULE_FIELDS as $key => [$column, $min, $max]) {
+                    if (in_array($key, self::RULE_FIELDS_KEPT_WHEN_ABSENT, true) && !array_key_exists($key, $cell)) {
+                        $row[$column] = isset($stored[$column]) ? (int) $stored[$column] : null;
+                        continue;
+                    }
                     $value = $this->intOrNull($cell[$key] ?? null, $min, $max);
                     if ($value === false) {
                         $_SESSION['error_message'] = sprintf(__('Valore non valido nella matrice (%s, %s).'), $typeId === 0 ? __('Tutte le tipologie') : (string) ($policy->types()[$typeId]['nome'] ?? $typeId), (string) (self::mediaTypes()[$m] ?? $m));
@@ -381,6 +393,10 @@ class CirculationSettingsController
                     $row[$column] = $value;
                 }
                 foreach (self::RULE_MONEY_FIELDS as $key => $column) {
+                    if (!array_key_exists($key, $cell)) {
+                        $row[$column] = isset($stored[$column]) ? (string) $stored[$column] : null;
+                        continue;
+                    }
                     $value = self::moneyOrNull($cell[$key] ?? null);
                     if ($value === false) {
                         $_SESSION['error_message'] = sprintf(__('Valore non valido nella matrice (%s, %s).'), $typeId === 0 ? __('Tutte le tipologie') : (string) ($policy->types()[$typeId]['nome'] ?? $typeId), (string) (self::mediaTypes()[$m] ?? $m));

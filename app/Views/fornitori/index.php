@@ -134,19 +134,43 @@ document.addEventListener('DOMContentLoaded', function () {
     // Same rules as App\Support\ExactSearch (#501): a word matches whatever
     // its accents ("muller" finds Müller), a quoted group matches the exact
     // spelling ("Muller" does not find Müller), case is ignored, and every
-    // term must match.
-    const fold = function (s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase(); };
-    const exact = function (s) { return s.normalize('NFC').toLocaleLowerCase(); };
+    // term must match. An unclosed quote runs to the end, and a straight or
+    // closing double quote right after a digit outside a group is a literal
+    // inch mark (12" stays 12"). Lower-casing is locale-free (toLowerCase),
+    // so a Turkish browser does not turn "IKEA" into "ıkea".
+    const QUOTES = '"“”„«»';
+    const INCH = '\uE000';
+    const fold = function (s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+    const exact = function (s) { return s.normalize('NFC').replace(/\s+/g, ' ').toLowerCase(); };
+    const protectInchMarks = function (query) {
+      let open = false;
+      let prev = '';
+      let out = '';
+      for (const ch of query) {
+        let c = ch;
+        if (QUOTES.includes(ch)) {
+          if (!open && (ch === '"' || ch === '”') && /^[0-9]$/.test(prev)) {
+            c = INCH;
+          } else {
+            open = !open;
+          }
+        }
+        out += c;
+        prev = c;
+      }
+      return out;
+    };
     const terms = function (query) {
       const out = [];
       const re = /["“”„«»]([^"“”„«»]*)(?:["“”„«»]|$)|([^\s"“”„«»]+)/g;
+      const q = protectInchMarks(query);
       let m;
-      while ((m = re.exec(query)) !== null) {
+      while ((m = re.exec(q)) !== null) {
         if (m[1] !== undefined) {
           const phrase = m[1].trim().replace(/\s+/g, ' ');
           if (phrase !== '') { out.push({ term: exact(phrase), exact: true }); }
         } else {
-          out.push({ term: fold(m[2]), exact: false });
+          out.push({ term: fold(m[2].split(INCH).join('"')), exact: false });
         }
       }
       return out;

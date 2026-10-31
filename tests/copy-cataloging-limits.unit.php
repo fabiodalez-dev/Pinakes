@@ -42,7 +42,7 @@ $check(MarcCoverFetcher::effectivePort((array) parse_url('https://host/x')) !== 
 
 $envFile = $root . '/.env';
 if (!is_file($envFile)) {
-    echo "  SKIP result cap: no .env\n";
+    echo "SKIP: result cap: no .env\n";
 } else {
     $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
     $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
@@ -83,6 +83,13 @@ if (!is_file($envFile)) {
     $check($queried === ['Server 1', 'Server 2', 'Server 3', 'Server 4'], '06 servers after the cap are not queried');
     $notQueried = array_values(array_filter($answer['servers'], static fn (array $r): bool => $r['error'] !== null));
     $check(count($notQueried) === 2 && $notQueried[0]['name'] === 'Server 5' && str_contains((string) $notQueried[0]['error'], '100'), '07 they carry an explicit "limit reached" error');
+
+    // 24 per server: the fifth server sends 24 records, only 4 fit under the cap.
+    $queried = [];
+    $cut = $cc->search($keys, 'title', 'x', 24);
+    $fifth = array_values(array_filter($cut['servers'], static fn (array $r): bool => $r['name'] === 'Server 5'))[0] ?? [];
+    $check(count($cut['results']) === 100 && ($fifth['count'] ?? null) === 4 && ($fifth['total'] ?? null) === 500, '08 a server cut by the cap reports the records listed (4), not the 24 it sent');
+    $check(array_sum(array_column($cut['servers'], 'count')) === count($cut['results']), '09 the report counts add up to the results on the page');
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";

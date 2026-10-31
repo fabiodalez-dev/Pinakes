@@ -197,6 +197,32 @@ $maintenance = new MaintenanceService($db);
 $addClosure($today, $today);
 $check($maintenance->checkExpiredPickups() === 0 && $stateOf($pickupLoan) === 'da_ritirare', 'checkExpiredPickups expires nothing on a closed day');
 $check($maintenance->checkExpiredReservations() === 0, 'checkExpiredReservations returns 0 on a closed day');
+// A closure of the copy's branch only: the library is open, that branch is not.
+$clearClosures();
+$addClosure($today, $today, $sedeId);
+$maintenance->checkExpiredPickups();
+$check($stateOf($pickupLoan) === 'da_ritirare', "checkExpiredPickups keeps a pickup whose copy's branch is closed today");
+$schedStart = $shift($today, -6);
+// A second copy of the same branch (the first one holds the pickup).
+$inv2 = "ZZCAL-{$run}-2";
+$stmt = $db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id) VALUES (?, ?, 'prenotato', ?)");
+$stmt->bind_param('isi', $bookId, $inv2, $sedeId);
+$stmt->execute();
+$copy2Id = (int) $db->insert_id;
+$stmt->close();
+$stmt = $db->prepare("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, ?, 'prenotato', 1)");
+$stmt->bind_param('iiiss', $bookId, $copy2Id, $userId, $schedStart, $yesterday);
+$stmt->execute();
+$schedLoan = (int) $db->insert_id;
+$stmt->close();
+$maintenance->checkExpiredReservations();
+$check($stateOf($schedLoan) === 'prenotato', "checkExpiredReservations keeps a reservation whose copy's branch is closed today");
+$clearClosures();
+$maintenance->checkExpiredReservations();
+$check($stateOf($schedLoan) === 'scaduto', 'with the branch open the same reservation expires as before');
+$db->query("DELETE FROM prestiti WHERE id = {$schedLoan}");
+$db->query("DELETE FROM copie WHERE id = {$copy2Id}");
+$db->query("UPDATE copie SET stato = 'prenotato' WHERE id = {$copyId}");
 $clearClosures();
 $addClosure($yesterday, $yesterday);
 // What the calendar page does after every save.
@@ -297,7 +323,100 @@ $ncipLoan2 = $createLoanAtomic->invokeArgs($ncip, [$bookId, $userId, &$ncipDue, 
 $check($ncipLoan2 === null && in_array($ncipFailure, ['no_capacity', 'no_copy'], true), 'NCIP: a commitment from the shifted day refuses the checkout (' . var_export($ncipFailure, true) . ') rather than storing a closed due date');
 $check($ncipDue === $ncipPlainDue, 'NCIP: a refused checkout leaves the handed-in date alone');
 $check((int) $db->query("SELECT COUNT(*) FROM prestiti WHERE libro_id = {$bookId} AND utente_id = {$userId}")->fetch_row()[0] === 0, 'NCIP: nothing was stored for the refused checkout');
+
+// A second copy with no branch, committed from the same day: it comes second
+// in the preference order (same next commitment, later inventory number), and
+// its due date needs no shift. The first copy's longer window does not fit,
+// so the checkout falls through to it instead of being refused.
+$inv3 = "ZZCAL-{$run}-3";
+$stmt = $db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id) VALUES (?, ?, 'disponibile', NULL)");
+$stmt->bind_param('is', $bookId, $inv3);
+$stmt->execute();
+$copy3Id = (int) $db->insert_id;
+$stmt->close();
+$db->query("UPDATE libri SET copie_totali = 2, copie_disponibili = 2 WHERE id = {$bookId}");
+$stmt = $db->prepare("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, ?, 'prenotato', 1)");
+$stmt->bind_param('iiiss', $bookId, $copy3Id, $otherUserId, $heldFrom, $heldTo);
+$stmt->execute();
+$stmt->close();
+$ncipDue = $ncipPlainDue;
+$ncipFailure = null;
+$ncipLoan3 = $createLoanAtomic->invokeArgs($ncip, [$bookId, $userId, &$ncipDue, 0, &$ncipFailure]);
+$check(is_int($ncipLoan3) && $ncipLoan3 > 0, 'NCIP: when the preferred copy cannot take its shifted window, the next copy is used (' . var_export($ncipFailure, true) . ')');
+$check(is_int($ncipLoan3) && (int) $db->query("SELECT copia_id FROM prestiti WHERE id = {$ncipLoan3}")->fetch_row()[0] === $copy3Id, 'NCIP: the loan is on the copy whose branch is open on the due date');
+$check($ncipDue === $ncipPlainDue, 'NCIP: and keeps the unshifted due date');
 $clearClosures();
+
+// ── The admin page: input validation and the whole-year guard ────────────
+$clearClosures();
+$_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+$controller = new \App\Controllers\Admin\LibraryCalendarController();
+$post = static function (array $body): \Psr\Http\Message\ServerRequestInterface {
+    return (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/calendar')->withParsedBody($body);
+};
+$flash = static function (): array {
+    $out = [$_SESSION['success_message'] ?? null, $_SESSION['error_message'] ?? null];
+    unset($_SESSION['success_message'], $_SESSION['error_message']);
+    return $out;
+};
+$weekdaysNow = static fn (): string => (string) ($db->query("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = 'closed_weekdays'")->fetch_row()[0] ?? '');
+$taggedRows = static fn (): int => (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE descrizione = '{$tag}'")->fetch_row()[0];
+$setWeekdays('0');
+$controller->saveWeekdays($post(['closed_weekdays' => ['1', 'x']]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $ok === null && $weekdaysNow() === '0', 'weekdays: one malformed entry refuses the whole save (Sunday stays closed)');
+$controller->saveWeekdays($post(['closed_weekdays' => '1']), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $weekdaysNow() === '0', 'weekdays: a scalar instead of a list is refused');
+$controller->saveWeekdays($post([]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $weekdaysNow() === '', 'weekdays: no field reopens the week on purpose');
+$setWeekdays('');
+
+$controller->store($post(['data_inizio' => $shift($today, 50), 'descrizione' => $tag, 'sede_id' => [(string) $sedeId]]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err === __('Sede non trovata.') && $taggedRows() === 0, 'closure: an array sede_id is refused, not stored for every branch');
+$controller->store($post(['data_inizio' => $shift($today, 50), 'descrizione' => $tag, 'sede_id' => '999999999']), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err === __('Sede non trovata.') && $taggedRows() === 0, 'closure: an unknown sede_id is refused');
+$controller->store($post(['data_inizio' => $shift($today, 50), 'descrizione' => $tag, 'sede_id' => '']), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'closure: an empty sede_id is every branch');
+$clearClosures();
+
+$controller->store($post(['data_inizio' => '2026-01-01', 'data_fine' => '2026-06-30', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'yearly: the first half of the year is stored');
+$controller->store($post(['data_inizio' => '2026-07-01', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $taggedRows() === 1, 'yearly: a second half that would close every day is refused and rolled back');
+$controller->store($post(['data_inizio' => '2026-07-01', 'data_fine' => '2026-12-30', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 2, 'yearly: leaving Dec 31 open is accepted');
+$check(LibraryCalendar::forDb($db)->nextOpenDay('2027-03-10') === '2027-12-31', 'and a due date reaches that open day');
+$clearClosures();
+$controller->store($post(['data_inizio' => '2026-01-01', 'data_fine' => '2026-06-30', 'ricorrente_annuale' => '1', 'descrizione' => $tag, 'sede_id' => (string) $sedeId]), new \Slim\Psr7\Response(), $db);
+$flash();
+$controller->store($post(['data_inizio' => '2026-07-01', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $taggedRows() === 1, "yearly: a library-wide half that closes the year of one branch is refused");
+$clearClosures();
+
+$icsFile = static function (string $body): \Slim\Psr7\UploadedFile {
+    $path = tempnam(sys_get_temp_dir(), 'calics');
+    file_put_contents($path, $body);
+    return new \Slim\Psr7\UploadedFile($path, 'cal.ics', 'text/calendar', strlen($body), UPLOAD_ERR_OK);
+};
+$halves = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nDTEND;VALUE=DATE:20260701\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260701\nDTEND;VALUE=DATE:20270101\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\nEND:VCALENDAR\n";
+$controller->importIcs($post(['sede_id' => '999999999'])->withUploadedFiles(['ics_file' => $icsFile($halves)]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err === __('Sede non trovata.') && $taggedRows() === 0, 'ICS: an unknown sede_id refuses the import');
+$controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($halves)]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'ICS: the yearly event that would close the whole year is discarded, the other kept');
+$clearClosures();
+$_SESSION = [];
 
 echo ($failed === 0 ? 'SUCCESS' : 'FAILURE') . " {$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);
