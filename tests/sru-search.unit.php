@@ -143,6 +143,29 @@ $isbnClient = new SearchFixtureClient([$plain], $sru);
 $isbnClient->searchByIsbn('978-88-452-9261-3');
 parse_str((string) parse_url($isbnClient->urls[0] ?? '', PHP_URL_QUERY), $isbnQuery);
 $check(str_starts_with((string) ($isbnQuery['query'] ?? ''), 'bath.isbn='), '19 an ISBN lookup on a server without an index map uses bath.isbn');
+// A server that knows only the bare "isbn" index (what the client sent
+// before): bath.isbn finds nothing there, the bare name is tried once.
+$bareOnly = new class ([$plain], $sru) extends SruClient {
+    /** @var list<string> */
+    public array $queries = [];
+    public function __construct(array $servers, private string $xml)
+    {
+        parent::__construct($servers);
+    }
+    protected function fetchUrl(string $url): ?string
+    {
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        $this->queries[] = (string) ($q['query'] ?? '');
+        return str_starts_with((string) ($q['query'] ?? ''), 'isbn=')
+            ? $this->xml
+            : '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords></searchRetrieveResponse>';
+    }
+};
+$bareBook = $bareOnly->searchByIsbn('978-88-452-9261-3');
+$check(is_array($bareBook) && count($bareOnly->queries) === 2 && str_starts_with($bareOnly->queries[0], 'bath.isbn=') && str_starts_with($bareOnly->queries[1], 'isbn='), '19b a server without an index map that knows only the bare isbn index still finds the book');
+$mappedIsbn = new SearchFixtureClient([['indexes' => ['isbn' => 'alma.isbn']] + $plain], '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords></searchRetrieveResponse>');
+$mappedIsbn->searchByIsbn('9788845292613');
+$check(count($mappedIsbn->urls) === 1, '19c a server with its own ISBN index is asked once');
 $danPlain = ['name' => 'DBC', 'url' => 'https://opensearch.addi.dk/b3.5_5.2/?agency=100200&profile=test', 'syntax' => 'dbc-opensearch', 'enabled' => true];
 $danIsbn = new SearchFixtureClient([$danPlain], $dan);
 $danIsbn->searchByIsbn('9788702272451');

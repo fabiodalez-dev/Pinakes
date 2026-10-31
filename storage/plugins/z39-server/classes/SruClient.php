@@ -406,6 +406,46 @@ class SruClient
      */
     private function queryServer(array $server, string $index, string $term): ?array
     {
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        if ($cqlIndex !== '') {
+            return $this->queryServerIndex($server, $index, $cqlIndex, $relation, $cqlIndex, $term);
+        }
+        // An unconfigured server gets the standard index (bath.isbn), as the
+        // copy cataloguing search does: a bare "isbn" is not a CQL index every
+        // SRU server resolves. A server set up for the bare name (what this
+        // client sent before) may know only that one, so when the standard
+        // index finds nothing, or is refused, the bare name is tried once.
+        // DBC OpenSearch has its own index names: it keeps the bare one.
+        $standard = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
+        if ($standard === $index || strtolower((string) ($server['syntax'] ?? '')) === 'dbc-opensearch') {
+            return $this->queryServerIndex($server, $index, $standard, $relation, $index, $term);
+        }
+        $failure = null;
+        try {
+            $book = $this->queryServerIndex($server, $index, $standard, $relation, $index, $term);
+            if ($book !== null) {
+                return $book;
+            }
+        } catch (\Throwable $e) {
+            $failure = $e;
+        }
+        static $lastRequest = [];
+        $this->enforceRateLimit((string) ($server['url'] ?? 'unknown'), $lastRequest);
+        try {
+            return $this->queryServerIndex($server, $index, $index, $relation, $index, $term);
+        } catch (\Throwable $e) {
+            throw $failure ?? $e;
+        }
+    }
+
+    /**
+     * One searchRetrieve for one record with an explicit CQL index.
+     *
+     * @param array<string, mixed> $server
+     * @return array<string, mixed>|null
+     */
+    private function queryServerIndex(array $server, string $index, string $cqlIndex, string $relation, string $dbcIndex, string $term): ?array
+    {
         $url = $server['url'];
 
         // Validate URL
@@ -421,16 +461,6 @@ class SruClient
         $version = $server['version'] ?? '1.1';
         $recordSchema = strtolower($server['syntax'] ?? 'marcxml');
 
-        // Build CQL query with custom index mapping
-        [$cqlIndex, $relation] = self::indexSpec($server, $index);
-        // DBC OpenSearch has its own index names (below): it keeps the bare one.
-        $dbcIndex = $cqlIndex === '' ? $index : $cqlIndex;
-        if ($cqlIndex === '') {
-            // An unconfigured server gets the standard index (bath.isbn), as the
-            // copy cataloguing search does: a bare "isbn" is not a CQL index
-            // every SRU server resolves.
-            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
-        }
         $relation = $relation === '=' ? '=' : ' ' . $relation . ' ';
 
         // Build query parameters
