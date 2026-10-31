@@ -258,7 +258,56 @@ try {
     } else {
         @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
     }
+    // The reference is cleared only while it is still the one whose file was
+    // removed: a photo stored meanwhile by another request survives.
+    $currentRef = PatronPhoto::storedFor($db, $userId);
+    $check($currentRef !== null && PatronPhoto::clearReference($db, $userId, 'patron_photos/' . $userId . '-' . str_repeat('0', 16) . '.jpg') === false && PatronPhoto::storedFor($db, $userId) === $currentRef, 'a stale reference never clears the photo stored after it');
     $check(PatronPhoto::delete($db, $userId) && PatronPhoto::storedFor($db, $userId) === null && $current !== null && !is_file($current), 'delete removes the reference and the file');
+    // A file left behind by a failed unlink is swept by the next store of
+    // that reader once it is older than the grace period; a fresh one (a
+    // concurrent store about to record it) is kept.
+    $oldOrphan = PatronPhoto::directory() . '/' . $userId . '-' . str_repeat('a', 16) . '.jpg';
+    $freshOrphan = PatronPhoto::directory() . '/' . $userId . '-' . str_repeat('b', 16) . '.jpg';
+    $photoFiles[] = $oldOrphan;
+    $photoFiles[] = $freshOrphan;
+    file_put_contents($oldOrphan, 'x');
+    file_put_contents($freshOrphan, 'x');
+    touch($oldOrphan, time() - PatronPhoto::ORPHAN_GRACE_SECONDS - 10);
+    file_put_contents($src, $halvesJpeg);
+    $check(PatronPhoto::store($db, $userId, $src) === null && !is_file($oldOrphan) && is_file($freshOrphan) && PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId)) !== null, 'store sweeps an old orphaned file of the reader and keeps the new photo and a fresh file');
+    $photoFiles[] = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+    @unlink($freshOrphan);
+
+    // Deleting a reader without loans: the photo goes first, and a photo that
+    // cannot be removed stops the delete instead of being orphaned by it.
+    $victimEmail = 'zz-pci-del-' . $suffix . '@example.invalid';
+    $victimCode = 'ZZPCD' . strtoupper($suffix);
+    $stmt = $db->prepare("INSERT INTO utenti (nome, cognome, email, password, codice_tessera) VALUES ('Zz', 'Delete', ?, ?, ?)");
+    $stmt->bind_param('sss', $victimEmail, $hash, $victimCode);
+    $stmt->execute();
+    $victimId = (int) $stmt->insert_id;
+    $stmt->close();
+    $check(PatronPhoto::store($db, $victimId, $src) === null, 'the reader to delete has a photo');
+    $victimPhoto = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $victimId));
+    $photoFiles[] = $victimPhoto;
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $deleteUser = static function () use ($db, $victimId): int {
+        $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/delete/' . $victimId);
+        return (new \App\Controllers\UsersController())->delete($request, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(), $db, $victimId)->getStatusCode();
+    };
+    $victimExists = static fn (): bool => $db->query("SELECT 1 FROM utenti WHERE id = {$victimId}")->fetch_row() !== null;
+    @chmod(PatronPhoto::directory(), 0555);
+    clearstatcache();
+    if (!is_writable(PatronPhoto::directory())) {
+        $status = $deleteUser();
+        @chmod(PatronPhoto::directory(), $dirMode);
+        $check($status === 302 && $victimExists() && $victimPhoto !== null && is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) !== null && isset($_SESSION['error_message']), 'a photo that cannot be removed stops the delete: the account and its reference stay');
+    } else {
+        @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
+    }
+    unset($_SESSION['error_message']);
+    $check($deleteUser() === 302 && !$victimExists() && $victimPhoto !== null && !is_file($victimPhoto), 'deleting a reader without loans removes the account and its photo');
+    $_SESSION = [];
     @unlink($src);
 
     $check(\App\Support\ContentSecurityPolicy::permissionsPolicy() === 'geolocation=(), microphone=(), camera=(self)', 'the camera is allowed to the same origin only, nothing else is loosened');
@@ -358,6 +407,7 @@ try {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
     }
     $db->query("DELETE FROM utenti WHERE email = '{$importEmail}'");
+    $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
     foreach ($importLogIds as $logId) {
         $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
         $stmt->bind_param('s', $logId);

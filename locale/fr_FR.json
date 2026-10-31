@@ -8829,5 +8829,6 @@
   "Import interrotto": "Importation interrompue",
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s : %d sur %d lignes traitées. Vous pouvez la reprendre là où elle s'est arrêtée ou la fermer : les utilisateurs déjà créés sont conservés.",
   "Annulla import": "Annuler l'importation",
-  "Riprendi import": "Reprendre l'importation"
+  "Riprendi import": "Reprendre l'importation",
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utilisateur non supprimé : sa photo ne peut pas être retirée du disque. Réessayez ou vérifiez les droits du dossier storage."
 }
