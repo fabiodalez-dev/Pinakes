@@ -4100,15 +4100,17 @@ class OaiPmhServerPlugin
             [$export::shortenTexts($row), $authors, $publishers],
             [$export::shortenTexts($row, $export::REDUCED_TEXT_LENGTH), array_slice($authors, 0, $export::REDUCED_AUTHORS), array_slice($publishers, 0, $export::REDUCED_PUBLISHERS)],
         ];
-        $last = null;
+        $reduced = array_pop($attempts);
         foreach ($attempts as [$r, $a, $p]) {
             try {
                 return $this->bookToIso2709($r, $a, $p, $genre);
-            } catch (\OverflowException $e) {
-                $last = $e;
+            } catch (\OverflowException) {
+                continue;
             }
         }
-        throw $last ?? new \OverflowException('Record too long for ISO 2709');
+        // The reduced record is the last attempt: its overflow is the caller's.
+        [$r, $a, $p] = $reduced;
+        return $this->bookToIso2709($r, $a, $p, $genre);
     }
 
     private function bookToIso2709(

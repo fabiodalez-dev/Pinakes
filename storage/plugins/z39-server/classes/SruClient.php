@@ -266,9 +266,7 @@ class SruClient
                     break;
                 }
                 if (!$item instanceof \App\Support\Marc\MarcRecord) {
-                    if ($item instanceof \App\Support\Marc\MarcReadError) {
-                        $readError ??= $item->message;
-                    }
+                    $readError ??= $item->message;
                     continue;
                 }
                 $flavour = \App\Support\Marc\MarcFormat::detectFlavour($item);
