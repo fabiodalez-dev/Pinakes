@@ -1283,6 +1283,27 @@ final class StocktakeService
             // Keep the historical outcome in the same transaction as the copy
             // state, hold reassignment and availability it describes.
             $this->markFrozenLost($sessionId, array_map(static fn (array $copy): int => (int) $copy['id'], $changed));
+            // The audit entry too: written after the commit, a request cut off
+            // in between left a 'persa' copy that a resume skips, so its
+            // copy.inventory_lost event was never written.
+            foreach ($changed as $copy) {
+                $logged = ActivityLog::recordBookEvent(
+                    $this->db,
+                    $bookId,
+                    'aggiornamento',
+                    'copy',
+                    'copy.inventory_lost',
+                    ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => $copy['stato'] ?? null],
+                    ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => 'perso', 'inventario_sessione' => $sessionId],
+                    $operatorId,
+                    (int) $copy['id'],
+                    null,
+                    'inventory'
+                );
+                if (!$logged) {
+                    throw new \RuntimeException('Audit entry for the lost copy ' . (int) $copy['id'] . ' could not be written');
+                }
+            }
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -1293,22 +1314,6 @@ final class StocktakeService
             $reassignment->flushDeferredNotifications();
         } catch (\Throwable $e) {
             SecureLogger::warning('[Stocktake] reassignment notification failed', ['error' => $e->getMessage()]);
-        }
-
-        foreach ($changed as $copy) {
-            ActivityLog::recordBookEvent(
-                $this->db,
-                $bookId,
-                'aggiornamento',
-                'copy',
-                'copy.inventory_lost',
-                ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => $copy['stato'] ?? null],
-                ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => 'perso', 'inventario_sessione' => $sessionId],
-                $operatorId,
-                (int) $copy['id'],
-                null,
-                'inventory'
-            );
         }
         return array_map(static fn (array $copy): int => (int) $copy['id'], $changed);
     }

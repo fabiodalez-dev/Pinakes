@@ -354,6 +354,20 @@ try {
     $db->query("DROP TRIGGER {$stuck}");
     $check($result === ['marked' => 0, 'failed' => 1], 'a copy whose hold cannot be moved is reported as a failed book update');
     $check($one("SELECT stato FROM copie WHERE id = {$holdCopy}") === 'disponibile' && $one("SELECT copia_id FROM prestiti WHERE id = {$stuckHold}") === (string) $holdCopy && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$holdSession}") === 'mancante', 'and nothing of it is committed: the copy is not lost and keeps its hold');
+
+    // The audit entry is part of the loss (review #504): when it cannot be
+    // written the copy is not lost either, and a resume writes both.
+    $auditBook = $addBook('Audit', $shelves['X']);
+    $auditCopy = $addCopy($auditBook, 'AUDIT');
+    $auditSession = $service->open('ZZST audit ' . $run, null, ['collocazione_da' => "{$p}.Audit", 'collocazione_a' => "{$p}.Audit"], null);
+    $sessionIds[] = $auditSession;
+    $auditFailure = 'zzst_audit_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$auditFailure} BEFORE INSERT ON log_modifiche FOR EACH ROW BEGIN IF NEW.tabella = 'libri' AND NEW.record_id = {$auditBook} THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZST simulated audit failure'; END IF; END");
+    $triggers[] = $auditFailure;
+    $result = $service->close($auditSession, true, null);
+    $db->query("DROP TRIGGER {$auditFailure}");
+    $check($result === ['marked' => 0, 'failed' => 1] && $one("SELECT stato FROM copie WHERE id = {$auditCopy}") === 'disponibile' && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$auditSession}") === 'mancante', 'a copy whose audit entry cannot be written is not marked lost');
+    $check($service->resumeMarkLost($auditSession, null) === ['marked' => 1, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$auditCopy}") === 'perso' && (int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$auditBook} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 1, 'the resume marks it and writes its audit entry with it');
     $fifth = $service->open('ZZST5 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $fifth;
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fifth . '/close')
