@@ -211,6 +211,21 @@ final class Iso2709Reader implements \IteratorAggregate
             }
             $record->addDataField($tag, $ind1 === "\x00" ? ' ' : $ind1, $ind2 === "\x00" ? ' ' : $ind2, $subfields);
         }
+        // Each entry was checked on its own above; two entries must also never
+        // share bytes: a 245 pointing at the start and length of a 500 would
+        // otherwise import the note as the title, silently.
+        $spans = [];
+        foreach (str_split($directory, 12) as $entry) {
+            if (ctype_digit(substr($entry, 3, 4)) && ctype_digit(substr($entry, 7, 5))) {
+                $spans[] = [(int) substr($entry, 7, 5), max(1, (int) substr($entry, 3, 4)), substr($entry, 0, 3)];
+            }
+        }
+        usort($spans, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
+        for ($i = 1, $n = count($spans); $i < $n; $i++) {
+            if ($spans[$i][0] < $spans[$i - 1][0] + $spans[$i - 1][1]) {
+                throw new MarcParseException("Directory entries for tags {$spans[$i - 1][2]} and {$spans[$i][2]} overlap");
+            }
+        }
         return $record;
     }
 }

@@ -8439,6 +8439,9 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "The stocktake is no longer open: no more scans can be recorded.",
   "Codice mancante.": "Missing code.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "The file contains too many codes: at most %d per upload.",
+  "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.": "The report has too many rows for a PDF (%d, at most %d): download the CSV report.",
+  "Annullata il": "Cancelled on",
+  "Codice troppo lungo: al massimo %d caratteri.": "Code too long: at most %d characters.",
   "Revisione inventariale": "Inventory stocktake",
   "Aperta il": "Opened on",
   "Sede": "Branch",
@@ -8695,5 +8698,8 @@
   "Segnare come perse le copie mancanti rimaste?": "Mark the remaining missing copies as lost?",
   "Segna come perse": "Mark as lost",
   "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Stocktake: missing copies marked as lost after the close",
-  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import complete, but its history was not saved. Try again to save it."
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import complete, but its history was not saved. Try again to save it.",
+  "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Result size limit reached: catalogue not queried.",
+  "Il catalogo SBN non permette la ricerca per ISSN.": "The SBN catalogue does not support searching by ISSN.",
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "This preview was replaced by another uploaded file: upload the file again to import it."
 }

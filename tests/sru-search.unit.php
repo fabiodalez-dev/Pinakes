@@ -104,6 +104,11 @@ $surrogate = '<?xml version="1.0"?><srw:searchRetrieveResponse xmlns:srw="http:/
     . '</srw:records></srw:searchRetrieveResponse>';
 $partial = (new SearchFixtureClient([$server], $surrogate))->searchServer($server, 'q', 5);
 $check($partial['error'] === null && $partial['total'] === 1495 && array_map(static fn ($r) => $r['data']['titolo'], $partial['records']) === ['Le Petit Prince', 'Il piccolo principe'], '12b a surrogate diagnostic inside recordData skips that record, the others are returned');
+$unreadable = '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>1</numberOfRecords><records>'
+    . '<record><recordData><record xmlns="http://www.loc.gov/MARC21/slim"><leader>00000nam a2200000 a 4500</leader><datafield ind1="1" ind2="0"><subfield code="a">Broken</subfield></datafield></record></recordData></record>'
+    . '</records></searchRetrieveResponse>';
+$unread = (new SearchFixtureClient([$server], $unreadable))->searchServer($server, 'q', 5);
+$check($unread['records'] === [] && $unread['total'] === 1 && is_string($unread['error']) && $unread['error'] !== '', '12d a hit no record of which can be read is reported with the reader\'s error, not as an empty result');
 $ownError = '<?xml version="1.0" encoding="UTF-8"?><error><message>Invalid or missing API key</message></error>';
 $denied = (new SearchFixtureClient([$server], $ownError))->searchServer($server, 'q', 5);
 $check($denied['error'] === 'Invalid or missing API key' && $denied['records'] === [], '12c the <error> our own endpoint answers with is the server\'s error');
@@ -143,11 +148,47 @@ $isbnClient = new SearchFixtureClient([$plain], $sru);
 $isbnClient->searchByIsbn('978-88-452-9261-3');
 parse_str((string) parse_url($isbnClient->urls[0] ?? '', PHP_URL_QUERY), $isbnQuery);
 $check(str_starts_with((string) ($isbnQuery['query'] ?? ''), 'bath.isbn='), '19 an ISBN lookup on a server without an index map uses bath.isbn');
+// A server that knows only the bare "isbn" index (what the client sent
+// before): bath.isbn finds nothing there, the bare name is tried once.
+$bareOnly = new class ([$plain], $sru) extends SruClient {
+    /** @var list<string> */
+    public array $queries = [];
+    public function __construct(array $servers, private string $xml)
+    {
+        parent::__construct($servers);
+    }
+    protected function fetchUrl(string $url): ?string
+    {
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        $this->queries[] = (string) ($q['query'] ?? '');
+        return str_starts_with((string) ($q['query'] ?? ''), 'isbn=')
+            ? $this->xml
+            : '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords></searchRetrieveResponse>';
+    }
+};
+$bareBook = $bareOnly->searchByIsbn('978-88-452-9261-3');
+$check(is_array($bareBook) && count($bareOnly->queries) === 2 && str_starts_with($bareOnly->queries[0], 'bath.isbn=') && str_starts_with($bareOnly->queries[1], 'isbn='), '19b a server without an index map that knows only the bare isbn index still finds the book');
+$mappedIsbn = new SearchFixtureClient([['indexes' => ['isbn' => 'alma.isbn']] + $plain], '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>0</numberOfRecords></searchRetrieveResponse>');
+$mappedIsbn->searchByIsbn('9788845292613');
+$check(count($mappedIsbn->urls) === 1, '19c a server with its own ISBN index is asked once');
 $danPlain = ['name' => 'DBC', 'url' => 'https://opensearch.addi.dk/b3.5_5.2/?agency=100200&profile=test', 'syntax' => 'dbc-opensearch', 'enabled' => true];
 $danIsbn = new SearchFixtureClient([$danPlain], $dan);
 $danIsbn->searchByIsbn('9788702272451');
 parse_str((string) parse_url($danIsbn->urls[0] ?? '', PHP_URL_QUERY), $danQuery);
 $check(str_starts_with((string) ($danQuery['query'] ?? ''), 'term.isbn='), '20 DBC OpenSearch keeps its own term.isbn');
+echo "Rate limit slots\n";
+if (function_exists('apcu_enabled') && apcu_enabled()) {
+    $slotKey = 'sru_rate_test_' . bin2hex(random_bytes(4));
+    $t0 = 1_000_000_000_000;
+    // Three workers asking at the same instant each get their own slot,
+    // one interval apart; none shares the slot of another.
+    $slots = [SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0), SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0), SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0)];
+    $check($slots === [$t0, $t0 + 1_000_000, $t0 + 2_000_000], '20b requests at the same moment reserve distinct slots one second apart');
+    $check(SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0 + 10_000_000) === $t0 + 10_000_000, '20c a request after the last slot goes at once');
+    apcu_delete($slotKey);
+} else {
+    echo "  SKIP 20b-20c APCu is not enabled for the CLI (php -d apc.enable_cli=1)\n";
+}
 require_once $root . '/app/helpers.php';
 require_once $root . '/storage/plugins/z39-server/classes/LocalSruClient.php';
 $_ENV['APP_CANONICAL_URL'] = 'https://library.example.org';
