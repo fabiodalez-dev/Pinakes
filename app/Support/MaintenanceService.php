@@ -190,11 +190,7 @@ class MaintenanceService
         // deployed before its migration) the backfill returns null and a
         // failed batch throws, so the next pass tries again.
         try {
-            $settingsRepo = new \App\Models\SettingsRepository($this->db);
-            if ($settingsRepo->get('loans', 'legacy_penalties_backfilled', '0') !== '1'
-                && \App\Services\PatronLedger::forDb($this->db)->backfillLegacyPenalties() !== null) {
-                $settingsRepo->set('loans', 'legacy_penalties_backfilled', '1');
-            }
+            \App\Services\PatronLedger::completeLegacyPenaltyBackfill($this->db);
         } catch (\Throwable $e) {
             $results['errors'][] = 'legacyPenaltyBackfill: ' . $e->getMessage();
         }

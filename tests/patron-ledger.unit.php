@@ -14,7 +14,8 @@ declare(strict_types=1);
  *     fragment admits the user.
  *
  * Run: php tests/patron-ledger.unit.php (exit code is the verdict)
- * Data markers: titles ZZ_LEDGER_%, emails zz-ledger%@test.local.
+ * Data markers: titles ZZ_LEDGER_<run>_%, emails zz-ledger-<tag>-<run>@test.local
+ * (cleanup removes this run's rows; another run's only when older than a day).
  */
 
 use App\Models\LoanRepository;
@@ -75,12 +76,22 @@ $setSetting = static function (string $key, ?string $value) use ($db): void {
     $stmt->execute();
     $stmt->close();
 };
-$cleanup = static function () use ($db): void {
-    $db->query("DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id = m.utente_id WHERE u.email LIKE 'zz-ledger%@test.local'");
-    $db->query("DELETE p FROM prestiti p JOIN utenti u ON u.id = p.utente_id WHERE u.email LIKE 'zz-ledger%@test.local'");
-    $db->query("DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE l.titolo LIKE 'ZZ_LEDGER_%'");
-    $db->query("DELETE FROM libri WHERE titolo LIKE 'ZZ_LEDGER_%'");
-    $db->query("DELETE FROM utenti WHERE email LIKE 'zz-ledger%@test.local'");
+// Run-scoped: only the rows of this $run, so a concurrent run on the same
+// database keeps its own. Leftovers of a crashed run (older than a day) go
+// in a separate pass before the checks.
+$purge = static function (string $userCond, string $bookCond) use ($db): void {
+    $db->query("DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id = m.utente_id WHERE {$userCond}");
+    $db->query("DELETE p FROM prestiti p JOIN utenti u ON u.id = p.utente_id WHERE {$userCond}");
+    $db->query("DELETE p FROM prestiti p JOIN libri l ON l.id = p.libro_id WHERE {$bookCond}");
+    $db->query("DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE {$bookCond}");
+    $db->query("DELETE l FROM libri l WHERE {$bookCond}");
+    $db->query("DELETE u FROM utenti u WHERE {$userCond}");
+};
+$cleanup = static function () use ($purge, $run): void {
+    $purge("u.email LIKE 'zz-ledger-%-{$run}@test.local'", "l.titolo LIKE 'ZZ\\_LEDGER\\_{$run}\\_%'");
+};
+$cleanupStale = static function () use ($purge): void {
+    $purge("u.email LIKE 'zz-ledger-%@test.local' AND u.created_at < NOW() - INTERVAL 1 DAY", "l.titolo LIKE 'ZZ\\_LEDGER\\_%' AND l.created_at < NOW() - INTERVAL 1 DAY");
 };
 
 $today = DateHelper::today();
@@ -119,7 +130,15 @@ $sqlEligible = static function (int $userId) use ($db, $today): bool {
     return $n === 1;
 };
 
+// A concurrent run's fresh rows (another marker): the cleanups must leave them.
+$otherRun = bin2hex(random_bytes(4));
+$db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, privacy_accettata) VALUES ('ZLO" . substr($otherRun, 0, 6) . "', 'Zz', 'Ledger', 'zz-ledger-other-{$otherRun}@test.local', 'x', 'attivo', 'standard', 1, 1)");
+$sentinelUser = (int) $db->insert_id;
+$db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES ('ZZ_LEDGER_{$otherRun}_sentinel', 0, 0)");
+$sentinelBook = (int) $db->insert_id;
+
 try {
+    $cleanupStale();
     $cleanup();
     $setSetting('daily_fine', '0.50');
     $setSetting('fine_grace_days', '2');
@@ -290,7 +309,7 @@ try {
         $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$u3}");
         $check(LoanEligibility::checkUser($db, $u3) === null && FineParameters::forUser($db, $u3)->debtBlockThresholdCents === 1000, 'without a type the patron inherits the global threshold (10, balance 7: eligible)');
     } finally {
-        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE email LIKE 'zz-ledger%@test.local'");
+        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE email LIKE 'zz-ledger-%-{$run}@test.local'");
         $db->query("DELETE FROM tipologie_lettore WHERE id = {$ownType}");
         $setType($defaultType, $savedDefaultThreshold === null ? null : (string) $savedDefaultThreshold);
     }
@@ -303,7 +322,8 @@ try {
     $db->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$deskStaff}");
     // The operator id is recorded on the movement: any existing account will do.
     $_SESSION = ['user' => ['id' => $deskStaff, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['backend.access', 'loans.manage']]];
-    $ledgerPost = static fn (array $body): \Psr\Http\Message\ServerRequestInterface => (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/0/ledger/charge')->withParsedBody($body);
+    // Each call stands for one rendered form: a fresh request_key unless the body sets its own.
+    $ledgerPost = static fn (array $body): \Psr\Http\Message\ServerRequestInterface => (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/0/ledger/charge')->withParsedBody($body + ['request_key' => bin2hex(random_bytes(16))]);
     $ledgerController = new \App\Controllers\PatronLedgerController();
     $resp = $ledgerController->charge($ledgerPost(['importo' => '1,00', 'descrizione' => 'zz desk']), new \Slim\Psr7\Response(), $db, $deskStaff);
     $check($resp->getStatusCode() === 403 && $count("utente_id = {$deskStaff}") === 0, 'a loans.manage custom role cannot charge a Staff account');
@@ -312,6 +332,15 @@ try {
     $resp = $ledgerController->charge($ledgerPost(['importo' => '1,00', 'descrizione' => 'zz desk']), new \Slim\Psr7\Response(), $db, $deskReader);
     $check($resp->getStatusCode() === 302 && str_ends_with($resp->getHeaderLine('Location'), '/admin/loans') && ($_SESSION['success_message'] ?? '') === __('Addebito registrato.') && $count("utente_id = {$deskReader}") === 1, 'on a reader account it charges and, without users.manage, lands on the loans page with the outcome');
     unset($_SESSION['success_message']);
+    unset($_SESSION['success_message']);
+    $before = $count("utente_id = {$deskReader}");
+    foreach (['payment' => ['importo' => '1,00', 'metodo_pagamento' => 'contanti'], 'charge' => ['importo' => '1,00', 'descrizione' => 'zz desk'], 'waive' => ['importo' => '1,00', 'motivazione' => 'zz desk']] as $action => $body) {
+        foreach (['absent' => null, 'malformed' => 'not-a-key'] as $what => $key) {
+            $resp = $ledgerController->{$action}($ledgerPost($body + ['request_key' => $key]), new \Slim\Psr7\Response(), $db, $deskReader);
+            $check($resp->getStatusCode() === 302 && ($_SESSION['error_message'] ?? '') === \App\Controllers\PatronLedgerController::errorMessage('missing_request_key') && $count("utente_id = {$deskReader}") === $before, "a {$action} POST with the request_key {$what} is refused and writes nothing");
+            unset($_SESSION['error_message']);
+        }
+    }
     $resp = $ledgerController->receipt($ledgerPost([]), new \Slim\Psr7\Response(), $db, $deskReader, 999999999);
     $check($resp->getStatusCode() === 404, 'a receipt for a payment that is not there is a 404');
     $_SESSION['user']['permissions'][] = 'users.manage';
@@ -345,6 +374,23 @@ try {
     $check(count($page3['data']['items'] ?? []) === 1 && ($page3['meta']['has_more'] ?? null) === false && array_key_exists('next_cursor', $page3['meta'] ?? []) && $page3['meta']['next_cursor'] === null, '...the last page has the oldest movement and no more');
     $all = $decode($actions->myMovements($mobileGet([]), new \Slim\Psr7\Response()));
     $check(count($all['data']['items'] ?? []) === 5 && ($all['meta']['count'] ?? 0) === 5 && ($all['meta']['has_more'] ?? null) === false, '...without parameters every movement comes back as before (up to 200)');
+    // A movement recorded between two requests: the next page neither repeats
+    // an id nor skips one (the cursor pins the ledger of the first page).
+    $p1 = $decode($actions->myMovements($mobileGet(['limit' => '2']), new \Slim\Psr7\Response()));
+    (new PatronLedger($db))->manualCharge($pagedReader, 600, 'zz page 6', null);
+    $p2 = $decode($actions->myMovements($mobileGet(['limit' => '2', 'cursor' => (string) ($p1['meta']['next_cursor'] ?? '')]), new \Slim\Psr7\Response()));
+    $p3 = $decode($actions->myMovements($mobileGet(['limit' => '2', 'cursor' => (string) ($p2['meta']['next_cursor'] ?? '')]), new \Slim\Psr7\Response()));
+    $seen = array_merge(array_column($p1['data']['items'] ?? [], 'id'), array_column($p2['data']['items'] ?? [], 'id'), array_column($p3['data']['items'] ?? [], 'id'));
+    $check(count($seen) === 5 && count(array_unique($seen)) === 5 && ($p3['meta']['has_more'] ?? null) === false, '/me/movements: a movement written while paging repeats no id and skips none of the first listing');
+    $fresh = $decode($actions->myMovements($mobileGet(['limit' => '2']), new \Slim\Psr7\Response()));
+    $check(($fresh['data']['items'][0]['amount_cents'] ?? 0) === 600, '...and a new listing starts from the new movement');
+    // The reader record pages the same way: page 2 pinned to the first load.
+    $pinned = (new PatronLedger($db))->latestMovementId($pagedReader);
+    (new PatronLedger($db))->manualCharge($pagedReader, 700, 'zz page 7', null);
+    $check((new PatronLedger($db))->movementCount($pagedReader, $pinned) === 6 && array_column((new PatronLedger($db))->movements($pagedReader, 2, 2, $pinned), 'descrizione') === ['zz page 4', 'zz page 3'], 'reader record: the pinned listing keeps its count and offsets when a movement is added');
+    require_once $mobileSrc . '/Controllers/OpenApiController.php';
+    $metaSchema = (new ReflectionMethod(\App\Plugins\MobileApi\Controllers\OpenApiController::class, 'metaObjectSchema'))->invoke(new \App\Plugins\MobileApi\Controllers\OpenApiController());
+    $check(($metaSchema['properties']['has_more']['type'] ?? '') === 'boolean' && isset($metaSchema['properties']['next_cursor']), 'OpenAPI MetaObject declares the has_more that /me/movements returns');
     $mapError = new ReflectionMethod($actions, 'mapActionError');
     $blocked = $decode($mapError->invoke($actions, new \Slim\Psr7\Response(), 'debt_block'));
     $check(($blocked['error']['code'] ?? $blocked['code'] ?? '') === 'not_eligible' && ($blocked['meta']['reason'] ?? '') === 'debt_block', 'a debt block answers not_eligible with meta.reason = debt_block');
@@ -387,12 +433,41 @@ try {
             $stmt->close();
         }
     }
+
+    // J. A patron type edit form rendered before the fine columns existed
+    //    (no grace/fine/cap/threshold fields) keeps the stored values; a field
+    //    sent empty clears it (inherit).
+    $db->query("INSERT INTO tipologie_lettore (codice, nome, ordinamento, giorni_tolleranza, multa_giornaliera, multa_massima_prestito, soglia_blocco_debito) VALUES ('zz-ledger-t-{$run}', 'ZZ Ledger T {$run}', 999, 4, 0.60, 12.00, 8.00)");
+    $editType = (int) $db->insert_id;
+    try {
+        $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+        $saveType = static function (array $body) use ($db, $editType): void {
+            $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/settings/circulation/types/' . $editType)
+                ->withParsedBody($body + ['nome' => 'ZZ Ledger T', 'codice' => '', 'prenotazioni_abilitate' => '1', 'attiva' => '1']);
+            (new \App\Controllers\CirculationSettingsController())->updateType($request, new \Slim\Psr7\Response(), $db, $editType);
+        };
+        $typeRow = static fn (): array => (array) $db->query("SELECT max_prestiti, giorni_tolleranza, multa_giornaliera, multa_massima_prestito, soglia_blocco_debito FROM tipologie_lettore WHERE id = {$editType}")->fetch_assoc();
+        $saveType(['max_prestiti' => '3']);
+        $t = $typeRow();
+        $check((int) $t['max_prestiti'] === 3 && (int) $t['giorni_tolleranza'] === 4 && $t['multa_giornaliera'] === '0.60' && $t['multa_massima_prestito'] === '12.00' && $t['soglia_blocco_debito'] === '8.00', 'patron type: an older edit form without the fine fields keeps grace, fine, cap and debt threshold as stored');
+        $saveType(['max_prestiti' => '3', 'giorni_tolleranza' => '', 'multa_giornaliera' => '', 'multa_massima_prestito' => '', 'soglia_blocco_debito' => '']);
+        $t = $typeRow();
+        $check($t['giorni_tolleranza'] === null && $t['multa_giornaliera'] === null && $t['multa_massima_prestito'] === null && $t['soglia_blocco_debito'] === null, '...fields sent empty clear them');
+    } finally {
+        $_SESSION = [];
+        $db->query("DELETE FROM tipologie_lettore WHERE id = {$editType}");
+    }
 } finally {
     foreach ($savedSettings as $k => $v) {
         $setSetting($k, $v);
     }
     $cleanup();
 }
+
+$check((int) $db->query("SELECT COUNT(*) FROM utenti WHERE id = {$sentinelUser}")->fetch_row()[0] === 1
+    && (int) $db->query("SELECT COUNT(*) FROM libri WHERE id = {$sentinelBook}")->fetch_row()[0] === 1, 'cleanup removed only this run\'s rows: a concurrent run\'s reader and book are still there');
+$db->query("DELETE FROM utenti WHERE id = {$sentinelUser}");
+$db->query("DELETE FROM libri WHERE id = {$sentinelBook}");
 
 echo PHP_EOL . "Result: {$passed} passed, {$failed} failed" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);

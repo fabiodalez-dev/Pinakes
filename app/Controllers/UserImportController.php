@@ -179,7 +179,13 @@ class UserImportController
 
         $fields = $this->targetFields($db);
         $this->closeSessionImport($db);
+        // Start, every block and "Annulla import" name the preview they come
+        // from: an upload in another tab replaces this state, and a page
+        // still showing the earlier preview must not apply its mapping to
+        // the rows of the new file.
+        $previewId = bin2hex(random_bytes(12));
         $_SESSION[self::SESSION_KEY] = [
+            'preview_id' => $previewId,
             'file' => $saved,
             'name' => mb_substr($name, 0, 255),
             'delimiter' => $delimiter,
@@ -190,6 +196,7 @@ class UserImportController
 
         return $this->json($response, [
             'success' => true,
+            'preview_id' => $previewId,
             'file_name' => $name,
             'total_rows' => $total,
             'headers' => $headers,
@@ -210,6 +217,9 @@ class UserImportController
         $body = json_decode((string) $request->getBody(), true);
         if (!is_array($state) || !is_array($body) || !is_file((string) ($state['file'] ?? ''))) {
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
+        }
+        if (!self::samePreview($state, $body)) {
+            return $this->stale($response);
         }
         if (!empty($state['started'])) {
             // A replayed start (double click, a second tab, a lost answer)
@@ -257,6 +267,12 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
         $body = json_decode((string) $request->getBody(), true);
+        if (is_array($_SESSION[self::SESSION_KEY] ?? null) && is_array($body) && !self::samePreview($_SESSION[self::SESSION_KEY], $body)) {
+            // A block from a preview another upload has replaced: never
+            // import the new file under the old mapping. No position in the
+            // answer, so the page does not "resume" a run that is not its own.
+            return $this->stale($response);
+        }
         if (is_array($_SESSION[self::SESSION_KEY] ?? null) && !empty($_SESSION[self::SESSION_KEY]['finished']) && is_array($_SESSION[self::SESSION_KEY]['result'] ?? null)) {
             // The run is over: this is the retry of a last block whose answer
             // was lost (a gateway timeout while the invitations went out).
@@ -392,7 +408,7 @@ class UserImportController
             unset($state);
             // Only the final answer is kept, for a retry of this request;
             // the next upload or a visit to the page replaces it.
-            $_SESSION[self::SESSION_KEY] = ['finished' => true, 'result' => $payload];
+            $_SESSION[self::SESSION_KEY] = ['finished' => true, 'preview_id' => (string) ($_SESSION[self::SESSION_KEY]['preview_id'] ?? ''), 'result' => $payload];
             SecureLogger::info('Users imported from CSV', $summary + ['by' => $_SESSION['user']['id'] ?? null]);
         }
         return $this->json($response, $payload);
@@ -411,6 +427,12 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
         $state = $_SESSION[self::SESSION_KEY] ?? null;
+        $body = json_decode((string) $request->getBody(), true);
+        if (is_array($state) && !self::samePreview($state, is_array($body) ? $body : [])) {
+            // A page left over from an earlier preview: the import now in the
+            // session belongs to another upload and is left alone.
+            return $this->json($response, ['success' => true, 'stale' => true, 'import_id' => null]);
+        }
         if (!is_array($state) || empty($state['started']) || !empty($state['finished'])) {
             unset($_SESSION[self::SESSION_KEY]);
             return $this->json($response, ['success' => true, 'import_id' => null]);
@@ -429,7 +451,7 @@ class UserImportController
     /**
      * Position of an interrupted run the page can resume, or null.
      *
-     * @return array{name:string, processed:int, total:int}|null
+     * @return array{preview_id:string, name:string, processed:int, total:int}|null
      */
     public static function resumable(mixed $state): ?array
     {
@@ -437,10 +459,36 @@ class UserImportController
             return null;
         }
         return [
+            'preview_id' => (string) ($state['preview_id'] ?? ''),
             'name' => (string) ($state['name'] ?? ''),
             'processed' => (int) ($state['next'] ?? 0),
             'total' => (int) ($state['total'] ?? 0),
         ];
+    }
+
+    /**
+     * Whether a request names the preview held in the session. A missing or
+     * empty id never matches: every page that can start, drive or cancel an
+     * import received the id with its preview.
+     *
+     * @param array<mixed> $state
+     * @param array<mixed> $body
+     */
+    private static function samePreview(array $state, array $body): bool
+    {
+        $current = (string) ($state['preview_id'] ?? '');
+        $given = $body['preview_id'] ?? null;
+        return $current !== '' && is_string($given) && $given !== '' && hash_equals($current, $given);
+    }
+
+    /** 409 for a request from a preview another upload has replaced. */
+    private function stale(Response $response): Response
+    {
+        return $this->json($response, [
+            'success' => false,
+            'stale' => true,
+            'error' => __('Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.'),
+        ], 409);
     }
 
     /** A started run whose last request is recent enough to be still driven by a page. */

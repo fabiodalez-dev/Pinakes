@@ -12,6 +12,7 @@
  * @var bool $ledgerCanManage  loans.manage: the desk forms and the receipts; without it the ledger is read-only
  * @var int $ledgerPage
  * @var int $ledgerPages
+ * @var int $ledgerUpTo
  * @var int $ledgerPerPage
  * @var int $ledgerTotal
  */
@@ -139,7 +140,7 @@ $ledgerCanManage = $ledgerCanManage && App\Support\Permissions::can('loans.manag
     <?php if ($ledgerPages > 1):
         $ledgerFrom = ($ledgerPage - 1) * $ledgerPerPage + 1;
         $ledgerTo = min($ledgerTotal, $ledgerPage * $ledgerPerPage);
-        $ledgerPageUrl = static fn (int $page): string => url('/admin/users/details/' . $id) . '?ledger_page=' . $page . '#movimenti';
+        $ledgerPageUrl = static fn (int $page): string => url('/admin/users/details/' . $id) . '?ledger_page=' . $page . '&ledger_upto=' . $ledgerUpTo . '#movimenti';
     ?>
     <nav class="px-6 py-3 border-t border-slate-200 flex items-center justify-between text-sm text-gray-600" data-ledger-pager aria-label="<?= htmlspecialchars(__('Movimenti'), ENT_QUOTES, 'UTF-8') ?>">
       <span><?= $ledgerE(sprintf(__('Movimenti %1$d–%2$d di %3$d'), $ledgerFrom, $ledgerTo, $ledgerTotal)) ?></span>

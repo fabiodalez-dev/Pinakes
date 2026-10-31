@@ -46,6 +46,15 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 $useSocket = $socket !== '' && file_exists($socket);
 $sandbox = getenv('MIG_SANDBOX_DB') ?: ((getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? 'pinakes')) . '_migfines');
+if (preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandbox) !== 1) {
+    fwrite(STDERR, "FAIL: invalid sandbox database name '{$sandbox}'\n");
+    exit(1);
+}
+// The sandbox is dropped: refuse any name that is a real database this run could mean.
+if (in_array(strtolower($sandbox), array_map('strtolower', array_filter([(string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')], static fn (string $name): bool => $name !== '')), true)) {
+    fwrite(STDERR, "FAIL: the sandbox name is the installation's own database. Name a disposable one.\n");
+    exit(1);
+}
 try {
     $user = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
     $pass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
@@ -103,9 +112,11 @@ try {
     $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
     $check(!str_contains($fragment, 'movimenti_lettore') && str_contains($fragment, '1 = 1') && substr_count($fragment, '?') === 1, 'pre-upgrade: eligibleUserWhere() carries no debt predicate and still needs ONE placeholder');
     $runMigration();
+    // No cache reset first: a process (cron) that probed before the migration
+    // must see the ledger once the table exists.
+    $check(PatronLedger::schemaReady($db), 'after the migration the ledger probe says ready, even in a process that probed before it');
     PatronLedger::resetSchemaCache();
     \App\Services\CirculationPolicy::resetSchemaCache();
-    $check(PatronLedger::schemaReady($db), 'after the migration the ledger probe says ready');
     $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
     $check(str_contains($fragment, 'movimenti_lettore') && !str_contains($fragment, 'tipologie_lettore') && str_contains($fragment, 'debt_block_threshold'), 'with the ledger but no patron type tables the debt predicate reads the global threshold only');
     $check($scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'") === '1', 'the migration creates movimenti_lettore');
@@ -188,6 +199,12 @@ try {
             $repo->ensureEmailTemplates($defaults($locale), $locale);
             $row = $repo->getEmailTemplate('loan_returned', $locale);
             $check(is_array($row) && trim((string) $row['body']) === trim($current) && (string) $row['subject'] === (string) $defaults($locale)['loan_returned']['subject'], "{$locale}: a row still in the pre-0.9.0 Italian text gets the localized default and subject");
+            // ...and a row the administrator switched off stays off.
+            $seedRow($locale, (string) \App\Support\SettingsMailTemplates::retiredBodies('loan_returned', 'it_IT')[0], (string) $italian['subject']);
+            $db->query("UPDATE email_templates SET active = 0 WHERE name = 'loan_returned' AND locale = '{$locale}'");
+            $repo->ensureEmailTemplates($defaults($locale), $locale);
+            $row = $repo->getEmailTemplate('loan_returned', $locale);
+            $check(is_array($row) && trim((string) $row['body']) === trim($current) && (int) $row['active'] === 0, "{$locale}: a disabled row in the pre-0.9.0 Italian text is translated and stays disabled");
         }
         $custom = str_replace('</h2>', ' (customised)</h2>', (string) $retired[0]);
         $seedRow($locale, $custom, 'My subject');
@@ -197,6 +214,18 @@ try {
         $check(is_array($row) && !str_contains((string) $row['body'], '{{multa}}'), "{$locale}: ...and gets no {{multa}} added behind the administrator's back");
     }
     $check((int) $scalar("SELECT COUNT(*) FROM email_templates WHERE name = 'loan_returned'") === 5, 'one loan_returned row per locale after the passes');
+
+    echo "Upgrade: the legacy penalty backfill completes right after the migrations\n";
+    $db->query("INSERT INTO prestiti (id, utente_id, stato, sanzione, data_restituzione) VALUES (18, 1, 'perso', 3.00, '2026-07-04')");
+    $check(PatronLedger::completeLegacyPenaltyBackfill($db) && $scalar("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:18'") === '1', 'completeLegacyPenaltyBackfill() converts what the migration left');
+    $check($scalar("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = 'legacy_penalties_backfilled'") === '1', '...and records the completed scan, so maintenance skips it');
+    $check(PatronLedger::completeLegacyPenaltyBackfill($db) && $scalar("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:18'") === '1', '...a second call is a no-op');
+    $updaterSource = (string) file_get_contents($root . '/app/Support/Updater.php');
+    $triggersPos = strpos($updaterSource, '$this->reapplyTriggers();');
+    $backfillPos = strpos($updaterSource, 'PatronLedger::completeLegacyPenaltyBackfill($this->db)');
+    $check($triggersPos !== false && $backfillPos !== false && $triggersPos < $backfillPos && str_contains($updaterSource, "version_compare(\$toVersion, '0.9.0-rc.1', '>=')"), 'Updater::runMigrations() runs the backfill after the triggers, on upgrades reaching 0.9.0-rc.1');
+    $maintenanceSource = (string) file_get_contents($root . '/app/Support/MaintenanceService.php');
+    $check(str_contains($maintenanceSource, 'PatronLedger::completeLegacyPenaltyBackfill($this->db)'), 'maintenance retries through the same helper');
 
     $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
     $check(str_contains($schema, 'CREATE TABLE `movimenti_lettore`') && str_contains($schema, 'UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`)'), 'fresh install (schema.sql) has the same table');
