@@ -4070,16 +4070,6 @@ class OaiPmhServerPlugin
     }
 
     /**
-     * Serialize a book record to an ISO 2709 binary UNIMARC record.
-     *
-     * Structure: Leader(24) + Directory(12 per field + FT) + Fields(each ends FT) + RT
-     *
-     * @param array<string, mixed>             $row
-     * @param list<array<string, mixed>>        $authors
-     * @param list<array<string, mixed>>        $publishers
-     * @param array<string, mixed>|null         $genre
-     */
-    /**
      * The ISO 2709 download of one book, always within the 99,999-byte
      * limit when the bulk MARC export can fit it: the full record, else the
      * long free texts shortened, else the reduced record the bulk export
@@ -4113,6 +4103,16 @@ class OaiPmhServerPlugin
         return $this->bookToIso2709($r, $a, $p, $genre);
     }
 
+    /**
+     * Serialize a book record to an ISO 2709 binary UNIMARC record.
+     *
+     * Structure: Leader(24) + Directory(12 per field + FT) + Fields(each ends FT) + RT
+     *
+     * @param array<string, mixed>             $row
+     * @param list<array<string, mixed>>        $authors
+     * @param list<array<string, mixed>>        $publishers
+     * @param array<string, mixed>|null         $genre
+     */
     private function bookToIso2709(
         array $row,
         array $authors,
