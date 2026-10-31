@@ -66,14 +66,18 @@ $check($rejects(['scaffale_id' => ['1']]), 'an array value is refused');
 // normalizeCode
 $check(S::normalizeCode("  INV-001\r\n") === 'INV-001', 'a wedge scanner suffix (CR/LF) is stripped');
 $check(S::normalizeCode("\x02INV-002\x03") === 'INV-002', 'STX/ETX framing is stripped');
-$check(mb_strlen(S::normalizeCode(str_repeat('9', 300))) === S::MAX_CODE_LENGTH, 'a code is capped to the column width');
+$check(S::normalizeCode(str_repeat('9', 300)) === str_repeat('9', 300), 'a long code is never cut short: scan() and importCodes() refuse it instead');
 
 // parseCodeList
 $txt = "\xEF\xBB\xBFINV-1\nINV-2\r\n\r\nINV-1\n   \nINV-3";
 $check(S::parseCodeList($txt) === ['INV-1', 'INV-2', 'INV-1', 'INV-3'], 'a .txt list keeps order and repeats, skipping blank lines and the BOM');
 $csv = "codice;titolo\n\"INV-10\";\"Il nome della rosa\"\nINV-11;Altro\n;INV-12;x";
-$check(S::parseCodeList($csv, true) === ['INV-10', 'INV-11', 'INV-12'], 'a .csv list takes the first non-empty cell and skips the header');
+$check(S::parseCodeList($csv, true) === ['INV-10', 'INV-11'], 'a .csv list reads the first column only and skips the header: a row with an empty first cell has no code');
+$check(S::parseCodeList("codice;titolo\n;Il nome della rosa\nINV-13;x", true) === ['INV-13'], 'a title in the second column is never taken for a code');
 $check(S::parseCodeList("codice,titolo\n\"INV,001\",Titolo\nINV-2,Altro", true) === ['INV,001', 'INV-2'], 'a quoted .csv code keeps its comma');
+$check(S::parseCodeList("codice;note\nINV-20;\"prima riga\nseconda riga\"\nINV-21;x", true) === ['INV-20', 'INV-21'], 'a quoted .csv cell spanning two lines stays one record: its second line is not a code');
+$check(S::parseCodeList("\"INV,001\";Titolo\nINV-2;Altro", true) === ['INV,001', 'INV-2'], 'a comma inside quotes does not count when the delimiter is detected');
+$check(S::parseCodeList("INV-30;a\rINV-31;b\r", true) === ['INV-30', 'INV-31'], 'a .csv with bare CR line ends is split into records');
 $check(S::parseCodeList("INV-1\tx\nINV-2\ty", true) === ['INV-1', 'INV-2'], 'a tab-separated .csv is read by its own delimiter');
 $check(S::parseCodeList("INV,001\nINV;002\n") === ['INV,001', 'INV;002'], 'a .txt line is the whole code: commas and semicolons stay');
 $check(S::parseCodeList("INV-5\t2026-10-30 10:00\n") === ['INV-5'], 'a .txt scanner export drops the columns after a tab');
@@ -82,6 +86,38 @@ $check(S::parseCodeList("codice-1\ncodice") === ['codice-1', 'codice'], 'only th
 $latin1 = "INV-\xE9";
 $check(S::parseCodeList($latin1) === ['INV-é'], 'a Latin-1 export is read as UTF-8');
 $check(S::parseCodeList('') === [], 'an empty file yields no codes');
+
+// The scan page's feedback line (detailFor() in inventario/show.php), run in
+// Node: a copy recorded as lost or away is flagged whatever its outcome.
+$node = trim((string) shell_exec('command -v node 2>/dev/null'));
+if ($node === '') {
+    if (getenv('CI_STRICT_TESTS') === '1') {
+        fwrite(STDERR, "FAIL node is needed to run the scan page feedback checks\n");
+        exit(1);
+    }
+    echo "SKIP scan page feedback checks: node not found\n";
+} else {
+    $view = (string) file_get_contents(dirname(__DIR__) . '/app/Views/inventario/show.php');
+    $check(preg_match('/^  function detailFor\(result\) \{\n.*?^  \}$/ms', $view, $fn) === 1, 'the scan page defines detailFor()');
+    $results = [
+        ['esito' => 'trovata', 'codice' => 'INV-1', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => true, 'stato_copia' => 'perso'],
+        ['esito' => 'fuori_ambito', 'codice' => 'INV-2', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => true, 'stato_copia' => 'perso'],
+        ['esito' => 'fuori_ambito', 'codice' => 'INV-3', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => false, 'stato_copia' => 'disponibile'],
+        ['esito' => 'trovata', 'codice' => 'INV-4', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => false, 'stato_copia' => 'disponibile'],
+    ];
+    $js = 'var config = {i18n: {offShelf: "OFFSHELF", outOfScope: "OUTOFSCOPE", expectedShelf: "S", unknown: "U", duplicate: "D", onLoan: "L"}};' . "\n"
+        . $fn[0] . "\n"
+        . 'process.stdout.write(JSON.stringify(' . json_encode($results) . '.map(detailFor)));';
+    $script = tempnam(sys_get_temp_dir(), 'stocktake-js');
+    file_put_contents($script, $js);
+    $details = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
+    unlink($script);
+    $check(is_array($details) && count($details) === 4, 'detailFor() runs on the sample scans');
+    $check(str_contains($details[0], 'OFFSHELF (perso)'), 'a found copy recorded as lost after the opening tells the operator to update its state');
+    $check(str_contains($details[1], 'OFFSHELF (perso)') && !str_contains($details[1], 'OUTOFSCOPE') && substr_count($details[1], 'OFFSHELF') === 1, 'an out-of-scope copy out of circulation is flagged once, instead of "out of scope"');
+    $check(str_contains($details[2], 'OUTOFSCOPE') && !str_contains($details[2], 'OFFSHELF'), 'an ordinary out-of-scope copy is just out of scope');
+    $check(!str_contains($details[3], 'OFFSHELF'), 'an ordinary found copy carries no warning');
+}
 
 // InventoryController::scanShelf(): only a whole positive number is a shelf.
 $controller = (new ReflectionClass(\App\Controllers\InventoryController::class))->newInstanceWithoutConstructor();

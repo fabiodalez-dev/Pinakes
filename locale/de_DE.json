@@ -8440,6 +8440,9 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "Die Revision ist nicht mehr offen: Es können keine weiteren Scans erfasst werden.",
   "Codice mancante.": "Code fehlt.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "Die Datei enthält zu viele Codes: höchstens %d pro Upload.",
+  "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.": "Der Bericht hat zu viele Zeilen für ein PDF (%d, höchstens %d): Lade den CSV-Bericht herunter.",
+  "Annullata il": "Storniert am",
+  "Codice troppo lungo: al massimo %d caratteri.": "Code zu lang: höchstens %d Zeichen.",
   "Revisione inventariale": "Bestandsrevision",
   "Aperta il": "Eröffnet am",
   "Sede": "Zweigstelle",
@@ -8979,5 +8982,8 @@
   "Segnare come perse le copie mancanti rimaste?": "Die verbleibenden fehlenden Exemplare als verloren markieren?",
   "Segna come perse": "Als verloren markieren",
   "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Bestandsrevision: fehlende Exemplare nach dem Abschluss als verloren markiert",
-  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import abgeschlossen, aber der Verlauf wurde nicht gespeichert. Versuche es erneut, um ihn zu speichern."
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import abgeschlossen, aber der Verlauf wurde nicht gespeichert. Versuche es erneut, um ihn zu speichern.",
+  "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Größenlimit der Ergebnisse erreicht: Katalog nicht abgefragt.",
+  "Il catalogo SBN non permette la ricerca per ISSN.": "Der SBN-Katalog unterstützt keine Suche nach ISSN.",
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Diese Vorschau wurde durch eine andere hochgeladene Datei ersetzt: Laden Sie die Datei erneut hoch, um sie zu importieren."
 }
