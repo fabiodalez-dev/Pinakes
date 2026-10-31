@@ -8439,6 +8439,9 @@
   "La revisione non è più aperta: non si possono registrare altre scansioni.": "Le récolement n'est plus ouvert : aucun autre scan ne peut être enregistré.",
   "Codice mancante.": "Code manquant.",
   "Il file contiene troppi codici: al massimo %d per caricamento.": "Le fichier contient trop de codes : %d au maximum par envoi.",
+  "Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.": "Le rapport compte trop de lignes pour un PDF (%d, %d au maximum) : téléchargez le rapport CSV.",
+  "Annullata il": "Annulée le",
+  "Codice troppo lungo: al massimo %d caratteri.": "Code trop long : %d caractères au maximum.",
   "Revisione inventariale": "Récolement",
   "Aperta il": "Ouvert le",
   "Sede": "Site",
@@ -9265,5 +9268,8 @@
   "Segnare come perse le copie mancanti rimaste?": "Marquer comme perdus les exemplaires manquants restants ?",
   "Segna come perse": "Marquer comme perdus",
   "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Récolement : exemplaires manquants marqués comme perdus après la clôture",
-  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer."
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer.",
+  "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
+  "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN.",
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer."
 }

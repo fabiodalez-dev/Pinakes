@@ -32,6 +32,12 @@ class MarcImportController
     private const MAX_RECORDS = 20000;
     private const SESSION_KEY = 'marc_import_data';
     /**
+     * The final answer of the last completed import, by staging id: a page
+     * whose last chunk response was lost asks again and gets the same answer,
+     * instead of "session expired" for books that are already in.
+     */
+    private const DONE_KEY = 'marc_import_done';
+    /**
      * Skipped duplicates listed by name in the run's history. The rest only
      * count (counters['skipped']): re-importing a whole export of this
      * catalogue must not grow the session, rewritten on every chunk, and the
@@ -164,7 +170,12 @@ class MarcImportController
             return $this->json($response, ['success' => false, 'error' => __('Il file non contiene record MARC riconoscibili (ISO 2709 o MARCXML)')], 400);
         }
 
+        // Every chunk and discard request names the preview it belongs to: a
+        // second upload (another tab) replaces the session state, and a page
+        // still showing the first preview must not import the second file.
+        $stagingId = bin2hex(random_bytes(12));
         $_SESSION[self::SESSION_KEY] = [
+            'staging_id' => $stagingId,
             'file_path' => $staging,
             'original_filename' => $name,
             'total_rows' => $total,
@@ -181,6 +192,7 @@ class MarcImportController
 
         return $this->json($response, [
             'success' => true,
+            'staging_id' => $stagingId,
             'total_rows' => $total,
             'unreadable' => $unreadable,
             'truncated' => $truncated ? sprintf(__('Il file contiene più di %d record: vengono importati solo i primi %d'), self::MAX_RECORDS, self::MAX_RECORDS) : null,
@@ -203,6 +215,18 @@ class MarcImportController
         @ini_set('display_errors', '0');
         $payload = json_decode((string) $request->getBody(), true);
         $state = $_SESSION[self::SESSION_KEY] ?? null;
+        $stagingId = is_array($payload) ? (string) ($payload['staging_id'] ?? '') : '';
+        if (is_array($payload) && (!is_array($state) || !hash_equals((string) ($state['staging_id'] ?? ''), $stagingId))) {
+            // The import of this preview already completed (its last response
+            // was lost): the same final answer again, nothing re-imported.
+            $done = $_SESSION[self::DONE_KEY] ?? null;
+            if ($stagingId !== '' && is_array($done) && hash_equals((string) ($done['staging_id'] ?? ''), $stagingId) && is_array($done['result'] ?? null)) {
+                return $this->json($response, $done['result']);
+            }
+            if (is_array($state)) {
+                return $this->json($response, ['success' => false, 'stale' => true, 'error' => __('Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.')], 409);
+            }
+        }
         if (!is_array($payload) || !is_array($state)) {
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
         }
@@ -290,16 +314,18 @@ class MarcImportController
         $importId = null;
         if ($complete) {
             $importId = $this->persistHistory($db, $state, $failed);
+            // The history row (once created) is kept in the state, so a retry
+            // completes that row instead of adding a second one.
+            $_SESSION[self::SESSION_KEY] = $state;
             if ($importId === null) {
                 // The books are in, but the history and the error list are not:
                 // keep the session so the page can ask again (a retry at the
                 // final position imports nothing and only saves the history).
                 return $this->json($response, ['success' => false, 'error' => __('Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.')], 500);
             }
-            $this->discardStaging();
         }
 
-        return $this->json($response, [
+        $result = [
             'success' => true,
             'processed' => $processed,
             'total_rows' => (int) $state['total_rows'],
@@ -316,7 +342,12 @@ class MarcImportController
             ),
             'complete' => $complete,
             'import_id' => $importId,
-        ]);
+        ];
+        if ($complete) {
+            $_SESSION[self::DONE_KEY] = ['staging_id' => (string) ($state['staging_id'] ?? ''), 'result' => $result];
+            $this->discardStaging();
+        }
+        return $this->json($response, $result);
     }
 
     /**
@@ -433,12 +464,20 @@ class MarcImportController
         ];
     }
 
-    /** @param array<string, mixed> $state */
-    private function persistHistory(\mysqli $db, array $state, int $failed): ?string
+    /**
+     * Save the run's history. The import_logs row is created once and its id
+     * kept in $state: a retry after a failed save completes that same row
+     * (left 'failed' or 'processing' by the attempt before), never a second.
+     *
+     * @param array<string, mixed> $state
+     */
+    private function persistHistory(\mysqli $db, array &$state, int $failed): ?string
     {
         try {
             $userId = isset($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null;
-            $logger = new \App\Support\ImportLogger($db, 'marc', (string) $state['original_filename'], $userId);
+            $logger = !empty($state['import_id']) ? \App\Support\ImportLogger::resume($db, (string) $state['import_id']) : null;
+            $logger ??= new \App\Support\ImportLogger($db, 'marc', (string) $state['original_filename'], $userId);
+            $state['import_id'] = $logger->getImportId();
             $counters = (array) $state['counters'];
             $logger->setStats([
                 'imported' => (int) ($counters['imported'] ?? 0),
@@ -462,9 +501,19 @@ class MarcImportController
         }
     }
 
-    /** The preview was cancelled: drop the staged records now instead of at the next upload. */
+    /**
+     * The preview was cancelled: drop the staged records now instead of at
+     * the next upload. Only the preview named by the request: a page whose
+     * preview another upload already replaced leaves the new one alone.
+     */
     public function discard(Request $request, Response $response): Response
     {
+        $payload = json_decode((string) $request->getBody(), true);
+        $stagingId = is_array($payload) ? (string) ($payload['staging_id'] ?? '') : '';
+        $state = $_SESSION[self::SESSION_KEY] ?? null;
+        if (is_array($state) && $stagingId !== '' && !hash_equals((string) ($state['staging_id'] ?? ''), $stagingId)) {
+            return $this->json($response, ['success' => true, 'stale' => true]);
+        }
         $this->discardStaging();
         return $this->json($response, ['success' => true]);
     }

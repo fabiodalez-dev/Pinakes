@@ -278,6 +278,15 @@ $check(MarcBookData::toImportRow($backDvd)['tipo_media'] === 'dvd', '67n the imp
 $backOther = $viaIso($typed('altro'));
 $check($backOther['tipo_media'] === 'altro' && !isset($backOther['rda_content_type']) && !isset($backOther['rda_media_type']) && !isset($backOther['rda_carrier_type']), '67n2 export → import: an altro (leader a, RDA xxx) comes back an altro, not a book');
 $check(MarcMediaType::tipoMediaOf('a', 'txt') === 'libro' && MarcMediaType::tipoMediaOf('a', null) === 'libro', '67n3 language material without RDA "other" is still a book');
+$viaIsoU = static fn (MarcRecord $r): array => (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($r))))[0]);
+$otherU = BookMarcBuilder::unimarc($row + ['tipo_media' => 'altro'], $authors, [], null);
+$check($otherU->subfield('181', 'c') === 'xxx' && $otherU->subfield('181', '2') === 'rdacontent' && BookMarcBuilder::unimarc($row, $authors, [], null)->first('181') === null, '67n4 UNIMARC writes a non-text RDA content type in 181 $c $2 rdacontent, a book none');
+$check($viaIsoU($otherU)['tipo_media'] === 'altro' && $viaIsoU(BookMarcBuilder::unimarc($row, $authors, [], null))['tipo_media'] === 'libro', '67n5 UNIMARC export → import: an altro comes back an altro, a book a book');
+$seriesIssnU = BookMarcBuilder::unimarc($row + ['issn' => '0317-8471'], $authors, [], null);
+$check($seriesIssnU->subfield('225', 'x') === '0317-8471' && $viaIsoU($seriesIssnU)['issn'] === '0317-8471', '67n6 UNIMARC: a monograph\'s series ISSN goes in 225 $x and comes back as the ISSN');
+$legacyU = BookMarcBuilder::unimarc($row + ['illustratore' => 'Ugo Disegni', 'traduttore' => 'Altro Nome', 'curatore' => 'Cura Tore'], $authors, [], null);
+$backLegacyU = $viaIsoU($legacyU);
+$check($backLegacyU['illustratore'] === ['Ugo Disegni'] && $backLegacyU['curatore'] === ['Cura Tore'] && $backLegacyU['traduttore'] === ['Maria Traduce'], '67n7 UNIMARC: a legacy illustrator or editor column becomes a 702 and comes back; a translator entity is not doubled by the column');
 
 echo "Genre round trip\n";
 $withGenre = BookMarcBuilder::marc21($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
@@ -396,6 +405,11 @@ $refusedParse = static function (string $raw): bool {
 };
 $check($refusedParse($withEntry($ftRaw, 0, $len001 + 6, null)), '19c an entry whose length runs into the next field is refused');
 $check($refusedParse($withEntry($ftRaw, 2, null, (int) substr($ftRaw, 24 + 12 + 7, 5) + 3)), '19d an entry that starts inside another field is refused, not read as that field\'s bytes');
+// The 245 entry given the exact start and length of the 500: each entry is
+// well formed on its own, the two share their bytes.
+$asNote = $withEntry($ftRaw, 1, (int) substr($ftRaw, 24 + 24 + 3, 4), (int) substr($ftRaw, 24 + 24 + 7, 5));
+$check($refusedParse($asNote), '19e two entries pointing at the same bytes are refused, the note is not read as the title');
+$check($refusedParse($withEntry($ftRaw, 0, $len001 + 3, null)) && !$refusedParse($short), '19f an entry overlapping the next one is refused; the legacy short lengths are not overlaps');
 
 echo "Encoding of ISO 2709 records\n";
 // A record labelled UTF-8 (leader/09 = a) whose bytes are MARC-8: the title
@@ -456,6 +470,17 @@ $bytesCrowdUni = \App\Controllers\MarcExportController::serializeIso('unimarc', 
 $check($bytesCrowd !== null && $levelCrowd === 'reduced' && Iso2709Reader::parse(substr($bytesCrowd, 0, -1))->subfield('245', 'a') === 'T'
     && $bytesCrowdUni !== null && $levelCrowdUni === 'reduced', '74b a book that overflows even shortened (700 authors) is exported as a reduced record, never skipped');
 
+require_once $root . '/storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php';
+$oai = (new ReflectionClass(\App\Plugins\OaiPmhServer\OaiPmhServerPlugin::class))->newInstanceWithoutConstructor();
+$single = null;
+try {
+    $single = (new ReflectionMethod($oai, 'bookToFittingIso2709'))->invoke($oai, $huge + ['copertina_url' => 'https://img.example.org/c.jpg', 'classificazione_dewey' => '853'], $crowd, [], null);
+} catch (\OverflowException) {
+    $single = null;
+}
+$singleRecord = is_string($single) ? Iso2709Reader::parse(substr($single, 0, -1)) : null;
+$check($singleRecord !== null && count($singleRecord->fieldsByTag('700')) + count($singleRecord->fieldsByTag('701')) <= \App\Controllers\MarcExportController::REDUCED_AUTHORS
+    && $singleRecord->first('856') === null && $singleRecord->first('676') === null, '74c the single UNIMARC download of the same book is the reduced record too, still without the extended fields');
 echo "Language names round trip\n";
 $roundTrip = true;
 foreach (['ita', 'eng', 'fre', 'ger', 'rus', 'chi', 'jpn', 'fin', 'gre', 'lat', 'ice', 'cze', 'hun', 'rum', 'tur', 'heb', 'kor', 'tha', 'grc', 'nor'] as $code) {

@@ -7,7 +7,9 @@ declare(strict_types=1);
  * the plugin moved onto the shared App\Support\Marc classes. A refactor that
  * changes one byte of what harvesters receive fails here. Deliberate changes
  * are re-recorded with --record: the MARCXML record declares xmlns:xsi itself,
- * and the UNIMARC genre 606 carries $2 local (review of #505).
+ * the UNIMARC genre 606 carries $2 local, and a UNIMARC monograph carries
+ * its series ISSN in 225 $x and its legacy translator / illustrator / editor
+ * columns in 702 (review of #505).
  *
  * The only time-dependent value, UNIMARC 801 $c (today, UTC), is normalised.
  *

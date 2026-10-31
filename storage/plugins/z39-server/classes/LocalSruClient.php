@@ -37,6 +37,37 @@ final class LocalSruClient extends SruClient
             && rtrim((string) ($own['path'] ?? ''), '/') === rtrim((string) ($target['path'] ?? ''), '/');
     }
 
+    /**
+     * The body of an in-process answer, read up to $max bytes: the same cap
+     * the HTTP client puts on a remote catalogue, so a search of our own
+     * catalogue with very large records cannot exhaust memory or the session
+     * the copy cataloguing results are kept in.
+     *
+     * @throws \RuntimeException when the body is larger than $max
+     */
+    public static function readBounded(\Psr\Http\Message\StreamInterface $body, int $max): string
+    {
+        $size = $body->getSize();
+        if ($size !== null && $size > $max) {
+            throw new \RuntimeException('Response too large');
+        }
+        if ($body->isSeekable()) {
+            $body->rewind();
+        }
+        $out = '';
+        while (!$body->eof()) {
+            $chunk = $body->read(min(65536, $max + 1 - strlen($out)));
+            if ($chunk === '') {
+                break;
+            }
+            $out .= $chunk;
+            if (strlen($out) > $max) {
+                throw new \RuntimeException('Response too large');
+            }
+        }
+        return $out;
+    }
+
     protected function fetchUrl(string $url): ?string
     {
         if (!self::isLocalUrl($url)) {
@@ -56,9 +87,7 @@ final class LocalSruClient extends SruClient
             ->createServerRequest('GET', '/api/sru', $_SERVER)
             ->withQueryParams($query);
         $response = \handleSRURequest($request, new \Slim\Psr7\Response(), $this->db, $this->pluginId);
-        $body = $response->getBody();
-        $body->rewind();
-        $xml = $body->getContents();
+        $xml = self::readBounded($response->getBody(), self::MAX_RESPONSE_BYTES);
         // An error answer with a body (<error><message>, as the endpoint
         // writes on 401, 429 and 503) is returned so its message is read and
         // reported as the server's error; one without a body is the status.
