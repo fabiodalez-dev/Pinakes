@@ -1646,9 +1646,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // forward to the next open day (the server applies the same rule, also to
     // the maximum), and a return date capped by a conflict steps back to the
     // last open day before it.
+    // Each step lands on a different listed day, so the set's size bounds
+    // the walk: a closure longer than any fixed bound is crossed whole.
     function toOpenDayIso(isoDate, step, closedSet) {
       let day = isoDate;
-      for (let i = 0; i < 400 && closedSet && closedSet.has(day); i++) {
+      for (let i = 0; closedSet && i <= closedSet.size && closedSet.has(day); i++) {
         day = addDaysToIso(day, step);
       }
       return day;

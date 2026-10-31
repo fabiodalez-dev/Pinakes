@@ -278,5 +278,27 @@ $eq($exdate[1]['yearly'], false, 'EXDATE: a timed EXDATE with TZID disables the 
 $eq($exdate[2]['yearly'], true, 'EXDATE: without one the yearly event still recurs');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
 
+// ── The request calendar's toOpenDayIso() (book-detail.php), run in node ──
+// A closure longer than any fixed step bound must still be crossed whole.
+$viewSrc = (string) file_get_contents(dirname(__DIR__) . '/app/Views/frontend/book-detail.php');
+$node = trim((string) shell_exec('command -v node 2>/dev/null'));
+if ($node === '') {
+    echo "SKIP toOpenDayIso: node not available\n";
+} elseif (preg_match('/function addDaysToIso\(.*?\n    }\n/s', $viewSrc, $addFn) !== 1 || preg_match('/function toOpenDayIso\(.*?\n    }\n/s', $viewSrc, $openFn) !== 1) {
+    $check(false, 'toOpenDayIso and addDaysToIso found in book-detail.php');
+} else {
+    $closedYears = [];
+    for ($d = '2026-01-01'; $d <= '2027-03-10'; $d = LibraryCalendar::shift($d, 1)) {
+        $closedYears[] = $d; // 434 consecutive closed days
+    }
+    $js = $addFn[0] . $openFn[0] . 'const s = new Set(' . json_encode($closedYears) . ');'
+        . 'process.stdout.write(JSON.stringify([toOpenDayIso("2026-01-01", 1, s), toOpenDayIso("2027-03-10", -1, s), toOpenDayIso("2025-12-31", 1, s), toOpenDayIso("2026-06-01", 1, new Set())]));';
+    $script = tempnam(sys_get_temp_dir(), 'opendays') . '.js';
+    file_put_contents($script, $js);
+    $out = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
+    @unlink($script);
+    $eq($out, ['2027-03-11', '2025-12-31', '2025-12-31', '2026-06-01'], 'toOpenDayIso crosses a 434-day closure both ways and leaves open days alone');
+}
+
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";
 exit($failures === 0 ? 0 : 1);
