@@ -337,6 +337,23 @@ try {
     // Changed in the very second of the close: ambiguous, so it is left alone.
     $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il WHERE c.id = {$atomicCopy}");
     $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
+
+    // A hold the reassignment cannot take off the copy (review #504): a
+    // trigger puts the copy back on every release. Marking it lost must roll
+    // back instead of committing a lost copy that still carries the hold.
+    $holdBook = $addBook('Hold', $shelves['X']);
+    $holdCopy = $addCopy($holdBook, 'HOLD');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$holdBook}, {$holdCopy}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'prenotazione', 1)");
+    $stuckHold = (int) $db->insert_id;
+    $holdSession = $service->open('ZZST hold ' . $run, null, ['collocazione_da' => "{$p}.Hold", 'collocazione_a' => "{$p}.Hold"], null);
+    $sessionIds[] = $holdSession;
+    $stuck = 'zzst_stuck_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$stuck} BEFORE UPDATE ON prestiti FOR EACH ROW BEGIN IF OLD.id = {$stuckHold} AND NEW.copia_id IS NULL THEN SET NEW.copia_id = OLD.copia_id; END IF; END");
+    $triggers[] = $stuck;
+    $result = $service->close($holdSession, true, null);
+    $db->query("DROP TRIGGER {$stuck}");
+    $check($result === ['marked' => 0, 'failed' => 1], 'a copy whose hold cannot be moved is reported as a failed book update');
+    $check($one("SELECT stato FROM copie WHERE id = {$holdCopy}") === 'disponibile' && $one("SELECT copia_id FROM prestiti WHERE id = {$stuckHold}") === (string) $holdCopy && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$holdSession}") === 'mancante', 'and nothing of it is committed: the copy is not lost and keeps its hold');
     $fifth = $service->open('ZZST5 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $fifth;
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fifth . '/close')

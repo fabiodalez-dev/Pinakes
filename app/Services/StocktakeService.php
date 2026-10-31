@@ -1252,8 +1252,10 @@ final class StocktakeService
                 // Same predicate as reassignOnCopyLost(), window still valid included:
                 // an expired hold is left to the expiry cleanup, and counting it here
                 // would spin the guard without the reassignment ever taking it.
+                // A hold still there after the guard rolls the whole book back:
+                // committing would leave a reader's hold on a lost copy.
                 $today = DateHelper::today();
-                for ($guard = 0; $guard < 1000; $guard++) {
+                for ($guard = 0; ; $guard++) {
                     $held = $this->db->prepare(
                         "SELECT 1 FROM prestiti WHERE copia_id = ? AND data_scadenza >= ? AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare')) OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione')) LIMIT 1"
                     );
@@ -1266,6 +1268,9 @@ final class StocktakeService
                     $held->close();
                     if (!$stillHeld) {
                         break;
+                    }
+                    if ($guard >= 1000) {
+                        throw new \RuntimeException('Holds still on copy ' . $copyId . ' after reassignment');
                     }
                     $reassignment->reassignOnCopyLost($copyId);
                 }
