@@ -25,7 +25,7 @@ final class ExactSearch
     /** Straight and typographic quotes (mobile keyboards type „…“ and “…”). */
     private const QUOTES = '"“”„«»';
 
-    /** Stand-in for a literal inch mark while the query is tokenized (U+E000). */
+    /** Stand-in for a literal inch mark while hasQuote() looks for real quotes (U+E000). */
     private const INCH_PLACEHOLDER = "\u{E000}";
 
     /** Most words a single filter box turns into separate conditions. */
@@ -44,25 +44,56 @@ final class ExactSearch
      */
     public static function tokenize(string $query): array
     {
-        $query = self::protectInchMarks(self::scrub($query));
-        $q = '[' . preg_quote(self::QUOTES, '/') . ']';
-        $parts = preg_split('/(' . $q . '[^' . preg_quote(self::QUOTES, '/') . ']*(?:' . $q . '|$))/u', $query, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-        if ($parts === false) {
-            $parts = [$query];
-        }
-
+        // One pass over the characters: an inch mark is appended to its word
+        // as it is met, so no stand-in character is substituted and later
+        // swapped back (a query that itself holds that character would come
+        // back altered).
+        $chars = preg_split('//u', self::scrub($query), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $terms = [];
-        foreach ($parts as $part) {
-            if (preg_match('/^' . $q . '/u', $part) === 1) {
-                $inner = self::collapse(self::stripQuotes($part));
-                if ($inner !== '') {
-                    $terms[] = ['term' => $inner, 'exact' => true];
+        $open = false;
+        $word = '';
+        $phrase = '';
+        $afterDigit = false;
+        foreach ($chars as $char) {
+            if (str_contains(self::QUOTES, $char)) {
+                if ($open) {
+                    $inner = self::collapse($phrase);
+                    if ($inner !== '') {
+                        $terms[] = ['term' => $inner, 'exact' => true];
+                    }
+                    $phrase = '';
+                    $open = false;
+                } elseif (($char === '"' || $char === '”') && $afterDigit) {
+                    $word .= '"';
+                } else {
+                    if ($word !== '') {
+                        $terms[] = ['term' => $word, 'exact' => false];
+                    }
+                    $word = '';
+                    $open = true;
                 }
+                $afterDigit = false;
                 continue;
             }
-            foreach (preg_split('/\s+/u', $part, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
-                $terms[] = ['term' => self::restoreInchMarks($word), 'exact' => false];
+            if ($open) {
+                $phrase .= $char;
+            } elseif (preg_match('/^\s$/u', $char) === 1) {
+                if ($word !== '') {
+                    $terms[] = ['term' => $word, 'exact' => false];
+                }
+                $word = '';
+            } else {
+                $word .= $char;
             }
+            $afterDigit = preg_match('/^\d$/u', $char) === 1;
+        }
+        if ($open) {
+            $inner = self::collapse($phrase);
+            if ($inner !== '') {
+                $terms[] = ['term' => $inner, 'exact' => true];
+            }
+        } elseif ($word !== '') {
+            $terms[] = ['term' => $word, 'exact' => false];
         }
         return $terms;
     }
@@ -292,17 +323,6 @@ final class ExactSearch
             $prev = $chars[$i];
         }
         return implode('', $chars);
-    }
-
-    private static function restoreInchMarks(string $value): string
-    {
-        return str_replace(self::INCH_PLACEHOLDER, '"', $value);
-    }
-
-    private static function stripQuotes(string $value): string
-    {
-        $q = preg_quote(self::QUOTES, '/');
-        return (string) preg_replace('/^[' . $q . ']+|[' . $q . ']+$/u', '', trim($value));
     }
 
     private static function collapse(string $value): string
