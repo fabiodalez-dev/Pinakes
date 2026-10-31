@@ -147,6 +147,7 @@ $userId = 0;
 $photoFiles = [];
 $importEmail = 'zz-import-' . $suffix . '@example.invalid';
 $importLogIds = [];
+$src = null; // the scratch image, removed in finally even when a check throws
 try {
     $db->query("CREATE TABLE {$users} (id INT NOT NULL PRIMARY KEY, nome VARCHAR(100)) ENGINE=InnoDB");
     $db->query("INSERT INTO {$users} (id, nome) VALUES (1, 'A')");
@@ -308,7 +309,6 @@ try {
     unset($_SESSION['error_message']);
     $check($deleteUser() === 302 && !$victimExists() && $victimPhoto !== null && !is_file($victimPhoto), 'deleting a reader without loans removes the account and its photo');
     $_SESSION = [];
-    @unlink($src);
 
     $check(\App\Support\ContentSecurityPolicy::permissionsPolicy() === 'geolocation=(), microphone=(), camera=(self)', 'the camera is allowed to the same origin only, nothing else is loosened');
 
@@ -414,7 +414,7 @@ try {
         $stmt->execute();
         $stmt->close();
     }
-    foreach ($photoFiles as $file) {
+    foreach ([...$photoFiles, $src] as $file) {
         if (is_string($file) && is_file($file)) {
             @unlink($file);
         }
