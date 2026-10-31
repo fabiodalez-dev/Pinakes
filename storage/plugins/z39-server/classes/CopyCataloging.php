@@ -24,6 +24,13 @@ final class CopyCataloging
 {
     private const SESSION_KEY = 'copy_cataloging_results';
     private const MAX_RESULTS = 100;
+    /**
+     * Largest total of book data kept in the session for one search (JSON
+     * bytes): each answer is capped at 16 MiB, but a hundred records with
+     * very long descriptions from several catalogues must not fill the
+     * session before anything is imported.
+     */
+    public const MAX_STORED_BYTES = 4 * 1024 * 1024;
 
     /** National catalogues offered even when not configured. */
     private const PRESETS = [
@@ -92,10 +99,16 @@ final class CopyCataloging
             if (empty($server['url'])) {
                 continue;
             }
+            // A configured server the administrator disabled is not offered
+            // (searchServer() does not check `enabled` itself); its URL still
+            // keeps the matching national catalogue preset off the list.
+            $urls[] = rtrim(strtolower((string) $server['url']), '/');
+            if (empty($server['enabled'])) {
+                continue;
+            }
             $server['name'] = (string) ($server['name'] ?? $server['url']);
             $server['kind'] = 'configured';
             $out['cfg:' . $i] = $server;
-            $urls[] = rtrim(strtolower((string) $server['url']), '/');
         }
         if ($this->sbnEnabled) {
             $out['sbn'] = ['name' => 'SBN - OPAC del Servizio Bibliotecario Nazionale', 'url' => 'https://opac.sbn.it', 'syntax' => 'sbn', 'kind' => 'preset', 'enabled' => true];
@@ -137,6 +150,8 @@ final class CopyCataloging
         $results = [];
         $report = [];
         $stored = [];
+        $storedBytes = 0;
+        $sizeFull = false;
         $importer = new MarcBookImporter($this->db, MarcBookImporter::MODE_SKIP, false);
         $csv = new \App\Controllers\CsvImportController();
         foreach (array_values(array_unique($serverKeys)) as $key) {
@@ -150,6 +165,10 @@ final class CopyCataloging
                 $report[] = ['key' => $key, 'name' => (string) $server['name'], 'total' => 0, 'count' => 0, 'error' => sprintf(__('Limite di %d risultati raggiunto: catalogo non interrogato.'), self::MAX_RESULTS)];
                 continue;
             }
+            if ($sizeFull) {
+                $report[] = ['key' => $key, 'name' => (string) $server['name'], 'total' => 0, 'count' => 0, 'error' => __('Limite di dimensione dei risultati raggiunto: catalogo non interrogato.')];
+                continue;
+            }
             $answer = $key === 'sbn'
                 ? $this->searchSbn($index, $term, $max)
                 : $this->client($server)->searchServer($server, SruClient::cqlFor($server, $index, $term), $max);
@@ -158,8 +177,14 @@ final class CopyCataloging
                 if (count($stored) >= self::MAX_RESULTS) {
                     break;
                 }
+                $encoded = (string) json_encode($record['data']);
+                if ($storedBytes + strlen($encoded) > self::MAX_STORED_BYTES) {
+                    $sizeFull = true;
+                    break;
+                }
+                $storedBytes += strlen($encoded);
                 $added++;
-                $id = substr(hash('sha256', $key . '|' . $n . '|' . json_encode($record['data'])), 0, 16);
+                $id = substr(hash('sha256', $key . '|' . $n . '|' . $encoded), 0, 16);
                 $data = (array) $record['data'];
                 $existing = null;
                 try {
@@ -247,7 +272,7 @@ final class CopyCataloging
             foreach ($errors as $error) {
                 $logger->addError($error['line'], $error['title'], $error['message'], $error['type']);
             }
-            if ($logger->complete(count($ids))) {
+            if ($logger->complete(count(array_unique($ids)))) {
                 $importId = $logger->getImportId();
             }
         } catch (\Throwable $e) {
@@ -280,6 +305,11 @@ final class CopyCataloging
      */
     private function searchSbn(string $index, string $term, int $max): array
     {
+        // The SBN gateway has no ISSN index (its free-text search does not
+        // cover the ISSN either): say so instead of listing unrelated hits.
+        if ($index === 'issn') {
+            return ['total' => 0, 'records' => [], 'error' => __('Il catalogo SBN non permette la ricerca per ISSN.')];
+        }
         try {
             $client = new SbnClient($this->timeout, true);
             if ($index === 'isbn') {
