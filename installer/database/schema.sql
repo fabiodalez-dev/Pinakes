@@ -336,7 +336,7 @@ CREATE TABLE `home_content` (
 CREATE TABLE `import_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
   `import_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique identifier for this import session',
-  `import_type` enum('csv','librarything','marc') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import',
+  `import_type` enum('csv','librarything','marc','users') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import',
   `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original filename uploaded',
   `user_id` int DEFAULT NULL COMMENT 'User who initiated the import',
   `total_rows` int NOT NULL DEFAULT '0' COMMENT 'Total rows in CSV',
