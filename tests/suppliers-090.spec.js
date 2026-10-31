@@ -81,9 +81,13 @@ test.describe.serial('Suppliers (fornitori)', () => {
     await Promise.all([page.waitForURL(new RegExp(`/admin/suppliers/edit/${supplierId}$`)), page.click('#form-fornitore button[type="submit"]')]);
     await expect(page.getByText('Il sito web del fornitore non è un indirizzo valido')).toBeVisible();
     expect(h.dbQuery(`SELECT CONCAT(IFNULL(referente, 'NULL'), '|', IFNULL(sito_web, 'NULL')) FROM fornitori WHERE id = ${supplierId}`)).toBe('NULL|https://www.example.org');
+    // The refused form gives back what was typed, so nothing has to be re-entered.
+    await expect(page.locator('#referente')).toHaveValue('Non salvato');
+    await expect(page.locator('#sito_web')).toHaveValue('not a url');
 
     await page.fill('#nome', SUPPLIER_RENAMED);
     await page.fill('#referente', 'Giulia Bianchi');
+    await page.fill('#sito_web', 'https://www.example.org');
     await Promise.all([page.waitForURL(/\/admin\/suppliers$/), page.click('#form-fornitore button[type="submit"]')]);
     expect(h.dbQuery(`SELECT CONCAT(nome, '|', referente) FROM fornitori WHERE id = ${supplierId}`)).toBe(`${SUPPLIER_RENAMED}|Giulia Bianchi`);
     await expect(page.locator('[data-supplier-row]', { hasText: SUPPLIER_RENAMED })).toContainText('Giulia Bianchi');
