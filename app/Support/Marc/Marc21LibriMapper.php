@@ -65,13 +65,16 @@ final class Marc21LibriMapper implements MarcLibriMapper
             return $name;
         }
         $units = $field->subfieldValues(self::isMeeting($field) ? 'e' : 'b');
-        $parts = [];
+        $joined = '';
         foreach (array_merge([$name], array_map([MarcBookData::class, 'cleanName'], $units)) as $part) {
-            if ($part !== '') {
-                $parts[] = $part;
+            if ($part === '') {
+                continue;
             }
+            // A part that keeps its final period (it ends with an initial,
+            // "Istituto X.") is not followed by a second one.
+            $joined = $joined === '' ? $part : $joined . (str_ends_with($joined, '.') ? ' ' : '. ') . $part;
         }
-        return implode('. ', $parts);
+        return $joined;
     }
 
     public function map(MarcRecord $record): array

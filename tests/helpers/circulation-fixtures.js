@@ -226,6 +226,64 @@ async function requestFromBookPage(page, bookId, startISO) {
   return { ok, text };
 }
 
+/** Whether the named plugin is active (false when it is not registered). */
+function pluginActive(name) {
+  return dbQuery(`SELECT is_active FROM plugins WHERE name=${sqlStr(name)} LIMIT 1`) === '1';
+}
+
+/**
+ * Activate or deactivate a plugin through the admin endpoint, as the admin
+ * plugin page does. `page` must be logged in as an administrator. A no-op
+ * when the plugin is already in the requested state.
+ */
+async function setPluginActive(page, name, active) {
+  const id = dbInt(`SELECT id FROM plugins WHERE name=${sqlStr(name)} LIMIT 1`);
+  if (id <= 0) throw new Error(`${name} plugin is not registered`);
+  if (pluginActive(name) === active) return;
+  await page.goto(`${BASE}/admin/plugins`);
+  const status = await page.evaluate(async ({ pid, action }) => {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const r = await fetch(`${window.location.origin}${window.BASE_PATH || ''}/admin/plugins/${pid}/${action}`, { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
+    return r.status;
+  }, { pid: id, action: active ? 'activate' : 'deactivate' });
+  if (status >= 400) throw new Error(`${name} ${active ? 'activate' : 'deactivate'} failed: HTTP ${status}`);
+  if (pluginActive(name) !== active) throw new Error(`${name} is still ${active ? 'inactive' : 'active'}`);
+}
+
+/**
+ * Snapshot the rows of a table (optionally filtered by `where`) so they can be
+ * put back verbatim. Every value travels hex-encoded, so quotes, backslashes
+ * and non-ASCII text survive the mysql batch output unchanged.
+ */
+function stashRows(table, where = '') {
+  const cols = dbQuery(`SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=${sqlStr(table)}`);
+  if (!cols) throw new Error(`table ${table} has no columns`);
+  const select = cols.split(',')
+    .map((c) => `IFNULL(CONCAT('CONVERT(X''', HEX(CAST(\`${c}\` AS CHAR)), ''' USING utf8mb4)'), 'NULL')`)
+    .join(", ',', ");
+  const filter = where ? ` WHERE ${where}` : '';
+  const rows = dbQuery(`SELECT CONCAT(${select}) FROM \`${table}\`${filter}`).split('\n').filter(Boolean);
+  return { table, filter, cols: cols.split(',').map((c) => `\`${c}\``).join(','), rows };
+}
+
+/** Put back a stashRows() snapshot in one transaction: all of it or nothing. */
+function unstashRows(s) {
+  if (!s) return;
+  const sql = ['START TRANSACTION', `DELETE FROM \`${s.table}\`${s.filter}`];
+  for (const values of s.rows) sql.push(`INSERT INTO \`${s.table}\` (${s.cols}) VALUES (${values})`);
+  sql.push('COMMIT');
+  dbQuery(sql.join(';\n'));
+}
+
+/** Run every cleanup step even when an earlier one throws; rethrow the first error. */
+async function runAll(steps) {
+  let first = null;
+  for (const step of steps) {
+    try { await step(); } catch (err) { if (!first) first = err; }
+  }
+  if (first) throw first;
+}
+
 module.exports = {
   BASE, ADMIN_EMAIL, ADMIN_PASS, CONFIGURED,
   dbQuery, dbInt, sqlStr, clearRateLimits, phpHash,
@@ -233,4 +291,5 @@ module.exports = {
   loginAs, loginAsAdmin, openCirculationTab, createTypeViaUi, setMatrixCell,
   fillAutocomplete, staffLoan, requestFromBookPage, copyCodeOf,
   appTodayISO, appDateOffsetISO,
+  pluginActive, setPluginActive, stashRows, unstashRows, runAll,
 };

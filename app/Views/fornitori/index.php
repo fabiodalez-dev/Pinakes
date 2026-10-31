@@ -54,8 +54,9 @@ unset($workspaceHeader);
             <label for="search_fornitore" class="form-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_fornitore" type="text" placeholder="<?= htmlspecialchars(__('Nome fornitore...'), ENT_QUOTES, 'UTF-8') ?>"
+            <input id="search_fornitore" type="text" aria-describedby="search_fornitore_hint" placeholder="<?= htmlspecialchars(__('Nome fornitore...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
+            <p id="search_fornitore_hint" class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?></p>
           </div>
         </div>
       </div>
@@ -130,10 +131,58 @@ unset($workspaceHeader);
 document.addEventListener('DOMContentLoaded', function () {
   const search = document.getElementById('search_fornitore');
   if (search) {
+    // Same rules as App\Support\ExactSearch (#501): a word matches whatever
+    // its accents ("muller" finds Müller), a quoted group matches the exact
+    // spelling ("Muller" does not find Müller), case is ignored, and every
+    // term must match. An unclosed quote runs to the end, and a straight or
+    // closing double quote right after a digit outside a group is a literal
+    // inch mark (12" stays 12"). Lower-casing is locale-free (toLowerCase),
+    // so a Turkish browser does not turn "IKEA" into "ıkea".
+    const QUOTES = '"“”„«»';
+    const INCH = '\uE000';
+    const fold = function (s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+    const exact = function (s) { return s.normalize('NFC').replace(/\s+/g, ' ').toLowerCase(); };
+    const protectInchMarks = function (query) {
+      let open = false;
+      let prev = '';
+      let out = '';
+      for (const ch of query) {
+        let c = ch;
+        if (QUOTES.includes(ch)) {
+          if (!open && (ch === '"' || ch === '”') && /^[0-9]$/.test(prev)) {
+            c = INCH;
+          } else {
+            open = !open;
+          }
+        }
+        out += c;
+        prev = c;
+      }
+      return out;
+    };
+    const terms = function (query) {
+      const out = [];
+      const re = /["“”„«»]([^"“”„«»]*)(?:["“”„«»]|$)|([^\s"“”„«»]+)/g;
+      const q = protectInchMarks(query);
+      let m;
+      while ((m = re.exec(q)) !== null) {
+        if (m[1] !== undefined) {
+          const phrase = m[1].trim().replace(/\s+/g, ' ');
+          if (phrase !== '') { out.push({ term: exact(phrase), exact: true }); }
+        } else {
+          out.push({ term: fold(m[2].split(INCH).join('"')), exact: false });
+        }
+      }
+      return out;
+    };
     search.addEventListener('input', function () {
-      const q = search.value.trim().toLowerCase();
+      const wanted = terms(search.value);
       document.querySelectorAll('[data-supplier-row]').forEach(function (row) {
-        row.classList.toggle('hidden', q !== '' && !(row.dataset.name || '').includes(q));
+        const name = row.dataset.name || '';
+        const exactName = exact(name);
+        const foldedName = fold(name);
+        const match = wanted.every(function (t) { return (t.exact ? exactName : foldedName).includes(t.term); });
+        row.classList.toggle('hidden', !match);
       });
     });
   }
