@@ -65,8 +65,10 @@ try {
         $books[$title] = (int) $db->insert_id;
         return $books[$title];
     };
+    // Created an hour ago: a copy changed in the very second of a close counts
+    // as changed after it, and a fast run closes within the second it starts.
     $addCopy = static function (int $book, string $code, string $state = 'disponibile') use ($db, $p): int {
-        $db->query("INSERT INTO copie (libro_id, numero_inventario, stato) VALUES ({$book}, '{$p}-{$code}', '{$state}')");
+        $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, updated_at) VALUES ({$book}, '{$p}-{$code}', '{$state}', NOW() - INTERVAL 1 HOUR)");
         return (int) $db->insert_id;
     };
     $b1 = $addBook('B1', $shelves['X']);
@@ -176,8 +178,63 @@ try {
     // operator is told it was found, not that it is outside the filter (review #504).
     $c9Scan = $service->scan($second, "{$p}-C9", null, null);
     $check($c9Scan['esito'] === 'fuori_ambito' && $c9Scan['fuori_circolazione'] === true && $c9Scan['stato_copia'] === 'perso', 'a lost copy that turns up is flagged as out of circulation with its recorded state');
+    // A code longer than the column is refused, never cut down to the code of
+    // another copy (review #504): here the first 100 characters are C100's code.
+    $longCode = $addCopy($b1, str_repeat('L', StocktakeService::MAX_CODE_LENGTH - strlen($p) - 1));
+    $longText = (string) $one("SELECT numero_inventario FROM copie WHERE id = {$longCode}");
+    $scansBefore = (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}");
+    $tooLong = static function (callable $fn): bool {
+        try {
+            $fn();
+            return false;
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+    };
+    $check(mb_strlen($longText) === StocktakeService::MAX_CODE_LENGTH && $tooLong(static fn () => $service->scan($second, $longText . 'Z', null, null)), 'a scanned code one character longer than a stored code is refused');
+    $check($tooLong(static fn () => $service->importCodes($second, ["{$p}-C3", $longText . 'Z'], null, null)), 'an uploaded list holding a code that is too long is refused');
+    $check((int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}") === $scansBefore, 'a refused code records nothing, and neither do the codes before it in the file');
+    // An upload is one unit (review #504): a write that fails on the second
+    // code takes the first one back, so the retry does not find it duplicate.
+    $importFailure = 'zzst_import_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$importFailure} BEFORE INSERT ON inventario_scansioni FOR EACH ROW BEGIN IF NEW.codice_letto = '{$p}-BOOM' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZST simulated scan failure'; END IF; END");
+    $triggers[] = $importFailure;
+    $importFailed = false;
+    try {
+        $service->importCodes($second, ["{$p}-C3", "{$p}-BOOM"], null, null);
+    } catch (mysqli_sql_exception) {
+        $importFailed = true;
+    }
+    $db->query("DROP TRIGGER {$importFailure}");
+    $check($importFailed && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}") === $scansBefore, 'an upload that fails halfway records none of its codes');
+    $retry = $service->importCodes($second, ["{$p}-C3"], null, null);
+    $check($retry['outcomes']['in_prestito'] === 1 && $retry['outcomes']['duplicata'] === 0, 'uploading the file again records its codes, not duplicates');
     $service->cancel($second, null);
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'cancelling leaves every copy as it was');
+    // The PDF header dates the end of a session by what ended it (review #504).
+    $pdfGenerator = new App\Support\StocktakePdfGenerator();
+    $cancelledMeta = implode(' | ', $pdfGenerator->metaLines((array) $service->find($second)));
+    $closedMeta = implode(' | ', $pdfGenerator->metaLines((array) $service->find($sessionId)));
+    $check(str_contains($cancelledMeta, __('Annullata il') . ': ') && !str_contains($cancelledMeta, __('Chiusa il')), 'the PDF of a cancelled session says when it was cancelled, not closed');
+    $check(str_contains($closedMeta, __('Chiusa il') . ': ') && !str_contains($closedMeta, __('Annullata il')), 'the PDF of a closed session says when it was closed');
+    $check(str_starts_with($pdfGenerator->generate((array) $service->find($second), $service->summary($second), $service->reportRows($second), [], []), '%PDF'), 'the PDF of a cancelled session is still generated');
+    $check($service->reportRowCount($sessionId) === count($service->reportRows($sessionId)) && $service->reportRowCount($second) === count($service->reportRows($second)), 'reportRowCount() counts exactly the report rows');
+    // A report too large for one TCPDF request is refused (review #504),
+    // pointing at the CSV export instead of exhausting memory.
+    $big = $service->open('ZZST big ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
+    $sessionIds[] = $big;
+    $bigRows = App\Support\StocktakePdfGenerator::MAX_ROWS + 1;
+    // Placeholder rows from a digits cross join (no recursive CTE: MySQL and
+    // MariaDB cap its depth with different variables).
+    $digits = '(SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9)';
+    $db->query("INSERT INTO inventario_attese (sessione_id, copia_id, codice_atteso, titolo_atteso) SELECT {$big}, 2000000000 + t.n, CONCAT('{$p}-BIG-', t.n), 'ZZST big' FROM (SELECT d1.d + 10 * d2.d + 100 * d3.d + 1000 * d4.d + 10000 * d5.d AS n FROM {$digits} d1, {$digits} d2, {$digits} d3, {$digits} d4, {$digits} d5) t WHERE t.n < {$bigRows}");
+    $check((int) $one("SELECT COUNT(*) FROM inventario_attese WHERE sessione_id = {$big}") === $bigRows, 'the large session holds one row over the PDF limit');
+    $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
+    $pdfResponse = (new App\Controllers\InventoryController())->exportPdf((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $big);
+    $check($pdfResponse->getStatusCode() === 302 && str_ends_with($pdfResponse->getHeaderLine('Location'), '/admin/inventory/' . $big) && (string) $pdfResponse->getBody() === '', 'a report over the PDF row limit is not rendered: the export goes back to the session');
+    $check(($_SESSION['error_message'] ?? '') === sprintf(__('Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.'), $bigRows, App\Support\StocktakePdfGenerator::MAX_ROWS), 'with a message that points to the CSV report');
+    $smallResponse = (new App\Controllers\InventoryController())->exportPdf((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $second);
+    $check($smallResponse->getStatusCode() === 200 && str_starts_with((string) $smallResponse->getBody(), '%PDF'), 'a report within the limit is still exported as PDF');
 
     // A close or cancel that loses the race against another transition does nothing.
     $refused = static function (callable $fn): bool {
@@ -295,6 +352,49 @@ try {
     $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
     $db->query("UPDATE inventario_attese SET esito_chiusura = 'mancante' WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}");
     $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
+    // The copy was last changed before the close: pending again.
+    $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il - INTERVAL 1 MINUTE WHERE c.id = {$atomicCopy}");
+    $check($service->pendingLostCount($atomicSession) === 1, 'a missing copy last changed before the close is pending');
+    // An operator edits it between the pending list and the book lock (review
+    // #504): the marking re-checks the change under the lock and leaves it.
+    $toMark = (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $atomicSession);
+    $db->query("UPDATE copie SET note = 'ZZST edited after the close' WHERE id = {$atomicCopy}");
+    $markedNow = (new ReflectionMethod($service, 'markBookCopiesLost'))->invoke($service, $atomicBook, $toMark[$atomicBook] ?? [], $atomicSession, null);
+    $check(isset($toMark[$atomicBook]) && $markedNow === [] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile' && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'mancante', 'a copy edited after the close while the marking runs is not marked lost');
+    // Changed in the very second of the close: ambiguous, so it is left alone.
+    $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il WHERE c.id = {$atomicCopy}");
+    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
+
+    // A hold the reassignment cannot take off the copy (review #504): a
+    // trigger puts the copy back on every release. Marking it lost must roll
+    // back instead of committing a lost copy that still carries the hold.
+    $holdBook = $addBook('Hold', $shelves['X']);
+    $holdCopy = $addCopy($holdBook, 'HOLD');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$holdBook}, {$holdCopy}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'prenotazione', 1)");
+    $stuckHold = (int) $db->insert_id;
+    $holdSession = $service->open('ZZST hold ' . $run, null, ['collocazione_da' => "{$p}.Hold", 'collocazione_a' => "{$p}.Hold"], null);
+    $sessionIds[] = $holdSession;
+    $stuck = 'zzst_stuck_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$stuck} BEFORE UPDATE ON prestiti FOR EACH ROW BEGIN IF OLD.id = {$stuckHold} AND NEW.copia_id IS NULL THEN SET NEW.copia_id = OLD.copia_id; END IF; END");
+    $triggers[] = $stuck;
+    $result = $service->close($holdSession, true, null);
+    $db->query("DROP TRIGGER {$stuck}");
+    $check($result === ['marked' => 0, 'failed' => 1], 'a copy whose hold cannot be moved is reported as a failed book update');
+    $check($one("SELECT stato FROM copie WHERE id = {$holdCopy}") === 'disponibile' && $one("SELECT copia_id FROM prestiti WHERE id = {$stuckHold}") === (string) $holdCopy && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$holdSession}") === 'mancante', 'and nothing of it is committed: the copy is not lost and keeps its hold');
+
+    // The audit entry is part of the loss (review #504): when it cannot be
+    // written the copy is not lost either, and a resume writes both.
+    $auditBook = $addBook('Audit', $shelves['X']);
+    $auditCopy = $addCopy($auditBook, 'AUDIT');
+    $auditSession = $service->open('ZZST audit ' . $run, null, ['collocazione_da' => "{$p}.Audit", 'collocazione_a' => "{$p}.Audit"], null);
+    $sessionIds[] = $auditSession;
+    $auditFailure = 'zzst_audit_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$auditFailure} BEFORE INSERT ON log_modifiche FOR EACH ROW BEGIN IF NEW.tabella = 'libri' AND NEW.record_id = {$auditBook} THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZST simulated audit failure'; END IF; END");
+    $triggers[] = $auditFailure;
+    $result = $service->close($auditSession, true, null);
+    $db->query("DROP TRIGGER {$auditFailure}");
+    $check($result === ['marked' => 0, 'failed' => 1] && $one("SELECT stato FROM copie WHERE id = {$auditCopy}") === 'disponibile' && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$auditSession}") === 'mancante', 'a copy whose audit entry cannot be written is not marked lost');
+    $check($service->resumeMarkLost($auditSession, null) === ['marked' => 1, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$auditCopy}") === 'perso' && (int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$auditBook} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) = 'copy.inventory_lost'") === 1, 'the resume marks it and writes its audit entry with it');
     $fifth = $service->open('ZZST5 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $fifth;
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fifth . '/close')

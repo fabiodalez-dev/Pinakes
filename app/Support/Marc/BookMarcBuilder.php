@@ -293,6 +293,14 @@ final class BookMarcBuilder
         $record->addDataField('101', '0', ' ', [['a', $langCode]]);
         $record->addDataField('102', ' ', ' ', [['a', 'IT']]);
 
+        // 181 — RDA content type ($c, $2 rdacontent), when it is not plain
+        // text: the label/06 alone cannot tell an "altro" (content "other")
+        // from a book, nor performed music from spoken word.
+        $rdaContent = MarcMediaType::rdaCodes($row)['content'];
+        if ($rdaContent !== 'txt') {
+            $record->addDataField('181', ' ', ' ', [['c', $rdaContent], ['2', 'rdacontent']]);
+        }
+
         // 200 — Title and statement of responsibility
         $subs200 = [['a', (string) ($row['titolo'] ?? '')]];
         if (!empty($row['sottotitolo'])) {
@@ -343,6 +351,11 @@ final class BookMarcBuilder
         // 225 — Series (UNIMARC equivalent of MARC21 490)
         if (!empty($row['collana'])) {
             $subs225 = [['a', (string) $row['collana']]];
+            // $x — the series ISSN of a monograph (a serial's own ISSN is 011),
+            // as MARC 21 carries it in 490 $x.
+            if (!empty($row['issn']) && !$isSerial) {
+                $subs225[] = ['x', (string) $row['issn']];
+            }
             if (!empty($row['numero_serie'])) {
                 $subs225[] = ['v', (string) $row['numero_serie']];
             }
@@ -386,6 +399,17 @@ final class BookMarcBuilder
             [$ind2, $nameSubs] = self::unimarcPersonalName((string) $a['nome']);
             $nameSubs[] = ['4', $relCode];
             $responsibility[$tag][] = [$ind2, $nameSubs];
+        }
+        // 702 — legacy contributors (libri.traduttore / illustratore /
+        // curatore) not already represented by an author entity, as the
+        // MARC 21 700 does.
+        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
+        foreach (['traduttore' => '730', 'illustratore' => '440', 'curatore' => '340'] as $col => $relCode) {
+            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
+                [$ind2, $nameSubs] = self::unimarcPersonalName((string) $row[$col]);
+                $nameSubs[] = ['4', $relCode];
+                $responsibility['702'][] = [$ind2, $nameSubs];
+            }
         }
         foreach (['700', '701', '702'] as $tag) {
             foreach ($responsibility[$tag] ?? [] as [$ind2, $nameSubs]) {

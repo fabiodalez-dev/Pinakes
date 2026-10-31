@@ -8,9 +8,9 @@ namespace App\Support\Marc;
  * SBN/REICAT import already uses ({@see UnimarcLibriParser}), plus the fields
  * that reader leaves out:
  *
- *   011 $a ISSN   073 $a EAN   210 / 214 $a place, every $c publisher
+ *   011 $a ISSN (else 225 $x)   073 $a EAN   210 / 214 $a place, every $c publisher
  *   215 $d dimensions   330 $a summary   856 $u cover image
- *   label/06 media type
+ *   label/06 media type, refined by the 181 $c RDA content type
  *
  * The reader's roles (from the IFLA $4 relator codes) sort translators,
  * editors, illustrators and colorists out of the authors.
@@ -95,9 +95,24 @@ final class UnimarcLibriMapper implements MarcLibriMapper
         if (strlen($ean) === 13 && $ean !== $data['isbn13']) {
             $data['ean'] = $ean;
         }
+        // 011: the ISSN of the resource itself; on a monograph the series
+        // ISSN travels in 225 $x, as the export writes it.
         $data['issn'] = MarcBookData::clean($record->subfield('011', 'a'));
+        if ($data['issn'] === '') {
+            $data['issn'] = MarcBookData::clean($record->subfield('225', 'x'));
+        }
         $data['copertina_url'] = MarcBookData::coverUrlOf($record);
-        $data['tipo_media'] = MarcMediaType::tipoMediaOf(substr($record->leader() . '      ', 6, 1));
+        // Media type from label/06, refined by the RDA content type of a 181
+        // $c whose $2 says rdacontent (an "altro" is language material with
+        // content "other").
+        $content = null;
+        foreach ($record->fieldsByTag('181') as $field) {
+            if (strtolower(trim((string) $field->subfield('2'))) === 'rdacontent' && trim((string) $field->subfield('c')) !== '') {
+                $content = trim((string) $field->subfield('c'));
+                break;
+            }
+        }
+        $data['tipo_media'] = MarcMediaType::tipoMediaOf(substr($record->leader() . '      ', 6, 1), $content);
 
         return $data;
     }

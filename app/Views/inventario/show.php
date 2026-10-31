@@ -467,6 +467,9 @@ unset($workspaceHeader);
     if (result.esito === 'duplicata') { parts.push(config.i18n.duplicate); }
     if (result.esito === 'fuori_ambito') { parts.push(result.fuori_circolazione ? config.i18n.offShelf + ' (' + result.stato_copia + ')' : config.i18n.outOfScope); }
     if (result.esito === 'in_prestito') { parts.push(config.i18n.onLoan); }
+    // An expected copy recorded as lost or away after the session opened is
+    // still found, but its state needs updating all the same.
+    if (result.esito !== 'fuori_ambito' && result.fuori_circolazione) { parts.push(config.i18n.offShelf + ' (' + result.stato_copia + ')'); }
     return parts.join(' · ');
   }
 
