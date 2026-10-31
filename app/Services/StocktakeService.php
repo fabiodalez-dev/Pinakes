@@ -1062,7 +1062,8 @@ final class StocktakeService
      * Only rows the close froze as missing ('mancante') qualify: a row it
      * already marked ('persa') is never marked again. A copy changed after
      * the close (found and put back, repaired, lent) is someone's later
-     * decision, not a copy the close failed to reach, so it is left alone.
+     * decision, not a copy the close failed to reach, so it is left alone
+     * (changedSinceClose()).
      *
      * @return array<int,list<array<string,mixed>>>
      */
@@ -1077,8 +1078,7 @@ final class StocktakeService
             if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['libro_attivo'] === null) {
                 continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
             }
-            $changedAt = $row['copia_aggiornata_il'] ?? null;
-            if ($closedAt !== null && is_string($changedAt) && $changedAt > $closedAt) {
+            if (self::changedSinceClose($row['copia_aggiornata_il'] ?? null, $closedAt)) {
                 continue; // handled by someone after the close
             }
             if (in_array((string) $row['stato_attuale'], self::AWAY_STATES, true)) {
@@ -1087,6 +1087,18 @@ final class StocktakeService
             $byBook[(int) $row['libro_id']][] = $row;
         }
         return $byBook;
+    }
+
+    /**
+     * The copy was changed at or after the close. Both columns hold whole
+     * seconds, so a change in the very second of the close cannot be told
+     * from one just before it: it counts as later, and the copy is left
+     * alone rather than declared lost over someone's edit. The close itself
+     * never touches a copy it has not marked, so it cannot trip this.
+     */
+    private static function changedSinceClose(mixed $changedAt, ?string $closedAt): bool
+    {
+        return $closedAt !== null && is_string($changedAt) && $changedAt >= $closedAt;
     }
 
     /** When the session was closed (MySQL DATETIME text), or NULL. */
@@ -1195,11 +1207,13 @@ final class StocktakeService
                 $this->db->rollback();
                 return [];
             }
+            $closedAt = $this->closedAt($sessionId);
 
             foreach ($copies as $copy) {
                 $copyId = (int) $copy['copia_id'];
-                // Re-read under the book lock: a return or a loan may have happened since the report.
-                $stmt = $this->db->prepare('SELECT stato, numero_inventario, note FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
+                // Re-read under the book lock: a return, a loan or any other
+                // edit of the copy may have happened since missingToMark().
+                $stmt = $this->db->prepare('SELECT stato, numero_inventario, note, updated_at FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
                 if ($stmt === false) {
                     throw new \RuntimeException($this->db->error);
                 }
@@ -1210,6 +1224,10 @@ final class StocktakeService
                 if (!is_array($current) || in_array((string) $current['stato'], self::AWAY_STATES, true) || $this->isOnLoan($copyId)) {
                     continue;
                 }
+                if (self::changedSinceClose($current['updated_at'] ?? null, $closedAt)) {
+                    continue; // edited after the close: someone's later decision
+                }
+                unset($current['updated_at']);
                 $scanned = $this->db->prepare('SELECT 1 FROM inventario_scansioni WHERE sessione_id = ? AND copia_id = ? LIMIT 1');
                 if ($scanned === false) {
                     throw new \RuntimeException($this->db->error);

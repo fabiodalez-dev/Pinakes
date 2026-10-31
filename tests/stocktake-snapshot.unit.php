@@ -62,8 +62,10 @@ try {
         $books[$title] = (int) $db->insert_id;
         return $books[$title];
     };
+    // Created an hour ago: a copy changed in the very second of a close counts
+    // as changed after it, and a fast run closes within the second it starts.
     $addCopy = static function (int $book, string $code, string $state = 'disponibile') use ($db, $p): int {
-        $db->query("INSERT INTO copie (libro_id, numero_inventario, stato) VALUES ({$book}, '{$p}-{$code}', '{$state}')");
+        $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, updated_at) VALUES ({$book}, '{$p}-{$code}', '{$state}', NOW() - INTERVAL 1 HOUR)");
         return (int) $db->insert_id;
     };
     $b1 = $addBook('B1', $shelves['X']);
@@ -323,6 +325,18 @@ try {
     $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
     $db->query("UPDATE inventario_attese SET esito_chiusura = 'mancante' WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}");
     $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
+    // The copy was last changed before the close: pending again.
+    $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il - INTERVAL 1 MINUTE WHERE c.id = {$atomicCopy}");
+    $check($service->pendingLostCount($atomicSession) === 1, 'a missing copy last changed before the close is pending');
+    // An operator edits it between the pending list and the book lock (review
+    // #504): the marking re-checks the change under the lock and leaves it.
+    $toMark = (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $atomicSession);
+    $db->query("UPDATE copie SET note = 'ZZST edited after the close' WHERE id = {$atomicCopy}");
+    $markedNow = (new ReflectionMethod($service, 'markBookCopiesLost'))->invoke($service, $atomicBook, $toMark[$atomicBook] ?? [], $atomicSession, null);
+    $check(isset($toMark[$atomicBook]) && $markedNow === [] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile' && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'mancante', 'a copy edited after the close while the marking runs is not marked lost');
+    // Changed in the very second of the close: ambiguous, so it is left alone.
+    $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il WHERE c.id = {$atomicCopy}");
+    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
     $fifth = $service->open('ZZST5 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $fifth;
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $fifth . '/close')
