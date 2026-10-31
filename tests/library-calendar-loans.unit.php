@@ -166,6 +166,16 @@ $check(LibraryCalendar::dueDate($db, $branchDay, $copyId) === $shift($branchDay,
 $check(LibraryCalendar::dueDate($db, $branchDay) === $branchDay, 'the same closure does not move a loan without that branch');
 $check(CirculationPolicy::dueDateFor($shift($branchDay, -7), 7, $db, $copyId) === $shift($branchDay, 1), "dueDateFor applies the copy's branch closures when the copy is known");
 
+// {{giorni_ritiro}} counts the open days of the copy's branch, as the
+// deadline it describes does.
+$pickupSetting = max(1, (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'pickup_expiry_days', '3') ?? 3));
+$effectivePickupDays = new ReflectionMethod(\App\Support\NotificationService::class, 'effectivePickupDays');
+$notifier = new \App\Support\NotificationService($db);
+$windowStart = $shift($branchDay, -1);
+$windowEnd = $shift($windowStart, $pickupSetting);
+$check($effectivePickupDays->invoke($notifier, $windowStart, $windowEnd, $copyId) === (string) ($pickupSetting - 1), "pickup days: a closure of the copy's branch inside the window is not a pickup day");
+$check($effectivePickupDays->invoke($notifier, $windowStart, $windowEnd) === (string) $pickupSetting, 'pickup days: without the copy the branch closure does not count');
+
 // ── Renewal cap steps back to an open day ─────────────────────────────────
 $clearClosures();
 $conflict = $shift($today, 50);
