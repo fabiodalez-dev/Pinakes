@@ -600,7 +600,7 @@ final class OpenApiController
                                         'total_copies'       => ['type' => 'integer'],
                                         'earliest_available' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                                         'unavailable_dates'  => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date']],
-                                        'closed_dates'       => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date'], 'description' => 'Days the library is closed (closures calendar): not selectable as a start/pickup day; a return date on one moves to the next open day.'],
+                                        'closed_dates'       => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date'], 'description' => 'Days the library is closed (closures calendar): not selectable as a start/pickup day; a return date on one moves to the next open day (Mobile API 1.9.0).'],
                                         'days'               => ['type' => 'array', 'items' => [
                                             'type'       => 'object',
                                             'properties' => [
@@ -613,8 +613,8 @@ final class OpenApiController
                                         ]],
                                         'loan_duration_days' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Days POST /reservations adds to the chosen start to set the return date.'],
                                         'max_loan_duration_days' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Longest loan POST /reservations accepts through end_date (Mobile API 1.8.2).'],
-                                        'loanable' => ['type' => 'boolean', 'description' => 'False when the title is consultation only for this reader (patron type × material rule, or every copy kept for consultation): POST /reservations answers 409 not_loanable (Pinakes 0.9.0).'],
-                                        'reservations_enabled' => ['type' => 'boolean', 'description' => 'False when the reader\'s patron type does not allow waitlist reservations (409 reservations_disabled) (Pinakes 0.9.0).'],
+                                        'loanable' => ['type' => 'boolean', 'description' => 'False when the title is consultation only for this reader (patron type × material rule, or every copy kept for consultation): POST /reservations answers 409 not_loanable (Mobile API 1.9.0).'],
+                                        'reservations_enabled' => ['type' => 'boolean', 'description' => 'False when the reader\'s patron type does not allow waitlist reservations (409 reservations_disabled) (Mobile API 1.9.0).'],
                                     ],
                                 ]],
                             ]]],
@@ -691,6 +691,47 @@ final class OpenApiController
                 ],
             ],
 
+            '/me/movements' => [
+                'get' => [
+                    'tags'        => ['loans'],
+                    'summary'     => 'Own balance and movements',
+                    'description' => 'Patron ledger (since 1.9.0): balance (positive = owed), charges, payments, waivers and reversals, newest first, plus the fines accruing today on overdue loans (charged only at return). Amounts in cents and as decimal strings in `currency`.',
+                    'operationId' => 'getMeMovements',
+                    'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [
+                        ['name' => 'limit', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200, 'default' => 200], 'description' => 'Movements per page (max 200)'],
+                        ['name' => 'cursor', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string'], 'description' => 'Opaque `meta.next_cursor` of the previous page; `meta.has_more` says whether older movements exist'],
+                    ],
+                    'responses'   => [
+                        '200' => ['description' => 'Balance and movements.', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['type' => 'object', 'properties' => [
+                                'currency' => ['type' => 'string'],
+                                'balance_cents' => ['type' => 'integer'],
+                                'balance' => ['type' => 'string'],
+                                'accrued_cents' => ['type' => 'integer'],
+                                'accrued' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                                    'loan_id' => ['type' => 'integer'], 'title' => ['type' => 'string'], 'due_at' => ['type' => 'string', 'format' => 'date'],
+                                    'days_late' => ['type' => 'integer'], 'amount_cents' => ['type' => 'integer'],
+                                ]]],
+                                'debt_block_threshold_cents' => ['type' => ['integer', 'null']],
+                                'debt_blocked' => ['type' => 'boolean'],
+                                'items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                                    'id' => ['type' => 'integer'],
+                                    'type' => ['type' => 'string', 'enum' => ['multa_ritardo', 'addebito_perdita', 'addebito_danno', 'addebito_manuale', 'pagamento', 'condono', 'storno']],
+                                    'type_label' => ['type' => 'string'], 'amount_cents' => ['type' => 'integer'], 'amount' => ['type' => 'string'],
+                                    'description' => ['type' => 'string'], 'payment_method' => ['type' => ['string', 'null']],
+                                    'loan_id' => ['type' => ['integer', 'null']], 'book_title' => ['type' => ['string', 'null']],
+                                    'created_at' => ['type' => 'string'],
+                                ]]],
+                            ]]],
+                        ]]]],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
             '/me/reservations' => [
                 'get' => [
                     'tags'        => ['loans'],
@@ -739,7 +780,8 @@ final class OpenApiController
                         ],
                         '400' => ['$ref' => '#/components/responses/UnprocessableEntity'],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
-                        '409' => ['description' => 'Overlap or book unavailable. For not_available, when the start day is free but a scheduled loan or reservation begins inside the requested window, error.message names the longest loan still possible and meta carries max_duration_days, max_end_date and first_conflict_date (Mobile API 1.8.2) so the client can propose that return date. Circulation rules of the reader\'s patron type (Pinakes 0.9.0): max_loans_reached, media_limit_reached (limit for this material type), not_loanable (consultation only), reservations_disabled, reservation_limit_reached.', 'content' => $json],
+                        '403' => ['description' => 'not_eligible: the account is suspended or its card has expired, or (Mobile API 1.9.0) the balance owed is above the debt threshold, with meta.reason = debt_block.', 'content' => $json],
+                        '409' => ['description' => 'Overlap or book unavailable. For not_available, when the start day is free but a scheduled loan or reservation begins inside the requested window, error.message names the longest loan still possible and meta carries max_duration_days, max_end_date and first_conflict_date (Mobile API 1.8.2) so the client can propose that return date. Circulation rules of the reader\'s patron type (Mobile API 1.9.0): max_loans_reached, media_limit_reached (limit for this material type), not_loanable (consultation only), reservations_disabled, reservation_limit_reached.', 'content' => $json],
                         '422' => ['description' => 'Invalid book id or date, or end_date beyond max_loan_duration_days (max_duration_exceeded).', 'content' => $json],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],

@@ -49,7 +49,7 @@ $check(str_contains((string) $maintenance, 'retryQueuedEmailDeliveries'),
 
 $capacity = file_get_contents($root . '/app/Services/CapacityService.php');
 $check(str_contains((string) $capacity, "JOIN utenti u ON u.id = r.utente_id")
-    && str_contains((string) $capacity, "eligibleUserWhere('u')"),
+    && str_contains((string) $capacity, "eligibleUserWhere('u', \$this->db)"),
     'ineligible reservations are paused instead of consuming capacity');
 // 0.9.0: the limit is the patron's (CirculationPolicy::totalLoanLimitSql()).
 $check(str_contains((string) $capacity, 'totalLoanLimitSql') && str_contains((string) $capacity, 'FROM prestiti cap'),

@@ -85,6 +85,8 @@ function deleteTitles(ids) {
 
 function deletePatrons(ids) {
   for (const id of ids.filter(Boolean)) {
+    // Ledger rows (0.9.0) reference the patron; the table may not exist on an older database.
+    try { dbQuery(`DELETE FROM movimenti_lettore WHERE utente_id=${id}`); } catch { /* no ledger table */ }
     try {
       dbQuery(`DELETE FROM prestiti WHERE utente_id=${id}`);
       dbQuery(`DELETE FROM prenotazioni WHERE utente_id=${id}`);

@@ -314,6 +314,22 @@ return [
             <p><a href="{{approve_url}}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Administrer Anmodning</a></p>
         ',
     ],
+    'fine_charged' => [
+        'subject' => '💶 Gebyr for for sen aflevering: {{multa}}',
+        'body' => '<h2>Gebyr for for sen aflevering</h2>
+<p>Hej {{utente_nome}},</p>
+<p>bogen herunder blev afleveret efter afleveringsfristen, og der er pålagt et gebyr på din konto.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Bog:</strong> {{libro_titolo}}</p>
+    <p><strong>Afleveringsfrist:</strong> {{data_scadenza}}</p>
+    <p><strong>Afleveret den:</strong> {{data_restituzione}}</p>
+    <p><strong>Dage for sent:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Gebyr:</strong> {{multa}}</p>
+    <p><strong>Saldo til betaling:</strong> {{saldo}}</p>
+</div>
+<p>Du kan betale beløbet ved bibliotekets skranke.</p>
+<p>Venlig hilsen<br>Biblioteket</p>',
+    ],
     'loan_returned' => [
         'subject' => '✅ Aflevering bekræftet',
         'body' => '<h2>Aflevering bekræftet</h2>
@@ -323,6 +339,7 @@ return [
     <p><strong>Bog:</strong> {{libro_titolo}}</p>
     <p><strong>Afleveringsdato:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Vi håber, du nød læsningen. Vi ses snart på biblioteket!</p>
 <p>Med venlig hilsen,<br>Bibliotekets team</p>',
     ],

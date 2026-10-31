@@ -710,7 +710,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                               <?= htmlspecialchars(\App\Support\LoanWindow::explainFromParams($_GET) ?? __('Nessuna copia disponibile per il periodo richiesto.'), ENT_QUOTES, 'UTF-8') ?>
                             <?php elseif ($loanErrorKey === 'max_duration_exceeded'): ?>
                               <?= htmlspecialchars(__('Il periodo richiesto supera la durata massima consentita.'), ENT_QUOTES, 'UTF-8') ?>
-                            <?php elseif (in_array($loanErrorKey, ['max_loans_reached', 'media_limit_reached', 'not_loanable', 'reservation_limit_reached', 'reservations_disabled'], true)): ?>
+                            <?php elseif (in_array($loanErrorKey, ['max_loans_reached', 'media_limit_reached', 'not_loanable', 'reservation_limit_reached', 'reservations_disabled', 'debt_block'], true)): ?>
                               <?= htmlspecialchars(\App\Support\LoanEligibility::errorMessage($loanErrorKey), ENT_QUOTES, 'UTF-8') ?>
                             <?php else: ?>
                               <?= __('Errore nella richiesta di prestito.') ?>
@@ -736,6 +736,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                                   'not_loanable' => \App\Support\LoanEligibility::errorMessage('not_loanable'),
                                   'reservations_disabled' => \App\Support\LoanEligibility::errorMessage('reservations_disabled'),
                                   'reservation_limit_reached' => \App\Support\LoanEligibility::errorMessage('reservation_limit_reached'),
+                                  'debt_block' => \App\Support\LoanEligibility::errorMessage('debt_block'),
                               ];
                               // Defense-in-depth: the values are __() translations from
                               // the i18n catalog (app-controlled), and unknown keys fall

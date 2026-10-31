@@ -1281,6 +1281,13 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    // Fines report CSV (plan §7): charged / collected / waived per month.
+    $app->get('/admin/statistics/fines.csv', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\Admin\StatsController();
+        return $controller->finesCsv($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
     // Simple stats APIs used by header quick stats (require authentication)
     $app->get('/api/stats/books-count', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -1348,6 +1355,23 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // Patron ledger (plan §7): payments, manual charges, waivers, payment receipt.
+    $app->post('/admin/users/{id:\d+}/ledger/payment', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->payment($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/ledger/charge', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->charge($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/users/{id:\d+}/ledger/waive', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->waive($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/users/{id:\d+}/ledger/receipt/{movement:\d+}', function ($request, $response, $args) use ($app) {
+        $db = $app->getContainer()->get('db');
+        return (new \App\Controllers\PatronLedgerController())->receipt($request, $response, $db, (int) $args['id'], (int) $args['movement']);
+    })->add(new AdminAuthMiddleware());
     $app->post('/admin/users/{id:\d+}/approve-and-send-activation', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');

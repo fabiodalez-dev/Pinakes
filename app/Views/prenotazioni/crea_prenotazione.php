@@ -121,6 +121,18 @@ unset($workspaceHeader);
                     </div>
                 </div>
             </div>
+        <?php elseif (in_array($error, ['user_not_found', 'user_suspended', 'card_expired', 'debt_block'], true)): ?>
+            <div class="mb-8 p-6 bg-red-50 border border-red-200 text-red-700 rounded-xl shadow-sm" role="alert">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-exclamation-triangle text-red-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold"><?= __("Utente non idoneo al prestito") ?></h3>
+                        <p class="text-sm mt-1"><?= htmlspecialchars(\App\Support\LoanEligibility::errorMessage($error), ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+                </div>
+            </div>
         <?php endif; ?>
 
         <!-- Form -->

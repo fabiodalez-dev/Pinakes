@@ -705,6 +705,13 @@ class MobileApiPlugin
                 return (new ActionsController($db))->myLoans($request, $response);
             })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
+            $group->get('/me/movements', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response
+            ) use ($db): ResponseInterface {
+                return (new ActionsController($db))->myMovements($request, $response);
+            })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
+
             $group->get('/me/reservations', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response

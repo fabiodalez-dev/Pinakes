@@ -443,6 +443,8 @@ unset($workspaceHeader);
     </div>
   </div>
 
+  <?php require __DIR__ . '/_movimenti.php'; ?>
+
   <?php if ($note !== ''): ?>
     <section class="bg-white border border-gray-200 rounded-lg p-6 mt-6">
       <h2 class="text-lg font-medium text-gray-900"><?= __("Note interne") ?></h2>

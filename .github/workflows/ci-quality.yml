@@ -148,7 +148,7 @@ jobs:
 
       - name: PHPStan (level from phpstan.neon)
         run: |
-          "$PHPSTAN_BIN" analyse --no-progress --memory-limit=512M
+          "$PHPSTAN_BIN" analyse --no-progress --memory-limit=1G
 
       # ── Route key integrity ───────────────────────────────────────────────
       - name: Route key integrity (route_path() keys exist in routes_it_IT.json)
@@ -212,14 +212,14 @@ jobs:
         run: python3 scripts/ci-check-soft-delete.py app storage/plugins installer
 
       # ── Circulation rules single source ───────────────────────────────────
-      # Loan duration, request window, renewals and active-loan limits are read
-      # only through App\Services\CirculationPolicy (patron types and the rules
+      # Loan duration, request window, renewals, active-loan limits and the fine
+      # rules (daily fine, grace, cap, debt threshold) are read only through App\Services\CirculationPolicy (patron types and the rules
       # matrix layer on top of the globals there). A direct read anywhere else
       # would apply the global value on one channel and the patron's rule on
       # another. SettingsController is the settings form itself.
       - name: Circulation policy guard (loans rules read only via CirculationPolicy)
         run: |
-          PATTERN="'loans',[[:space:]]*'(max_active_loans_per_user|max_renewals|loan_duration_days|max_loan_duration_days)'"
+          PATTERN="'loans',[[:space:]]*'(max_active_loans_per_user|max_renewals|loan_duration_days|max_loan_duration_days|daily_fine|fine_grace_days|fine_max_per_loan|debt_block_threshold)'"
           HITS=$(grep -rnE "$PATTERN" app storage/plugins cron public installer --include='*.php' \
             | grep -v '^app/Services/CirculationPolicy.php:' \
             | grep -v '^app/Controllers/SettingsController.php:' || true)

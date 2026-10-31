@@ -712,8 +712,9 @@ class UserActionsController
         // User eligibility gate (M7): stato/tessera are only verified at login,
         // so a user suspended (or with an expired card) mid-session could
         // otherwise keep submitting loan requests.
-        if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
-            return $this->back($response, ['loan_error' => 'not_eligible']);
+        if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
+            // debt_block keeps its own message; any other refusal is not_eligible.
+            return $this->back($response, ['loan_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
         }
 
         // "Today" via DateHelper (M9): PHP process tz is often UTC while the
@@ -804,9 +805,10 @@ class UserActionsController
             $userLockStmt->execute();
             $userLockStmt->get_result();
             $userLockStmt->close();
-            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+            if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
                 $db->rollback();
-                return $this->back($response, ['loan_error' => 'not_eligible']);
+                // debt_block keeps its own message; any other refusal is not_eligible.
+                return $this->back($response, ['loan_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
             }
 
             // #384 coherence: the reservation-vs-loan decision is the SAME
@@ -981,8 +983,9 @@ class UserActionsController
         // User eligibility gate (M7): stato/tessera are only verified at login,
         // so a user suspended (or with an expired card) mid-session could
         // otherwise keep queueing reservations.
-        if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
-            return $this->back($response, ['reserve_error' => 'not_eligible']);
+        if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
+            // debt_block keeps its own message; any other refusal is not_eligible.
+            return $this->back($response, ['reserve_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
         }
 
         // Calculate date range for availability check. A start day the library
@@ -1046,9 +1049,10 @@ class UserActionsController
             $userLockStmt->execute();
             $userLockStmt->get_result();
             $userLockStmt->close();
-            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+            if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
                 $db->rollback();
-                return $this->back($response, ['reserve_error' => 'not_eligible']);
+                // debt_block keeps its own message; any other refusal is not_eligible.
+                return $this->back($response, ['reserve_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
             }
 
             // Circulation rules of the patron type, under the user lock.

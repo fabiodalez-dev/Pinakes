@@ -436,6 +436,138 @@
       </div>
     </div>
 
+    <!-- Plan §7: late fines, patron ledger, debt block -->
+    <?php $finesLocked = !\App\Support\Permissions::mayConfigure(); // money policy: administrators only ?>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-coins text-gray-500"></i>
+          <?= __("Multe e blocco per debito") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Addebita automaticamente una multa per ogni giorno di ritardo quando un prestito viene restituito dopo la scadenza. Con multa giornaliera a 0 le multe sono disattivate.") ?></p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700">
+              <?= __("Entro i giorni di tolleranza non si paga nulla; oltre, la multa conta ogni giorno di ritardo dal primo. Saldo, pagamenti e condoni si gestiscono dalla scheda del lettore, sezione Movimenti.") ?>
+            </div>
+          </div>
+        </div>
+        <?php if ($finesLocked): ?>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4" data-testid="fines-admin-only">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-lock text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700"><?= __("Solo gli amministratori possono modificare multe e soglia di blocco.") ?></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div>
+          <label for="daily_fine" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Multa giornaliera") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="text"
+                   inputmode="decimal"
+                   id="daily_fine"
+                   name="daily_fine"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
+                   placeholder="0"
+                   value="<?php echo htmlspecialchars((string) ($loansSettings['daily_fine'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= htmlspecialchars((string) ($loansSettings['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Importo addebitato per ogni giorno di ritardo. 0 = multe disattivate (predefinito).") ?>
+          </p>
+        </div>
+        <div>
+          <label for="fine_grace_days" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Giorni di tolleranza") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="number"
+                   id="fine_grace_days"
+                   name="fine_grace_days"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   min="0"
+                   max="365"
+                   value="<?php echo (int) ($loansSettings['fine_grace_days'] ?? 0); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= __("giorni") ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0") ?>
+          </p>
+        </div>
+        <div>
+          <label for="fine_max_per_loan" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Multa massima per prestito") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="text"
+                   inputmode="decimal"
+                   id="fine_max_per_loan"
+                   name="fine_max_per_loan"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
+                   placeholder="0"
+                   value="<?php echo htmlspecialchars((string) ($loansSettings['fine_max_per_loan'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= htmlspecialchars((string) ($loansSettings['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.") ?>
+          </p>
+        </div>
+        <div>
+          <label for="debt_block_threshold" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Soglia di blocco per debito") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="text"
+                   inputmode="decimal"
+                   id="debt_block_threshold"
+                   name="debt_block_threshold"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
+                   placeholder="0"
+                   value="<?php echo htmlspecialchars((string) ($loansSettings['debt_block_threshold'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= htmlspecialchars((string) ($loansSettings['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Con un saldo a debito superiore a questa soglia il lettore non può ricevere nuovi prestiti, rinnovi o prenotazioni. Vuoto o 0 = nessun blocco.") ?>
+          </p>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="fine_charged_email_label" class="text-sm font-semibold text-gray-900"><?= __("Avvisa il lettore via email quando viene addebitata una multa") ?></span>
+            <p id="fine_charged_email_desc" class="text-xs text-gray-600 mt-1"><?= __("Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="fine_charged_email"
+                   name="fine_charged_email"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="fine_charged_email_label"
+                   aria-describedby="fine_charged_email_desc"
+                   <?php echo !empty($loansSettings['fine_charged_email']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div class="flex justify-end">
       <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
         <i class="fas fa-save"></i>

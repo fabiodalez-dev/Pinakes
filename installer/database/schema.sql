@@ -1212,6 +1212,27 @@ CREATE TABLE `utenti_campi_valori` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `movimenti_lettore` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `prestito_id` int DEFAULT NULL,
+  `tipo` enum('multa_ritardo','addebito_perdita','addebito_danno','addebito_manuale','pagamento','condono','storno') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `importo` decimal(10,2) NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `metodo_pagamento` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `creato_da` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `chiave_idempotenza` varchar(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`),
+  KEY `idx_movimenti_utente` (`utente_id`,`importo`),
+  KEY `idx_movimenti_prestito` (`prestito_id`),
+  KEY `idx_movimenti_tipo_data` (`tipo`,`created_at`),
+  KEY `idx_movimenti_creato_da` (`creato_da`),
+  CONSTRAINT `fk_movimenti_utente` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_movimenti_prestito` FOREIGN KEY (`prestito_id`) REFERENCES `prestiti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_movimenti_creato_da` FOREIGN KEY (`creato_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE `wishlist` (
   `id` int NOT NULL AUTO_INCREMENT,
   `utente_id` int NOT NULL,

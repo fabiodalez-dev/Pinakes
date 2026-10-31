@@ -121,6 +121,12 @@ unset($workspaceHeader);
         case 'copy_not_available':
           echo __('La copia indicata non è disponibile per il periodo richiesto.');
           break;
+        case 'user_not_found':
+        case 'user_suspended':
+        case 'card_expired':
+        case 'debt_block':
+          echo htmlspecialchars(\App\Support\LoanEligibility::errorMessage($errorKey), ENT_QUOTES, 'UTF-8');
+          break;
         case 'duplicate_submission':
           echo __("La richiesta è già stata elaborata o non è più valida. Verifica l'elenco dei prestiti prima di riprovare.");
           break;

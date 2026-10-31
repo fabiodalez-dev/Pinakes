@@ -106,6 +106,13 @@ $btnDanger  = 'btn-danger-outline';
         case 'renewal_failed':
             echo __('Rinnovo non riuscito. Riprova.');
             break;
+        case 'user_not_found':
+        case 'user_suspended':
+        case 'card_expired':
+        case 'debt_block':
+            // renew() re-checks the borrower (LoanEligibility::checkUser).
+            echo htmlspecialchars(\App\Support\LoanEligibility::errorMessage($errorKey), ENT_QUOTES, 'UTF-8');
+            break;
         default:
             echo __('Operazione non riuscita. Riprova.');
     }

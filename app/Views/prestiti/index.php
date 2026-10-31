@@ -74,6 +74,7 @@ $applicationToday = \App\Support\DateHelper::today();
                 case 'user_not_found':
                 case 'user_suspended':
                 case 'card_expired':
+                case 'debt_block':
                     echo \App\Support\LoanEligibility::errorMessage($errorKey);
                     break;
                 case 'loan_not_closable':

@@ -13,9 +13,8 @@ use mysqli;
  * section, so a feature that is not installed (no table yet) simply does not
  * appear and the page keeps rendering.
  *
- * EXTENSION POINTS — fines() is a placeholder the fines branch fills in;
- * loansByPatronType() (circulation policy) and stocktakeOutcomes() have their
- * built-in provider. Each can still be filled or overridden, either by replacing the
+ * EXTENSION POINTS — fines() (patron ledger), loansByPatronType() (circulation
+ * policy) and stocktakeOutcomes() have their built-in provider. Each can still be filled or overridden, either by replacing the
  * body of the function or by registering a filter on its hook
  * (statistics.section.patron_types / .fines / .stocktake, initial value NULL,
  * argument the mysqli connection). They must keep the same signature and
@@ -150,14 +149,77 @@ final class StatisticsSections
     }
 
     /**
-     * EXTENSION POINT — fines (amount charged / paid / outstanding).
-     * Filled by the fines branch; NULL hides the section.
+     * Fines over the last 12 months (charged, collected, waived, reversed)
+     * and what readers owe today, from the patron ledger (movimenti_lettore).
+     * A filter on statistics.section.fines still wins. Hidden (NULL) before
+     * the ledger table exists and on an install that has never configured a
+     * fine nor written a ledger row: zero configuration, same page as before.
      *
      * @return array{rows: list<array{label: string, value: int|float|string}>, note?: string}|null
      */
     public static function fines(mysqli $db): ?array
     {
-        return self::tableSection(Hooks::apply('statistics.section.fines', null, [$db]));
+        $hooked = self::tableSection(Hooks::apply('statistics.section.fines', null, [$db]));
+        if ($hooked !== null) {
+            return $hooked;
+        }
+        $exists = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore' LIMIT 1");
+        if (!$exists instanceof \mysqli_result || $exists->num_rows === 0) {
+            return null;
+        }
+        $any = $db->query('SELECT 1 FROM movimenti_lettore LIMIT 1');
+        $hasRows = $any instanceof \mysqli_result && $any->num_rows > 0;
+        if (!$hasRows && !self::anyFineConfigured($db)) {
+            return null;
+        }
+        $to = DateHelper::today();
+        $from = (new \DateTimeImmutable($to))->modify('-12 months')->modify('+1 day')->format('Y-m-d');
+        $sum = ['addebitato' => 0, 'incassato' => 0, 'condonato' => 0, 'stornato' => 0];
+        foreach (\App\Services\PatronLedger::forDb($db)->periodTotals($from, $to) as $month) {
+            foreach ($sum as $k => $v) {
+                $sum[$k] = $v + (int) $month[$k];
+            }
+        }
+        $outstanding = 0;
+        $debtors = 0;
+        $res = $db->query('SELECT SUM(saldo), COUNT(*) FROM (SELECT SUM(importo) AS saldo FROM movimenti_lettore GROUP BY utente_id HAVING SUM(importo) > 0) d');
+        if ($res instanceof \mysqli_result) {
+            $row = $res->fetch_row();
+            $outstanding = \App\Services\FineParameters::decimalToCents($row[0] ?? null);
+            $debtors = (int) ($row[1] ?? 0);
+        }
+        $fmt = static fn (int $cents): string => \App\Services\FineParameters::format($cents);
+        return [
+            'rows' => [
+                ['label' => __('Addebitato'), 'value' => $fmt($sum['addebitato'])],
+                ['label' => __('Incassato'), 'value' => $fmt($sum['incassato'])],
+                ['label' => __('Condonato'), 'value' => $fmt($sum['condonato'])],
+                ['label' => __('Stornato'), 'value' => $fmt($sum['stornato'])],
+                ['label' => __('Saldo da incassare'), 'value' => $fmt($outstanding)],
+                ['label' => __('Lettori con saldo a debito'), 'value' => $debtors],
+            ],
+            'note' => __('Ultimi 12 mesi; il saldo da incassare è quello di oggi. Il dettaglio mese per mese è nel report delle multe più in basso.'),
+        ];
+    }
+
+    /** Whether a daily fine is set anywhere: globally, on a patron type or in the rules matrix. */
+    private static function anyFineConfigured(mysqli $db): bool
+    {
+        $policy = new \App\Services\CirculationPolicy($db);
+        if (\App\Services\FineParameters::toCents((string) ($policy->globalLayer()['daily_fine'] ?? '')) > 0) {
+            return true;
+        }
+        foreach ($policy->types() as $type) {
+            if ((float) ($type['multa_giornaliera'] ?? 0) > 0) {
+                return true;
+            }
+        }
+        foreach ($policy->rules() as $rule) {
+            if ((float) ($rule['multa_giornaliera'] ?? 0) > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

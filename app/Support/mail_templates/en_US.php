@@ -303,6 +303,22 @@ return [
 </ul>
 <p><a href="{{approve_url}}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Manage Request</a></p>',
     ],
+    'fine_charged' => [
+        'subject' => '💶 Late return fine: {{multa}}',
+        'body' => '<h2>Late return fine</h2>
+<p>Hi {{utente_nome}},</p>
+<p>the book below was returned after its due date and a fine has been charged to your account.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Book:</strong> {{libro_titolo}}</p>
+    <p><strong>Due date:</strong> {{data_scadenza}}</p>
+    <p><strong>Returned on:</strong> {{data_restituzione}}</p>
+    <p><strong>Days late:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Fine:</strong> {{multa}}</p>
+    <p><strong>Balance due:</strong> {{saldo}}</p>
+</div>
+<p>You can settle the amount at the library desk.</p>
+<p>Best regards,<br>The library team</p>',
+    ],
     'loan_returned' => [
         'subject' => '✅ Return confirmed',
         'body' => '<h2>Return confirmed</h2>
@@ -312,6 +328,7 @@ return [
     <p><strong>Book:</strong> {{libro_titolo}}</p>
     <p><strong>Return date:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>We hope you enjoyed the read. See you soon at the library!</p>
 <p>Best regards,<br>The library team</p>',
     ],

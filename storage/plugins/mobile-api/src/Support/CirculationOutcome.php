@@ -35,6 +35,7 @@ final class CirculationOutcome
         'duplicate_reservation' => [409, 'duplicate', null, true],
         'user_suspended'        => [409, 'not_eligible', null, true],
         'card_expired'          => [409, 'not_eligible', null, true],
+        'debt_block'            => [409, 'not_eligible', null, true],
         'max_loans_reached'     => [409, 'max_loans_reached', null, false],
         'media_limit_reached'   => [409, 'media_limit_reached', null, false],
         'not_loanable'          => [409, 'not_loanable', null, false],
@@ -56,6 +57,7 @@ final class CirculationOutcome
     public const RETURN = [
         'invalid_status'   => [422, 'validation_error', 'outcome', false],
         'invalid_penalty'  => [422, 'validation_error', 'penalty', false],
+        'waiver_reason_required' => [422, 'validation_error', 'waiver_reason', false],
         'not_returnable'   => [409, 'not_returnable', null, false],
         'concurrent_retry' => [409, 'concurrent_retry', null, false],
         'update_failed'    => [500, 'internal_error', null, false],
@@ -74,6 +76,7 @@ final class CirculationOutcome
         'user_not_found'      => [409, 'not_eligible', null, true],
         'user_suspended'      => [409, 'not_eligible', null, true],
         'card_expired'        => [409, 'not_eligible', null, true],
+        'debt_block'          => [409, 'not_eligible', null, true],
         'renewal_failed'      => [500, 'internal_error', null, false],
         'book_not_found'      => [404, 'not_found', null, false],
     ];
@@ -102,6 +105,7 @@ final class CirculationOutcome
         'not_loanable'         => [409, 'not_loanable', null, false],
         'reservations_disabled' => [409, 'reservations_disabled', null, false],
         'reservation_limit_reached' => [409, 'reservation_limit_reached', null, false],
+        'debt_block'           => [409, 'not_eligible', null, true],
         'save_failed'          => [500, 'internal_error', null, false],
         'update_failed'        => [500, 'internal_error', null, false],
     ];
@@ -254,7 +258,7 @@ final class CirculationOutcome
     /** Client-safe message for a core outcome code. */
     public static function message(string $coreCode): string
     {
-        if (in_array($coreCode, ['user_not_found', 'user_suspended', 'card_expired'], true)) {
+        if (in_array($coreCode, ['user_not_found', 'user_suspended', 'card_expired', 'debt_block'], true)) {
             return \App\Support\LoanEligibility::errorMessage($coreCode);
         }
 
@@ -279,6 +283,7 @@ final class CirculationOutcome
             'concurrent_retry'      => __('Operazione in conflitto con un\'altra in corso. Riprova.'),
             'invalid_status'        => __('Stato non valido.'),
             'invalid_penalty'       => __('Importo della sanzione non valido.'),
+            'waiver_reason_required' => __('Per condonare la multa serve una motivazione.'),
             'not_returnable'        => __('Il prestito non può essere restituito nello stato attuale.'),
             'loan_not_found', 'not_found' => __('Elemento non trovato.'),
             'loan_not_active', 'loan_not_picked_up' => __('Il prestito non è attivo.'),

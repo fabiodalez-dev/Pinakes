@@ -65,6 +65,7 @@ unset($workspaceHeader);
             echo match ($_GET['error']) {
                 'invalid_status'   => __('Stato prestito non valido.'),
                 'invalid_penalty'  => __('Importo non valido: usa un valore positivo con al massimo due decimali.'),
+                'waiver_reason_required' => __('Per condonare la multa serve una motivazione.'),
                 'update_failed'    => __('Si è verificato un errore durante l\'aggiornamento del prestito.'),
                 'concurrent_retry' => __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.'),
                 default            => __('Impossibile completare l\'operazione. Riprova più tardi.')
@@ -218,6 +219,30 @@ unset($workspaceHeader);
             </div>
         </div>
 
+        <?php if (!empty($finePreview['enabled']) && (int) ($finePreview['cents'] ?? 0) > 0): ?>
+        <!-- Multa per ritardo (plan §7) -->
+        <div id="fine-preview" class="rounded-lg border border-yellow-300 bg-yellow-50 p-6 shadow-sm" data-fine-cents="<?= (int) $finePreview['cents'] ?>">
+            <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <i class="fas fa-coins text-gray-600"></i><?= __("Multa per ritardo") ?></h3>
+            <p class="text-sm text-yellow-900">
+                <?= htmlspecialchars(sprintf(
+                    __('Restituito con %1$d giorni di ritardo: alla conferma verrà addebitata una multa di %2$s.'),
+                    (int) $finePreview['days'],
+                    \App\Services\FineParameters::format((int) $finePreview['cents'])
+                ), ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+            <label class="mt-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                <input type="checkbox" id="waive_fine" name="waive_fine" value="1">
+                <span><?= __("Condona la multa") ?></span>
+            </label>
+            <label id="waive-reason-field" class="mt-3 hidden flex-col gap-2">
+                <span class="text-sm font-bold text-gray-900"><?= __("Motivazione del condono") ?> *</span>
+                <input id="waive_reason" name="waive_reason" type="text" maxlength="255" disabled
+                       class="w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-gray-900 focus:border-gray-900 focus:outline-none">
+            </label>
+        </div>
+        <?php endif; ?>
+
         <!-- Azioni -->
         <div class="pk-form-actions flex flex-wrap gap-3">
             <button type="submit" class="inline-flex items-center justify-center gap-3 rounded-lg bg-gray-900 px-8 py-3.5 text-base font-bold text-white transition hover:bg-gray-700">
@@ -245,6 +270,32 @@ document.addEventListener('DOMContentLoaded', function () {
         input.disabled = !visible;
     };
     status.addEventListener('change', sync);
+    sync();
+});
+document.addEventListener('DOMContentLoaded', function () {
+    const status = document.getElementById('stato');
+    const box = document.getElementById('fine-preview');
+    const waive = document.getElementById('waive_fine');
+    const reasonField = document.getElementById('waive-reason-field');
+    const reason = document.getElementById('waive_reason');
+    if (!box || !waive || !reasonField || !reason) {
+        return;
+    }
+    const sync = function () {
+        // The late fine applies to an actual return only, not to a copy closed lost/damaged.
+        const returned = !status || (status.value !== 'perso' && status.value !== 'danneggiato');
+        box.classList.toggle('hidden', !returned);
+        const askReason = returned && waive.checked;
+        reasonField.classList.toggle('hidden', !askReason);
+        reasonField.classList.toggle('flex', askReason);
+        reason.disabled = !askReason;
+        reason.required = askReason;
+        waive.disabled = !returned;
+    };
+    waive.addEventListener('change', sync);
+    if (status) {
+        status.addEventListener('change', sync);
+    }
     sync();
 });
 </script>

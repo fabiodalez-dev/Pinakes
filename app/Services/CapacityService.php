@@ -449,7 +449,7 @@ final class CapacityService
                 JOIN utenti u ON u.id = r.utente_id
                 WHERE r.libro_id = ?
                   AND r.stato = 'attiva'
-                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
+                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db) . "
                   AND $rStart IS NOT NULL
                   AND $rStart <= ?
                   AND $rEnd >= ?";

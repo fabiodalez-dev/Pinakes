@@ -303,6 +303,22 @@ return [
 </ul>
 <p><a href="{{approve_url}}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Gérer la demande</a></p>',
     ],
+    'fine_charged' => [
+        'subject' => '💶 Pénalité de retard : {{multa}}',
+        'body' => '<h2>Pénalité de retard</h2>
+<p>Bonjour {{utente_nome}},</p>
+<p>le livre ci-dessous a été rendu après sa date d’échéance et une pénalité a été portée à votre compte.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Livre :</strong> {{libro_titolo}}</p>
+    <p><strong>Échéance :</strong> {{data_scadenza}}</p>
+    <p><strong>Rendu le :</strong> {{data_restituzione}}</p>
+    <p><strong>Jours de retard :</strong> {{giorni_ritardo}}</p>
+    <p><strong>Pénalité :</strong> {{multa}}</p>
+    <p><strong>Solde à régler :</strong> {{saldo}}</p>
+</div>
+<p>Vous pouvez régler le montant à l’accueil de la bibliothèque.</p>
+<p>Cordialement,<br>L’équipe de la bibliothèque</p>',
+    ],
     'loan_returned' => [
         'subject' => '✅ Retour confirmé',
         'body' => '<h2>Retour confirmé</h2>
@@ -312,6 +328,7 @@ return [
     <p><strong>Livre :</strong> {{libro_titolo}}</p>
     <p><strong>Date de retour :</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Nous espérons que cette lecture vous a plu. À très bientôt à la bibliothèque !</p>
 <p>Cordialement,<br>L\'équipe de la bibliothèque</p>',
     ],

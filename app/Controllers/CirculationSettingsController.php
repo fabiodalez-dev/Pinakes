@@ -27,7 +27,11 @@ class CirculationSettingsController
         'giorni_rinnovo' => [1, 3650],
         'max_prenotazioni' => [0, 1000],
         'durata_tessera_giorni' => [1, 36500],
+        'giorni_tolleranza' => [0, 365],
     ];
+
+    /** Patron type money fields (DECIMAL(10,2), NULL when empty; 0 = disabled for this type). */
+    public const TYPE_MONEY_FIELDS = ['multa_giornaliera', 'multa_massima_prestito', 'soglia_blocco_debito'];
 
     /** Matrix cell fields: form key => [column, min, max]. */
     private const RULE_FIELDS = [
@@ -35,6 +39,16 @@ class CirculationSettingsController
         'duration' => ['durata_prestito_giorni', 1, 3650],
         'renewals' => ['max_rinnovi', 0, 100],
         'renewal_days' => ['giorni_rinnovo', 1, 3650],
+        'grace' => ['giorni_tolleranza', 0, 365],
+    ];
+
+    /** Matrix cell fields added with the fines: absent from an older form, kept as stored. */
+    private const RULE_FIELDS_KEPT_WHEN_ABSENT = ['grace'];
+
+    /** Matrix cell money fields: form key => column. */
+    private const RULE_MONEY_FIELDS = [
+        'fine' => 'multa_giornaliera',
+        'fine_max' => 'multa_massima_prestito',
     ];
 
     private const TAB_URL = '/admin/settings?tab=circulation';
@@ -72,6 +86,9 @@ class CirculationSettingsController
                     'duration' => $resolved->durationDays,
                     'renewals' => $resolved->maxRenewals,
                     'renewal_days' => $resolved->renewalDays,
+                    'grace' => (int) ($resolved->graceDays ?? 0),
+                    'fine' => $resolved->dailyFine,
+                    'fine_max' => $resolved->maxFinePerLoan,
                 ];
             }
         }
@@ -348,18 +365,39 @@ class CirculationSettingsController
         $cells = is_array($data['rules'] ?? null) ? $data['rules'] : [];
         $validTypes = array_merge([CirculationPolicy::ALL_TYPES], array_keys($policy->types()));
         $media = array_keys(self::mediaTypes());
+        // A form rendered before the fine columns were in the matrix (an open
+        // tab during the upgrade) does not send them: an absent field keeps
+        // the stored value, only a field sent empty clears it.
+        $existing = $policy->rules();
         $rows = [];
         foreach ($validTypes as $typeId) {
             foreach ($media as $m) {
                 $cell = $cells[$typeId][$m] ?? [];
                 $cell = is_array($cell) ? $cell : [];
+                $stored = $existing[$typeId . '|' . $m] ?? [];
                 $row = ['prestabile' => null];
                 $loanable = (string) ($cell['loanable'] ?? '');
                 if ($loanable === '1' || $loanable === '0') {
                     $row['prestabile'] = (int) $loanable;
                 }
                 foreach (self::RULE_FIELDS as $key => [$column, $min, $max]) {
+                    if (in_array($key, self::RULE_FIELDS_KEPT_WHEN_ABSENT, true) && !array_key_exists($key, $cell)) {
+                        $row[$column] = isset($stored[$column]) ? (int) $stored[$column] : null;
+                        continue;
+                    }
                     $value = $this->intOrNull($cell[$key] ?? null, $min, $max);
+                    if ($value === false) {
+                        $_SESSION['error_message'] = sprintf(__('Valore non valido nella matrice (%s, %s).'), $typeId === 0 ? __('Tutte le tipologie') : (string) ($policy->types()[$typeId]['nome'] ?? $typeId), (string) (self::mediaTypes()[$m] ?? $m));
+                        return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
+                    }
+                    $row[$column] = $value;
+                }
+                foreach (self::RULE_MONEY_FIELDS as $key => $column) {
+                    if (!array_key_exists($key, $cell)) {
+                        $row[$column] = isset($stored[$column]) ? (string) $stored[$column] : null;
+                        continue;
+                    }
+                    $value = self::moneyOrNull($cell[$key] ?? null);
                     if ($value === false) {
                         $_SESSION['error_message'] = sprintf(__('Valore non valido nella matrice (%s, %s).'), $typeId === 0 ? __('Tutte le tipologie') : (string) ($policy->types()[$typeId]['nome'] ?? $typeId), (string) (self::mediaTypes()[$m] ?? $m));
                         return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
@@ -373,26 +411,23 @@ class CirculationSettingsController
             $db->begin_transaction();
             $delete = $db->prepare('DELETE FROM regole_prestito WHERE tipologia_id = ? AND tipo_media = ?');
             $upsert = $db->prepare(
-                'INSERT INTO regole_prestito (tipologia_id, tipo_media, prestabile, max_prestiti, durata_prestito_giorni, max_rinnovi, giorni_rinnovo)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                'INSERT INTO regole_prestito (tipologia_id, tipo_media, prestabile, max_prestiti, durata_prestito_giorni, max_rinnovi,
+                                              giorni_rinnovo, giorni_tolleranza, multa_giornaliera, multa_massima_prestito)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE prestabile = VALUES(prestabile), max_prestiti = VALUES(max_prestiti),
                      durata_prestito_giorni = VALUES(durata_prestito_giorni), max_rinnovi = VALUES(max_rinnovi),
-                     giorni_rinnovo = VALUES(giorni_rinnovo)'
+                     giorni_rinnovo = VALUES(giorni_rinnovo), giorni_tolleranza = VALUES(giorni_tolleranza),
+                     multa_giornaliera = VALUES(multa_giornaliera), multa_massima_prestito = VALUES(multa_massima_prestito)'
             );
-            $existing = $policy->rules();
-            foreach ($rows as $key => $row) {
+            foreach ($rows as $row) {
                 $typeId = (int) $row['tipologia_id'];
                 $m = (string) $row['tipo_media'];
                 $empty = $row['prestabile'] === null && $row['max_prestiti'] === null
                     && $row['durata_prestito_giorni'] === null && $row['max_rinnovi'] === null
-                    && $row['giorni_rinnovo'] === null;
-                // Fine columns are not edited here yet: a cell that carries
-                // one is kept even when every edited field is emptied.
-                $hasOtherFields = isset($existing[$key]) && (
-                    $existing[$key]['multa_giornaliera'] !== null
-                    || $existing[$key]['multa_massima_prestito'] !== null || $existing[$key]['giorni_tolleranza'] !== null
-                );
-                if ($empty && !$hasOtherFields) {
+                    && $row['giorni_rinnovo'] === null && $row['giorni_tolleranza'] === null
+                    && $row['multa_giornaliera'] === null && $row['multa_massima_prestito'] === null;
+                // Every rule column is edited in the matrix: an all-empty cell removes its rule.
+                if ($empty) {
                     $delete->bind_param('is', $typeId, $m);
                     $delete->execute();
                     continue;
@@ -402,7 +437,10 @@ class CirculationSettingsController
                 $duration = $row['durata_prestito_giorni'];
                 $renewals = $row['max_rinnovi'];
                 $renewalDays = $row['giorni_rinnovo'];
-                $upsert->bind_param('isiiiii', $typeId, $m, $loanable, $max, $duration, $renewals, $renewalDays);
+                $grace = $row['giorni_tolleranza'];
+                $fine = $row['multa_giornaliera'];
+                $fineMax = $row['multa_massima_prestito'];
+                $upsert->bind_param('isiiiiiiss', $typeId, $m, $loanable, $max, $duration, $renewals, $renewalDays, $grace, $fine, $fineMax);
                 $upsert->execute();
             }
             $delete->close();
@@ -454,7 +492,36 @@ class CirculationSettingsController
             }
             $fields[$column] = $value;
         }
+        foreach (self::TYPE_MONEY_FIELDS as $column) {
+            $value = self::moneyOrNull($data[$column] ?? null);
+            if ($value === false) {
+                $raw = $data[$column] ?? null;
+                return is_scalar($raw) && \App\Services\FineParameters::exceedsSettingMax((string) $raw)
+                    ? sprintf(__('Importo non valido per "%1$s": il massimo consentito è %2$s.'), self::fieldLabel($column), \App\Services\FineParameters::format(\App\Services\FineParameters::MAX_SETTING_CENTS))
+                    : sprintf(__('Valore non valido per il campo "%s".'), self::fieldLabel($column));
+            }
+            $fields[$column] = $value;
+        }
         return $fields;
+    }
+
+    /**
+     * An amount typed by the operator ("2", "2,50") as a DECIMAL string.
+     *
+     * @return string|null|false null for an empty value, false when malformed, negative or above FineParameters::MAX_SETTING_CENTS
+     */
+    private static function moneyOrNull(mixed $raw): string|null|false
+    {
+        if ($raw === null || (is_string($raw) && trim($raw) === '')) {
+            return null;
+        }
+        if (!is_scalar($raw)) {
+            return false;
+        }
+        $cents = \App\Services\FineParameters::toCents((string) $raw);
+        return $cents === null || $cents > \App\Services\FineParameters::MAX_SETTING_CENTS
+            ? false
+            : \App\Services\FineParameters::centsToDecimal($cents);
     }
 
     public static function fieldLabel(string $column): string
@@ -467,6 +534,10 @@ class CirculationSettingsController
             'giorni_rinnovo' => __('Giorni per rinnovo'),
             'max_prenotazioni' => __('Prenotazioni massime'),
             'durata_tessera_giorni' => __('Durata tessera (giorni)'),
+            'multa_giornaliera' => __('Multa giornaliera'),
+            'giorni_tolleranza' => __('Giorni di tolleranza'),
+            'multa_massima_prestito' => __('Multa massima per prestito'),
+            'soglia_blocco_debito' => __('Soglia di blocco per debito'),
             default => $column,
         };
     }
