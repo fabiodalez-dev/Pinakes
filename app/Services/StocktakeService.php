@@ -794,7 +794,7 @@ final class StocktakeService
     {
         $stmt = $this->db->prepare(
             'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, '
-            . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, '
+            . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, c.updated_at AS copia_aggiornata_il, '
             . 'COALESCE(l.titolo, a.titolo_atteso) AS titolo, l.id AS libro_attivo, l.collocazione, l.tipo_media, '
             . ($frozen ? "(a.esito_chiusura = 'in_prestito')" : self::onLoanSql()) . ' AS in_prestito '
             . 'FROM inventario_attese a '
@@ -973,15 +973,27 @@ final class StocktakeService
 
     /**
      * The unscanned expected copies a mark-lost close applies to, by book.
+     * Only rows the close froze as missing ('mancante') qualify: a row it
+     * already marked ('persa') is never marked again. A copy changed after
+     * the close (found and put back, repaired, lent) is someone's later
+     * decision, not a copy the close failed to reach, so it is left alone.
      *
      * @return array<int,list<array<string,mixed>>>
      */
     private function missingToMark(int $sessionId): array
     {
+        $closedAt = $this->closedAt($sessionId);
         $byBook = [];
         foreach ($this->unscannedExpected($sessionId, true) as $row) {
+            if (($row['esito_chiusura'] ?? null) !== 'mancante') {
+                continue; // already marked lost by the close, or not missing at close
+            }
             if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['libro_attivo'] === null) {
                 continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
+            }
+            $changedAt = $row['copia_aggiornata_il'] ?? null;
+            if ($closedAt !== null && is_string($changedAt) && $changedAt > $closedAt) {
+                continue; // handled by someone after the close
             }
             if (in_array((string) $row['stato_attuale'], self::AWAY_STATES, true)) {
                 continue;
@@ -989,6 +1001,20 @@ final class StocktakeService
             $byBook[(int) $row['libro_id']][] = $row;
         }
         return $byBook;
+    }
+
+    /** When the session was closed (MySQL DATETIME text), or NULL. */
+    private function closedAt(int $sessionId): ?string
+    {
+        $stmt = $this->db->prepare('SELECT chiusa_il FROM inventario_sessioni WHERE id = ?');
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $sessionId);
+        $stmt->execute();
+        $value = $stmt->get_result()->fetch_column();
+        $stmt->close();
+        return is_string($value) ? $value : null;
     }
 
     /** @return array{marked:int,failed:int} */
