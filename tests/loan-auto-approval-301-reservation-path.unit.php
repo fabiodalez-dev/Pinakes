@@ -461,6 +461,59 @@ $loanFutureId = (int) ($resFuture['payload']['loan_request_id'] ?? 0);
 $check($loanFutureId > 0 && $loanField($loanFutureId, 'stato') === 'prenotato', "21 loan persisted as 'prenotato' (scheduled)");
 $check($loanField($loanFutureId, 'pickup_deadline') === null, '22 scheduled loan has no pickup_deadline yet');
 
+// ── D2. The response carries the pickup deadline the server will apply ────
+// Computed with the assigned copy's branch closures (the page's own rule only
+// knows the library-wide ones), and the due date the approval wrote is what
+// the request answers with even when it moved over a branch closure.
+echo "D2. scheduled request: pickup deadline and due date with the copy's branch closures\n";
+$pickupSetting = max(1, (int) ($settings->get('loans', 'pickup_expiry_days', '3') ?? 3));
+$check(($resFuture['payload']['pickup_deadline'] ?? null) === \App\Support\LibraryCalendar::pickupDeadline($db, $futureStart, $pickupSetting, $futureEnd, (int) $loanField($loanFutureId, 'copia_id')), '22a scheduled response carries the pickup deadline activation will set');
+$check(($resFuture['payload']['pickup_days'] ?? null) === $pickupSetting, '22b and the open pickup days');
+$calTag = 'ZZRES301CAL_' . $run;
+$db->query("INSERT INTO sedi (nome) VALUES ('{$calTag}')");
+$calSede = (int) $db->insert_id;
+$calBook = $makeBook(1);
+$calCopy = $copyIdsForBook($calBook)[0];
+try {
+    $db->query("UPDATE copie SET sede_id = {$calSede} WHERE id = {$calCopy}");
+    $closedPickupDay = (new DateTimeImmutable($futureStart))->modify('+1 day')->format('Y-m-d');
+    $stmt = $db->prepare('INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale, sede_id) VALUES (?, ?, ?, 0, ?), (?, ?, ?, 0, ?)');
+    $stmt->bind_param('sssisssi', $closedPickupDay, $closedPickupDay, $calTag, $calSede, $futureEnd, $futureEnd, $calTag, $calSede);
+    $stmt->execute();
+    $stmt->close();
+    \App\Support\LibraryCalendar::reset();
+    $resBranch = $callCreate($calBook, $makeUser(), $futureStart, $futureEnd);
+    $branchLoanId = (int) ($resBranch['payload']['loan_request_id'] ?? 0);
+    $check(($resBranch['payload']['loan_state'] ?? '') === 'prenotato' && (int) $loanField($branchLoanId, 'copia_id') === $calCopy, '22c the request on the branch copy is scheduled on that copy');
+    $expectedPickup = (new DateTimeImmutable($futureStart))->modify('+' . ($pickupSetting + 1) . ' days')->format('Y-m-d');
+    $check(($resBranch['payload']['pickup_deadline'] ?? null) === $expectedPickup, "22d the pickup deadline skips the branch's closed day ({$expectedPickup})");
+    $check(($resBranch['payload']['pickup_days'] ?? null) === $pickupSetting, '22e the closed day adds no pickup day');
+    $movedDue = (new DateTimeImmutable($futureEnd))->modify('+1 day')->format('Y-m-d');
+    $check(($resBranch['payload']['end_date'] ?? null) === $movedDue && $loanField($branchLoanId, 'data_scadenza') === $movedDue, '22f the due date moved over the branch closure is the one answered');
+
+    // The approval hands back the due date it wrote, so the answer does not
+    // depend on reading the row again.
+    $db->query("UPDATE prestiti SET stato = 'annullato', attivo = 0 WHERE id = {$branchLoanId}");
+    $db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$calCopy}");
+    $pendingUser = $makeUser();
+    $stmt = $db->prepare("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (?, ?, ?, ?, ?, 'pendente', 'richiesta', 0)");
+    $stmt->bind_param('iiiss', $calBook, $calCopy, $pendingUser, $futureStart, $futureEnd);
+    $stmt->execute();
+    $pendingId = (int) $db->insert_id;
+    $stmt->close();
+    $_SESSION['user'] = ['id' => $pendingUser, 'tipo_utente' => 'standard'];
+    $autoApprove = new ReflectionMethod(ReservationsController::class, 'autoApproveLoanRequest');
+    $approvedBody = null;
+    $approvedState = $autoApprove->invokeArgs(new ReservationsController($db), [(new ServerRequestFactory())->createServerRequest('POST', '/'), $pendingId, true, &$approvedBody]);
+    unset($_SESSION['user']);
+    $check($approvedState === 'prenotato' && is_array($approvedBody) && ($approvedBody['data_scadenza'] ?? null) === $movedDue, '22g the automatic approval returns the due date it wrote');
+} finally {
+    $db->query("DELETE FROM calendario_chiusure WHERE descrizione = '{$calTag}'");
+    $db->query("UPDATE copie SET sede_id = NULL WHERE id = {$calCopy}");
+    $db->query("DELETE FROM sedi WHERE id = {$calSede}");
+    \App\Support\LibraryCalendar::reset();
+}
+
 // ── E. #384: a currently-out single copy creates a REAL reservation ────────
 // The requested future window starts the day after the contractual due date,
 // exactly like the reporter's screenshot. A due date is not a physical return:

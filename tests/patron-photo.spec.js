@@ -50,12 +50,25 @@ const photoFile = (stored) => path.join(ROOT, 'storage', stored);
 
 const RUN = Date.now().toString(36).toUpperCase();
 
-async function login(page) {
+async function login(page, email = ADMIN_EMAIL, password = ADMIN_PASS) {
   await page.goto(`${BASE}/accedi`);
-  await page.fill('input[name="email"]', ADMIN_EMAIL);
-  await page.fill('input[name="password"]', ADMIN_PASS);
+  await page.fill('input[name="email"]', email);
+  await page.fill('input[name="password"]', password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => u.toString().includes('/admin'), { timeout: 15000 });
+}
+
+/** Give a reader a photo the way a librarian does: "Carica foto" on the edit form. */
+async function uploadPhoto(page, id, name) {
+  await page.goto(`${BASE}/admin/users/edit/${id}`);
+  const png = path.join(os.tmpdir(), `${name}-${RUN}.png`);
+  writePng(png);
+  await page.locator('#photo-file').setInputFiles(png);
+  await expect(page.locator('#photo-status')).toHaveText('Foto salvata.', { timeout: 15000 });
+  fs.unlinkSync(png);
+  const stored = storedPhoto(id);
+  expect(stored).not.toBe('');
+  return stored;
 }
 
 /** A small valid PNG written with a raw zlib stream (no image library needed). */
@@ -83,8 +96,10 @@ function writePng(file, w = 64, h = 80) {
 test.describe.serial('Patron photo (phase 7)', () => {
   let userId = 0;
   let bookId = 0;
+  let roleId = 0;
   const code = `ZPH${RUN}`;
   const files = [];
+  const extraUsers = [];
 
   test.beforeAll(() => {
     dbQuery(`INSERT INTO utenti (nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata, telefono)
@@ -97,6 +112,12 @@ test.describe.serial('Patron photo (phase 7)', () => {
     if (stored) files.push(photoFile(stored));
     if (userId) dbQuery(`DELETE FROM prestiti WHERE utente_id = ${userId}`);
     if (userId) dbQuery(`DELETE FROM utenti WHERE id = ${userId}`);
+    for (const id of extraUsers) {
+      const extra = storedPhoto(id);
+      if (extra) files.push(photoFile(extra));
+      dbQuery(`DELETE FROM utenti WHERE id = ${id}`);
+    }
+    if (roleId) dbQuery(`DELETE FROM ruoli WHERE id = ${roleId}`);
     if (bookId) dbQuery(`DELETE FROM libri WHERE id = ${bookId}`);
     for (const f of files) removeServerFile(f);
   });
@@ -151,6 +172,33 @@ test.describe.serial('Patron photo (phase 7)', () => {
     const denied = await anon.request.get(`${BASE}/admin/users/${userId}/photo`, { maxRedirects: 0 });
     expect(denied.status()).not.toBe(200);
     await anon.close();
+  });
+
+  test('a custom role with users.manage sees the photos of the readers it may edit, not of the others', async ({ page }) => {
+    // AdminAuthMiddleware lets this role through to /admin/users/...; the
+    // per-reader check of PatronCardsController::canRead() is what refuses
+    // a reader the role may not edit (here one that holds a role itself).
+    await login(page);
+    roleId = Number(dbQuery(`INSERT INTO ruoli (nome, permessi) VALUES (${sqlStr(`Foto ${RUN}`)}, '["backend.access","users.manage"]'); SELECT LAST_INSERT_ID();`));
+    const password = `Zph-${RUN}-pw`;
+    const hash = execFileSync('php', ['-r', 'echo password_hash($argv[1], PASSWORD_DEFAULT);', password], { encoding: 'utf-8' });
+    const managerEmail = `zph-manager-${RUN.toLowerCase()}@example.invalid`;
+    const managerId = Number(dbQuery(`INSERT INTO utenti (nome, cognome, email, password, codice_tessera, stato, tipo_utente, ruolo_id, email_verificata, privacy_accettata)
+             VALUES ('Gestore', ${sqlStr(`Foto${RUN}`)}, ${sqlStr(managerEmail)}, ${sqlStr(hash)}, ${sqlStr(`ZPM${RUN}`)}, 'attivo', 'standard', ${roleId}, 1, 1); SELECT LAST_INSERT_ID();`));
+    extraUsers.push(managerId);
+    const otherId = Number(dbQuery(`INSERT INTO utenti (nome, cognome, email, password, codice_tessera, stato, tipo_utente, ruolo_id, email_verificata)
+             VALUES ('Altro', ${sqlStr(`Ruolo${RUN}`)}, ${sqlStr(`zph-other-${RUN.toLowerCase()}@example.invalid`)}, 'x', ${sqlStr(`ZPO${RUN}`)}, 'attivo', 'standard', ${roleId}, 1); SELECT LAST_INSERT_ID();`));
+    extraUsers.push(otherId);
+    await uploadPhoto(page, otherId, 'zph-other');
+
+    const manager = await page.context().browser().newContext();
+    const managerPage = await manager.newPage();
+    await login(managerPage, managerEmail, password);
+    const allowed = await managerPage.request.get(`${BASE}/admin/users/${userId}/photo`);
+    expect(allowed.status()).toBe(200); // a plain reader: the role may edit it
+    const refused = await managerPage.request.get(`${BASE}/admin/users/${otherId}/photo`, { maxRedirects: 0 });
+    expect(refused.status()).toBe(403); // the reader exists: refused by canRead(), not missing
+    await manager.close();
   });
 
   test('the photo is printed on the library card', async ({ page }) => {
@@ -234,6 +282,24 @@ test.describe.serial('Patron photo (phase 7)', () => {
     await page.locator('#user-form button[type="submit"]').click();
     await page.waitForURL((u) => !u.toString().includes('/edit/'), { timeout: 15000 });
     expect(storedPhoto(userId)).toBe('');
+  });
+
+  test('deleting a reader without loans removes the account and its photo', async ({ page }) => {
+    await login(page);
+    const id = Number(dbQuery(`INSERT INTO utenti (nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata)
+             VALUES ('Senza', ${sqlStr(`Prestiti${RUN}`)}, ${sqlStr(`zph-noloan-${RUN.toLowerCase()}@example.invalid`)}, 'x', ${sqlStr(`ZPN${RUN}`)}, 'attivo', 'standard', 1); SELECT LAST_INSERT_ID();`));
+    extraUsers.push(id);
+    const stored = await uploadPhoto(page, id, 'zph-noloan');
+    files.push(photoFile(stored));
+    expect(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE utente_id = ${id}`)).toBe('0');
+
+    const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    const res = await page.request.post(`${BASE}/admin/users/delete/${id}`, { form: { csrf_token: String(csrf) }, maxRedirects: 0 });
+    expect(res.status()).toBe(302);
+    expect(dbQuery(`SELECT COUNT(*) FROM utenti WHERE id = ${id}`)).toBe('0');
+    expect(serverFileExists(photoFile(stored))).toBe(false);
+    const gone = await page.request.get(`${BASE}/admin/users/${id}/photo`);
+    expect(gone.status()).toBe(404);
   });
 
   test('deleting a reader with loan history keeps the account as suspended but still erases the photo', async ({ page }) => {

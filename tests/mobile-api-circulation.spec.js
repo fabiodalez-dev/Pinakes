@@ -388,6 +388,9 @@ test.describe('Reader request on a closed day', () => {
             setSetting('auto_approve_requests', '1');
             setSetting('closed_weekdays', '');
             F.dbExec(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('${ctx.today}', '${ctx.today}', '${TAG}')`);
+            // Tomorrow too: the first open day is then never simply today + 1,
+            // so an implementation that always schedules tomorrow fails.
+            F.dbExec(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('${isoDay(1)}', '${isoDay(1)}', '${TAG}')`);
             const r = await F.api(request, 'POST', '/reservations', { token, body: { book_id: bookId } });
             expect(r.status, r.text.slice(0, 300)).toBe(201);
             expect(r.json.data.type).toBe('loan');
@@ -404,6 +407,7 @@ test.describe('Reader request on a closed day', () => {
             });
             let offset = 1;
             while (offset < 400 && closed(isoDay(offset))) offset++;
+            expect(offset).toBeGreaterThanOrEqual(2);
             expect(r.json.data.start_date).toBe(isoDay(offset));
             expect(r.json.meta.message).not.toMatch(/attesa di ritiro/);
             const stored = F.dbScalar(`SELECT CONCAT(stato,'|',data_prestito) FROM prestiti WHERE id=${r.json.data.loan_id}`);

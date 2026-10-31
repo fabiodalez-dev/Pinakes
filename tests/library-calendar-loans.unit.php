@@ -79,7 +79,7 @@ $cleanup = static function () use ($db, $tag, $prevWeekdays, &$bookId, &$userId,
     }
     if ($bookId > 0) {
         $db->query("DELETE FROM prenotazioni WHERE libro_id = {$bookId}");
-        $db->query("DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id = {$bookId})");
+        $db->query("DELETE FROM admin_notifications WHERE (type IN ('new_loan_request', 'overdue_loan') OR (type = 'general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id = {$bookId})");
         $db->query("DELETE FROM prestiti WHERE libro_id = {$bookId}");
         $db->query("DELETE FROM copie WHERE libro_id = {$bookId}");
         $db->query("DELETE FROM libri WHERE id = {$bookId}");
@@ -107,6 +107,17 @@ $plain = $shift($today, 30);
 $check(LibraryCalendar::dueDate($db, $plain) === $plain, 'zero config: dueDate is the computed date');
 $check(LibraryCalendar::pickupDeadline($db, $today, 3) === $shift($today, 3), 'zero config: pickupDeadline is today + N');
 $check(LibraryCalendar::pickupDeadline($db, $today, 3, $shift($today, 1)) === $shift($today, 1), 'pickupDeadline is capped at the due date');
+
+// ── A closures read that fails is not an empty calendar ──────────────────
+$broken = new mysqli($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+$broken->close();
+$loadError = null;
+try {
+    LibraryCalendar::fromDatabase($broken);
+} catch (\Throwable $e) {
+    $loadError = $e;
+}
+$check($loadError instanceof \RuntimeException, 'a closures read that fails throws instead of returning a calendar with no closures');
 
 // ── 14-day loan ending on Sunday → Monday ─────────────────────────────────
 $setWeekdays('0');
@@ -154,6 +165,16 @@ $addClosure($branchDay, $branchDay, $sedeId);
 $check(LibraryCalendar::dueDate($db, $branchDay, $copyId) === $shift($branchDay, 1), "a closure of the copy's branch moves its due date");
 $check(LibraryCalendar::dueDate($db, $branchDay) === $branchDay, 'the same closure does not move a loan without that branch');
 $check(CirculationPolicy::dueDateFor($shift($branchDay, -7), 7, $db, $copyId) === $shift($branchDay, 1), "dueDateFor applies the copy's branch closures when the copy is known");
+
+// {{giorni_ritiro}} counts the open days of the copy's branch, as the
+// deadline it describes does.
+$pickupSetting = max(1, (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'pickup_expiry_days', '3') ?? 3));
+$effectivePickupDays = new ReflectionMethod(\App\Support\NotificationService::class, 'effectivePickupDays');
+$notifier = new \App\Support\NotificationService($db);
+$windowStart = $shift($branchDay, -1);
+$windowEnd = $shift($windowStart, $pickupSetting);
+$check($effectivePickupDays->invoke($notifier, $windowStart, $windowEnd, $copyId) === (string) ($pickupSetting - 1), "pickup days: a closure of the copy's branch inside the window is not a pickup day");
+$check($effectivePickupDays->invoke($notifier, $windowStart, $windowEnd) === (string) $pickupSetting, 'pickup days: without the copy the branch closure does not count');
 
 // ── Renewal cap steps back to an open day ─────────────────────────────────
 $clearClosures();
@@ -400,6 +421,36 @@ $flash();
 $controller->store($post(['data_inizio' => '2026-07-01', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
 $check($err !== null && $taggedRows() === 1, "yearly: a library-wide half that closes the year of one branch is refused");
+$clearClosures();
+
+// The weekly closed days count in the whole-year guard: a yearly closure
+// leaving only Jan 1 open closes every year whose Jan 1 is a Sunday.
+$setWeekdays('0');
+$controller->store($post(['data_inizio' => '2026-01-02', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $taggedRows() === 0, 'yearly: with Sundays closed, a closure leaving only Jan 1 open is refused');
+$setWeekdays('');
+$controller->store($post(['data_inizio' => '2026-01-02', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'yearly: without closed weekdays the same closure is accepted');
+$controller->saveWeekdays($post(['closed_weekdays' => ['0']]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $ok === null && $weekdaysNow() === '', 'weekdays: closing Sundays over a yearly closure that leaves only Jan 1 open is refused and rolled back');
+$controller->saveWeekdays($post([]), new \Slim\Psr7\Response(), $db);
+$flash();
+$clearClosures();
+
+// The holidays preset meets the same guard: the stored yearly closures leave
+// only Aug 15 open, and Ferragosto would close it.
+$maxBefore = (int) $db->query('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure')->fetch_row()[0];
+$controller->store($post(['data_inizio' => '2026-08-16', 'data_fine' => '2027-08-14', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'yearly: a closure leaving only Aug 15 open is stored');
+$controller->importPreset($post(['year' => substr($today, 0, 4)]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'")->fetch_row()[0];
+$check($err !== null && $ok === null && $presetRows === 0, 'preset: an import that would close the whole year is refused and rolled back (' . $presetRows . ' rows kept)');
+$db->query("DELETE FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'");
 $clearClosures();
 
 $icsFile = static function (string $body): \Slim\Psr7\UploadedFile {
