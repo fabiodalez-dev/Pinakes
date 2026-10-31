@@ -78,6 +78,9 @@ class SruClient
         return null;
     }
 
+    /** Largest SRU response body read, in bytes (16 MiB). */
+    public const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+
     /** Search indexes the copy cataloguing page offers. */
     public const SEARCH_INDEXES = ['title', 'author', 'isbn', 'issn', 'any'];
 
@@ -198,7 +201,9 @@ class SruClient
             $this->enforceRateLimit($url, $lastRequest);
             $xml = $this->fetchUrl($url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params));
             if ($xml === null) {
-                return ['total' => 0, 'records' => [], 'error' => null];
+                // HTTP 200 with no body is not "no records": an SRU answer always
+                // carries a searchRetrieveResponse, even for zero hits.
+                throw new \RuntimeException('Empty response from server');
             }
             return $this->readSearchResponse($xml, $syntax, $max);
         } catch (\Throwable $e) {
@@ -418,8 +423,13 @@ class SruClient
 
         // Build CQL query with custom index mapping
         [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        // DBC OpenSearch has its own index names (below): it keeps the bare one.
+        $dbcIndex = $cqlIndex === '' ? $index : $cqlIndex;
         if ($cqlIndex === '') {
-            $cqlIndex = $index;
+            // An unconfigured server gets the standard index (bath.isbn), as the
+            // copy cataloguing search does: a bare "isbn" is not a CQL index
+            // every SRU server resolves.
+            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
         }
         $relation = $relation === '=' ? '=' : ' ' . $relation . ' ';
 
@@ -447,7 +457,7 @@ class SruClient
         if ($recordSchema === 'dbc-opensearch') {
             $params = [
                 'action' => 'search',
-                'query' => ($cqlIndex === 'isbn' ? 'term.isbn' : $cqlIndex) . $relation . $quotedTerm,
+                'query' => ($dbcIndex === 'isbn' ? 'term.isbn' : $dbcIndex) . $relation . $quotedTerm,
                 'outputType' => 'xml',
                 'objectFormat' => 'marcxchange',
                 'start' => 1,
@@ -548,6 +558,10 @@ class SruClient
             'user_agent'      => 'Pinakes/1.0 (Z39.50/SRU Client)',
             'verify'          => $this->verifySsl,
             'ssrf_guard'      => true,
+            // A searchRetrieve answer of up to 50 MARC records stays far below
+            // this; a remote catalogue cannot exhaust memory (or the session
+            // the copy cataloguing results are kept in) with an oversized one.
+            'max_bytes'       => self::MAX_RESPONSE_BYTES,
         ]);
 
         if (!$res['ok']) {

@@ -40,15 +40,25 @@ final class UnimarcLibriMapper implements MarcLibriMapper
         $data['collana'] = MarcBookData::clean((string) ($parsed['collana'] ?? ''));
         $data['numero_serie'] = MarcBookData::clean((string) ($parsed['numero_serie'] ?? ''));
         $data['classificazione_dewey'] = (string) ($parsed['classificazione_dewey'] ?? '');
+        // An unknown code stays empty, as in the MARC 21 mapper: the reader's
+        // own fallback would store the raw code ("swa") as a language name.
         $data['lingua'] = MarcLanguage::nameFor((string) $record->subfield('101', 'a'));
-        if ($data['lingua'] === '' && !empty($parsed['lingua'])) {
-            $data['lingua'] = (string) $parsed['lingua'];
-        }
 
+        // 606 subjects are keywords, except the one the exporting catalogue
+        // marked as its own genre ($2 local, as BookMarcBuilder writes it).
         $subjects = [];
-        foreach ((array) ($parsed['soggetti'] ?? []) as $subject) {
-            $term = MarcBookData::clean(is_array($subject) ? (string) ($subject['termine'] ?? '') : '', ' /:;=,.');
-            if ($term !== '' && !in_array($term, $subjects, true)) {
+        foreach ($record->fieldsByTag('606') as $field) {
+            $term = MarcBookData::clean($field->subfield('a'), ' /:;=,.');
+            if ($term === '') {
+                continue;
+            }
+            if (strtolower(trim((string) $field->subfield('2'))) === 'local') {
+                if ($data['genere'] === '') {
+                    $data['genere'] = $term;
+                }
+                continue;
+            }
+            if (!in_array($term, $subjects, true)) {
                 $subjects[] = $term;
             }
         }

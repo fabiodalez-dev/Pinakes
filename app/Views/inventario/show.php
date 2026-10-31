@@ -8,6 +8,7 @@
 /** @var bool $isAdmin */
 /** @var array<string,string> $outcomeLabels */
 /** @var list<array<string,mixed>> $scaffali */
+/** @var int $pendingLost */
 $sessionId = (int) $session['id'];
 $isOpen = $session['stato'] === 'aperta';
 $base = '/admin/inventory/' . $sessionId;
@@ -332,6 +333,21 @@ unset($workspaceHeader);
             <?php endif; ?>
           </div>
           <div class="p-6">
+            <?php if ($isAdmin && $pendingLost > 0): ?>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4" id="inventory-resume-lost">
+              <p class="text-sm text-amber-900"><?= htmlspecialchars(sprintf(__('La chiusura non ha segnato come perse %d copie mancanti.'), (int) $pendingLost), ENT_QUOTES, 'UTF-8') ?></p>
+              <form method="post" action="<?= htmlspecialchars(url($base . '/close'), ENT_QUOTES, 'UTF-8') ?>" class="mt-3"
+                    data-swal-confirm="<?= htmlspecialchars(__('Segnare come perse le copie mancanti rimaste?'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Segna come perse'), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="azione_mancanti" value="perso">
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors">
+                  <i class="fas fa-flag-checkered mr-2"></i>
+                  <?= __("Segna come perse") ?>
+                </button>
+              </form>
+            </div>
+            <?php endif; ?>
             <div class="border border-gray-200 rounded-lg overflow-hidden">
               <div class="max-h-96 overflow-y-auto">
                 <table class="w-full text-sm" id="inventory-report">
@@ -496,9 +512,9 @@ unset($workspaceHeader);
       });
   }
 
-  function send(code) {
+  function send(code, scaffale) {
     busy = true;
-    var payload = { codice: code, scaffale_corrente: shelf.value || null };
+    var payload = { codice: code, scaffale_corrente: scaffale || null };
     return fetch(config.scanUrl, {
       method: 'POST',
       credentials: 'same-origin',
@@ -523,7 +539,7 @@ unset($workspaceHeader);
       })
       .then(function () {
         busy = false;
-        if (queue.length) { send(queue.shift()); }
+        if (queue.length) { var next = queue.shift(); send(next.code, next.scaffale); }
       });
   }
 
@@ -532,8 +548,10 @@ unset($workspaceHeader);
     input.value = '';
     input.focus();
     if (!code) { return; }
-    // Wedge scanners can fire codes faster than the server answers: keep their order.
-    if (busy) { queue.push(code); } else { send(code); }
+    // Wedge scanners can fire codes faster than the server answers: keep their order,
+    // and the shelf chosen when each code was read, not when it is finally sent.
+    var scaffale = shelf.value;
+    if (busy) { queue.push({ code: code, scaffale: scaffale }); } else { send(code, scaffale); }
   }
 
   form.addEventListener('submit', function (e) { e.preventDefault(); submitCode(); });

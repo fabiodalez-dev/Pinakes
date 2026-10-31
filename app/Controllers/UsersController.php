@@ -709,10 +709,10 @@ class UsersController
             $updateStmt->close();
 
             // The photo is personal data and goes with the account even when
-            // the record itself is kept for the loan history. delete() clears
-            // the reference and unlinks the file; its failures are logged, never
-            // thrown, so the request completes either way.
-            \App\Support\PatronPhoto::delete($db, $id);
+            // the record itself is kept for the loan history. delete() unlinks
+            // the file and clears the reference; its failures are logged, never
+            // thrown, so the request completes either way and says so.
+            $photoRemoved = \App\Support\PatronPhoto::delete($db, $id);
 
             // Audit logging
             \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
@@ -724,6 +724,9 @@ class UsersController
             ]);
 
             $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
+            if (!$photoRemoved) {
+                $_SESSION['error_message'] = __('La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.');
+            }
             return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
         }
 
