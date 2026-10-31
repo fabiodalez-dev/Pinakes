@@ -8821,5 +8821,7 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import abgeschlossen, aber der Verlauf wurde nicht gespeichert. Versuche es erneut, um ihn zu speichern.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Größenlimit der Ergebnisse erreicht: Katalog nicht abgefragt.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Der SBN-Katalog unterstützt keine Suche nach ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Diese Vorschau wurde durch eine andere hochgeladene Datei ersetzt: Laden Sie die Datei erneut hoch, um sie zu importieren."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Diese Vorschau wurde durch eine andere hochgeladene Datei ersetzt: Laden Sie die Datei erneut hoch, um sie zu importieren.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Bericht auf %d Einträge begrenzt: weitere Zeilen werden nicht aufgeführt, sind aber in den Zählern enthalten.",
+  "Report troncato": "Bericht gekürzt"
 }

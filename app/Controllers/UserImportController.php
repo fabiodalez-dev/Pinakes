@@ -38,7 +38,8 @@ class UserImportController
     /**
      * Error-report entries kept in the session (and in import_logs): a file
      * of thousands of bad rows must not grow the session without bound. The
-     * failed/duplicate counters keep counting past it.
+     * failed/duplicate counters keep counting past it; one `truncated` entry
+     * after the last says so.
      */
     public const MAX_STORED_ERRORS = 500;
     /** Upload form values of the separator choice; anything else means "detect". */
@@ -456,15 +457,25 @@ class UserImportController
     }
 
     /**
-     * Add an entry to the run's error report, up to MAX_STORED_ERRORS.
+     * Add an entry to the run's error report, up to MAX_STORED_ERRORS. The
+     * first entry past the cap becomes one `truncated` notice, so the report
+     * says it is incomplete instead of silently disagreeing with the counters.
      *
      * @param array<string,mixed> $state
      * @param array{line:int, title:string, message:string, type:string} $entry
      */
     public static function report(array &$state, array $entry): void
     {
-        if (count((array) ($state['errors'] ?? [])) < self::MAX_STORED_ERRORS) {
+        $count = count((array) ($state['errors'] ?? []));
+        if ($count < self::MAX_STORED_ERRORS) {
             $state['errors'][] = $entry;
+        } elseif ($count === self::MAX_STORED_ERRORS) {
+            $state['errors'][] = [
+                'line' => $entry['line'],
+                'title' => '',
+                'message' => sprintf(__('Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.'), self::MAX_STORED_ERRORS),
+                'type' => 'truncated',
+            ];
         }
     }
 

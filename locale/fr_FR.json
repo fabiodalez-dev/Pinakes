@@ -8821,5 +8821,7 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Rapport limité à %d entrées : les lignes suivantes ne sont pas listées, mais elles sont incluses dans les compteurs.",
+  "Report troncato": "Rapport tronqué"
 }

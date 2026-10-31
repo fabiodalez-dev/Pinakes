@@ -21,6 +21,7 @@ $importI18n = [
         'database' => __('Errore del database'),
         'email' => __('Email'),
         'warning' => __('Avviso'),
+        'truncated' => __('Report troncato'),
     ],
 ];
 ?>

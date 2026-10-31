@@ -93,7 +93,9 @@ $capped = ['errors' => []];
 for ($i = 0; $i < \App\Controllers\UserImportController::MAX_STORED_ERRORS + 20; $i++) {
     \App\Controllers\UserImportController::report($capped, ['line' => $i, 'title' => '', 'message' => 'x', 'type' => 'validation']);
 }
-$check(count($capped['errors']) === \App\Controllers\UserImportController::MAX_STORED_ERRORS, 'the error report kept in the session is capped');
+$check(count($capped['errors']) === \App\Controllers\UserImportController::MAX_STORED_ERRORS + 1, 'the error report kept in the session is capped');
+$lastEntry = end($capped['errors']);
+$check(($lastEntry['type'] ?? '') === 'truncated' && ($lastEntry['line'] ?? null) === \App\Controllers\UserImportController::MAX_STORED_ERRORS && ($capped['errors'][\App\Controllers\UserImportController::MAX_STORED_ERRORS - 1]['type'] ?? '') === 'validation', 'the entry past the cap is one truncation notice naming the first omitted line');
 $check(UserImport::detectDelimiter(["Nome\n", "Mario\n", "Anna\n"]) === null && UserImport::detectDelimiter([]) === null && UserImport::detectDelimiter([false]) === null, 'one column, or nothing, is no delimiter');
 $check(UserImport::detectDelimiter(["Nome;Cognome;E-mail\n"]) === ';' && UserImport::detectDelimiter(["Nome;Cognome;E-mail\n", ""]) === ';', 'a header alone tells the delimiter when it has more than one column');
 
