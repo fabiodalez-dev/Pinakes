@@ -112,9 +112,11 @@ try {
     $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
     $check(!str_contains($fragment, 'movimenti_lettore') && str_contains($fragment, '1 = 1') && substr_count($fragment, '?') === 1, 'pre-upgrade: eligibleUserWhere() carries no debt predicate and still needs ONE placeholder');
     $runMigration();
+    // No cache reset first: a process (cron) that probed before the migration
+    // must see the ledger once the table exists.
+    $check(PatronLedger::schemaReady($db), 'after the migration the ledger probe says ready, even in a process that probed before it');
     PatronLedger::resetSchemaCache();
     \App\Services\CirculationPolicy::resetSchemaCache();
-    $check(PatronLedger::schemaReady($db), 'after the migration the ledger probe says ready');
     $fragment = \App\Support\LoanEligibility::eligibleUserWhere('u', $db);
     $check(str_contains($fragment, 'movimenti_lettore') && !str_contains($fragment, 'tipologie_lettore') && str_contains($fragment, 'debt_block_threshold'), 'with the ledger but no patron type tables the debt predicate reads the global threshold only');
     $check($scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'") === '1', 'the migration creates movimenti_lettore');

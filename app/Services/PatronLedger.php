@@ -84,21 +84,27 @@ final class PatronLedger
      * Whether movimenti_lettore exists. Code ships before its migration runs
      * during an upgrade: until then there is no balance, so no debt block in
      * SQL or PHP, and nothing for the maintenance backfill to do.
+     *
+     * Only a positive answer is cached: a long-running process (cron) that
+     * probed before the migration sees the table as soon as it exists.
      */
     public static function schemaReady(mysqli $db): bool
     {
         self::$schemaReady ??= new \WeakMap();
-        if (!isset(self::$schemaReady[$db])) {
-            $ready = false;
-            try {
-                $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'");
-                $ready = $result instanceof \mysqli_result && (int) ($result->fetch_row()[0] ?? 0) === 1;
-            } catch (\Throwable) {
-                $ready = false;
-            }
-            self::$schemaReady[$db] = $ready;
+        if (isset(self::$schemaReady[$db])) {
+            return true;
         }
-        return self::$schemaReady[$db];
+        $ready = false;
+        try {
+            $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'");
+            $ready = $result instanceof \mysqli_result && (int) ($result->fetch_row()[0] ?? 0) === 1;
+        } catch (\Throwable) {
+            $ready = false;
+        }
+        if ($ready) {
+            self::$schemaReady[$db] = true;
+        }
+        return $ready;
     }
 
     /** Drop the per-request schema probe (tests that migrate a database mid-process). */
