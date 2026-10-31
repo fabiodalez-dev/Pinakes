@@ -446,14 +446,27 @@ $maxBefore = (int) $db->query('SELECT COALESCE(MAX(id), 0) FROM calendario_chius
 $controller->store($post(['data_inizio' => '2026-08-16', 'data_fine' => '2027-08-14', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
 $check($ok !== null && $taggedRows() === 1, 'yearly: a closure leaving only Aug 15 open is stored');
-$selectionBefore = (string) ($db->query("SELECT IFNULL(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) ORDER BY setting_key), '') FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'")->fetch_row()[0] ?? '');
+$selectionBefore = (string) ($db->query("SELECT IFNULL(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) ORDER BY setting_key SEPARATOR '\\n'), '') FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'")->fetch_row()[0] ?? '');
 $controller->importPreset($post(['country' => 'IT', 'region' => '', 'rules' => ['IT:ferragosto']]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
 $presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'")->fetch_row()[0];
-$selectionAfter = (string) ($db->query("SELECT IFNULL(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) ORDER BY setting_key), '') FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'")->fetch_row()[0] ?? '');
+$selectionAfter = (string) ($db->query("SELECT IFNULL(GROUP_CONCAT(CONCAT(setting_key, '=', setting_value) ORDER BY setting_key SEPARATOR '\\n'), '') FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'")->fetch_row()[0] ?? '');
 $check($err === __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.') && $ok === null && $presetRows === 0, 'preset: an import that would close the whole year is refused and rolled back (' . $presetRows . ' rows kept)');
 $check($selectionAfter === $selectionBefore, 'preset: the refused import leaves the saved holiday selection as it was');
+// Even a failing run leaves no preset behind for the next suite.
 $db->query("DELETE FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'");
+if ($selectionAfter !== $selectionBefore) {
+    $db->query("DELETE FROM calendario_chiusure WHERE regola_festivita = 'IT:ferragosto'");
+    $db->query("DELETE FROM system_settings WHERE category = 'calendar' AND setting_key LIKE 'holiday\\_%'");
+    foreach ($selectionBefore === '' ? [] : explode("\n", $selectionBefore) as $pair) {
+        [$key, $value] = array_pad(explode('=', $pair, 2), 2, '');
+        $stmt = $db->prepare("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', ?, ?)");
+        $stmt->bind_param('ss', $key, $value);
+        $stmt->execute();
+        $stmt->close();
+    }
+    \App\Support\ConfigStore::clearCache();
+}
 
 // Switching a stored yearly closure back on meets the guard too.
 $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale, attiva) VALUES ('2026-08-15', '2026-08-15', '{$tag}', 1, 0)");
