@@ -13,7 +13,9 @@ declare(strict_types=1);
  *    and no field the book has is overwritten;
  *  - overwrite mode updates the media type of an existing book (a DVD record
  *    matched to a printed book makes it a DVD) and never its format or price;
- *    fill mode leaves the media type, since a book always has one.
+ *    fill mode leaves the media type, since a book always has one;
+ *  - an overwrite that replaces a downloaded cover removes the old file
+ *    unless another book still points at it.
  *
  * The database part touches only the book it creates (title prefixed ZZMR)
  * and removes it with the probe trigger.
@@ -233,6 +235,41 @@ if (!is_file($envFile)) {
             $check(($after['formato'] ?? '') === ($before['formato'] ?? '') && ($after['prezzo'] ?? null) === ($before['prezzo'] ?? null), 'overwrite: the format and the price are left as they were');
             (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'tipo_media' => 'libro'], $counters, $warnings);
             $check(($mediaRow()['tipo_media'] ?? '') === 'dvd', 'fill: the media type the book has is left');
+
+            // 5b. An overwrite that replaces the book's downloaded cover
+            //     removes the old file once no book points at it.
+            if (function_exists('imagecreatetruecolor')) {
+                $coversDir = $root . '/public/uploads/copertine';
+                $source = $coversDir . '/zzmr_cover_src_' . strtolower($run) . '.png';
+                imagepng(imagecreatetruecolor(4, 4), $source);
+                $coverUrl = absoluteUrl('/uploads/copertine/' . basename($source));
+                $coverOf = static function () use ($db, $mediaId): string {
+                    $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id = ?');
+                    $stmt->bind_param('i', $mediaId);
+                    $stmt->execute();
+                    $value = (string) ($stmt->get_result()->fetch_row()[0] ?? '');
+                    $stmt->close();
+                    return $value;
+                };
+                try {
+                    (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, true))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'copertina_url' => $coverUrl], $counters, $warnings);
+                    $first = $coverOf();
+                    (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, true))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'copertina_url' => $coverUrl], $counters, $warnings);
+                    $second = $coverOf();
+                    $check(str_starts_with($first, '/uploads/copertine/') && $second !== $first && is_file($root . '/public' . $second), 'overwrite: a re-imported cover is stored again and attached');
+                    $check(!is_file($root . '/public' . $first), 'overwrite: the cover file it replaced is removed');
+                    // A file another book still points at is kept.
+                    $db->query("INSERT INTO libri (titolo, copertina_url) VALUES ('" . $db->real_escape_string('ZZMR' . $run . ' shared cover') . "', '" . $db->real_escape_string($second) . "')");
+                    (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, true))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'copertina_url' => $coverUrl], $counters, $warnings);
+                    $third = $coverOf();
+                    $check($third !== $second && is_file($root . '/public' . $second), 'overwrite: a replaced cover another book still uses is kept');
+                    foreach ([$first, $second, $third] as $stored) {
+                        @unlink($root . '/public' . $stored);
+                    }
+                } finally {
+                    @unlink($source);
+                }
+            }
 
             // Title + first author without an ISBN: the author resolves as the
             // import links it, so a re-import of the same record finds the book.

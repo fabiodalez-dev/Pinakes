@@ -505,6 +505,26 @@ final class MarcBookImporter
             return;
         }
         $counters['covers']++;
+        // An overwrite replaced the book's own downloaded cover: the old file
+        // is removed once no book points at it any more (discard() touches
+        // only a plain name in the covers folder, never an external URL).
+        $previous = trim((string) ($existing['copertina_url'] ?? ''));
+        if ($previous !== '' && $previous !== $path) {
+            try {
+                $still = $this->db->prepare('SELECT 1 FROM libri WHERE copertina_url = ? AND deleted_at IS NULL LIMIT 1');
+                if ($still !== false) {
+                    $still->bind_param('s', $previous);
+                    $still->execute();
+                    $referenced = $still->get_result()->fetch_row() !== null;
+                    $still->close();
+                    if (!$referenced) {
+                        MarcCoverFetcher::discard($previous);
+                    }
+                }
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::warning('[MARC import] previous cover not removed', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+            }
+        }
     }
 
     private function hasColumn(string $column): bool
