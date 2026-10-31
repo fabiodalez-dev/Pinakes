@@ -36,7 +36,10 @@ $sectionTests = [
     'patron-cards-import' => 'migration-0.9.0-patron-import.unit.php',
     'Circulation policy: patron types, rules matrix, consultation-only copies' => 'migration-0.9.0-circulation-policy.unit.php',
     'closures calendar' => 'migration-0.9.0-closures-calendar.unit.php',
+    'holiday presets' => 'migration-0.9.0-holiday-presets.unit.php',
+    'custom holidays' => 'migration-0.9.0-custom-holidays.unit.php',
     'fines-ledger (Phase 4: fines, patron ledger, debt block)' => 'migration-0.9.0-fines-ledger.unit.php',
+    'feature toggles' => 'migration-0.9.0-feature-toggles.unit.php',
 ];
 $testNames = array_map('basename', $tests);
 foreach ($sections as $section) {
