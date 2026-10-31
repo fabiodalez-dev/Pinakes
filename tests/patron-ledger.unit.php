@@ -369,6 +369,9 @@ try {
     $pinned = (new PatronLedger($db))->latestMovementId($pagedReader);
     (new PatronLedger($db))->manualCharge($pagedReader, 700, 'zz page 7', null);
     $check((new PatronLedger($db))->movementCount($pagedReader, $pinned) === 6 && array_column((new PatronLedger($db))->movements($pagedReader, 2, 2, $pinned), 'descrizione') === ['zz page 4', 'zz page 3'], 'reader record: the pinned listing keeps its count and offsets when a movement is added');
+    require_once $mobileSrc . '/Controllers/OpenApiController.php';
+    $metaSchema = (new ReflectionMethod(\App\Plugins\MobileApi\Controllers\OpenApiController::class, 'metaObjectSchema'))->invoke(new \App\Plugins\MobileApi\Controllers\OpenApiController());
+    $check(($metaSchema['properties']['has_more']['type'] ?? '') === 'boolean' && isset($metaSchema['properties']['next_cursor']), 'OpenAPI MetaObject declares the has_more that /me/movements returns');
     $mapError = new ReflectionMethod($actions, 'mapActionError');
     $blocked = $decode($mapError->invoke($actions, new \Slim\Psr7\Response(), 'debt_block'));
     $check(($blocked['error']['code'] ?? $blocked['code'] ?? '') === 'not_eligible' && ($blocked['meta']['reason'] ?? '') === 'debt_block', 'a debt block answers not_eligible with meta.reason = debt_block');
