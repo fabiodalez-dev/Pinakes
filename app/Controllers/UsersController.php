@@ -730,7 +730,13 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
         }
 
-        // No loans - safe to delete
+        // No loans - safe to delete. The photo is personal data and goes
+        // first: once the row is gone nothing would point to a file whose
+        // removal failed, so a photo that cannot be removed stops the delete.
+        if (!\App\Support\PatronPhoto::delete($db, $id)) {
+            $_SESSION['error_message'] = __('Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.');
+            return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
+        }
         $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
         $stmt->bind_param("i", $id);
         $success = $stmt->execute();
@@ -745,9 +751,6 @@ class UsersController
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
             return $response->withHeader('Location', url('/admin/users?error=db_error'))->withStatus(302);
         }
-
-        // The photo is personal data: it goes with the account.
-        \App\Support\PatronPhoto::deleteFile($userToDelete['foto_profilo_url'] ?? null);
 
         // Audit logging for user deletion
         \App\Support\SecureLogger::info('User deleted', [

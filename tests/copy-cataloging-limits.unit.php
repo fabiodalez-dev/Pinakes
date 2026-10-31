@@ -70,6 +70,7 @@ $check(LocalSruClient::isLocalUrl('https://catalogo.example.org/api/sru') && Loc
 $_ENV['APP_CANONICAL_URL'] = 'https://catalogo.example.org:443';
 $check(LocalSruClient::isLocalUrl('https://catalogo.example.org/api/sru') && LocalSruClient::isLocalUrl('https://catalogo.example.org:443/api/sru'), '03b a canonical URL that spells out :443 still matches both forms');
 $check(!LocalSruClient::isLocalUrl('https://catalogo.example.org:8443/api/sru') && !LocalSruClient::isLocalUrl('http://catalogo.example.org:443/api/sru'), '03c another port, or http on 443, is not this server');
+$check(!LocalSruClient::isLocalUrl('https://catalogo.example.org/other') && !LocalSruClient::isLocalUrl('https://catalogo.example.org/api/sru/extra') && LocalSruClient::isLocalUrl('https://catalogo.example.org/api/sru/'), '03g the same host with a different path is not this server (a trailing slash is)');
 if ($savedCanonical === null) {
     unset($_ENV['APP_CANONICAL_URL']);
 } else {

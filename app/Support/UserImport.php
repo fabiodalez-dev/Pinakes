@@ -229,7 +229,12 @@ final class UserImport
         $clean = [];
         $used = [];
         foreach ($mapping as $index => $field) {
-            $index = (int) $index;
+            // PHP turns a canonical integer key ("1") into an int already, so
+            // a string key here is a spelling like "01" or "1x": cast to int
+            // it would alias another column and drop one of the two fields.
+            if (!is_int($index)) {
+                return ['mapping' => [], 'error' => __('Mappatura delle colonne non valida.')];
+            }
             $field = is_string($field) ? $field : '';
             if ($index < 0 || $index >= $columnCount || $field === '') {
                 continue;

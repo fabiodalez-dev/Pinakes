@@ -8923,5 +8923,14 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Il catalogo SBN non permette la ricerca per ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.",
+  "Report troncato": "Report troncato",
+  "Un import è già in corso: attendi la fine o riprendilo da questa pagina.": "Un import è già in corso: attendi la fine o riprendilo da questa pagina.",
+  "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.": "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.",
+  "Import interrotto": "Import interrotto",
+  "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.",
+  "Annulla import": "Annulla import",
+  "Riprendi import": "Riprendi import",
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage."
 }

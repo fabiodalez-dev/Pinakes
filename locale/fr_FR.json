@@ -8923,5 +8923,14 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Rapport limité à %d entrées : les lignes suivantes ne sont pas listées, mais elles sont incluses dans les compteurs.",
+  "Report troncato": "Rapport tronqué",
+  "Un import è già in corso: attendi la fine o riprendilo da questa pagina.": "Une importation est déjà en cours : attendez qu'elle se termine ou reprenez-la depuis cette page.",
+  "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.": "L'importation est toujours active : reprenez-la ou réessayez dans %d minutes.",
+  "Import interrotto": "Importation interrompue",
+  "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s : %d sur %d lignes traitées. Vous pouvez la reprendre là où elle s'est arrêtée ou la fermer : les utilisateurs déjà créés sont conservés.",
+  "Annulla import": "Annuler l'importation",
+  "Riprendi import": "Reprendre l'importation",
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utilisateur non supprimé : sa photo ne peut pas être retirée du disque. Réessayez ou vérifiez les droits du dossier storage."
 }

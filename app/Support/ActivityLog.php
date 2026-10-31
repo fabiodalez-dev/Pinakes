@@ -356,6 +356,46 @@ final class ActivityLog
         return self::fetch($db, $page, $perPage, null, $type, $operatorId, $q);
     }
 
+    /**
+     * The events recordEntityEvent() wrote for one non-book record, newest
+     * first, at most $limit of them. The book feeds (recent(), forBook())
+     * read tabella = 'libri' only, so this is the reader for entity events,
+     * such as the open/close/cancel history of a stocktake session.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function forEntity(mysqli $db, string $tabella, int $recordId, int $limit = 50): array
+    {
+        if ($recordId <= 0 || $tabella === '' || $tabella === 'libri') {
+            return [];
+        }
+        $limit = max(1, min(200, $limit));
+        try {
+            $stmt = $db->prepare(
+                "SELECT lm.*, TRIM(CONCAT(u.nome, ' ', u.cognome)) AS operator_name "
+                . 'FROM log_modifiche lm '
+                . 'LEFT JOIN utenti u ON u.id = lm.utente_id '
+                . 'WHERE lm.tabella = ? AND lm.record_id = ? '
+                . 'ORDER BY lm.data_modifica DESC, lm.id DESC LIMIT ?'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($db->error);
+            }
+            $stmt->bind_param('sii', $tabella, $recordId, $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $items = [];
+            while ($row = $result->fetch_assoc()) {
+                $items[] = self::decodeRow($row);
+            }
+            $stmt->close();
+            return $items;
+        } catch (\Throwable $e) {
+            SecureLogger::warning('ActivityLog entity read failed', ['tabella' => $tabella, 'error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
     /** @return list<array{id:int,name:string}> */
     public static function operators(mysqli $db): array
     {
