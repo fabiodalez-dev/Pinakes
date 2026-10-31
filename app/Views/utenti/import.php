@@ -1,6 +1,6 @@
 <?php
 /** @var bool $patronTypes */
-/** @var array{name:string, processed:int, total:int}|null $resumeImport */
+/** @var array{preview_id:string, name:string, processed:int, total:int}|null $resumeImport */
 use App\Support\Csrf;
 
 $csrfToken = Csrf::ensureToken();
@@ -12,6 +12,7 @@ $importI18n = [
     'progress' => __('%d di %d righe elaborate'),
     'invalidResponse' => __('Risposta non valida dal server'),
     'networkError' => __('Errore di rete. Riprova.'),
+    'stale' => __('Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.'),
     'line' => __('Riga'),
     'name' => __('Utente'),
     'type' => __('Tipo'),
@@ -258,6 +259,28 @@ unset($workspaceHeader);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (s, ...args) => { let i = 0; return String(s).replace(/%d/g, () => String(args[i++] ?? '')); };
   let state = { headers: [], fields: {} };
+  // Every request names the preview it comes from (preview_id). An upload in
+  // another tab replaces the server state: this tab's Start (or Resume) is
+  // then disabled, and the server refuses a stale id with 409 anyway.
+  let previewId = RESUME ? RESUME.preview_id : null;
+  let channel = null;
+  try {
+    channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('pinakes-user-import') : null;
+  } catch (e) {
+    channel = null;
+  }
+  function markStale() {
+    previewId = null;
+    ['user-import-start', 'user-import-resume'].forEach((id) => { const b = $(id); if (b) { b.disabled = true; } });
+    $('user-import-notice-text').textContent = T.stale;
+    $('user-import-notice').classList.remove('hidden');
+  }
+  if (channel) {
+    channel.onmessage = (event) => {
+      const id = event && event.data ? event.data.preview_id : null;
+      if (previewId && id && id !== previewId) { markStale(); }
+    };
+  }
 
   function showError(message) {
     $('user-import-alert-text').textContent = message;
@@ -283,6 +306,7 @@ unset($workspaceHeader);
     if (!res.ok || !data || data.success !== true) {
       const err = new Error((data && data.error) || T.invalidResponse);
       err.status = res.status;
+      err.stale = !!(data && data.stale);
       err.processed = data && Number.isInteger(data.processed) ? data.processed : null;
       err.total = data && Number.isInteger(data.total_rows) ? data.total_rows : null;
       throw err;
@@ -291,6 +315,8 @@ unset($workspaceHeader);
   }
 
   function renderMapping(data) {
+    previewId = data.preview_id;
+    $('user-import-start').disabled = false;
     state.headers = data.headers;
     state.fields = data.fields;
     $('user-import-file-name').textContent = data.file_name;
@@ -333,6 +359,7 @@ unset($workspaceHeader);
       try { data = await res.json(); } catch (e) { throw new Error(T.invalidResponse); }
       if (!res.ok || !data || data.success !== true) { throw new Error((data && data.error) || T.invalidResponse); }
       renderMapping(data);
+      if (channel) { try { channel.postMessage({ preview_id: data.preview_id }); } catch (e) { /* another tab simply is not told */ } }
     } catch (err) {
       showError(err.message || T.networkError);
     } finally {
@@ -349,11 +376,14 @@ unset($workspaceHeader);
       if (select.value !== '') { mapping[select.dataset.importColumn] = select.value; }
     });
     const startBtn = $('user-import-start');
+    if (!previewId) { return; }
     startBtn.disabled = true;
     let started;
     try {
-      started = await postJson('/admin/users/import/start', { mapping, send_invites: $('user_import_send_invites').checked });
+      started = await postJson('/admin/users/import/start', { preview_id: previewId, mapping, send_invites: $('user_import_send_invites').checked });
     } catch (err) {
+      // Another upload replaced this preview: never import its file under this mapping.
+      if (err.stale) { markStale(); showError(err.message || T.stale); return; }
       // Already started (the answer to a first click was lost): the server
       // says where the run is, and it goes on from there.
       if (err.status === 409 && err.processed !== null && err.total !== null) {
@@ -370,6 +400,7 @@ unset($workspaceHeader);
   if (RESUME) {
     $('user-import-resume').addEventListener('click', () => {
       clearError();
+      if (!previewId) { return; }
       runImport(RESUME.total, RESUME.processed);
     });
     $('user-import-abandon').addEventListener('click', async () => {
@@ -377,7 +408,7 @@ unset($workspaceHeader);
       const button = $('user-import-abandon');
       button.disabled = true;
       try {
-        await postJson('/admin/users/import/cancel', {});
+        await postJson('/admin/users/import/cancel', { preview_id: previewId || '' });
       } catch (err) {
         button.disabled = false;
         showError(err.message || T.networkError);
@@ -393,14 +424,16 @@ unset($workspaceHeader);
     $('user-import-step-upload').classList.add('hidden');
     $('user-import-step-mapping').classList.add('hidden');
     $('user-import-step-result').classList.remove('hidden');
+    const runPreviewId = previewId;
     let start = from;
     let last = null;
     let retries = 0;
     try {
       while (true) {
         try {
-          last = await postJson('/admin/users/import/chunk', { start });
+          last = await postJson('/admin/users/import/chunk', { preview_id: runPreviewId, start });
         } catch (err) {
+          if (err.stale) { markStale(); throw err; }
           // A block that failed in transit may have been written anyway: the
           // server answers 409 with the position it reached, and the import
           // resumes from there. A network error retries the same block,

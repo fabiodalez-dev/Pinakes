@@ -17,7 +17,7 @@
  * @var list<array<string, mixed>> $customHolidays
  * @var array<string, mixed>|null $customEditing
  * @var bool $customSchema
- * @var array{missing: list<string>, missing_country: string, countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool} $holidays
+ * @var array{missing: list<string>, missing_country: string, countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool, unknown_country: string} $holidays
  */
 
 $csrf = \App\Support\Csrf::ensureToken();
@@ -195,6 +195,14 @@ unset($workspaceHeader);
                 $holidays['missing_country'],
                 implode(', ', array_map(static fn (string $id): string => substr($id, (int) strpos($id, ':') + 1), $holidays['missing']))
               )) ?>
+            </p>
+          </div>
+        <?php endif; ?>
+        <?php if ($holidays['unknown_country'] !== ''): ?>
+          <div class="bg-yellow-50 border border-yellow-200 rounded p-3" role="alert" data-holiday-unknown-country>
+            <p class="text-sm text-yellow-800">
+              <i class="fas fa-exclamation-triangle"></i>
+              <?= $e(sprintf(__('Il paese salvato per le festività (%s) non è più disponibile: le festività scelte non vengono più aggiornate né calcolate per gli anni futuri. Scegli il paese, spunta le festività e salva di nuovo la scelta.'), $holidays['unknown_country'])) ?>
             </p>
           </div>
         <?php endif; ?>

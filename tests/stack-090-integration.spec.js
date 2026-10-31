@@ -202,7 +202,7 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
       multa_giornaliera: '1,00', giorni_tolleranza: 0, soglia_blocco_debito: '2',
     });
     expect(F.dbQuery(`SELECT CONCAT_WS('|', durata_prestito_giorni, multa_giornaliera, IFNULL(giorni_tolleranza,'-'), soglia_blocco_debito) FROM tipologie_lettore WHERE id=${typeId}`))
-      .toMatch(new RegExp(`^${TYPE_DAYS}\\|1\\.00\\|(0|-)\\|2\\.00$`));
+      .toBe(`${TYPE_DAYS}|1.00|0|2.00`);
     // The globals stay empty: the type is the only source of fines.
     expect(readSetting('daily_fine')).toBe('');
     expect(readSetting('debt_block_threshold')).toBe('');

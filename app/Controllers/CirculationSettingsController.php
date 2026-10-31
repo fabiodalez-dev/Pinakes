@@ -33,6 +33,9 @@ class CirculationSettingsController
     /** Patron type money fields (DECIMAL(10,2), NULL when empty; 0 = disabled for this type). */
     public const TYPE_MONEY_FIELDS = ['multa_giornaliera', 'multa_massima_prestito', 'soglia_blocco_debito'];
 
+    /** Patron type fields added with the fines: absent from a form rendered before them, kept as stored on edit. */
+    private const TYPE_FIELDS_KEPT_WHEN_ABSENT = ['giorni_tolleranza', 'multa_giornaliera', 'multa_massima_prestito', 'soglia_blocco_debito'];
+
     /** Matrix cell fields: form key => [column, min, max]. */
     private const RULE_FIELDS = [
         'max' => ['max_prestiti', 0, 1000],
@@ -486,6 +489,10 @@ class CirculationSettingsController
             'attiva' => !array_key_exists('attiva', $data) || !empty($data['attiva']) ? 1 : 0,
         ];
         foreach (self::TYPE_INT_FIELDS as $column => [$min, $max]) {
+            if ($current !== null && in_array($column, self::TYPE_FIELDS_KEPT_WHEN_ABSENT, true) && !array_key_exists($column, $data)) {
+                $fields[$column] = $current[$column] ?? null;
+                continue;
+            }
             $value = $this->intOrNull($data[$column] ?? null, $min, $max);
             if ($value === false) {
                 return sprintf(__('Valore non valido per il campo "%s".'), self::fieldLabel($column));
@@ -493,6 +500,10 @@ class CirculationSettingsController
             $fields[$column] = $value;
         }
         foreach (self::TYPE_MONEY_FIELDS as $column) {
+            if ($current !== null && in_array($column, self::TYPE_FIELDS_KEPT_WHEN_ABSENT, true) && !array_key_exists($column, $data)) {
+                $fields[$column] = $current[$column] ?? null;
+                continue;
+            }
             $value = self::moneyOrNull($data[$column] ?? null);
             if ($value === false) {
                 $raw = $data[$column] ?? null;
