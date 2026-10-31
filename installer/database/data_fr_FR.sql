@@ -194,6 +194,29 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Mode catalogue uniquement - désactive les emprunts, réservations et liste de souhaits')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+-- Optional modules (Settings > Modules / Loans): fresh-install defaults
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0-rc.1.sql).
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('features', 'stocktake', '1', 'Module facultatif: Récolement'),
+('features', 'marc', '1', 'Module facultatif: Import et export MARC'),
+('features', 'visitor_log', '0', 'Module facultatif: Registre des visites'),
+('features', 'catalogue_cards', '1', 'Module facultatif: Fiches de catalogue'),
+('features', 'suppliers', '1', 'Module facultatif: Fournisseurs'),
+('features', 'rda_types', '1', 'Module facultatif: Types RDA'),
+('features', 'patron_cards', '1', 'Module facultatif: Impression des cartes'),
+('features', 'user_import', '1', 'Module facultatif: Import des utilisateurs depuis un CSV'),
+('features', 'circulation_rules', '1', 'Module facultatif: Règles par type de lecteur'),
+('features', 'closures_calendar', '1', 'Module facultatif: Calendrier des fermetures'),
+('features', 'fines', '0', 'Module facultatif: Registre des mouvements'),
+('features', 'patron_photos', '1', 'Module facultatif: Photos des lecteurs'),
+('features', 'consultation_only', '1', 'Module facultatif: Exemplaires en consultation sur place'),
+('features', 'automatic_card_expiry', '1', 'Module facultatif: Validité automatique des cartes'),
+('features', 'automatic_fines', '0', 'Module facultatif: Amendes automatiques de retard'),
+('features', 'debt_block', '0', 'Module facultatif: Blocage des prêts pour dette'),
+('features', 'loss_penalties', '0', 'Module facultatif: Reporter les pénalités de perte et de dommage dans le registre'),
+('features', 'attendance_retention', '0', 'Module facultatif: Conservation lorsque le registre des visites est suspendu')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Jours pour récupérer un emprunt approuvé avant expiration')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();

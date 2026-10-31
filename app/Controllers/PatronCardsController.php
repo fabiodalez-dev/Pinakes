@@ -28,6 +28,9 @@ class PatronCardsController
 
     public function cardPdf(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_cards', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }
@@ -44,6 +47,9 @@ class PatronCardsController
 
     public function bulkPdf(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_cards', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }
@@ -71,6 +77,9 @@ class PatronCardsController
     /** Stream the stored photo (never cached by shared caches). */
     public function photo(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_photos', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('users.manage')) {
             return $response->withStatus(403);
         }
@@ -94,6 +103,9 @@ class PatronCardsController
     /** Save a photo sent as multipart field `photo` (webcam frame or picked file). JSON reply. */
     public function uploadPhoto(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_photos', $response)) !== null) {
+            return $off;
+        }
         $guard = $this->editGuard($db, $id);
         if ($guard !== null) {
             return $this->json($response, ['success' => false, 'error' => $guard[1]], $guard[0]);
@@ -128,6 +140,9 @@ class PatronCardsController
     /** Remove the photo (the reader's right to erasure). JSON for fetch(), redirect for a plain form. */
     public function deletePhoto(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('patron_photos', $response)) !== null) {
+            return $off;
+        }
         $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
         $guard = $this->editGuard($db, $id);
         if ($guard !== null) {

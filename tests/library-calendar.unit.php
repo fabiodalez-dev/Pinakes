@@ -158,11 +158,14 @@ foreach ($known as $year => $date) {
 }
 $h2026 = LibraryCalendar::italianHolidays(2026);
 $dates2026 = array_column($h2026, 'start');
-$eq(count($h2026), 12, 'Italian preset has 12 holidays');
+// 13 from 2026: San Francesco (4 October) is a national holiday again.
+$eq(count($h2026), 13, 'Italian preset has 13 holidays in 2026');
+$eq(count(LibraryCalendar::italianHolidays(2025)), 12, 'and 12 in 2025, before San Francesco returned');
 $eq(in_array('2026-04-06', $dates2026, true), true, 'Easter Monday 2026 is Apr 6');
 $eq(in_array('2026-06-02', $dates2026, true), true, 'Festa della Repubblica included');
-$easterRows = array_values(array_filter($h2026, static fn (array $r): bool => !$r['yearly']));
-$eq(count($easterRows), 2, 'only Easter and Easter Monday are dated for the year');
+$eq(in_array('2026-10-04', $dates2026, true), true, 'San Francesco included from 2026');
+$datedRows = array_values(array_filter($h2026, static fn (array $r): bool => !$r['yearly']));
+$eq(array_column($datedRows, 'start'), ['2026-04-05', '2026-04-06', '2026-10-04'], 'Easter, Easter Monday and San Francesco (from 2026) are dated for the year');
 $eq($dates2026, array_values(array_unique($dates2026)), 'preset dates are distinct');
 $sorted = $dates2026;
 sort($sorted);
@@ -257,6 +260,37 @@ $eq($rule('FREQ=YEARLY;BYDAY=MO;BYSETPOS=1'), false, 'RRULE: BYSETPOS is a first
 $eq($rule('FREQ=YEARLY;INTERVAL=2'), false, 'RRULE: every other year is a first occurrence only');
 $eq($rule('FREQ=MONTHLY'), false, 'RRULE: a monthly rule is a first occurrence only');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
+
+// Selected holidays are evaluated for the date being asked for, independently
+// of the three years materialised for the admin list (review #512).
+$rules = static fn (string $country, string $id): array => array_values(array_filter(
+    \App\Support\Holidays\HolidayCalculator::rulesFor($country),
+    static fn (array $rule): bool => $rule['id'] === $id
+));
+$easterRules = $rules('IT', 'easter_monday');
+$dynamic = new LibraryCalendar([], [], $easterRules);
+$eq($dynamic->hasRules(), true, 'selected holidays alone make a calendar non-empty');
+$eq($dynamic->nextOpenDay('2029-04-02'), '2029-04-03', 'a selected Easter Monday beyond the preview horizon moves the due date');
+$eq($dynamic->isOpen('2036-04-14'), false, 'a selected Easter Monday ten years ahead still closes');
+$eq($dynamic->isOpen('2020-04-13'), false, 'historical fine days use the same selected holiday rule');
+$eq($dynamic->previousOpenDay('2029-04-02'), '2029-04-01', 'renewal caps step back over dynamic holidays too');
+$eq($dynamic->closedDatesBetween('2029-04-01', '2029-04-03'), ['2029-04-02'], 'availability publishes the dynamic holiday');
+$eq($dynamic->openDaysBetween('2029-03-31', '2029-04-03'), 2, 'a dynamic holiday does not count as a late fine day');
+$eq($dynamic->isOpen('2029-12-25'), true, 'an unselected holiday stays open');
+$branchHoliday = new LibraryCalendar([], [['start' => '2029-04-03', 'end' => '2029-04-03', 'sede' => 2]], $easterRules);
+$eq($branchHoliday->nextOpenDay('2029-04-02', 2), '2029-04-04', 'a branch closure after a holiday delays the date further');
+$eq($branchHoliday->nextOpenDay('2029-04-02', 1), '2029-04-03', 'the other branch opens after the holiday');
+$pickupHolidays = new LibraryCalendar([0], [], $easterRules);
+$eq($pickupHolidays->addOpenDays('2029-03-31', 2), '2029-04-04', 'pickup days skip both the weekly closure and a dynamic holiday');
+$usNewYear = new LibraryCalendar([], [], $rules('US', 'new_year'));
+$eq($usNewYear->isOpen('2027-12-31'), false, 'observed New Year from the next source year closes December 31');
+$eq($usNewYear->isOpen('2028-01-01'), false, 'New Year itself also closes when it falls on a Saturday');
+$eq($usNewYear->nextOpenDay('2027-12-31'), '2028-01-02', 'the observed day and New Year both close');
+$longJump = new LibraryCalendar([], [['start' => '2026-01-01', 'end' => '2035-12-31']], $rules('IT', 'new_year'));
+$eq($longJump->nextOpenDay('2026-10-29'), '2036-01-02', 'a long closure jump also checks holidays in the year it lands in');
+$introducedHoliday = new LibraryCalendar([], [], $rules('IT', 'san_francesco'));
+$eq($introducedHoliday->isOpen('2025-10-04'), true, 'a dynamic holiday respects its first year');
+$eq($introducedHoliday->isOpen('2036-10-04'), false, 'a holiday with a first year keeps closing beyond the preview window');
 
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";
 exit($failures === 0 ? 0 : 1);

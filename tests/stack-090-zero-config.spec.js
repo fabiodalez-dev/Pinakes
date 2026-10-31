@@ -318,10 +318,13 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
       await ctx.close();
     }
     expect(F.dbQuery(`SELECT stato FROM prestiti WHERE utente_id=${debtor.id} AND libro_id=${books.web.id}`)).toBe('pendente');
-    // The reader record shows the balance, without any block.
+    // Fines are an opt-in module (features.fines, off by default): the reader
+    // record has no Movimenti section and no block; the ledger row stays.
     await admin.goto(`${F.BASE}/admin/users/details/${debtor.id}`);
-    await expect(admin.locator('[data-ledger-balance]')).toHaveAttribute('data-ledger-balance', '5000');
+    await expect(admin.locator('h1').first()).toBeVisible();
+    await expect(admin.locator('#movimenti')).toHaveCount(0);
     await expect(admin.locator('[data-ledger-blocked]')).toHaveCount(0);
+    expect(Math.round(Number(F.dbQuery(`SELECT COALESCE(SUM(importo),0) FROM movimenti_lettore WHERE utente_id=${debtor.id}`)) * 100)).toBe(5000);
   });
 
   test('7. money owed does not block the Mobile API request', async ({ request }) => {

@@ -20,6 +20,13 @@
  * Run: /tmp/run-e2e.sh tests/stack-090-review-fixes.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// visitor_log / stocktake / suppliers / rda_types / fines, so it switches them on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['visitor_log', 'stocktake', 'suppliers', 'rda_types', 'fines']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

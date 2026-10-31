@@ -36,6 +36,9 @@ use App\Support\Marc\MarcRecord;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
+// The 0.9.0 modules under test are on, whatever features.* says in the
+// database this runs against (Settings → Modules / Loans).
+\App\Support\Features::overrideAll(true);
 require_once $root . '/app/helpers.php';
 
 $pass = 0;

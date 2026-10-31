@@ -160,7 +160,8 @@ class LibriApiController
             }
         }
 
-        if ($fornitore_id > 0 && $this->hasColumn($db, 'fornitore_id')) {
+        // Suppliers module off: the filter is ignored like the hidden field.
+        if ($fornitore_id > 0 && \App\Support\Features::enabled('suppliers') && $this->hasColumn($db, 'fornitore_id')) {
             $where .= ' AND l.fornitore_id = ?';
             $params[] = $fornitore_id;
             $types .= 'i';

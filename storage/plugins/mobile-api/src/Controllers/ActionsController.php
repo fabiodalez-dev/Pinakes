@@ -189,7 +189,7 @@ final class ActionsController
                 'days_late'    => $a['days'],
                 'amount_cents' => $a['cents'],
             ], $ledger->accruedFines($userId));
-            $threshold = $params->debtBlockThresholdCents;
+            $threshold = \App\Support\Features::enabled('debt_block') ? $params->debtBlockThresholdCents : null;
 
             return ResponseEnvelope::success($response, [
                 'currency'               => $params->currency,

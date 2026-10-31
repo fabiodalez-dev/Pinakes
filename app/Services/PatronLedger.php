@@ -101,6 +101,18 @@ final class PatronLedger
         return self::$schemaReady[$db];
     }
 
+    /**
+     * Whether fines and the ledger apply: the table exists AND the fines
+     * module is on (Settings -> Loans, features.fines; also off in catalogue
+     * mode). Off, nothing is charged, nobody is blocked for debt and the
+     * movements are not shown; the rows already written stay, and
+     * prestiti.sanzione keeps being written as before 0.9.0.
+     */
+    public static function active(mysqli $db): bool
+    {
+        return \App\Support\Features::enabled('fines') && self::schemaReady($db);
+    }
+
     /** Drop the per-request schema probe (tests that migrate a database mid-process). */
     public static function resetSchemaCache(): void
     {
@@ -227,7 +239,7 @@ final class PatronLedger
      */
     public function chargeLateReturn(int $loanId, ?int $staffId = null): int
     {
-        if (!self::schemaReady($this->db)) {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('automatic_fines')) {
             return 0;
         }
         $loan = $this->loanRow($loanId);
@@ -260,7 +272,15 @@ final class PatronLedger
      */
     public function chargeLossPenalty(int $loanId, ?int $staffId = null): int
     {
-        if (!self::schemaReady($this->db)) {
+        // Fines off: prestiti.sanzione alone, as before 0.9.0. The legacy
+        // backfill mirrors it (same key) once the module is back on; its
+        // marker is re-armed here, because a library that already had fines
+        // on has the scan recorded as done. Same transaction as the close.
+        if (!self::active($this->db) || !\App\Support\Features::enabled('loss_penalties')) {
+            $loan = $this->loanRow($loanId);
+            if ($loan !== null && FineParameters::decimalToCents($loan['sanzione'] ?? 0) > 0) {
+                (new \App\Models\SettingsRepository($this->db))->set('loans', 'legacy_penalties_backfilled', '0');
+            }
             return 0;
         }
         $loan = $this->loanRow($loanId);
@@ -421,6 +441,9 @@ final class PatronLedger
      */
     public function previewLateFine(int $loanId, ?string $returnDate = null): array
     {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('automatic_fines')) {
+            return ['days' => 0, 'cents' => 0, 'enabled' => false];
+        }
         $loan = $this->loanRow($loanId);
         $params = FineParameters::forLoan($this->db, $loanId);
         if ($loan === null) {
@@ -443,6 +466,9 @@ final class PatronLedger
      */
     public function accruedFines(int $userId): array
     {
+        if (!self::active($this->db) || !\App\Support\Features::enabled('automatic_fines')) {
+            return [];
+        }
         $today = DateHelper::today();
         $stmt = $this->db->prepare(
             "SELECT p.id, p.data_scadenza, l.titolo, c.sede_id
@@ -459,9 +485,10 @@ final class PatronLedger
         $stmt->close();
 
         $out = [];
+        $policy = new CirculationPolicy($this->db);
         foreach ($rows as $row) {
             $loanId = (int) $row['id'];
-            $params = FineParameters::forLoan($this->db, $loanId);
+            $params = FineParameters::forLoan($this->db, $loanId, $policy);
             $branch = self::branchOf($row);
             $cents = $this->calculator->lateFineCents($params, (string) $row['data_scadenza'], $today, $branch);
             if ($cents <= 0) {
@@ -492,7 +519,9 @@ final class PatronLedger
      */
     public function backfillLegacyPenalties(int $batch = 500, int $maxBatches = 1000): ?int
     {
-        if (!self::schemaReady($this->db)) {
+        // null also while the fines module is off: the scan is not recorded
+        // as done and runs when the module is switched back on.
+        if (!self::active($this->db) || !\App\Support\Features::enabled('loss_penalties')) {
             return null;
         }
         $written = 0;
@@ -531,7 +560,7 @@ final class PatronLedger
      */
     public function periodTotals(string $from, string $to): array
     {
-        if (!self::schemaReady($this->db)) {
+        if (!self::active($this->db)) {
             return [];
         }
         $fromTs = $from . ' 00:00:00';

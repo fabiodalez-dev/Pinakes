@@ -19,6 +19,9 @@ class AttendanceController
 
     public function index(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -48,6 +51,9 @@ class AttendanceController
 
     public function scan(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -75,6 +81,9 @@ class AttendanceController
 
     public function guest(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -95,6 +104,9 @@ class AttendanceController
     /** Retention setting. AdminAuthMiddleware admits staff: this one is admin-only. */
     public function saveSettings(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (!$this->isAdmin()) {
             $_SESSION['error_message'] = __('Operazione riservata agli amministratori.');
             return $this->back($response);
@@ -111,6 +123,9 @@ class AttendanceController
     /** Apply the retention now instead of waiting for the next maintenance run. */
     public function purge(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -127,6 +142,9 @@ class AttendanceController
     /** Daily counts for the selected period as CSV. */
     public function exportCsv(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('visitor_log', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }

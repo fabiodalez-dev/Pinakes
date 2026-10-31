@@ -57,6 +57,7 @@ ob_start();
             <a href="<?= htmlspecialchars(url('/admin/books/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
               <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing") ?>
             </a>
+            <?php if (\App\Support\Features::enabled('marc')): ?>
             <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=marc21'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
               <i class="fas fa-file-code mr-2"></i><?= __("MARC 21 (.mrc)") ?>
             </a>
@@ -66,6 +67,7 @@ ob_start();
             <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=unimarc'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg">
               <i class="fas fa-file-code mr-2"></i><?= __("UNIMARC (.mrc)") ?>
             </a>
+            <?php endif; ?>
           </div>
         </div>
         <a href="<?= htmlspecialchars(url('/admin/books/create'), ENT_QUOTES, 'UTF-8') ?>" class="btn-primary w-full">
@@ -99,6 +101,7 @@ ob_start();
               <a href="<?= htmlspecialchars(url('/admin/books/export/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-download-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
+              <?php if (\App\Support\Features::enabled('marc')): ?>
               <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=marc21'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" data-marc-export="marc21">
                 <i class="fas fa-file-code mr-2"></i><?= __("MARC 21 (.mrc)") ?>
               </a>
@@ -108,6 +111,7 @@ ob_start();
               <a href="<?= htmlspecialchars(url('/admin/books/export/marc?format=unimarc'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg" data-marc-export="unimarc">
                 <i class="fas fa-file-code mr-2"></i><?= __("UNIMARC (.mrc)") ?>
               </a>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -123,9 +127,11 @@ ob_start();
               <a href="<?= htmlspecialchars(url('/admin/books/import/librarything'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-cloud-upload-alt mr-2"></i><?= __("LibraryThing TSV") ?>
               </a>
+              <?php if (\App\Support\Features::enabled('marc')): ?>
               <a href="<?= htmlspecialchars(url('/admin/books/import/marc'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-file-import mr-2"></i><?= __("MARC (ISO 2709 / MARCXML)") ?>
               </a>
+              <?php endif; ?>
               <?php if (!empty($copyCatalogingAvailable)): ?>
               <a href="<?= htmlspecialchars(url('/admin/books/copy-cataloging'), ENT_QUOTES, 'UTF-8') ?>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 <i class="fas fa-search-plus mr-2"></i><?= __("Copy cataloging (SRU)") ?>
@@ -331,6 +337,7 @@ unset($workspaceHeader);
           </div>
 
           <!-- Supplier -->
+          <?php if (\App\Support\Features::enabled('suppliers')): ?>
           <div>
             <label for="fornitore_filter" class="form-label books-filter-label">
               <i class="fas fa-truck mr-1"></i><?= __("Fornitore") ?>
@@ -342,6 +349,7 @@ unset($workspaceHeader);
               <?php endforeach; ?>
             </select>
           </div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -403,12 +411,16 @@ unset($workspaceHeader);
           <button id="bulk-export" class="btn-secondary">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
+          <?php if (\App\Support\Features::enabled('marc')): ?>
           <button id="bulk-export-marc" class="btn-secondary">
             <i class="fas fa-file-code mr-2"></i><?= __("Esporta in MARC") ?>
           </button>
+          <?php endif; ?>
+          <?php if (\App\Support\Features::enabled('catalogue_cards')): ?>
           <button id="bulk-catalogue-cards" class="btn-secondary">
             <i class="fas fa-address-card mr-2"></i><?= __("Schede catalografiche") ?>
           </button>
+          <?php endif; ?>
           <button id="bulk-assign-collana" class="btn-secondary">
             <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
           </button>
@@ -1510,7 +1522,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Bulk ISBD catalogue cards (PDF, one card per page)
-  document.getElementById('bulk-catalogue-cards').addEventListener('click', function() {
+  document.getElementById('bulk-catalogue-cards')?.addEventListener('click', function() {
     if (selectedBooks.size === 0) return;
     const maxCards = <?= json_encode(\App\Controllers\CatalogueCardController::MAX_BULK, JSON_HEX_TAG) ?>;
     if (selectedBooks.size > maxCards) {
@@ -1534,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Bulk MARC export of the selection: MARC 21, MARCXML or UNIMARC
-  document.getElementById('bulk-export-marc').addEventListener('click', async function() {
+  document.getElementById('bulk-export-marc')?.addEventListener('click', async function() {
     if (selectedBooks.size === 0) return;
     const choice = await Swal.fire({
       title: __('Esporta in MARC'),

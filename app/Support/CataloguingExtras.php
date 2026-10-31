@@ -34,8 +34,10 @@ final class CataloguingExtras
 
         // Only the empty choice ("no supplier", "Automatic") clears a value.
         // A malformed id, a supplier deleted meanwhile or an unknown RDA code
-        // leaves the stored value as it is instead of wiping it.
-        if (array_key_exists('fornitore_id', $data) && self::hasColumn($db, 'fornitore_id')) {
+        // leaves the stored value as it is instead of wiping it. A module
+        // switched off (Settings → Modules) never writes its field: the stored
+        // value survives a save made while it is off.
+        if (array_key_exists('fornitore_id', $data) && Features::enabled('suppliers') && self::hasColumn($db, 'fornitore_id')) {
             if (self::isEmptyChoice($data['fornitore_id'])) {
                 $set[] = 'fornitore_id = NULL';
             } elseif (($supplierId = self::existingSupplierId($db, $data['fornitore_id'])) !== null) {
@@ -46,7 +48,7 @@ final class CataloguingExtras
         }
 
         foreach (RdaTypes::COLUMNS as $kind => $column) {
-            if (!array_key_exists($column, $data) || !self::hasColumn($db, $column)) {
+            if (!array_key_exists($column, $data) || !Features::enabled('rda_types') || !self::hasColumn($db, $column)) {
                 continue;
             }
             if (self::isEmptyChoice($data[$column])) {
@@ -85,7 +87,7 @@ final class CataloguingExtras
      */
     public static function assignSupplier(mysqli $db, int $bookId, int $supplierId): bool
     {
-        if (!self::hasColumn($db, 'fornitore_id') || self::existingSupplierId($db, $supplierId) === null) {
+        if (!Features::enabled('suppliers') || !self::hasColumn($db, 'fornitore_id') || self::existingSupplierId($db, $supplierId) === null) {
             return false;
         }
         $stmt = $db->prepare('UPDATE libri SET fornitore_id = ? WHERE id = ? AND deleted_at IS NULL');

@@ -9,10 +9,11 @@ use App\Models\SettingsRepository;
 /**
  * The days the library is closed, and every date rule that depends on them.
  *
- * Two sources: the weekly closed days (`loans.closed_weekdays`, a comma list
- * of 0 = Sunday … 6 = Saturday) and the `calendario_chiusure` table (one row
+ * Sources: the weekly closed days (`loans.closed_weekdays`, a comma list
+ * of 0 = Sunday … 6 = Saturday), the `calendario_chiusure` table (one row
  * per closed interval, optionally recurring every year, optionally for one
- * branch only). With neither configured every day is open, and each method
+ * branch only), and the selected national holiday rules, evaluated for any
+ * requested year. With none configured every day is open, and each method
  * returns exactly what the code did before the calendar existed: that is the
  * zero-config equivalence the loan paths rely on.
  *
@@ -53,6 +54,12 @@ final class LibraryCalendar
     /** @var list<array{start: string, end: string, yearly: bool, sede: ?int}> */
     private array $closures = [];
 
+    /** @var list<array<string, mixed>> selected holiday rules, evaluated for any year (dataset countries: the years of their file) */
+    private array $holidayRules;
+
+    /** @var array<int, array<string, array<int|string, true>>> per year: date => branches ('*' = every branch) */
+    private array $holidayDates = [];
+
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
     private static array $instances = [];
 
@@ -62,9 +69,11 @@ final class LibraryCalendar
     /**
      * @param list<int>|array<int, int> $closedWeekdays 0 = Sunday … 6 = Saturday
      * @param list<array{data_inizio?: string, data_fine?: string, start?: string, end?: string, ricorrente_annuale?: int|string|bool, yearly?: bool, sede_id?: int|string|null, sede?: int|null}> $closures
+     * @param list<array<string, mixed>> $holidayRules
      */
-    public function __construct(array $closedWeekdays = [], array $closures = [])
+    public function __construct(array $closedWeekdays = [], array $closures = [], array $holidayRules = [])
     {
+        $this->holidayRules = $holidayRules;
         foreach ($closedWeekdays as $weekday) {
             $weekday = (int) $weekday;
             if ($weekday >= 0 && $weekday <= 6) {
@@ -103,9 +112,31 @@ final class LibraryCalendar
     }
 
     /** The calendar stored in the database (settings + closures table). */
-    public static function fromDatabase(\mysqli $db): self
+    public static function fromDatabase(\mysqli $db, bool $configuration = false): self
     {
-        return new self(self::loadClosedWeekdays($db), self::loadClosures($db));
+        // Closures calendar module off (Settings -> Loans; also off in
+        // catalogue mode): an empty calendar, so due dates, pickup deadlines
+        // and fine days are those of a library open every day, as before
+        // 0.9.0. The stored closures stay for when it is switched back on.
+        if (!$configuration && !Features::enabled('closures_calendar')) {
+            return new self([], []);
+        }
+        // A selection that cannot be read falls back to the stored closure rows,
+        // as the other loaders fall back instead of failing a due date.
+        try {
+            $presetRules = Holidays\HolidayPresets::calendarRules($db);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar: holiday selection not read: ' . $e->getMessage());
+            $presetRules = null;
+        }
+        // The library's own holidays (any calendar, optionally for one branch) join the presets.
+        try {
+            $customRules = Holidays\CustomHolidays::calendarRules($db);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar: custom holidays not read: ' . $e->getMessage());
+            $customRules = [];
+        }
+        return new self(self::loadClosedWeekdays($db), self::loadClosures($db, $presetRules !== null), array_merge($presetRules ?? [], $customRules));
     }
 
     /**
@@ -221,10 +252,10 @@ final class LibraryCalendar
 
     // ── Queries ─────────────────────────────────────────────────────────────
 
-    /** True when a weekly closed day or a closure row is configured. */
+    /** True when weekly closures, closure rows or selected holidays apply. */
     public function hasRules(): bool
     {
-        return $this->closedWeekdays !== [] || $this->closures !== [];
+        return $this->closedWeekdays !== [] || $this->closures !== [] || $this->holidayRules !== [];
     }
 
     /**
@@ -253,7 +284,38 @@ final class LibraryCalendar
                 return false;
             }
         }
-        return true;
+        return !$this->isHoliday($ymd, $sedeId);
+    }
+
+    /**
+     * Selected holidays apply beyond the admin list's materialised years. A
+     * rule with 'sede' (a custom holiday of one branch) closes that branch
+     * only, like a branch closure.
+     */
+    private function isHoliday(string $ymd, ?int $sedeId = null): bool
+    {
+        if ($this->holidayRules === []) {
+            return false;
+        }
+        $year = (int) substr($ymd, 0, 4);
+        if (!isset($this->holidayDates[$year])) {
+            $dates = [];
+            // An observed New Year's Day can land on 31 December of the
+            // preceding year. Include adjacent source years before filtering.
+            for ($sourceYear = max(1, $year - 1); $sourceYear <= min(9999, $year + 1); $sourceYear++) {
+                foreach ($this->holidayRules as $rule) {
+                    $branch = isset($rule['sede']) && is_int($rule['sede']) ? $rule['sede'] : '*';
+                    foreach (Holidays\HolidayCalculator::datesOf($rule, $sourceYear) as $date) {
+                        if ((int) substr($date, 0, 4) === $year) {
+                            $dates[$date][$branch] = true;
+                        }
+                    }
+                }
+            }
+            $this->holidayDates[$year] = $dates;
+        }
+        $branches = $this->holidayDates[$year][$ymd] ?? null;
+        return $branches !== null && (isset($branches['*']) || ($sedeId !== null && isset($branches[$sedeId])));
     }
 
     /**
@@ -447,34 +509,22 @@ final class LibraryCalendar
     }
 
     /**
-     * Italian national holidays for $year. Fixed dates recur every year;
-     * Easter and Easter Monday move, so they are dated for that year only.
+     * Italian national holidays for $year, from the Italy preset
+     * (Holidays\HolidayRules): fixed dates recur every year, movable ones
+     * (Easter, Easter Monday) and those that did not always exist are dated
+     * for that year only. Names are the Italian ones the preset stores.
      *
      * @return list<array{start: string, end: string, description: string, yearly: bool}>
      */
     public static function italianHolidays(int $year): array
     {
-        $fixed = [
-            '01-01' => __('Capodanno'),
-            '01-06' => __('Epifania'),
-            '04-25' => __('Festa della Liberazione'),
-            '05-01' => __('Festa del Lavoro'),
-            '06-02' => __('Festa della Repubblica'),
-            '08-15' => __('Ferragosto'),
-            '11-01' => __('Ognissanti'),
-            '12-08' => __('Immacolata Concezione'),
-            '12-25' => __('Natale'),
-            '12-26' => __('Santo Stefano'),
-        ];
         $holidays = [];
-        foreach ($fixed as $monthDay => $label) {
-            $date = sprintf('%04d-%s', $year, $monthDay);
-            $holidays[] = ['start' => $date, 'end' => $date, 'description' => $label, 'yearly' => true];
+        foreach (Holidays\HolidayCalculator::forYear('IT', '', $year) as $holiday) {
+            if ($holiday['date'] === null) {
+                continue;
+            }
+            $holidays[] = ['start' => $holiday['date'], 'end' => $holiday['date'], 'description' => $holiday['name'], 'yearly' => $holiday['yearly']];
         }
-        $easter = self::easterSunday($year);
-        $holidays[] = ['start' => $easter, 'end' => $easter, 'description' => __('Pasqua'), 'yearly' => false];
-        $monday = self::shift($easter, 1);
-        $holidays[] = ['start' => $monday, 'end' => $monday, 'description' => __("Lunedì dell'Angelo (Pasquetta)"), 'yearly' => false];
         usort($holidays, static fn (array $x, array $y): int => strcmp($x['start'], $y['start']));
         return $holidays;
     }
@@ -729,7 +779,7 @@ final class LibraryCalendar
     }
 
     /** @return list<array<string, mixed>> */
-    private static function loadClosures(\mysqli $db): array
+    private static function loadClosures(\mysqli $db, bool $rulesFromSelection = false): array
     {
         try {
             // Before the 0.9.0 migration ran the table does not exist: no closures.
@@ -737,7 +787,18 @@ final class LibraryCalendar
             if ($exists === false || $exists->num_rows === 0) {
                 return [];
             }
-            $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure');
+            // A closure switched off (attiva = 0) stays stored but closes
+            // nothing. Before the holiday-presets section of the migration
+            // the column is missing and every row counts, as before.
+            $hasActive = $db->query("SHOW COLUMNS FROM calendario_chiusure LIKE 'attiva'");
+            $filter = ($hasActive instanceof \mysqli_result && $hasActive->num_rows > 0) ? ' WHERE attiva = 1' : '';
+            // Once a selection exists it alone defines preset holidays. Old
+            // materialised rows cannot reintroduce unticked holidays, and a
+            // missing future row cannot make a selected holiday an open day.
+            if ($rulesFromSelection) {
+                $filter .= ($filter === '' ? ' WHERE ' : ' AND ') . 'regola_festivita IS NULL';
+            }
+            $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure' . $filter);
             return $result === false ? [] : $result->fetch_all(MYSQLI_ASSOC);
         } catch (\Throwable $e) {
             SecureLogger::warning('LibraryCalendar: closures not readable: ' . $e->getMessage());

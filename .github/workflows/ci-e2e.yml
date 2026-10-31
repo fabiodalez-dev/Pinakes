@@ -420,9 +420,14 @@ jobs:
               tests/closures-calendar-circulation.spec.js
               tests/closures-calendar-loans.spec.js
               tests/debt-block.spec.js
+              tests/feature-toggle-circulation-rules.spec.js
+              tests/feature-toggle-closures-calendar.spec.js
+              tests/feature-toggle-fines.spec.js
               tests/fines-closed-days.spec.js
               tests/fines-ledger.spec.js
               tests/fines-patron-types.spec.js
+              tests/holidays-preset.spec.js
+              tests/holidays-world.spec.js
               tests/stack-090-integration.spec.js
               tests/stack-090-review-fixes.spec.js
               tests/stack-090-zero-config.spec.js
@@ -430,6 +435,16 @@ jobs:
             specs: >-
               tests/attendance-090.spec.js
               tests/catalogue-cards-090.spec.js
+              tests/feature-toggle-catalogue-cards.spec.js
+              tests/feature-toggles-followups.spec.js
+              tests/feature-toggle-marc.spec.js
+              tests/feature-toggle-patron-cards.spec.js
+              tests/feature-toggle-rda-types.spec.js
+              tests/feature-toggle-stocktake.spec.js
+              tests/feature-toggle-suppliers.spec.js
+              tests/feature-toggle-user-import.spec.js
+              tests/feature-toggle-visitor-log.spec.js
+              tests/feature-toggles-settings.spec.js
               tests/inventory-stocktake.spec.js
               tests/issue-501-admin-lists.spec.js
               tests/issue-501-exact-quoted-search.spec.js

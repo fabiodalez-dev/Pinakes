@@ -105,12 +105,18 @@ class InventoryController
 
     public function index(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $sessions = (new StocktakeService($db))->listSessions();
         return $this->render($response, 'index', ['sessions' => $sessions] + $this->lookups($db));
     }
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $data = (array) $request->getParsedBody();
         $name = is_string($data['nome'] ?? null) ? $data['nome'] : '';
         $note = is_string($data['note'] ?? null) ? $data['note'] : '';
@@ -131,6 +137,9 @@ class InventoryController
 
     public function show(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $service = new StocktakeService($db);
         $session = $service->find($id);
         if ($session === null) {
@@ -216,6 +225,9 @@ class InventoryController
 
     public function scan(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $data = (array) $request->getParsedBody();
         if (str_contains($request->getHeaderLine('Content-Type'), 'application/json')) {
             $decoded = json_decode((string) $request->getBody(), true);
@@ -241,6 +253,9 @@ class InventoryController
 
     public function state(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $service = new StocktakeService($db);
         $session = $service->find($id);
         if ($session === null) {
@@ -267,6 +282,9 @@ class InventoryController
 
     public function upload(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $files = $request->getUploadedFiles();
         $file = $files['lista'] ?? null;
         $back = '/admin/inventory/' . $id;
@@ -305,6 +323,9 @@ class InventoryController
 
     public function close(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $data = (array) $request->getParsedBody();
         $back = '/admin/inventory/' . $id;
         $action = $data['azione_mancanti'] ?? 'nessuna';
@@ -357,6 +378,9 @@ class InventoryController
 
     public function cancel(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         try {
             (new StocktakeService($db))->cancel($id, $this->operatorId());
         } catch (\DomainException $e) {
@@ -380,6 +404,9 @@ class InventoryController
 
     public function exportCsv(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $service = new StocktakeService($db);
         $session = $service->find($id);
         if ($session === null) {
@@ -412,6 +439,9 @@ class InventoryController
 
     public function exportPdf(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('stocktake', $response)) !== null) {
+            return $off;
+        }
         $service = new StocktakeService($db);
         $session = $service->find($id);
         if ($session === null) {

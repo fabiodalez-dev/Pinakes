@@ -20,7 +20,17 @@ $settingsCatalogue = [
 // guards every page and form the same way). Staff reaches the settings page,
 // but neither sees the section in the navigation nor reaches its tab:
 // ?tab=circulation falls back to the default section like an unknown tab.
+// Administrators can prepare the configuration while the module is off.
 if (\App\Support\Permissions::mayConfigure()) {
     $settingsCatalogue['circulation'] = ['group' => __('Biblioteca'), 'label' => __('Circolazione'), 'description' => __('Tipologie di lettore e regole di prestito per tipo di materiale.'), 'icon' => 'fa-id-badge'];
+}
+// Optional modules: switching one off is library policy, so the tab follows
+// the same administrators-only rule (staff reaches the settings, not this).
+if (\App\Support\Permissions::mayConfigure()) {
+    $settingsCatalogue['modules'] = ['group' => __('Sito e sistema'), 'label' => __('Moduli'), 'description' => __('Attiva o disattiva i moduli opzionali della biblioteca.'), 'icon' => 'fa-toggle-on'];
+}
+// The library cards tab belongs to the patron cards module.
+if (!\App\Support\Features::enabled('patron_cards') && !\App\Support\Permissions::mayConfigure()) {
+    unset($settingsCatalogue['cards']);
 }
 return $settingsCatalogue;

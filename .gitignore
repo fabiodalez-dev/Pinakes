@@ -476,6 +476,8 @@ tests/fixtures/*
 !tests/fixtures/sru/
 !tests/fixtures/htaccess-history/
 !tests/fixtures/marc/
+!tests/fixtures/upgrades/
+!tests/fixtures/upgrades/*.sql
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php

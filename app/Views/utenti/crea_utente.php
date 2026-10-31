@@ -173,12 +173,14 @@ unset($workspaceHeader);
             <label for="data_scadenza_tessera" class="block text-sm font-medium text-gray-700"><?= __("Scadenza tessera") ?></label>
             <input type="date" id="data_scadenza_tessera" name="data_scadenza_tessera" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
           </div>
+          <?php if (\App\Support\Features::enabled('automatic_card_expiry')): ?>
           <div class="md:col-span-2">
             <label class="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" id="card_auto" name="card_auto" value="1" class="rounded border-gray-300" checked>
               <?= __("Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)") ?>
             </label>
           </div>
+          <?php endif; ?>
         </div>
       </section>
 

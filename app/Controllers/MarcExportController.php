@@ -26,6 +26,9 @@ class MarcExportController
 
     public function export(Request $request, Response $response, \mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('marc', $response)) !== null) {
+            return $off;
+        }
         $params = $request->getQueryParams();
         $format = (string) ($params['format'] ?? 'marc21');
         if (!in_array($format, self::FORMATS, true)) {

@@ -194,6 +194,29 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Nur-Katalog-Modus - deaktiviert Ausleihen, Vormerkungen und Wunschliste')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+-- Optional modules (Settings > Modules / Loans): fresh-install defaults
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0-rc.1.sql).
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('features', 'stocktake', '1', 'Optionales Modul: Bestandsrevision'),
+('features', 'marc', '1', 'Optionales Modul: MARC-Import und -Export'),
+('features', 'visitor_log', '0', 'Optionales Modul: Besucherregister'),
+('features', 'catalogue_cards', '1', 'Optionales Modul: Katalogkarten'),
+('features', 'suppliers', '1', 'Optionales Modul: Lieferanten'),
+('features', 'rda_types', '1', 'Optionales Modul: RDA-Typen'),
+('features', 'patron_cards', '1', 'Optionales Modul: Kartendruck'),
+('features', 'user_import', '1', 'Optionales Modul: Benutzerimport aus CSV'),
+('features', 'circulation_rules', '1', 'Optionales Modul: Regeln nach Lesertyp'),
+('features', 'closures_calendar', '1', 'Optionales Modul: Schließtage-Kalender'),
+('features', 'fines', '0', 'Optionales Modul: Leserkonto'),
+('features', 'patron_photos', '1', 'Optionales Modul: Leserfotos'),
+('features', 'consultation_only', '1', 'Optionales Modul: Präsenzexemplare'),
+('features', 'automatic_card_expiry', '1', 'Optionales Modul: Automatische Kartengültigkeit'),
+('features', 'automatic_fines', '0', 'Optionales Modul: Automatische Säumnisgebühren'),
+('features', 'debt_block', '0', 'Optionales Modul: Ausleihsperre bei Schulden'),
+('features', 'loss_penalties', '0', 'Optionales Modul: Verlust- und Schadensgebühren ins Konto übernehmen'),
+('features', 'attendance_retention', '0', 'Optionales Modul: Aufbewahrung bei ausgesetztem Besucherprotokoll')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Tage zum Abholen einer genehmigten Ausleihe bevor sie verfällt')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();

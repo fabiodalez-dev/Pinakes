@@ -819,6 +819,11 @@ class UsersController
         // Effective circulation rules of this patron (patron type → globals).
         $circulation = new \App\Services\CirculationPolicy($db);
         $patronPolicy = $circulation->forType($circulation->patronTypeOf($id));
+        $cardRenewalPreview = \App\Support\PatronTypeAssignment::renewalDate(
+            $patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS,
+            $utente['data_scadenza_tessera'],
+            (string) (new \App\Models\SettingsRepository($db))->get('loans', 'card_renewal_base', 'today')
+        );
         $patronTypeName = $patronPolicy->user->patronTypeName;
         $patronTypeIsOwn = isset($utente['tipologia_id']);
         // "Movimenti" section (plan §7): balance, ledger rows, fines accruing on
@@ -834,6 +839,8 @@ class UsersController
         $ledgerAccrued = $ledger->accruedFines($id);
         $ledgerParams = \App\Services\FineParameters::forUser($db, $id);
         $ledgerCanManage = \App\Support\Permissions::can('loans.manage');
+        // Fines module off (Settings -> Loans): no Movimenti section.
+        $ledgerEnabled = \App\Services\PatronLedger::active($db);
 
         ob_start();
         require __DIR__ . '/../Views/utenti/dettagli_utente.php';
@@ -1122,7 +1129,8 @@ class UsersController
             $bindTypes .= $patronType['types'];
             array_push($bindValues, ...$patronType['params']);
         }
-        $patronTypeColumn = (new \App\Services\CirculationPolicy($db))->schemaReady() ? ', tipologia_id' : '';
+        // Same rule as the import: no patron type column while the module is off.
+        $patronTypeColumn = (new \App\Services\CirculationPolicy($db))->rulesActive() ? ', tipologia_id' : '';
 
         // Build the query - export ALL fields except sensitive ones (password, tokens)
         $query = "SELECT

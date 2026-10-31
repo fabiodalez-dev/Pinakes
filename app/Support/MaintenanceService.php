@@ -100,6 +100,18 @@ class MaintenanceService
         return $this->runAll();
     }
 
+    /** Apply retention independently of new visit collection when explicitly enabled. */
+    public function purgeAttendance(): int
+    {
+        if (!Features::enabled('visitor_log') && !Features::enabled('attendance_retention')) {
+            return 0;
+        }
+        $attendance = new \App\Models\AttendanceRepository($this->db);
+        return $attendance->isAvailable()
+            ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
+            : 0;
+    }
+
     /**
      * Run all maintenance tasks immediately
      *
@@ -107,7 +119,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
+     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
      */
     public function runAll(): array
     {
@@ -147,7 +159,7 @@ class MaintenanceService
         }
     }
 
-    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} */
+    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, errors: array} */
     private function runAllLocked(): array
     {
         $results = [
@@ -197,6 +209,16 @@ class MaintenanceService
             }
         } catch (\Throwable $e) {
             $results['errors'][] = 'legacyPenaltyBackfill: ' . $e->getMessage();
+        }
+
+        // Holiday presets (0.9.0): the movable holidays the library ticked get
+        // their rows up to two years ahead, so a new year never starts with
+        // Easter missing. Before the due dates and pickups of this pass.
+        try {
+            $results['holiday_rows_added'] = $this->extendHolidayRows();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'extendHolidayRows: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore festività'), ['error' => $e->getMessage()]);
         }
 
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
@@ -347,10 +369,7 @@ class MaintenanceService
         // configured number of days are deleted. 0 days = keep forever; with
         // no setting the default retention applies.
         try {
-            $attendance = new \App\Models\AttendanceRepository($this->db);
-            $results['attendance_purged'] = $attendance->isAvailable()
-                ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
-                : 0;
+            $results['attendance_purged'] = $this->purgeAttendance();
         } catch (\Throwable $e) {
             $results['errors'][] = 'purgeAttendance: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore pulizia presenze'), ['error' => $e->getMessage()]);
@@ -459,6 +478,26 @@ class MaintenanceService
             }
         }
         return false;
+    }
+
+    /**
+     * The rows of the chosen movable holidays up to two years ahead
+     * (HolidayPresets::ensureYears()). Skipped while the closures calendar
+     * is switched off (features.closures_calendar): no row is written, and the
+     * ones missing are added by the first pass after it is switched back on.
+     * Pending pickups are re-checked when rows were added.
+     */
+    public function extendHolidayRows(): int
+    {
+        if (!Features::enabled('closures_calendar')) {
+            return 0;
+        }
+        $added = \App\Support\Holidays\HolidayPresets::ensureYears($this->db);
+        if ($added > 0) {
+            LibraryCalendar::reset();
+            LibraryCalendar::extendPickupDeadlines($this->db);
+        }
+        return $added;
     }
 
     /**

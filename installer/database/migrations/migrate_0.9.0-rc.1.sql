@@ -310,6 +310,67 @@ CREATE TABLE IF NOT EXISTS `calendario_chiusure` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- ── end closures calendar ──
 
+-- ── holiday presets ──
+-- calendario_chiusure.regola_festivita: the holiday rule ("CC:rule", e.g.
+-- "DE:fronleichnam") a preset row stands for; NULL = a closure added by hand
+-- or from an ICS file, which the presets never change. attiva: 0 keeps a
+-- closure stored but ignored by the calendar (a yearly closure switched off
+-- without deleting it). The choice itself (country, region, ticked rules) is
+-- in system_settings (calendar.holiday_*), written on the first apply: no
+-- seed. Former Italian preset rows are adopted by the first apply, not here.
+-- Guarded on information_schema, so the section is idempotent.
+SET @hp_col = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure' AND COLUMN_NAME = 'regola_festivita');
+SET @hp_sql = IF(@hp_col = 0, 'ALTER TABLE `calendario_chiusure` ADD COLUMN `regola_festivita` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `sede_id`', 'SELECT 1');
+PREPARE hp_stmt FROM @hp_sql;
+EXECUTE hp_stmt;
+DEALLOCATE PREPARE hp_stmt;
+SET @hp_col = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure' AND COLUMN_NAME = 'attiva');
+SET @hp_sql = IF(@hp_col = 0, 'ALTER TABLE `calendario_chiusure` ADD COLUMN `attiva` tinyint(1) NOT NULL DEFAULT ''1'' AFTER `regola_festivita`', 'SELECT 1');
+PREPARE hp_stmt FROM @hp_sql;
+EXECUTE hp_stmt;
+DEALLOCATE PREPARE hp_stmt;
+SET @hp_idx = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure' AND INDEX_NAME = 'idx_calendario_chiusure_regola');
+SET @hp_sql = IF(@hp_idx = 0, 'ALTER TABLE `calendario_chiusure` ADD KEY `idx_calendario_chiusure_regola` (`regola_festivita`)', 'SELECT 1');
+PREPARE hp_stmt FROM @hp_sql;
+EXECUTE hp_stmt;
+DEALLOCATE PREPARE hp_stmt;
+-- ── end holiday presets ──
+
+-- ── custom holidays ──
+-- festivita_personalizzate: the holidays a library defines itself, evaluated
+-- for any year like a preset holiday (LibraryCalendar). tipo: fixed (mese,
+-- giorno), nth_weekday (mese, giorno_settimana 0 = Sunday, occorrenza 1-5 or
+-- -1 = last), easter / orthodox_easter (scarto_giorni from Easter Sunday),
+-- calendar (calendario = islamic-umalqura, hebrew, chinese, persian, indian,
+-- ethiopic or coptic, with its mese and giorno), dates (date_specifiche, a
+-- comma list of Y-m-d). durata_giorni: consecutive days from each start;
+-- fine_settimana: NULL, next_monday or us (a weekend day adds a day in lieu).
+-- No rows: an install that defines none behaves as before. Idempotent.
+CREATE TABLE IF NOT EXISTS `festivita_personalizzate` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('fixed','nth_weekday','easter','orthodox_easter','calendar','dates') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mese` tinyint DEFAULT NULL,
+  `giorno` tinyint DEFAULT NULL,
+  `giorno_settimana` tinyint DEFAULT NULL,
+  `occorrenza` tinyint DEFAULT NULL,
+  `scarto_giorni` smallint DEFAULT NULL,
+  `calendario` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `date_specifiche` text COLLATE utf8mb4_unicode_ci,
+  `durata_giorni` tinyint NOT NULL DEFAULT '1',
+  `fine_settimana` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `anno_inizio` smallint DEFAULT NULL,
+  `anno_fine` smallint DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_festivita_personalizzate_sede` (`sede_id`),
+  CONSTRAINT `fk_festivita_personalizzate_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ── end custom holidays ──
+
 -- ── fines-ledger (Phase 4: fines, patron ledger, debt block) ──
 -- movimenti_lettore is an append-only patron ledger: the balance is SUM(importo),
 -- positive = debt, negative = payment/waiver. chiave_idempotenza keeps a charge
@@ -337,7 +398,8 @@ CREATE TABLE IF NOT EXISTS `movimenti_lettore` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Existing prestiti.sanzione amounts (assessed by hand when a copy was closed lost
--- or damaged) become ledger charges. prestiti.sanzione stays and is still written
+-- or damaged) become ledger charges only when the existing ledger and loss
+-- mirroring are enabled. Otherwise they remain solely in prestiti.sanzione. prestiti.sanzione stays and is still written
 -- as a mirror. The key penalty:<loan id> is the one the live return path uses, so
 -- the conversion happens exactly once, however many times the upgrade runs.
 -- Batches of 5000 loans in id order; each statement is its own short transaction
@@ -350,6 +412,8 @@ SET @fl_sql = 'INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, impo
         COALESCE(CAST(p.data_restituzione AS DATETIME), p.updated_at, p.created_at, NOW()), CONCAT(''penalty:'', p.id)
    FROM prestiti p
   WHERE p.sanzione > 0
+    AND EXISTS (SELECT 1 FROM system_settings WHERE category = ''features'' AND setting_key = ''fines'' AND setting_value = ''1'')
+    AND COALESCE((SELECT setting_value FROM system_settings WHERE category = ''features'' AND setting_key = ''loss_penalties''), ''1'') = ''1''
     AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT(''penalty:'', p.id))
   ORDER BY p.id
   LIMIT 5000
@@ -377,3 +441,119 @@ EXECUTE fl_stmt;
 EXECUTE fl_stmt;
 DEALLOCATE PREPARE fl_stmt;
 -- ── end fines-ledger ──
+
+-- ── feature toggles ──
+-- One features.<key> row per optional 0.9.0 module (App\Support\Features), with
+-- its UPGRADE default, which is also the code fallback. Insert-if-missing (as
+-- migrate_0.7.64-rc.1.sql): a value the operator already saved is never
+-- overwritten, and a second run is a no-op. The values MUST match
+-- Features::DEFAULTS (tests/feature-toggles-registry.unit.php checks it).
+-- Modules that are on by default: reachable only from an explicit action inside
+-- an existing module, they change nothing until used.
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'marc', '1', 'Optional module: MARC import and export' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'marc');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'catalogue_cards', '1', 'Optional module: Catalogue cards' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'catalogue_cards');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'patron_cards', '1', 'Optional module: Patron cards and photos' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'patron_cards');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'user_import', '1', 'Optional module: User import from CSV' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'user_import');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'circulation_rules', '1', 'Optional module: Rules by patron type' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'circulation_rules');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'closures_calendar', '1', 'Optional module: Closures calendar' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'closures_calendar');
+-- Off by default on an upgrade (new sidebar entries, new cataloguing fields,
+-- money, personal data), EXCEPT where the library already has data for the
+-- module (an upgrade from a 0.9.0 release candidate that used it): if you used
+-- it, it stays on. Each probe is guarded on information_schema, so the section
+-- also runs where an earlier section has not created the table.
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventario_sessioni');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM inventario_sessioni), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'stocktake', @ft_val, 'Optional module: Inventory stocktake' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'stocktake');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fornitori');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM fornitori), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'suppliers', @ft_val, 'Optional module: Suppliers' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'suppliers');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'presenze');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM presenze), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'visitor_log', @ft_val, 'Optional module: Visitor log' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'visitor_log');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME IN ('rda_content_type', 'rda_media_type', 'rda_carrier_type'));
+SET @ft_sql = IF(@ft_has = 3, 'SELECT IF(EXISTS(SELECT 1 FROM libri WHERE deleted_at IS NULL AND (rda_content_type IS NOT NULL OR rda_media_type IS NOT NULL OR rda_carrier_type IS NOT NULL)), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'rda_types', @ft_val, 'Optional module: RDA types' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'rda_types');
+-- Fines: a ledger row the legacy-penalty conversion did not write (key penalty:<id>),
+-- a daily fine or a debt threshold already configured, globally, on a patron
+-- type or on a cell of the rules matrix.
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore');
+SET @ft_sql = IF(@ft_has > 0, 'SELECT IF(EXISTS(SELECT 1 FROM movimenti_lettore WHERE chiave_idempotenza IS NULL OR chiave_idempotenza NOT LIKE ''penalty:%''), ''1'', ''0'') INTO @ft_val', 'SELECT ''0'' INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+SET @ft_val = IF(@ft_val = '1' OR EXISTS(SELECT 1 FROM system_settings WHERE category = 'loans' AND setting_key IN ('daily_fine', 'debt_block_threshold') AND setting_value REGEXP '^[0-9]{1,8}([.,][0-9]{1,2})?$' AND CAST(REPLACE(setting_value, ',', '.') AS DECIMAL(10,2)) > 0), '1', '0');
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tipologie_lettore' AND COLUMN_NAME IN ('multa_giornaliera', 'soglia_blocco_debito'));
+SET @ft_sql = IF(@ft_has = 2 AND @ft_val = '0', 'SELECT IF(EXISTS(SELECT 1 FROM tipologie_lettore WHERE multa_giornaliera > 0 OR soglia_blocco_debito > 0), ''1'', ''0'') INTO @ft_val', 'SELECT @ft_val INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+SET @ft_has = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'regole_prestito' AND COLUMN_NAME = 'multa_giornaliera');
+SET @ft_sql = IF(@ft_has = 1 AND @ft_val = '0', 'SELECT IF(EXISTS(SELECT 1 FROM regole_prestito WHERE multa_giornaliera > 0), ''1'', ''0'') INTO @ft_val', 'SELECT @ft_val INTO @ft_val');
+PREPARE ft_stmt FROM @ft_sql;
+EXECUTE ft_stmt;
+DEALLOCATE PREPARE ft_stmt;
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'fines', @ft_val, 'Optional module: Fines and patron ledger' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'fines');
+-- Split controls inherit the former switch; explicit choices are never overwritten.
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'patron_cards'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'patron_photos', @ft_val, 'Optional control: patron_photos' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'patron_photos');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'circulation_rules'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'consultation_only', @ft_val, 'Optional control: consultation_only' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'consultation_only');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'circulation_rules'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'automatic_card_expiry', @ft_val, 'Optional control: automatic_card_expiry' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'automatic_card_expiry');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'fines'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'automatic_fines', @ft_val, 'Optional control: automatic_fines' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'automatic_fines');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'fines'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'debt_block', @ft_val, 'Optional control: debt_block' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'debt_block');
+SET @ft_val = COALESCE((SELECT setting_value FROM system_settings WHERE category = 'features' AND setting_key = 'fines'), '0');
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'loss_penalties', @ft_val, 'Optional control: loss_penalties' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'loss_penalties');
+SET @ft_val = '0';
+INSERT INTO system_settings (category, setting_key, setting_value, description)
+SELECT 'features', 'attendance_retention', @ft_val, 'Optional control: attendance_retention' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE category = 'features' AND setting_key = 'attendance_retention');
+-- ── end feature toggles ──

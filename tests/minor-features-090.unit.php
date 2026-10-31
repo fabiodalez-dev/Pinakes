@@ -6,6 +6,11 @@ declare(strict_types=1);
  * helpers, the bulk-card id parser and the statistics extension-point shape.
  */
 require dirname(__DIR__) . '/vendor/autoload.php';
+// The module under test is on, whatever features.* says in the database
+// this runs against (Settings → Modules / Loans).
+\App\Support\Features::override('rda_types', true);
+\App\Support\Features::override('suppliers', true);
+\App\Support\Features::override('visitor_log', true);
 if (!function_exists('__')) { function __(string $s, mixed ...$a): string { return $a ? sprintf($s, ...$a) : $s; } }
 
 use App\Controllers\CatalogueCardController;

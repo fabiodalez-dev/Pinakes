@@ -11,6 +11,29 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('system', 'catalogue_mode', '0', 'Kun katalog-tilstand – deaktiverer lån, reservationer og ønskeliste')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
+-- Optional modules (Settings > Modules / Loans): fresh-install defaults
+-- (App\Support\Features::FRESH; the upgrade defaults are in migrate_0.9.0-rc.1.sql).
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('features', 'stocktake', '1', 'Valgfrit modul: Lageroptælling'),
+('features', 'marc', '1', 'Valgfrit modul: MARC-import og -eksport'),
+('features', 'visitor_log', '0', 'Valgfrit modul: Besøgsregister'),
+('features', 'catalogue_cards', '1', 'Valgfrit modul: Katalogkort'),
+('features', 'suppliers', '1', 'Valgfrit modul: Leverandører'),
+('features', 'rda_types', '1', 'Valgfrit modul: RDA-typer'),
+('features', 'patron_cards', '1', 'Valgfrit modul: Udskrivning af lånerkort'),
+('features', 'user_import', '1', 'Valgfrit modul: Brugerimport fra CSV'),
+('features', 'circulation_rules', '1', 'Valgfrit modul: Regler efter lånertype'),
+('features', 'closures_calendar', '1', 'Valgfrit modul: Lukkekalender'),
+('features', 'fines', '0', 'Valgfrit modul: Kontobevægelser'),
+('features', 'patron_photos', '1', 'Valgfrit modul: Lånerfotos'),
+('features', 'consultation_only', '1', 'Valgfrit modul: Eksemplarer til brug på stedet'),
+('features', 'automatic_card_expiry', '1', 'Valgfrit modul: Automatisk kortgyldighed'),
+('features', 'automatic_fines', '0', 'Valgfrit modul: Automatiske forsinkelsesgebyrer'),
+('features', 'debt_block', '0', 'Valgfrit modul: Bloker udlån ved gæld'),
+('features', 'loss_penalties', '0', 'Valgfrit modul: Overfør erstatning for tab og skade til kontoen'),
+('features', 'attendance_retention', '0', 'Valgfrit modul: Opbevaring mens besøgsregistrering er slået fra')
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
+
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Antal dage til at afhente et godkendt lån, før det udløber')
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();

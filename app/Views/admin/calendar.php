@@ -13,6 +13,11 @@
  * @var array<string, int> $monthClosed
  * @var int $currentYear
  * @var string $today
+ * @var list<array<string, mixed>> $yearlyClosures
+ * @var list<array<string, mixed>> $customHolidays
+ * @var array<string, mixed>|null $customEditing
+ * @var bool $customSchema
+ * @var array{countries: array<string, string>, country: string, regions: array<string, string>, region: string, years: array{min: int, max: int}, data_years: array{int, int}|null, year: int, list: list<array{id: string, name: string, date: ?string, dates: list<string>, yearly: bool, regional: bool, optional: bool, name_en: string, category: string, estimated: bool, checked: bool}>, saved: bool, schema: bool} $holidays
  */
 
 $csrf = \App\Support\Csrf::ensureToken();
@@ -170,31 +175,382 @@ unset($workspaceHeader);
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Italian holidays preset -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-preset">
-        <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
-          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-flag text-gray-600"></i>
-            <?= __("Festività nazionali italiane") ?>
-          </h2>
-        </div>
-        <div class="p-6">
-          <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/preset'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
-            <p class="text-sm text-gray-600"><?= __("Aggiunge le festività fisse come chiusure annuali, e Pasqua e Pasquetta per l'anno scelto. Le chiusure già presenti non vengono duplicate.") ?></p>
+    <!-- National holidays: country, region, the holidays to apply -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-preset">
+      <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-flag text-gray-600"></i>
+          <?= __("Festività nazionali") ?>
+        </h2>
+      </div>
+      <div class="p-6 space-y-4">
+        <p class="text-sm text-gray-600"><?= __("Scegli il paese (e la regione, dove serve) e spunta le festività in cui la biblioteca è chiusa. Le festività fisse diventano chiusure annuali, quelle mobili sono ricalcolate ogni anno. Togliere la spunta rimuove solo quella festività; le chiusure aggiunte a mano o da file ICS non vengono toccate.") ?></p>
+        <p class="text-sm text-gray-600"><?= __("Le date sono calcolate dalle regole ufficiali note; la biblioteca sceglie quali applicare e può sempre aggiungere chiusure a mano.") ?></p>
+        <form method="GET" action="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="holiday-filter" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="holiday_country" class="form-label"><i class="fas fa-globe mr-1"></i><?= __("Paese") ?></label>
+            <select id="holiday_country" name="holiday_country" class="form-input" onchange="if (this.form.holiday_region) { this.form.holiday_region.value = ''; } this.form.submit()">
+              <?php foreach ($holidays['countries'] as $code => $countryName): ?>
+                <option value="<?= $e($code) ?>" <?= $code === $holidays['country'] ? 'selected' : '' ?>><?= $e($countryName) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php if ($holidays['regions'] !== []): ?>
             <div>
-              <label for="preset_year" class="form-label"><i class="fas fa-calendar-alt mr-1"></i><?= __("Anno") ?></label>
-              <select id="preset_year" name="year" class="form-input">
-                <?php for ($y = $currentYear; $y <= $currentYear + 2; $y++): ?>
-                  <option value="<?= $y ?>"><?= $y ?></option>
+              <label for="holiday_region" class="form-label"><i class="fas fa-map-marker-alt mr-1"></i><?= __("Regione") ?></label>
+              <select id="holiday_region" name="holiday_region" class="form-input" onchange="this.form.submit()">
+                <?php if (empty(\App\Support\Holidays\HolidayCalculator::country($holidays['country'])['region_required'])): ?>
+                  <option value=""><?= __("Solo festività nazionali") ?></option>
+                <?php endif; ?>
+                <?php foreach ($holidays['regions'] as $code => $regionName): ?>
+                  <option value="<?= $e($code) ?>" <?= $code === $holidays['region'] ? 'selected' : '' ?>><?= $e($regionName) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          <?php endif; ?>
+          <div>
+            <label for="holiday_year" class="form-label"><i class="fas fa-calendar-alt mr-1"></i><?= __("Anno di anteprima") ?></label>
+            <input type="number" id="holiday_year" name="holiday_year" class="form-input" min="<?= (int) $holidays['years']['min'] ?>" max="<?= (int) $holidays['years']['max'] ?>" step="1" value="<?= (int) $holidays['year'] ?>" onchange="if (this.checkValidity()) this.form.submit()">
+          </div>
+          <noscript>
+            <button type="submit" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200"><?= __("Aggiorna anteprima") ?></button>
+          </noscript>
+        </form>
+
+        <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/preset'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4" id="holiday-apply">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+          <input type="hidden" name="country" value="<?= $e($holidays['country']) ?>">
+          <input type="hidden" name="region" value="<?= $e($holidays['region']) ?>">
+          <div class="flex items-center gap-4 text-sm">
+            <button type="button" class="text-sm text-gray-600 hover:text-gray-800" data-holiday-select="all"><?= __("Seleziona tutte") ?></button>
+            <button type="button" class="text-sm text-gray-600 hover:text-gray-800" data-holiday-select="none"><?= __("Nessuna") ?></button>
+          </div>
+          <?php if ($holidays['data_years'] !== null): ?>
+            <p class="text-xs text-gray-500" data-holiday-source><?= $e(sprintf(__('Festività ufficiali dal %1$d al %2$d, dai dati aperti del progetto python-holidays. Per gli anni successivi aggiorna Pinakes; le festività personalizzate valgono per ogni anno.'), $holidays['data_years'][0], $holidays['data_years'][1])) ?></p>
+          <?php endif; ?>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="holiday-list">
+            <?php foreach ($holidays['list'] as $holiday):
+                $boxId = 'holiday_rule_' . preg_replace('/[^A-Za-z0-9_]/', '_', $holiday['id']); ?>
+              <?php // Every part is a sibling of the checkbox: workspace-ui.css keeps the badge colours there. ?>
+              <label class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700" data-holiday-row="<?= $e($holiday['id']) ?>">
+                <input type="checkbox" name="rules[]" value="<?= $e($holiday['id']) ?>" id="<?= $e($boxId) ?>" data-holiday-rule
+                       <?= $holiday['checked'] ? 'checked' : '' ?>>
+                <bdi><?= $e($holiday['name']) ?></bdi>
+                <?php if ($holiday['name_en'] !== $holiday['name']): ?>
+                  <span class="text-gray-500 text-xs" lang="en"><?= $e($holiday['name_en']) ?></span>
+                <?php endif; ?>
+                <span class="text-gray-500" data-holiday-date="<?= $e((string) $holiday['date']) ?>"><?= $holiday['date'] !== null ? $e($fmt('EEE d MMMM y', $holiday['date'])) : $e(__('non prevista nel %d', $holidays['year'])) ?></span>
+                <?php foreach (array_diff($holiday['dates'], [(string) $holiday['date']]) as $holidayActual): ?>
+                  <span class="text-gray-500" data-holiday-actual="<?= $e($holidayActual) ?>"><?= $e(sprintf(__('chiusa anche %s'), $fmt('EEE d MMMM y', $holidayActual))) ?></span>
+                <?php endforeach; ?>
+                <?php if ($holidays['data_years'] === null): // the open data has dates, not rules ?>
+                  <?php if ($holiday['yearly']): ?>
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"><?= __("ogni anno") ?></span>
+                  <?php else: ?>
+                    <span class="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full"><?= __("mobile") ?></span>
+                  <?php endif; ?>
+                <?php endif; ?>
+                <?php if ($holiday['regional']): ?>
+                  <span class="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full"><?= __("regionale") ?></span>
+                <?php endif; ?>
+                <?php if ($holiday['optional']): ?>
+                  <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full" data-holiday-category="<?= $e($holiday['category']) ?>"><?= $e($holiday['category'] === 'public' ? __("facoltativa") : \App\Support\Holidays\HolidayDataset::categoryLabel($holiday['category'])) ?></span>
+                <?php endif; ?>
+                <?php if ($holiday['estimated']): ?>
+                  <span class="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full" data-holiday-estimated title="<?= $e(__('Data calcolata in anticipo: dipende dall’avvistamento della luna e può cambiare di un giorno. Se serve, correggila con una festività personalizzata.')) ?>"><?= __("data stimata") ?></span>
+                <?php endif; ?>
+              </label>
+            <?php endforeach; ?>
+          </div>
+          <div class="flex justify-end pt-4 border-t border-gray-200">
+            <button type="submit" id="import-preset" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+              <i class="fas fa-check mr-2"></i>
+              <?= __("Applica festività selezionate") ?>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- The library's own holidays: any calendar, optionally for one branch -->
+    <?php
+    $customEditId = $customEditing !== null ? (int) $customEditing['id'] : 0;
+    $cv = static fn (string $field, $default = '') => $customEditing !== null && ($customEditing[$field] ?? null) !== null ? $customEditing[$field] : $default;
+    $customKind = (string) $cv('tipo', 'fixed');
+    $customAction = $customEditId > 0 ? url('/admin/calendar/custom-holidays/' . $customEditId . '/update') : url('/admin/calendar/custom-holidays');
+    $calendarCodes = \App\Support\Holidays\WorldCalendars::codes();
+    $customCalendar = (string) $cv('calendario', 'islamic-umalqura');
+    $monthName = static fn (int $m): string => mb_convert_case($fmt('LLLL', sprintf('2024-%02d-01', $m)), MB_CASE_TITLE, 'UTF-8');
+    ?>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-custom">
+      <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-star text-gray-600"></i>
+          <?= __("Festività della biblioteca") ?>
+        </h2>
+        <?php if ($customEditId > 0): ?>
+          <a href="<?= htmlspecialchars(url('/admin/calendar') . '#calendar-custom', ENT_QUOTES, 'UTF-8') ?>" class="text-sm text-gray-600 hover:text-gray-800"><?= __("Annulla") ?></a>
+        <?php endif; ?>
+      </div>
+      <div class="p-6 space-y-6">
+        <p class="text-sm text-gray-600"><?= __("Aggiungi le festività che le liste ufficiali non hanno o che la tua comunità celebra: il santo patrono, una festa religiosa, i giorni della biblioteca. Puoi usare il calendario gregoriano, la Pasqua occidentale o ortodossa, i calendari islamico, ebraico, cinese, persiano, indiano, etiope e copto, oppure elencare le date. Valgono per ogni anno e, se scegli una sede, solo per quella.") ?></p>
+        <?php if (!$customSchema): ?>
+          <p class="text-sm text-gray-600" role="status"><?= __("Le tabelle del calendario non sono ancora state create: completa l'aggiornamento del database.") ?></p>
+        <?php else: ?>
+        <form method="POST" action="<?= htmlspecialchars($customAction, ENT_QUOTES, 'UTF-8') ?>" class="space-y-4" id="custom-holiday-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label for="custom_name" class="form-label"><i class="fas fa-tag mr-1"></i><?= __("Nome") ?> *</label>
+              <input type="text" id="custom_name" name="nome" maxlength="255" required class="form-input"
+                     placeholder="<?= htmlspecialchars(__('es. Santo patrono'), ENT_QUOTES, 'UTF-8') ?>" value="<?= $e($cv('nome')) ?>">
+            </div>
+            <div>
+              <label for="custom_kind" class="form-label"><i class="fas fa-calculator mr-1"></i><?= __("Come si calcola") ?></label>
+              <select id="custom_kind" name="tipo" class="form-input" data-custom-kind-select>
+                <?php foreach ([
+                    'fixed' => __('Stesso giorno ogni anno'),
+                    'nth_weekday' => __('Un giorno della settimana del mese (es. il primo lunedì)'),
+                    'easter' => __('Rispetto alla Pasqua'),
+                    'orthodox_easter' => __('Rispetto alla Pasqua ortodossa'),
+                    'calendar' => __('In un altro calendario'),
+                    'dates' => __('Date specifiche'),
+                ] as $kindCode => $kindLabel): ?>
+                  <option value="<?= $e($kindCode) ?>" <?= $customKind === $kindCode ? 'selected' : '' ?>><?= $e($kindLabel) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4" data-custom-kind="fixed">
+            <div>
+              <label for="custom_fixed_day" class="form-label"><?= __("Giorno") ?></label>
+              <input type="number" id="custom_fixed_day" name="fixed_giorno" min="1" max="31" class="form-input" value="<?= $e($customKind === 'fixed' ? $cv('giorno', 1) : 1) ?>">
+            </div>
+            <div>
+              <label for="custom_fixed_month" class="form-label"><?= __("Mese") ?></label>
+              <select id="custom_fixed_month" name="fixed_mese" class="form-input">
+                <?php for ($m = 1; $m <= 12; $m++): ?>
+                  <option value="<?= $m ?>" <?= $customKind === 'fixed' && (int) $cv('mese', 1) === $m ? 'selected' : '' ?>><?= $e($monthName($m)) ?></option>
                 <?php endfor; ?>
               </select>
             </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4" data-custom-kind="nth_weekday">
+            <div>
+              <label for="custom_nth" class="form-label"><?= __("Quale") ?></label>
+              <select id="custom_nth" name="nth_occorrenza" class="form-input">
+                <?php foreach ([1 => __('Il primo'), 2 => __('Il secondo'), 3 => __('Il terzo'), 4 => __('Il quarto'), 5 => __('Il quinto'), -1 => __('L’ultimo')] as $nthValue => $nthLabel): ?>
+                  <option value="<?= $nthValue ?>" <?= (int) $cv('occorrenza', 1) === $nthValue ? 'selected' : '' ?>><?= $e($nthLabel) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <label for="custom_weekday" class="form-label"><?= __("Giorno della settimana") ?></label>
+              <select id="custom_weekday" name="nth_giorno_settimana" class="form-input">
+                <?php foreach ([1, 2, 3, 4, 5, 6, 0] as $w): ?>
+                  <option value="<?= $w ?>" <?= (int) $cv('giorno_settimana', 1) === $w ? 'selected' : '' ?>><?= $e($weekdayNames[$w]) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <label for="custom_nth_month" class="form-label"><?= __("Mese") ?></label>
+              <select id="custom_nth_month" name="nth_mese" class="form-input">
+                <?php for ($m = 1; $m <= 12; $m++): ?>
+                  <option value="<?= $m ?>" <?= $customKind === 'nth_weekday' && (int) $cv('mese', 1) === $m ? 'selected' : '' ?>><?= $e($monthName($m)) ?></option>
+                <?php endfor; ?>
+              </select>
+            </div>
+          </div>
+
+          <div data-custom-kind="easter orthodox_easter">
+            <label for="custom_offset" class="form-label"><?= __("Giorni rispetto alla domenica di Pasqua") ?></label>
+            <input type="number" id="custom_offset" name="scarto" min="-200" max="200" class="form-input" value="<?= $e($cv('scarto_giorni', 0)) ?>">
+            <p class="text-xs text-gray-500 mt-1"><?= __("0 = la domenica di Pasqua; 1 = il lunedì dopo; -2 = il Venerdì santo; 49 = Pentecoste.") ?></p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4" data-custom-kind="calendar">
+            <div>
+              <label for="custom_calendar" class="form-label"><?= __("Calendario") ?></label>
+              <select id="custom_calendar" name="calendario" class="form-input" data-custom-calendar-select>
+                <?php foreach ($calendarCodes as $calendarCode): ?>
+                  <option value="<?= $e($calendarCode) ?>" <?= $customCalendar === $calendarCode ? 'selected' : '' ?> <?= \App\Support\Holidays\WorldCalendars::available($calendarCode) || $customCalendar === $calendarCode ? '' : 'disabled' ?>><?= $e(\App\Support\Holidays\WorldCalendars::label($calendarCode)) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <?php foreach ($calendarCodes as $calendarCode): ?>
+                <div data-custom-calendar="<?= $e($calendarCode) ?>">
+                  <label for="custom_cal_month_<?= $e($calendarCode) ?>" class="form-label"><?= __("Mese") ?></label>
+                  <select id="custom_cal_month_<?= $e($calendarCode) ?>" name="cal_mese_<?= $e($calendarCode) ?>" class="form-input">
+                    <?php foreach (\App\Support\Holidays\WorldCalendars::months($calendarCode) as $index => $calendarMonth): ?>
+                      <option value="<?= $index + 1 ?>" <?= $customKind === 'calendar' && $customCalendar === $calendarCode && (int) $cv('mese', 1) === $index + 1 ? 'selected' : '' ?>><?= $e($calendarMonth) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <div>
+              <label for="custom_cal_day" class="form-label"><?= __("Giorno") ?></label>
+              <input type="number" id="custom_cal_day" name="cal_giorno" min="1" max="30" class="form-input" value="<?= $e($customKind === 'calendar' ? $cv('giorno', 1) : 1) ?>">
+            </div>
+            <p class="text-xs text-gray-500 md:col-span-3"><?= __("Il calendario islamico segue le tavole ufficiali Umm al-Qura: dove l'inizio del mese dipende dall'avvistamento locale della luna la data può cambiare di un giorno. In quel caso, o per feste come Diwali, usa le date specifiche.") ?></p>
+          </div>
+
+          <div data-custom-kind="dates">
+            <label for="custom_dates" class="form-label"><?= __("Date (AAAA-MM-GG, una per riga)") ?></label>
+            <textarea id="custom_dates" name="date_specifiche" rows="4" class="form-input font-mono text-sm"><?= $e(str_replace(',', "\n", (string) $cv('date_specifiche'))) ?></textarea>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label for="custom_days" class="form-label"><?= __("Durata (giorni)") ?></label>
+              <input type="number" id="custom_days" name="durata_giorni" min="1" max="<?= \App\Support\Holidays\HolidayCalculator::MAX_DAYS ?>" class="form-input" value="<?= $e($cv('durata_giorni', 1)) ?>">
+            </div>
+            <div>
+              <label for="custom_weekend" class="form-label"><?= __("Se cade nel fine settimana") ?></label>
+              <select id="custom_weekend" name="fine_settimana" class="form-input">
+                <option value=""><?= __("Nessun giorno in più") ?></option>
+                <option value="next_monday" <?= $cv('fine_settimana') === 'next_monday' ? 'selected' : '' ?>><?= __("Chiudi anche il lunedì successivo") ?></option>
+                <option value="us" <?= $cv('fine_settimana') === 'us' ? 'selected' : '' ?>><?= __("Sabato: anche il venerdì prima; domenica: anche il lunedì dopo") ?></option>
+              </select>
+            </div>
+            <div>
+              <label for="custom_branch" class="form-label"><i class="fas fa-building mr-1"></i><?= __("Sede") ?></label>
+              <select id="custom_branch" name="sede_id" class="form-input">
+                <option value=""><?= __("Tutte le sedi") ?></option>
+                <?php foreach ($branches as $branchId => $branchName): ?>
+                  <option value="<?= (int) $branchId ?>" <?= (int) $cv('sede_id', 0) === (int) $branchId ? 'selected' : '' ?>><?= $e($branchName) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label for="custom_from" class="form-label"><?= __("Dal (anno, facoltativo)") ?></label>
+              <input type="number" id="custom_from" name="anno_inizio" min="1900" max="2199" class="form-input" value="<?= $e($cv('anno_inizio')) ?>">
+            </div>
+            <div>
+              <label for="custom_until" class="form-label"><?= __("Al (anno, facoltativo)") ?></label>
+              <input type="number" id="custom_until" name="anno_fine" min="1900" max="2199" class="form-input" value="<?= $e($cv('anno_fine')) ?>">
+            </div>
+            <div class="flex items-end">
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="hidden" name="attiva" value="0">
+                <input type="checkbox" id="custom_active" name="attiva" value="1" <?= (int) $cv('attiva', 1) === 1 ? 'checked' : '' ?>>
+                <span><?= __("Attiva") ?></span>
+              </label>
+            </div>
+          </div>
+          <div class="flex justify-end pt-4 border-t border-gray-200">
+            <button type="submit" id="save-custom-holiday" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+              <i class="fas fa-save mr-2"></i>
+              <?= $customEditId > 0 ? __("Salva modifiche") : __("Aggiungi festività") ?>
+            </button>
+          </div>
+        </form>
+
+        <?php if ($customHolidays === []): ?>
+          <p class="text-sm text-gray-500" id="custom-holidays-empty"><?= __("Nessuna festività della biblioteca.") ?></p>
+        <?php else: ?>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200" id="custom-holidays">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Nome") ?></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Ricorrenza") ?></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Prossime date") ?></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Sede") ?></th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <?php foreach ($customHolidays as $custom):
+                    $hid = (int) $custom['id'];
+                    $customActive = (int) $custom['attiva'] === 1;
+                    $upcoming = \App\Support\Holidays\CustomHolidays::nextDates($custom, $today); ?>
+                  <tr class="hover:bg-gray-50" data-custom-holiday="<?= $hid ?>">
+                    <td class="px-6 py-4 text-sm text-gray-900">
+                      <?= $e((string) $custom['nome']) ?>
+                      <?php if (!$customActive): ?>
+                        <span class="ml-2 px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full" data-badge="inactive"><?= __("Sospesa") ?></span>
+                      <?php endif; ?>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-700"><?= $e(\App\Support\Holidays\CustomHolidays::describe($custom, $fmt)) ?></td>
+                    <td class="px-6 py-4 text-sm text-gray-700" data-custom-next="<?= $e(implode(',', $upcoming)) ?>">
+                      <?= $upcoming === [] ? $e(__('Nessuna data futura')) : $e(implode(' · ', array_map($displayDate, $upcoming))) ?>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= $e($custom['sede_nome'] !== null ? (string) $custom['sede_nome'] : __('Tutte le sedi')) ?></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div class="inline-flex items-center gap-2">
+                        <a href="<?= htmlspecialchars(url('/admin/calendar') . '?custom_edit=' . $hid . '#calendar-custom', ENT_QUOTES, 'UTF-8') ?>"
+                           class="btn-icon btn-secondary" data-action="edit-custom-holiday"
+                           title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>">
+                          <i class="fas fa-edit"></i>
+                        </a>
+                        <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/custom-holidays/' . $hid . '/toggle'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+                          <button type="submit" class="btn-icon btn-secondary" data-action="toggle-custom-holiday"
+                                  title="<?= htmlspecialchars($customActive ? __('Sospendi') : __('Riattiva'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($customActive ? __('Sospendi') : __('Riattiva'), ENT_QUOTES, 'UTF-8') ?>">
+                            <i class="fas fa-<?= $customActive ? 'pause' : 'play' ?>"></i>
+                          </button>
+                        </form>
+                        <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/custom-holidays/' . $hid . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline"
+                              data-swal-confirm="<?= htmlspecialchars(__('Eliminare questa festività?'), ENT_QUOTES, 'UTF-8') ?>"
+                              data-swal-confirm-title="<?= htmlspecialchars(__('Conferma eliminazione'), ENT_QUOTES, 'UTF-8') ?>"
+                              data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
+                          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+                          <button type="submit" class="btn-icon btn-danger" data-action="delete-custom-holiday"
+                                  title="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Yearly closures added by hand: on / off without deleting them -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-6 slide-in-up" id="calendar-yearly">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between pk-stack-mobile">
+          <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-redo text-gray-600"></i>
+            <?= __("Chiusure annuali") ?>
+          </h2>
+        </div>
+        <div class="p-6">
+          <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/yearly'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+            <p class="text-sm text-gray-600"><?= __("Le chiusure che si ripetono ogni anno, aggiunte a mano o da file ICS. Togli la spunta per sospenderne una senza eliminarla.") ?></p>
+            <?php if ($yearlyClosures === []): ?>
+              <p class="text-sm text-gray-500" id="calendar-yearly-empty"><?= __("Nessuna chiusura annuale aggiunta a mano.") ?></p>
+            <?php else: ?>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <?php foreach ($yearlyClosures as $yearly):
+                    $yid = (int) $yearly['id']; ?>
+                  <label class="flex items-center gap-2 text-sm text-gray-700" data-yearly-row="<?= $yid ?>">
+                    <input type="hidden" name="listed[]" value="<?= $yid ?>">
+                    <input type="checkbox" name="active[]" value="<?= $yid ?>" id="yearly_closure_<?= $yid ?>"
+                           <?= (int) $yearly['attiva'] === 1 ? 'checked' : '' ?>>
+                    <span><?= $e((string) $yearly['descrizione'] !== '' ? (string) $yearly['descrizione'] : __('Chiusura')) ?></span>
+                    <span class="text-gray-500"><?= $e($fmt('d MMMM', (string) $yearly['data_inizio'])) ?><?php if ($yearly['data_fine'] !== $yearly['data_inizio']): ?> – <?= $e($fmt('d MMMM', (string) $yearly['data_fine'])) ?><?php endif; ?></span>
+                  </label>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
             <div class="flex justify-end pt-4 border-t border-gray-200">
-              <button type="submit" id="import-preset" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
-                <i class="fas fa-file-import mr-2"></i>
-                <?= __("Importa festività") ?>
+              <button type="submit" id="save-yearly" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center" <?= $yearlyClosures === [] ? 'disabled' : '' ?>>
+                <i class="fas fa-save mr-2"></i>
+                <?= __("Salva") ?>
               </button>
             </div>
           </form>
@@ -323,13 +679,23 @@ unset($workspaceHeader);
                 <?php foreach ($closures as $closure):
                     $cid = (int) $closure['id'];
                     $yearlyRow = (int) $closure['ricorrente_annuale'] === 1;
+                    $presetRow = ($closure['regola_festivita'] ?? null) !== null;
+                    $activeRow = (int) ($closure['attiva'] ?? 1) === 1;
                     $startLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_inizio']) : $displayDate((string) $closure['data_inizio']);
                     $endLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_fine']) : $displayDate((string) $closure['data_fine']); ?>
                   <tr class="hover:bg-gray-50" data-closure-id="<?= $cid ?>">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <?= $e($startLabel) ?><?php if ($closure['data_fine'] !== $closure['data_inizio']): ?> – <?= $e($endLabel) ?><?php endif; ?>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-700"><?= $e((string) $closure['descrizione']) ?></td>
+                    <td class="px-6 py-4 text-sm text-gray-700">
+                      <?= $e((string) $closure['descrizione']) ?>
+                      <?php if ($presetRow): ?>
+                        <span class="ml-2 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full" data-badge="holiday"><i class="fas fa-flag mr-1"></i><?= __("Festività") ?></span>
+                      <?php endif; ?>
+                      <?php if (!$activeRow): ?>
+                        <span class="ml-2 px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full" data-badge="inactive"><?= __("Sospesa") ?></span>
+                      <?php endif; ?>
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                       <?php if ($yearlyRow): ?>
                         <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"><i class="fas fa-redo mr-1"></i><?= __("Ogni anno") ?></span>
@@ -339,6 +705,9 @@ unset($workspaceHeader);
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700"><?= $e($closure['sede_nome'] !== null ? (string) $closure['sede_nome'] : __('Tutte le sedi')) ?></td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <?php if ($presetRow): ?>
+                        <span class="text-gray-500 text-xs"><?= __("Dalla selezione delle festività") ?></span>
+                      <?php else: ?>
                       <div class="inline-flex items-center gap-2">
                         <a href="<?= htmlspecialchars(url('/admin/calendar') . '?edit=' . $cid . '#calendar-closure-form', ENT_QUOTES, 'UTF-8') ?>"
                            class="btn-icon btn-secondary" data-action="edit-closure"
@@ -356,6 +725,7 @@ unset($workspaceHeader);
                           </button>
                         </form>
                       </div>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>
@@ -367,3 +737,31 @@ unset($workspaceHeader);
     </div>
   </div>
 </div>
+<script>
+(function () {
+  // Custom holidays: show the fields of the chosen kind and calendar only.
+  var kind = document.querySelector('[data-custom-kind-select]');
+  var calendar = document.querySelector('[data-custom-calendar-select]');
+  function sync() {
+    if (kind) {
+      document.querySelectorAll('[data-custom-kind]').forEach(function (group) {
+        group.classList.toggle('hidden', group.getAttribute('data-custom-kind').split(' ').indexOf(kind.value) === -1);
+      });
+    }
+    if (calendar) {
+      document.querySelectorAll('[data-custom-calendar]').forEach(function (group) {
+        group.classList.toggle('hidden', group.getAttribute('data-custom-calendar') !== calendar.value);
+      });
+    }
+  }
+  if (kind) { kind.addEventListener('change', sync); }
+  if (calendar) { calendar.addEventListener('change', sync); }
+  sync();
+})();
+document.querySelectorAll('[data-holiday-select]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var on = button.getAttribute('data-holiday-select') === 'all';
+    document.querySelectorAll('input[data-holiday-rule]').forEach(function (box) { box.checked = on; });
+  });
+});
+</script>

@@ -18,6 +18,9 @@ class SuppliersController
 
     public function index(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -27,6 +30,9 @@ class SuppliersController
 
     public function createForm(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -35,6 +41,9 @@ class SuppliersController
 
     public function store(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -58,6 +67,9 @@ class SuppliersController
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -70,6 +82,9 @@ class SuppliersController
 
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }
@@ -100,6 +115,9 @@ class SuppliersController
 
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('suppliers', $response)) !== null) {
+            return $off;
+        }
         if (($missing = $this->schemaMissing($db, $response)) !== null) {
             return $missing;
         }

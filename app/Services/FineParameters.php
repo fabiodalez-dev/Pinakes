@@ -44,13 +44,15 @@ final class FineParameters
         public readonly ?int $maxFinePerLoanCents,
         public readonly ?int $debtBlockThresholdCents,
         public readonly string $currency,
+        public readonly string $graceMode = 'threshold',
     ) {
     }
 
     /** Parameters that govern the late fine of one loan (its patron's type × its material). */
     public static function forLoan(mysqli $db, int $loanId, ?CirculationPolicy $policy = null): self
     {
-        return self::fromPolicy(($policy ?? new CirculationPolicy($db))->forExistingLoan($loanId));
+        $policy ??= new CirculationPolicy($db);
+        return self::fromPolicy($policy->forExistingLoan($loanId), graceMode: $policy->fineGraceMode());
     }
 
     /**
@@ -60,18 +62,19 @@ final class FineParameters
     public static function forUser(mysqli $db, int $userId, ?CirculationPolicy $policy = null): self
     {
         $policy ??= new CirculationPolicy($db);
-        return self::fromPolicy($policy->forType($policy->patronTypeOf($userId)));
+        return self::fromPolicy($policy->forType($policy->patronTypeOf($userId)), graceMode: $policy->fineGraceMode());
     }
 
     /** The global settings only (no patron type, no rule). */
     public static function global(mysqli $db): self
     {
-        $globals = (new CirculationPolicy($db))->globalLayer();
-        return self::fromPolicy(PolicyResolver::resolve([], $globals, PolicyResolver::resolveUser(null, $globals)));
+        $policy = new CirculationPolicy($db);
+        $globals = $policy->globalLayer();
+        return self::fromPolicy(PolicyResolver::resolve([], $globals, PolicyResolver::resolveUser(null, $globals)), graceMode: $policy->fineGraceMode());
     }
 
     /** Cents view of a resolved circulation policy. */
-    public static function fromPolicy(LoanPolicy $policy, ?string $currency = null): self
+    public static function fromPolicy(LoanPolicy $policy, ?string $currency = null, string $graceMode = 'threshold'): self
     {
         $daily = self::moneyToCents($policy->dailyFine) ?? 0;
         $cap = self::moneyToCents($policy->maxFinePerLoan);
@@ -83,6 +86,7 @@ final class FineParameters
             $cap !== null && $cap > 0 ? $cap : null,
             $threshold !== null && $threshold > 0 ? $threshold : null,
             $currency ?? self::currency(),
+            $graceMode === 'deduct' ? 'deduct' : 'threshold',
         );
     }
 
@@ -110,6 +114,7 @@ final class FineParameters
             $cap !== null && $cap > 0 ? $cap : null,
             $threshold !== null && $threshold > 0 ? $threshold : null,
             $currency,
+            ($settings['fine_grace_mode'] ?? '') === 'deduct' ? 'deduct' : 'threshold',
         );
     }
 

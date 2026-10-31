@@ -147,6 +147,12 @@ final class RdaTypes
     public static function overrides(array $book): array
     {
         $out = [];
+        // RDA types module off (Settings → Modules): the stored overrides are
+        // kept but not applied, so every export derives from tipo_media as
+        // before 0.9.0.
+        if (!Features::enabled('rda_types')) {
+            return $out;
+        }
         foreach (self::COLUMNS as $kind => $column) {
             $code = self::normalize($kind, $book[$column] ?? null);
             if ($code !== null) {

@@ -404,7 +404,8 @@ class LibriController
         $copyCatalogingAvailable = false;
         try {
             $pluginRow = $db->query("SELECT is_active FROM plugins WHERE name = 'z39-server' LIMIT 1");
-            $copyCatalogingAvailable = $pluginRow instanceof \mysqli_result && (int) ($pluginRow->fetch_row()[0] ?? 0) === 1;
+            $copyCatalogingAvailable = \App\Support\Features::enabled('marc')
+                && $pluginRow instanceof \mysqli_result && (int) ($pluginRow->fetch_row()[0] ?? 0) === 1;
         } catch (\Throwable) {
             $copyCatalogingAvailable = false;
         }

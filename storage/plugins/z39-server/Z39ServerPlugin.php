@@ -693,7 +693,7 @@ class Z39ServerPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->importUnimarcAction($request, $response);
-        })->add($csrfMiddleware)->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
 
         // GET /admin/books/{id}/export.unimarc.xml — single-book UNIMARC export.
         $app->get('/admin/books/{id:[0-9]+}/export.unimarc.xml', function (
@@ -702,7 +702,7 @@ class Z39ServerPlugin
             array $args
         ) use ($plugin): ResponseInterface {
             return $plugin->exportUnimarcAction($request, $response, (int) $args['id']);
-        })->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($adminMiddleware);
 
         // GET /admin/books/soggettario-search?q= — Nuovo Soggettario autocomplete.
         $app->get('/admin/books/soggettario-search', function (
@@ -736,21 +736,21 @@ class Z39ServerPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->copyCatalogingPageAction($request, $response);
-        })->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($adminMiddleware);
 
         $app->post('/admin/books/copy-cataloging/search', function (
             ServerRequestInterface $request,
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->copyCatalogingSearchAction($request, $response);
-        })->add($csrfMiddleware)->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
 
         $app->post('/admin/books/copy-cataloging/import', function (
             ServerRequestInterface $request,
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->copyCatalogingImportAction($request, $response);
-        })->add($csrfMiddleware)->add($adminMiddleware);
+        })->add(new \App\Middleware\FeatureGateMiddleware('marc'))->add($csrfMiddleware)->add($adminMiddleware);
 
         \App\Support\SecureLogger::debug('[Z39 Server Plugin] Routes registered', [
             'routes' => [

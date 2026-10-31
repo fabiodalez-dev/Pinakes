@@ -15,7 +15,7 @@ namespace App\Services;
  *   of that branch only does not count either.
  * - the grace period is a THRESHOLD, as in SLiMS: up to graceDays late there is
  *   no fine; once a loan is later than that, every late day is charged from
- *   day one.
+ *   day one. In deduct mode the grace days are always subtracted instead.
  * - the optional cap per loan limits the total;
  * - the total never exceeds PatronLedger::MAX_AMOUNT_CENTS, and the day walk
  *   stops at MAX_DAYS with or without a calendar.
@@ -75,7 +75,8 @@ final class FineCalculator
         if ($days <= $params->graceDays) {
             return 0;
         }
-        $amount = $days * $params->dailyFineCents;
+        $chargedDays = $params->graceMode === 'deduct' ? $days - $params->graceDays : $days;
+        $amount = $chargedDays * $params->dailyFineCents;
         if ($params->maxFinePerLoanCents !== null) {
             $amount = min($amount, $params->maxFinePerLoanCents);
         }

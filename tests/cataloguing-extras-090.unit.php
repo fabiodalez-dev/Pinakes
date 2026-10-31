@@ -31,6 +31,10 @@ $db->query('CREATE TEMPORARY TABLE libri (id INT NOT NULL PRIMARY KEY, fornitore
 // INFORMATION_SCHEMA does not list temporary tables: tell the column probe they exist.
 $cache = new ReflectionProperty(CataloguingExtras::class, 'columnCache');
 $cache->setValue(null, ['fornitore_id' => true, 'rda_content_type' => true, 'rda_media_type' => true, 'rda_carrier_type' => true]);
+// Both modules are off on an upgraded install until switched on (Settings →
+// Modules); the writes below are the ones of a library that uses them.
+\App\Support\Features::override('suppliers', true);
+\App\Support\Features::override('rda_types', true);
 
 $db->query("INSERT INTO fornitori (id, nome) VALUES (5, 'Libreria Rossi'), (6, 'Distribuzione Bianchi')");
 $db->query("INSERT INTO libri (id, fornitore_id, rda_carrier_type) VALUES (1, 5, 'cr')");
@@ -52,6 +56,15 @@ $check($book() === ['fornitore_id' => null, 'rda_carrier_type' => null], 'a requ
 
 $check(CataloguingExtras::assignSupplier($db, 1, 6) === true && $book()['fornitore_id'] === 6, 'an import batch supplier is assigned and reported as such');
 $check(CataloguingExtras::assignSupplier($db, 1, 99) === false && $book()['fornitore_id'] === 6, 'a batch supplier deleted meanwhile is reported as not assigned and clears nothing');
+
+// A module switched off never writes its field: the stored value survives.
+\App\Support\Features::override('suppliers', false);
+\App\Support\Features::override('rda_types', false);
+CataloguingExtras::save($db, 1, ['fornitore_id' => '5', 'rda_carrier_type' => 'nc']);
+$check($book() === ['fornitore_id' => 6, 'rda_carrier_type' => null], 'with both modules off a save keeps the stored supplier and RDA values');
+$check(CataloguingExtras::assignSupplier($db, 1, 5) === false && $book()['fornitore_id'] === 6, 'with suppliers off an import batch assigns nothing and says so');
+\App\Support\Features::override('suppliers', true);
+\App\Support\Features::override('rda_types', true);
 
 $repo = new SupplierRepository($db);
 $data = SupplierRepository::normalize(['nome' => 'Libreria Rossi 2', 'sito_web' => 'rossi.it']);

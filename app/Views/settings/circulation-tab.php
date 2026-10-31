@@ -14,6 +14,9 @@ $cMoneyOrEmpty = static fn ($v): string => $v === null || $v === '' ? '' : (stri
 $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? number_format($v, 2, '.', '') : '—';
 ?>
 <section data-settings-panel="circulation" class="settings-panel <?php echo $activeTab === 'circulation' ? 'block' : 'hidden'; ?>">
+        <?php if (!\App\Support\Features::enabled('circulation_rules')): ?>
+        <p class="text-sm text-gray-600 mb-4" role="status"><?= __('Modulo spento: puoi preparare la configurazione. Le scelte diventeranno operative soltanto dopo l’attivazione nelle impostazioni.') ?></p>
+        <?php endif; ?>
   <div class="space-y-6">
 
     <!-- Patron types -->

@@ -14,6 +14,9 @@ declare(strict_types=1);
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
+// The module under test is on, whatever features.* says in the database
+// this runs against (Settings → Modules / Loans).
+\App\Support\Features::override('stocktake', true);
 require_once dirname(__DIR__) . '/app/helpers.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 

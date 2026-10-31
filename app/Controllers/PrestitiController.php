@@ -1843,7 +1843,8 @@ class PrestitiController
         $loanFineAccruedCents = ((int) ($prestito['attivo'] ?? 0) === 1 && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true))
             ? (int) $ledger->previewLateFine($id)['cents']
             : 0;
-        $loanFineChargedCents = $ledger->lateFineNetCents($id);
+        // Fines module off: the charged fine is not shown (the row stays).
+        $loanFineChargedCents = \App\Services\PatronLedger::active($db) ? $ledger->lateFineNetCents($id) : 0;
 
         ob_start();
         require __DIR__ . '/../Views/prestiti/dettagli_prestito.php';

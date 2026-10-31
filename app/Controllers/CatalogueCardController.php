@@ -21,6 +21,9 @@ class CatalogueCardController
 
     public function single(Request $request, Response $response, mysqli $db, int $id): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('catalogue_cards', $response)) !== null) {
+            return $off;
+        }
         $book = (new BookRepository($db))->getById($id);
         if ($book === null) {
             $_SESSION['error_message'] = __('Libro non trovato.');
@@ -31,6 +34,9 @@ class CatalogueCardController
 
     public function bulk(Request $request, Response $response, mysqli $db): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('catalogue_cards', $response)) !== null) {
+            return $off;
+        }
         $ids = self::parseIds((string) ($request->getQueryParams()['ids'] ?? ''));
         $repo = new BookRepository($db);
         $books = [];

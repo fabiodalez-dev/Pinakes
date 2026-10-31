@@ -62,7 +62,7 @@ class CirculationSettingsController
      */
     public static function viewData(mysqli $db): array
     {
-        $policy = new CirculationPolicy($db);
+        $policy = new CirculationPolicy($db, configuration: true);
         $types = $policy->types();
         $media = self::mediaTypes();
         $globals = $policy->globalLayer();
@@ -158,7 +158,7 @@ class CirculationSettingsController
         if ($guard = $this->guard($response)) {
             return $guard;
         }
-        $policy = new CirculationPolicy($db);
+        $policy = new CirculationPolicy($db, configuration: true);
         $type = $policy->types()[$id] ?? null;
         if ($type === null) {
             $_SESSION['error_message'] = __('Tipologia lettore non trovata.');
@@ -187,7 +187,7 @@ class CirculationSettingsController
             $_SESSION['error_message'] = $fields;
             return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
         }
-        if (!(new CirculationPolicy($db))->schemaReady()) {
+        if (!(new CirculationPolicy($db, configuration: true))->schemaReady()) {
             $_SESSION['error_message'] = __('Le tabelle della circolazione non sono ancora state create: completa l\'aggiornamento del database.');
             return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
         }
@@ -221,7 +221,7 @@ class CirculationSettingsController
             return $guard;
         }
         $data = (array) ($request->getParsedBody() ?? []);
-        $policy = new CirculationPolicy($db);
+        $policy = new CirculationPolicy($db, configuration: true);
         $current = $policy->types()[$id] ?? null;
         if ($current === null) {
             $_SESSION['error_message'] = __('Tipologia lettore non trovata.');
@@ -261,7 +261,7 @@ class CirculationSettingsController
         if ($guard = $this->guard($response)) {
             return $guard;
         }
-        $policy = new CirculationPolicy($db);
+        $policy = new CirculationPolicy($db, configuration: true);
         $type = $policy->types()[$id] ?? null;
         if ($type === null) {
             $_SESSION['error_message'] = __('Tipologia lettore non trovata.');
@@ -300,7 +300,7 @@ class CirculationSettingsController
         if ($guard = $this->guard($response)) {
             return $guard;
         }
-        if (!isset((new CirculationPolicy($db))->types()[$id])) {
+        if (!isset((new CirculationPolicy($db, configuration: true))->types()[$id])) {
             $_SESSION['error_message'] = __('Tipologia lettore non trovata.');
             return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
         }
@@ -325,7 +325,7 @@ class CirculationSettingsController
         }
         $data = (array) ($request->getParsedBody() ?? []);
         $direction = ($data['direction'] ?? '') === 'up' ? -1 : 1;
-        $ids = array_keys((new CirculationPolicy($db))->types());
+        $ids = array_keys((new CirculationPolicy($db, configuration: true))->types());
         $pos = array_search($id, $ids, true);
         if ($pos !== false && isset($ids[$pos + $direction])) {
             $swap = $ids[$pos + $direction];
@@ -357,7 +357,7 @@ class CirculationSettingsController
             return $guard;
         }
         $data = (array) ($request->getParsedBody() ?? []);
-        $policy = new CirculationPolicy($db);
+        $policy = new CirculationPolicy($db, configuration: true);
         if (!$policy->schemaReady()) {
             $_SESSION['error_message'] = __('Le tabelle della circolazione non sono ancora state create: completa l\'aggiornamento del database.');
             return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);

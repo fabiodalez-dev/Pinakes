@@ -37,6 +37,10 @@ final class StatisticsSections
      */
     public static function visitors(mysqli $db, int $days = 30): ?array
     {
+        // Each section follows the module it reports on (Settings -> Modules).
+        if (!Features::enabled('visitor_log')) {
+            return null;
+        }
         try {
             $repo = new AttendanceRepository($db);
             if (!$repo->isAvailable()) {
@@ -102,12 +106,15 @@ final class StatisticsSections
      */
     public static function loansByPatronType(mysqli $db): ?array
     {
+        if (!Features::enabled('circulation_rules')) {
+            return null;
+        }
         $hooked = self::tableSection(Hooks::apply('statistics.section.patron_types', null, [$db]));
         if ($hooked !== null) {
             return $hooked;
         }
         $policy = new \App\Services\CirculationPolicy($db);
-        if (!$policy->schemaReady()) {
+        if (!$policy->rulesActive()) {
             return null;
         }
         $types = $policy->types();
@@ -159,6 +166,9 @@ final class StatisticsSections
      */
     public static function fines(mysqli $db): ?array
     {
+        if (!Features::enabled('fines')) {
+            return null;
+        }
         $hooked = self::tableSection(Hooks::apply('statistics.section.fines', null, [$db]));
         if ($hooked !== null) {
             return $hooked;
@@ -231,6 +241,9 @@ final class StatisticsSections
      */
     public static function stocktakeOutcomes(mysqli $db): ?array
     {
+        if (!Features::enabled('stocktake')) {
+            return null;
+        }
         $hooked = self::tableSection(Hooks::apply('statistics.section.stocktake', null, [$db]));
         if ($hooked !== null) {
             return $hooked;

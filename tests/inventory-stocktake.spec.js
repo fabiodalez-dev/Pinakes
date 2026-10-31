@@ -13,6 +13,13 @@
 // their copies (tokenised), and removes them in afterAll.
 
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// stocktake, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['stocktake']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');

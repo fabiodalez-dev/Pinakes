@@ -893,7 +893,7 @@ unset($workspaceHeader);
       </section>
 
       <!-- Card Settings -->
-      <?php include __DIR__ . '/cards-tab.php'; ?>
+      <?php if (\App\Support\Features::enabled('patron_cards') || \App\Support\Permissions::mayConfigure()) { include __DIR__ . '/cards-tab.php'; } ?>
 
       <!-- Sharing Settings -->
       <section data-settings-panel="sharing" class="settings-panel <?php echo $activeTab === 'sharing' ? 'block' : 'hidden'; ?>">
@@ -956,6 +956,8 @@ unset($workspaceHeader);
 
       <!-- Loans Settings -->
       <?php include __DIR__ . '/loans-tab.php'; ?>
+
+      <?php if (\App\Support\Permissions::mayConfigure()) { include __DIR__ . '/modules-tab.php'; } ?>
 
       <!-- Circulation: patron types and rules matrix (administrators only: no data, no panel) -->
       <?php if (is_array($circulationData ?? null)) { include __DIR__ . '/circulation-tab.php'; } ?>

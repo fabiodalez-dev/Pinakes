@@ -170,7 +170,8 @@ class CsvImportController
         ob_start();
         $title = "Import Libri da CSV";
         $emerotecaAvailable = $this->isEmerotecaPluginActive($db);
-        $fornitori = (new \App\Models\SupplierRepository($db))->options();
+        // Suppliers module off: no supplier select (and assignSupplier() writes nothing).
+        $fornitori = \App\Support\Features::enabled('suppliers') ? (new \App\Models\SupplierRepository($db))->options() : [];
         include __DIR__ . '/../Views/admin/csv_import.php';
         $content = ob_get_clean();
 

@@ -383,6 +383,7 @@ unset($workspaceHeader);
   </div>
 
   <!-- Fines report (plan §7) -->
+  <?php if (\App\Support\Features::enabled('fines')): // fines module (Settings -> Loans) ?>
   <?php
     $finesTotals = ['addebitato' => 0, 'incassato' => 0, 'condonato' => 0, 'stornato' => 0];
     foreach (($finesByMonth ?? []) as $finesRow) {
@@ -460,6 +461,7 @@ unset($workspaceHeader);
       </div>
     </div>
   </div>
+  <?php endif; ?>
 </section>
 
 <!-- Chart.js is loaded from vendor.bundle.js (window.Chart) -->

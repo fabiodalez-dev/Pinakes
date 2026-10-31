@@ -44,6 +44,9 @@ class PatronLedgerController
 
     public function receipt(Request $request, Response $response, mysqli $db, int $userId, int $movementId): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('fines', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('loans.manage') || !$this->mayActOn($db, $userId)) {
             return $response->withStatus(403);
         }
@@ -72,6 +75,9 @@ class PatronLedgerController
      */
     private function write(Request $request, Response $response, mysqli $db, int $userId, callable $operation, string $okFlag): Response
     {
+        if (($off = \App\Support\Features::requireOrRedirect('fines', $response)) !== null) {
+            return $off;
+        }
         if (!\App\Support\Permissions::can('loans.manage') || !$this->mayActOn($db, $userId)) {
             return $response->withStatus(403);
         }
