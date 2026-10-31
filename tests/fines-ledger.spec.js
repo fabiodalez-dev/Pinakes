@@ -286,7 +286,8 @@ test.describe.serial('Fines and patron ledger', () => {
     expect(Number(dbQuery(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${state.patronId} AND tipo='condono'`))).toBe(0);
     // ...and the server refuses it too (a request built by hand).
     const csrf = await page.locator('#ledger-waive-form input[name="csrf_token"]').inputValue();
-    const forged = await page.request.post(`${BASE}/admin/users/${state.patronId}/ledger/waive`, { form: { csrf_token: csrf, importo: '2', motivazione: '  ' }, maxRedirects: 0 });
+    const formKey = await page.locator('#ledger-waive-form input[name="request_key"]').inputValue();
+    const forged = await page.request.post(`${BASE}/admin/users/${state.patronId}/ledger/waive`, { form: { csrf_token: csrf, importo: '2', motivazione: '  ', request_key: formKey }, maxRedirects: 0 });
     expect(forged.status()).toBe(302);
     expect(forged.headers().location).toContain('ledger_error=reason_required');
     // With a reason it is recorded.

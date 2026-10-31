@@ -82,6 +82,11 @@ class PatronLedgerController
         $base = \App\Support\Permissions::can('users.manage')
             ? url('/admin/users/details/' . $userId)
             : null;
+        // Every desk form carries its request_key: without it a resent
+        // request could not be recognised and would move money twice.
+        if (self::requestKey($data) === null) {
+            return $this->back($response, $base, ['ledger_error' => 'missing_request_key']);
+        }
         $amountRaw = is_scalar($data['importo'] ?? null) ? (string) $data['importo'] : '';
         $cents = FineParameters::toCents($amountRaw);
         if ($cents === null || $cents <= 0) {
@@ -101,7 +106,7 @@ class PatronLedgerController
 
     /**
      * The idempotency key of one rendered form (hidden request_key, 32 hex),
-     * or null when absent or malformed.
+     * or null when absent or malformed (write() refuses such a request).
      *
      * @param array<string, mixed> $data
      */
@@ -159,6 +164,7 @@ class PatronLedgerController
             'description_required' => __("La descrizione dell'addebito è obbligatoria."),
             'invalid_method' => __('Metodo di pagamento non valido.'),
             'duplicate_request' => __('Richiesta già registrata: ricarica la pagina e riprova.'),
+            'missing_request_key' => __('Errore di sicurezza. Ricarica la pagina e riprova.'),
             'user_not_found' => __('Utente non trovato'),
             default => __('Operazione non riuscita. Riprova.'),
         };

@@ -303,7 +303,8 @@ try {
     $db->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$deskStaff}");
     // The operator id is recorded on the movement: any existing account will do.
     $_SESSION = ['user' => ['id' => $deskStaff, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['backend.access', 'loans.manage']]];
-    $ledgerPost = static fn (array $body): \Psr\Http\Message\ServerRequestInterface => (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/0/ledger/charge')->withParsedBody($body);
+    // Each call stands for one rendered form: a fresh request_key unless the body sets its own.
+    $ledgerPost = static fn (array $body): \Psr\Http\Message\ServerRequestInterface => (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/0/ledger/charge')->withParsedBody($body + ['request_key' => bin2hex(random_bytes(16))]);
     $ledgerController = new \App\Controllers\PatronLedgerController();
     $resp = $ledgerController->charge($ledgerPost(['importo' => '1,00', 'descrizione' => 'zz desk']), new \Slim\Psr7\Response(), $db, $deskStaff);
     $check($resp->getStatusCode() === 403 && $count("utente_id = {$deskStaff}") === 0, 'a loans.manage custom role cannot charge a Staff account');
@@ -312,6 +313,15 @@ try {
     $resp = $ledgerController->charge($ledgerPost(['importo' => '1,00', 'descrizione' => 'zz desk']), new \Slim\Psr7\Response(), $db, $deskReader);
     $check($resp->getStatusCode() === 302 && str_ends_with($resp->getHeaderLine('Location'), '/admin/loans') && ($_SESSION['success_message'] ?? '') === __('Addebito registrato.') && $count("utente_id = {$deskReader}") === 1, 'on a reader account it charges and, without users.manage, lands on the loans page with the outcome');
     unset($_SESSION['success_message']);
+    unset($_SESSION['success_message']);
+    $before = $count("utente_id = {$deskReader}");
+    foreach (['payment' => ['importo' => '1,00', 'metodo_pagamento' => 'contanti'], 'charge' => ['importo' => '1,00', 'descrizione' => 'zz desk'], 'waive' => ['importo' => '1,00', 'motivazione' => 'zz desk']] as $action => $body) {
+        foreach (['absent' => null, 'malformed' => 'not-a-key'] as $what => $key) {
+            $resp = $ledgerController->{$action}($ledgerPost($body + ['request_key' => $key]), new \Slim\Psr7\Response(), $db, $deskReader);
+            $check($resp->getStatusCode() === 302 && ($_SESSION['error_message'] ?? '') === \App\Controllers\PatronLedgerController::errorMessage('missing_request_key') && $count("utente_id = {$deskReader}") === $before, "a {$action} POST with the request_key {$what} is refused and writes nothing");
+            unset($_SESSION['error_message']);
+        }
+    }
     $resp = $ledgerController->receipt($ledgerPost([]), new \Slim\Psr7\Response(), $db, $deskReader, 999999999);
     $check($resp->getStatusCode() === 404, 'a receipt for a payment that is not there is a 404');
     $_SESSION['user']['permissions'][] = 'users.manage';
