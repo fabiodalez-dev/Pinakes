@@ -338,8 +338,8 @@ class SruClient
      * Enforce a max-1-request-per-second rate limit per server.
      *
      * Strategy (FIX F088):
-     *  1. APCu (when available): use apcu_cas / apcu_store with a TTL key so all workers on the
-     *     box see the same "last request" timestamp.
+     *  1. APCu (when available): every request reserves its own slot with apcu_add / apcu_cas
+     *     (reserveApcuSlot()), so all workers on the box share one schedule per server.
      *  2. File-lock fallback: a tiny per-server lock file in sys_get_temp_dir() is opened with
      *     flock(LOCK_EX), the previous timestamp is read, we sleep if needed, then write the
      *     fresh timestamp before releasing the lock.
@@ -348,25 +348,56 @@ class SruClient
      * @param string                $serverKey   stable per-server identifier (URL)
      * @param array<string, float>  $lastRequest in-process fallback state, passed by reference
      */
+    /**
+     * Reserve the next request slot of one server in APCu: the time, in
+     * microseconds, at which this request may go — now, or one interval
+     * after the slot last reserved, whichever is later. The slot is taken
+     * with apcu_add() / apcu_cas(), so concurrent workers each get their
+     * own. Null when APCu does not cooperate (the caller falls back).
+     */
+    public static function reserveApcuSlot(string $key, int $intervalMicros, ?int $now = null): ?int
+    {
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $at = $now ?? (int) (microtime(true) * 1_000_000);
+            $found = false;
+            $previous = apcu_fetch($key, $found);
+            if (!$found) {
+                // No TTL: one integer per server, and an old value only means
+                // the next slot is now.
+                if (apcu_add($key, $at)) {
+                    return $at;
+                }
+                continue;
+            }
+            if (!is_int($previous)) {
+                apcu_delete($key);
+                continue;
+            }
+            $slot = max($at, $previous + $intervalMicros);
+            if (apcu_cas($key, $previous, $slot)) {
+                return $slot;
+            }
+        }
+        return null;
+    }
+
     private function enforceRateLimit(string $serverKey, array &$lastRequest): void
     {
         $minIntervalSeconds = 1.0;
         $now = microtime(true);
 
-        // Tier 1: APCu shared across workers on the same machine
-        if (function_exists('apcu_fetch') && function_exists('apcu_store')) {
-            $apcuKey = 'sru_rate_' . md5($serverKey);
-            $success = false;
-            $previous = apcu_fetch($apcuKey, $success);
-            if ($success && is_numeric($previous)) {
-                $elapsed = $now - (float)$previous;
-                if ($elapsed < $minIntervalSeconds) {
-                    usleep((int)(($minIntervalSeconds - $elapsed) * 1_000_000));
+        // Tier 1: APCu shared across workers on the same machine. Each request
+        // reserves its own slot atomically, so two workers that look at the
+        // same moment never both go.
+        if (function_exists('apcu_enabled') && apcu_enabled() && function_exists('apcu_cas')) {
+            $slot = self::reserveApcuSlot('sru_rate_' . md5($serverKey), (int) ($minIntervalSeconds * 1_000_000));
+            if ($slot !== null) {
+                $wait = $slot - (int) (microtime(true) * 1_000_000);
+                if ($wait > 0) {
+                    usleep($wait);
                 }
+                return;
             }
-            // TTL of 2s is enough to enforce a 1s window without leaking entries
-            apcu_store($apcuKey, microtime(true), 2);
-            return;
         }
 
         // Tier 2: file lock shared across workers on the same machine

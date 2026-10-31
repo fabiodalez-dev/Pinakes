@@ -176,6 +176,19 @@ $danIsbn = new SearchFixtureClient([$danPlain], $dan);
 $danIsbn->searchByIsbn('9788702272451');
 parse_str((string) parse_url($danIsbn->urls[0] ?? '', PHP_URL_QUERY), $danQuery);
 $check(str_starts_with((string) ($danQuery['query'] ?? ''), 'term.isbn='), '20 DBC OpenSearch keeps its own term.isbn');
+echo "Rate limit slots\n";
+if (function_exists('apcu_enabled') && apcu_enabled()) {
+    $slotKey = 'sru_rate_test_' . bin2hex(random_bytes(4));
+    $t0 = 1_000_000_000_000;
+    // Three workers asking at the same instant each get their own slot,
+    // one interval apart; none shares the slot of another.
+    $slots = [SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0), SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0), SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0)];
+    $check($slots === [$t0, $t0 + 1_000_000, $t0 + 2_000_000], '20b requests at the same moment reserve distinct slots one second apart');
+    $check(SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0 + 10_000_000) === $t0 + 10_000_000, '20c a request after the last slot goes at once');
+    apcu_delete($slotKey);
+} else {
+    echo "  SKIP 20b-20c APCu is not enabled for the CLI (php -d apc.enable_cli=1)\n";
+}
 require_once $root . '/app/helpers.php';
 require_once $root . '/storage/plugins/z39-server/classes/LocalSruClient.php';
 $_ENV['APP_CANONICAL_URL'] = 'https://library.example.org';
