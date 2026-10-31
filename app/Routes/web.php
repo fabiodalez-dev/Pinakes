@@ -1491,6 +1491,38 @@ return function (App $app): void {
     // chunk loop is further bounded by the session-scoped import_id.
     // See issue #113 for the original rate-limit regression.
 
+    // MARC bulk import (ISO 2709 / MARCXML; MARC 21, UNIMARC, danMARC2) on
+    // the CSV import infrastructure: upload + preview, then chunks. No
+    // RateLimitMiddleware on /chunk for the same reason as the CSV chunk (#113).
+    $app->get('/admin/books/import/marc', function ($request, $response) {
+        $controller = new \App\Controllers\MarcImportController();
+        return $controller->showImportPage($request, $response);
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/import/marc/upload', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->upload($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/import/marc/chunk', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcImportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->chunk($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/books/import/marc/discard', function ($request, $response) {
+        $controller = new \App\Controllers\MarcImportController();
+        return $controller->discard($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // MARC bulk export: whole catalogue or ?ids= selection, streamed.
+    $app->get('/admin/books/export/marc', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\MarcExportController();
+        $db = $app->getContainer()->get('db');
+        return $controller->export($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware());
+
     // LibraryThing Plugin Routes
 
     // Plugin Administration
