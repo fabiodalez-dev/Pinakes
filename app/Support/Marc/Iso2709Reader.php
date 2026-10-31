@@ -176,8 +176,19 @@ final class Iso2709Reader implements \IteratorAggregate
                 throw new MarcParseException("Field {$tag} runs past the end of the record");
             }
             $data = substr($raw, $base + (int) $start, (int) $fieldLength);
+            // A field ends at its own terminator. A terminator inside the slice
+            // means the directory points across a field boundary (a corrupt
+            // entry would hand the bytes of a neighbour to 245 $a): refuse the
+            // record. A slice one byte short of its terminator is the known
+            // legacy off-by-one (length counted without it) and is accepted.
+            $end = $base + (int) $start + (int) $fieldLength;
             if (str_ends_with($data, Iso2709Writer::FIELD_TERMINATOR)) {
                 $data = substr($data, 0, -1);
+            } elseif (($raw[$end] ?? '') !== Iso2709Writer::FIELD_TERMINATOR) {
+                throw new MarcParseException("Field {$tag} does not end with a field terminator");
+            }
+            if (str_contains($data, Iso2709Writer::FIELD_TERMINATOR)) {
+                throw new MarcParseException("Field {$tag} runs into the next field");
             }
             $isControl = ctype_digit($tag) && (int) $tag < 10 && !str_contains($data, Iso2709Writer::SUBFIELD_DELIMITER);
             if ($isControl) {

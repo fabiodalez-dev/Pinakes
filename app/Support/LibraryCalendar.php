@@ -37,8 +37,13 @@ final class LibraryCalendar
      */
     private const MAX_SCAN_DAYS = 1100;
 
-    /** Longest yearly closure (days between start and end): a year less a day. */
-    public const MAX_YEARLY_SPAN_DAYS = 364;
+    /**
+     * Longest yearly closure (days between start and end). 363, not 364: a
+     * 364-day span such as 03-01 → 02-28 leaves only 02-29 open, so in three
+     * years out of four it would close every day. 363 always leaves at least
+     * one month-day that exists every year.
+     */
+    public const MAX_YEARLY_SPAN_DAYS = 363;
 
     /** Longest one-off closure: ten years. */
     public const MAX_ONCE_SPAN_DAYS = 3660;
@@ -526,11 +531,14 @@ final class LibraryCalendar
 
     /**
      * Closed intervals from an iCalendar file: every VEVENT with a DTSTART.
-     * All-day events have an exclusive DTEND (RFC 5545), so the last closed
-     * day is the day before it; RRULE:FREQ=YEARLY makes the row recurring.
-     * Other recurrences are imported as their first occurrence only. A UTC
-     * DATE-TIME (trailing Z) is read in $timezone (app.timezone by default)
-     * before its day is taken. The spans are not validated here: the import
+     * DTEND is exclusive (RFC 5545): for an all-day event the last closed day
+     * is the day before it, and so it is for a timed DTEND at midnight (local
+     * time) after DTSTART. A plain RRULE:FREQ=YEARLY makes the row recurring;
+     * any other recurrence (a bounded one with COUNT/UNTIL, an interval of
+     * more than a year, a positional one with BYDAY/BYSETPOS…) is imported as
+     * its first occurrence only. A UTC DATE-TIME (trailing Z) and one with a
+     * TZID parameter are read in $timezone (app.timezone by default) before
+     * their day is taken. The spans are not validated here: the import
      * applies the same limits as the form.
      *
      * @return list<array{start: string, end: string, description: string, yearly: bool}>
@@ -546,7 +554,7 @@ final class LibraryCalendar
         foreach (explode("\n", $ics) as $line) {
             $line = rtrim($line);
             if (strcasecmp($line, 'BEGIN:VEVENT') === 0) {
-                $current = ['start' => null, 'end' => null, 'endIsDate' => false, 'summary' => '', 'yearly' => false];
+                $current = ['start' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'yearly' => false];
                 continue;
             }
             if ($current === null) {
@@ -558,7 +566,7 @@ final class LibraryCalendar
                     $end = $current['end'];
                     if ($end === null) {
                         $end = $start;
-                    } elseif ($current['endIsDate']) {
+                    } elseif ($current['endIsDate'] || ($current['endAtMidnight'] && $end > $start)) {
                         $end = self::shift($end, -1);
                     }
                     if ($end < $start) {
@@ -581,14 +589,17 @@ final class LibraryCalendar
             if ($colon === false) {
                 continue;
             }
-            $nameAndParams = strtoupper(substr($line, 0, $colon));
+            $rawParams = substr($line, 0, $colon);
+            $nameAndParams = strtoupper($rawParams);
             $value = substr($line, $colon + 1);
             $name = explode(';', $nameAndParams)[0];
             if ($name === 'DTSTART' || $name === 'DTEND') {
-                $date = self::icsDate($value, $timezone);
-                if ($date === null) {
+                $tzid = preg_match('/;TZID=("?)([^;:"]+)\1/i', $rawParams, $tz) === 1 ? $tz[2] : null;
+                $parsed = self::icsDateTime($value, $timezone, $tzid);
+                if ($parsed === null) {
                     continue;
                 }
+                $date = $parsed['date'];
                 $isDate = (str_contains($nameAndParams, 'VALUE=DATE') && !str_contains($nameAndParams, 'VALUE=DATE-TIME'))
                     || preg_match('/^\d{8}$/', trim($value)) === 1;
                 if ($name === 'DTSTART') {
@@ -596,11 +607,12 @@ final class LibraryCalendar
                 } else {
                     $current['end'] = $date;
                     $current['endIsDate'] = $isDate;
+                    $current['endAtMidnight'] = !$isDate && $parsed['midnight'];
                 }
             } elseif ($name === 'SUMMARY') {
                 $current['summary'] = str_replace(['\\,', '\\;', '\\n', '\\N', '\\\\'], [',', ';', ' ', ' ', '\\'], $value);
             } elseif ($name === 'RRULE') {
-                $current['yearly'] = preg_match('/(^|;)FREQ=YEARLY(;|$)/i', $value) === 1;
+                $current['yearly'] = self::isPlainYearlyRule($value);
             }
         }
         return $events;
@@ -652,11 +664,51 @@ final class LibraryCalendar
     }
 
     /**
-     * The day of an iCalendar DATE or DATE-TIME. A floating DATE-TIME and a
-     * DATE are taken as written; a UTC DATE-TIME (trailing Z) is converted
-     * to $timezone first, so 20260410T230000Z in Europe/Rome is 2026-04-11.
+     * True for a rule that repeats the same month-day span every year with
+     * no end: FREQ=YEARLY, INTERVAL 1 (or absent), no COUNT/UNTIL, no
+     * positional or weekday part. BYMONTH/BYMONTHDAY are accepted only as the
+     * restatement of DTSTART that calendar apps write.
      */
-    private static function icsDate(string $value, string $timezone): ?string
+    private static function isPlainYearlyRule(string $rule): bool
+    {
+        $parts = [];
+        foreach (explode(';', strtoupper(trim($rule))) as $part) {
+            if ($part === '') {
+                continue;
+            }
+            [$key, $val] = array_pad(explode('=', $part, 2), 2, '');
+            $parts[$key] = $val;
+        }
+        if (($parts['FREQ'] ?? '') !== 'YEARLY') {
+            return false;
+        }
+        if (isset($parts['INTERVAL']) && $parts['INTERVAL'] !== '1') {
+            return false;
+        }
+        foreach (['COUNT', 'UNTIL', 'BYDAY', 'BYSETPOS', 'BYWEEKNO', 'BYYEARDAY', 'BYHOUR', 'BYMINUTE', 'BYSECOND'] as $bounded) {
+            if (isset($parts[$bounded])) {
+                return false;
+            }
+        }
+        // Several months or month-days would be several closures, not one.
+        foreach (['BYMONTH', 'BYMONTHDAY'] as $list) {
+            if (isset($parts[$list]) && str_contains($parts[$list], ',')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The day of an iCalendar DATE or DATE-TIME, and whether that local time
+     * is midnight. A DATE and a floating DATE-TIME are taken as written; a UTC
+     * DATE-TIME (trailing Z) or one with a valid TZID is converted to
+     * $timezone first, so 20260410T230000Z in Europe/Rome is 2026-04-11. An
+     * unknown TZID is read as floating.
+     *
+     * @return array{date: string, midnight: bool}|null
+     */
+    private static function icsDateTime(string $value, string $timezone, ?string $tzid = null): ?array
     {
         $value = trim($value);
         if (preg_match('/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z?))?/i', $value, $m) !== 1) {
@@ -666,15 +718,26 @@ final class LibraryCalendar
         if (!DateHelper::isISODateFormat($date)) {
             return null;
         }
-        if (($m[7] ?? '') === '') {
-            return $date;
+        if (($m[4] ?? '') === '') {
+            return ['date' => $date, 'midnight' => true];
         }
-        try {
-            $utc = new \DateTimeImmutable(sprintf('%sT%s:%s:%s', $date, $m[4], $m[5], $m[6] !== '' ? $m[6] : '00'), new \DateTimeZone('UTC'));
-            return $utc->setTimezone(new \DateTimeZone($timezone))->format('Y-m-d');
-        } catch (\Throwable $e) {
-            return $date;
+        $time = sprintf('%s:%s:%s', $m[4], $m[5], ($m[6] ?? '') !== '' ? $m[6] : '00');
+        $source = null;
+        if (($m[7] ?? '') !== '') {
+            $source = 'UTC';
+        } elseif ($tzid !== null && $tzid !== '') {
+            $source = $tzid;
         }
+        if ($source !== null) {
+            try {
+                $local = (new \DateTimeImmutable($date . 'T' . $time, new \DateTimeZone($source)))
+                    ->setTimezone(new \DateTimeZone($timezone));
+                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00'];
+            } catch (\Throwable $e) {
+                // An unknown TZID: the time as written.
+            }
+        }
+        return ['date' => $date, 'midnight' => $time === '00:00:00'];
     }
 
     /** app.timezone, with the same fallback as DateHelper::today(). */

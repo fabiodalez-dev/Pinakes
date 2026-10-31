@@ -41,8 +41,15 @@ final class PatronLedger
     /** Largest single amount an operator may type (DECIMAL(10,2) headroom). */
     public const MAX_AMOUNT_CENTS = 99999999;
 
-    /** @var array<string, bool> one probe per connection and request (as CirculationPolicy::schemaReady()) */
-    private static array $schemaReady = [];
+    /**
+     * One probe per live connection object. A WeakMap, not spl_object_id():
+     * an id is reused once its connection is destroyed, so a later connection
+     * of a long-lived worker could inherit a "false" probed before the
+     * migration and leave the debt block off.
+     *
+     * @var \WeakMap<mysqli, bool>|null
+     */
+    private static ?\WeakMap $schemaReady = null;
 
     private mysqli $db;
     private FineCalculator $calculator;
@@ -80,8 +87,8 @@ final class PatronLedger
      */
     public static function schemaReady(mysqli $db): bool
     {
-        $key = (string) spl_object_id($db);
-        if (!array_key_exists($key, self::$schemaReady)) {
+        self::$schemaReady ??= new \WeakMap();
+        if (!isset(self::$schemaReady[$db])) {
             $ready = false;
             try {
                 $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'");
@@ -89,9 +96,9 @@ final class PatronLedger
             } catch (\Throwable) {
                 $ready = false;
             }
-            self::$schemaReady[$key] = $ready;
+            self::$schemaReady[$db] = $ready;
         }
-        return self::$schemaReady[$key];
+        return self::$schemaReady[$db];
     }
 
     /**
@@ -109,7 +116,7 @@ final class PatronLedger
     /** Drop the per-request schema probe (tests that migrate a database mid-process). */
     public static function resetSchemaCache(): void
     {
-        self::$schemaReady = [];
+        self::$schemaReady = null;
     }
 
     /** SQL expression for a patron's balance; $userIdExpr is a fixed column reference. */
@@ -503,9 +510,12 @@ final class PatronLedger
      * past its batch limit) into ledger rows, $batch loans per transaction.
      * Same key as the migration, so it never doubles an amount.
      *
-     * @return int|null movements written; null when the ledger table does not
-     *                  exist yet (the 0.9.0 migration has not run), so the
-     *                  caller does not record the scan as completed
+     * @return int|null movements written; null when the scan is not complete:
+     *                  the ledger table does not exist yet (the 0.9.0
+     *                  migration has not run), or $maxBatches full batches ran
+     *                  without reaching an empty one (rows may remain), so the
+     *                  caller does not record the scan as completed and the
+     *                  next pass continues
      */
     public function backfillLegacyPenalties(int $batch = 500, int $maxBatches = 1000): ?int
     {
@@ -526,6 +536,7 @@ final class PatronLedger
                  ORDER BY p.id
                  LIMIT {$batch}
                 ON DUPLICATE KEY UPDATE movimenti_lettore.id = movimenti_lettore.id";
+        $drained = false;
         for ($i = 0; $i < $maxBatches; $i++) {
             if (!$this->db->query($sql)) {
                 // Not "done": the caller must not record the scan as completed.
@@ -533,11 +544,13 @@ final class PatronLedger
             }
             $affected = $this->db->affected_rows;
             if ($affected <= 0) {
+                $drained = true;
                 break;
             }
             $written += $affected;
         }
-        return $written;
+        // Stopped by the batch limit: rows may remain, the scan is not done.
+        return $drained ? $written : null;
     }
 
     /**

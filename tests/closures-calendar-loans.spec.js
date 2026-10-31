@@ -200,8 +200,13 @@ test.describe('Closures calendar — circulation', () => {
     await resolveCopy(page, books.pickup);
     await page.uncheck('#consegna_immediata');
     await submitLoanForm(page);
-    const row = db(`SELECT CONCAT(stato,'|',pickup_deadline) FROM prestiti WHERE libro_id=${books.pickup.id} AND utente_id=${readerId}`);
-    expect(row).toBe(`da_ritirare|${addDays(today, pickupDays + 2)}`);
+    const row = db(`SELECT CONCAT(stato,'|',pickup_deadline,'|',data_scadenza) FROM prestiti WHERE libro_id=${books.pickup.id} AND utente_id=${readerId}`);
+    const [state, deadline, dueDate] = row.split('|');
+    expect(state).toBe('da_ritirare');
+    // The deadline never passes the due date (a loan shorter than the pickup
+    // window, e.g. 1 loan day and 3 pickup days, ends it there).
+    const openDeadline = addDays(today, pickupDays + 2);
+    expect(deadline).toBe(dueDate < openDeadline ? dueDate : openDeadline);
   });
 
   test('Admin 5: with no closures the due date and the pickup deadline are as before', async ({ page }) => {

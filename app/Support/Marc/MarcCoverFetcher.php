@@ -102,6 +102,26 @@ final class MarcCoverFetcher
         return self::COVERS_PATH . $name;
     }
 
+    /**
+     * Remove a cover fetch() just stored but nothing ended up referencing
+     * (the book row was not updated). Only a plain file name under the covers
+     * folder is touched, never a path a caller could steer elsewhere.
+     */
+    public static function discard(string $storedPath): void
+    {
+        if (!str_starts_with($storedPath, self::COVERS_PATH)) {
+            return;
+        }
+        $name = substr($storedPath, strlen(self::COVERS_PATH));
+        if (preg_match('/^[A-Za-z0-9._-]+\.(jpe?g|png|webp|gif)$/i', $name) !== 1) {
+            return;
+        }
+        $file = self::coversDir() . '/' . $name;
+        if (is_file($file)) {
+            @unlink($file);
+        }
+    }
+
     private static function coversDir(): string
     {
         return dirname(__DIR__, 3) . '/public/uploads/copertine';

@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const F = require('./helpers/circulation-fixtures');
 const M = require('./helpers/mobile-api-fixtures');
+const { flushCache } = require('./helpers/flush-cache');
 
 test.skip(!F.CONFIGURED, 'E2E credentials not configured');
 
@@ -131,17 +132,28 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
     await F.setPluginActive(admin, 'ncip-server', true);
   });
 
+  // The app dates a loan when the request arrives: read the application day
+  // again before every test, so a run that crosses midnight compares each
+  // loan with the day it was actually made on.
+  test.beforeEach(() => { today = F.appTodayISO(); });
+
   test.afterEach(() => { expect(errors.splice(0), 'no HTTP 5xx').toEqual([]); });
 
   test.afterAll(async () => {
     // Independent restore steps: one failing must not leave the others undone.
     await F.runAll([
-      () => { for (const k of LOAN_SETTINGS) writeSetting('loans', k, saved[k]); },
+      // One step per key, and only for keys beforeAll actually read:
+      // readSetting() returns a string or null, so undefined means never read.
+      ...LOAN_SETTINGS.map((k) => () => { if (saved[k] !== undefined) writeSetting('loans', k, saved[k]); }),
       () => F.unstashRows(closures),
       () => F.unstashRows(rules),
       // Always reset the category: an install with no email rows gets none back.
       () => F.unstashRows(emailSettings),
       () => clearConfigCache(),
+      // The SQL restore bypasses the app, so the web server's APCu copy of the
+      // settings would keep the test SMTP values until its TTL: flush it from
+      // inside the app process.
+      () => flushCache(),
       () => {
         for (const p of [reader, debtor]) {
           if (!p) continue;

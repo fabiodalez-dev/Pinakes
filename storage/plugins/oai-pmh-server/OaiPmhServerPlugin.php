@@ -1780,6 +1780,9 @@ class OaiPmhServerPlugin
         $record = BookMarcBuilder::marc21($row, $authors, $publishers, $genre);
 
         $xw->startElementNs(null, 'record', MarcXmlWriter::NS_MARC21);
+        // Declared on the record itself, as oai_dc and UNIMARC do: the record
+        // stays a valid document when a harvester lifts it out of the envelope.
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
             MarcXmlWriter::NS_MARC21 . ' ' . MarcXmlWriter::SCHEMA_MARC21);
         $xw->writeElement('leader', $record->leader());

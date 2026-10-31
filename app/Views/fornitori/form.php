@@ -2,7 +2,7 @@
 /**
  * Create / edit form for a supplier, modelled on editori/crea_editore.php.
  *
- * @var array $data { fornitore: array<string,mixed>|null }
+ * @var array $data { fornitore: array<string,mixed>|null, old: array<string,string>|null }
  */
 use App\Support\Csrf;
 
@@ -10,7 +10,9 @@ $csrf = Csrf::ensureToken();
 $fornitore = $data['fornitore'];
 $isEdit = is_array($fornitore);
 $action = $isEdit ? url('/admin/suppliers/update/' . (int) $fornitore['id']) : url('/admin/suppliers/create');
-$v = static fn (string $key): string => htmlspecialchars((string) ((string) ($fornitore[$key] ?? '')), ENT_QUOTES, 'UTF-8');
+// A submission refused by validation comes back as typed (SuppliersController::keepOldInput).
+$old = is_array($data['old'] ?? null) ? $data['old'] : null;
+$v = static fn (string $key): string => htmlspecialchars($old !== null ? (string) ($old[$key] ?? '') : (string) ($fornitore[$key] ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

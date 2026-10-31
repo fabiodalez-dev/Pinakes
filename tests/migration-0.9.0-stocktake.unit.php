@@ -68,9 +68,9 @@ try {
     $runMigration();
     $check($tableExists($sessions) && $tableExists($expected) && $tableExists($scans), 'the migration creates the three stocktake tables');
     $columns = $one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$sessions}'");
-    $check($columns === 'id,nome,sede_id,filtro,stato,totale_attese,aperta_da,aperta_il,chiusa_da,chiusa_il,note', 'inventario_sessioni has the planned columns');
+    $check($columns === 'id,nome,sede_id,filtro,stato,totale_attese,aperta_da,aperta_il,chiusa_da,chiusa_il,note,azione_mancanti', 'inventario_sessioni has the planned columns');
     $check($one("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$sessions}' AND COLUMN_NAME = 'stato'") === "enum('aperta','chiusa','annullata')", 'the session state is aperta/chiusa/annullata');
-    $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}'") === 'sessione_id,copia_id,scaffale_atteso,stato_all_apertura,esito_chiusura', 'inventario_attese is the snapshot the plan describes, with the bucket frozen at close');
+    $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}'") === 'sessione_id,copia_id,scaffale_atteso,stato_all_apertura,esito_chiusura,codice_atteso,titolo_atteso', 'inventario_attese is the snapshot the plan describes, with the bucket frozen at close');
     $check($one("SELECT CONCAT(COLUMN_TYPE, ':', IS_NULLABLE) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}' AND COLUMN_NAME = 'esito_chiusura'") === 'varchar(20):YES', 'esito_chiusura is a nullable varchar(20): NULL while the session is open');
     $check($one("SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$scans}' AND COLUMN_NAME = 'esito'") === "enum('trovata','fuori_posto','in_prestito','sconosciuta','duplicata','fuori_ambito')", 'the scan outcomes are the planned six');
     $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$scans}' AND NON_UNIQUE = 0 AND INDEX_NAME <> 'PRIMARY'") === 'sessione_id,copia_id', 'scans are UNIQUE on (sessione_id, copia_id)');
@@ -97,10 +97,22 @@ try {
     $db->query("ALTER TABLE {$expected} DROP COLUMN esito_chiusura");
     $runMigration();
     $check((int) $one("SELECT COUNT(*) FROM {$expected} WHERE sessione_id = {$sid}") === 2 && (int) $one("SELECT COUNT(*) FROM {$scans} WHERE sessione_id = {$sid}") === 3, 'a second run is a no-op that keeps sessions, snapshots and scans');
-    $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}'") === 'sessione_id,copia_id,scaffale_atteso,stato_all_apertura,esito_chiusura', 'the second run adds esito_chiusura to a snapshot table that lacks it');
+    $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}'") === 'sessione_id,copia_id,scaffale_atteso,stato_all_apertura,esito_chiusura,codice_atteso,titolo_atteso', 'the second run adds esito_chiusura to a snapshot table that lacks it');
     $check((int) $one("SELECT COUNT(*) FROM {$expected} WHERE sessione_id = {$sid} AND esito_chiusura IS NULL") === 2, 'the added column is NULL for existing snapshot rows');
     $runMigration();
     $check((int) $one("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}' AND COLUMN_NAME = 'esito_chiusura'") === 1, 'a third run leaves the column alone');
+
+    // Tables from an earlier build also lack the frozen code/title and the close choice.
+    $db->query("ALTER TABLE {$expected} DROP COLUMN titolo_atteso, DROP COLUMN codice_atteso");
+    $db->query("ALTER TABLE {$sessions} DROP COLUMN azione_mancanti");
+    $runMigration();
+    $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}'") === 'sessione_id,copia_id,scaffale_atteso,stato_all_apertura,esito_chiusura,codice_atteso,titolo_atteso', 'the guarded ALTERs add codice_atteso and titolo_atteso to a snapshot that lacks them');
+    $check($one("SELECT CONCAT(COLUMN_TYPE, ':', IS_NULLABLE) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$expected}' AND COLUMN_NAME = 'codice_atteso'") === 'varchar(100):YES', 'codice_atteso is as wide as copie.numero_inventario');
+    $check((int) $one("SELECT COUNT(*) FROM {$expected} WHERE sessione_id = {$sid} AND codice_atteso IS NULL AND titolo_atteso IS NULL") === 2, 'existing snapshot rows keep NULL and fall back to the live copy');
+    $check($one("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$sessions}'") === 'id,nome,sede_id,filtro,stato,totale_attese,aperta_da,aperta_il,chiusa_da,chiusa_il,note,azione_mancanti', 'the guarded ALTER adds azione_mancanti to a session table that lacks it');
+    $check((int) $one("SELECT COUNT(*) FROM {$sessions} WHERE id = {$sid} AND azione_mancanti IS NULL") === 1, 'an existing session has no recorded close choice');
+    $runMigration();
+    $check((int) $one("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('{$expected}', '{$sessions}') AND COLUMN_NAME IN ('codice_atteso', 'titolo_atteso', 'azione_mancanti')") === 3, 'another run leaves the new columns alone');
     $check((int) $one("SELECT COUNT(*) FROM {$p}ruoli WHERE nome = 'Revisore inventario'") === 1, 'the preset is not duplicated');
 
     $db->query("DELETE FROM {$p}utenti WHERE id = 1");
@@ -113,6 +125,8 @@ try {
         $check(str_contains($schema, "CREATE TABLE `{$table}`"), "fresh install creates {$table}");
     }
     $check(str_contains($schema, "`esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,"), 'fresh install creates inventario_attese.esito_chiusura');
+    $check(str_contains($schema, "`codice_atteso` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,") && str_contains($schema, "`titolo_atteso` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,"), 'fresh install creates the frozen code and title');
+    $check(str_contains($schema, "`azione_mancanti` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,"), 'fresh install creates inventario_sessioni.azione_mancanti');
     $check(str_contains($schema, "('Revisore inventario', '[\"backend.access\",\"inventory.manage\"]')"), 'fresh install seeds the stocktake preset');
     $version = json_decode((string) file_get_contents(dirname(__DIR__) . '/version.json'), true)['version'];
     $check(version_compare('0.9.0-rc.1', (string) $version, '<='), 'the release includes migrate_0.9.0-rc.1.sql');
