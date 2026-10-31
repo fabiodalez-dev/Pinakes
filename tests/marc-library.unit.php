@@ -255,6 +255,9 @@ $check($typed('altro')->controlField('007') === null && $rdaOf($typed('altro')) 
 $own = $typed('libro', ['rda_content_type' => 'ntm', 'rda_carrier_type' => 'nb']);
 $check($rdaOf($own) === ['ntm', 'n', 'nb'] && $own->subfield('336', 'a') === 'notated music' && $own->subfield('338', 'a') === 'sheet', '67f the book\'s own RDA codes override what the media type implies');
 $check(BookMarcBuilder::unimarc($row + ['tipo_media' => 'dvd'], $authors, [], null)->leader()[6] === 'g' && BookMarcBuilder::unimarc($row, $authors, [], null)->leader()[6] === 'a', '67g UNIMARC label/06 follows the media type too');
+$serialU = BookMarcBuilder::unimarc($row + ['tipo_media' => 'periodico', 'issn' => '0317-8471'], $authors, [], null);
+$check($serialU->leader()[7] === 's' && $serialU->subfield('011', 'a') === '0317-8471' && BookMarcBuilder::unimarc($row + ['issn' => '0317-8471'], $authors, [], null)->leader()[7] === 'm' && BookMarcBuilder::unimarc($row + ['issn' => '0317-8471'], $authors, [], null)->first('011') === null, '67g2 UNIMARC label/07 is s for a serial, with its ISSN in 011; a monograph stays m without 011');
+$check((new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($serialU))))[0])['issn'] === '0317-8471', '67g3 UNIMARC export → import keeps a serial\'s ISSN');
 $viaIso = static fn (MarcRecord $r): array => (new Marc21LibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($r))))[0]);
 $backDvd = $viaIso($dvd);
 $check($backDvd['tipo_media'] === 'dvd' && !isset($backDvd['rda_content_type']) && !isset($backDvd['rda_media_type']) && !isset($backDvd['rda_carrier_type']), '67h export → import: a DVD comes back a DVD, the implied RDA codes are not stored as its own');
