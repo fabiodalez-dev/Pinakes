@@ -275,6 +275,15 @@ $check(MarcBookData::toImportRow($backDvd)['tipo_media'] === 'dvd', '67n the imp
 $backOther = $viaIso($typed('altro'));
 $check($backOther['tipo_media'] === 'altro' && !isset($backOther['rda_content_type']) && !isset($backOther['rda_media_type']) && !isset($backOther['rda_carrier_type']), '67n2 export → import: an altro (leader a, RDA xxx) comes back an altro, not a book');
 $check(MarcMediaType::tipoMediaOf('a', 'txt') === 'libro' && MarcMediaType::tipoMediaOf('a', null) === 'libro', '67n3 language material without RDA "other" is still a book');
+$viaIsoU = static fn (MarcRecord $r): array => (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($r))))[0]);
+$otherU = BookMarcBuilder::unimarc($row + ['tipo_media' => 'altro'], $authors, [], null);
+$check($otherU->subfield('181', 'c') === 'xxx' && $otherU->subfield('181', '2') === 'rdacontent' && BookMarcBuilder::unimarc($row, $authors, [], null)->first('181') === null, '67n4 UNIMARC writes a non-text RDA content type in 181 $c $2 rdacontent, a book none');
+$check($viaIsoU($otherU)['tipo_media'] === 'altro' && $viaIsoU(BookMarcBuilder::unimarc($row, $authors, [], null))['tipo_media'] === 'libro', '67n5 UNIMARC export → import: an altro comes back an altro, a book a book');
+$seriesIssnU = BookMarcBuilder::unimarc($row + ['issn' => '0317-8471'], $authors, [], null);
+$check($seriesIssnU->subfield('225', 'x') === '0317-8471' && $viaIsoU($seriesIssnU)['issn'] === '0317-8471', '67n6 UNIMARC: a monograph\'s series ISSN goes in 225 $x and comes back as the ISSN');
+$legacyU = BookMarcBuilder::unimarc($row + ['illustratore' => 'Ugo Disegni', 'traduttore' => 'Altro Nome', 'curatore' => 'Cura Tore'], $authors, [], null);
+$backLegacyU = $viaIsoU($legacyU);
+$check($backLegacyU['illustratore'] === ['Ugo Disegni'] && $backLegacyU['curatore'] === ['Cura Tore'] && $backLegacyU['traduttore'] === ['Maria Traduce'], '67n7 UNIMARC: a legacy illustrator or editor column becomes a 702 and comes back; a translator entity is not doubled by the column');
 
 echo "Genre round trip\n";
 $withGenre = BookMarcBuilder::marc21($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
