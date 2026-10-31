@@ -393,8 +393,18 @@ test.describe('Reader request on a closed day', () => {
             expect(r.json.data.type).toBe('loan');
             expect(r.json.data.auto_approved).toBe(true);
             expect(r.json.data.status).toBe('prenotato');
-            // The next open day: tomorrow, unless another closure follows.
-            expect(r.json.data.start_date >= isoDay(1), r.json.data.start_date).toBe(true);
+            // The exact next open day after today. Weekly closures are off, so
+            // only the library-wide closures (this run's and any already
+            // stored) can push it past tomorrow: walk them day by day.
+            const closures = F.dbRows('SELECT data_inizio, data_fine, ricorrente_annuale FROM calendario_chiusure WHERE sede_id IS NULL');
+            const closed = (ymd) => closures.some((c) => {
+                if (c.ricorrente_annuale !== '1') return ymd >= c.data_inizio && ymd <= c.data_fine;
+                const md = ymd.slice(5), from = c.data_inizio.slice(5), to = c.data_fine.slice(5);
+                return to < from ? (md >= from || md <= to) : (md >= from && md <= to);
+            });
+            let offset = 1;
+            while (offset < 400 && closed(isoDay(offset))) offset++;
+            expect(r.json.data.start_date).toBe(isoDay(offset));
             expect(r.json.meta.message).not.toMatch(/attesa di ritiro/);
             const stored = F.dbScalar(`SELECT CONCAT(stato,'|',data_prestito) FROM prestiti WHERE id=${r.json.data.loan_id}`);
             expect(stored).toBe(`prenotato|${r.json.data.start_date}`);

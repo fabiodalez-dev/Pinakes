@@ -180,9 +180,18 @@ test.describe.serial('MARC bulk import', () => {
     test.setTimeout(90000);
     await loginAsAdmin(page);
     const title = `Libro MARC ${RUN} 03`;
-    // Delete book 03 from the admin UI path the app uses: soft delete clears the ISBN
-    const id = dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' AND deleted_at IS NULL`);
-    dbQuery(`UPDATE libri SET deleted_at=NOW(), isbn13=NULL, isbn10=NULL, ean=NULL WHERE id=${Number(id)}`);
+    // Delete book 03 through the admin bulk delete (LibriApiController::bulkDelete),
+    // the path the book list uses: its soft delete clears the ISBN
+    const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEscape(title)}' AND deleted_at IS NULL`));
+    expect(id).toBeGreaterThan(0);
+    await page.goto(`${BASE}/admin/books`);
+    const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    const del = await page.request.post(`${BASE}/api/libri/bulk-delete`, {
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf || '' },
+      data: JSON.stringify({ ids: [id] }),
+    });
+    expect(del.ok(), await del.text()).toBe(true);
+    expect(dbQuery(`SELECT CONCAT(deleted_at IS NOT NULL, '|', COALESCE(isbn13, ''), '|', COALESCE(isbn10, ''), '|', COALESCE(ean, '')) FROM libri WHERE id=${id}`)).toBe('1|||');
     const file = marcFile(RUN, 1, 'mrc', 3);
     const upload = await uploadForPreview(page, file, { duplicates: 'skip' });
     expect(upload.preview[0].existing_id).toBeNull();

@@ -75,12 +75,12 @@ $ok(str_contains($plan, 'fulltext') || str_contains($plan, 'full-text'), 'EXPLAI
 // ── Ranking and the pre-migration fallback, on real books ─────────────────
 $token = Exact501::token();
 $bookIds = [];
-foreach (["{$token} Häffner Studien", "{$token} Haffner Studien", "{$token} Schaffner Studien"] as $title) {
+foreach (["{$token} Häffner Studien", "{$token} Haffner Studien", "{$token} Schaffner Studien", "{$token} c++ (x) Handbuch", "{$token} x_Haffner Studien"] as $title) {
     $bookIds[] = Exact501::exec($db, 'INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES (?, 1, 1)', [$title]);
 }
 Exact501::onCleanup(static fn() => $db->query('DELETE FROM libri WHERE id IN (' . implode(',', $bookIds) . ')'));
 S::rebuildMany($db, $bookIds);
-[$umlautId, $plainId, $schaffnerId] = $bookIds;
+[$umlautId, $plainId, $schaffnerId, $regexCharsId, $underscoreId] = $bookIds;
 
 $rel = S::buildRelevanceOrder($db, "{$token} \"häffner\"", 'l.');
 $stmt = $db->prepare("SELECT l.id, {$rel['score_sql']} AS score FROM libri l WHERE l.id IN (?, ?) ORDER BY l.id");
@@ -106,11 +106,11 @@ try {
     $prop->setValue(null, $saved);
 }
 $same([$umlautId], Exact501::ids($db, 'libri l', $legacyExact, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: the quoted spelling finds only its book');
-$same([$umlautId, $plainId, $schaffnerId], Exact501::ids($db, 'libri l', $legacyTolerant, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: unquoted still finds both (and, as before, a word containing it)');
+$same([$umlautId, $plainId, $schaffnerId, $underscoreId], Exact501::ids($db, 'libri l', $legacyTolerant, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: unquoted still finds both (and, as before, a word containing it)');
 // CodeRabbit (PR #502): the FULLTEXT path needs a quoted word to START a word;
 // the fallback used a bare substring, so "haffner" also found Schaffner.
-$same([$plainId], Exact501::ids($db, 'libri l', $legacyPlain, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: a quoted word does not match inside another word (Schaffner)');
+$same([$plainId], Exact501::ids($db, 'libri l', $legacyPlain, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: a quoted word does not match inside another word (Schaffner, x_Haffner)');
 $same([$plainId], Exact501::ids($db, 'libri l', $legacyStart, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: a quoted phrase may end on a word still being typed');
-$same([], Exact501::ids($db, 'libri l', $legacyRegexChars, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: regex characters in a quoted term are literal, not an error');
+$same([$regexCharsId], Exact501::ids($db, 'libri l', $legacyRegexChars, 'AND l.deleted_at IS NULL'), 'pre-migration fallback: regex characters in a quoted term are literal, not an error, and still find their book');
 
 Exact501::finish(30);

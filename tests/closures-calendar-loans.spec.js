@@ -46,7 +46,6 @@ const TAG = `E2E-CALLOAN-${RUN}`;
 const READER_EMAIL = `calloan-${RUN}@example.test`;
 const READER_PASS = 'CalLoan1234!';
 
-let startMaxId = 0;
 let prevWeekdays = '';
 let readerId = 0;
 let today = '';
@@ -110,7 +109,6 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('Closures calendar — circulation', () => {
   test.beforeAll(() => {
-    startMaxId = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
     prevWeekdays = db("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     setWeekdays('');
     const tz = db("SELECT setting_value FROM system_settings WHERE category='app' AND setting_key='timezone' LIMIT 1") || 'Europe/Rome';
@@ -137,7 +135,9 @@ test.describe('Closures calendar — circulation', () => {
   });
 
   test.afterAll(() => {
-    db(`DELETE FROM calendario_chiusure WHERE descrizione='${TAG}' OR id > ${startMaxId}`);
+    // Only this run's rows: an id watermark would also take closures that a
+    // concurrent writer stored meanwhile.
+    db(`DELETE FROM calendario_chiusure WHERE descrizione='${TAG}'`);
     if (prevWeekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     else setWeekdays(prevWeekdays);
     const ids = Object.values(books).map((b) => b.id).join(',') || '0';
