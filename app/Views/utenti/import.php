@@ -282,6 +282,9 @@ unset($workspaceHeader);
     ['user-import-start', 'user-import-resume'].forEach((id) => { const b = $(id); if (b) { b.disabled = true; } });
     $('user-import-notice-text').textContent = T.stale;
     $('user-import-notice').classList.remove('hidden');
+    // The notice lives in the mapping step; while the resume panel or the
+    // result step is showing, the reason goes in the always-visible alert.
+    if ($('user-import-step-mapping').classList.contains('hidden')) { showError(T.stale); }
   }
   if (channel) {
     channel.onmessage = (event) => {
