@@ -188,6 +188,12 @@ try {
             $repo->ensureEmailTemplates($defaults($locale), $locale);
             $row = $repo->getEmailTemplate('loan_returned', $locale);
             $check(is_array($row) && trim((string) $row['body']) === trim($current) && (string) $row['subject'] === (string) $defaults($locale)['loan_returned']['subject'], "{$locale}: a row still in the pre-0.9.0 Italian text gets the localized default and subject");
+            // ...and a row the administrator switched off stays off.
+            $seedRow($locale, (string) \App\Support\SettingsMailTemplates::retiredBodies('loan_returned', 'it_IT')[0], (string) $italian['subject']);
+            $db->query("UPDATE email_templates SET active = 0 WHERE name = 'loan_returned' AND locale = '{$locale}'");
+            $repo->ensureEmailTemplates($defaults($locale), $locale);
+            $row = $repo->getEmailTemplate('loan_returned', $locale);
+            $check(is_array($row) && trim((string) $row['body']) === trim($current) && (int) $row['active'] === 0, "{$locale}: a disabled row in the pre-0.9.0 Italian text is translated and stays disabled");
         }
         $custom = str_replace('</h2>', ' (customised)</h2>', (string) $retired[0]);
         $seedRow($locale, $custom, 'My subject');
