@@ -41,6 +41,9 @@ class AuthorNormalizer
             }
             return implode('; ', $names);
         }
+        // A single name is decoded too, so it is cached the way the same
+        // name inside a list is (O&#039;Brien → O'Brien).
+        $name = HtmlHelper::decode($name);
         return self::normalize(ExactSearch::quotedValue($name) ?? $name);
     }
 

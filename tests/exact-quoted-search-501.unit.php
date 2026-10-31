@@ -62,7 +62,8 @@ check(\App\Support\AuthorNormalizer::normalizeStored('"Häffner, Rolf"') === 'Ro
 check(\App\Support\AuthorNormalizer::normalizeStored('"Pippo" Inzaghi') === '"Pippo" Inzaghi', 'a name with only a quoted part is kept as typed');
 check(\App\Support\AuthorNormalizer::normalizeStored('Rossi, Mario; Bianchi, Luca') === 'Mario Rossi; Luca Bianchi', 'a stored list normalises each inverted name on its own');
 check(\App\Support\AuthorNormalizer::normalizeStored('"Rolf Häffner" | Mario Rossi; Mario Rossi') === 'Rolf Häffner; Mario Rossi', 'a stored list drops each name\'s quotes, joins with "; " and keeps no duplicate');
-check(\App\Support\AuthorNormalizer::normalizeStored('O&#039;Brien, Flann') === \App\Support\AuthorNormalizer::normalize('O&#039;Brien, Flann'), 'an HTML entity\'s semicolon is not a list separator');
+check(\App\Support\AuthorNormalizer::normalizeStored('O&#039;Brien, Flann') === "Flann O'Brien", 'an HTML entity\'s semicolon is not a list separator, and a single name is decoded as a listed one is');
+check(\App\Support\AuthorNormalizer::normalizeStored('"O&#039;Brien, Flann"') === "Flann O'Brien", 'a quoted single name with an entity is decoded and stored without quotes');
 check(\App\Support\AuthorNormalizer::normalizeStored('O&#039;Brien, Flann; Rossi, Mario') === "Flann O'Brien; Mario Rossi", 'a list with an entity splits only on real separators');
 $lt = (new \ReflectionClass(\App\Controllers\LibraryThingImportController::class))->newInstanceWithoutConstructor();
 $ltCache = new \ReflectionMethod($lt, 'normalizeContributorField');

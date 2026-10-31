@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Support\ActivityLog;
 use App\Support\DataIntegrity;
+use App\Support\DateHelper;
 use App\Support\GenreTree;
 use App\Support\SecureLogger;
 use mysqli;
@@ -106,22 +107,33 @@ final class StocktakeService
     }
 
     /**
-     * Keep only the filter keys the snapshot understands, with valid values.
+     * Keep only the filter keys the snapshot understands. An absent or empty
+     * value means "no restriction"; a value that is present but invalid is
+     * refused, never dropped: dropping it would widen the snapshot to the whole
+     * catalogue and a mark-lost close would then reach copies of other shelves.
      *
      * @param array<string,mixed> $input
      * @return array{scaffale_id?:int,mensola_id?:int,genere_id?:int,tipo_media?:string,collocazione_da?:string,collocazione_a?:string}
+     * @throws \InvalidArgumentException on a present but invalid id or media type
      */
     public static function normalizeFilter(array $input): array
     {
         $filter = [];
         foreach (['scaffale_id', 'mensola_id', 'genere_id'] as $key) {
             $value = $input[$key] ?? null;
-            if (is_scalar($value) && ctype_digit((string) $value) && (int) $value > 0) {
-                $filter[$key] = (int) $value;
+            if ($value === null || $value === '') {
+                continue;
             }
+            if (!is_scalar($value) || !ctype_digit((string) $value) || (int) $value <= 0) {
+                throw new \InvalidArgumentException(__('Filtri non validi.'));
+            }
+            $filter[$key] = (int) $value;
         }
         $media = $input['tipo_media'] ?? null;
-        if (is_string($media) && in_array($media, self::MEDIA_TYPES, true)) {
+        if ($media !== null && $media !== '') {
+            if (!is_string($media) || !in_array($media, self::MEDIA_TYPES, true)) {
+                throw new \InvalidArgumentException(__('Filtri non validi.'));
+            }
             $filter['tipo_media'] = $media;
         }
         foreach (['collocazione_da', 'collocazione_a'] as $key) {
@@ -148,9 +160,14 @@ final class StocktakeService
      * Codes from a .txt (one per line) or .csv (first column) export. Order and
      * repetitions are kept: a code read twice by an offline scanner is a duplicate.
      *
+     * A .txt line is the code itself: only a tab (which no code can hold, see
+     * normalizeCode()) separates it from trailing scanner columns, so a code
+     * such as "INV,001" survives. A .csv is read with a real CSV parser, using
+     * the delimiter of its first line, so a quoted "INV,001" survives too.
+     *
      * @return list<string>
      */
-    public static function parseCodeList(string $text): array
+    public static function parseCodeList(string $text, bool $csv = false): array
     {
         if (str_starts_with($text, "\xEF\xBB\xBF")) {
             $text = substr($text, 3);
@@ -158,13 +175,18 @@ final class StocktakeService
         if (!mb_check_encoding($text, 'UTF-8')) {
             $text = mb_convert_encoding($text, 'UTF-8', 'ISO-8859-1');
         }
+        $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
+        $delimiter = $csv ? self::csvDelimiter($lines) : "\t";
         $codes = [];
         $first = true;
-        foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
-            $cells = preg_split('/[,;\t]/', $line) ?: [];
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $cells = $csv ? str_getcsv($line, $delimiter, '"', '') : explode("\t", $line);
             $cell = '';
             foreach ($cells as $candidate) {
-                $candidate = trim($candidate, " \"'");
+                $candidate = trim((string) $candidate, " \"'");
                 if ($candidate !== '') {
                     $cell = $candidate;
                     break;
@@ -182,6 +204,32 @@ final class StocktakeService
             $codes[] = $cell;
         }
         return $codes;
+    }
+
+    /**
+     * The delimiter of a CSV export: the most frequent of , ; and tab on its
+     * first non-blank line (comma when the line has none, a one-column file).
+     *
+     * @param list<string> $lines
+     */
+    private static function csvDelimiter(array $lines): string
+    {
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $best = ',';
+            $bestCount = 0;
+            foreach ([',', ';', "\t"] as $candidate) {
+                $count = substr_count($line, $candidate);
+                if ($count > $bestCount) {
+                    $best = $candidate;
+                    $bestCount = $count;
+                }
+            }
+            return $best;
+        }
+        return ',';
     }
 
     /**
@@ -217,8 +265,10 @@ final class StocktakeService
             $sessionId = (int) $this->db->insert_id;
             $stmt->close();
 
-            $sql = 'INSERT INTO inventario_attese (sessione_id, copia_id, scaffale_atteso, stato_all_apertura) '
-                . 'SELECT ?, c.id, l.scaffale_id, c.stato FROM copie c '
+            // The code and title are frozen too: a copy deleted during the
+            // stocktake must still be identifiable on the shelf from the report.
+            $sql = 'INSERT INTO inventario_attese (sessione_id, copia_id, scaffale_atteso, stato_all_apertura, codice_atteso, titolo_atteso) '
+                . 'SELECT ?, c.id, l.scaffale_id, c.stato, c.numero_inventario, l.titolo FROM copie c '
                 . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
                 . 'WHERE c.stato NOT IN (' . self::sqlList(self::OFF_SHELF_STATES) . ')' . $where;
             $stmt = $this->db->prepare($sql);
@@ -336,14 +386,19 @@ final class StocktakeService
     public function listSessions(int $limit = 100): array
     {
         $limit = max(1, min(500, $limit));
-        $result = $this->db->query(
-            'SELECT s.id, s.nome, s.stato, s.totale_attese, s.aperta_il, s.chiusa_il, se.nome AS sede_nome, '
+        $select = 'SELECT s.id, s.nome, s.stato, s.totale_attese, s.aperta_il, s.chiusa_il, se.nome AS sede_nome, '
             . '(SELECT COUNT(*) FROM inventario_scansioni sc WHERE sc.sessione_id = s.id) AS scansioni, '
             . "TRIM(CONCAT(COALESCE(ua.nome, ''), ' ', COALESCE(ua.cognome, ''))) AS aperta_da_nome "
             . 'FROM inventario_sessioni s '
             . 'LEFT JOIN sedi se ON se.id = s.sede_id '
-            . 'LEFT JOIN utenti ua ON ua.id = s.aperta_da '
-            . "ORDER BY FIELD(s.stato, 'aperta', 'chiusa', 'annullata'), s.aperta_il DESC, s.id DESC LIMIT " . $limit
+            . 'LEFT JOIN utenti ua ON ua.id = s.aperta_da ';
+        // Every open session is listed, however many: the limit only trims the
+        // history of closed and cancelled ones, so an open one never drops off.
+        $result = $this->db->query(
+            '(' . $select . "WHERE s.stato = 'aperta') "
+            . 'UNION ALL '
+            . '(' . $select . "WHERE s.stato <> 'aperta' ORDER BY s.aperta_il DESC, s.id DESC LIMIT " . $limit . ') '
+            . "ORDER BY FIELD(stato, 'aperta', 'chiusa', 'annullata'), aperta_il DESC, id DESC"
         );
         if ($result === false) {
             return [];
@@ -536,13 +591,13 @@ final class StocktakeService
      * whose UPDATE changes the row may go on: a concurrent close or cancel that
      * lost the race gets a DomainException and must not touch anything.
      */
-    private function claimTransition(int $sessionId, string $state, ?int $operatorId): void
+    private function claimTransition(int $sessionId, string $state, ?int $operatorId, ?string $missingAction = null): void
     {
-        $stmt = $this->db->prepare("UPDATE inventario_sessioni SET stato = ?, chiusa_da = ?, chiusa_il = NOW() WHERE id = ? AND stato = 'aperta'");
+        $stmt = $this->db->prepare("UPDATE inventario_sessioni SET stato = ?, chiusa_da = ?, chiusa_il = NOW(), azione_mancanti = ? WHERE id = ? AND stato = 'aperta'");
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
-        $stmt->bind_param('sii', $state, $operatorId, $sessionId);
+        $stmt->bind_param('sisi', $state, $operatorId, $missingAction, $sessionId);
         $stmt->execute();
         $claimed = $stmt->affected_rows === 1;
         $stmt->close();
@@ -738,8 +793,9 @@ final class StocktakeService
     private function unscannedExpected(int $sessionId, bool $frozen = false): array
     {
         $stmt = $this->db->prepare(
-            'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, c.numero_inventario, c.stato AS stato_attuale, c.libro_id, '
-            . 'l.titolo, l.collocazione, '
+            'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, '
+            . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, '
+            . 'COALESCE(l.titolo, a.titolo_atteso) AS titolo, l.id AS libro_attivo, l.collocazione, l.tipo_media, '
             . ($frozen ? "(a.esito_chiusura = 'in_prestito')" : self::onLoanSql()) . ' AS in_prestito '
             . 'FROM inventario_attese a '
             . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
@@ -766,7 +822,7 @@ final class StocktakeService
      * close marked lost stays a `mancante` row, with `stato_copia` saying
      * 'perso'. `stato_copia` is always the copy's state today.
      *
-     * @return list<array{categoria:string,codice:string,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
+     * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
      */
     public function reportRows(int $sessionId): array
     {
@@ -776,6 +832,7 @@ final class StocktakeService
                 'categoria' => (int) $row['in_prestito'] === 1 ? 'in_prestito' : 'mancante',
                 'codice' => (string) ($row['numero_inventario'] ?? ('#' . (int) $row['copia_id'])),
                 'titolo' => (string) ($row['titolo'] ?? ''),
+                'tipo_media' => (string) ($row['tipo_media'] ?? ''),
                 'collocazione' => (string) ($row['collocazione'] ?? ''),
                 'scaffale_atteso' => $row['scaffale_atteso'] !== null ? $this->shelfLabel((int) $row['scaffale_atteso']) : '',
                 'stato_copia' => (string) ($row['stato_attuale'] ?? ''),
@@ -783,11 +840,13 @@ final class StocktakeService
                 'quando' => '',
             ];
         }
-        foreach ($this->scans($sessionId, null, 100000) as $scan) {
+        // Every scan, not the latest N: the summary counts them all, so must the report.
+        foreach ($this->scans($sessionId, null, null) as $scan) {
             $rows[] = [
                 'categoria' => (string) $scan['esito'],
                 'codice' => (string) $scan['codice_letto'],
                 'titolo' => (string) ($scan['titolo'] ?? ''),
+                'tipo_media' => (string) ($scan['tipo_media'] ?? ''),
                 'collocazione' => (string) ($scan['collocazione'] ?? ''),
                 'scaffale_atteso' => $scan['scaffale_atteso'] !== null ? $this->shelfLabel((int) $scan['scaffale_atteso']) : '',
                 'stato_copia' => (string) ($scan['stato_copia'] ?? ''),
@@ -799,15 +858,17 @@ final class StocktakeService
     }
 
     /**
-     * Most recent scans first; with $operatorId only that operator's.
+     * Most recent scans first; with $operatorId only that operator's. A null
+     * $limit returns them all (the report); the live list asks for a page.
      *
      * @return list<array<string,mixed>>
      */
-    public function scans(int $sessionId, ?int $operatorId = null, int $limit = 200): array
+    public function scans(int $sessionId, ?int $operatorId = null, ?int $limit = 200): array
     {
-        $limit = max(1, min(100000, $limit));
+        $limit = $limit === null ? null : max(1, min(100000, $limit));
         $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, s.scansionato_da, s.copia_id, '
-            . 'COALESCE(c.numero_inventario, s.codice_letto) AS codice, l.titolo, l.collocazione, c.stato AS stato_copia, a.scaffale_atteso, '
+            . 'COALESCE(c.numero_inventario, a.codice_atteso, s.codice_letto) AS codice, COALESCE(l.titolo, a.titolo_atteso) AS titolo, '
+            . 'l.collocazione, l.tipo_media, c.stato AS stato_copia, a.scaffale_atteso, '
             . "TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS operatore "
             . 'FROM inventario_scansioni s '
             . 'LEFT JOIN copie c ON c.id = s.copia_id '
@@ -816,7 +877,7 @@ final class StocktakeService
             . 'LEFT JOIN utenti u ON u.id = s.scansionato_da '
             . 'WHERE s.sessione_id = ?'
             . ($operatorId !== null ? ' AND s.scansionato_da = ?' : '')
-            . ' ORDER BY s.id DESC LIMIT ' . $limit;
+            . ' ORDER BY s.id DESC' . ($limit !== null ? ' LIMIT ' . $limit : '');
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
@@ -851,41 +912,16 @@ final class StocktakeService
         // snapshot fails, rollback leaves the session open for a retry.
         $this->db->begin_transaction();
         try {
-            $this->claimTransition($sessionId, 'chiusa', $operatorId);
+            $this->claimTransition($sessionId, 'chiusa', $operatorId, $markLost ? 'perso' : 'nessuna');
             $this->freezeOutcomes($sessionId);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
             throw $e;
         }
-        $marked = 0;
-        $failed = 0;
-
-        if ($markLost) {
-            $byBook = [];
-            foreach ($this->unscannedExpected($sessionId, true) as $row) {
-                if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['titolo'] === null) {
-                    continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
-                }
-                if (in_array((string) $row['stato_attuale'], self::AWAY_STATES, true)) {
-                    continue;
-                }
-                $byBook[(int) $row['libro_id']][] = $row;
-            }
-            foreach ($byBook as $bookId => $copies) {
-                try {
-                    $lostInBook = $this->markBookCopiesLost($bookId, $copies, $sessionId, $operatorId);
-                    $marked += count($lostInBook);
-                } catch (\Throwable $e) {
-                    $failed += count($copies);
-                    SecureLogger::error('[Stocktake] marking missing copies as lost failed', [
-                        'sessione_id' => $sessionId,
-                        'libro_id' => $bookId,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
+        ['marked' => $marked, 'failed' => $failed] = $markLost
+            ? $this->markMissingLost($sessionId, $operatorId)
+            : ['marked' => 0, 'failed' => 0];
 
         $summary = $this->summary($sessionId);
 
@@ -895,6 +931,84 @@ final class StocktakeService
             'copie_non_aggiornate' => $failed,
         ] + $summary, 'aggiornamento', 'inventory', $operatorId);
 
+        return ['marked' => $marked, 'failed' => $failed];
+    }
+
+    /**
+     * Finish a mark-lost close that did not reach every copy (the request died
+     * or some books failed): the session is already closed, so close() cannot
+     * be repeated. Only a session closed with "mark as lost" qualifies, and the
+     * marking skips every copy already lost, away, lent or found meanwhile, so
+     * running it again is harmless.
+     *
+     * @return array{marked:int,failed:int}
+     */
+    public function resumeMarkLost(int $sessionId, ?int $operatorId): array
+    {
+        $session = $this->find($sessionId);
+        if ($session === null) {
+            throw new \DomainException(__('Revisione non trovata.'));
+        }
+        if ($session['stato'] !== 'chiusa' || ($session['azione_mancanti'] ?? null) !== 'perso') {
+            throw new \DomainException(__('Azione non valida.'));
+        }
+        $result = $this->markMissingLost($sessionId, $operatorId);
+        ActivityLog::recordEntityEvent($this->db, 'inventario_sessioni', $sessionId, 'inventory.lost_resumed', [], [
+            'copie_perse' => $result['marked'],
+            'copie_non_aggiornate' => $result['failed'],
+        ], 'aggiornamento', 'inventory', $operatorId);
+        return $result;
+    }
+
+    /**
+     * Missing copies a mark-lost close still has to mark: the unscanned, not
+     * lent copies whose book is still in the catalogue and whose state is not
+     * already lost or away. Meaningful for a session closed with "mark as
+     * lost" (azione_mancanti = 'perso'), which the caller checks.
+     */
+    public function pendingLostCount(int $sessionId): int
+    {
+        return array_sum(array_map('count', $this->missingToMark($sessionId)));
+    }
+
+    /**
+     * The unscanned expected copies a mark-lost close applies to, by book.
+     *
+     * @return array<int,list<array<string,mixed>>>
+     */
+    private function missingToMark(int $sessionId): array
+    {
+        $byBook = [];
+        foreach ($this->unscannedExpected($sessionId, true) as $row) {
+            if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['libro_attivo'] === null) {
+                continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
+            }
+            if (in_array((string) $row['stato_attuale'], self::AWAY_STATES, true)) {
+                continue;
+            }
+            $byBook[(int) $row['libro_id']][] = $row;
+        }
+        return $byBook;
+    }
+
+    /** @return array{marked:int,failed:int} */
+    private function markMissingLost(int $sessionId, ?int $operatorId): array
+    {
+        $marked = 0;
+        $failed = 0;
+        foreach ($this->missingToMark($sessionId) as $bookId => $copies) {
+            try {
+                $lostInBook = $this->markBookCopiesLost($bookId, $copies, $sessionId, $operatorId);
+                $marked += count($lostInBook);
+            } catch (\Throwable $e) {
+                $failed += count($copies);
+                SecureLogger::error('[Stocktake] marking missing copies as lost failed', [
+                    'sessione_id' => $sessionId,
+                    'libro_id' => $bookId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
         return ['marked' => $marked, 'failed' => $failed];
     }
 
@@ -1005,14 +1119,18 @@ final class StocktakeService
                 $stmt->close();
 
                 // A copy may carry several future holds: move every one of them elsewhere.
+                // Same predicate as reassignOnCopyLost(), window still valid included:
+                // an expired hold is left to the expiry cleanup, and counting it here
+                // would spin the guard without the reassignment ever taking it.
+                $today = DateHelper::today();
                 for ($guard = 0; $guard < 1000; $guard++) {
                     $held = $this->db->prepare(
-                        "SELECT 1 FROM prestiti WHERE copia_id = ? AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare')) OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione')) LIMIT 1"
+                        "SELECT 1 FROM prestiti WHERE copia_id = ? AND data_scadenza >= ? AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare')) OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione')) LIMIT 1"
                     );
                     if ($held === false) {
                         throw new \RuntimeException($this->db->error);
                     }
-                    $held->bind_param('i', $copyId);
+                    $held->bind_param('is', $copyId, $today);
                     $held->execute();
                     $stillHeld = $held->get_result()->fetch_row() !== null;
                     $held->close();

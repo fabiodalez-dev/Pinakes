@@ -1617,6 +1617,11 @@ return function (App $app): void {
         return $controller->chunk($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/books/import/marc/discard', function ($request, $response) {
+        $controller = new \App\Controllers\MarcImportController();
+        return $controller->discard($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // MARC bulk export: whole catalogue or ?ids= selection, streamed.
     $app->get('/admin/books/export/marc', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\MarcExportController();
@@ -2729,8 +2734,8 @@ return function (App $app): void {
     $app->get('/admin/suppliers', function ($request, $response) use ($app) {
         return (new \App\Controllers\SuppliersController())->index($request, $response, $app->getContainer()->get('db'));
     })->add(new AdminAuthMiddleware());
-    $app->get('/admin/suppliers/create', function ($request, $response) {
-        return (new \App\Controllers\SuppliersController())->createForm($request, $response);
+    $app->get('/admin/suppliers/create', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->createForm($request, $response, $app->getContainer()->get('db'));
     })->add(new AdminAuthMiddleware());
     $app->post('/admin/suppliers/create', function ($request, $response) use ($app) {
         return (new \App\Controllers\SuppliersController())->store($request, $response, $app->getContainer()->get('db'));

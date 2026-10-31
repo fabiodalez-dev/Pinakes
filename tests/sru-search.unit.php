@@ -129,5 +129,32 @@ $multi = new SearchFixtureClient([$server, array_merge($server, ['enabled' => fa
 $all = $multi->search('dc.title=x', 2);
 $check(count($all) === 2 && $all[0]['server'] === 'Fixture' && $all[1]['server'] === 'Second' && count($all[1]['records']) === 2, '17 disabled servers are skipped, each server answers');
 
+echo "Empty answers, default ISBN index, own server\n";
+$emptyClient = new class ([$server]) extends SruClient {
+    protected function fetchUrl(string $url): ?string
+    {
+        return null;
+    }
+};
+$empty = $emptyClient->searchServer($server, 'q', 5);
+$check($empty['error'] !== null && $empty['records'] === [], '18 an HTTP 200 with an empty body is reported as an error, not as zero records');
+$plain = ['name' => 'Plain', 'url' => 'https://plain.example.org/sru', 'enabled' => true];
+$isbnClient = new SearchFixtureClient([$plain], $sru);
+$isbnClient->searchByIsbn('978-88-452-9261-3');
+parse_str((string) parse_url($isbnClient->urls[0] ?? '', PHP_URL_QUERY), $isbnQuery);
+$check(str_starts_with((string) ($isbnQuery['query'] ?? ''), 'bath.isbn='), '19 an ISBN lookup on a server without an index map uses bath.isbn');
+$danPlain = ['name' => 'DBC', 'url' => 'https://opensearch.addi.dk/b3.5_5.2/?agency=100200&profile=test', 'syntax' => 'dbc-opensearch', 'enabled' => true];
+$danIsbn = new SearchFixtureClient([$danPlain], $dan);
+$danIsbn->searchByIsbn('9788702272451');
+parse_str((string) parse_url($danIsbn->urls[0] ?? '', PHP_URL_QUERY), $danQuery);
+$check(str_starts_with((string) ($danQuery['query'] ?? ''), 'term.isbn='), '20 DBC OpenSearch keeps its own term.isbn');
+require_once $root . '/app/helpers.php';
+require_once $root . '/storage/plugins/z39-server/classes/LocalSruClient.php';
+$_ENV['APP_CANONICAL_URL'] = 'https://library.example.org';
+$ownUrl = absoluteUrl('/api/sru');
+$check(\Plugins\Z39Server\Classes\LocalSruClient::isLocalUrl($ownUrl), '21 this installation\'s SRU URL is answered in-process');
+$wrongScheme = preg_replace('#^https://([^/]+)#', 'http://$1:443', $ownUrl);
+$check(str_starts_with($ownUrl, 'https://') ? !\Plugins\Z39Server\Classes\LocalSruClient::isLocalUrl((string) $wrongScheme) : true, '22 the same host and port over another scheme is not this server');
+
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

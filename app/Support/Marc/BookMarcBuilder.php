@@ -348,9 +348,10 @@ final class BookMarcBuilder
             $record->addDataField('330', ' ', ' ', [['a', $desc]]);
         }
 
-        // 606 — Subject: genre, then keywords
+        // 606 — Subject: genre, then keywords. The genre carries $2 local
+        // (like the MARC 21 655) so a re-import tells it from the keywords.
         if ($genre !== null && !empty($genre['nome'])) {
-            $record->addDataField('606', ' ', ' ', [['a', (string) $genre['nome']]]);
+            $record->addDataField('606', ' ', ' ', [['a', (string) $genre['nome']], ['2', 'local']]);
         }
         foreach (self::keywords($row) as $kw) {
             $record->addDataField('606', ' ', ' ', [['a', $kw]]);
