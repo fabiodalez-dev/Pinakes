@@ -58,7 +58,10 @@ async function login(page) {
   await page.waitForURL((u) => u.toString().includes('/admin'), { timeout: 15000 });
 }
 
-/** Fetch a card PDF and return its text, page count and first page size (pt). */
+/**
+ * Fetch a card PDF and return its text, page count, first page size (pt) and,
+ * per page, every word with its left edge (pt) from `pdftotext -bbox`.
+ */
 async function inspectPdf(page, url) {
   const resp = await page.request.get(url.startsWith('http') ? url : `${BASE}${url}`);
   expect(resp.status(), `GET ${url}`).toBe(200);
@@ -71,11 +74,15 @@ async function inspectPdf(page, url) {
     const size = info.match(/Page size:\s*([\d.]+)\s*x\s*([\d.]+)\s*pts/i);
     const pages = info.match(/Pages:\s*(\d+)/);
     const pageTexts = [];
+    /** @type {{text: string, xMin: number}[][]} */
+    const pageWords = [];
     const n = pages ? Number(pages[1]) : 0;
     for (let p = 1; p <= n; p++) {
       pageTexts.push(execFileSync('pdftotext', ['-f', String(p), '-l', String(p), '-layout', file, '-'], { encoding: 'utf-8' }));
+      const bbox = execFileSync('pdftotext', ['-f', String(p), '-l', String(p), '-bbox', file, '-'], { encoding: 'utf-8' });
+      pageWords.push([...bbox.matchAll(/<word xMin="([\d.]+)"[^>]*>([^<]*)<\/word>/g)].map((m) => ({ text: m[2], xMin: parseFloat(m[1]) })));
     }
-    return { text, pages: n, pageTexts, width: size ? parseFloat(size[1]) : 0, height: size ? parseFloat(size[2]) : 0 };
+    return { text, pages: n, pageTexts, pageWords, width: size ? parseFloat(size[1]) : 0, height: size ? parseFloat(size[2]) : 0 };
   } finally {
     fs.unlinkSync(file);
   }
@@ -160,13 +167,18 @@ test.describe.serial('Library cards (phase 7)', () => {
 
   test('the settings tab stores layout, code, format and back text; the back text becomes a back page', async ({ page }) => {
     await login(page);
-    await saveCardSettings(page, { layout: 'classic', codeType: 'code128', format: 'single', backText: BACK_TEXT });
+    // Non-default code type and format, so a save that ignored them would show.
+    await saveCardSettings(page, { layout: 'classic', codeType: 'qr', format: 'sheet', backText: BACK_TEXT });
     expect(dbQuery("SELECT setting_value FROM system_settings WHERE category='cards' AND setting_key='back_text'")).toBe(BACK_TEXT);
     expect(dbQuery("SELECT setting_value FROM system_settings WHERE category='cards' AND setting_key='layout'")).toBe('classic');
+    expect(dbQuery("SELECT setting_value FROM system_settings WHERE category='cards' AND setting_key='code_type'")).toBe('qr');
+    expect(dbQuery("SELECT setting_value FROM system_settings WHERE category='cards' AND setting_key='format'")).toBe('sheet');
     // The saved values are shown again when the tab is reopened.
     await expect(page.locator('section[data-settings-panel="cards"] textarea[name="card_back_text"]')).toHaveValue(BACK_TEXT);
 
+    // No ?format: the stored default (sheet) applies.
     const pdf = await inspectPdf(page, `/admin/users/${ids[0]}/card-pdf`);
+    expect(Math.abs(pdf.width - 595.28)).toBeLessThan(2);
     expect(pdf.pages).toBe(2);
     expect(pdf.pageTexts[0]).toContain(READERS[0].code);
     expect(pdf.pageTexts[1]).toContain(`Regolamento ${RUN}`);
@@ -185,11 +197,21 @@ test.describe.serial('Library cards (phase 7)', () => {
     expect(pdf.pages).toBe(2); // front sheet + mirrored back sheet
     expect(pdf.pageTexts[0]).toContain(READERS[1].code);
     expect(pdf.pageTexts[1]).toContain(`Regolamento ${RUN}`);
+    // The back sheet mirrors the columns: the lone card sits in the left
+    // column of the front and its back in the right column, so a long-edge
+    // duplex print puts the back behind the front.
+    const half = pdf.width / 2;
+    const frontCode = pdf.pageWords[0].find((w) => w.text.includes(READERS[1].code));
+    const backWord = pdf.pageWords[1].find((w) => w.text === 'Regolamento');
+    expect(frontCode, 'card code on the front sheet').toBeTruthy();
+    expect(backWord, 'back text on the back sheet').toBeTruthy();
+    expect(/** @type {{xMin: number}} */ (frontCode).xMin).toBeLessThan(half);
+    expect(/** @type {{xMin: number}} */ (backWord).xMin).toBeGreaterThan(half);
   });
 
   test('each layout: minimal (no photo box), portrait (vertical card), QR code still prints the code', async ({ page }) => {
     await login(page);
-    await saveCardSettings(page, { layout: 'minimal', codeType: 'code128', backText: '' });
+    await saveCardSettings(page, { layout: 'minimal', codeType: 'code128', format: 'single', backText: '' });
     let pdf = await inspectPdf(page, `/admin/users/${ids[0]}/card-pdf`);
     expect(pdf.pages).toBe(1);
     expect(pdf.width).toBeGreaterThan(pdf.height);
