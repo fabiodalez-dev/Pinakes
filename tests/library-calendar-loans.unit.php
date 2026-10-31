@@ -108,6 +108,17 @@ $check(LibraryCalendar::dueDate($db, $plain) === $plain, 'zero config: dueDate i
 $check(LibraryCalendar::pickupDeadline($db, $today, 3) === $shift($today, 3), 'zero config: pickupDeadline is today + N');
 $check(LibraryCalendar::pickupDeadline($db, $today, 3, $shift($today, 1)) === $shift($today, 1), 'pickupDeadline is capped at the due date');
 
+// ── A closures read that fails is not an empty calendar ──────────────────
+$broken = new mysqli($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+$broken->close();
+$loadError = null;
+try {
+    LibraryCalendar::fromDatabase($broken);
+} catch (\Throwable $e) {
+    $loadError = $e;
+}
+$check($loadError instanceof \RuntimeException, 'a closures read that fails throws instead of returning a calendar with no closures');
+
 // ── 14-day loan ending on Sunday → Monday ─────────────────────────────────
 $setWeekdays('0');
 $sunday = $shift($today, 20);

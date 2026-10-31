@@ -747,20 +747,32 @@ final class LibraryCalendar
         }
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Before the 0.9.0 migration ran the table does not exist: no closures.
+     * Any other failure is thrown, never read as "no closures": an empty
+     * calendar would let the loan write that asked for it store a due date
+     * on a closed day. forDb() caches nothing for a failed load.
+     *
+     * @return list<array<string, mixed>>
+     */
     private static function loadClosures(\mysqli $db): array
     {
         try {
-            // Before the 0.9.0 migration ran the table does not exist: no closures.
             $exists = $db->query("SHOW TABLES LIKE 'calendario_chiusure'");
-            if ($exists === false || $exists->num_rows === 0) {
+            if ($exists === false) {
+                throw new \RuntimeException('table lookup failed');
+            }
+            if ($exists->num_rows === 0) {
                 return [];
             }
             $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure');
-            return $result === false ? [] : $result->fetch_all(MYSQLI_ASSOC);
+            if ($result === false) {
+                throw new \RuntimeException('closures query failed');
+            }
+            return $result->fetch_all(MYSQLI_ASSOC);
         } catch (\Throwable $e) {
             SecureLogger::warning('LibraryCalendar: closures not readable: ' . $e->getMessage());
-            return [];
+            throw new \RuntimeException('LibraryCalendar: closures not readable', 0, $e);
         }
     }
 
