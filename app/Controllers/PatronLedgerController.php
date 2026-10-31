@@ -47,16 +47,19 @@ class PatronLedgerController
         if (($off = \App\Support\Features::requireOrRedirect('fines', $response)) !== null) {
             return $off;
         }
-        if (!\App\Support\Permissions::can('loans.manage')) {
+        if (!\App\Support\Permissions::can('loans.manage') || !$this->mayActOn($db, $userId)) {
             return $response->withStatus(403);
         }
         try {
             $pdf = (new \App\Support\PaymentReceiptPdf($db))->generateForPayment($userId, $movementId);
         } catch (\Throwable $e) {
-            if ($e->getMessage() !== 'payment_not_found') {
-                SecureLogger::error('Payment receipt PDF failed', ['movement_id' => $movementId, 'error' => $e->getMessage()]);
+            // Only a payment that is not there is a 404; anything else (the
+            // database, the PDF library) is a server error, logged.
+            if ($e->getMessage() === 'payment_not_found') {
+                return $response->withStatus(404);
             }
-            return $response->withStatus(404);
+            SecureLogger::error('Payment receipt PDF failed', ['movement_id' => $movementId, 'error' => $e->getMessage()]);
+            return $response->withStatus(500);
         }
         $filename = sprintf('ricevuta_pagamento_%06d.pdf', $movementId);
         $response->getBody()->write($pdf);
@@ -75,12 +78,16 @@ class PatronLedgerController
         if (($off = \App\Support\Features::requireOrRedirect('fines', $response)) !== null) {
             return $off;
         }
-        if (!\App\Support\Permissions::can('loans.manage')) {
+        if (!\App\Support\Permissions::can('loans.manage') || !$this->mayActOn($db, $userId)) {
             return $response->withStatus(403);
         }
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
-        $base = url('/admin/users/details/' . $userId);
+        // The reader record needs users.manage: a loan-desk role without it
+        // lands on the loans page, with the outcome as a flash message.
+        $base = \App\Support\Permissions::can('users.manage')
+            ? url('/admin/users/details/' . $userId)
+            : null;
         $amountRaw = is_scalar($data['importo'] ?? null) ? (string) $data['importo'] : '';
         $cents = FineParameters::toCents($amountRaw);
         if ($cents === null || $cents <= 0) {
@@ -111,9 +118,41 @@ class PatronLedgerController
     }
 
     /** @param array<string, string> $params */
-    private function back(Response $response, string $base, array $params): Response
+    private function back(Response $response, ?string $base, array $params): Response
     {
+        if ($base === null) {
+            if (isset($params['ledger_error'])) {
+                $_SESSION['error_message'] = self::errorMessage($params['ledger_error']);
+            } else {
+                $_SESSION['success_message'] = match ($params['ledger'] ?? '') {
+                    'paid' => __('Pagamento registrato.'),
+                    'charged' => __('Addebito registrato.'),
+                    default => __('Condono registrato.'),
+                };
+            }
+            return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
+        }
         return $response->withHeader('Location', $base . '?' . http_build_query($params) . '#movimenti')->withStatus(302);
+    }
+
+    /**
+     * Whether the signed-in operator may move money on $userId's account: the
+     * same borrower scope as the loan desk (Permissions::accountScopeSql), so a
+     * custom role reaches reader accounts only, never an administrator or a
+     * Staff account. Administrators and Staff keep every account.
+     */
+    private function mayActOn(mysqli $db, int $userId): bool
+    {
+        $scope = \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER);
+        if ($scope === '') {
+            return true;
+        }
+        $stmt = $db->prepare('SELECT 1 FROM utenti u WHERE u.id = ?' . $scope);
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $found;
     }
 
     /** Operator-facing message for a ledger error code. */

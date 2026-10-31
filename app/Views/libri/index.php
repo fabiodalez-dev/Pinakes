@@ -5,7 +5,8 @@
 $title = "Libri";
 $libri = $data['libri'];
 $fornitoriFilter = $data['fornitori'] ?? [];
-$fornitoreUrl = (int) ($_GET['fornitore'] ?? 0);
+// A positive integer or 0: (int) on an array or "3abc" would pick a supplier by accident.
+$fornitoreUrl = (int) (filter_var($_GET['fornitore'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0);
 ?>
 <!-- Enhanced Books Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">

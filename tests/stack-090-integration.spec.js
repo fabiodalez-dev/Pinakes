@@ -157,7 +157,9 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
   test.afterAll(async () => {
     // Independent restore steps: one failing must not leave the others undone.
     await F.runAll([
-      () => { for (const k of LOAN_SETTINGS) restoreSetting(k, saved[k]); },
+      // One step per key, and only for keys beforeAll actually read:
+      // readSetting() returns a string or null, so undefined means never read.
+      ...LOAN_SETTINGS.map((k) => () => { if (saved[k] !== undefined) restoreSetting(k, saved[k]); }),
       () => clearConfigCache(),
       () => F.unstashRows(savedClosures),
       () => {

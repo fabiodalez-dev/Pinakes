@@ -32,13 +32,15 @@ final class CataloguingExtras
         $types = '';
         $values = [];
 
-        // A module switched off (Settings → Modules) never writes its field:
-        // the stored value survives a save made while it is off.
+        // Only the empty choice ("no supplier", "Automatic") clears a value.
+        // A malformed id, a supplier deleted meanwhile or an unknown RDA code
+        // leaves the stored value as it is instead of wiping it. A module
+        // switched off (Settings → Modules) never writes its field: the stored
+        // value survives a save made while it is off.
         if (array_key_exists('fornitore_id', $data) && Features::enabled('suppliers') && self::hasColumn($db, 'fornitore_id')) {
-            $supplierId = self::existingSupplierId($db, $data['fornitore_id']);
-            if ($supplierId === null) {
+            if (self::isEmptyChoice($data['fornitore_id'])) {
                 $set[] = 'fornitore_id = NULL';
-            } else {
+            } elseif (($supplierId = self::existingSupplierId($db, $data['fornitore_id'])) !== null) {
                 $set[] = 'fornitore_id = ?';
                 $types .= 'i';
                 $values[] = $supplierId;
@@ -49,10 +51,9 @@ final class CataloguingExtras
             if (!array_key_exists($column, $data) || !Features::enabled('rda_types') || !self::hasColumn($db, $column)) {
                 continue;
             }
-            $code = RdaTypes::normalize($kind, $data[$column]);
-            if ($code === null) {
+            if (self::isEmptyChoice($data[$column])) {
                 $set[] = "{$column} = NULL";
-            } else {
+            } elseif (($code = RdaTypes::normalize($kind, $data[$column])) !== null) {
                 $set[] = "{$column} = ?";
                 $types .= 's';
                 $values[] = $code;
@@ -81,12 +82,13 @@ final class CataloguingExtras
     /**
      * Link a book to a supplier chosen for an import batch. Nothing is
      * written when the supplier was deleted meanwhile or the column does not
-     * exist yet: the import must never clear a supplier on its own.
+     * exist yet (the import must never clear a supplier on its own): FALSE
+     * then, so the import can report the book as left without it.
      */
-    public static function assignSupplier(mysqli $db, int $bookId, int $supplierId): void
+    public static function assignSupplier(mysqli $db, int $bookId, int $supplierId): bool
     {
         if (!Features::enabled('suppliers') || !self::hasColumn($db, 'fornitore_id') || self::existingSupplierId($db, $supplierId) === null) {
-            return;
+            return false;
         }
         $stmt = $db->prepare('UPDATE libri SET fornitore_id = ? WHERE id = ? AND deleted_at IS NULL');
         if ($stmt === false) {
@@ -98,6 +100,13 @@ final class CataloguingExtras
         } finally {
             $stmt->close();
         }
+        return true;
+    }
+
+    /** The form's empty option: no value, or a blank string. */
+    private static function isEmptyChoice(mixed $raw): bool
+    {
+        return $raw === null || (is_string($raw) && trim($raw) === '');
     }
 
     /** A submitted supplier id that exists, or NULL ("no supplier"). */

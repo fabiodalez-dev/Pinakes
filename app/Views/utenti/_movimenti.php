@@ -215,19 +215,5 @@ $ledgerCanManage = $ledgerCanManage && App\Support\Permissions::can('loans.manag
         </button>
       </form>
     </div>
-    <script>
-    // One request_key per rendered form (PatronLedger: a repeated POST records
-    // nothing more). A page shown again from the back-forward cache keeps the
-    // key it was submitted with, so a second submission with another amount
-    // would be refused as a duplicate: mint a new key whenever the page is
-    // shown. (The CSP nonce is added to every inline script by the layout.)
-    window.addEventListener('pageshow', function () {
-      document.querySelectorAll('[data-ledger-request-key]').forEach(function (input) {
-        var bytes = new Uint8Array(16);
-        window.crypto.getRandomValues(bytes);
-        input.value = Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-      });
-    });
-    </script>
     <?php endif; ?>
   </div>

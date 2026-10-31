@@ -230,7 +230,7 @@ unset($workspaceHeader);
           <?php endforeach; ?>
         </tbody>
       </table>
-      <?php if (!empty($section['data']['note'])): ?>
+      <?php if (isset($section['data']['note']) && (string) $section['data']['note'] !== ''): ?>
         <p class="px-6 py-3 text-xs text-gray-500"><?= htmlspecialchars((string) ((string) $section['data']['note']), ENT_QUOTES, 'UTF-8') ?></p>
       <?php endif; ?>
     </div>

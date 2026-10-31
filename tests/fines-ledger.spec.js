@@ -86,16 +86,38 @@ function overdueLoan(key, daysLate) {
 }
 const balanceCents = () => Math.round(Number(dbQuery(`SELECT COALESCE(SUM(importo),0) FROM movimenti_lettore WHERE utente_id=${state.patronId}`)) * 100);
 
+// Run-scoped: the accounts, books and roles of this RUN only, so a second
+// run on the same database keeps its loans and movements. Leftovers of a
+// crashed run (older than a day) go in a separate pass.
+const RUN_EMAILS = [PATRON_EMAIL, `zz-fines-staff-${RUN}@test.local`, `zz-fines-role-${RUN}@test.local`];
+function purge(userCond, bookCond, roleCond) {
+  dbQuery(`DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id=m.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE p FROM prestiti p JOIN libri l ON l.id=p.libro_id WHERE ${bookCond}`);
+  dbQuery(`DELETE p FROM prestiti p JOIN utenti u ON u.id=p.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE ${bookCond}`);
+  dbQuery(`DELETE lm FROM log_modifiche lm JOIN libri l ON l.id=lm.record_id AND lm.tabella='libri' WHERE ${bookCond}`);
+  dbQuery(`DELETE l FROM libri l WHERE ${bookCond}`);
+  dbQuery(`DELETE s FROM user_sessions s JOIN utenti u ON u.id=s.utente_id WHERE ${userCond}`);
+  dbQuery(`DELETE u FROM utenti u WHERE ${userCond}`);
+  dbQuery(`DELETE r FROM ruoli r WHERE ${roleCond}`);
+}
 function cleanup() {
-  dbQuery(`DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id=m.utente_id WHERE u.email LIKE 'zz-fines-%@test.local'`);
-  dbQuery(`DELETE p FROM prestiti p JOIN libri l ON l.id=p.libro_id WHERE l.titolo LIKE 'ZZ\\_FINES\\_%'`);
-  dbQuery(`DELETE p FROM prestiti p JOIN utenti u ON u.id=p.utente_id WHERE u.email LIKE 'zz-fines-%@test.local'`);
-  dbQuery(`DELETE c FROM copie c JOIN libri l ON l.id=c.libro_id WHERE l.titolo LIKE 'ZZ\\_FINES\\_%'`);
-  dbQuery(`DELETE lm FROM log_modifiche lm JOIN libri l ON l.id=lm.record_id AND lm.tabella='libri' WHERE l.titolo LIKE 'ZZ\\_FINES\\_%'`);
-  dbQuery(`DELETE FROM libri WHERE titolo LIKE 'ZZ\\_FINES\\_%'`);
-  dbQuery(`DELETE FROM user_sessions WHERE utente_id IN (SELECT id FROM utenti WHERE email LIKE 'zz-fines-%@test.local')`);
-  dbQuery(`DELETE FROM utenti WHERE email LIKE 'zz-fines-%@test.local'`);
-  dbQuery(`DELETE FROM ruoli WHERE nome LIKE 'ZZ Fines %'`);
+  purge(
+    `u.email IN (${RUN_EMAILS.map((e) => `'${esc(e)}'`).join(', ')})`,
+    `l.titolo LIKE '${esc(TITLE_PREFIX.replace(/_/g, '\\_'))}\\_%'`,
+    `r.nome IN ('${esc(`ZZ Fines utenti ${RUN}`)}', '${esc(`ZZ Fines banco ${RUN}`)}')`,
+  );
+}
+function cleanupStale() {
+  // ruoli has no timestamp: a role's RUN suffix (Date.now() in base 36) dates it.
+  const dayAgo = Date.now() - 86400000;
+  const staleRoles = dbQuery("SELECT nome FROM ruoli WHERE nome LIKE 'ZZ Fines %'").split('\n').filter(Boolean)
+    .filter((name) => { const t = parseInt(name.split(' ').pop(), 36); return Number.isFinite(t) && t < dayAgo; });
+  purge(
+    "u.email LIKE 'zz-fines-%@test.local' AND u.created_at < NOW() - INTERVAL 1 DAY",
+    "l.titolo LIKE 'ZZ\\_FINES\\_%' AND l.created_at < NOW() - INTERVAL 1 DAY",
+    staleRoles.length ? `r.nome IN (${staleRoles.map((n) => `'${esc(n)}'`).join(', ')})` : '0',
+  );
 }
 function readSetting(category, key) {
   const v = dbQuery(`SELECT setting_value FROM system_settings WHERE category='${category}' AND setting_key='${key}'`);
@@ -159,6 +181,7 @@ test.describe.serial('Fines and patron ledger', () => {
   test.beforeAll(async ({ browser }) => {
     for (const k of SETTING_KEYS) saved.loans[k] = readSetting('loans', k);
     for (const k of EMAIL_KEYS) saved.email[k] = readSetting('email', k);
+    cleanupStale();
     cleanup();
     const hash = phpHash(PATRON_PASS);
     const card = `ZZF${RUN}`.slice(0, 20);
