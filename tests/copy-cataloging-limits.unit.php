@@ -43,6 +43,19 @@ $check(MarcCoverFetcher::effectivePort((array) parse_url('http://host/x')) === 8
 $check(MarcCoverFetcher::effectivePort((array) parse_url('https://host/x')) !== MarcCoverFetcher::effectivePort((array) parse_url('http://host/x')), '03 http and https defaults differ');
 
 echo "Local SRU endpoint\n";
+$streamOf = static function (string $bytes): \Psr\Http\Message\StreamInterface {
+    $stream = (new \Slim\Psr7\Factory\StreamFactory())->createStream($bytes);
+    $stream->seek(strlen($bytes)); // as a handler leaves it after writing
+    return $stream;
+};
+$check(LocalSruClient::readBounded($streamOf('<ok/>'), 16) === '<ok/>', '03d an in-process answer within the cap is read whole');
+try {
+    LocalSruClient::readBounded($streamOf(str_repeat('x', 17)), 16);
+    $check(false, '03e an in-process answer over the cap is refused');
+} catch (RuntimeException $e) {
+    $check($e->getMessage() === 'Response too large', '03e an in-process answer over the cap is refused');
+}
+$check(LocalSruClient::readBounded($streamOf(str_repeat('y', 16)), 16) === str_repeat('y', 16), '03f an answer of exactly the cap is read');
 // LocalSruClient::isLocalUrl compares a target with this installation's own
 // /api/sru, built from APP_CANONICAL_URL: the default HTTPS port written out
 // or left implicit, on either side, is the same endpoint.
