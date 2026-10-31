@@ -78,6 +78,14 @@ class SruClient
         return null;
     }
 
+    /**
+     * Exception code of a failure that would only happen again: a timeout
+     * (the server accepted the connection and hung) or an oversized answer.
+     * Neither is retried; a refused or reset connection, an empty body and
+     * an HTTP 5xx are (transient), an HTTP 4xx is not.
+     */
+    public const NOT_RETRYABLE = 1001;
+
     /** Largest SRU response body read, in bytes (16 MiB). */
     public const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
@@ -207,18 +215,24 @@ class SruClient
 
     /**
      * The body of one search request, with the same bounded retry the ISBN
-     * lookup has (queryServerWithRetry()): a transport failure or an empty
-     * body is tried again up to maxRetries times with exponential backoff,
-     * each attempt under the per-server rate limit; an HTTP 4xx is not
-     * retried. The query (any CQL, any number of records) is untouched;
-     * only the transport is repeated, never a server's own diagnostic.
+     * lookup has (queryServerWithRetry()): a transient failure (refused or
+     * reset connection, HTTP 5xx, empty body) is tried again up to
+     * maxRetries times with exponential backoff, each attempt under the
+     * per-server rate limit. A timeout, an oversized answer and an HTTP 4xx
+     * are not retried (isRetryable()), and no retry starts once the attempts
+     * have used one request timeout, so a hung server costs one timeout, not
+     * three, in a search that asks the servers one after another. The query
+     * (any CQL, any number of records) is untouched; only the transport is
+     * repeated, never a server's own diagnostic.
      */
     private function fetchSearchWithRetry(string $serverUrl, string $requestUrl): string
     {
         static $lastRequest = [];
         $attempts = 0;
+        $spent = 0.0;
         while (true) {
             $this->enforceRateLimit($serverUrl, $lastRequest);
+            $started = microtime(true);
             try {
                 $xml = $this->fetchUrl($requestUrl);
                 if ($xml === null) {
@@ -229,12 +243,25 @@ class SruClient
                 return $xml;
             } catch (\Throwable $e) {
                 $attempts++;
-                if ($attempts > $this->maxRetries || str_contains($e->getMessage(), 'HTTP 4')) {
+                $spent += microtime(true) - $started;
+                if ($attempts > $this->maxRetries || !$this->isRetryable($e, $spent)) {
                     throw $e;
                 }
                 usleep(100000 * (int) pow(2, $attempts - 1));
             }
         }
+    }
+
+    /**
+     * Whether a failed request is worth another attempt: not a failure that
+     * would happen again (NOT_RETRYABLE: timeout, oversized answer), not an
+     * HTTP 4xx, and not once the attempts so far have used one timeout.
+     */
+    private function isRetryable(\Throwable $e, float $spentSeconds): bool
+    {
+        return $e->getCode() !== self::NOT_RETRYABLE
+            && !str_contains($e->getMessage(), 'HTTP 4')
+            && $spentSeconds < $this->timeout;
     }
 
     /**
@@ -330,16 +357,20 @@ class SruClient
 
         $lastException = null;
         $attempts = 0;
+        $spent = 0.0;
 
         while ($attempts <= $this->maxRetries) {
+            $started = microtime(true);
             try {
                 return $this->queryServer($server, $index, $term);
             } catch (\Throwable $e) {
                 $lastException = $e;
                 $attempts++;
+                $spent += microtime(true) - $started;
 
-                // Don't retry on 4xx errors (client errors)
-                if (str_contains($e->getMessage(), 'HTTP 4')) {
+                // No retry on a 4xx, a timeout, an oversized answer, or once
+                // one timeout has been spent (isRetryable())
+                if (!$this->isRetryable($e, $spent)) {
                     break;
                 }
 
@@ -643,7 +674,7 @@ class SruClient
      */
     protected function fetchUrl(string $url): ?string
     {
-        $res = \App\Support\HttpClient::get($url, [], [
+        $res = $this->httpGet($url, [
             'timeout'         => $this->timeout,
             'connect_timeout' => 5,
             'max_redirects'   => 3,
@@ -657,8 +688,17 @@ class SruClient
         ]);
 
         if (!$res['ok']) {
-            \App\Support\SecureLogger::error('[SruClient] HTTP request failed', ['url' => $url]);
-            throw new \Exception('Connection failed');
+            $kind = $res['error'] ?? \App\Support\HttpClient::FAILURE_CONNECT;
+            \App\Support\SecureLogger::error('[SruClient] HTTP request failed', ['url' => $url, 'kind' => $kind]);
+            // A hung server or an oversized answer would fail the same way
+            // again: those are marked so the retry loops give up at once.
+            if ($kind === \App\Support\HttpClient::FAILURE_TIMEOUT) {
+                throw new \RuntimeException('Request timed out', self::NOT_RETRYABLE);
+            }
+            if ($kind === \App\Support\HttpClient::FAILURE_TOO_LARGE) {
+                throw new \RuntimeException('Response too large', self::NOT_RETRYABLE);
+            }
+            throw new \RuntimeException('Connection failed');
         }
 
         if ($res['status'] >= 400) {
@@ -666,6 +706,18 @@ class SruClient
         }
 
         return $res['body'] !== '' ? $res['body'] : null;
+    }
+
+    /**
+     * The HTTP GET under fetchUrl(), separate so a test can stand in for the
+     * transport and check how each kind of failure is handled.
+     *
+     * @param array<string, mixed> $options
+     * @return array{ok:bool,status:int,body:string,error?:string}
+     */
+    protected function httpGet(string $url, array $options): array
+    {
+        return \App\Support\HttpClient::get($url, [], $options);
     }
 
     /**
