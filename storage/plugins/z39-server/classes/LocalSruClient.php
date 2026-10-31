@@ -43,13 +43,14 @@ final class LocalSruClient extends SruClient
      * catalogue with very large records cannot exhaust memory or the session
      * the copy cataloguing results are kept in.
      *
-     * @throws \RuntimeException when the body is larger than $max
+     * @throws \RuntimeException when the body is larger than $max (code
+     *                           NOT_RETRYABLE: the same search would be as large again)
      */
     public static function readBounded(\Psr\Http\Message\StreamInterface $body, int $max): string
     {
         $size = $body->getSize();
         if ($size !== null && $size > $max) {
-            throw new \RuntimeException('Response too large');
+            throw new \RuntimeException('Response too large', self::NOT_RETRYABLE);
         }
         if ($body->isSeekable()) {
             $body->rewind();
@@ -62,7 +63,7 @@ final class LocalSruClient extends SruClient
             }
             $out .= $chunk;
             if (strlen($out) > $max) {
-                throw new \RuntimeException('Response too large');
+                throw new \RuntimeException('Response too large', self::NOT_RETRYABLE);
             }
         }
         return $out;

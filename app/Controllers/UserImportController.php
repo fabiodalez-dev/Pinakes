@@ -69,7 +69,13 @@ class UserImportController
             $this->discardSessionFile();
             unset($_SESSION[self::SESSION_KEY]);
         }
+        // The session's own interrupted run keeps its staged file while its
+        // page is visited; a file swept meanwhile (the session outlived it)
+        // closes the run into the import history instead of offering a
+        // resume that could only fail.
+        $this->touchSessionFile();
         UserImport::sweepStaleUploads(self::uploadDir());
+        $expiredImport = $this->closeVanishedImport($db);
         $patronTypes = (new PatronTypeImport($db))->available();
         $resumeImport = self::resumable($_SESSION[self::SESSION_KEY] ?? null);
         ob_start();
@@ -313,9 +319,15 @@ class UserImportController
         $total = (int) $state['total'];
         if (!is_file((string) $state['file'])) {
             // Swept or deleted meanwhile: touch() would recreate it empty and
-            // the run would end as if the remaining rows did not exist.
-            unset($_SESSION[self::SESSION_KEY]);
-            return $this->json($response, ['success' => false, 'error' => __('Il file dell\'import non è più disponibile: caricalo di nuovo.')], 409);
+            // the run would end as if the remaining rows did not exist. The
+            // rows already done are written to the import history first.
+            unset($state);
+            $importId = $this->closeSessionImport($db);
+            return $this->json($response, [
+                'success' => false,
+                'error' => __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
+                'import_id' => $importId,
+            ], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
         $state['active_at'] = time(); // driven by a page: not abandoned (isRunning())
@@ -534,6 +546,39 @@ class UserImportController
         $this->discardSessionFile();
         unset($_SESSION[self::SESSION_KEY]);
         return $importId;
+    }
+
+    /** Mark the staged file of the session's interrupted run as in use, so the sweep keeps it. */
+    private function touchSessionFile(): void
+    {
+        $state = $_SESSION[self::SESSION_KEY] ?? null;
+        if (is_array($state) && !empty($state['started']) && empty($state['finished'])
+            && is_string($state['file'] ?? null) && is_file($state['file'])) {
+            @touch($state['file']);
+        }
+    }
+
+    /**
+     * Close the session's interrupted run when its staged file is gone: it
+     * can no longer be resumed, so it is written to the import history as far
+     * as it got. Returns what the page tells the user, or null.
+     *
+     * @return array{name:string, processed:int, total:int, import_id:?string}|null
+     */
+    public function closeVanishedImport(mysqli $db): ?array
+    {
+        $state = $_SESSION[self::SESSION_KEY] ?? null;
+        if (!is_array($state) || empty($state['started']) || !empty($state['finished'])
+            || is_file((string) ($state['file'] ?? ''))) {
+            return null;
+        }
+        $importId = $this->closeSessionImport($db);
+        return [
+            'name' => (string) ($state['name'] ?? ''),
+            'processed' => (int) ($state['next'] ?? 0),
+            'total' => (int) ($state['total'] ?? 0),
+            'import_id' => $importId,
+        ];
     }
 
     /** Write the run into import_logs; returns its import_id ('' when logging failed). */
