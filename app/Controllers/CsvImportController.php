@@ -137,31 +137,15 @@ class CsvImportController
      * Whether the Emeroteca (periodicals) plugin is active, so the CSV
      * import page can link to its article importer only when that route
      * actually exists — otherwise it points to Plugins instead (#article
-     * link 404 fix). showImportPage() isn't routed with a mysqli connection
-     * (see web.php), so this opens its own short-lived one — same fallback
-     * pattern as ReservationsController's constructor — and queries the
-     * plugins table directly, mirroring frontend/layout.php's
-     * $publicPluginIsActive() fallback (no DI container available here).
+     * link 404 fix). Queries the plugins table directly, mirroring
+     * frontend/layout.php's $publicPluginIsActive() fallback (no DI
+     * container available here).
      */
-    private function isEmerotecaPluginActive(): bool
+    private function isEmerotecaPluginActive(\mysqli $db): bool
     {
         try {
-            $settings = require __DIR__ . '/../../config/settings.php';
-            $cfg = $settings['db'];
-            $db = new \mysqli(
-                $cfg['hostname'],
-                $cfg['username'],
-                $cfg['password'],
-                $cfg['database'],
-                $cfg['port'],
-                $cfg['socket'] ?? null
-            );
-            if ($db->connect_error) {
-                return false;
-            }
             $stmt = $db->prepare('SELECT is_active FROM plugins WHERE name = ? LIMIT 1');
             if ($stmt === false) {
-                $db->close();
                 return false;
             }
             $pluginName = 'emeroteca';
@@ -172,7 +156,6 @@ class CsvImportController
                 $active = $result instanceof \mysqli_result && (int) ($result->fetch_assoc()['is_active'] ?? 0) === 1;
             }
             $stmt->close();
-            $db->close();
             return $active;
         } catch (\Throwable $e) {
             return false;
@@ -182,11 +165,12 @@ class CsvImportController
     /**
      * Mostra la pagina di import CSV
      */
-    public function showImportPage(Request $request, Response $response): Response
+    public function showImportPage(Request $request, Response $response, \mysqli $db): Response
     {
         ob_start();
         $title = "Import Libri da CSV";
-        $emerotecaAvailable = $this->isEmerotecaPluginActive();
+        $emerotecaAvailable = $this->isEmerotecaPluginActive($db);
+        $fornitori = (new \App\Models\SupplierRepository($db))->options();
         include __DIR__ . '/../Views/admin/csv_import.php';
         $content = ob_get_clean();
 
@@ -325,6 +309,9 @@ class CsvImportController
             'total_rows' => $totalRows,
             'enable_scraping' => !empty($data['enable_scraping']),
             'update_fields' => $updateFields,
+            // The supplier chosen for the batch, validated once; written on
+            // the books this import creates (CataloguingExtras::assignSupplier).
+            'fornitore_id' => \App\Support\CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
             'imported' => 0,
             'updated' => 0,
             'scraped' => 0,
@@ -459,6 +446,19 @@ class CsvImportController
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
 
+                // The batch supplier was written in the row's transaction
+                // (importParsedRow); a write error failed the whole row. A
+                // supplier deleted during the import leaves the book
+                // imported but without it: reported, not a failed row.
+                if ($upsertResult['supplier_missing']) {
+                    $importData['errors'][] = [
+                        'line' => $lineNumber,
+                        'title' => (string) ($parsedData['titolo'] ?? ''),
+                        'message' => __('Fornitore non assegnato: è stato eliminato durante l\'importazione.'),
+                        'type' => 'supplier',
+                    ];
+                }
+
                 // Scraping (if enabled and ISBN exists)
                 if ($enableScraping && !empty($parsedData['isbn13'])) {
                     try {
@@ -557,7 +557,8 @@ class CsvImportController
                 $failedCount = 0;
                 foreach ($importData['errors'] as $err) {
                     $type = is_array($err) ? ($err['type'] ?? 'validation') : 'validation';
-                    if ($type !== 'scraping') {
+                    // Scraping and supplier notes concern books that were imported.
+                    if (!in_array($type, ['scraping', 'supplier'], true)) {
                         $failedCount++;
                     }
                 }
@@ -709,7 +710,9 @@ class CsvImportController
      * @param array<string, mixed> $importData
      * @param int|null $existingBookId the book to update when $resolveExisting is false
      * @param bool $resolveExisting true: match by ID/ISBN-13/EAN/title+author as the CSV import does
-     * @return array{id: int, action: string}
+     * @return array{id: int, action: string, supplier_missing: bool} supplier_missing:
+     *         the batch supplier ($importData['fornitore_id']) was deleted before
+     *         this created book could be linked to it
      */
     public function importParsedRow(
         \mysqli $db,
@@ -725,6 +728,7 @@ class CsvImportController
         foreach (['imported', 'updated', 'authors_created', 'publishers_created'] as $counter) {
             $importData[$counter] = (int) ($importData[$counter] ?? 0);
         }
+        $supplierMissing = false;
         $db->begin_transaction();
         try {
             // Resolve the target before creating any related entity. On an
@@ -879,6 +883,15 @@ class CsvImportController
                 );
             }
 
+            // The batch supplier (CSV import, 0.9.0) goes on the books the
+            // import creates, inside the row's transaction: a created book is
+            // never committed without it, so no retry has to complete it.
+            // An existing book keeps its own supplier.
+            $batchSupplierId = (int) ($importData['fornitore_id'] ?? 0);
+            if ($batchSupplierId > 0 && $action === 'created') {
+                $supplierMissing = !\App\Support\CataloguingExtras::assignSupplier($db, (int) $bookId, $batchSupplierId);
+            }
+
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollback();
@@ -909,7 +922,7 @@ class CsvImportController
             \App\Support\SecureLogger::warning('[' . $this->importSource . ' import] book.save.after listener failed (row already committed)', ['book_id' => $bookId, 'error' => $hookError->getMessage()]);
         }
 
-        return ['id' => (int) $bookId, 'action' => (string) $action];
+        return ['id' => (int) $bookId, 'action' => (string) $action, 'supplier_missing' => $supplierMissing];
     }
 
     /**

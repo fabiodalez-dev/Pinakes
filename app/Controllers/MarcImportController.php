@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\SupplierRepository;
+use App\Support\CataloguingExtras;
 use App\Support\Marc\Iso2709Reader;
 use App\Support\Marc\MarcBookImporter;
 use App\Support\Marc\MarcFormat;
@@ -40,10 +42,11 @@ class MarcImportController
     public const MAX_LISTED_ISSUES = 500;
     private const EXTENSIONS = ['mrc', 'marc', 'iso', 'dat', 'xml', 'marcxml'];
 
-    public function showImportPage(Request $request, Response $response): Response
+    public function showImportPage(Request $request, Response $response, \mysqli $db): Response
     {
         ob_start();
         $title = __('Import MARC');
+        $fornitori = (new SupplierRepository($db))->options();
         include __DIR__ . '/../Views/admin/marc_import.php';
         $content = (string) ob_get_clean();
         $response->getBody()->write($content);
@@ -160,6 +163,9 @@ class MarcImportController
             'total_rows' => $total,
             'mode' => $mode,
             'covers' => !empty($data['download_covers']),
+            // Validated once here; a supplier deleted during the import is
+            // not assigned, and each book left without it is listed.
+            'fornitore_id' => CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
             'offset' => 0,
             'processed' => 0,
             'counters' => [],
@@ -202,6 +208,7 @@ class MarcImportController
             fseek($handle, (int) $state['offset']);
             $importer = new MarcBookImporter($db, (string) $state['mode'], (bool) $state['covers']);
             $counters = (array) $state['counters'];
+            $supplierId = (int) ($state['fornitore_id'] ?? 0);
             for ($i = 0; $i < $size; $i++) {
                 $raw = fgets($handle);
                 if ($raw === false) {
@@ -230,6 +237,18 @@ class MarcImportController
                     $result = $importer->import($bookData, $counters, $warnings);
                     if ($result['action'] === 'skipped') {
                         self::listSkippedDuplicate($state, $position, $title, (int) $result['id']);
+                    }
+                    if ($supplierId > 0 && $result['id'] !== null && self::supplierApplies((string) $result['action'], (string) $state['mode'])) {
+                        // Listed under its own type: the book is imported
+                        // and counted, only its supplier link is missing.
+                        try {
+                            if (!CataloguingExtras::assignSupplier($db, (int) $result['id'], $supplierId)) {
+                                self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => __('Fornitore non assegnato: è stato eliminato durante l\'importazione.'), 'type' => 'supplier']);
+                            }
+                        } catch (\Throwable $e) {
+                            self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => __('Fornitore non assegnato') . ': ' . $e->getMessage(), 'type' => 'supplier']);
+                            \App\Support\SecureLogger::warning('[MARC import] supplier not assigned', ['libro_id' => (int) $result['id'], 'error' => $e->getMessage()]);
+                        }
                     }
                     foreach ($warnings as $warning) {
                         self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => $warning, 'type' => 'cover']);
@@ -288,6 +307,17 @@ class MarcImportController
             'complete' => $complete,
             'import_id' => $importId,
         ]);
+    }
+
+    /**
+     * Whether the supplier chosen for the batch is written on a record's
+     * book: a book the import created, or one it overwrote. A skipped
+     * duplicate and a book only completed in its empty fields ("fill") keep
+     * the supplier they have.
+     */
+    public static function supplierApplies(string $action, string $mode): bool
+    {
+        return $action === 'created' || ($action === 'updated' && $mode === MarcBookImporter::MODE_OVERWRITE);
     }
 
     /**

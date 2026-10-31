@@ -109,3 +109,76 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 -- ── end MARC bulk import / copy cataloguing ──
+
+-- ── minor features: visitor log, suppliers, RDA overrides ──
+-- presenze: one row per library visit (member card scan or guest).
+-- fornitori + libri.fornitore_id: the supplier a book was acquired from.
+-- libri.rda_*_type: optional RDA content/media/carrier overrides (NULL = derived from tipo_media).
+CREATE TABLE IF NOT EXISTS `fornitori` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `referente` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `indirizzo` text COLLATE utf8mb4_unicode_ci,
+  `partita_iva` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_fornitori_nome` (`nome`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Suppliers books are acquired from';
+
+CREATE TABLE IF NOT EXISTS `presenze` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `tipo` enum('socio','ospite') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ospite',
+  `nome_ospite` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `motivo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_presenze_created` (`created_at`),
+  KEY `idx_presenze_utente` (`utente_id`),
+  KEY `idx_presenze_sede` (`sede_id`),
+  CONSTRAINT `fk_presenze_utente` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_presenze_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Visitor log: one row per library visit (member card scan or guest)';
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'fornitore_id');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `libri` ADD COLUMN `fornitore_id` int DEFAULT NULL COMMENT ''Supplier the copy was acquired from (fornitori)'' AFTER `editore_id`', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND INDEX_NAME = 'idx_libri_fornitore');
+SET @sql = IF(@idx_exists = 0, 'ALTER TABLE `libri` ADD KEY `idx_libri_fornitore` (`fornitore_id`)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND CONSTRAINT_NAME = 'fk_libri_fornitore' AND CONSTRAINT_TYPE = 'FOREIGN KEY');
+SET @sql = IF(@fk_exists = 0, 'ALTER TABLE `libri` ADD CONSTRAINT `fk_libri_fornitore` FOREIGN KEY (`fornitore_id`) REFERENCES `fornitori` (`id`) ON DELETE SET NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'rda_content_type');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `libri` ADD COLUMN `rda_content_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT ''RDA content type override (LC code), NULL = derived from tipo_media'' AFTER `tipo_media`', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'rda_media_type');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `libri` ADD COLUMN `rda_media_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT ''RDA media type override (LC code), NULL = derived from tipo_media'' AFTER `rda_content_type`', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'rda_carrier_type');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `libri` ADD COLUMN `rda_carrier_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT ''RDA carrier type override (LC code), NULL = derived from tipo_media'' AFTER `rda_media_type`', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- ── end minor features ──

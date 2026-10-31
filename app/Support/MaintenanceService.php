@@ -107,7 +107,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
+     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
      */
     public function runAll(): array
     {
@@ -147,7 +147,7 @@ class MaintenanceService
         }
     }
 
-    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, errors: array} */
+    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, errors: array} */
     private function runAllLocked(): array
     {
         $results = [
@@ -319,6 +319,19 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'cleanupExpiredSessions: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore pulizia sessioni scadute'), ['error' => $e->getMessage()]);
+        }
+
+        // Visitor log retention (GDPR, 0.9.0): visits older than the
+        // configured number of days are deleted. 0 days = keep forever; with
+        // no setting the default retention applies.
+        try {
+            $attendance = new \App\Models\AttendanceRepository($this->db);
+            $results['attendance_purged'] = $attendance->isAvailable()
+                ? $attendance->purge(\App\Models\AttendanceRepository::retentionDays(new \App\Models\SettingsRepository($this->db)))
+                : 0;
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'purgeAttendance: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore pulizia presenze'), ['error' => $e->getMessage()]);
         }
 
         // Generic post-maintenance hook, fired as the TRUE last step so

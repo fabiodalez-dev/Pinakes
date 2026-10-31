@@ -1451,9 +1451,10 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
 
     // CSV Import routes
-    $app->get('/admin/books/import', function ($request, $response) {
+    $app->get('/admin/books/import', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CsvImportController();
-        return $controller->showImportPage($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->showImportPage($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->get('/admin/books/import/example', function ($request, $response) {
@@ -1494,9 +1495,10 @@ return function (App $app): void {
     // MARC bulk import (ISO 2709 / MARCXML; MARC 21, UNIMARC, danMARC2) on
     // the CSV import infrastructure: upload + preview, then chunks. No
     // RateLimitMiddleware on /chunk for the same reason as the CSV chunk (#113).
-    $app->get('/admin/books/import/marc', function ($request, $response) {
+    $app->get('/admin/books/import/marc', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\MarcImportController();
-        return $controller->showImportPage($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->showImportPage($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/books/import/marc/upload', function ($request, $response) use ($app) {
@@ -2616,6 +2618,54 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Suppliers (0.9.0): the publishers' CRUD shape, catalogue permission.
+    $app->get('/admin/suppliers', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->index($request, $response, $app->getContainer()->get('db'));
+    })->add(new AdminAuthMiddleware());
+    $app->get('/admin/suppliers/create', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->createForm($request, $response, $app->getContainer()->get('db'));
+    })->add(new AdminAuthMiddleware());
+    $app->post('/admin/suppliers/create', function ($request, $response) use ($app) {
+        return (new \App\Controllers\SuppliersController())->store($request, $response, $app->getContainer()->get('db'));
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->get('/admin/suppliers/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\SuppliersController())->editForm($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new AdminAuthMiddleware());
+    $app->post('/admin/suppliers/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\SuppliersController())->update($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/suppliers/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\SuppliersController())->delete($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // ISBD catalogue cards (0.9.0): one book, or the books selected in the list.
+    $app->get('/admin/books/{id:\d+}/catalogue-card', function ($request, $response, $args) use ($app) {
+        return (new \App\Controllers\CatalogueCardController())->single($request, $response, $app->getContainer()->get('db'), (int) $args['id']);
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    $app->get('/admin/books/catalogue-cards', function ($request, $response) use ($app) {
+        return (new \App\Controllers\CatalogueCardController())->bulk($request, $response, $app->getContainer()->get('db'));
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+
+    // Visitor log kiosk (0.9.0). Front-desk surface: loans permission.
+    $app->get('/admin/attendance', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->index($request, $response, $app->getContainer()->get('db'));
+    })->add(new AdminAuthMiddleware());
+    $app->get('/admin/attendance/export.csv', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->exportCsv($request, $response, $app->getContainer()->get('db'));
+    })->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/scan', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->scan($request, $response, $app->getContainer()->get('db'));
+    })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(120, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/guest', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->guest($request, $response, $app->getContainer()->get('db'));
+    })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(120, 60))->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/settings', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->saveSettings($request, $response, $app->getContainer()->get('db'));
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    $app->post('/admin/attendance/purge', function ($request, $response) use ($app) {
+        return (new \App\Controllers\AttendanceController())->purge($request, $response, $app->getContainer()->get('db'));
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // API Libri by Author/Publisher
@@ -3756,6 +3806,8 @@ return function (App $app): void {
         'collocazione' => 'placement',
         'recensioni'   => 'reviews',
         'statistiche'  => 'statistics',
+        'presenze'     => 'attendance',
+        'fornitori'    => 'suppliers',
     ];
 
     /** @var array<string,string> $actionSegmentMap Italian action words → English */

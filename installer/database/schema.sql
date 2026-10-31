@@ -211,6 +211,42 @@ CREATE TABLE `editori` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `fornitori` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `referente` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `indirizzo` text COLLATE utf8mb4_unicode_ci,
+  `partita_iva` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_fornitori_nome` (`nome`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Suppliers books are acquired from';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `presenze` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `tipo` enum('socio','ospite') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ospite',
+  `nome_ospite` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `motivo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_presenze_created` (`created_at`),
+  KEY `idx_presenze_utente` (`utente_id`),
+  KEY `idx_presenze_sede` (`sede_id`),
+  CONSTRAINT `fk_presenze_utente` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_presenze_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Visitor log: one row per library visit (member card scan or guest)';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `email_templates` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -420,6 +456,9 @@ CREATE TABLE `libri` (
   `catalog_author_sort` varchar(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived surname/sort key for catalog author ordering',
   `formato` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cartaceo',
   `tipo_media` enum('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro',
+  `rda_content_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA content type override (LC code), NULL = derived from tipo_media',
+  `rda_media_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA media type override (LC code), NULL = derived from tipo_media',
+  `rda_carrier_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA carrier type override (LC code), NULL = derived from tipo_media',
   `peso` float DEFAULT NULL,
   `dimensioni` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `physical_description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical description (LibraryThing)',
@@ -430,6 +469,7 @@ CREATE TABLE `libri` (
   `copie_totali` int DEFAULT '1',
   `copie_disponibili` int DEFAULT '1',
   `editore_id` int DEFAULT NULL,
+  `fornitore_id` int DEFAULT NULL COMMENT 'Supplier the copy was acquired from (fornitori)',
   `source` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Source/vendor (LibraryThing)',
   `from_where` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'From where acquired (LibraryThing)',
   `lending_patron` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Current lending patron (LibraryThing)',
@@ -468,6 +508,7 @@ CREATE TABLE `libri` (
   KEY `posizione_id` (`posizione_id`),
   KEY `idx_libri_titolo_sottotitolo` (`titolo`,`sottotitolo`),
   KEY `editore_id` (`editore_id`),
+  KEY `idx_libri_fornitore` (`fornitore_id`),
   KEY `idx_libri_stato` (`stato`),
   KEY `idx_libri_tipo_media_deleted_at` (`deleted_at`,`tipo_media`),
   KEY `fk_libri_mensola` (`mensola_id`),
@@ -491,6 +532,7 @@ CREATE TABLE `libri` (
   CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_scaffale` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_1` FOREIGN KEY (`editore_id`) REFERENCES `editori` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_libri_fornitore` FOREIGN KEY (`fornitore_id`) REFERENCES `fornitori` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_sottogenere` FOREIGN KEY (`sottogenere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL,
