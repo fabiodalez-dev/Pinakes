@@ -153,15 +153,20 @@ final class PatronLedger
     /**
      * Movements of a patron, newest first, with the loan's title and the operator.
      *
+     * $upToId pins a paged listing to the ledger as it was on its first page
+     * (latestMovementId()): the ledger is append-only, so rows written while
+     * the operator or the app pages through it do not shift the offsets.
+     *
      * @return list<array<string, mixed>>
      */
-    public function movements(int $userId, int $limit = 500, int $offset = 0): array
+    public function movements(int $userId, int $limit = 500, int $offset = 0, ?int $upToId = null): array
     {
         if (!self::schemaReady($this->db)) {
             return [];
         }
         $limit = max(1, min(5000, $limit));
         $offset = max(0, $offset);
+        $upTo = $upToId ?? PHP_INT_MAX;
         $stmt = $this->db->prepare(
             "SELECT m.id, m.utente_id, m.prestito_id, m.tipo, m.importo, m.descrizione, m.metodo_pagamento,
                     m.creato_da, m.created_at, m.chiave_idempotenza,
@@ -171,29 +176,44 @@ final class PatronLedger
                LEFT JOIN prestiti p ON p.id = m.prestito_id
                LEFT JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
                LEFT JOIN utenti op ON op.id = m.creato_da
-              WHERE m.utente_id = ?
+              WHERE m.utente_id = ? AND m.id <= ?
               ORDER BY m.created_at DESC, m.id DESC
               LIMIT {$limit} OFFSET {$offset}"
         );
-        $stmt->bind_param('i', $userId);
+        $stmt->bind_param('ii', $userId, $upTo);
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
         return $rows;
     }
 
-    /** Number of ledger rows of $userId (the reader record pages through them). */
-    public function movementCount(int $userId): int
+    /** Number of ledger rows of $userId up to $upToId (the reader record pages through them). */
+    public function movementCount(int $userId, ?int $upToId = null): int
     {
         if (!self::schemaReady($this->db)) {
             return 0;
         }
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?');
-        $stmt->bind_param('i', $userId);
+        $upTo = $upToId ?? PHP_INT_MAX;
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ? AND id <= ?');
+        $stmt->bind_param('ii', $userId, $upTo);
         $stmt->execute();
         $count = (int) ($stmt->get_result()->fetch_row()[0] ?? 0);
         $stmt->close();
         return $count;
+    }
+
+    /** Id of the newest ledger row of $userId (0 when none): the snapshot a paged listing is pinned to. */
+    public function latestMovementId(int $userId): int
+    {
+        if (!self::schemaReady($this->db)) {
+            return 0;
+        }
+        $stmt = $this->db->prepare('SELECT COALESCE(MAX(id), 0) FROM movimenti_lettore WHERE utente_id = ?');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $id = (int) ($stmt->get_result()->fetch_row()[0] ?? 0);
+        $stmt->close();
+        return $id;
     }
 
     /** @return array<string, mixed>|null */

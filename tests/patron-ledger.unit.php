@@ -355,6 +355,20 @@ try {
     $check(count($page3['data']['items'] ?? []) === 1 && ($page3['meta']['has_more'] ?? null) === false && array_key_exists('next_cursor', $page3['meta'] ?? []) && $page3['meta']['next_cursor'] === null, '...the last page has the oldest movement and no more');
     $all = $decode($actions->myMovements($mobileGet([]), new \Slim\Psr7\Response()));
     $check(count($all['data']['items'] ?? []) === 5 && ($all['meta']['count'] ?? 0) === 5 && ($all['meta']['has_more'] ?? null) === false, '...without parameters every movement comes back as before (up to 200)');
+    // A movement recorded between two requests: the next page neither repeats
+    // an id nor skips one (the cursor pins the ledger of the first page).
+    $p1 = $decode($actions->myMovements($mobileGet(['limit' => '2']), new \Slim\Psr7\Response()));
+    (new PatronLedger($db))->manualCharge($pagedReader, 600, 'zz page 6', null);
+    $p2 = $decode($actions->myMovements($mobileGet(['limit' => '2', 'cursor' => (string) ($p1['meta']['next_cursor'] ?? '')]), new \Slim\Psr7\Response()));
+    $p3 = $decode($actions->myMovements($mobileGet(['limit' => '2', 'cursor' => (string) ($p2['meta']['next_cursor'] ?? '')]), new \Slim\Psr7\Response()));
+    $seen = array_merge(array_column($p1['data']['items'] ?? [], 'id'), array_column($p2['data']['items'] ?? [], 'id'), array_column($p3['data']['items'] ?? [], 'id'));
+    $check(count($seen) === 5 && count(array_unique($seen)) === 5 && ($p3['meta']['has_more'] ?? null) === false, '/me/movements: a movement written while paging repeats no id and skips none of the first listing');
+    $fresh = $decode($actions->myMovements($mobileGet(['limit' => '2']), new \Slim\Psr7\Response()));
+    $check(($fresh['data']['items'][0]['amount_cents'] ?? 0) === 600, '...and a new listing starts from the new movement');
+    // The reader record pages the same way: page 2 pinned to the first load.
+    $pinned = (new PatronLedger($db))->latestMovementId($pagedReader);
+    (new PatronLedger($db))->manualCharge($pagedReader, 700, 'zz page 7', null);
+    $check((new PatronLedger($db))->movementCount($pagedReader, $pinned) === 6 && array_column((new PatronLedger($db))->movements($pagedReader, 2, 2, $pinned), 'descrizione') === ['zz page 4', 'zz page 3'], 'reader record: the pinned listing keeps its count and offsets when a movement is added');
     $mapError = new ReflectionMethod($actions, 'mapActionError');
     $blocked = $decode($mapError->invoke($actions, new \Slim\Psr7\Response(), 'debt_block'));
     $check(($blocked['error']['code'] ?? $blocked['code'] ?? '') === 'not_eligible' && ($blocked['meta']['reason'] ?? '') === 'debt_block', 'a debt block answers not_eligible with meta.reason = debt_block');
