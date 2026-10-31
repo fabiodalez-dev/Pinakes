@@ -1114,10 +1114,13 @@ final class OpenApiController
     {
         return [
             'type'        => 'object',
-            'description' => 'Optional metadata. For search results includes next_cursor and total_count.',
+            'description' => 'Optional metadata. For search results includes next_cursor and total_count; cursor-paged lists add has_more, count and limit.',
             'properties'  => [
                 'next_cursor'  => ['type' => 'string', 'nullable' => true, 'description' => 'Opaque cursor for the next page. Null when no further pages.'],
                 'total_count'  => ['type' => 'integer', 'nullable' => true, 'description' => 'Total matching records (search only, may be null on large sets).'],
+                'has_more'     => ['type' => 'boolean', 'nullable' => true, 'description' => 'Cursor-paged lists (staff lists, /me/movements): whether a further page exists.'],
+                'count'        => ['type' => 'integer', 'nullable' => true, 'description' => 'Cursor-paged lists: number of items in this page.'],
+                'limit'        => ['type' => 'integer', 'nullable' => true, 'description' => 'Cursor-paged lists: the page size applied.'],
                 'https'        => ['type' => 'boolean', 'nullable' => true, 'description' => 'Health endpoint: whether the connection is HTTPS.'],
                 'warning'      => ['type' => 'string', 'nullable' => true, 'description' => 'Health endpoint: insecure_transport when not HTTPS.'],
             ],

@@ -161,10 +161,18 @@ final class ActionsController
             $balance = $ledger->balanceCents($userId);
             // Paged like the staff lists (opaque `cursor`, `limit` up to 200,
             // the previous fixed page size, still the default): one row more
-            // than the page tells whether older movements exist.
+            // than the page tells whether older movements exist. The cursor
+            // also pins the newest row of the first page (`u`): the ledger is
+            // append-only, so a movement written between two requests does
+            // not shift the offset and repeat an id on the next page.
             $limit = \App\Plugins\MobileApi\Support\StaffPaging::limit($request, 200, 200);
             $offset = \App\Plugins\MobileApi\Support\StaffPaging::offset($request);
-            $rows = $ledger->movements($userId, $limit + 1, $offset);
+            $rawCursor = $request->getQueryParams()['cursor'] ?? null;
+            $cursor = \App\Plugins\MobileApi\Support\CursorCodec::decode(is_string($rawCursor) ? $rawCursor : null);
+            $upTo = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0
+                ? $cursor['u']
+                : $ledger->latestMovementId($userId);
+            $rows = $ledger->movements($userId, $limit + 1, $offset, $upTo);
             $hasMore = count($rows) > $limit;
             $items = [];
             foreach (array_slice($rows, 0, $limit) as $m) {
@@ -190,6 +198,8 @@ final class ActionsController
                 'amount_cents' => $a['cents'],
             ], $ledger->accruedFines($userId));
             $threshold = \App\Support\Features::enabled('debt_block') ? $params->debtBlockThresholdCents : null;
+            $meta = \App\Plugins\MobileApi\Support\StaffPaging::meta(count($items), $limit, $offset, $hasMore);
+            $meta['next_cursor'] = $hasMore ? \App\Plugins\MobileApi\Support\CursorCodec::encode(['o' => $offset + $limit, 'u' => $upTo]) : null;
 
             return ResponseEnvelope::success($response, [
                 'currency'               => $params->currency,
@@ -200,7 +210,7 @@ final class ActionsController
                 'debt_block_threshold_cents' => $threshold,
                 'debt_blocked'           => $threshold !== null && $balance > $threshold,
                 'items'                  => $items,
-            ], \App\Plugins\MobileApi\Support\StaffPaging::meta(count($items), $limit, $offset, $hasMore), 200);
+            ], $meta, 200);
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] my movements failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Movimenti non disponibili.'), 500);

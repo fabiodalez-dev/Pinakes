@@ -252,6 +252,8 @@ test.describe.serial('Debt block', () => {
       // Load .env like the cron bootstrap does, so ConfigStore (features.fines) reads this database.
       Dotenv\\Dotenv::createImmutable(getcwd())->safeLoad();
       $env = Dotenv\\Dotenv::parse(file_get_contents('.env'));
+      // The fixtures live in E2E_DB_NAME: a .env pointing elsewhere would check another database.
+      if (($env['DB_NAME'] ?? '') !== getenv('E2E_DB_NAME')) { fwrite(STDERR, 'DB mismatch: .env DB_NAME is not E2E_DB_NAME'); exit(1); }
       $sock = $env['DB_SOCKET'] ?? '';
       $db = ($sock !== '' && file_exists($sock))
         ? new mysqli(null, $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], 0, $sock)

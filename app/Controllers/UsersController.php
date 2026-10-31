@@ -835,11 +835,17 @@ class UsersController
         $ledger = \App\Services\PatronLedger::forDb($db);
         $ledgerBalanceCents = $ledger->balanceCents($id);
         // 200 rows per page, newest first; ?ledger_page=N reaches older ones.
+        // The page links carry ?ledger_upto (the newest row on the first
+        // load): a movement recorded meanwhile does not shift the pages.
         $ledgerPerPage = 200;
-        $ledgerTotal = $ledger->movementCount($id);
+        $ledgerQuery = $request->getQueryParams();
+        $ledgerUpTo = is_scalar($ledgerQuery['ledger_upto'] ?? null) && ctype_digit((string) $ledgerQuery['ledger_upto'])
+            ? (int) $ledgerQuery['ledger_upto']
+            : $ledger->latestMovementId($id);
+        $ledgerTotal = $ledger->movementCount($id, $ledgerUpTo);
         $ledgerPages = max(1, (int) ceil($ledgerTotal / $ledgerPerPage));
-        $ledgerPage = min($ledgerPages, max(1, (int) ($request->getQueryParams()['ledger_page'] ?? 1)));
-        $ledgerMovements = $ledger->movements($id, $ledgerPerPage, ($ledgerPage - 1) * $ledgerPerPage);
+        $ledgerPage = min($ledgerPages, max(1, (int) ($ledgerQuery['ledger_page'] ?? 1)));
+        $ledgerMovements = $ledger->movements($id, $ledgerPerPage, ($ledgerPage - 1) * $ledgerPerPage, $ledgerUpTo);
         $ledgerAccrued = $ledger->accruedFines($id);
         $ledgerParams = \App\Services\FineParameters::forUser($db, $id);
         $ledgerCanManage = \App\Support\Permissions::can('loans.manage');
