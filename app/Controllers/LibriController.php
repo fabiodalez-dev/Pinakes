@@ -3409,13 +3409,12 @@ class LibriController
         $bindValues = [];
 
         // Global search filter
-        if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
-            $searchParam = "%{$search}%";
-            for ($i = 0; $i < 7; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
+        // Quoted value = exact spelling, accents included (#501), as in the list.
+        $searchCond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', (string) $search);
+        if ($searchCond !== null) {
+            $whereClauses[] = $searchCond['sql'];
+            $bindTypes .= $searchCond['types'];
+            array_push($bindValues, ...$searchCond['params']);
         }
 
         // Status filter

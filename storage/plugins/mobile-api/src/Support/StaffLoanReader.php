@@ -104,12 +104,14 @@ final class StaffLoanReader
         }
 
         $q = trim((string) ($filters['q'] ?? ''));
-        if ($q !== '') {
-            $like = '%' . $q . '%';
-            $where[] = "(l.titolo LIKE ? OR u.nome LIKE ? OR u.cognome LIKE ? OR CONCAT(u.nome, ' ', u.cognome) LIKE ?
-                         OR u.email LIKE ? OR u.codice_tessera LIKE ? OR c.numero_inventario LIKE ?)";
-            $types .= 'sssssss';
-            array_push($params, $like, $like, $like, $like, $like, $like, $like);
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $q !== ''
+            ? \App\Support\ExactSearch::filterCondition(['l.titolo', 'u.nome', 'u.cognome', "CONCAT(u.nome, ' ', u.cognome)", 'u.email', 'u.codice_tessera', 'c.numero_inventario'], $q)
+            : null;
+        if ($search !== null) {
+            $where[] = $search['sql'];
+            $types .= $search['types'];
+            array_push($params, ...$search['params']);
         }
         foreach (['user_id' => 'p.utente_id', 'book_id' => 'p.libro_id'] as $key => $column) {
             $value = (int) ($filters[$key] ?? 0);
@@ -291,11 +293,14 @@ final class StaffLoanReader
             $params[] = $status;
         }
         $q = trim((string) ($filters['q'] ?? ''));
-        if ($q !== '') {
-            $like = '%' . $q . '%';
-            $where[] = "(l.titolo LIKE ? OR u.nome LIKE ? OR u.cognome LIKE ? OR CONCAT(u.nome, ' ', u.cognome) LIKE ? OR u.email LIKE ? OR u.codice_tessera LIKE ?)";
-            $types .= 'ssssss';
-            array_push($params, $like, $like, $like, $like, $like, $like);
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $q !== ''
+            ? \App\Support\ExactSearch::filterCondition(['l.titolo', 'u.nome', 'u.cognome', "CONCAT(u.nome, ' ', u.cognome)", 'u.email', 'u.codice_tessera'], $q)
+            : null;
+        if ($search !== null) {
+            $where[] = $search['sql'];
+            $types .= $search['types'];
+            array_push($params, ...$search['params']);
         }
         foreach (['user_id' => 'r.utente_id', 'book_id' => 'r.libro_id'] as $key => $column) {
             $value = (int) ($filters[$key] ?? 0);
@@ -358,13 +363,16 @@ final class StaffLoanReader
      */
     public function users(string $q, int $limit): array
     {
-        $like = '%' . $q . '%';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.telefono', 'u.email', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)"], $q);
+        if ($search === null) {
+            return [];
+        }
         $rows = $this->all(
-            self::USER_SELECT . " WHERE (u.nome LIKE ? OR u.cognome LIKE ? OR u.telefono LIKE ? OR u.email LIKE ?
-                                     OR u.codice_tessera LIKE ? OR CONCAT(u.nome, ' ', u.cognome) LIKE ?)"
+            self::USER_SELECT . ' WHERE ' . $search['sql']
                 . \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER) . " ORDER BY u.cognome, u.nome, u.id LIMIT ?",
-            'ssssssi',
-            [$like, $like, $like, $like, $like, $like, $limit]
+            $search['types'] . 'i',
+            [...$search['params'], $limit]
         );
 
         return array_map(fn (array $r): array => $this->mapUser($r), $rows);

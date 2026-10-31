@@ -814,6 +814,7 @@
   "Cerca testo": "Search text",
   "Cerca titoli": "Search Titles",
   "Cerca titoli, autori, ISBN...": "Search titles, authors, ISBN...",
+  "Usa le virgolette per la grafia esatta: \"Häffner\" trova solo Häffner, non Haffner.": "Use quotes for the exact spelling: \"Häffner\" finds only Häffner, not Haffner.",
   "Cerca un authority record…": "Search an authority record…",
   "Cerca un soggetto e premi Invio per aggiungere…": "Search a subject and press Enter to add…",
   "Cerca...": "Search...",

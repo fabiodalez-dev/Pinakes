@@ -814,6 +814,7 @@
   "Cerca testo": "Text suchen",
   "Cerca titoli": "Titel suchen",
   "Cerca titoli, autori, ISBN...": "Titel, Autoren, ISBN suchen...",
+  "Usa le virgolette per la grafia esatta: \"Häffner\" trova solo Häffner, non Haffner.": "Anführungszeichen suchen die genaue Schreibweise: \"Häffner\" findet nur Häffner, nicht Haffner.",
   "Cerca un authority record…": "Normdatensatz suchen…",
   "Cerca un soggetto e premi Invio per aggiungere…": "Schlagwort suchen und mit Enter hinzufügen…",
   "Cerca...": "Suchen...",

@@ -609,6 +609,77 @@ SQL;
     }
 
     /**
+     * Shared by the article lists and header suggestions. Every word must
+     * match; quoted phrases keep their spelling, accents and word order.
+     * @return array{sql:string,params:list<string>,types:string}|null
+     */
+    public static function searchCondition(string $query, bool $linkedAuthors): ?array
+    {
+        $parts = [];
+        $params = [];
+        foreach (array_slice(\App\Support\ExactSearch::tokenize(mb_substr($query, 0, 200)), 0, 20) as ['term' => $term, 'exact' => $exact]) {
+            $columns = ['c.titolo', 'c.sottotitolo', 'c.autori', 'c.contenitore_titolo', 'c.keywords'];
+            $matches = [];
+            $pattern = \App\Support\ExactSearch::likePattern($term);
+            foreach ($columns as $column) {
+                $matches[] = \App\Support\ExactSearch::likeSql($column, $exact);
+                $params[] = $pattern;
+            }
+            $matches[] = 'c.issn = ?';
+            $params[] = $term;
+            if ($linkedAuthors) {
+                $matches[] = 'EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND ('
+                    . \App\Support\ExactSearch::likeSql('a.nome', $exact) . ' OR '
+                    . \App\Support\ExactSearch::likeSql('a.pseudonimo', $exact) . '))';
+                array_push($params, $pattern, $pattern);
+            }
+            $parts[] = '(' . implode(' OR ', $matches) . ')';
+        }
+        return $parts === [] ? null : ['sql' => '(' . implode(' AND ', $parts) . ')', 'params' => $params, 'types' => str_repeat('s', count($params))];
+    }
+
+    /**
+     * The column filters of search() (author, container, keyword boxes),
+     * ANDed. Each box follows ExactSearch::filterCondition(): quotes mean the
+     * exact spelling, and a box mixing quoted and plain words keeps each
+     * word's own rule — also in the linked-author branch.
+     *
+     * @param array<string, string> $filters
+     * @return array{sql:string,params:list<string>,types:string}|null
+     */
+    public static function filterConditions(array $filters, bool $linkedAuthors): ?array
+    {
+        $where = [];
+        $params = [];
+        foreach (self::FILTER_FIELDS as $column => $key) {
+            $value = trim((string) ($filters[$key] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+            // Substring, not equality: keywords arrive as one comma-separated
+            // string, and an author field holding two names must still answer
+            // for each of them.
+            $value = mb_substr($value, 0, 200);
+            $condition = \App\Support\ExactSearch::filterCondition(["c.$column"], $value);
+            if ($condition === null) { continue; }
+            if ($column === 'autori' && $linkedAuthors) {
+                // Same per-word rules as the c.autori branch: with a mixed
+                // value (`"häffner" rolf`) every word must match the linked
+                // author's name or pseudonym, each with its own rule.
+                $linked = \App\Support\ExactSearch::filterCondition(['a.nome', 'a.pseudonimo'], $value);
+                if ($linked !== null) {
+                    $condition['sql'] = '(' . $condition['sql'] . ' OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND '
+                        . $linked['sql'] . '))';
+                    array_push($condition['params'], ...$linked['params']);
+                }
+            }
+            $where[] = $condition['sql'];
+            array_push($params, ...$condition['params']);
+        }
+        return $where === [] ? null : ['sql' => '(' . implode(' AND ', $where) . ')', 'params' => $params, 'types' => str_repeat('s', count($params))];
+    }
+
+    /**
      * @param array<string, string> $filters subset of FILTER_FIELDS values ⇒ the
      *        text to match; an empty or unknown key is ignored
      * @param int $fascicolo only the articles placed in this issue (0 = any)
@@ -621,7 +692,6 @@ SQL;
         $perPage = max(1, min(200, $perPage));
         $where = ['1=1'];
         $linkedAuthors = (new \App\Services\ArticleAuthorService($this->db))->available();
-        $authorMatch = "EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '=' OR a.pseudonimo LIKE ? ESCAPE '='))";
         $params = [];
         if ($public) {
             $where[] = 'c.pubblico=1';
@@ -634,25 +704,15 @@ SQL;
             $where[] = 'c.fascicolo_id=?';
             $params[] = $fascicolo;
         }
-        foreach (self::FILTER_FIELDS as $column => $key) {
-            $value = trim((string) ($filters[$key] ?? ''));
-            if ($value === '') {
-                continue;
-            }
-            // Substring, not equality: keywords arrive as one comma-separated
-            // string, and an author field holding two names must still answer
-            // for each of them.
-            $where[] = $column === 'autori' && $linkedAuthors ? "(c.$column LIKE ? ESCAPE '=' OR $authorMatch)" : "c.$column LIKE ? ESCAPE '='";
-            $pattern = '%' . strtr(mb_substr($value, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
-            $params[] = $pattern;
-            if ($column === 'autori' && $linkedAuthors) { array_push($params, $pattern, $pattern); }
+        $filterWhere = self::filterConditions($filters, $linkedAuthors);
+        if ($filterWhere !== null) {
+            $where[] = $filterWhere['sql'];
+            array_push($params, ...$filterWhere['params']);
         }
-        if ($term !== '') {
-            $extraAuthors = $linkedAuthors ? " OR $authorMatch" : '';
-            $where[] = "(c.titolo LIKE ? ESCAPE '=' OR c.sottotitolo LIKE ? ESCAPE '=' OR c.autori LIKE ? ESCAPE '=' OR c.contenitore_titolo LIKE ? ESCAPE '=' OR c.keywords LIKE ? ESCAPE '=' OR c.issn=?$extraAuthors)";
-            $pattern = '%' . strtr(mb_substr($term, 0, 200), ['=' => '==','%' => '=%','_' => '=_']) . '%';
-            array_push($params, $pattern, $pattern, $pattern, $pattern, $pattern, $term);
-            if ($linkedAuthors) { array_push($params, $pattern, $pattern); }
+        $search = self::searchCondition($term, $linkedAuthors);
+        if ($search !== null) {
+            $where[] = $search['sql'];
+            array_push($params, ...$search['params']);
         }
         $sql = implode(' AND ', $where);
         $total = (int)$this->rows("SELECT COUNT(*) n FROM emeroteca_contributi c WHERE $sql", $params)[0]['n'];
@@ -770,10 +830,10 @@ SQL;
             $where[] = 't.id=?';
             $params[] = $testata;
         }
-        if ($term !== '') {
-            $pattern = '%'.strtr(mb_substr($term, 0, 200), ['=' => '==','%' => '=%','_' => '=_']).'%';
-            $where[] = "(ar.titolo LIKE ? ESCAPE '=' OR ar.autori LIKE ? ESCAPE '=' OR t.titolo LIKE ? ESCAPE '=' OR ar.keywords LIKE ? ESCAPE '=')";
-            array_push($params, $pattern, $pattern, $pattern, $pattern);
+        $search = \App\Support\ExactSearch::wordsCondition(['ar.titolo', 'ar.autori', 't.titolo', 'ar.keywords'], mb_substr($term, 0, 200), 20);
+        if ($search !== null) {
+            $where[] = $search['sql'];
+            array_push($params, ...$search['params']);
         }
         $from = ' FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON f.id=ar.fascicolo_id JOIN emeroteca_annate a ON a.id=f.annata_id JOIN emeroteca_testate t ON t.id=a.testata_id WHERE '.implode(' AND ', $where);
         $total = (int)$this->rows('SELECT COUNT(*) n'.$from, $params)[0]['n'];

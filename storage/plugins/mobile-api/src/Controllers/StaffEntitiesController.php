@@ -764,22 +764,10 @@ final class StaffEntitiesController
         if ($q === '') {
             return ['', '', []];
         }
-        $words = preg_split('/\s+/', mb_substr($q, 0, 200), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $conditions = [];
-        $bind = [];
-        $types = '';
-        foreach (array_slice($words, 0, 8) as $word) {
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
-            $or = [];
-            foreach ($columns as $column) {
-                $or[] = "{$column} LIKE ?";
-                $bind[] = $like;
-                $types .= 's';
-            }
-            $conditions[] = '(' . implode(' OR ', $or) . ')';
-        }
-
-        return ['WHERE ' . implode(' AND ', $conditions), $types, $bind];
+        $condition = \App\Support\ExactSearch::wordsCondition($columns, mb_substr($q, 0, 200), 8);
+        return $condition === null
+            ? ['', '', []]
+            : ['WHERE ' . $condition['sql'], $condition['types'], $condition['params']];
     }
 
     /**

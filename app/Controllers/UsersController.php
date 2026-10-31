@@ -967,13 +967,14 @@ class UsersController
         $bindValues = [];
 
         // Search text filter (nome, cognome, email)
-        if (!empty($searchText)) {
-            $whereClauses[] = "(nome LIKE ? OR cognome LIKE ? OR email LIKE ?)";
-            $searchParam = "%{$searchText}%";
-            for ($i = 0; $i < 3; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
+        // Quoted value = exact spelling, accents included (#501), as in the list.
+        $search = !empty($searchText)
+            ? \App\Support\ExactSearch::filterCondition(['nome', 'cognome', 'email', 'telefono', 'codice_tessera', "CONCAT(nome, ' ', cognome)", "CONCAT(cognome, ' ', nome)"], (string) $searchText)
+            : null;
+        if ($search !== null) {
+            $whereClauses[] = $search['sql'];
+            $bindTypes .= $search['types'];
+            array_push($bindValues, ...$search['params']);
         }
 
         // Role filter

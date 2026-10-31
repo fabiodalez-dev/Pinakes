@@ -58,11 +58,11 @@ final class StaffDesiderataController
                 $types .= 's';
                 $params[] = $status;
             }
-            if ($q !== '') {
-                $like = '%' . $q . '%';
-                $where[] = '(o.title LIKE ? OR o.author LIKE ? OR o.donor_name LIKE ? OR o.donor_email LIKE ? OR o.isbn LIKE ?)';
-                $types .= 'sssss';
-                array_push($params, $like, $like, $like, $like, $like);
+            $search = \App\Support\ExactSearch::filterCondition(['o.title', 'o.author', 'o.donor_name', 'o.donor_email', 'o.isbn'], $q);
+            if ($search !== null) {
+                $where[] = $search['sql'];
+                $types .= $search['types'];
+                array_push($params, ...$search['params']);
             }
             $whereSql = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
             $total = (int) ($this->rows('SELECT COUNT(*) AS n FROM desiderata_offers o' . $whereSql, $types, $params)[0]['n'] ?? 0);

@@ -1411,10 +1411,10 @@ class ArchivesPlugin
             $bindValues = [];
 
             if ($q !== '') {
-                $pattern = $this->archiveSearchPattern($q);
-                $whereParts[] = '(reference_code LIKE ? OR constructed_title LIKE ? OR formal_title LIKE ? OR scope_content LIKE ?)';
-                $bindTypes  .= 'ssss';
-                $bindValues = array_merge($bindValues, [$pattern, $pattern, $pattern, $pattern]);
+                $match = $this->archiveSearchCondition($q);
+                $whereParts[] = $match['sql'];
+                $bindTypes  .= $match['types'];
+                $bindValues = array_merge($bindValues, $match['params']);
             }
             if ($level !== '') {
                 $whereParts[] = 'level = ?';
@@ -2964,14 +2964,19 @@ class ArchivesPlugin
         // collapsing the predicate to `LIKE '%%%'` or matching any
         // single-char name. Mirrors the addcslashes pattern applied at
         // CQL parser (3510) and searchArchivalUnits (4679).
-        $like = '%' . addcslashes($q, '%_\\') . '%';
+        // Quoted value = exact spelling, accents included (#501).
+        $match = \App\Support\ExactSearch::filterCondition(['a.nome', 'a.pseudonimo'], $q);
+        if ($match === null) {
+            return $rows;
+        }
         $stmt = $this->db->prepare("SELECT a.id, {$display} AS nome FROM autori a
-                                    WHERE a.nome LIKE ? OR a.pseudonimo LIKE ?
+                                    WHERE {$match['sql']}
                                     ORDER BY nome LIMIT ?");
         if ($stmt === false) {
             return $rows;
         }
-        $stmt->bind_param('ssi', $like, $like, $limit);
+        $bindValues = [...$match['params'], $limit];
+        $stmt->bind_param($match['types'] . 'i', ...$bindValues);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
@@ -3230,10 +3235,10 @@ class ArchivesPlugin
                 $parts[] = 'parent_id IS NULL';
             }
             if ($q !== '') {
-                $pattern = $this->archiveSearchPattern($q);
-                $parts[] = '(reference_code LIKE ? OR constructed_title LIKE ? OR formal_title LIKE ? OR scope_content LIKE ?)';
-                $types  .= 'ssss';
-                array_push($values, $pattern, $pattern, $pattern, $pattern);
+                $match = $this->archiveSearchCondition($q);
+                $parts[] = $match['sql'];
+                $types  .= $match['types'];
+                array_push($values, ...$match['params']);
             }
             if ($withLevel && $level !== '') {
                 $parts[] = 'level = ?';
@@ -5764,6 +5769,31 @@ class ArchivesPlugin
         return $response;
     }
 
+    private function hasExactSearchTerm(string $query): bool
+    {
+        return in_array(true, array_column(\App\Support\ExactSearch::tokenize($query), 'exact'), true);
+    }
+
+    /**
+     * Exact terms must be checked after tokenization rather than delegated to
+     * the accent-folding FULLTEXT parser used by the default archive search.
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private function quotedSearchRows(string $select, array $columns, string $query, string $order, int $limit): array
+    {
+        $condition = \App\Support\ExactSearch::wordsCondition($columns, $query, 20);
+        if ($condition === null) { return []; }
+        $stmt = $this->db->prepare($select . ' AND ' . $condition['sql'] . ' ORDER BY ' . $order . ' LIMIT ?');
+        if ($stmt === false) { return []; }
+        $params = [...$condition['params'], $limit];
+        $stmt->bind_param($condition['types'] . 'i', ...$params);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $rows;
+    }
+
     /**
      * Type-ahead friendly search: LIKE-prefix first (always produces hits
      * for short queries that FULLTEXT would ignore below min_token_size),
@@ -5774,6 +5804,9 @@ class ArchivesPlugin
      */
     private function searchAuthorityRecordsForTypeahead(string $q, int $limit): array
     {
+        if ($this->hasExactSearchTerm($q)) {
+            return array_map(static function (array $row): array { unset($row['score']); return $row; }, $this->searchAuthorityRecords($q, $limit));
+        }
         $rows = [];
         $seen = [];
 
@@ -5833,6 +5866,9 @@ class ArchivesPlugin
      */
     private function searchArchivalUnits(string $q, int $limit): array
     {
+        if ($this->hasExactSearchTerm($q)) {
+            return $this->quotedSearchRows('SELECT id, reference_code, level, constructed_title, formal_title, date_start, date_end, extent FROM archival_units WHERE deleted_at IS NULL', ['reference_code', 'formal_title', 'constructed_title', 'scope_content', 'archival_history'], $q, 'constructed_title', $limit);
+        }
         $rows = [];
         $seen = [];
 
@@ -5911,6 +5947,9 @@ class ArchivesPlugin
      */
     private function searchAuthorityRecords(string $q, int $limit): array
     {
+        if ($this->hasExactSearchTerm($q)) {
+            return $this->quotedSearchRows('SELECT id, type, authorised_form, dates_of_existence, 0 AS score FROM authority_records WHERE deleted_at IS NULL', ['authorised_form', 'parallel_forms', 'history', 'functions'], $q, 'authorised_form', $limit);
+        }
         $rows = [];
         $stmt = $this->db->prepare(
             'SELECT id, type, authorised_form, dates_of_existence,
@@ -5946,6 +5985,9 @@ class ArchivesPlugin
      */
     private function searchReconciledAutori(string $q, int $limit): array
     {
+        if ($this->hasExactSearchTerm($q)) {
+            return $this->quotedSearchRows('SELECT a.id, a.nome, aal.authority_id, ar.authorised_form, ar.type AS authority_type, (SELECT COUNT(*) FROM libri_autori la WHERE la.autore_id = a.id) AS book_count, 0 AS score FROM autori a JOIN autori_authority_link aal ON aal.autori_id = a.id JOIN authority_records ar ON ar.id = aal.authority_id WHERE ar.deleted_at IS NULL', ['a.nome', 'a.pseudonimo'], $q, 'a.nome', $limit);
+        }
         $rows = [];
         $stmt = $this->db->prepare(
             'SELECT a.id, a.nome, aal.authority_id,
@@ -9522,19 +9564,28 @@ class ArchivesPlugin
             $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
-        // Escape LIKE wildcards (% _ \) in user input to prevent
-        // wildcard-injection enumeration (e.g. q=% returning everything).
-        $qEscaped = $q === '' ? '' : addcslashes($q, '%_\\');
-        $like = $q === '' ? '%' : '%' . $qEscaped . '%';
         // Column names are from a static map — safe to interpolate.
-        $sql = "SELECT id, `{$spec['label']}` AS label, `{$spec['extra']}` AS extra
+        // The label filter goes through ExactSearch: LIKE metacharacters are
+        // escaped (q=% cannot enumerate everything) and a quoted value is the
+        // exact spelling, accents included (#501). An empty q lists all rows.
+        $label = "`{$spec['label']}`";
+        $match = $q === '' ? null : \App\Support\ExactSearch::filterCondition([$label], $q);
+        if ($q !== '' && $match === null) {
+            // Only quotes typed: nothing left to match, so nothing matches.
+            $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+        $where = $match !== null ? $match['sql'] : '1=1';
+        $sql = "SELECT id, {$label} AS label, `{$spec['extra']}` AS extra
                   FROM `{$spec['table']}`
-                 WHERE `{$spec['label']}` LIKE ? AND deleted_at IS NULL
-                 ORDER BY `{$spec['label']}` ASC
+                 WHERE {$where} AND deleted_at IS NULL
+                 ORDER BY {$label} ASC
                  LIMIT 20";
         $stmt = $this->db->prepare($sql);
         if ($stmt !== false) {
-            $stmt->bind_param('s', $like);
+            if ($match !== null) {
+                $stmt->bind_param($match['types'], ...$match['params']);
+            }
             if ($stmt->execute()) {
                 $r = $stmt->get_result();
                 if ($r instanceof \mysqli_result) {
@@ -10924,6 +10975,70 @@ class ArchivesPlugin
     }
 
     /**
+     * WHERE fragment matching $q against an archival unit's reference code,
+     * titles and scope note — the one rule the admin list, the public listing
+     * and the unified search share. Unquoted, $q goes through the stemming
+     * pattern below. Wrapped in quotes it is the exact spelling, accents
+     * included and with no stem trimmed (#501): `"Brücke"` must not find
+     * `Brucke`, and `"disegno"` must not find `disegni`.
+     *
+     * $unitIdExpr, when given, also matches the authorised form of an
+     * authority record linked to the unit (the catalogue's archive box).
+     *
+     * @return array{sql: string, params: list<string>, types: string}
+     */
+    private function archiveSearchCondition(string $q, ?string $unitIdExpr = null): array
+    {
+        // Qualify the unit columns when an alias is in play: inside the
+        // authority EXISTS below they must still resolve to the outer unit.
+        $prefix = $unitIdExpr !== null && str_contains($unitIdExpr, '.')
+            ? substr($unitIdExpr, 0, (int) strrpos($unitIdExpr, '.') + 1)
+            : '';
+        $columns = array_map(
+            static fn(string $column): string => $prefix . $column,
+            ['reference_code', 'constructed_title', 'formal_title', 'scope_content']
+        );
+        $authorityJoin = 'SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id'
+            . " WHERE aua.archival_unit_id = {$unitIdExpr} AND ar.deleted_at IS NULL AND ";
+
+        // Any quoted group: every term must match, each with its own rule —
+        // the same as the archive's other searches (wordsCondition), so
+        // `"haffner" archivio` and `archivio "haffner"` both mean
+        // "haffner exactly AND archivio", never one phrase or literal quotes.
+        if (in_array(true, array_column(\App\Support\ExactSearch::tokenize($q), 'exact'), true)) {
+            $own = \App\Support\ExactSearch::wordsCondition($columns, $q, 20);
+            if ($own !== null) {
+                if ($unitIdExpr === null) {
+                    return $own;
+                }
+                // A term may also be met by a linked authority record. One
+                // EXISTS holds the whole word list, so the link tables are
+                // referenced once whatever the number of terms.
+                $withAuthority = \App\Support\ExactSearch::wordsCondition([...$columns, 'ar.authorised_form'], $q, 20);
+                if ($withAuthority !== null) {
+                    return [
+                        'sql' => "({$own['sql']} OR EXISTS ({$authorityJoin}{$withAuthority['sql']}))",
+                        'params' => [...$own['params'], ...$withAuthority['params']],
+                        'types' => $own['types'] . $withAuthority['types'],
+                    ];
+                }
+            }
+        }
+
+        // Unquoted: one stemmed pattern ("disegno" also finds "disegni").
+        $pattern = $this->archiveSearchPattern($q);
+        $sql = array_map(static fn(string $column): string => "{$column} LIKE ?", $columns);
+        if ($unitIdExpr !== null) {
+            $sql[] = "EXISTS ({$authorityJoin}ar.authorised_form LIKE ?)";
+        }
+        return [
+            'sql' => '(' . implode(' OR ', $sql) . ')',
+            'params' => array_fill(0, count($sql), $pattern),
+            'types' => str_repeat('s', count($sql)),
+        ];
+    }
+
+    /**
      * Returns a LIKE pattern for $q, stripping the last char when len >= 5
      * so that "disegno" matches "disegni" (shared root "disegn-").
      */
@@ -10968,25 +11083,20 @@ class ArchivesPlugin
         // ever sees published units.
         $isAdmin = $context === 'admin';
         $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
-        $searchPattern = $this->archiveSearchPattern($q);
+        $match = $this->archiveSearchCondition($q);
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, constructed_title, published
                FROM archival_units
               WHERE deleted_at IS NULL'
             . ($isAdmin ? '' : ' AND published = 1') . '
-                AND (
-                    reference_code LIKE ?
-                    OR constructed_title LIKE ?
-                    OR formal_title LIKE ?
-                    OR scope_content LIKE ?
-                )
+                AND ' . $match['sql'] . '
               ORDER BY constructed_title
               LIMIT 5'
         );
         if ($stmt === false) {
             return $results;
         }
-        $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+        $stmt->bind_param($match['types'], ...$match['params']);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res instanceof \mysqli_result) {
@@ -11024,26 +11134,20 @@ class ArchivesPlugin
             return $results;
         }
         $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
-        $searchPattern = $this->archiveSearchPattern($q);
+        $match = $this->archiveSearchCondition($q, 'u.id');
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, level, constructed_title, scope_content
                FROM archival_units u
               WHERE u.deleted_at IS NULL
                 AND u.published = 1
-                AND (
-                    reference_code LIKE ?
-                    OR constructed_title LIKE ?
-                    OR formal_title LIKE ?
-                    OR scope_content LIKE ?
-                    OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND ar.authorised_form LIKE ?)
-                )
+                AND ' . $match['sql'] . '
               ORDER BY FIELD(level,\'fonds\',\'series\',\'file\',\'item\'), constructed_title
               LIMIT 6'
         );
         if ($stmt === false) {
             return $results;
         }
-        $stmt->bind_param('sssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+        $stmt->bind_param($match['types'], ...$match['params']);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res instanceof \mysqli_result) {

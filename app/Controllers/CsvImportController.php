@@ -1488,17 +1488,13 @@ class CsvImportController
      */
     private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
-        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($row = $result->fetch_assoc()) {
-            $publisherId = (int) $row['id'];
-            $stmt->close();
-            return ['id' => $publisherId, 'created' => false];
+        // Same lookup as the book form: the exact spelling wins, and a name in
+        // quotes reuses only that spelling (#501). The quotes are not stored.
+        $existingId = (new \App\Models\PublisherRepository($db))->findByName($name);
+        if ($existingId !== null) {
+            return ['id' => $existingId, 'created' => false];
         }
-        $stmt->close();
+        $name = \App\Support\ExactSearch::quotedValue($name) ?? $name;
 
         // Crea nuovo editore
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
@@ -1702,19 +1698,29 @@ class CsvImportController
             $firstAuthor = $authorsArray[0];
 
             if ($firstAuthor !== '') {
-                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi")
+                // Normalize author name to match DB format (e.g. "Levi, Primo" → "Primo Levi").
+                // A name in quotes keeps them through normalize() (#501): the
+                // quotes are never part of a stored name, and they mean this
+                // exact spelling, so a quoted author matches only an author
+                // written the same way (accents distinct, case ignored), like
+                // AuthorRepository::findByCanonicalName(). An unquoted author
+                // keeps the accent-tolerant `a.nome = ?` comparison.
                 $normalizedAuthor = \App\Support\AuthorNormalizer::normalize($firstAuthor);
+                $quotedAuthor = \App\Support\ExactSearch::quotedValue($normalizedAuthor);
+                $authorMatch = $quotedAuthor !== null
+                    ? \App\Support\ExactSearch::equalsCondition('a.nome', $quotedAuthor)
+                    : ['sql' => 'a.nome = ?', 'params' => [$normalizedAuthor], 'types' => 's'];
                 $stmt = $db->prepare("
                     SELECT DISTINCT l.id
                     FROM libri l
                     JOIN libri_autori al ON l.id = al.libro_id
                     JOIN autori a ON al.autore_id = a.id
                     WHERE l.titolo = ?
-                    AND a.nome = ?
+                    AND {$authorMatch['sql']}
                     AND l.deleted_at IS NULL
                     LIMIT 1
                 ");
-                $stmt->bind_param('ss', $data['titolo'], $normalizedAuthor);
+                $stmt->bind_param('s' . $authorMatch['types'], $data['titolo'], ...$authorMatch['params']);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 if ($row = $result->fetch_assoc()) {
@@ -1858,9 +1864,9 @@ class CsvImportController
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         // #7: normalize the free-text contributor columns like every other writer
         // (BookRepository), so "Rossi, Mario" from a CSV matches "Mario Rossi".
-        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['traduttore']) : null;
-        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['illustratore']) : null;
-        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['curatore']) : null;
+        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['traduttore']) : null;
+        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['illustratore']) : null;
+        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['curatore']) : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
@@ -2179,9 +2185,9 @@ class CsvImportController
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
         // #7: normalize free-text contributor columns like every other writer.
-        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['traduttore']) : null;
-        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['illustratore']) : null;
-        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalize((string) $data['curatore']) : null;
+        $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['traduttore']) : null;
+        $illustratore = !empty($data['illustratore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['illustratore']) : null;
+        $curatore = !empty($data['curatore']) ? \App\Support\AuthorNormalizer::normalizeStored((string) $data['curatore']) : null;
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 

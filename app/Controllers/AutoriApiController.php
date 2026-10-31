@@ -55,33 +55,24 @@ class AutoriApiController
         $params_for_where = [];
         $param_types_for_where = '';
 
-        if ($search_text !== '') {
-            $where_prepared .= " AND (a.nome LIKE ? OR a.pseudonimo LIKE ? OR a.biografia LIKE ?) ";
-            $escaped = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_text) . '%';
-            $params_for_where[] = $escaped;
-            $params_for_where[] = $escaped;
-            $params_for_where[] = $escaped;
-            $param_types_for_where .= 'sss';
+        // A value wrapped in quotes matches the exact spelling, accents
+        // included (#501): "Haffner" no longer returns Häffner.
+        $textFilters = [
+            [['a.nome', 'a.pseudonimo', 'a.biografia'], $search_text],
+            [['a.nome'], $search_nome],
+            [['a.pseudonimo'], $search_pseudonimo],
+            [['a.sito_web'], $search_sito],
+        ];
+        if ($colNaz !== null) {
+            $textFilters[] = [["a.`$colNaz`"], $search_naz];
         }
-        if ($search_nome !== '') {
-            $where_prepared .= " AND a.nome LIKE ? ";
-            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_nome) . '%';
-            $param_types_for_where .= 's';
-        }
-        if ($search_pseudonimo !== '') {
-            $where_prepared .= " AND a.pseudonimo LIKE ? ";
-            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_pseudonimo) . '%';
-            $param_types_for_where .= 's';
-        }
-        if ($search_sito !== '') {
-            $where_prepared .= " AND a.sito_web LIKE ? ";
-            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_sito) . '%';
-            $param_types_for_where .= 's';
-        }
-        if ($search_naz !== '' && $colNaz !== null) {
-            $where_prepared .= " AND a.`$colNaz` LIKE ? ";
-            $params_for_where[] = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search_naz) . '%';
-            $param_types_for_where .= 's';
+        foreach ($textFilters as [$exprs, $value]) {
+            $cond = $value !== '' ? \App\Support\ExactSearch::filterCondition($exprs, $value) : null;
+            if ($cond !== null) {
+                $where_prepared .= ' AND ' . $cond['sql'] . ' ';
+                array_push($params_for_where, ...$cond['params']);
+                $param_types_for_where .= $cond['types'];
+            }
         }
         if ($nascita_from !== '') {
             $where_prepared .= " AND a.data_nascita >= ? ";

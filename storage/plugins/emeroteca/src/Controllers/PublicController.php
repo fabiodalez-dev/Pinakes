@@ -111,13 +111,12 @@ class PublicController
                 // One owner for "does this masthead answer that term": the
                 // catalogue hint counts with the same fragment, so the number
                 // it prints next to this link is the number this link opens.
-                $where[] = \EmerotecaPlugin::testataSearchWhere($withArticles);
-                $pattern = '%' . $this->escapeLike($q) . '%';
-                $termBinds = $withArticles
-                    ? [$pattern, $pattern, $pattern, $q, $pattern, $pattern, $pattern]
-                    : [$pattern, $pattern, $pattern];
-                $types .= str_repeat('s', count($termBinds));
-                array_push($binds, ...$termBinds);
+                $search = \EmerotecaPlugin::testataSearchCondition($q, $withArticles);
+                if ($search !== null) {
+                    $where[] = $search['sql'];
+                    $types .= $search['types'];
+                    array_push($binds, ...$search['params']);
+                }
             }
             if ($tipo !== '' && $skip !== 'tipo') {
                 $where[] = 't.tipo = ?';
@@ -627,11 +626,6 @@ class PublicController
         return $this->tableCache[$table] = $exists;
     }
 
-    /** Escape LIKE metacharacters in user input (backslash-escaped). */
-    private function escapeLike(string $value): string
-    {
-        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
-    }
 
     /** Site base URL with no trailing slash, for building canonical links. */
     private function baseUrl(): string
