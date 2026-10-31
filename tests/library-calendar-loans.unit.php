@@ -79,7 +79,7 @@ $cleanup = static function () use ($db, $tag, $prevWeekdays, &$bookId, &$userId,
     }
     if ($bookId > 0) {
         $db->query("DELETE FROM prenotazioni WHERE libro_id = {$bookId}");
-        $db->query("DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id = {$bookId})");
+        $db->query("DELETE FROM admin_notifications WHERE (type IN ('new_loan_request', 'overdue_loan') OR (type = 'general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id = {$bookId})");
         $db->query("DELETE FROM prestiti WHERE libro_id = {$bookId}");
         $db->query("DELETE FROM copie WHERE libro_id = {$bookId}");
         $db->query("DELETE FROM libri WHERE id = {$bookId}");
