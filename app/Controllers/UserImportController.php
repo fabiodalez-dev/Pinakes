@@ -228,6 +228,13 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('Accesso negato')], 403);
         }
         $body = json_decode((string) $request->getBody(), true);
+        if (is_array($_SESSION[self::SESSION_KEY] ?? null) && !empty($_SESSION[self::SESSION_KEY]['finished']) && is_array($_SESSION[self::SESSION_KEY]['result'] ?? null)) {
+            // The run is over: this is the retry of a last block whose answer
+            // was lost (a gateway timeout while the invitations went out).
+            // Replaying the final answer shows the summary instead of an
+            // error that would invite uploading the same file again.
+            return $this->json($response, $_SESSION[self::SESSION_KEY]['result']);
+        }
         if (!is_array($_SESSION[self::SESSION_KEY] ?? null) || empty($_SESSION[self::SESSION_KEY]['started']) || !is_array($body)) {
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
         }
@@ -352,7 +359,9 @@ class UserImportController
             $summary = ['created' => $state['created'], 'duplicates' => $state['duplicates'], 'failed' => $state['failed']];
             $this->discardSessionFile();
             unset($state);
-            unset($_SESSION[self::SESSION_KEY]);
+            // Only the final answer is kept, for a retry of this request;
+            // the next upload or a visit to the page replaces it.
+            $_SESSION[self::SESSION_KEY] = ['finished' => true, 'result' => $payload];
             SecureLogger::info('Users imported from CSV', $summary + ['by' => $_SESSION['user']['id'] ?? null]);
         }
         return $this->json($response, $payload);

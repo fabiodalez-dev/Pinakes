@@ -145,6 +145,8 @@ $types = 'zz_pci_types_' . $suffix;
 $users = 'zz_pci_users_' . $suffix;
 $userId = 0;
 $photoFiles = [];
+$importEmail = 'zz-import-' . $suffix . '@example.invalid';
+$importLogIds = [];
 try {
     $db->query("CREATE TABLE {$users} (id INT NOT NULL PRIMARY KEY, nome VARCHAR(100)) ENGINE=InnoDB");
     $db->query("INSERT INTO {$users} (id, nome) VALUES (1, 'A')");
@@ -309,6 +311,17 @@ try {
     unlink($staged);
     [$status, $json] = $call('chunk', ['start' => 0]);
     $check($status === 409 && !isset($json['processed']) && !is_file($staged) && !isset($_SESSION['user_import']), 'a vanished staged file ends the import with 409 instead of being recreated empty');
+
+    // The last block runs, then its answer is lost: the retry gets the same
+    // final answer, not a "session expired" error.
+    file_put_contents($staged, "nome;cognome;email\nZz;Import;{$importEmail}\n");
+    $_SESSION['user_import'] = $running;
+    [$status, $first] = $call('chunk', ['start' => 0]);
+    $importLogIds[] = (string) ($first['import_id'] ?? '');
+    $check($status === 200 && ($first['done'] ?? false) === true && ($first['created'] ?? null) === 1 && !is_file($staged), 'the last block creates the reader and closes the run');
+    [$status, $replay] = $call('chunk', ['start' => 0]);
+    $check($status === 200 && $replay === $first && (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$importEmail}'")->fetch_row()[0] === 1, 'a retry of the last block replays the final answer and creates nothing');
+    $check($call('start', ['mapping' => [0 => 'nome', 2 => 'email']])[0] === 400, 'a finished run cannot be started again');
     $_SESSION = [];
 
     // The user import's error report is served under the users permission.
@@ -320,6 +333,13 @@ try {
     $db->query("DROP TABLE IF EXISTS {$users}");
     if ($userId > 0) {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
+    }
+    $db->query("DELETE FROM utenti WHERE email = '{$importEmail}'");
+    foreach ($importLogIds as $logId) {
+        $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
+        $stmt->bind_param('s', $logId);
+        $stmt->execute();
+        $stmt->close();
     }
     foreach ($photoFiles as $file) {
         if (is_string($file) && is_file($file)) {
