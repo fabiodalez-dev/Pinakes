@@ -197,18 +197,43 @@ class SruClient
                     'maximumRecords' => $max,
                 ];
             }
-            static $lastRequest = [];
-            $this->enforceRateLimit($url, $lastRequest);
-            $xml = $this->fetchUrl($url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params));
-            if ($xml === null) {
-                // HTTP 200 with no body is not "no records": an SRU answer always
-                // carries a searchRetrieveResponse, even for zero hits.
-                throw new \RuntimeException('Empty response from server');
-            }
+            $xml = $this->fetchSearchWithRetry($url, $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params));
             return $this->readSearchResponse($xml, $syntax, $max);
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::warning('[SruClient] search failed', ['server' => $server['name'] ?? $url, 'error' => $e->getMessage()]);
             return ['total' => 0, 'records' => [], 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * The body of one search request, with the same bounded retry the ISBN
+     * lookup has (queryServerWithRetry()): a transport failure or an empty
+     * body is tried again up to maxRetries times with exponential backoff,
+     * each attempt under the per-server rate limit; an HTTP 4xx is not
+     * retried. The query (any CQL, any number of records) is untouched;
+     * only the transport is repeated, never a server's own diagnostic.
+     */
+    private function fetchSearchWithRetry(string $serverUrl, string $requestUrl): string
+    {
+        static $lastRequest = [];
+        $attempts = 0;
+        while (true) {
+            $this->enforceRateLimit($serverUrl, $lastRequest);
+            try {
+                $xml = $this->fetchUrl($requestUrl);
+                if ($xml === null) {
+                    // HTTP 200 with no body is not "no records": an SRU answer
+                    // always carries a searchRetrieveResponse, even for zero hits.
+                    throw new \RuntimeException('Empty response from server');
+                }
+                return $xml;
+            } catch (\Throwable $e) {
+                $attempts++;
+                if ($attempts > $this->maxRetries || str_contains($e->getMessage(), 'HTTP 4')) {
+                    throw $e;
+                }
+                usleep(100000 * (int) pow(2, $attempts - 1));
+            }
         }
     }
 
