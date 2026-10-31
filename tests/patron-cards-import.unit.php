@@ -455,28 +455,29 @@ try {
     }
     $staged = $uploads . '/user_import_' . bin2hex(random_bytes(12)) . '.csv';
     file_put_contents($staged, "nome;cognome;email\nZz;Import;zz-import@example.invalid\n");
-    $running = ['file' => $staged, 'name' => 't.csv', 'delimiter' => ';', 'total' => 1, 'columns' => 3, 'started' => true, 'next' => 0,
+    $pid = bin2hex(random_bytes(12));
+    $running = ['preview_id' => $pid, 'file' => $staged, 'name' => 't.csv', 'delimiter' => ';', 'total' => 1, 'columns' => 3, 'started' => true, 'next' => 0,
         'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0, 'failed' => 0,
         'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []];
     $_SESSION['user_import'] = $running;
-    [$status, $json] = $call('chunk', ['start' => 10]);
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 10]);
     $check($status === 409 && ($json['processed'] ?? null) === 0 && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block out of sequence is refused with the position to resume from');
     [$status] = $call('upload', []);
     $check($status === 400 && is_file($staged) && ($_SESSION['user_import'] ?? null) === $running, 'a refused upload leaves the staged file and the import in progress intact');
     unlink($staged);
-    [$status, $json] = $call('chunk', ['start' => 0]);
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
     $check($status === 409 && !isset($json['processed']) && !is_file($staged) && !isset($_SESSION['user_import']), 'a vanished staged file ends the import with 409 instead of being recreated empty');
 
     // The last block runs, then its answer is lost: the retry gets the same
     // final answer, not a "session expired" error.
     file_put_contents($staged, "nome;cognome;email\nZz;Import;{$importEmail}\n");
     $_SESSION['user_import'] = $running;
-    [$status, $first] = $call('chunk', ['start' => 0]);
+    [$status, $first] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
     $importLogIds[] = (string) ($first['import_id'] ?? '');
     $check($status === 200 && ($first['import_id'] ?? '') !== '' && ($first['done'] ?? false) === true && ($first['created'] ?? null) === 1 && !is_file($staged), 'the last block creates the reader and closes the run');
-    [$status, $replay] = $call('chunk', ['start' => 0]);
+    [$status, $replay] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
     $check($status === 200 && $replay === $first && (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$importEmail}'")->fetch_row()[0] === 1, 'a retry of the last block replays the final answer and creates nothing');
-    $check($call('start', ['mapping' => [0 => 'nome', 2 => 'email']])[0] === 400, 'a finished run cannot be started again');
+    $check($call('start', ['preview_id' => $pid, 'mapping' => [0 => 'nome', 2 => 'email']])[0] === 400, 'a finished run cannot be started again');
 
     // A run under way (another tab) is neither replaced nor closed; the page
     // learns its position and resumes it.
@@ -485,21 +486,52 @@ try {
     $_SESSION['user_import'] = $live;
     [$status, $json] = $call('upload', []);
     $check($status === 409 && ($json['processed'] ?? null) === 1 && ($json['total_rows'] ?? null) === 2 && ($_SESSION['user_import'] ?? null) === $live && is_file($staged), 'an upload during a live run is refused with its position, the run left intact');
-    [$status, $json] = $call('start', ['mapping' => [0 => 'nome', 2 => 'email']]);
+    [$status, $json] = $call('start', ['preview_id' => $pid, 'mapping' => [0 => 'nome', 2 => 'email']]);
     $check($status === 409 && ($json['processed'] ?? null) === 1 && ($json['total_rows'] ?? null) === 2, 'a replayed start answers with the position to resume from');
-    [$status, $json] = $call('cancel', []);
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
     $check($status === 409 && ($_SESSION['user_import'] ?? null) === $live && is_file($staged), 'a live run cannot be cancelled');
-    $check(\App\Controllers\UserImportController::resumable($live) === ['name' => 't.csv', 'processed' => 1, 'total' => 2]
+    $check(\App\Controllers\UserImportController::resumable($live) === ['preview_id' => $pid, 'name' => 't.csv', 'processed' => 1, 'total' => 2]
         && \App\Controllers\UserImportController::resumable(['finished' => true, 'result' => []]) === null
         && \App\Controllers\UserImportController::resumable(['started' => false] + $running) === null, 'the page offers to resume only a started, unfinished run');
     // Abandoned (no request for IDLE_SECONDS): "Annulla import" closes it and
     // logs the partial run, so the accounts it created leave a trace.
     $_SESSION['user_import'] = ['active_at' => time() - \App\Controllers\UserImportController::IDLE_SECONDS - 5] + $live;
-    [$status, $json] = $call('cancel', []);
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
     $closedId = (string) ($json['import_id'] ?? '');
     $importLogIds[] = $closedId;
     $logged = $closedId !== '' ? $db->query("SELECT total_rows, import_type FROM import_logs WHERE import_id = '" . $db->real_escape_string($closedId) . "'")->fetch_assoc() : null;
     $check($status === 200 && !isset($_SESSION['user_import']) && !is_file($staged) && is_array($logged) && (int) $logged['total_rows'] === 1 && $logged['import_type'] === 'users', 'an abandoned run is closed, its file released and its partial run logged');
+    $_SESSION = [];
+
+    // Two tabs: B still shows the preview of one file, A has since uploaded
+    // another. B's Start, blocks and cancel name B's preview and are refused:
+    // B's mapping is never applied to A's rows.
+    $staleEmail = "zz-pci-stale-{$suffix}@example.invalid";
+    $staleCount = static fn (): int => (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$staleEmail}'")->fetch_row()[0];
+    file_put_contents($staged, "nome;cognome;email\nZz;Stale;{$staleEmail}\n");
+    $previewA = ['preview_id' => bin2hex(random_bytes(12)), 'file' => $staged, 'name' => 'a.csv', 'delimiter' => ';', 'total' => 1, 'columns' => 3, 'started' => false];
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo'], 'user_import' => $previewA];
+    $tabB = bin2hex(random_bytes(12));
+    [$status, $json] = $call('start', ['preview_id' => $tabB, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    $check($status === 409 && ($json['stale'] ?? false) === true && !isset($json['processed']) && ($_SESSION['user_import'] ?? null) === $previewA, 'a Start from a replaced preview is refused with 409 stale, the current preview untouched');
+    [$status, $json] = $call('start', ['mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    $check($status === 409 && ($json['stale'] ?? false) === true && ($_SESSION['user_import'] ?? null) === $previewA, 'a Start without a preview id is refused with 409 stale');
+    $startedA = ['started' => true, 'next' => 0, 'active_at' => time(), 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0,
+        'failed' => 0, 'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []] + $previewA;
+    $_SESSION['user_import'] = $startedA;
+    [$status, $json] = $call('chunk', ['preview_id' => $tabB, 'start' => 0]);
+    $check($status === 409 && ($json['stale'] ?? false) === true && !isset($json['processed']) && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block from a replaced preview is refused without a position to "resume" from');
+    [$status, $json] = $call('chunk', ['start' => 0]);
+    $check($status === 409 && ($json['stale'] ?? false) === true && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block without a preview id is refused');
+    [$status, $json] = $call('cancel', ['preview_id' => $tabB]);
+    $check($status === 200 && ($json['stale'] ?? false) === true && ($_SESSION['user_import'] ?? null) === $startedA && is_file($staged), 'a cancel from a replaced preview leaves the current import alone');
+    $check($staleCount() === 0, 'no account was created from the stale requests');
+    $_SESSION['user_import'] = $previewA;
+    [$status, $json] = $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    $check($status === 200 && !empty($_SESSION['user_import']['started']), 'a Start naming the current preview proceeds');
+    [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1, 'its block, naming the same preview, imports the row');
     $_SESSION = [];
 
     // The user import's error report is served under the users permission.
@@ -513,6 +545,7 @@ try {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
     }
     $db->query("DELETE FROM utenti WHERE email = '{$importEmail}'");
+    $db->query("DELETE FROM utenti WHERE email = 'zz-pci-stale-{$suffix}@example.invalid'");
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
     foreach ($importLogIds as $logId) {
         $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
