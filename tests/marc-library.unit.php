@@ -402,6 +402,11 @@ $refusedParse = static function (string $raw): bool {
 };
 $check($refusedParse($withEntry($ftRaw, 0, $len001 + 6, null)), '19c an entry whose length runs into the next field is refused');
 $check($refusedParse($withEntry($ftRaw, 2, null, (int) substr($ftRaw, 24 + 12 + 7, 5) + 3)), '19d an entry that starts inside another field is refused, not read as that field\'s bytes');
+// The 245 entry given the exact start and length of the 500: each entry is
+// well formed on its own, the two share their bytes.
+$asNote = $withEntry($ftRaw, 1, (int) substr($ftRaw, 24 + 24 + 3, 4), (int) substr($ftRaw, 24 + 24 + 7, 5));
+$check($refusedParse($asNote), '19e two entries pointing at the same bytes are refused, the note is not read as the title');
+$check($refusedParse($withEntry($ftRaw, 0, $len001 + 3, null)) && !$refusedParse($short), '19f an entry overlapping the next one is refused; the legacy short lengths are not overlaps');
 
 echo "Encoding of ISO 2709 records\n";
 // A record labelled UTF-8 (leader/09 = a) whose bytes are MARC-8: the title
