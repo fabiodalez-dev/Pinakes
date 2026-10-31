@@ -448,6 +448,11 @@ class InventoryController
             $response->getBody()->write(__('Revisione non trovata.'));
             return $response->withStatus(404);
         }
+        $rows = $service->reportRowCount($id);
+        if ($rows > StocktakePdfGenerator::MAX_ROWS) {
+            $_SESSION['error_message'] = sprintf(__('Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.'), $rows, StocktakePdfGenerator::MAX_ROWS);
+            return $this->redirect($response, '/admin/inventory/' . $id);
+        }
         $pdf = (new StocktakePdfGenerator())->generate(
             $session,
             $service->summary($id),

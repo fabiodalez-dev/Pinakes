@@ -3965,17 +3965,10 @@ class OaiPmhServerPlugin
         $genre      = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
 
         try {
-            $binary = $this->bookToIso2709($row, $authors, $publishers, $genre);
-        } catch (\OverflowException) {
-            // Over the 99,999-byte ISO 2709 limit: the long free texts are
-            // shortened as the bulk MARC export does, else the record cannot
-            // be an ISO 2709 record at all.
-            try {
-                $binary = $this->bookToIso2709(\App\Controllers\MarcExportController::shortenTexts($row), $authors, $publishers, $genre);
-            } catch (\OverflowException $e) {
-                $response->getBody()->write(json_encode(['error' => true, 'message' => 'Record too long for ISO 2709: ' . $e->getMessage()]));
-                return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
-            }
+            $binary = $this->bookToFittingIso2709($row, $authors, $publishers, $genre);
+        } catch (\OverflowException $e) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => 'Record too long for ISO 2709: ' . $e->getMessage()]));
+            return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
         }
         $filename = 'unimarc-' . $id . '.mrc';
 
@@ -4086,6 +4079,40 @@ class OaiPmhServerPlugin
      * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
+    /**
+     * The ISO 2709 download of one book, always within the 99,999-byte
+     * limit when the bulk MARC export can fit it: the full record, else the
+     * long free texts shortened, else the reduced record the bulk export
+     * falls back to (short texts, at most 20 authors and 5 publishers). The
+     * record stays the plain one (not extended), as the download always was.
+     *
+     * @param array<string, mixed>       $row
+     * @param list<array<string, mixed>> $authors
+     * @param list<array<string, mixed>> $publishers
+     * @param array<string, mixed>|null  $genre
+     * @throws \OverflowException when even the reduced record does not fit
+     */
+    private function bookToFittingIso2709(array $row, array $authors, array $publishers, ?array $genre): string
+    {
+        $export = \App\Controllers\MarcExportController::class;
+        $attempts = [
+            [$row, $authors, $publishers],
+            [$export::shortenTexts($row), $authors, $publishers],
+            [$export::shortenTexts($row, $export::REDUCED_TEXT_LENGTH), array_slice($authors, 0, $export::REDUCED_AUTHORS), array_slice($publishers, 0, $export::REDUCED_PUBLISHERS)],
+        ];
+        $reduced = array_pop($attempts);
+        foreach ($attempts as [$r, $a, $p]) {
+            try {
+                return $this->bookToIso2709($r, $a, $p, $genre);
+            } catch (\OverflowException) {
+                continue;
+            }
+        }
+        // The reduced record is the last attempt: its overflow is the caller's.
+        [$r, $a, $p] = $reduced;
+        return $this->bookToIso2709($r, $a, $p, $genre);
+    }
+
     private function bookToIso2709(
         array $row,
         array $authors,

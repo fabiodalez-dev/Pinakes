@@ -279,8 +279,8 @@ final class MarcBookImporter
      * is written as soon as one of its columns is empty, and every column
      * the book already has is handed back to the pipeline unchanged, so a
      * non-empty field is never overwritten: a book with an ISBN-13 and no
-     * ISBN-10 gains the ISBN-10 and keeps its ISBN-13 even when the record
-     * names another.
+     * ISBN-10 keeps its ISBN-13 even when the record names another, and
+     * gains the record's ISBN-10 only when it is the same ISBN.
      *
      * @param array<string, string|list<string>> $data book data (MarcBookData shape)
      * @param array<string, mixed> $parsed the row as normalizeImportRow() returns it
@@ -341,6 +341,30 @@ final class MarcBookImporter
                     $parsed[$column] = $existing[$column];
                 }
             }
+        }
+        // fill: the empty half of the ISBN family is filled only with the
+        // other form of the ISBN the book already has. A record of another
+        // work would otherwise leave the book with two works' identifiers,
+        // and the duplicate lookup (which matches either column) would then
+        // skip the other work as this book.
+        if ($mode === self::MODE_FILL && $families['isbn']) {
+            $filled = false;
+            foreach (['isbn10' => 'isbn13', 'isbn13' => 'isbn10'] as $column => $other) {
+                $known = trim((string) ($existing[$other] ?? ''));
+                $value = trim((string) ($parsed[$column] ?? ''));
+                if ($value === '' || !isset($empty[$column])) {
+                    continue;
+                }
+                if ($known !== '') {
+                    $variant = \App\Support\IsbnFormatter::getAllVariants($known)[$column] ?? null;
+                    if ($variant === null || $variant !== \App\Support\IsbnFormatter::clean($value)) {
+                        $parsed[$column] = $existing[$column] ?? null;
+                        continue;
+                    }
+                }
+                $filled = true;
+            }
+            $families['isbn'] = $filled;
         }
         return [$families, $parsed];
     }
@@ -483,6 +507,26 @@ final class MarcBookImporter
             return;
         }
         $counters['covers']++;
+        // An overwrite replaced the book's own downloaded cover: the old file
+        // is removed once no book points at it any more (discard() touches
+        // only a plain name in the covers folder, never an external URL).
+        $previous = trim((string) ($existing['copertina_url'] ?? ''));
+        if ($previous !== '' && $previous !== $path) {
+            try {
+                $still = $this->db->prepare('SELECT 1 FROM libri WHERE copertina_url = ? AND deleted_at IS NULL LIMIT 1');
+                if ($still !== false) {
+                    $still->bind_param('s', $previous);
+                    $still->execute();
+                    $referenced = $still->get_result()->fetch_row() !== null;
+                    $still->close();
+                    if (!$referenced) {
+                        MarcCoverFetcher::discard($previous);
+                    }
+                }
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::warning('[MARC import] previous cover not removed', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+            }
+        }
     }
 
     private function hasColumn(string $column): bool
