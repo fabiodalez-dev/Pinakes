@@ -387,6 +387,30 @@ try {
             $stmt->close();
         }
     }
+
+    // J. A patron type edit form rendered before the fine columns existed
+    //    (no grace/fine/cap/threshold fields) keeps the stored values; a field
+    //    sent empty clears it (inherit).
+    $db->query("INSERT INTO tipologie_lettore (codice, nome, ordinamento, giorni_tolleranza, multa_giornaliera, multa_massima_prestito, soglia_blocco_debito) VALUES ('zz-ledger-t-{$run}', 'ZZ Ledger T {$run}', 999, 4, 0.60, 12.00, 8.00)");
+    $editType = (int) $db->insert_id;
+    try {
+        $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+        $saveType = static function (array $body) use ($db, $editType): void {
+            $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/settings/circulation/types/' . $editType)
+                ->withParsedBody($body + ['nome' => 'ZZ Ledger T', 'codice' => '', 'prenotazioni_abilitate' => '1', 'attiva' => '1']);
+            (new \App\Controllers\CirculationSettingsController())->updateType($request, new \Slim\Psr7\Response(), $db, $editType);
+        };
+        $typeRow = static fn (): array => (array) $db->query("SELECT max_prestiti, giorni_tolleranza, multa_giornaliera, multa_massima_prestito, soglia_blocco_debito FROM tipologie_lettore WHERE id = {$editType}")->fetch_assoc();
+        $saveType(['max_prestiti' => '3']);
+        $t = $typeRow();
+        $check((int) $t['max_prestiti'] === 3 && (int) $t['giorni_tolleranza'] === 4 && $t['multa_giornaliera'] === '0.60' && $t['multa_massima_prestito'] === '12.00' && $t['soglia_blocco_debito'] === '8.00', 'patron type: an older edit form without the fine fields keeps grace, fine, cap and debt threshold as stored');
+        $saveType(['max_prestiti' => '3', 'giorni_tolleranza' => '', 'multa_giornaliera' => '', 'multa_massima_prestito' => '', 'soglia_blocco_debito' => '']);
+        $t = $typeRow();
+        $check($t['giorni_tolleranza'] === null && $t['multa_giornaliera'] === null && $t['multa_massima_prestito'] === null && $t['soglia_blocco_debito'] === null, '...fields sent empty clear them');
+    } finally {
+        $_SESSION = [];
+        $db->query("DELETE FROM tipologie_lettore WHERE id = {$editType}");
+    }
 } finally {
     foreach ($savedSettings as $k => $v) {
         $setSetting($k, $v);
