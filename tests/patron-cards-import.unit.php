@@ -137,6 +137,112 @@ $check($portrait->cardSize() === [PatronCardPdf::CARD_H, PatronCardPdf::CARD_W] 
 $check($pageCount($portrait->render($cards, 'sheet')) === 2, 'portrait sheet: 12 cards on two sheets');
 $check($pageCount($single->render([['name' => 'Ünïcødé 名前', 'code' => 'CODE-é', 'expiry' => '', 'photo' => '/nonexistent.jpg']], 'single')) === 1, 'a non-ASCII code and a missing photo still render');
 
+// ── Card PDF symbols ────────────────────────────────────────────────────
+// The text line of the code proves nothing about the symbol beside it: read
+// the rectangles TCPDF paints (`x y w h re`, h negative) back out of the page
+// streams and compare them with what TCPDF's encoders produce for the code.
+$pdfRects = static function (string $pdf): array {
+    $rects = [];
+    preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams);
+    foreach ($streams[1] as $raw) {
+        $data = @gzuncompress($raw);
+        preg_match_all('/(?<![\w.-])(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) re\b/', $data === false ? $raw : $data, $found, PREG_SET_ORDER);
+        foreach ($found as $r) {
+            $rects[] = ['x' => (float) $r[1], 'y' => (float) $r[2], 'w' => (float) $r[3], 'h' => (float) $r[4]];
+        }
+    }
+    return $rects;
+};
+// The most numerous group of rectangles sharing one key (bar row, module size).
+$largestGroup = static function (array $rects, callable $key): array {
+    $groups = [];
+    foreach ($rects as $r) {
+        $k = $key($r);
+        if ($k !== null) {
+            $groups[$k][] = $r;
+        }
+    }
+    usort($groups, static fn (array $a, array $b): int => count($b) <=> count($a));
+    return $groups[0] ?? [];
+};
+$symbolCode = 'ZC0042-x';
+foreach (['classic', 'portrait', 'minimal'] as $layout) {
+    $bars = $largestGroup($pdfRects((new PatronCardPdf(PatronCardSettings::sanitize(['card_layout' => $layout, 'card_code_type' => 'code128']), 'Biblioteca', null))
+        ->render([['name' => 'Lettore', 'code' => $symbolCode, 'expiry' => '', 'photo' => null]], 'single')), static fn (array $r): ?string => $r['h'] < -5 && $r['w'] > 0 ? sprintf('%.2f|%.2f', $r['y'], $r['h']) : null); // bars share their top and height
+    usort($bars, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
+    // Expected bar/space widths in modules, from TCPDF's own Code128 encoder.
+    $expected = [];
+    foreach ((new TCPDFBarcode($symbolCode, 'C128'))->getBarcodeArray()['bcode'] as $element) {
+        if ((int) $element['w'] > 0) { // the encoder pads the array with empty elements
+            $expected[] = ($element['t'] ? 'b' : 's') . (int) $element['w'];
+        }
+    }
+    $drawn = [];
+    $unit = $bars !== [] ? min(array_column($bars, 'w')) : 1.0;
+    foreach ($bars as $i => $bar) {
+        if ($i > 0) {
+            $drawn[] = 's' . (int) round(($bar['x'] - $bars[$i - 1]['x'] - $bars[$i - 1]['w']) / $unit);
+        }
+        $drawn[] = 'b' . (int) round($bar['w'] / $unit);
+    }
+    $check($drawn !== [] && $drawn === $expected, "the {$layout} card draws the Code128 symbol of its code, bar for bar");
+}
+// TCPDF picks the QR mask at random among a few, so two encodings of the
+// same code may differ module by module. The data they carry may not: with
+// the mask removed (all eight tried on each side) the data modules of the
+// drawn symbol must equal those of TCPDF's own encoding of the code.
+$qrDataUnderMasks = static function (array $matrix): array {
+    $n = count($matrix);
+    $masks = [
+        static fn (int $i, int $j): bool => ($i + $j) % 2 === 0,
+        static fn (int $i, int $j): bool => $i % 2 === 0,
+        static fn (int $i, int $j): bool => $j % 3 === 0,
+        static fn (int $i, int $j): bool => ($i + $j) % 3 === 0,
+        static fn (int $i, int $j): bool => (intdiv($i, 2) + intdiv($j, 3)) % 2 === 0,
+        static fn (int $i, int $j): bool => ($i * $j) % 2 + ($i * $j) % 3 === 0,
+        static fn (int $i, int $j): bool => (($i * $j) % 2 + ($i * $j) % 3) % 2 === 0,
+        static fn (int $i, int $j): bool => (($i + $j) % 2 + ($i * $j) % 3) % 2 === 0,
+    ];
+    // Version 1 (21 x 21): finders with separators and format bits, timing lines.
+    $isFunction = static fn (int $i, int $j): bool => ($i < 9 && $j < 9) || ($i < 9 && $j >= $n - 8) || ($i >= $n - 8 && $j < 9) || $i === 6 || $j === 6;
+    $out = [];
+    foreach ($masks as $mask) {
+        $bits = '';
+        for ($i = 0; $i < $n; $i++) {
+            for ($j = 0; $j < $n; $j++) {
+                if (!$isFunction($i, $j)) {
+                    $bits .= ((bool) $matrix[$i][$j] !== $mask($i, $j)) ? '1' : '0';
+                }
+            }
+        }
+        $out[] = $bits;
+    }
+    return $out;
+};
+foreach (['classic', 'portrait', 'minimal'] as $layout) {
+    $modules = $largestGroup($pdfRects((new PatronCardPdf(PatronCardSettings::sanitize(['card_layout' => $layout, 'card_code_type' => 'qr']), 'Biblioteca', null))
+        ->render([['name' => 'Lettore', 'code' => $symbolCode, 'expiry' => '', 'photo' => null]], 'single')), static fn (array $r): ?string => $r['w'] > 0 && abs($r['w'] + $r['h']) < 0.001 ? sprintf('%.3f', $r['w']) : null);
+    $reference = (new TCPDF2DBarcode($symbolCode, 'QRCODE,M'))->getBarcodeArray();
+    $n = (int) $reference['num_rows'];
+    $drawn = array_fill(0, $n, array_fill(0, $n, 0));
+    $inGrid = $modules !== [] && $n === 21;
+    if ($inGrid) {
+        $size = $modules[0]['w'];
+        $left = min(array_column($modules, 'x'));
+        $top = max(array_column($modules, 'y'));
+        foreach ($modules as $m) {
+            [$row, $col] = [(int) round(($top - $m['y']) / $size), (int) round(($m['x'] - $left) / $size)];
+            if ($row >= $n || $col >= $n) {
+                $inGrid = false;
+                break;
+            }
+            $drawn[$row][$col] = 1;
+        }
+    }
+    $common = $inGrid ? array_intersect($qrDataUnderMasks($drawn), $qrDataUnderMasks($reference['bcode'])) : [];
+    $check($common !== [], "the {$layout} card draws a QR symbol carrying its code");
+}
+
 // ── Database pieces ─────────────────────────────────────────────────────
 $env = Dotenv\Dotenv::parse((string) file_get_contents(dirname(__DIR__) . '/.env'));
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
