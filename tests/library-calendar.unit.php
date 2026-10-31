@@ -256,6 +256,26 @@ $eq($rule('FREQ=YEARLY;BYMONTH=6;BYDAY=1MO'), false, 'RRULE: a positional weekda
 $eq($rule('FREQ=YEARLY;BYDAY=MO;BYSETPOS=1'), false, 'RRULE: BYSETPOS is a first occurrence only');
 $eq($rule('FREQ=YEARLY;INTERVAL=2'), false, 'RRULE: every other year is a first occurrence only');
 $eq($rule('FREQ=MONTHLY'), false, 'RRULE: a monthly rule is a first occurrence only');
+// BYMONTH/BYMONTHDAY recur only as DTSTART's own month and day: another
+// value names a different day, so the row is DTSTART once, not every year.
+$eq($rule('FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25'), false, 'RRULE: BYMONTH/BYMONTHDAY other than DTSTART is a first occurrence only');
+$eq($rule('FREQ=YEARLY;BYMONTH=6'), true, 'RRULE: BYMONTH equal to DTSTART still recurs');
+$eq($rule('FREQ=YEARLY;BYMONTHDAY=2'), false, 'RRULE: a BYMONTHDAY other than DTSTART is a first occurrence only');
+$eq($rule('FREQ=YEARLY;BYMONTHDAY=-1'), false, 'RRULE: a negative BYMONTHDAY is a first occurrence only');
+$early = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nRRULE:FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25\nDTSTART;VALUE=DATE:20260601\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nRRULE:FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25\nDTSTART;VALUE=DATE:20261225\nEND:VEVENT\nEND:VCALENDAR\n");
+$eq([$early[0]['start'], $early[0]['yearly'], $early[1]['yearly']], ['2026-06-01', false, true], 'RRULE: checked against DTSTART even when the rule comes first');
+
+// EXDATE: a stored yearly closure cannot skip a year, so the event is its
+// first occurrence only; with DTSTART itself excluded nothing is left.
+$exdate = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260815\nRRULE:FREQ=YEARLY\nEXDATE;VALUE=DATE:20270815\nSUMMARY:skip one\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nEXDATE;VALUE=DATE:20280101,20260815\nDTSTART;VALUE=DATE:20260815\nRRULE:FREQ=YEARLY\nSUMMARY:first excluded\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;TZID=Europe/Rome:20261224T090000\nRRULE:FREQ=YEARLY\nEXDATE;TZID=Europe/Rome:20271224T090000\nSUMMARY:timed\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20261225\nRRULE:FREQ=YEARLY\nSUMMARY:plain\nEND:VEVENT\nEND:VCALENDAR\n", 1000, 'Europe/Rome');
+$eq(array_column($exdate, 'description'), ['skip one', 'timed', 'plain'], 'EXDATE: an event whose DTSTART is excluded is left out');
+$eq([$exdate[0]['start'], $exdate[0]['yearly']], ['2026-08-15', false], 'EXDATE: a yearly event with an excluded year is imported once');
+$eq($exdate[1]['yearly'], false, 'EXDATE: a timed EXDATE with TZID disables the recurrence too');
+$eq($exdate[2]['yearly'], true, 'EXDATE: without one the yearly event still recurs');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
 
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";
