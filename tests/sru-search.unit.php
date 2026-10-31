@@ -104,6 +104,11 @@ $surrogate = '<?xml version="1.0"?><srw:searchRetrieveResponse xmlns:srw="http:/
     . '</srw:records></srw:searchRetrieveResponse>';
 $partial = (new SearchFixtureClient([$server], $surrogate))->searchServer($server, 'q', 5);
 $check($partial['error'] === null && $partial['total'] === 1495 && array_map(static fn ($r) => $r['data']['titolo'], $partial['records']) === ['Le Petit Prince', 'Il piccolo principe'], '12b a surrogate diagnostic inside recordData skips that record, the others are returned');
+$unreadable = '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>1</numberOfRecords><records>'
+    . '<record><recordData><record xmlns="http://www.loc.gov/MARC21/slim"><leader>00000nam a2200000 a 4500</leader><datafield ind1="1" ind2="0"><subfield code="a">Broken</subfield></datafield></record></recordData></record>'
+    . '</records></searchRetrieveResponse>';
+$unread = (new SearchFixtureClient([$server], $unreadable))->searchServer($server, 'q', 5);
+$check($unread['records'] === [] && $unread['total'] === 1 && is_string($unread['error']) && $unread['error'] !== '', '12d a hit no record of which can be read is reported with the reader\'s error, not as an empty result');
 $ownError = '<?xml version="1.0" encoding="UTF-8"?><error><message>Invalid or missing API key</message></error>';
 $denied = (new SearchFixtureClient([$server], $ownError))->searchServer($server, 'q', 5);
 $check($denied['error'] === 'Invalid or missing API key' && $denied['records'] === [], '12c the <error> our own endpoint answers with is the server\'s error');

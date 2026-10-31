@@ -242,6 +242,7 @@ class SruClient
         }
         $totalNode = $xpath->query("//*[local-name()='numberOfRecords'] | //*[local-name()='hitCount']")->item(0);
         $records = [];
+        $readError = null;
 
         if ($syntax === 'dc' || $syntax === 'oai_dc') {
             foreach ($xpath->query("//*[local-name()='recordData']") ?: [] as $recordData) {
@@ -265,6 +266,9 @@ class SruClient
                     break;
                 }
                 if (!$item instanceof \App\Support\Marc\MarcRecord) {
+                    if ($item instanceof \App\Support\Marc\MarcReadError) {
+                        $readError ??= $item->message;
+                    }
                     continue;
                 }
                 $flavour = \App\Support\Marc\MarcFormat::detectFlavour($item);
@@ -281,7 +285,11 @@ class SruClient
             }
         }
         $total = $totalNode !== null ? (int) $totalNode->nodeValue : count($records);
-        return ['total' => max($total, count($records)), 'records' => $records, 'error' => null];
+        // Hits the reader could not turn into a single record are the
+        // server's error, not an empty result ("0 of 1" with no reason).
+        // One unreadable hit among readable ones is skipped, as before.
+        $error = $records === [] && $readError !== null ? $readError : null;
+        return ['total' => max($total, count($records)), 'records' => $records, 'error' => $error];
     }
 
     /**
