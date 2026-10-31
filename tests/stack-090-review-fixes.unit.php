@@ -18,6 +18,8 @@ declare(strict_types=1);
  *  20    the suppliers box tokenises like ExactSearch::tokenize() (inch marks,
  *        unclosed quotes, typographic quotes) and lower-cases locale-free;
  *        the parity half runs the view's own script under node when present
+ *  21    ExactSearch::tokenize() keeps a typed U+E000 and reads an inch mark
+ *        after a digit of any script
  *
  * Run: php tests/stack-090-review-fixes.unit.php   (exit 0 iff every check passes)
  */
@@ -176,25 +178,29 @@ foreach ($files as $rel) {
 }
 $check($offenders === [], '18 no bare "LIKE ?" on typed input in the 0.9.0 search code' . ($offenders !== [] ? ' — ' . implode(' | ', $offenders) : ''));
 $view = (string) file_get_contents($root . '/app/Views/fornitori/index.php');
-$check(!str_contains($view, ".includes(q)") && str_contains($view, '[^"“”„«»]') && str_contains($view, "normalize('NFD')") && str_contains($view, 'search_fornitore_hint'),
+$check(!str_contains($view, ".includes(q)") && str_contains($view, 'QUOTES.includes(ch)') && str_contains($view, "normalize('NFD')") && str_contains($view, 'search_fornitore_hint'),
     '19 the suppliers box tokenises quoted groups, folds accents for plain words and shows the quote hint');
 
 // 20: the browser tokenizer of the suppliers box against ExactSearch.
-$guardOk = !str_contains($view, 'toLocaleLowerCase') && str_contains($view, 'protectInchMarks');
+// Any combining mark is folded (not only U+0300-U+036F), any script's
+// digit makes a following quote an inch mark, and no private-use stand-in
+// is substituted (a name holding U+E000 must still be found).
+$guardOk = !str_contains($view, 'toLocaleLowerCase') && str_contains($view, '\p{M}') && str_contains($view, '\p{Nd}') && !str_contains($view, '\uE000');
 $parityNote = 'node not found, source guard only';
 $node = trim((string) shell_exec('command -v node 2>/dev/null'));
 if ($guardOk && $node !== '') {
     $start = strpos($view, '    const QUOTES');
     $end = strpos($view, "    search.addEventListener('input'");
     $cases = ['12"', 'monitor 24" lcd', '"1984"', '"Thomas Mann" buddenbrooks', '„Häffner“ rolf', '"unclosed run  to end',
-        '5” floppy', '«Il  Mulino» 3"', 'abc "12" x', 'IKEA', '"ACME  Books"', 'x 7""y z"', '"12" monitor'];
+        '5” floppy', '«Il  Mulino» 3"', 'abc "12" x', 'IKEA', '"ACME  Books"', 'x 7""y z"', '"12" monitor',
+        "A\u{1AB0}CME", '١٢"', "foo\u{E000}bar", "\"x\u{E000}y\" 5\""];
     $expected = [];
     foreach ($cases as $case) {
         $row = [];
         foreach (ExactSearch::tokenize($case) as ['term' => $term, 'exact' => $exact]) {
             $row[] = ['term' => $exact
                 ? mb_strtolower((string) \Normalizer::normalize($term, \Normalizer::FORM_C))
-                : mb_strtolower((string) preg_replace('/\p{Mn}/u', '', (string) \Normalizer::normalize($term, \Normalizer::FORM_D))), 'exact' => $exact];
+                : mb_strtolower((string) preg_replace('/\p{M}/u', '', (string) \Normalizer::normalize($term, \Normalizer::FORM_D))), 'exact' => $exact];
         }
         $expected[] = $row;
     }
@@ -208,6 +214,13 @@ if ($guardOk && $node !== '') {
     $parityNote = $guardOk ? 'node parity on ' . count($cases) . ' queries' : 'node output differs from ExactSearch::tokenize()';
 }
 $check($guardOk, '20 the suppliers box tokenises like ExactSearch (inch marks, unclosed quotes) and lower-cases locale-free (' . $parityNote . ')');
+
+// 21: ExactSearch keeps a typed U+E000 as typed (it used to come back as a
+// double quote, the stand-in it used for inch marks) and treats any script's
+// digit before a quote as an inch mark.
+$check(ExactSearch::tokenize("foo\u{E000}bar 12\"") === [['term' => "foo\u{E000}bar", 'exact' => false], ['term' => '12"', 'exact' => false]]
+    && ExactSearch::tokenize('١٢" "x"') === [['term' => '١٢"', 'exact' => false], ['term' => 'x', 'exact' => true]],
+    '21 ExactSearch::tokenize() keeps U+E000 verbatim and reads an inch mark after any digit');
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);
