@@ -242,6 +242,7 @@ class SruClient
         }
         $totalNode = $xpath->query("//*[local-name()='numberOfRecords'] | //*[local-name()='hitCount']")->item(0);
         $records = [];
+        $readError = null;
 
         if ($syntax === 'dc' || $syntax === 'oai_dc') {
             foreach ($xpath->query("//*[local-name()='recordData']") ?: [] as $recordData) {
@@ -265,6 +266,7 @@ class SruClient
                     break;
                 }
                 if (!$item instanceof \App\Support\Marc\MarcRecord) {
+                    $readError ??= $item->message;
                     continue;
                 }
                 $flavour = \App\Support\Marc\MarcFormat::detectFlavour($item);
@@ -281,7 +283,11 @@ class SruClient
             }
         }
         $total = $totalNode !== null ? (int) $totalNode->nodeValue : count($records);
-        return ['total' => max($total, count($records)), 'records' => $records, 'error' => null];
+        // Hits the reader could not turn into a single record are the
+        // server's error, not an empty result ("0 of 1" with no reason).
+        // One unreadable hit among readable ones is skipped, as before.
+        $error = $records === [] && $readError !== null ? $readError : null;
+        return ['total' => max($total, count($records)), 'records' => $records, 'error' => $error];
     }
 
     /**
@@ -330,8 +336,8 @@ class SruClient
      * Enforce a max-1-request-per-second rate limit per server.
      *
      * Strategy (FIX F088):
-     *  1. APCu (when available): use apcu_cas / apcu_store with a TTL key so all workers on the
-     *     box see the same "last request" timestamp.
+     *  1. APCu (when available): every request reserves its own slot with apcu_add / apcu_cas
+     *     (reserveApcuSlot()), so all workers on the box share one schedule per server.
      *  2. File-lock fallback: a tiny per-server lock file in sys_get_temp_dir() is opened with
      *     flock(LOCK_EX), the previous timestamp is read, we sleep if needed, then write the
      *     fresh timestamp before releasing the lock.
@@ -340,25 +346,56 @@ class SruClient
      * @param string                $serverKey   stable per-server identifier (URL)
      * @param array<string, float>  $lastRequest in-process fallback state, passed by reference
      */
+    /**
+     * Reserve the next request slot of one server in APCu: the time, in
+     * microseconds, at which this request may go — now, or one interval
+     * after the slot last reserved, whichever is later. The slot is taken
+     * with apcu_add() / apcu_cas(), so concurrent workers each get their
+     * own. Null when APCu does not cooperate (the caller falls back).
+     */
+    public static function reserveApcuSlot(string $key, int $intervalMicros, ?int $now = null): ?int
+    {
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $at = $now ?? (int) (microtime(true) * 1_000_000);
+            $found = false;
+            $previous = apcu_fetch($key, $found);
+            if (!$found) {
+                // No TTL: one integer per server, and an old value only means
+                // the next slot is now.
+                if (apcu_add($key, $at)) {
+                    return $at;
+                }
+                continue;
+            }
+            if (!is_int($previous)) {
+                apcu_delete($key);
+                continue;
+            }
+            $slot = max($at, $previous + $intervalMicros);
+            if (apcu_cas($key, $previous, $slot)) {
+                return $slot;
+            }
+        }
+        return null;
+    }
+
     private function enforceRateLimit(string $serverKey, array &$lastRequest): void
     {
         $minIntervalSeconds = 1.0;
         $now = microtime(true);
 
-        // Tier 1: APCu shared across workers on the same machine
-        if (function_exists('apcu_fetch') && function_exists('apcu_store')) {
-            $apcuKey = 'sru_rate_' . md5($serverKey);
-            $success = false;
-            $previous = apcu_fetch($apcuKey, $success);
-            if ($success && is_numeric($previous)) {
-                $elapsed = $now - (float)$previous;
-                if ($elapsed < $minIntervalSeconds) {
-                    usleep((int)(($minIntervalSeconds - $elapsed) * 1_000_000));
+        // Tier 1: APCu shared across workers on the same machine. Each request
+        // reserves its own slot atomically, so two workers that look at the
+        // same moment never both go.
+        if (function_exists('apcu_enabled') && apcu_enabled() && function_exists('apcu_cas')) {
+            $slot = self::reserveApcuSlot('sru_rate_' . md5($serverKey), (int) ($minIntervalSeconds * 1_000_000));
+            if ($slot !== null) {
+                $wait = $slot - (int) (microtime(true) * 1_000_000);
+                if ($wait > 0) {
+                    usleep($wait);
                 }
+                return;
             }
-            // TTL of 2s is enough to enforce a 1s window without leaking entries
-            apcu_store($apcuKey, microtime(true), 2);
-            return;
         }
 
         // Tier 2: file lock shared across workers on the same machine
@@ -406,6 +443,46 @@ class SruClient
      */
     private function queryServer(array $server, string $index, string $term): ?array
     {
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        if ($cqlIndex !== '') {
+            return $this->queryServerIndex($server, $index, $cqlIndex, $relation, $cqlIndex, $term);
+        }
+        // An unconfigured server gets the standard index (bath.isbn), as the
+        // copy cataloguing search does: a bare "isbn" is not a CQL index every
+        // SRU server resolves. A server set up for the bare name (what this
+        // client sent before) may know only that one, so when the standard
+        // index finds nothing, or is refused, the bare name is tried once.
+        // DBC OpenSearch has its own index names: it keeps the bare one.
+        $standard = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
+        if ($standard === $index || strtolower((string) ($server['syntax'] ?? '')) === 'dbc-opensearch') {
+            return $this->queryServerIndex($server, $index, $standard, $relation, $index, $term);
+        }
+        $failure = null;
+        try {
+            $book = $this->queryServerIndex($server, $index, $standard, $relation, $index, $term);
+            if ($book !== null) {
+                return $book;
+            }
+        } catch (\Throwable $e) {
+            $failure = $e;
+        }
+        static $lastRequest = [];
+        $this->enforceRateLimit((string) ($server['url'] ?? 'unknown'), $lastRequest);
+        try {
+            return $this->queryServerIndex($server, $index, $index, $relation, $index, $term);
+        } catch (\Throwable $e) {
+            throw $failure ?? $e;
+        }
+    }
+
+    /**
+     * One searchRetrieve for one record with an explicit CQL index.
+     *
+     * @param array<string, mixed> $server
+     * @return array<string, mixed>|null
+     */
+    private function queryServerIndex(array $server, string $index, string $cqlIndex, string $relation, string $dbcIndex, string $term): ?array
+    {
         $url = $server['url'];
 
         // Validate URL
@@ -421,16 +498,6 @@ class SruClient
         $version = $server['version'] ?? '1.1';
         $recordSchema = strtolower($server['syntax'] ?? 'marcxml');
 
-        // Build CQL query with custom index mapping
-        [$cqlIndex, $relation] = self::indexSpec($server, $index);
-        // DBC OpenSearch has its own index names (below): it keeps the bare one.
-        $dbcIndex = $cqlIndex === '' ? $index : $cqlIndex;
-        if ($cqlIndex === '') {
-            // An unconfigured server gets the standard index (bath.isbn), as the
-            // copy cataloguing search does: a bare "isbn" is not a CQL index
-            // every SRU server resolves.
-            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
-        }
         $relation = $relation === '=' ? '=' : ' ' . $relation . ' ';
 
         // Build query parameters

@@ -148,12 +148,24 @@ final class StocktakeService
         return $filter;
     }
 
-    /** A scanned or typed code, without the control characters some wedge scanners append. */
+    /**
+     * A scanned or typed code, without the control characters some wedge
+     * scanners append. Never shortened: a code longer than MAX_CODE_LENGTH is
+     * refused by assertCodeLength(), since its first characters could be the
+     * whole code of another copy.
+     */
     public static function normalizeCode(string $code): string
     {
         $code = preg_replace('/[\x00-\x1F\x7F]+/u', '', $code) ?? '';
-        $code = trim($code);
-        return mb_substr($code, 0, self::MAX_CODE_LENGTH);
+        return trim($code);
+    }
+
+    /** @throws \InvalidArgumentException when the code does not fit the column */
+    private static function assertCodeLength(string $code): void
+    {
+        if (mb_strlen($code) > self::MAX_CODE_LENGTH) {
+            throw new \InvalidArgumentException(sprintf(__('Codice troppo lungo: al massimo %d caratteri.'), self::MAX_CODE_LENGTH));
+        }
     }
 
     /**
@@ -162,8 +174,10 @@ final class StocktakeService
      *
      * A .txt line is the code itself: only a tab (which no code can hold, see
      * normalizeCode()) separates it from trailing scanner columns, so a code
-     * such as "INV,001" survives. A .csv is read with a real CSV parser, using
-     * the delimiter of its first line, so a quoted "INV,001" survives too.
+     * such as "INV,001" survives. A .csv is read record by record with a real
+     * CSV parser, using the delimiter of its first line, so a quoted "INV,001"
+     * survives too, and so does a quoted cell that spans several lines. Only
+     * its first column is the code: a row whose first cell is empty has none.
      *
      * @return list<string>
      */
@@ -175,24 +189,10 @@ final class StocktakeService
         if (!mb_check_encoding($text, 'UTF-8')) {
             $text = mb_convert_encoding($text, 'UTF-8', 'ISO-8859-1');
         }
-        $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
-        $delimiter = $csv ? self::csvDelimiter($lines) : "\t";
         $codes = [];
         $first = true;
-        foreach ($lines as $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-            $cells = $csv ? str_getcsv($line, $delimiter, '"', '') : explode("\t", $line);
-            $cell = '';
-            foreach ($cells as $candidate) {
-                $candidate = trim((string) $candidate, " \"'");
-                if ($candidate !== '') {
-                    $cell = $candidate;
-                    break;
-                }
-            }
-            $cell = self::normalizeCode($cell);
+        foreach ($csv ? self::csvFirstCells($text) : self::txtFirstCells($text) as $cell) {
+            $cell = self::normalizeCode(trim($cell, " \"'"));
             if ($cell === '') {
                 continue;
             }
@@ -207,23 +207,78 @@ final class StocktakeService
     }
 
     /**
-     * The delimiter of a CSV export: the most frequent of , ; and tab on its
-     * first non-blank line (comma when the line has none, a one-column file).
+     * The first non-blank cell of every .txt line.
      *
-     * @param list<string> $lines
+     * @return list<string>
      */
-    private static function csvDelimiter(array $lines): string
+    private static function txtFirstCells(string $text): array
     {
-        foreach ($lines as $line) {
+        $cells = [];
+        foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
+            foreach (explode("\t", $line) as $candidate) {
+                if (trim($candidate, " \"'") !== '') {
+                    $cells[] = $candidate;
+                    break;
+                }
+            }
+        }
+        return $cells;
+    }
+
+    /**
+     * The first cell of every .csv record. Records are read whole, so a line
+     * break inside a quoted cell does not start a new record.
+     *
+     * @return list<string>
+     */
+    private static function csvFirstCells(string $text): array
+    {
+        // fgetcsv() does not split on a bare CR (old Mac exports).
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $stream = fopen('php://memory', 'r+');
+        if ($stream === false) {
+            throw new \RuntimeException('Cannot open a memory stream for the CSV file');
+        }
+        try {
+            fwrite($stream, $text);
+            rewind($stream);
+            $delimiter = self::csvDelimiter($text);
+            $cells = [];
+            while (($record = fgetcsv($stream, null, $delimiter, '"', '')) !== false) {
+                $cells[] = (string) ($record[0] ?? '');
+            }
+            return $cells;
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * The delimiter of a CSV export: the most frequent of , ; and tab on its
+     * first non-blank line, counting only those outside quoted cells (comma
+     * when the line has none, a one-column file).
+     */
+    private static function csvDelimiter(string $text): string
+    {
+        foreach (explode("\n", $text) as $line) {
             if (trim($line) === '') {
                 continue;
             }
+            $counts = [',' => 0, ';' => 0, "\t" => 0];
+            $quoted = false;
+            for ($i = 0, $n = strlen($line); $i < $n; $i++) {
+                $char = $line[$i];
+                if ($char === '"') {
+                    $quoted = !$quoted; // an escaped "" flips twice
+                } elseif (!$quoted && isset($counts[$char])) {
+                    $counts[$char]++;
+                }
+            }
             $best = ',';
             $bestCount = 0;
-            foreach ([',', ';', "\t"] as $candidate) {
-                $count = substr_count($line, $candidate);
+            foreach ($counts as $candidate => $count) {
                 if ($count > $bestCount) {
-                    $best = $candidate;
+                    $best = (string) $candidate;
                     $bestCount = $count;
                 }
             }
@@ -450,6 +505,7 @@ final class StocktakeService
         if ($code === '') {
             throw new \InvalidArgumentException(__('Codice mancante.'));
         }
+        self::assertCodeLength($code);
         $this->assertOpen($sessionId);
         return $this->record($sessionId, $code, $operatorId, $scanShelf);
     }
@@ -465,17 +521,33 @@ final class StocktakeService
         if (count($codes) > self::MAX_UPLOAD_CODES) {
             throw new \InvalidArgumentException(sprintf(__('Il file contiene troppi codici: al massimo %d per caricamento.'), self::MAX_UPLOAD_CODES));
         }
+        // Checked before anything is recorded: a file refused halfway would
+        // leave its first codes behind, and the retry would find them duplicate.
+        foreach ($codes as $code) {
+            self::assertCodeLength(self::normalizeCode($code));
+        }
         $this->assertOpen($sessionId);
         $outcomes = array_fill_keys(self::OUTCOMES, 0);
         $total = 0;
-        foreach ($codes as $code) {
-            $code = self::normalizeCode($code);
-            if ($code === '') {
-                continue;
+        // One transaction for the whole file: a file that fails halfway records
+        // nothing, so uploading it again does not turn its first codes into
+        // duplicates. The session lock is taken once, as record() would.
+        $this->db->begin_transaction();
+        try {
+            $this->lockOpenSession($sessionId);
+            foreach ($codes as $code) {
+                $code = self::normalizeCode($code);
+                if ($code === '') {
+                    continue;
+                }
+                $result = $this->record($sessionId, $code, $operatorId, $scanShelf, true);
+                $outcomes[$result['esito']]++;
+                $total++;
             }
-            $result = $this->record($sessionId, $code, $operatorId, $scanShelf);
-            $outcomes[$result['esito']]++;
-            $total++;
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
         }
         return ['total' => $total, 'outcomes' => $outcomes];
     }
@@ -484,11 +556,16 @@ final class StocktakeService
      * `fuori_circolazione` flags a copy recorded as lost, damaged or away
      * (OFF_SHELF_STATES): such a copy is left out of the snapshot, so a scan of
      * it is out of scope, but the operator must be told it turned up rather
-     * than that it is outside the filter.
+     * than that it is outside the filter. An expected copy that got one of
+     * those states after the opening is found as usual, and flagged too.
+     *
+     * With $insideTransaction the caller already holds a transaction and the
+     * session lock (importCodes()): the scan is written inside it, never in a
+     * nested one.
      *
      * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool}
      */
-    private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf): array
+    private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf, bool $insideTransaction = false): array
     {
         // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
         $stmt = $this->db->prepare(
@@ -538,23 +615,32 @@ final class StocktakeService
         // and cancel() flip the state with an UPDATE that waits for that lock,
         // so a scan either lands before the session leaves 'aperta' (and close()
         // sees it before marking copies lost) or is refused afterwards.
-        $this->db->begin_transaction();
+        if (!$insideTransaction) {
+            $this->db->begin_transaction();
+        }
         try {
-            $this->lockOpenSession($sessionId);
+            if (!$insideTransaction) {
+                $this->lockOpenSession($sessionId);
+            }
             try {
                 $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
             } catch (\mysqli_sql_exception $e) {
                 // Two operators scanned the same copy at the same instant: the UNIQUE
                 // (sessione_id, copia_id) let one win, the other is a duplicate.
+                // A failed INSERT undoes only itself, not the surrounding transaction.
                 if ($e->getCode() !== 1062 || $storedCopyId === null) {
                     throw $e;
                 }
                 $outcome = 'duplicata';
                 $this->insertScan($sessionId, null, $code, $outcome, $operatorId);
             }
-            $this->db->commit();
+            if (!$insideTransaction) {
+                $this->db->commit();
+            }
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if (!$insideTransaction) {
+                $this->db->rollback();
+            }
             throw $e;
         }
 
@@ -857,6 +943,25 @@ final class StocktakeService
         return $rows;
     }
 
+    /** How many rows reportRows() returns, counted without loading them. */
+    public function reportRowCount(int $sessionId): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT (SELECT COUNT(*) FROM inventario_attese a '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            . 'WHERE a.sessione_id = ? AND s.id IS NULL) '
+            . '+ (SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = ?)'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('ii', $sessionId, $sessionId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return (int) ($row[0] ?? 0);
+    }
+
     /**
      * Most recent scans first; with $operatorId only that operator's. A null
      * $limit returns them all (the report); the live list asks for a page.
@@ -976,7 +1081,8 @@ final class StocktakeService
      * Only rows the close froze as missing ('mancante') qualify: a row it
      * already marked ('persa') is never marked again. A copy changed after
      * the close (found and put back, repaired, lent) is someone's later
-     * decision, not a copy the close failed to reach, so it is left alone.
+     * decision, not a copy the close failed to reach, so it is left alone
+     * (changedSinceClose()).
      *
      * @return array<int,list<array<string,mixed>>>
      */
@@ -991,8 +1097,7 @@ final class StocktakeService
             if ((int) $row['in_prestito'] === 1 || $row['libro_id'] === null || $row['libro_attivo'] === null) {
                 continue; // lent or held for pickup, or the copy/book left the catalogue meanwhile
             }
-            $changedAt = $row['copia_aggiornata_il'] ?? null;
-            if ($closedAt !== null && is_string($changedAt) && $changedAt > $closedAt) {
+            if (self::changedSinceClose($row['copia_aggiornata_il'] ?? null, $closedAt)) {
                 continue; // handled by someone after the close
             }
             if (in_array((string) $row['stato_attuale'], self::AWAY_STATES, true)) {
@@ -1001,6 +1106,18 @@ final class StocktakeService
             $byBook[(int) $row['libro_id']][] = $row;
         }
         return $byBook;
+    }
+
+    /**
+     * The copy was changed at or after the close. Both columns hold whole
+     * seconds, so a change in the very second of the close cannot be told
+     * from one just before it: it counts as later, and the copy is left
+     * alone rather than declared lost over someone's edit. The close itself
+     * never touches a copy it has not marked, so it cannot trip this.
+     */
+    private static function changedSinceClose(mixed $changedAt, ?string $closedAt): bool
+    {
+        return $closedAt !== null && is_string($changedAt) && $changedAt >= $closedAt;
     }
 
     /** When the session was closed (MySQL DATETIME text), or NULL. */
@@ -1109,11 +1226,13 @@ final class StocktakeService
                 $this->db->rollback();
                 return [];
             }
+            $closedAt = $this->closedAt($sessionId);
 
             foreach ($copies as $copy) {
                 $copyId = (int) $copy['copia_id'];
-                // Re-read under the book lock: a return or a loan may have happened since the report.
-                $stmt = $this->db->prepare('SELECT stato, numero_inventario, note FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
+                // Re-read under the book lock: a return, a loan or any other
+                // edit of the copy may have happened since missingToMark().
+                $stmt = $this->db->prepare('SELECT stato, numero_inventario, note, updated_at FROM copie WHERE id = ? AND libro_id = ? FOR UPDATE');
                 if ($stmt === false) {
                     throw new \RuntimeException($this->db->error);
                 }
@@ -1124,6 +1243,10 @@ final class StocktakeService
                 if (!is_array($current) || in_array((string) $current['stato'], self::AWAY_STATES, true) || $this->isOnLoan($copyId)) {
                     continue;
                 }
+                if (self::changedSinceClose($current['updated_at'] ?? null, $closedAt)) {
+                    continue; // edited after the close: someone's later decision
+                }
+                unset($current['updated_at']);
                 $scanned = $this->db->prepare('SELECT 1 FROM inventario_scansioni WHERE sessione_id = ? AND copia_id = ? LIMIT 1');
                 if ($scanned === false) {
                     throw new \RuntimeException($this->db->error);
@@ -1148,8 +1271,10 @@ final class StocktakeService
                 // Same predicate as reassignOnCopyLost(), window still valid included:
                 // an expired hold is left to the expiry cleanup, and counting it here
                 // would spin the guard without the reassignment ever taking it.
+                // A hold still there after the guard rolls the whole book back:
+                // committing would leave a reader's hold on a lost copy.
                 $today = DateHelper::today();
-                for ($guard = 0; $guard < 1000; $guard++) {
+                for ($guard = 0; ; $guard++) {
                     $held = $this->db->prepare(
                         "SELECT 1 FROM prestiti WHERE copia_id = ? AND data_scadenza >= ? AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare')) OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione')) LIMIT 1"
                     );
@@ -1163,6 +1288,9 @@ final class StocktakeService
                     if (!$stillHeld) {
                         break;
                     }
+                    if ($guard >= 1000) {
+                        throw new \RuntimeException('Holds still on copy ' . $copyId . ' after reassignment');
+                    }
                     $reassignment->reassignOnCopyLost($copyId);
                 }
                 $changed[] = ['id' => $copyId] + $current;
@@ -1174,6 +1302,27 @@ final class StocktakeService
             // Keep the historical outcome in the same transaction as the copy
             // state, hold reassignment and availability it describes.
             $this->markFrozenLost($sessionId, array_map(static fn (array $copy): int => (int) $copy['id'], $changed));
+            // The audit entry too: written after the commit, a request cut off
+            // in between left a 'persa' copy that a resume skips, so its
+            // copy.inventory_lost event was never written.
+            foreach ($changed as $copy) {
+                $logged = ActivityLog::recordBookEvent(
+                    $this->db,
+                    $bookId,
+                    'aggiornamento',
+                    'copy',
+                    'copy.inventory_lost',
+                    ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => $copy['stato'] ?? null],
+                    ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => 'perso', 'inventario_sessione' => $sessionId],
+                    $operatorId,
+                    (int) $copy['id'],
+                    null,
+                    'inventory'
+                );
+                if (!$logged) {
+                    throw new \RuntimeException('Audit entry for the lost copy ' . (int) $copy['id'] . ' could not be written');
+                }
+            }
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -1184,22 +1333,6 @@ final class StocktakeService
             $reassignment->flushDeferredNotifications();
         } catch (\Throwable $e) {
             SecureLogger::warning('[Stocktake] reassignment notification failed', ['error' => $e->getMessage()]);
-        }
-
-        foreach ($changed as $copy) {
-            ActivityLog::recordBookEvent(
-                $this->db,
-                $bookId,
-                'aggiornamento',
-                'copy',
-                'copy.inventory_lost',
-                ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => $copy['stato'] ?? null],
-                ['numero_inventario' => $copy['numero_inventario'] ?? null, 'stato' => 'perso', 'inventario_sessione' => $sessionId],
-                $operatorId,
-                (int) $copy['id'],
-                null,
-                'inventory'
-            );
         }
         return array_map(static fn (array $copy): int => (int) $copy['id'], $changed);
     }
