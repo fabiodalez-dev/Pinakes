@@ -128,7 +128,12 @@ $data = [
 $csv = new \App\Controllers\CsvImportController();
 $parsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($data));
 [$fill, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $data, $parsed, $existing);
-$check($fill['isbn'] === true && $row['isbn13'] === '9788845292613' && $row['isbn10'] === '0140449132', 'fill: the ISBN family is written for the empty ISBN-10, the book\'s ISBN-13 is kept');
+$check($fill['isbn'] === false && $row['isbn13'] === '9788845292613' && $row['isbn10'] === '', 'fill: the ISBN-10 of another work is not added next to the book\'s ISBN-13');
+$sameWork = ['isbn13' => '9780140449136', 'isbn10' => '0140449132'] + $data;
+[$fillSame, $rowSame] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $sameWork, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($sameWork)), ['isbn13' => '9780140449136'] + $existing);
+$check($fillSame['isbn'] === true && $rowSame['isbn13'] === '9780140449136' && $rowSame['isbn10'] === '0140449132', 'fill: the ISBN family is written for the empty ISBN-10 when it is the same ISBN as the book\'s ISBN-13');
+[$fillTen, $rowTen] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $data, $parsed, ['isbn13' => '', 'isbn10' => '8845292614'] + $existing);
+$check($fillTen['isbn'] === false && $rowTen['isbn13'] === '' && $rowTen['isbn10'] === '8845292614', 'fill: the ISBN-13 of another work is not added next to the book\'s ISBN-10 either');
 $check($fill['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '3', 'fill: the series number is filled, the series name kept');
 $check($fill['contributors'] === true && $row['traduttore'] === 'Old Translator' && $row['illustratore'] === 'Ill Ustrator', 'fill: the illustrator is filled, the translator kept');
 $check($fill['titolo'] === false && $fill['keywords'] === false && $fill['authors'] === false && $fill['publisher'] === false, 'fill: title, keywords, authors and publisher the book has are not touched');
