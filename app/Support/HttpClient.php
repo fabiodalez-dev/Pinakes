@@ -28,7 +28,8 @@ use GuzzleHttp\Exception\GuzzleException;
  * transport errors, mirroring the previous `curl_exec() === false` handling:
  *   ['ok' => bool, 'status' => int, 'body' => string]
  * `ok` is false on a transport-level failure (DNS, connection, TLS); `status`
- * is then 0. HTTP 4xx/5xx are returned as-is (ok=true, status set) so callers
+ * is then 0 and `error` says which kind of failure it was (FAILURE_* below),
+ * so a caller can retry a refused connection but not a hung server. HTTP 4xx/5xx are returned as-is (ok=true, status set) so callers
  * keep deciding what a "successful" response means, exactly as before.
  */
 final class HttpClient
@@ -37,6 +38,15 @@ final class HttpClient
     private const DEFAULT_TIMEOUT = 20;
     private const DEFAULT_CONNECT_TIMEOUT = 10;
     private const DEFAULT_MAX_REDIRECTS = 3;
+
+    /** The request was refused before it left (scheme, SSRF guard). */
+    public const FAILURE_BLOCKED = 'blocked';
+    /** DNS, refused or reset connection, TLS: nothing usable was answered. */
+    public const FAILURE_CONNECT = 'connect';
+    /** The connect or the whole request ran past its timeout. */
+    public const FAILURE_TIMEOUT = 'timeout';
+    /** The answer was larger than max_bytes. */
+    public const FAILURE_TOO_LARGE = 'too_large';
 
     private static ?Client $client = null;
 
@@ -49,7 +59,7 @@ final class HttpClient
      *                                       query (array), https_only (bool),
      *                                       ssrf_guard (bool), max_bytes (int —
      *                                       abort the download past this size)
-     * @return array{ok:bool,status:int,body:string}
+     * @return array{ok:bool,status:int,body:string,error?:string}
      */
     public static function get(string $url, array $headers = [], array $options = []): array
     {
@@ -63,7 +73,7 @@ final class HttpClient
      *                                                  array sent as form params
      * @param array<string,string>            $headers Extra request headers
      * @param array<string,mixed>             $options See {@see self::get()}
-     * @return array{ok:bool,status:int,body:string}
+     * @return array{ok:bool,status:int,body:string,error?:string}
      */
     public static function post(string $url, string|array|null $body = null, array $headers = [], array $options = []): array
     {
@@ -99,7 +109,7 @@ final class HttpClient
     /**
      * @param array<string,string> $headers
      * @param array<string,mixed>  $options
-     * @return array{ok:bool,status:int,body:string}
+     * @return array{ok:bool,status:int,body:string,error?:string}
      */
     private static function request(string $method, string $url, array $headers, array $options): array
     {
@@ -117,7 +127,7 @@ final class HttpClient
 
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
         if (!in_array($scheme, $allowedSchemes, true)) {
-            return ['ok' => false, 'status' => 0, 'body' => ''];
+            return ['ok' => false, 'status' => 0, 'body' => '', 'error' => self::FAILURE_BLOCKED];
         }
 
         // For caller-configurable endpoints, fail closed unless the host
@@ -129,12 +139,12 @@ final class HttpClient
         $pinnedPorts = [];
         if ($ssrfGuard) {
             if ($pinnedHost === '' || !\extension_loaded('curl')) {
-                return ['ok' => false, 'status' => 0, 'body' => ''];
+                return ['ok' => false, 'status' => 0, 'body' => '', 'error' => self::FAILURE_BLOCKED];
             }
             $pinnedIp = SsrfGuard::resolvePinnedIp($pinnedHost);
             if ($pinnedIp === null) {
                 SecureLogger::warning('HttpClient SSRF guard rejected endpoint host', ['host' => $pinnedHost]);
-                return ['ok' => false, 'status' => 0, 'body' => ''];
+                return ['ok' => false, 'status' => 0, 'body' => '', 'error' => self::FAILURE_BLOCKED];
             }
             $options['pin_ip'] = $pinnedIp;
             $initialPort = (int) (parse_url($url, PHP_URL_PORT) ?? ($scheme === 'https' ? 443 : 80));
@@ -254,8 +264,39 @@ final class HttpClient
                 'error' => preg_replace('/([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/i', '$1[redacted]', $e->getMessage()),
             ]);
 
-            return ['ok' => false, 'status' => 0, 'body' => ''];
+            return ['ok' => false, 'status' => 0, 'body' => '', 'error' => self::failureKind($e)];
         }
+    }
+
+    /**
+     * The kind of a transport failure: the cURL error number when Guzzle
+     * carries one, and the max_bytes guards above, which throw from inside
+     * the transfer (Guzzle wraps them, or cURL aborts the callback).
+     */
+    private static function failureKind(\Throwable $e): string
+    {
+        for ($t = $e; $t !== null; $t = $t->getPrevious()) {
+            if (str_contains($t->getMessage(), 'exceeds max_bytes')) {
+                return self::FAILURE_TOO_LARGE;
+            }
+            if ($t->getMessage() === 'SSRF guard rejected redirect target') {
+                return self::FAILURE_BLOCKED;
+            }
+        }
+        $errno = 0;
+        if (method_exists($e, 'getHandlerContext')) {
+            $errno = (int) ($e->getHandlerContext()['errno'] ?? 0);
+        }
+        // 28 CURLE_OPERATION_TIMEDOUT (connect or transfer timeout)
+        if ($errno === 28 || stripos($e->getMessage(), 'timed out') !== false) {
+            return self::FAILURE_TIMEOUT;
+        }
+        // 42 CURLE_ABORTED_BY_CALLBACK: only the max_bytes progress guard aborts;
+        // 63 CURLE_FILESIZE_EXCEEDED
+        if ($errno === 42 || $errno === 63) {
+            return self::FAILURE_TOO_LARGE;
+        }
+        return self::FAILURE_CONNECT;
     }
 
     private static function client(): Client
