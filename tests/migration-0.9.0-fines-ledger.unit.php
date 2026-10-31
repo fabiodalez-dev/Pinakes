@@ -215,6 +215,18 @@ try {
     }
     $check((int) $scalar("SELECT COUNT(*) FROM email_templates WHERE name = 'loan_returned'") === 5, 'one loan_returned row per locale after the passes');
 
+    echo "Upgrade: the legacy penalty backfill completes right after the migrations\n";
+    $db->query("INSERT INTO prestiti (id, utente_id, stato, sanzione, data_restituzione) VALUES (18, 1, 'perso', 3.00, '2026-07-04')");
+    $check(PatronLedger::completeLegacyPenaltyBackfill($db) && $scalar("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:18'") === '1', 'completeLegacyPenaltyBackfill() converts what the migration left');
+    $check($scalar("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = 'legacy_penalties_backfilled'") === '1', '...and records the completed scan, so maintenance skips it');
+    $check(PatronLedger::completeLegacyPenaltyBackfill($db) && $scalar("SELECT COUNT(*) FROM movimenti_lettore WHERE chiave_idempotenza = 'penalty:18'") === '1', '...a second call is a no-op');
+    $updaterSource = (string) file_get_contents($root . '/app/Support/Updater.php');
+    $triggersPos = strpos($updaterSource, '$this->reapplyTriggers();');
+    $backfillPos = strpos($updaterSource, 'PatronLedger::completeLegacyPenaltyBackfill($this->db)');
+    $check($triggersPos !== false && $backfillPos !== false && $triggersPos < $backfillPos && str_contains($updaterSource, "version_compare(\$toVersion, '0.9.0-rc.1', '>=')"), 'Updater::runMigrations() runs the backfill after the triggers, on upgrades reaching 0.9.0-rc.1');
+    $maintenanceSource = (string) file_get_contents($root . '/app/Support/MaintenanceService.php');
+    $check(str_contains($maintenanceSource, 'PatronLedger::completeLegacyPenaltyBackfill($this->db)'), 'maintenance retries through the same helper');
+
     $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
     $check(str_contains($schema, 'CREATE TABLE `movimenti_lettore`') && str_contains($schema, 'UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`)'), 'fresh install (schema.sql) has the same table');
     $version = (string) (json_decode((string) file_get_contents($root . '/version.json'), true)['version'] ?? '');

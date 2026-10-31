@@ -505,6 +505,27 @@ final class PatronLedger
     }
 
     /**
+     * Run backfillLegacyPenalties() until one scan completes, then record it
+     * (loans.legacy_penalties_backfilled) so later passes skip the scan. Called
+     * by the upgrade right after the migrations, so a debt over the threshold
+     * blocks loans from the first request, and by maintenance as the retry.
+     *
+     * @return bool true when the scan is complete (now or on an earlier pass)
+     */
+    public static function completeLegacyPenaltyBackfill(mysqli $db): bool
+    {
+        $settings = new \App\Models\SettingsRepository($db);
+        if ($settings->get('loans', 'legacy_penalties_backfilled', '0') === '1') {
+            return true;
+        }
+        if (self::forDb($db)->backfillLegacyPenalties() === null) {
+            return false;
+        }
+        $settings->set('loans', 'legacy_penalties_backfilled', '1');
+        return true;
+    }
+
+    /**
      * Convert prestiti.sanzione amounts the migration did not reach (archives
      * past its batch limit) into ledger rows, $batch loans per transaction.
      * Same key as the migration, so it never doubles an amount.
