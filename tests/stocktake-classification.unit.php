@@ -87,6 +87,38 @@ $latin1 = "INV-\xE9";
 $check(S::parseCodeList($latin1) === ['INV-é'], 'a Latin-1 export is read as UTF-8');
 $check(S::parseCodeList('') === [], 'an empty file yields no codes');
 
+// The scan page's feedback line (detailFor() in inventario/show.php), run in
+// Node: a copy recorded as lost or away is flagged whatever its outcome.
+$node = trim((string) shell_exec('command -v node 2>/dev/null'));
+if ($node === '') {
+    if (getenv('CI_STRICT_TESTS') === '1') {
+        fwrite(STDERR, "FAIL node is needed to run the scan page feedback checks\n");
+        exit(1);
+    }
+    echo "SKIP scan page feedback checks: node not found\n";
+} else {
+    $view = (string) file_get_contents(dirname(__DIR__) . '/app/Views/inventario/show.php');
+    $check(preg_match('/^  function detailFor\(result\) \{\n.*?^  \}$/ms', $view, $fn) === 1, 'the scan page defines detailFor()');
+    $results = [
+        ['esito' => 'trovata', 'codice' => 'INV-1', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => true, 'stato_copia' => 'perso'],
+        ['esito' => 'fuori_ambito', 'codice' => 'INV-2', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => true, 'stato_copia' => 'perso'],
+        ['esito' => 'fuori_ambito', 'codice' => 'INV-3', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => false, 'stato_copia' => 'disponibile'],
+        ['esito' => 'trovata', 'codice' => 'INV-4', 'titolo' => 'T', 'collocazione' => '', 'fuori_circolazione' => false, 'stato_copia' => 'disponibile'],
+    ];
+    $js = 'var config = {i18n: {offShelf: "OFFSHELF", outOfScope: "OUTOFSCOPE", expectedShelf: "S", unknown: "U", duplicate: "D", onLoan: "L"}};' . "\n"
+        . $fn[0] . "\n"
+        . 'process.stdout.write(JSON.stringify(' . json_encode($results) . '.map(detailFor)));';
+    $script = tempnam(sys_get_temp_dir(), 'stocktake-js');
+    file_put_contents($script, $js);
+    $details = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
+    unlink($script);
+    $check(is_array($details) && count($details) === 4, 'detailFor() runs on the sample scans');
+    $check(str_contains($details[0], 'OFFSHELF (perso)'), 'a found copy recorded as lost after the opening tells the operator to update its state');
+    $check(str_contains($details[1], 'OFFSHELF (perso)') && !str_contains($details[1], 'OUTOFSCOPE') && substr_count($details[1], 'OFFSHELF') === 1, 'an out-of-scope copy out of circulation is flagged once, instead of "out of scope"');
+    $check(str_contains($details[2], 'OUTOFSCOPE') && !str_contains($details[2], 'OFFSHELF'), 'an ordinary out-of-scope copy is just out of scope');
+    $check(!str_contains($details[3], 'OFFSHELF'), 'an ordinary found copy carries no warning');
+}
+
 // InventoryController::scanShelf(): only a whole positive number is a shelf.
 $controller = (new ReflectionClass(\App\Controllers\InventoryController::class))->newInstanceWithoutConstructor();
 $scanShelf = new ReflectionMethod($controller, 'scanShelf');

@@ -556,7 +556,8 @@ final class StocktakeService
      * `fuori_circolazione` flags a copy recorded as lost, damaged or away
      * (OFF_SHELF_STATES): such a copy is left out of the snapshot, so a scan of
      * it is out of scope, but the operator must be told it turned up rather
-     * than that it is outside the filter.
+     * than that it is outside the filter. An expected copy that got one of
+     * those states after the opening is found as usual, and flagged too.
      *
      * With $insideTransaction the caller already holds a transaction and the
      * session lock (importCodes()): the scan is written inside it, never in a
