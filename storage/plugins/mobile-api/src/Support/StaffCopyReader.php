@@ -18,7 +18,7 @@ final class StaffCopyReader
     /** States a copy may be deleted from (CopyController::deleteCopy). */
     public const OUT_OF_CIRCULATION = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
 
-    private const SELECT = "SELECT c.id, c.libro_id, c.numero_inventario, c.stato, c.note, c.created_at, c.updated_at,
+    private const SELECT = "SELECT c.id, c.libro_id, c.numero_inventario, c.stato, c.note, c.created_at, c.updated_at, {consultation},
                l.titolo, l.copertina_url,
                EXISTS(SELECT 1 FROM prestiti p WHERE p.copia_id = c.id
                        AND ((p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
@@ -31,8 +31,28 @@ final class StaffCopyReader
           FROM copie c
           JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL";
 
+    /** Whether consultation-only copies apply (module on, 0.9.0 column present), memoised. */
+    private ?bool $consultation = null;
+
     public function __construct(private mysqli $db)
     {
+    }
+
+    /**
+     * Consultation-only copies are in force: the module is on (Settings ->
+     * Loans, also off in catalogue mode) and the 0.9.0 column exists. Off,
+     * every copy reads consultation_only false and none can be changed.
+     */
+    public function consultationActive(): bool
+    {
+        return $this->consultation ??= \App\Support\Features::enabled('consultation_only')
+            && (new \App\Services\CirculationPolicy($this->db))->schemaReady();
+    }
+
+    /** SELECT with the consultation flag, or a constant before the migration / with the module off. */
+    private function select(): string
+    {
+        return str_replace('{consultation}', $this->consultationActive() ? 'c.solo_consultazione' : '0 AS solo_consultazione', self::SELECT);
     }
 
     /** @return array<string, string> */
@@ -53,7 +73,7 @@ final class StaffCopyReader
     /** @return array<string, mixed>|null StaffCopy */
     public function copy(int $id): ?array
     {
-        $rows = $this->query(self::SELECT . ' WHERE c.id = ? LIMIT 1', 'i', [$id]);
+        $rows = $this->query($this->select() . ' WHERE c.id = ? LIMIT 1', 'i', [$id]);
 
         return isset($rows[0]) ? $this->map($rows[0]) : null;
     }
@@ -69,7 +89,7 @@ final class StaffCopyReader
     /** @return list<array<string, mixed>> */
     public function forBook(int $bookId): array
     {
-        $rows = $this->query(self::SELECT . ' WHERE c.libro_id = ? ORDER BY c.numero_inventario ASC, c.id ASC', 'i', [$bookId]);
+        $rows = $this->query($this->select() . ' WHERE c.libro_id = ? ORDER BY c.numero_inventario ASC, c.id ASC', 'i', [$bookId]);
 
         return array_map(fn (array $r): array => $this->map($r), $rows);
     }
@@ -77,7 +97,7 @@ final class StaffCopyReader
     /** @return array<string, mixed>|null copie row by inventory code */
     public function byCode(string $code): ?array
     {
-        $rows = $this->query(self::SELECT . ' WHERE c.numero_inventario = ? LIMIT 1', 's', [$code]);
+        $rows = $this->query($this->select() . ' WHERE c.numero_inventario = ? LIMIT 1', 's', [$code]);
 
         return isset($rows[0]) ? $this->map($rows[0]) : null;
     }
@@ -113,6 +133,8 @@ final class StaffCopyReader
                 'cover_url' => absoluteUrl(StaffLoanReader::coverPath($r['copertina_url'] ?? null)),
             ],
             'held'             => $held,
+            // Kept for in-house consultation, never lent (Pinakes 0.9.0).
+            'consultation_only' => (int) ($r['solo_consultazione'] ?? 0) === 1,
             'deletable'        => !$held
                 && in_array($status, self::OUT_OF_CIRCULATION, true)
                 && (int) ($r['has_history'] ?? 0) === 0,
