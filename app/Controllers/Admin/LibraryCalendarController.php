@@ -93,9 +93,13 @@ class LibraryCalendarController
             return $this->back($response);
         }
         ksort($days);
-        $error = $this->commitChange($db, static function () use ($db, $days): ?string {
+        $error = $this->commitChange($db, function () use ($db, $days): ?string {
             (new SettingsRepository($db))->set('loans', 'closed_weekdays', implode(',', $days));
-            return null;
+            // The yearly closures may leave open only days that fall on the
+            // newly closed weekdays.
+            return $this->yearCoverageError($db, ['start' => '', 'end' => '', 'description' => '', 'yearly' => true, 'sede' => null], array_values($days)) !== null
+                ? __('Con questi giorni di chiusura settimanale e le chiusure annuali la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.')
+                : null;
         });
         $_SESSION[$error === null ? 'success_message' : 'error_message'] = $error ?? __('Giorni di chiusura settimanale salvati.');
         return $this->back($response);
@@ -199,7 +203,9 @@ class LibraryCalendarController
                     $added++;
                 }
             }
-            return null;
+            // Like the form: the yearly holidays must not close the last
+            // open day the stored yearly closures left.
+            return $added > 0 ? $this->yearCoverageError($db, ['start' => '', 'end' => '', 'description' => '', 'yearly' => true, 'sede' => null]) : null;
         });
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
@@ -378,19 +384,24 @@ class LibraryCalendarController
      * can still close every day together; nextOpenDay() would then run to its
      * bound and a due date would land on a closed day. Checked after $row is
      * written (inside the transaction), on the yearly rows that apply to its
-     * branch, or to the library and to every branch for a row without one.
-     * Null when some day of a common year stays open.
+     * branch, or to the library and to every branch for a row without one,
+     * together with the weekly closed days ($closedWeekdays, the stored
+     * loans.closed_weekdays when null).
+     * Null when every calendar year keeps an open day: then two open days are
+     * never more than two years apart, well inside the scan bound.
      *
      * @param array{start: string, end: string, description: string, yearly: bool, sede: ?int} $row
+     * @param list<int>|null $closedWeekdays
      */
-    private function yearCoverageError(\mysqli $db, array $row): ?string
+    private function yearCoverageError(\mysqli $db, array $row, ?array $closedWeekdays = null): ?string
     {
         if (!$row['yearly']) {
             return null;
         }
         $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE ricorrente_annuale = 1');
         $rows = $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-        $calendar = new LibraryCalendar([], $rows);
+        $closedWeekdays ??= LibraryCalendar::parseWeekdays((new SettingsRepository($db))->get('loans', 'closed_weekdays', ''));
+        $calendar = new LibraryCalendar($closedWeekdays, $rows);
         $branches = [$row['sede']];
         if ($row['sede'] === null) {
             foreach ($rows as $stored) {
@@ -400,15 +411,19 @@ class LibraryCalendarController
             }
         }
         foreach (array_unique($branches, SORT_REGULAR) as $branch) {
-            // A common year: Feb 29 open alone does not count.
-            $day = '2025-01-01';
-            $open = false;
-            for ($i = 0; $i < 365 && !$open; $i++) {
-                $open = $calendar->isOpen($day, $branch);
-                $day = LibraryCalendar::shift($day, 1);
-            }
-            if (!$open) {
-                return __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.');
+            // 28 consecutive years hold every pairing of a weekday for Jan 1
+            // with a common or leap year, so the weekly closed days meet each
+            // possible year. A common year with only Feb 29 open fails here.
+            for ($year = 2025; $year < 2053; $year++) {
+                $day = $year . '-01-01';
+                $open = false;
+                while (!$open && str_starts_with($day, (string) $year)) {
+                    $open = $calendar->isOpen($day, $branch);
+                    $day = LibraryCalendar::shift($day, 1);
+                }
+                if (!$open) {
+                    return __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.');
+                }
             }
         }
         return null;

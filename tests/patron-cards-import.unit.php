@@ -64,6 +64,8 @@ $check(UserImport::validateMapping([0 => 'nome', 1 => 'email', 2 => 'email'], $f
 $check(UserImport::validateMapping([0 => 'nome', 1 => 'email', 2 => 'password'], $fields, 3)['error'] !== null, 'an unknown target (password) is refused');
 $check(UserImport::validateMapping([0 => 'nome', 1 => 'email', 9 => 'cognome'], $fields, 3)['mapping'] === [0 => 'nome', 1 => 'email'], 'a column index outside the file is ignored');
 $check(UserImport::validateMapping('x', $fields, 3)['error'] !== null, 'a non-array mapping is refused');
+$check(UserImport::validateMapping(json_decode('{"1":"nome","01":"email"}', true), $fields, 3)['error'] !== null, 'a non-canonical column key ("01") is refused instead of aliasing column 1');
+$check(UserImport::validateMapping(json_decode('{"0":"nome","1x":"email"}', true), $fields, 3)['error'] !== null && UserImport::validateMapping(json_decode('{"0":"nome","1":"email"}', true), $fields, 3)['mapping'] === [0 => 'nome', 1 => 'email'], 'only canonical integer keys are accepted, as JSON sends them');
 
 // ── UserImport: rows ────────────────────────────────────────────────────
 $map = [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'data_nascita', 4 => 'sesso', 5 => 'locale', 6 => 'codice_tessera', 7 => 'custom:7', 8 => 'note_utente'];
@@ -98,7 +100,9 @@ $capped = ['errors' => []];
 for ($i = 0; $i < \App\Controllers\UserImportController::MAX_STORED_ERRORS + 20; $i++) {
     \App\Controllers\UserImportController::report($capped, ['line' => $i, 'title' => '', 'message' => 'x', 'type' => 'validation']);
 }
-$check(count($capped['errors']) === \App\Controllers\UserImportController::MAX_STORED_ERRORS, 'the error report kept in the session is capped');
+$check(count($capped['errors']) === \App\Controllers\UserImportController::MAX_STORED_ERRORS + 1, 'the error report kept in the session is capped');
+$lastEntry = end($capped['errors']);
+$check(($lastEntry['type'] ?? '') === 'truncated' && ($lastEntry['line'] ?? null) === \App\Controllers\UserImportController::MAX_STORED_ERRORS && ($capped['errors'][\App\Controllers\UserImportController::MAX_STORED_ERRORS - 1]['type'] ?? '') === 'validation', 'the entry past the cap is one truncation notice naming the first omitted line');
 $check(UserImport::detectDelimiter(["Nome\n", "Mario\n", "Anna\n"]) === null && UserImport::detectDelimiter([]) === null && UserImport::detectDelimiter([false]) === null, 'one column, or nothing, is no delimiter');
 $check(UserImport::detectDelimiter(["Nome;Cognome;E-mail\n"]) === ';' && UserImport::detectDelimiter(["Nome;Cognome;E-mail\n", ""]) === ';', 'a header alone tells the delimiter when it has more than one column');
 
@@ -140,6 +144,112 @@ $check($portrait->cardSize() === [PatronCardPdf::CARD_H, PatronCardPdf::CARD_W] 
 $check($pageCount($portrait->render($cards, 'sheet')) === 2, 'portrait sheet: 12 cards on two sheets');
 $check($pageCount($single->render([['name' => 'Ünïcødé 名前', 'code' => 'CODE-é', 'expiry' => '', 'photo' => '/nonexistent.jpg']], 'single')) === 1, 'a non-ASCII code and a missing photo still render');
 
+// ── Card PDF symbols ────────────────────────────────────────────────────
+// The text line of the code proves nothing about the symbol beside it: read
+// the rectangles TCPDF paints (`x y w h re`, h negative) back out of the page
+// streams and compare them with what TCPDF's encoders produce for the code.
+$pdfRects = static function (string $pdf): array {
+    $rects = [];
+    preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams);
+    foreach ($streams[1] as $raw) {
+        $data = @gzuncompress($raw);
+        preg_match_all('/(?<![\w.-])(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) re\b/', $data === false ? $raw : $data, $found, PREG_SET_ORDER);
+        foreach ($found as $r) {
+            $rects[] = ['x' => (float) $r[1], 'y' => (float) $r[2], 'w' => (float) $r[3], 'h' => (float) $r[4]];
+        }
+    }
+    return $rects;
+};
+// The most numerous group of rectangles sharing one key (bar row, module size).
+$largestGroup = static function (array $rects, callable $key): array {
+    $groups = [];
+    foreach ($rects as $r) {
+        $k = $key($r);
+        if ($k !== null) {
+            $groups[$k][] = $r;
+        }
+    }
+    usort($groups, static fn (array $a, array $b): int => count($b) <=> count($a));
+    return $groups[0] ?? [];
+};
+$symbolCode = 'ZC0042-x';
+foreach (['classic', 'portrait', 'minimal'] as $layout) {
+    $bars = $largestGroup($pdfRects((new PatronCardPdf(PatronCardSettings::sanitize(['card_layout' => $layout, 'card_code_type' => 'code128']), 'Biblioteca', null))
+        ->render([['name' => 'Lettore', 'code' => $symbolCode, 'expiry' => '', 'photo' => null]], 'single')), static fn (array $r): ?string => $r['h'] < -5 && $r['w'] > 0 ? sprintf('%.2f|%.2f', $r['y'], $r['h']) : null); // bars share their top and height
+    usort($bars, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
+    // Expected bar/space widths in modules, from TCPDF's own Code128 encoder.
+    $expected = [];
+    foreach ((new TCPDFBarcode($symbolCode, 'C128'))->getBarcodeArray()['bcode'] as $element) {
+        if ((int) $element['w'] > 0) { // the encoder pads the array with empty elements
+            $expected[] = ($element['t'] ? 'b' : 's') . (int) $element['w'];
+        }
+    }
+    $drawn = [];
+    $unit = $bars !== [] ? min(array_column($bars, 'w')) : 1.0;
+    foreach ($bars as $i => $bar) {
+        if ($i > 0) {
+            $drawn[] = 's' . (int) round(($bar['x'] - $bars[$i - 1]['x'] - $bars[$i - 1]['w']) / $unit);
+        }
+        $drawn[] = 'b' . (int) round($bar['w'] / $unit);
+    }
+    $check($drawn !== [] && $drawn === $expected, "the {$layout} card draws the Code128 symbol of its code, bar for bar");
+}
+// TCPDF picks the QR mask at random among a few, so two encodings of the
+// same code may differ module by module. The data they carry may not: with
+// the mask removed (all eight tried on each side) the data modules of the
+// drawn symbol must equal those of TCPDF's own encoding of the code.
+$qrDataUnderMasks = static function (array $matrix): array {
+    $n = count($matrix);
+    $masks = [
+        static fn (int $i, int $j): bool => ($i + $j) % 2 === 0,
+        static fn (int $i, int $j): bool => $i % 2 === 0,
+        static fn (int $i, int $j): bool => $j % 3 === 0,
+        static fn (int $i, int $j): bool => ($i + $j) % 3 === 0,
+        static fn (int $i, int $j): bool => (intdiv($i, 2) + intdiv($j, 3)) % 2 === 0,
+        static fn (int $i, int $j): bool => ($i * $j) % 2 + ($i * $j) % 3 === 0,
+        static fn (int $i, int $j): bool => (($i * $j) % 2 + ($i * $j) % 3) % 2 === 0,
+        static fn (int $i, int $j): bool => (($i + $j) % 2 + ($i * $j) % 3) % 2 === 0,
+    ];
+    // Version 1 (21 x 21): finders with separators and format bits, timing lines.
+    $isFunction = static fn (int $i, int $j): bool => ($i < 9 && $j < 9) || ($i < 9 && $j >= $n - 8) || ($i >= $n - 8 && $j < 9) || $i === 6 || $j === 6;
+    $out = [];
+    foreach ($masks as $mask) {
+        $bits = '';
+        for ($i = 0; $i < $n; $i++) {
+            for ($j = 0; $j < $n; $j++) {
+                if (!$isFunction($i, $j)) {
+                    $bits .= ((bool) $matrix[$i][$j] !== $mask($i, $j)) ? '1' : '0';
+                }
+            }
+        }
+        $out[] = $bits;
+    }
+    return $out;
+};
+foreach (['classic', 'portrait', 'minimal'] as $layout) {
+    $modules = $largestGroup($pdfRects((new PatronCardPdf(PatronCardSettings::sanitize(['card_layout' => $layout, 'card_code_type' => 'qr']), 'Biblioteca', null))
+        ->render([['name' => 'Lettore', 'code' => $symbolCode, 'expiry' => '', 'photo' => null]], 'single')), static fn (array $r): ?string => $r['w'] > 0 && abs($r['w'] + $r['h']) < 0.001 ? sprintf('%.3f', $r['w']) : null);
+    $reference = (new TCPDF2DBarcode($symbolCode, 'QRCODE,M'))->getBarcodeArray();
+    $n = (int) $reference['num_rows'];
+    $drawn = array_fill(0, $n, array_fill(0, $n, 0));
+    $inGrid = $modules !== [] && $n === 21;
+    if ($inGrid) {
+        $size = $modules[0]['w'];
+        $left = min(array_column($modules, 'x'));
+        $top = max(array_column($modules, 'y'));
+        foreach ($modules as $m) {
+            [$row, $col] = [(int) round(($top - $m['y']) / $size), (int) round(($m['x'] - $left) / $size)];
+            if ($row >= $n || $col >= $n) {
+                $inGrid = false;
+                break;
+            }
+            $drawn[$row][$col] = 1;
+        }
+    }
+    $common = $inGrid ? array_intersect($qrDataUnderMasks($drawn), $qrDataUnderMasks($reference['bcode'])) : [];
+    $check($common !== [], "the {$layout} card draws a QR symbol carrying its code");
+}
+
 // ── Database pieces ─────────────────────────────────────────────────────
 $env = Dotenv\Dotenv::parse((string) file_get_contents(dirname(__DIR__) . '/.env'));
 $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
@@ -148,6 +258,9 @@ $types = 'zz_pci_types_' . $suffix;
 $users = 'zz_pci_users_' . $suffix;
 $userId = 0;
 $photoFiles = [];
+$importEmail = 'zz-import-' . $suffix . '@example.invalid';
+$importLogIds = [];
+$src = null; // the scratch image, removed in finally even when a check throws
 try {
     $db->query("CREATE TABLE {$users} (id INT NOT NULL PRIMARY KEY, nome VARCHAR(100)) ENGINE=InnoDB");
     $db->query("INSERT INTO {$users} (id, nome) VALUES (1, 'A')");
@@ -285,8 +398,56 @@ try {
     } else {
         @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
     }
+    // The reference is cleared only while it is still the one whose file was
+    // removed: a photo stored meanwhile by another request survives.
+    $currentRef = PatronPhoto::storedFor($db, $userId);
+    $check($currentRef !== null && PatronPhoto::clearReference($db, $userId, 'patron_photos/' . $userId . '-' . str_repeat('0', 16) . '.jpg') === false && PatronPhoto::storedFor($db, $userId) === $currentRef, 'a stale reference never clears the photo stored after it');
     $check(PatronPhoto::delete($db, $userId) && PatronPhoto::storedFor($db, $userId) === null && $current !== null && !is_file($current), 'delete removes the reference and the file');
-    @unlink($src);
+    // A file left behind by a failed unlink is swept by the next store of
+    // that reader once it is older than the grace period; a fresh one (a
+    // concurrent store about to record it) is kept.
+    $oldOrphan = PatronPhoto::directory() . '/' . $userId . '-' . str_repeat('a', 16) . '.jpg';
+    $freshOrphan = PatronPhoto::directory() . '/' . $userId . '-' . str_repeat('b', 16) . '.jpg';
+    $photoFiles[] = $oldOrphan;
+    $photoFiles[] = $freshOrphan;
+    file_put_contents($oldOrphan, 'x');
+    file_put_contents($freshOrphan, 'x');
+    touch($oldOrphan, time() - PatronPhoto::ORPHAN_GRACE_SECONDS - 10);
+    file_put_contents($src, $halvesJpeg);
+    $check(PatronPhoto::store($db, $userId, $src) === null && !is_file($oldOrphan) && is_file($freshOrphan) && PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId)) !== null, 'store sweeps an old orphaned file of the reader and keeps the new photo and a fresh file');
+    $photoFiles[] = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
+    @unlink($freshOrphan);
+
+    // Deleting a reader without loans: the photo goes first, and a photo that
+    // cannot be removed stops the delete instead of being orphaned by it.
+    $victimEmail = 'zz-pci-del-' . $suffix . '@example.invalid';
+    $victimCode = 'ZZPCD' . strtoupper($suffix);
+    $stmt = $db->prepare("INSERT INTO utenti (nome, cognome, email, password, codice_tessera) VALUES ('Zz', 'Delete', ?, ?, ?)");
+    $stmt->bind_param('sss', $victimEmail, $hash, $victimCode);
+    $stmt->execute();
+    $victimId = (int) $stmt->insert_id;
+    $stmt->close();
+    $check(PatronPhoto::store($db, $victimId, $src) === null, 'the reader to delete has a photo');
+    $victimPhoto = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $victimId));
+    $photoFiles[] = $victimPhoto;
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $deleteUser = static function () use ($db, $victimId): int {
+        $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/users/delete/' . $victimId);
+        return (new \App\Controllers\UsersController())->delete($request, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(), $db, $victimId)->getStatusCode();
+    };
+    $victimExists = static fn (): bool => $db->query("SELECT 1 FROM utenti WHERE id = {$victimId}")->fetch_row() !== null;
+    @chmod(PatronPhoto::directory(), 0555);
+    clearstatcache();
+    if (!is_writable(PatronPhoto::directory())) {
+        $status = $deleteUser();
+        @chmod(PatronPhoto::directory(), $dirMode);
+        $check($status === 302 && $victimExists() && $victimPhoto !== null && is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) !== null && isset($_SESSION['error_message']), 'a photo that cannot be removed stops the delete: the account and its reference stay');
+    } else {
+        @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
+    }
+    unset($_SESSION['error_message']);
+    $check($deleteUser() === 302 && !$victimExists() && $victimPhoto !== null && !is_file($victimPhoto), 'deleting a reader without loans removes the account and its photo');
+    $_SESSION = [];
 
     $check(\App\Support\ContentSecurityPolicy::permissionsPolicy() === 'geolocation=(), microphone=(), camera=(self)', 'the camera is allowed to the same origin only, nothing else is loosened');
 
@@ -311,7 +472,7 @@ try {
 
     // The chunk endpoint: the position to resume from, a vanished staged file,
     // and an upload refused before it replaces the import in progress.
-    $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo']]; // a real account: import_logs.user_id is a foreign key
     $importer = new \App\Controllers\UserImportController();
     $requests = new \Slim\Psr7\Factory\ServerRequestFactory();
     $responses = new \Slim\Psr7\Factory\ResponseFactory();
@@ -338,6 +499,40 @@ try {
     unlink($staged);
     [$status, $json] = $call('chunk', ['start' => 0]);
     $check($status === 409 && !isset($json['processed']) && !is_file($staged) && !isset($_SESSION['user_import']), 'a vanished staged file ends the import with 409 instead of being recreated empty');
+
+    // The last block runs, then its answer is lost: the retry gets the same
+    // final answer, not a "session expired" error.
+    file_put_contents($staged, "nome;cognome;email\nZz;Import;{$importEmail}\n");
+    $_SESSION['user_import'] = $running;
+    [$status, $first] = $call('chunk', ['start' => 0]);
+    $importLogIds[] = (string) ($first['import_id'] ?? '');
+    $check($status === 200 && ($first['import_id'] ?? '') !== '' && ($first['done'] ?? false) === true && ($first['created'] ?? null) === 1 && !is_file($staged), 'the last block creates the reader and closes the run');
+    [$status, $replay] = $call('chunk', ['start' => 0]);
+    $check($status === 200 && $replay === $first && (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$importEmail}'")->fetch_row()[0] === 1, 'a retry of the last block replays the final answer and creates nothing');
+    $check($call('start', ['mapping' => [0 => 'nome', 2 => 'email']])[0] === 400, 'a finished run cannot be started again');
+
+    // A run under way (another tab) is neither replaced nor closed; the page
+    // learns its position and resumes it.
+    file_put_contents($staged, "nome;cognome;email\nZz;Import;zz-never@example.invalid\nZz;Two;zz-never2@example.invalid\n");
+    $live = ['total' => 2, 'next' => 1, 'active_at' => time()] + $running;
+    $_SESSION['user_import'] = $live;
+    [$status, $json] = $call('upload', []);
+    $check($status === 409 && ($json['processed'] ?? null) === 1 && ($json['total_rows'] ?? null) === 2 && ($_SESSION['user_import'] ?? null) === $live && is_file($staged), 'an upload during a live run is refused with its position, the run left intact');
+    [$status, $json] = $call('start', ['mapping' => [0 => 'nome', 2 => 'email']]);
+    $check($status === 409 && ($json['processed'] ?? null) === 1 && ($json['total_rows'] ?? null) === 2, 'a replayed start answers with the position to resume from');
+    [$status, $json] = $call('cancel', []);
+    $check($status === 409 && ($_SESSION['user_import'] ?? null) === $live && is_file($staged), 'a live run cannot be cancelled');
+    $check(\App\Controllers\UserImportController::resumable($live) === ['name' => 't.csv', 'processed' => 1, 'total' => 2]
+        && \App\Controllers\UserImportController::resumable(['finished' => true, 'result' => []]) === null
+        && \App\Controllers\UserImportController::resumable(['started' => false] + $running) === null, 'the page offers to resume only a started, unfinished run');
+    // Abandoned (no request for IDLE_SECONDS): "Annulla import" closes it and
+    // logs the partial run, so the accounts it created leave a trace.
+    $_SESSION['user_import'] = ['active_at' => time() - \App\Controllers\UserImportController::IDLE_SECONDS - 5] + $live;
+    [$status, $json] = $call('cancel', []);
+    $closedId = (string) ($json['import_id'] ?? '');
+    $importLogIds[] = $closedId;
+    $logged = $closedId !== '' ? $db->query("SELECT total_rows, import_type FROM import_logs WHERE import_id = '" . $db->real_escape_string($closedId) . "'")->fetch_assoc() : null;
+    $check($status === 200 && !isset($_SESSION['user_import']) && !is_file($staged) && is_array($logged) && (int) $logged['total_rows'] === 1 && $logged['import_type'] === 'users', 'an abandoned run is closed, its file released and its partial run logged');
     $_SESSION = [];
 
     // The user import's error report is served under the users permission.
@@ -350,7 +545,15 @@ try {
     if ($userId > 0) {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
     }
-    foreach ($photoFiles as $file) {
+    $db->query("DELETE FROM utenti WHERE email = '{$importEmail}'");
+    $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
+    foreach ($importLogIds as $logId) {
+        $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
+        $stmt->bind_param('s', $logId);
+        $stmt->execute();
+        $stmt->close();
+    }
+    foreach ([...$photoFiles, $src] as $file) {
         if (is_string($file) && is_file($file)) {
             @unlink($file);
         }
