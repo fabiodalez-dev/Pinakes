@@ -1,6 +1,7 @@
 <?php
 /** @var bool $patronTypes */
 /** @var array{preview_id:string, name:string, processed:int, total:int}|null $resumeImport */
+/** @var array{name:string, processed:int, total:int, import_id:?string}|null $expiredImport */
 use App\Support\Csrf;
 
 $csrfToken = Csrf::ensureToken();
@@ -69,6 +70,14 @@ unset($workspaceHeader);
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 space-y-6">
+
+        <?php if ($expiredImport !== null): ?>
+        <!-- An interrupted run whose staged file expired: closed into the history -->
+        <div class="p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200 text-sm" id="user-import-expired" role="status">
+          <i class="fas fa-info-circle mr-1"></i><?= htmlspecialchars(sprintf(__('Il file dell\'import interrotto «%s» non era più disponibile: l\'import è stato chiuso dopo %d di %d righe e registrato nello storico import. Gli utenti già creati restano; per completarlo carica di nuovo il file.'), $expiredImport['name'], $expiredImport['processed'], $expiredImport['total']), ENT_QUOTES, 'UTF-8') ?>
+          <a class="underline" href="<?= htmlspecialchars(url('/admin/imports-history'), ENT_QUOTES, 'UTF-8') ?>"><?= __("storico import") ?></a>
+        </div>
+        <?php endif; ?>
 
         <?php if ($resumeImport !== null): ?>
         <!-- An interrupted run: resume it or close it -->

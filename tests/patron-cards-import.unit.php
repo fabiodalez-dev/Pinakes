@@ -465,8 +465,33 @@ try {
     [$status] = $call('upload', []);
     $check($status === 400 && is_file($staged) && ($_SESSION['user_import'] ?? null) === $running, 'a refused upload leaves the staged file and the import in progress intact');
     unlink($staged);
-    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    // Swept halfway through: the rows already done reach the import history.
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 1] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 1]);
+    $vanishedId = (string) ($json['import_id'] ?? '');
+    $importLogIds[] = $vanishedId;
+    $logged = $vanishedId !== '' ? $db->query("SELECT total_rows, imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($vanishedId) . "'")->fetch_assoc() : null;
     $check($status === 409 && !isset($json['processed']) && !is_file($staged) && !isset($_SESSION['user_import']), 'a vanished staged file ends the import with 409 instead of being recreated empty');
+    $check(is_array($logged) && (int) $logged['total_rows'] === 1 && (int) $logged['imported'] === 1, 'the run whose file vanished mid-way is written to the import history as far as it got');
+
+    // The same run met on the page: not offered for resume, closed into the
+    // history instead.
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 1] + $running;
+    $expired = $importer->closeVanishedImport($db);
+    $expiredId = (string) ($expired['import_id'] ?? '');
+    $importLogIds[] = $expiredId;
+    $logged = $expiredId !== '' ? $db->query("SELECT total_rows FROM import_logs WHERE import_id = '" . $db->real_escape_string($expiredId) . "'")->fetch_assoc() : null;
+    $check(($expired['processed'] ?? null) === 1 && ($expired['total'] ?? null) === 2 && is_array($logged) && (int) $logged['total_rows'] === 1, 'an interrupted run whose file expired is closed into the import history');
+    $check(!isset($_SESSION['user_import']) && \App\Controllers\UserImportController::resumable($_SESSION['user_import'] ?? null) === null, 'and is no longer offered for resume');
+    file_put_contents($staged, 'x');
+    $_SESSION['user_import'] = $running;
+    $check($importer->closeVanishedImport($db) === null && ($_SESSION['user_import'] ?? null) === $running, 'a run whose file is still there is left resumable');
+    // Visiting the page marks that file as in use: the sweep keeps it.
+    touch($staged, time() - UserImport::STALE_UPLOAD_SECONDS - 60);
+    (new ReflectionMethod($importer, 'touchSessionFile'))->invoke($importer);
+    UserImport::sweepStaleUploads($uploads);
+    $check(is_file($staged), 'the staged file of the session\'s interrupted run survives the sweep of a page visit');
+    unlink($staged);
 
     // The last block runs, then its answer is lost: the retry gets the same
     // final answer, not a "session expired" error.
