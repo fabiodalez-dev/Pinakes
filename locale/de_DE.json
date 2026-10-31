@@ -8476,7 +8476,7 @@
   "Solo le mie scansioni": "Nur meine Scans",
   "Nessuna scansione registrata.": "Keine Scans erfasst.",
   "Chiudi la revisione": "Revision schließen",
-  "Scegli cosa fare con le copie mancanti. La disponibilità dei libri viene ricalcolata.": "Wähle, was mit den fehlenden Exemplaren geschehen soll. Die Verfügbarkeit der Bücher wird neu berechnet.",
+  "Scegli cosa fare con le copie mancanti. Se le segni come perse, la disponibilità dei libri viene ricalcolata; altrimenti non cambia.": "Wähle, was mit den fehlenden Exemplaren geschehen soll. Werden sie als verloren markiert, wird die Verfügbarkeit der Bücher neu berechnet; andernfalls ändert sie sich nicht.",
   "Chiudere la revisione? Non sarà più possibile registrare scansioni.": "Revision schließen? Danach können keine Scans mehr erfasst werden.",
   "Chiudi revisione": "Revision schließen",
   "Lascia le copie mancanti come sono": "Fehlende Exemplare unverändert lassen",
