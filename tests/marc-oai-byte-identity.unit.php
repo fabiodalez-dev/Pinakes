@@ -5,7 +5,9 @@ declare(strict_types=1);
  * The OAI-PMH plugin's MARC 21 (MARCXML), UNIMARC (MARCXchange) and ISO 2709
  * UNIMARC serializations, byte for byte, against golden files recorded before
  * the plugin moved onto the shared App\Support\Marc classes. A refactor that
- * changes one byte of what harvesters receive fails here.
+ * changes one byte of what harvesters receive fails here. Deliberate changes
+ * are re-recorded with --record: the MARCXML record declares xmlns:xsi itself,
+ * and the UNIMARC genre 606 carries $2 local (review of #505).
  *
  * The only time-dependent value, UNIMARC 801 $c (today, UTC), is normalised.
  *

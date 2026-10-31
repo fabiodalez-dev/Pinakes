@@ -8809,5 +8809,11 @@
   "Separatore": "Trennzeichen",
   "La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.": "Das Foto des Lesers wurde nicht entfernt: Lösche es auf der Seite des Lesers.",
   "Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.": "Ohne Foto: großer Name und Code (Barcode oder QR) über die ganze Breite.",
-  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Zehn Ausweise pro A4-Bogen (neun beim Layout Hochformat), mit Schnittlinien."
+  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Zehn Ausweise pro A4-Bogen (neun beim Layout Hochformat), mit Schnittlinien.",
+  "%d copie mancanti segnate come perse.": "%d fehlende Exemplare als verloren markiert.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "Beim Abschluss wurden %d fehlende Exemplare nicht als verloren markiert.",
+  "Segnare come perse le copie mancanti rimaste?": "Die verbleibenden fehlenden Exemplare als verloren markieren?",
+  "Segna come perse": "Als verloren markieren",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Bestandsrevision: fehlende Exemplare nach dem Abschluss als verloren markiert",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import abgeschlossen, aber der Verlauf wurde nicht gespeichert. Versuche es erneut, um ihn zu speichern."
 }

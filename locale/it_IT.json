@@ -8809,5 +8809,11 @@
   "Separatore": "Separatore",
   "La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.": "La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.",
   "Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.": "Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.",
-  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio."
+  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.",
+  "%d copie mancanti segnate come perse.": "%d copie mancanti segnate come perse.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "La chiusura non ha segnato come perse %d copie mancanti.",
+  "Segnare come perse le copie mancanti rimaste?": "Segnare come perse le copie mancanti rimaste?",
+  "Segna come perse": "Segna come perse",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla."
 }

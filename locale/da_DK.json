@@ -8809,5 +8809,11 @@
   "Separatore": "Skilletegn",
   "La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.": "Låners foto blev ikke fjernet: slet det fra lånerens side.",
   "Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.": "Uden foto: stort navn og kode (stregkode eller QR) i fuld bredde.",
-  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Ti kort pr. A4-ark (ni med layoutet Stående), med skærelinjer."
+  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Ti kort pr. A4-ark (ni med layoutet Stående), med skærelinjer.",
+  "%d copie mancanti segnate come perse.": "%d manglende eksemplarer markeret som tabt.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "Afslutningen markerede ikke %d manglende eksemplarer som tabt.",
+  "Segnare come perse le copie mancanti rimaste?": "Markér de resterende manglende eksemplarer som tabt?",
+  "Segna come perse": "Markér som tabt",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Optælling: manglende eksemplarer markeret som tabt efter afslutningen",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Importen er fuldført, men historikken blev ikke gemt. Prøv igen for at gemme den."
 }

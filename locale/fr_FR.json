@@ -8809,5 +8809,11 @@
   "Separatore": "Séparateur",
   "La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.": "La photo du lecteur n'a pas été supprimée : supprimez-la depuis la fiche du lecteur.",
   "Senza foto: nome grande e codice (a barre o QR) su tutta la larghezza.": "Sans photo : nom en grand et code (code-barres ou QR) sur toute la largeur.",
-  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Dix cartes par feuille A4 (neuf avec la mise en page Portrait), avec traits de coupe."
+  "Dieci tessere per foglio A4 (nove con il layout Verticale), con i bordi di taglio.": "Dix cartes par feuille A4 (neuf avec la mise en page Portrait), avec traits de coupe.",
+  "%d copie mancanti segnate come perse.": "%d exemplaires manquants marqués comme perdus.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "La clôture n’a pas marqué %d exemplaires manquants comme perdus.",
+  "Segnare come perse le copie mancanti rimaste?": "Marquer comme perdus les exemplaires manquants restants ?",
+  "Segna come perse": "Marquer comme perdus",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Récolement : exemplaires manquants marqués comme perdus après la clôture",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer."
 }

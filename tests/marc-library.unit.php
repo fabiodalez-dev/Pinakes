@@ -16,6 +16,7 @@ use App\Support\Marc\Danmarc2LibriMapper;
 use App\Support\Marc\Iso2709Reader;
 use App\Support\Marc\Iso2709Writer;
 use App\Support\Marc\Marc21LibriMapper;
+use App\Support\Marc\MarcMediaType;
 use App\Support\Marc\Marc8Decoder;
 use App\Support\Marc\MarcBookData;
 use App\Support\Marc\MarcFormat;
@@ -268,6 +269,9 @@ $mapped = (new Marc21LibriMapper())->map($map);
 $check($mapped['tipo_media'] === '' && ($mapped['rda_content_type'] ?? '') === 'cri', '67l a kind the catalogue has no media type for leaves it unset, its content type kept');
 $check((new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize(BookMarcBuilder::unimarc($row + ['tipo_media' => 'audiolibro'], $authors, [], null)))))[0])['tipo_media'] === 'audiolibro', '67m UNIMARC export → import keeps the media type');
 $check(MarcBookData::toImportRow($backDvd)['tipo_media'] === 'dvd', '67n the import row carries tipo_media');
+$backOther = $viaIso($typed('altro'));
+$check($backOther['tipo_media'] === 'altro' && !isset($backOther['rda_content_type']) && !isset($backOther['rda_media_type']) && !isset($backOther['rda_carrier_type']), '67n2 export → import: an altro (leader a, RDA xxx) comes back an altro, not a book');
+$check(MarcMediaType::tipoMediaOf('a', 'txt') === 'libro' && MarcMediaType::tipoMediaOf('a', null) === 'libro', '67n3 language material without RDA "other" is still a book');
 
 echo "Genre round trip\n";
 $withGenre = BookMarcBuilder::marc21($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
@@ -284,6 +288,24 @@ $lcgft->addDataField('245', '0', '0', [['a', 'A novel']]);
 $lcgft->addDataField('655', ' ', '7', [['a', 'Detective and mystery fiction.'], ['2', 'lcgft']]);
 $lcgft->addDataField('655', ' ', '4', [['a', 'Thrillers.']]);
 $check((new Marc21LibriMapper())->map($lcgft)['genere'] === '', '67r a 655 of another scheme, or without $2, is not imported as the genre');
+$withGenreU = BookMarcBuilder::unimarc($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
+$check($withGenreU->subfield('606', 'a') === 'Narrativa' && $withGenreU->subfield('606', '2') === 'local', '67r2 UNIMARC writes the genre as a 606 $2 local');
+$backGenreU = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($withGenreU))))[0]);
+$check($backGenreU['genere'] === 'Narrativa' && $backGenreU['parole_chiave'] === ['avventura', 'viaggi'], '67r3 UNIMARC export → import: the genre comes back as the genre, the keywords as keywords');
+$uniOne = static function (array $fields): array {
+    $r = new MarcRecord('00000nam  2200000   4500');
+    $r->addDataField('200', '1', ' ', [['a', 'Titolo']]);
+    foreach ($fields as [$tag, $ind1, $ind2, $subs]) {
+        $r->addDataField($tag, $ind1, $ind2, $subs);
+    }
+    return (new UnimarcLibriMapper())->map($r);
+};
+$check($uniOne([['606', ' ', ' ', [['a', 'Storia'], ['2', 'FI']]]])['genere'] === '' && $uniOne([['606', ' ', ' ', [['a', 'Storia'], ['2', 'FI']]]])['parole_chiave'] === ['Storia'], '67r4 a 606 of another scheme stays a keyword');
+$check($uniOne([['101', '0', ' ', [['a', 'swa']]]])['lingua'] === '' && $uniOne([['101', '0', ' ', [['a', 'deu']]]])['lingua'] !== '', '67r5 an unknown UNIMARC language code stays empty instead of being stored as a name');
+$onlyTranslator = $uniOne([['700', ' ', '1', [['a', 'Weaver'], ['b', 'William'], ['4', '730']]]]);
+$check($onlyTranslator['traduttore'] === ['William Weaver'] && $onlyTranslator['autori'] === [], '67r6 a 700 whose relator is a translator stays a translator');
+$firstAuthor = $uniOne([['700', ' ', '1', [['a', 'Weaver'], ['b', 'William'], ['4', '730']]], ['701', ' ', '1', [['a', 'Eco'], ['b', 'Umberto']]]]);
+$check($firstAuthor['autori'] === ['Umberto Eco'] && $firstAuthor['traduttore'] === ['William Weaver'], '67r7 the author after a translator in 700 is still read as an author');
 
 $entities = BookMarcBuilder::marc21(['descrizione' => '<p>Tom &amp; Jerry</p><p>Vol. &laquo;2&raquo;</p>'] + $row, $authors, [], null);
 $check($entities->subfield('520', 'a') === "Tom & Jerry\n\nVol. «2»", '67s the summary decodes the entities of the rich description');
@@ -331,6 +353,43 @@ $serialized = Iso2709Writer::serialize($long);
 $reparsed = Iso2709Reader::parse(substr($serialized, 0, -1));
 $value = (string) $reparsed->subfield('520', 'a');
 $check(mb_check_encoding($value, 'UTF-8') && strlen($value) <= 9999 && strlen($value) > 9000, '67 a field over 9999 bytes is cut on a character boundary');
+
+echo "Field terminators\n";
+// Rewrite one directory entry (tag, length, start) of a serialized record.
+$withEntry = static function (string $raw, int $index, ?int $length, ?int $start): string {
+    $at = 24 + 12 * $index;
+    if ($length !== null) {
+        $raw = substr_replace($raw, sprintf('%04d', $length), $at + 3, 4);
+    }
+    if ($start !== null) {
+        $raw = substr_replace($raw, sprintf('%05d', $start), $at + 7, 5);
+    }
+    return $raw;
+};
+$ft = new MarcRecord();
+$ft->addControlField('001', 'REC1');
+$ft->addDataField('245', '0', '0', [['a', 'Titolo giusto']]);
+$ft->addDataField('500', ' ', ' ', [['a', 'Nota']]);
+$ftRaw = Iso2709Writer::serialize($ft);
+$check(Iso2709Reader::parse($ftRaw)->subfield('245', 'a') === 'Titolo giusto', '19a a well-formed record parses');
+$len001 = (int) substr($ftRaw, 24 + 3, 4);
+// The legacy off-by-one: every length counted without its terminator.
+$short = $ftRaw;
+for ($i = 0; $i < 3; $i++) {
+    $short = $withEntry($short, $i, (int) substr($short, 24 + 12 * $i + 3, 4) - 1, null);
+}
+$parsedShort = Iso2709Reader::parse($short);
+$check($parsedShort->controlField('001') === 'REC1' && $parsedShort->subfield('245', 'a') === 'Titolo giusto' && $parsedShort->subfield('500', 'a') === 'Nota', '19b lengths counted without the terminator are still read');
+$refusedParse = static function (string $raw): bool {
+    try {
+        Iso2709Reader::parse($raw);
+        return false;
+    } catch (MarcParseException) {
+        return true;
+    }
+};
+$check($refusedParse($withEntry($ftRaw, 0, $len001 + 6, null)), '19c an entry whose length runs into the next field is refused');
+$check($refusedParse($withEntry($ftRaw, 2, null, (int) substr($ftRaw, 24 + 12 + 7, 5) + 3)), '19d an entry that starts inside another field is refused, not read as that field\'s bytes');
 
 echo "Encoding of ISO 2709 records\n";
 // A record labelled UTF-8 (leader/09 = a) whose bytes are MARC-8: the title

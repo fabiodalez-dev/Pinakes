@@ -101,6 +101,7 @@ final class ActivityLog
         'inventory.opened' => 'Revisione inventariale aperta',
         'inventory.closed' => 'Revisione inventariale chiusa',
         'inventory.cancelled' => 'Revisione inventariale annullata',
+        'inventory.lost_resumed' => 'Revisione inventariale: copie mancanti segnate come perse dopo la chiusura',
     ];
 
     /** @var array<string,string> */
