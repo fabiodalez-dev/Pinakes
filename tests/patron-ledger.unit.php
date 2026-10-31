@@ -14,7 +14,8 @@ declare(strict_types=1);
  *     fragment admits the user.
  *
  * Run: php tests/patron-ledger.unit.php (exit code is the verdict)
- * Data markers: titles ZZ_LEDGER_%, emails zz-ledger%@test.local.
+ * Data markers: titles ZZ_LEDGER_<run>_%, emails zz-ledger-<tag>-<run>@test.local
+ * (cleanup removes this run's rows; another run's only when older than a day).
  */
 
 use App\Models\LoanRepository;
@@ -75,12 +76,22 @@ $setSetting = static function (string $key, ?string $value) use ($db): void {
     $stmt->execute();
     $stmt->close();
 };
-$cleanup = static function () use ($db): void {
-    $db->query("DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id = m.utente_id WHERE u.email LIKE 'zz-ledger%@test.local'");
-    $db->query("DELETE p FROM prestiti p JOIN utenti u ON u.id = p.utente_id WHERE u.email LIKE 'zz-ledger%@test.local'");
-    $db->query("DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE l.titolo LIKE 'ZZ_LEDGER_%'");
-    $db->query("DELETE FROM libri WHERE titolo LIKE 'ZZ_LEDGER_%'");
-    $db->query("DELETE FROM utenti WHERE email LIKE 'zz-ledger%@test.local'");
+// Run-scoped: only the rows of this $run, so a concurrent run on the same
+// database keeps its own. Leftovers of a crashed run (older than a day) go
+// in a separate pass before the checks.
+$purge = static function (string $userCond, string $bookCond) use ($db): void {
+    $db->query("DELETE m FROM movimenti_lettore m JOIN utenti u ON u.id = m.utente_id WHERE {$userCond}");
+    $db->query("DELETE p FROM prestiti p JOIN utenti u ON u.id = p.utente_id WHERE {$userCond}");
+    $db->query("DELETE p FROM prestiti p JOIN libri l ON l.id = p.libro_id WHERE {$bookCond}");
+    $db->query("DELETE c FROM copie c JOIN libri l ON l.id = c.libro_id WHERE {$bookCond}");
+    $db->query("DELETE l FROM libri l WHERE {$bookCond}");
+    $db->query("DELETE u FROM utenti u WHERE {$userCond}");
+};
+$cleanup = static function () use ($purge, $run): void {
+    $purge("u.email LIKE 'zz-ledger-%-{$run}@test.local'", "l.titolo LIKE 'ZZ\\_LEDGER\\_{$run}\\_%'");
+};
+$cleanupStale = static function () use ($purge): void {
+    $purge("u.email LIKE 'zz-ledger-%@test.local' AND u.created_at < NOW() - INTERVAL 1 DAY", "l.titolo LIKE 'ZZ\\_LEDGER\\_%' AND l.created_at < NOW() - INTERVAL 1 DAY");
 };
 
 $today = DateHelper::today();
@@ -119,7 +130,15 @@ $sqlEligible = static function (int $userId) use ($db, $today): bool {
     return $n === 1;
 };
 
+// A concurrent run's fresh rows (another marker): the cleanups must leave them.
+$otherRun = bin2hex(random_bytes(4));
+$db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente, email_verificata, privacy_accettata) VALUES ('ZLO" . substr($otherRun, 0, 6) . "', 'Zz', 'Ledger', 'zz-ledger-other-{$otherRun}@test.local', 'x', 'attivo', 'standard', 1, 1)");
+$sentinelUser = (int) $db->insert_id;
+$db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES ('ZZ_LEDGER_{$otherRun}_sentinel', 0, 0)");
+$sentinelBook = (int) $db->insert_id;
+
 try {
+    $cleanupStale();
     $cleanup();
     $setSetting('daily_fine', '0.50');
     $setSetting('fine_grace_days', '2');
@@ -290,7 +309,7 @@ try {
         $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$u3}");
         $check(LoanEligibility::checkUser($db, $u3) === null && FineParameters::forUser($db, $u3)->debtBlockThresholdCents === 1000, 'without a type the patron inherits the global threshold (10, balance 7: eligible)');
     } finally {
-        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE email LIKE 'zz-ledger%@test.local'");
+        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE email LIKE 'zz-ledger-%-{$run}@test.local'");
         $db->query("DELETE FROM tipologie_lettore WHERE id = {$ownType}");
         $setType($defaultType, $savedDefaultThreshold === null ? null : (string) $savedDefaultThreshold);
     }
@@ -444,6 +463,11 @@ try {
     }
     $cleanup();
 }
+
+$check((int) $db->query("SELECT COUNT(*) FROM utenti WHERE id = {$sentinelUser}")->fetch_row()[0] === 1
+    && (int) $db->query("SELECT COUNT(*) FROM libri WHERE id = {$sentinelBook}")->fetch_row()[0] === 1, 'cleanup removed only this run\'s rows: a concurrent run\'s reader and book are still there');
+$db->query("DELETE FROM utenti WHERE id = {$sentinelUser}");
+$db->query("DELETE FROM libri WHERE id = {$sentinelBook}");
 
 echo PHP_EOL . "Result: {$passed} passed, {$failed} failed" . PHP_EOL;
 exit($failed === 0 ? 0 : 1);
