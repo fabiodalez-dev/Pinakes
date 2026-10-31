@@ -112,12 +112,16 @@ final class MarcMediaType
      * type (a sound recording of performed music is a disco whatever the
      * leader says, of spoken word an audiolibro); '' when the leader names
      * a kind the catalogue has no media type for (a map, a computer file).
+     * Language material with RDA content "other" (xxx) is an altro, the
+     * media type that exports that way.
      */
     public static function tipoMediaOf(string $leaderType, ?string $contentCode = null): string
     {
         $content = strtolower(trim((string) $contentCode));
         return match (strtolower($leaderType)) {
-            'a', 't' => self::DEFAULT,
+            // 'altro' is exported as language material with RDA content
+            // "other" (xxx): read it back as such, not as a book.
+            'a', 't' => $content === 'xxx' ? 'altro' : self::DEFAULT,
             'g' => 'dvd',
             'i' => $content === 'prm' ? 'disco' : 'audiolibro',
             'j' => $content === 'spw' ? 'audiolibro' : 'disco',

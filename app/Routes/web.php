@@ -1513,6 +1513,11 @@ return function (App $app): void {
         return $controller->chunk($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/books/import/marc/discard', function ($request, $response) {
+        $controller = new \App\Controllers\MarcImportController();
+        return $controller->discard($request, $response);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // MARC bulk export: whole catalogue or ?ids= selection, streamed.
     $app->get('/admin/books/export/marc', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\MarcExportController();

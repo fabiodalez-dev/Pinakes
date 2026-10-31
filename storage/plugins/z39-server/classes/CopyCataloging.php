@@ -153,11 +153,12 @@ final class CopyCataloging
             $answer = $key === 'sbn'
                 ? $this->searchSbn($index, $term, $max)
                 : $this->client($server)->searchServer($server, SruClient::cqlFor($server, $index, $term), $max);
-            $report[] = ['key' => $key, 'name' => (string) $server['name'], 'total' => $answer['total'], 'count' => count($answer['records']), 'error' => $answer['error']];
+            $added = 0;
             foreach ($answer['records'] as $n => $record) {
                 if (count($stored) >= self::MAX_RESULTS) {
                     break;
                 }
+                $added++;
                 $id = substr(hash('sha256', $key . '|' . $n . '|' . json_encode($record['data'])), 0, 16);
                 $data = (array) $record['data'];
                 $existing = null;
@@ -182,6 +183,9 @@ final class CopyCataloging
                     'detail' => $this->detail($data, $record['marc'] ?? null),
                 ];
             }
+            // The count is what the page lists for this server: the records the
+            // global cap let in, not every record the server sent.
+            $report[] = ['key' => $key, 'name' => (string) $server['name'], 'total' => $answer['total'], 'count' => $added, 'error' => $answer['error']];
         }
         $_SESSION[self::SESSION_KEY] = $stored;
         return ['results' => $results, 'servers' => $report];

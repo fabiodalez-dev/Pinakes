@@ -218,7 +218,11 @@ class AuthorRepository
         // Normalize author name to canonical format ("Name Surname")
         // This ensures consistency when updating existing authors. Quotes
         // around the whole name are never stored, as in create() (#501).
-        $nome = \App\Support\AuthorNormalizer::normalizeStored($nome);
+        // One record holds one name: normalizeStored() would split a '|' or
+        // ';' in it as a cache-column list, so the edit form would store
+        // another name than create() does.
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
+        $nome = \App\Support\AuthorNormalizer::normalize($nome);
 
         // Base columns always present.
         $assignments = ['nome=?', 'pseudonimo=?', 'data_nascita=?', 'data_morte=?', '`nazionalità`=?', 'biografia=?', 'sito_web=?'];

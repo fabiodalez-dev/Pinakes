@@ -8689,5 +8689,11 @@
   "Questa funzione sarà disponibile al termine dell'aggiornamento del database.": "Diese Funktion ist verfügbar, sobald die Datenbankaktualisierung abgeschlossen ist.",
   "Segnate come perse": "Als verloren markiert",
   "Le copie in prestito, in attesa di ritiro, danneggiate, già perse, in restauro, in trasferimento o in manutenzione non vengono toccate.": "Ausgeliehene, zur Abholung bereitliegende, beschädigte, bereits verlorene, in Restaurierung, im Transfer oder in Wartung befindliche Exemplare werden nicht verändert.",
-  "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Lieferant nicht zugewiesen: Er wurde während des Imports gelöscht."
+  "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Lieferant nicht zugewiesen: Er wurde während des Imports gelöscht.",
+  "%d copie mancanti segnate come perse.": "%d fehlende Exemplare als verloren markiert.",
+  "La chiusura non ha segnato come perse %d copie mancanti.": "Beim Abschluss wurden %d fehlende Exemplare nicht als verloren markiert.",
+  "Segnare come perse le copie mancanti rimaste?": "Die verbleibenden fehlenden Exemplare als verloren markieren?",
+  "Segna come perse": "Als verloren markieren",
+  "Revisione inventariale: copie mancanti segnate come perse dopo la chiusura": "Bestandsrevision: fehlende Exemplare nach dem Abschluss als verloren markiert",
+  "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import abgeschlossen, aber der Verlauf wurde nicht gespeichert. Versuche es erneut, um ihn zu speichern."
 }
