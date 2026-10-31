@@ -298,6 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'note' => __("File MARC (max 20MB)"),
         'drop' => __("Trascina qui il file MARC o %{browse}"),
         'browse' => __("seleziona file"),
+        'stale' => __("Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo."),
     ], $jsonFlags) ?>;
     const fmt = (s, ...args) => { let i = 0; return s.replace(/%d/g, () => String(args[i++] ?? '')); };
     const csrf = () => document.querySelector('#marcUploadForm input[name="csrf_token"]').value;
@@ -346,6 +347,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     let upload = null;
+    // A preview names its staged file (staging_id). An upload in another tab
+    // replaces the server state: this tab's Confirm is then disabled, and the
+    // server refuses a chunk whose id is not the current one anyway.
+    let channel = null;
+    try {
+        channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('pinakes-marc-import') : null;
+    } catch (e) {
+        channel = null;
+    }
+    function markStale() {
+        upload = null;
+        document.getElementById('confirmImportBtn').disabled = true;
+        document.getElementById('marc-preview-summary').textContent = T.stale;
+    }
+    if (channel) {
+        channel.onmessage = (event) => {
+            const id = event && event.data ? event.data.staging_id : null;
+            if (upload && id && id !== upload.staging_id) { markStale(); }
+        };
+    }
     document.getElementById('marcUploadForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -363,6 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!data.success) { showError(data.error || T.invalid); return; }
                 upload = data;
                 renderPreview(data);
+                if (channel) { try { channel.postMessage({ staging_id: data.staging_id }); } catch (err) { /* another tab simply is not told */ } }
             })
             .catch(() => showError(T.connection));
     });
@@ -393,7 +415,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Drop the staged records on the server too, not only the preview.
         fetch(BASE_PATH + '/admin/books/import/marc/discard', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrf() }
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrf() },
+            body: JSON.stringify({ staging_id: upload ? upload.staging_id : '' })
         }).catch(() => {});
         upload = null;
         document.getElementById('marc-preview').classList.add('hidden');
@@ -406,6 +429,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('import-progress-container').classList.remove('hidden');
         const total = upload.total_rows;
         const size = upload.chunk_size || 10;
+        // A retry after a lost last response sends the same id: the server
+        // answers with the completed import instead of "session expired".
+        const stagingId = upload.staging_id;
         let current = 0;
         const next = () => {
             if (current >= total) return;
@@ -413,10 +439,12 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(BASE_PATH + '/admin/books/import/marc/chunk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
-                body: JSON.stringify({ start: current, size: size })
+                body: JSON.stringify({ staging_id: stagingId, start: current, size: size })
             })
                 .then((r) => r.json())
                 .then((data) => {
+                    // Another upload replaced this preview: never import its file under this one.
+                    if (data.stale) { markStale(); showError(data.error || T.stale); return; }
                     if (!data.success) { showError(data.error || T.invalid); return; }
                     if (!data.complete && data.processed <= current) { showError(T.invalid); return; } // no progress: never loop
                     current = data.processed;

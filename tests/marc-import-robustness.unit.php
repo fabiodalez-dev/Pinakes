@@ -15,7 +15,10 @@ declare(strict_types=1);
  *    matched to a printed book makes it a DVD) and never its format or price;
  *    fill mode leaves the media type, since a book always has one;
  *  - an overwrite that replaces a downloaded cover removes the old file
- *    unless another book still points at it.
+ *    unless another book still points at it;
+ *  - a chunk must name the preview that staged its file, a lost last chunk
+ *    response is answered again, and a failed history save is retried on
+ *    the same import_logs row.
  *
  * The database part touches only the book it creates (title prefixed ZZMR)
  * and removes it with the probe trigger.
@@ -298,6 +301,55 @@ if (!is_file($envFile)) {
             $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$plainBook}, {$plainId}, 'principale')");
             $check($skip->findExisting($plainRecord) === $plainBook, 'dedup: once Haffner is on file too, the Haffner record matches his book, not Häffner\'s');
             $check($skip->findExisting(['titolo' => 'ZZMR' . $run . ' dedup Wérke', 'autori' => $plain]) === null, 'dedup: a title that differs by an accent is another book');
+
+            // 6. Chunks belong to the preview that staged them; a lost last
+            //    response is answered again; a failed history save is retried
+            //    on the same import_logs row.
+            $controller = new MarcImportController();
+            $chunkCall = static function (array $body) use ($controller, $db): array {
+                $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/books/import/marc/chunk')
+                    ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream((string) json_encode($body)));
+                $res = $controller->chunk($request, new \Slim\Psr7\Response(), $db);
+                return [$res->getStatusCode(), json_decode((string) $res->getBody(), true)];
+            };
+            $uploads = $root . '/writable/uploads';
+            if (!is_dir($uploads)) {
+                mkdir($uploads, 0775, true);
+            }
+            $historyName = 'ZZMR' . $run . ' history.mrc';
+            $stagingFile = $uploads . '/marc_import_zzmr_' . strtolower($run) . '.jsonl';
+            file_put_contents($stagingFile, json_encode(['p' => 1, 'e' => 'bad record', 'x' => '']) . "\n");
+            $_SESSION = ['marc_import_data' => [
+                'staging_id' => 'current-preview', 'file_path' => $stagingFile, 'original_filename' => $historyName,
+                'total_rows' => 1, 'mode' => 'skip', 'covers' => false, 'offset' => 0, 'processed' => 0, 'counters' => [], 'errors' => [],
+            ]];
+            [$staleStatus, $staleBody] = $chunkCall(['staging_id' => 'replaced-preview', 'start' => 0, 'size' => 10]);
+            $check($staleStatus === 409 && ($staleBody['stale'] ?? false) === true && ($_SESSION['marc_import_data']['processed'] ?? null) === 0, 'a chunk of a preview another upload replaced is refused, nothing of the current file is imported');
+            [$noIdStatus] = $chunkCall(['start' => 0, 'size' => 10]);
+            $check($noIdStatus === 409 && ($_SESSION['marc_import_data']['processed'] ?? null) === 0, 'a chunk without the preview id is refused too');
+
+            $historyTrigger = 'zzmr_hist_' . strtolower($run);
+            $db->query("CREATE TRIGGER {$historyTrigger} BEFORE UPDATE ON import_logs FOR EACH ROW BEGIN IF NEW.status = 'completed' AND NEW.file_name = '" . $db->real_escape_string($historyName) . "' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'history probe'; END IF; END");
+            try {
+                [$failStatus] = $chunkCall(['staging_id' => 'current-preview', 'start' => 0, 'size' => 10]);
+            } finally {
+                $db->query("DROP TRIGGER IF EXISTS {$historyTrigger}");
+            }
+            $check($failStatus === 500 && is_array($_SESSION['marc_import_data'] ?? null) && !empty($_SESSION['marc_import_data']['import_id']), 'a failed history save keeps the state and the id of its history row');
+            [$retryStatus, $retryBody] = $chunkCall(['staging_id' => 'current-preview', 'start' => 1, 'size' => 10]);
+            $rowsStmt = $db->prepare("SELECT COUNT(*), SUM(status = 'completed') FROM import_logs WHERE file_name = ?");
+            $rowsStmt->bind_param('s', $historyName);
+            $rowsStmt->execute();
+            [$historyRows, $completedRows] = $rowsStmt->get_result()->fetch_row();
+            $rowsStmt->close();
+            $check($retryStatus === 200 && ($retryBody['complete'] ?? false) === true && (int) $historyRows === 1 && (int) $completedRows === 1, 'the retry completes the same history row: one row, completed, no failed duplicate');
+            $check(!is_file($stagingFile) && !isset($_SESSION['marc_import_data']), 'the completed import drops its staged file and state');
+            [$replayStatus, $replayBody] = $chunkCall(['staging_id' => 'current-preview', 'start' => 0, 'size' => 10]);
+            $check($replayStatus === 200 && $replayBody === $retryBody, 'a retry after a lost last response gets the completed import\'s answer again, not "session expired"');
+            [$expiredStatus] = $chunkCall(['staging_id' => 'unknown', 'start' => 0, 'size' => 10]);
+            $check($expiredStatus === 400, 'a chunk for no known preview is still "session expired"');
+            @unlink($stagingFile);
+            $_SESSION = [];
         } finally {
             $db->query("DROP TRIGGER IF EXISTS {$trigger}");
             $like = 'ZZMR' . $run . '%';
@@ -312,6 +364,11 @@ if (!is_file($envFile)) {
                 $db->query("DELETE FROM libri WHERE id = {$bookId}");
             }
             $stmt->close();
+            $logLike = 'ZZMR' . $run . '%';
+            $logStmt = $db->prepare('DELETE FROM import_logs WHERE file_name LIKE ?');
+            $logStmt->bind_param('s', $logLike);
+            $logStmt->execute();
+            $logStmt->close();
             $authorLike = 'ZZMR' . $run . ' %';
             $authorStmt = $db->prepare('DELETE FROM autori WHERE nome LIKE ? AND id NOT IN (SELECT autore_id FROM libri_autori)');
             $authorStmt->bind_param('s', $authorLike);
