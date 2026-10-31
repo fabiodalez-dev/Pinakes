@@ -168,6 +168,78 @@ $check($notFoundAnswer['error'] !== null && $notFound->calls === 1, '18c an HTTP
 $down = new (get_class($flaky))([$server], $sru, 'Connection failed', 99);
 $downAnswer = $down->searchServer($server, 'bib.title=x', 3);
 $check($downAnswer['error'] === 'Connection failed' && $down->calls === 3, '18d a server that stays down is tried a bounded number of times (1 + 2 retries), then reported');
+// What kind of failure it was decides the retry (Pullfrog on PR #505): a
+// refused or reset connection and an HTTP 5xx are transient; a timeout (the
+// server accepted the connection and then hung) or an oversized answer would
+// happen again, so it costs one attempt, not three, in a search that asks
+// the servers one after another. The transport is stood in for under
+// fetchUrl(), so the mapping of each HttpClient failure is what is tested.
+$transport = new class ([$server], $sru) extends SruClient {
+    public int $calls = 0;
+    /** @param array{ok:bool,status:int,body:string,error?:string} $failure */
+    public function __construct(array $servers, private string $xml, private array $failure = ['ok' => false, 'status' => 0, 'body' => ''], private int $failures = 99, private float $hang = 0.0)
+    {
+        parent::__construct($servers);
+    }
+    protected function httpGet(string $url, array $options): array
+    {
+        $this->calls++;
+        if ($this->hang > 0) {
+            usleep((int) ($this->hang * 1_000_000));
+        }
+        return $this->calls <= $this->failures ? $this->failure : ['ok' => true, 'status' => 200, 'body' => $this->xml];
+    }
+};
+$transportClass = get_class($transport);
+$timedOut = new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_TIMEOUT]);
+$timedOutAnswer = $timedOut->searchServer($server, 'bib.title=x', 3);
+$check($timedOut->calls === 1 && $timedOutAnswer['error'] === 'Request timed out', '18e a request that timed out is attempted once, not retried');
+$tooLarge = new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_TOO_LARGE]);
+$tooLargeAnswer = $tooLarge->searchServer($server, 'bib.title=x', 3);
+$check($tooLarge->calls === 1 && $tooLargeAnswer['error'] === 'Response too large', '18f an answer over max_bytes is attempted once, not retried');
+$refused = new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_CONNECT]);
+$refusedAnswer = $refused->searchServer($server, 'bib.title=x', 3);
+$check($refused->calls === 3 && $refusedAnswer['error'] === 'Connection failed', '18g a refused connection is retried (1 + 2 retries)');
+$refusedOnce = new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_CONNECT], 1);
+$refusedOnceAnswer = $refusedOnce->searchServer($server, 'bib.title=x', 3);
+$check($refusedOnce->calls === 2 && $refusedOnceAnswer['error'] === null && count($refusedOnceAnswer['records']) === 3, '18h a connection refused once, then answered, returns its records');
+$unavailable = new $transportClass([$server], $sru, ['ok' => true, 'status' => 503, 'body' => ''], 1);
+$unavailableAnswer = $unavailable->searchServer($server, 'bib.title=x', 3);
+$check($unavailable->calls === 2 && $unavailableAnswer['error'] === null, '18i an HTTP 5xx is transient and retried');
+$isbnTimeout = new $transportClass([['name' => 'Isbn', 'url' => 'https://isbn-timeout.example.org/sru', 'enabled' => true]], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_TIMEOUT]);
+$isbnTimeout->searchByIsbn('9788845292613');
+// queryServer() asks bath.isbn and then the bare isbn index: two requests,
+// each once, instead of 2 x (1 + 2 retries).
+$check($isbnTimeout->calls === 2, '18j the ISBN lookup does not retry a timeout either');
+// Slow transient failures: once the attempts have used one timeout, no retry
+// starts, whatever the kind of failure.
+$slow = (new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_CONNECT], 99, 1.05))->setOptions(['timeout' => 1]);
+$slow->searchServer($server, 'bib.title=x', 3);
+$check($slow->calls === 1, '18k no retry starts once the attempts have used one request timeout');
+// The real transport classifies the failures: a closed port is a connect
+// failure, a server that accepts the connection and never answers is a
+// timeout, an answer declaring more than max_bytes is too large.
+$probe = stream_socket_server('tcp://127.0.0.1:0');
+$closedPort = (int) substr((string) strrchr((string) stream_socket_get_name($probe, false), ':'), 1);
+fclose($probe);
+$closed = \App\Support\HttpClient::get("http://127.0.0.1:{$closedPort}/sru", [], ['timeout' => 2, 'connect_timeout' => 2]);
+$check($closed['ok'] === false && ($closed['error'] ?? '') === \App\Support\HttpClient::FAILURE_CONNECT, '18l HttpClient reports a refused connection as connect');
+$silent = stream_socket_server('tcp://127.0.0.1:0');
+$silentPort = (int) substr((string) strrchr((string) stream_socket_get_name($silent, false), ':'), 1);
+$hung = \App\Support\HttpClient::get("http://127.0.0.1:{$silentPort}/sru", [], ['timeout' => 1, 'connect_timeout' => 1]);
+fclose($silent);
+$check($hung['ok'] === false && ($hung['error'] ?? '') === \App\Support\HttpClient::FAILURE_TIMEOUT, '18m HttpClient reports a server that never answers as timeout');
+$big = stream_socket_server('tcp://127.0.0.1:0');
+$bigPort = (int) substr((string) strrchr((string) stream_socket_get_name($big, false), ':'), 1);
+fclose($big);
+$bigServer = proc_open([PHP_BINARY, '-r', '$s = stream_socket_server("tcp://127.0.0.1:' . $bigPort . '"); $c = stream_socket_accept($s, 10); if ($c) { fread($c, 8192); fwrite($c, "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: 99999999\r\n\r\n" . str_repeat("x", 4096)); usleep(500000); fclose($c); }'], [], $bigPipes);
+usleep(300000);
+$oversized = \App\Support\HttpClient::get("http://127.0.0.1:{$bigPort}/sru", [], ['timeout' => 5, 'connect_timeout' => 2, 'max_bytes' => 1024]);
+if (is_resource($bigServer)) {
+    proc_terminate($bigServer);
+    proc_close($bigServer);
+}
+$check($oversized['ok'] === false && ($oversized['error'] ?? '') === \App\Support\HttpClient::FAILURE_TOO_LARGE, '18n HttpClient reports an answer over max_bytes as too_large');
 $plain = ['name' => 'Plain', 'url' => 'https://plain.example.org/sru', 'enabled' => true];
 $isbnClient = new SearchFixtureClient([$plain], $sru);
 $isbnClient->searchByIsbn('978-88-452-9261-3');
@@ -221,6 +293,13 @@ $ownUrl = absoluteUrl('/api/sru');
 $check(\Plugins\Z39Server\Classes\LocalSruClient::isLocalUrl($ownUrl), '21 this installation\'s SRU URL is answered in-process');
 $wrongScheme = preg_replace('#^https://([^/]+)#', 'http://$1:443', $ownUrl);
 $check(str_starts_with($ownUrl, 'https://') ? !\Plugins\Z39Server\Classes\LocalSruClient::isLocalUrl((string) $wrongScheme) : true, '22 the same host and port over another scheme is not this server');
+$bounded = null;
+try {
+    \Plugins\Z39Server\Classes\LocalSruClient::readBounded((new \Slim\Psr7\Factory\StreamFactory())->createStream(str_repeat('x', 2048)), 1024);
+} catch (\RuntimeException $e) {
+    $bounded = $e;
+}
+$check($bounded !== null && $bounded->getCode() === SruClient::NOT_RETRYABLE, '23 an oversized answer of our own SRU server is marked not retryable');
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);
