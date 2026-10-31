@@ -247,6 +247,14 @@ try {
     $check($refused(static fn () => $service->cancel($sessionId, null)), 'cancelling a closed session is refused');
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$sessionId}") === 'chiusa', 'the closed session stays closed');
     $check((int) $one("SELECT COUNT(*) FROM log_modifiche WHERE tabella = 'inventario_sessioni' AND record_id IN ({$sessionId}, {$second}) AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event')) IN ('inventory.closed', 'inventory.cancelled')") === 2, 'only the winning transitions are logged');
+    // Those events have a reader (review #504): the book feeds filter on
+    // tabella = 'libri', so the session page shows its own history.
+    $eventsOf = static fn (int $sid): array => array_column(App\Support\ActivityLog::forEntity($db, 'inventario_sessioni', $sid), 'event');
+    $check($eventsOf($sessionId) === ['inventory.closed', 'inventory.opened'] && $eventsOf($second) === ['inventory.cancelled', 'inventory.opened'], 'forEntity() returns a session\'s own events, newest first');
+    $check(App\Support\ActivityLog::forEntity($db, 'libri', $b1) === [] && count(App\Support\ActivityLog::forEntity($db, 'inventario_sessioni', $sessionId, 1)) === 1, 'forEntity() never reads book rows and honours its limit');
+    $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
+    $page = (string) (new App\Controllers\InventoryController())->show((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/admin/inventory/' . $sessionId), new Slim\Psr7\Response(), $db, $sessionId)->getBody();
+    $check(str_contains($page, 'id="inventory-history"') && str_contains($page, 'data-event="inventory.closed"') && str_contains($page, htmlspecialchars(__('Revisione inventariale chiusa'), ENT_QUOTES, 'UTF-8')), 'the session page lists who closed it and when');
 
     // A scan in flight while another connection is closing the session waits
     // for the close instead of landing on a closed session.
