@@ -8970,6 +8970,7 @@
   "Giorno della settimana non valido.": "Ugyldig ugedag.",
   "Un'altra modifica del calendario è in corso: riprova tra poco.": "En anden ændring af kalenderen er i gang: prøv igen om lidt.",
   "Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Med denne årlige lukning ville biblioteket være lukket hele året: mindst én dag skal forblive åben.",
+  "Con questi giorni di chiusura settimanale e le chiusure annuali la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Med disse ugentlige lukkedage og de årlige lukninger ville biblioteket være lukket hele året: mindst én dag skal forblive åben.",
   "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Leverandør ikke tildelt: den blev slettet under importen.",
   "Il file dell'import non è più disponibile: caricalo di nuovo.": "Importfilen er ikke længere tilgængelig: upload den igen.",
   "Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.": "Importen er gennemført, men historikken blev ikke gemt: fejlrapporten kan ikke downloades.",

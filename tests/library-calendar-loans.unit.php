@@ -402,6 +402,36 @@ $controller->store($post(['data_inizio' => '2026-07-01', 'data_fine' => '2026-12
 $check($err !== null && $taggedRows() === 1, "yearly: a library-wide half that closes the year of one branch is refused");
 $clearClosures();
 
+// The weekly closed days count in the whole-year guard: a yearly closure
+// leaving only Jan 1 open closes every year whose Jan 1 is a Sunday.
+$setWeekdays('0');
+$controller->store($post(['data_inizio' => '2026-01-02', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $taggedRows() === 0, 'yearly: with Sundays closed, a closure leaving only Jan 1 open is refused');
+$setWeekdays('');
+$controller->store($post(['data_inizio' => '2026-01-02', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'yearly: without closed weekdays the same closure is accepted');
+$controller->saveWeekdays($post(['closed_weekdays' => ['0']]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($err !== null && $ok === null && $weekdaysNow() === '', 'weekdays: closing Sundays over a yearly closure that leaves only Jan 1 open is refused and rolled back');
+$controller->saveWeekdays($post([]), new \Slim\Psr7\Response(), $db);
+$flash();
+$clearClosures();
+
+// The holidays preset meets the same guard: the stored yearly closures leave
+// only Aug 15 open, and Ferragosto would close it.
+$maxBefore = (int) $db->query('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure')->fetch_row()[0];
+$controller->store($post(['data_inizio' => '2026-08-16', 'data_fine' => '2027-08-14', 'ricorrente_annuale' => '1', 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$check($ok !== null && $taggedRows() === 1, 'yearly: a closure leaving only Aug 15 open is stored');
+$controller->importPreset($post(['year' => substr($today, 0, 4)]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'")->fetch_row()[0];
+$check($err !== null && $ok === null && $presetRows === 0, 'preset: an import that would close the whole year is refused and rolled back (' . $presetRows . ' rows kept)');
+$db->query("DELETE FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'");
+$clearClosures();
+
 $icsFile = static function (string $body): \Slim\Psr7\UploadedFile {
     $path = tempnam(sys_get_temp_dir(), 'calics');
     file_put_contents($path, $body);
