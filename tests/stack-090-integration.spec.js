@@ -50,11 +50,10 @@ const ncipXml = (service, userId, itemId) => `<?xml version="1.0" encoding="UTF-
 const ncipAuth = 'Basic ' + Buffer.from(`${F.ADMIN_EMAIL}:${F.ADMIN_PASS}`).toString('base64');
 const ncip = async (request, body) => (await request.post(`${F.BASE}/ncip`, { data: body, headers: { 'Content-Type': 'application/xml', Authorization: ncipAuth } })).text();
 
-function readSetting(key) {
-  const exists = F.dbInt(`SELECT COUNT(*) FROM system_settings WHERE category='loans' AND setting_key=${F.sqlStr(key)}`) === 1;
-  return exists ? F.dbQuery(`SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key=${F.sqlStr(key)}`) : null;
-}
-function restoreSetting(key, value) {
+/** Current value of a loans setting: a string, null when absent or SQL NULL. */
+const readSetting = (key) => F.readSettingState('loans', key).value;
+/** Set a loans setting for the test (null removes the row). */
+function writeSetting(key, value) {
   if (value === null) F.dbQuery(`DELETE FROM system_settings WHERE category='loans' AND setting_key=${F.sqlStr(key)}`);
   else F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', ${F.sqlStr(key)}, ${F.sqlStr(value)}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
 }
@@ -109,6 +108,7 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
   let adminCtx;
   const saved = {};
   let savedClosures = null;
+  let savedRules = null;
   let ncipWasActive = true;
   let mobileWasActive = true;
   let gate = null;
@@ -121,17 +121,20 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
   let deskLoan = 0;
 
   test.beforeAll(async ({ browser }) => {
-    for (const k of LOAN_SETTINGS) saved[k] = readSetting(k);
+    for (const k of LOAN_SETTINGS) saved[k] = F.readSettingState('loans', k);
     savedClosures = F.stashRows('calendario_chiusure');
+    // A matrix rule for every type (tipologia_id=0) would sit above the
+    // patron type layer and change its loan length or fine: start empty.
+    savedRules = F.stashRows('regole_prestito');
     F.dbQuery('DELETE FROM calendario_chiusure');
+    F.dbQuery('DELETE FROM regole_prestito');
     // Global fines and threshold empty: only the patron type charges and blocks.
-    for (const k of ['daily_fine', 'fine_max_per_loan', 'debt_block_threshold']) restoreSetting(k, '');
-    restoreSetting('fine_grace_days', '0');
-    restoreSetting('fine_charged_email', '0');
-    restoreSetting('closed_weekdays', null);
-    restoreSetting('auto_approve_requests', '0');
+    for (const k of ['daily_fine', 'fine_max_per_loan', 'debt_block_threshold']) writeSetting(k, '');
+    writeSetting('fine_grace_days', '0');
+    writeSetting('fine_charged_email', '0');
+    writeSetting('closed_weekdays', null);
+    writeSetting('auto_approve_requests', '0');
     clearConfigCache();
-    today = F.appTodayISO();
 
     reader = F.createPatron(`INT${RUN}`, { password: PASS });
     plain = F.createPatron(`INP${RUN}`, { password: PASS });
@@ -152,16 +155,22 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
     await F.setPluginActive(admin, 'ncip-server', true);
   });
 
+  // The app dates a loan when the request arrives: read the application day
+  // again before every test, so a run that crosses midnight compares each
+  // loan with the day it was actually made on.
+  test.beforeEach(() => { today = F.appTodayISO(); });
+
   test.afterEach(() => { expect(errors.splice(0), 'no HTTP 5xx').toEqual([]); });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser }) => {
     // Independent restore steps: one failing must not leave the others undone.
     await F.runAll([
-      // One step per key, and only for keys beforeAll actually read:
-      // readSetting() returns a string or null, so undefined means never read.
-      ...LOAN_SETTINGS.map((k) => () => { if (saved[k] !== undefined) restoreSetting(k, saved[k]); }),
+      // One step per key, and only for keys beforeAll actually read (an
+      // absent row, SQL NULL and text all come back as they were).
+      ...LOAN_SETTINGS.map((k) => () => { if (saved[k] !== undefined) F.restoreSettingState('loans', k, saved[k]); }),
       () => clearConfigCache(),
       () => F.unstashRows(savedClosures),
+      () => F.unstashRows(savedRules),
       () => {
         for (const p of [reader, plain]) {
           if (!p) continue;
@@ -179,8 +188,10 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
       () => F.deletePatrons([reader?.id, plain?.id]),
       () => F.deleteTypes(PREFIX),
       () => M.restoreGate(gate),
-      async () => { if (admin && !ncipWasActive) await F.setPluginActive(admin, 'ncip-server', false); },
-      async () => { if (admin && !mobileWasActive) await F.setPluginActive(admin, 'mobile-api', false); },
+      // A fresh admin login for the plugins: the suite's own admin page may
+      // be the very step that failed (context, page or login).
+      async () => { if (!ncipWasActive) await F.setPluginActiveFresh(browser, 'ncip-server', false); },
+      async () => { if (!mobileWasActive) await F.setPluginActiveFresh(browser, 'mobile-api', false); },
       async () => { await adminCtx?.close(); },
     ]);
   });

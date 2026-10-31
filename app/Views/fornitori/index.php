@@ -135,44 +135,54 @@ document.addEventListener('DOMContentLoaded', function () {
     // its accents ("muller" finds Müller), a quoted group matches the exact
     // spelling ("Muller" does not find Müller), case is ignored, and every
     // term must match. An unclosed quote runs to the end, and a straight or
-    // closing double quote right after a digit outside a group is a literal
-    // inch mark (12" stays 12"). Lower-casing is locale-free (toLowerCase),
-    // so a Turkish browser does not turn "IKEA" into "ıkea".
+    // closing double quote right after a digit (any script: 12" or ١٢")
+    // outside a group is a literal inch mark that stays part of the word.
+    // The query is scanned once, so no stand-in character is substituted and
+    // a name holding any private-use character is matched as typed.
+    // Lower-casing is locale-free (toLowerCase), so a Turkish browser does
+    // not turn "IKEA" into "ıkea".
     const QUOTES = '"“”„«»';
-    const INCH = '\uE000';
-    const fold = function (s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+    const fold = function (s) { return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); };
     const exact = function (s) { return s.normalize('NFC').replace(/\s+/g, ' ').toLowerCase(); };
-    const protectInchMarks = function (query) {
-      let open = false;
-      let prev = '';
-      let out = '';
-      for (const ch of query) {
-        let c = ch;
-        if (QUOTES.includes(ch)) {
-          if (!open && (ch === '"' || ch === '”') && /^[0-9]$/.test(prev)) {
-            c = INCH;
-          } else {
-            open = !open;
-          }
-        }
-        out += c;
-        prev = c;
-      }
-      return out;
-    };
     const terms = function (query) {
       const out = [];
-      const re = /["“”„«»]([^"“”„«»]*)(?:["“”„«»]|$)|([^\s"“”„«»]+)/g;
-      const q = protectInchMarks(query);
-      let m;
-      while ((m = re.exec(q)) !== null) {
-        if (m[1] !== undefined) {
-          const phrase = m[1].trim().replace(/\s+/g, ' ');
-          if (phrase !== '') { out.push({ term: exact(phrase), exact: true }); }
-        } else {
-          out.push({ term: fold(m[2].split(INCH).join('"')), exact: false });
+      let open = false;
+      let word = '';
+      let phrase = '';
+      let afterDigit = false;
+      const flushWord = function () {
+        if (word !== '') { out.push({ term: fold(word), exact: false }); }
+        word = '';
+      };
+      const flushPhrase = function () {
+        const p = phrase.trim().replace(/\s+/g, ' ');
+        if (p !== '') { out.push({ term: exact(p), exact: true }); }
+        phrase = '';
+      };
+      for (const ch of query) {
+        if (QUOTES.includes(ch)) {
+          if (open) {
+            flushPhrase();
+            open = false;
+          } else if ((ch === '"' || ch === '”') && afterDigit) {
+            word += '"';
+          } else {
+            flushWord();
+            open = true;
+          }
+          afterDigit = false;
+          continue;
         }
+        if (open) {
+          phrase += ch;
+        } else if (/\s/.test(ch)) {
+          flushWord();
+        } else {
+          word += ch;
+        }
+        afterDigit = /^\p{Nd}$/u.test(ch);
       }
+      if (open) { flushPhrase(); } else { flushWord(); }
       return out;
     };
     search.addEventListener('input', function () {

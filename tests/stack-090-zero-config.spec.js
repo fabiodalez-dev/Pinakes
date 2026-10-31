@@ -41,10 +41,9 @@ const ncipXml = (service, userId, itemId) => `<?xml version="1.0" encoding="UTF-
 const ncipAuth = 'Basic ' + Buffer.from(`${F.ADMIN_EMAIL}:${F.ADMIN_PASS}`).toString('base64');
 const ncip = async (request, body) => (await request.post(`${F.BASE}/ncip`, { data: body, headers: { 'Content-Type': 'application/xml', Authorization: ncipAuth } })).text();
 
-function readSetting(category, key) {
-  const exists = F.dbInt(`SELECT COUNT(*) FROM system_settings WHERE category=${F.sqlStr(category)} AND setting_key=${F.sqlStr(key)}`) === 1;
-  return exists ? F.dbQuery(`SELECT setting_value FROM system_settings WHERE category=${F.sqlStr(category)} AND setting_key=${F.sqlStr(key)}`) : null;
-}
+/** Current value of a setting: a string, null when absent or SQL NULL. */
+const readSetting = (category, key) => F.readSettingState(category, key).value;
+/** Set a setting for the test (null removes the row). */
 function writeSetting(category, key, value) {
   if (value === null) F.dbQuery(`DELETE FROM system_settings WHERE category=${F.sqlStr(category)} AND setting_key=${F.sqlStr(key)}`);
   else F.dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES (${F.sqlStr(category)}, ${F.sqlStr(key)}, ${F.sqlStr(value)}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
@@ -86,6 +85,7 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
   let emailSettings;
   let ncipWasActive = true;
   let mobileWasActive = true;
+  let mailpit = false;
   let gate = null;
   let reader;
   let debtor;
@@ -97,7 +97,7 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
   let deskLoan = 0;
 
   test.beforeAll(async ({ browser }) => {
-    for (const k of LOAN_SETTINGS) saved[k] = readSetting('loans', k);
+    for (const k of LOAN_SETTINGS) saved[k] = F.readSettingState('loans', k);
     closures = F.stashRows('calendario_chiusure');
     rules = F.stashRows('regole_prestito');
     emailSettings = F.stashRows('system_settings', "category='email'");
@@ -130,6 +130,7 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
     await F.loginAsAdmin(admin);
     ncipWasActive = F.pluginActive('ncip-server');
     await F.setPluginActive(admin, 'ncip-server', true);
+    try { mailpit = (await fetch(`${MAILPIT_API}/messages`, { signal: AbortSignal.timeout(3000) })).ok; } catch { mailpit = false; }
   });
 
   // The app dates a loan when the request arrives: read the application day
@@ -139,12 +140,12 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
 
   test.afterEach(() => { expect(errors.splice(0), 'no HTTP 5xx').toEqual([]); });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser }) => {
     // Independent restore steps: one failing must not leave the others undone.
     await F.runAll([
-      // One step per key, and only for keys beforeAll actually read:
-      // readSetting() returns a string or null, so undefined means never read.
-      ...LOAN_SETTINGS.map((k) => () => { if (saved[k] !== undefined) writeSetting('loans', k, saved[k]); }),
+      // One step per key, and only for keys beforeAll actually read (an
+      // absent row, SQL NULL and text all come back as they were).
+      ...LOAN_SETTINGS.map((k) => () => { if (saved[k] !== undefined) F.restoreSettingState('loans', k, saved[k]); }),
       () => F.unstashRows(closures),
       () => F.unstashRows(rules),
       // Always reset the category: an install with no email rows gets none back.
@@ -170,8 +171,10 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
       },
       () => F.deletePatrons([reader?.id, debtor?.id]),
       () => M.restoreGate(gate),
-      async () => { if (admin && !ncipWasActive) await F.setPluginActive(admin, 'ncip-server', false); },
-      async () => { if (admin && !mobileWasActive) await F.setPluginActive(admin, 'mobile-api', false); },
+      // A fresh admin login for the plugins: the suite's own admin page may
+      // be the very step that failed (context, page or login).
+      async () => { if (!ncipWasActive) await F.setPluginActiveFresh(browser, 'ncip-server', false); },
+      async () => { if (!mobileWasActive) await F.setPluginActiveFresh(browser, 'mobile-api', false); },
       async () => { await adminCtx?.close(); },
     ]);
   });
@@ -258,11 +261,10 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
       .toBe(`${addDays(today, loanDays)}|${addDays(today, Math.min(pickupDays, loanDays))}`);
   });
 
-  test('5. a late return charges nothing, the loan page shows no fine and the return email has no fine line', async () => {
-    let mailpit = false;
-    try { mailpit = (await fetch(`${MAILPIT_API}/messages`, { signal: AbortSignal.timeout(3000) })).ok; } catch { mailpit = false; }
-    // In CI Mailpit is a service of the job: without it the e-mail half of
-    // this test would pass silently, so it fails instead. Locally it is optional.
+  test('5. a late return charges nothing and the loan page shows no fine', async () => {
+    // In CI Mailpit is a service of the job: without it the e-mail check
+    // (5b) could not run, so this fails instead. Locally it is optional and
+    // 5b reports itself as skipped.
     if (!mailpit && process.env.CI) {
       throw new Error(`Mailpit is not reachable at ${MAILPIT_API} in CI`);
     }
@@ -289,8 +291,10 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
     await admin.waitForFunction(() => !window.location.pathname.includes('/admin/loans/returned/'), null, { timeout: 20000 });
     expect(F.dbQuery(`SELECT CONCAT(stato,'|',attivo,'|',restituito_in_ritardo) FROM prestiti WHERE id=${loanId}`)).toBe('restituito|0|1');
     expect(F.dbInt(`SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id=${reader.id}`)).toBe(0);
+  });
 
-    if (!mailpit) return;
+  test('5b. the e-mail for that late return has no fine line', async () => {
+    test.skip(!mailpit, `Mailpit is not reachable at ${MAILPIT_API}`);
     const search = async (query) => (await (await fetch(`${MAILPIT_API}/search?query=${encodeURIComponent(query)}`)).json()).messages || [];
     let returned = null;
     const deadline = Date.now() + 30000;

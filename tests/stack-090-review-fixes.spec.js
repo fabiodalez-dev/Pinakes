@@ -71,8 +71,9 @@ test.describe.serial('A. closures calendar and visitor-log retention are reserve
     + '#' + F.dbQuery("SELECT IFNULL(MAX(setting_value),'-') FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
 
   test.beforeAll(async ({ browser }) => {
-    savedWeekdays = F.dbQuery("SELECT IFNULL(MAX(setting_value),'') FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
-    savedRetention = F.dbQuery("SELECT IFNULL(MAX(setting_value),'') FROM system_settings WHERE category='attendance' AND setting_key='retention_days'");
+    // Row state, not just the text: an empty value is not an absent row.
+    savedWeekdays = F.readSettingState('loans', 'closed_weekdays');
+    savedRetention = F.readSettingState('attendance', 'retention_days');
     adminPage = await (await browser.newContext()).newPage();
     await F.loginAsAdmin(adminPage);
     // A closure made by the administrator from the calendar page.
@@ -93,10 +94,8 @@ test.describe.serial('A. closures calendar and visitor-log retention are reserve
   test.afterAll(async () => {
     F.dbQuery(`DELETE FROM calendario_chiusure WHERE descrizione=${S(TAG)}`);
     F.dbQuery(`DELETE FROM presenze WHERE nome_ospite=${S(TAG)}`);
-    if (savedWeekdays === '') F.dbQuery("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
-    else F.dbQuery(`UPDATE system_settings SET setting_value=${S(savedWeekdays)} WHERE category='loans' AND setting_key='closed_weekdays'`);
-    if (savedRetention === '') F.dbQuery("DELETE FROM system_settings WHERE category='attendance' AND setting_key='retention_days'");
-    else F.dbQuery(`UPDATE system_settings SET setting_value=${S(savedRetention)} WHERE category='attendance' AND setting_key='retention_days'`);
+    if (savedWeekdays) F.restoreSettingState('loans', 'closed_weekdays', savedWeekdays);
+    if (savedRetention) F.restoreSettingState('attendance', 'retention_days', savedRetention);
     F.deletePatrons([staff?.id]);
     await staffPage?.context().close();
     await adminPage?.context().close();
@@ -156,11 +155,13 @@ test.describe.serial('A. closures calendar and visitor-log retention are reserve
       const r = await staffPage.request.post(`${F.BASE}${route}`, { form: { csrf_token: csrf, ...fields }, maxRedirects: 0 });
       expect(r.status(), route).toBe(302);
     }
-    expect(F.dbQuery("SELECT IFNULL(MAX(setting_value),'') FROM system_settings WHERE category='attendance' AND setting_key='retention_days'")).toBe(savedRetention);
+    expect(F.readSettingState('attendance', 'retention_days')).toEqual(savedRetention);
     expect(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE id=${presenzaId}`), 'the old visit is still there').toBe(1);
     // The administrator's purge removes it. The purge deletes every visit
     // older than the retention, not only this one: the other rows are
     // snapshotted first and put back afterwards, so the shared DB keeps them.
+    // Only the snapshot's own rows are put back: a visit recorded meanwhile
+    // stays.
     const otherVisits = F.stashRows('presenze', `id<>${presenzaId}`);
     try {
       await adminPage.goto(`${F.BASE}/admin/attendance`);
@@ -169,7 +170,7 @@ test.describe.serial('A. closures calendar and visitor-log retention are reserve
       if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
       await expect.poll(() => F.dbInt(`SELECT COUNT(*) FROM presenze WHERE id=${presenzaId}`), { timeout: 15000 }).toBe(0);
     } finally {
-      F.unstashRows(otherVisits);
+      F.unstashRows(otherVisits, { onlySnapshotRows: true });
     }
   });
 });
