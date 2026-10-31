@@ -208,6 +208,13 @@ try {
     $check($retry['outcomes']['in_prestito'] === 1 && $retry['outcomes']['duplicata'] === 0, 'uploading the file again records its codes, not duplicates');
     $service->cancel($second, null);
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'cancelling leaves every copy as it was');
+    // The PDF header dates the end of a session by what ended it (review #504).
+    $pdfGenerator = new App\Support\StocktakePdfGenerator();
+    $cancelledMeta = implode(' | ', $pdfGenerator->metaLines((array) $service->find($second)));
+    $closedMeta = implode(' | ', $pdfGenerator->metaLines((array) $service->find($sessionId)));
+    $check(str_contains($cancelledMeta, __('Annullata il') . ': ') && !str_contains($cancelledMeta, __('Chiusa il')), 'the PDF of a cancelled session says when it was cancelled, not closed');
+    $check(str_contains($closedMeta, __('Chiusa il') . ': ') && !str_contains($closedMeta, __('Annullata il')), 'the PDF of a closed session says when it was closed');
+    $check(str_starts_with($pdfGenerator->generate((array) $service->find($second), $service->summary($second), $service->reportRows($second), [], []), '%PDF'), 'the PDF of a cancelled session is still generated');
 
     // A close or cancel that loses the race against another transition does nothing.
     $refused = static function (callable $fn): bool {

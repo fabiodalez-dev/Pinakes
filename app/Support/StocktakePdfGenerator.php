@@ -46,18 +46,7 @@ class StocktakePdfGenerator
 
         $pdf->SetFont(self::FONT, '', 9);
         $pdf->SetTextColor(90, 90, 90);
-        $states = ['aperta' => __('Aperta'), 'chiusa' => __('Chiusa'), 'annullata' => __('Annullata')];
-        $meta = [
-            __('Stato') . ': ' . ($states[(string) $session['stato']] ?? (string) $session['stato']),
-            __('Aperta il') . ': ' . format_date((string) $session['aperta_il'], true, '/'),
-        ];
-        if (!empty($session['chiusa_il'])) {
-            $meta[] = __('Chiusa il') . ': ' . format_date((string) $session['chiusa_il'], true, '/');
-        }
-        if (!empty($session['sede_nome'])) {
-            $meta[] = __('Sede') . ': ' . (string) $session['sede_nome'];
-        }
-        $pdf->MultiCell(0, 5, implode('  ·  ', $meta), 0, 'C');
+        $pdf->MultiCell(0, 5, implode('  ·  ', $this->metaLines($session)), 0, 'C');
         $pdf->MultiCell(0, 5, $filterLabels !== [] ? implode('  ·  ', $filterLabels) : __('Tutto il catalogo'), 0, 'C');
         $pdf->SetTextColor(0, 0, 0);
         $pdf->Ln(3);
@@ -139,6 +128,31 @@ class StocktakePdfGenerator
         $pdf->Cell(0, 5, sprintf(__('Documento generato il %s alle %s'), format_date($now->format('Y-m-d'), false, '/'), $now->format('H:i')), 0, 1, 'C');
 
         return $pdf->Output('', 'S');
+    }
+
+    /**
+     * The header facts: state, when it opened, when it ended, branch.
+     * chiusa_il is also the moment a cancelled session was cancelled, so its
+     * label follows the state.
+     *
+     * @param array<string,mixed> $session
+     * @return list<string>
+     */
+    public function metaLines(array $session): array
+    {
+        $state = (string) ($session['stato'] ?? '');
+        $states = ['aperta' => __('Aperta'), 'chiusa' => __('Chiusa'), 'annullata' => __('Annullata')];
+        $meta = [
+            __('Stato') . ': ' . ($states[$state] ?? $state),
+            __('Aperta il') . ': ' . format_date((string) $session['aperta_il'], true, '/'),
+        ];
+        if (!empty($session['chiusa_il'])) {
+            $meta[] = ($state === 'annullata' ? __('Annullata il') : __('Chiusa il')) . ': ' . format_date((string) $session['chiusa_il'], true, '/');
+        }
+        if (!empty($session['sede_nome'])) {
+            $meta[] = __('Sede') . ': ' . (string) $session['sede_nome'];
+        }
+        return $meta;
     }
 
     private function fit(string $value, float $widthMm): string
