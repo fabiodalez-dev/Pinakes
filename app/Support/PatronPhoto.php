@@ -90,6 +90,15 @@ final class PatronPhoto
             return 'invalid_image';
         }
 
+        // Read the reference to replace before writing anything: a failure
+        // here must not leave a personal photo on disk that nothing points to.
+        try {
+            $previous = self::storedFor($db, $userId);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[PatronPhoto] cannot read the current photo', ['user_id' => $userId, 'error' => $e->getMessage()]);
+            return 'db';
+        }
+
         $dir = self::directory();
         if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
             SecureLogger::error('[PatronPhoto] cannot create the photo directory');
@@ -103,15 +112,22 @@ final class PatronPhoto
         }
         @chmod($target, 0640);
 
-        $previous = self::storedFor($db, $userId);
         try {
             $stmt = $db->prepare('UPDATE utenti SET foto_profilo_url = ? WHERE id = ?');
             if ($stmt === false) {
                 throw new \RuntimeException($db->error);
             }
-            $stmt->bind_param('si', $name, $userId);
-            $stmt->execute();
-            $stmt->close();
+            try {
+                $stmt->bind_param('si', $name, $userId);
+                $stmt->execute();
+                // The name is new (random part), so a matched row always
+                // changes: 0 means the account is gone and the file is orphan.
+                if ($stmt->affected_rows !== 1) {
+                    throw new \RuntimeException('No account to attach the photo to');
+                }
+            } finally {
+                $stmt->close();
+            }
         } catch (\Throwable $e) {
             @unlink($target);
             SecureLogger::error('[PatronPhoto] cannot record the photo', ['user_id' => $userId, 'error' => $e->getMessage()]);
@@ -123,10 +139,23 @@ final class PatronPhoto
         return null;
     }
 
-    /** Remove the user's photo: the file and the reference. True when none is left. */
+    /**
+     * Remove the user's photo: the file, then the reference. True when none is
+     * left. When the file cannot be removed the reference stays, so the photo
+     * is still known (and deletable) instead of lingering on disk unreferenced.
+     */
     public static function delete(mysqli $db, int $userId): bool
     {
-        $previous = self::storedFor($db, $userId);
+        try {
+            $previous = self::storedFor($db, $userId);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[PatronPhoto] cannot read the photo to delete', ['user_id' => $userId, 'error' => $e->getMessage()]);
+            return false;
+        }
+        if ($previous !== null && !self::deleteFile($previous)) {
+            SecureLogger::error('[PatronPhoto] cannot delete the photo file', ['user_id' => $userId]);
+            return false;
+        }
         try {
             $stmt = $db->prepare('UPDATE utenti SET foto_profilo_url = NULL WHERE id = ?');
             if ($stmt === false) {
@@ -136,22 +165,26 @@ final class PatronPhoto
             $stmt->execute();
             $stmt->close();
         } catch (\Throwable $e) {
+            // The file is already gone: a reference to a missing file shows
+            // no photo (absolutePath() checks the file), and the next delete
+            // clears it.
             SecureLogger::error('[PatronPhoto] cannot clear the photo', ['user_id' => $userId, 'error' => $e->getMessage()]);
             return false;
-        }
-        if ($previous !== null) {
-            self::deleteFile($previous);
         }
         return true;
     }
 
-    /** Delete the file behind a stored value (used when the account itself is deleted). */
-    public static function deleteFile(?string $stored): void
+    /**
+     * Delete the file behind a stored value (also used when the account
+     * itself is deleted). True when no file is left: removed, or none there.
+     */
+    public static function deleteFile(?string $stored): bool
     {
         $path = self::absolutePath($stored);
-        if ($path !== null) {
-            @unlink($path);
+        if ($path === null) {
+            return true;
         }
+        return @unlink($path) || !is_file($path);
     }
 
     /** Decode any GD-readable JPEG/PNG/WebP and re-encode it as a bounded JPEG. */
@@ -182,15 +215,16 @@ final class PatronPhoto
         // re-encode drops: turn the pixels so the card shows them upright.
         // Read now, applied after the downscale, so GD never holds two
         // full-resolution copies at once.
-        $angle = 0;
-        if ($info[2] === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
-            $exif = @exif_read_data($sourcePath);
-            $angle = match (is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1) {
-                3 => 180,
-                6 => -90,
-                8 => 90,
-                default => 0,
-            };
+        $transform = ['flip' => null, 'angle' => 0];
+        if ($info[2] === IMAGETYPE_JPEG) {
+            // Without the exif extension the tag is read from the APP1 block
+            // directly, so the rotation never depends on an optional module.
+            $orientation = null;
+            if (function_exists('exif_read_data')) {
+                $exif = @exif_read_data($sourcePath);
+                $orientation = is_array($exif) && isset($exif['Orientation']) ? (int) $exif['Orientation'] : null;
+            }
+            $transform = self::orientationTransform($orientation ?? self::jpegOrientation($bytes));
         }
         $scale = min(1.0, self::MAX_EDGE / max($width, $height));
         $newW = max(1, (int) round($width * $scale));
@@ -200,9 +234,12 @@ final class PatronPhoto
         imagefill($dst, 0, 0, (int) imagecolorallocate($dst, 255, 255, 255));
         imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $width, $height);
         unset($src); // free the full-size image before the rotation
-        if ($angle !== 0) {
+        if ($transform['flip'] !== null) {
+            imageflip($dst, $transform['flip']);
+        }
+        if ($transform['angle'] !== 0) {
             // A quarter turn keeps the long edge within MAX_EDGE.
-            $rotated = imagerotate($dst, $angle, 0);
+            $rotated = imagerotate($dst, $transform['angle'], 0);
             if ($rotated !== false) {
                 $dst = $rotated;
             }
@@ -211,5 +248,79 @@ final class PatronPhoto
         imagejpeg($dst, null, 85);
         $out = (string) ob_get_clean();
         return $out !== '' ? $out : null;
+    }
+
+    /**
+     * How to turn the pixels of an EXIF Orientation upright: an optional
+     * mirror (IMG_FLIP_*), applied first, then a GD angle (counter-clockwise).
+     * 1 or unknown: nothing. 2/4 mirror; 3/6/8 rotate; 5 (transpose) and 7
+     * (transverse) mirror horizontally, then rotate.
+     *
+     * @return array{flip: ?int, angle: int}
+     */
+    public static function orientationTransform(?int $orientation): array
+    {
+        return match ($orientation) {
+            2 => ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 0],
+            3 => ['flip' => null, 'angle' => 180],
+            4 => ['flip' => IMG_FLIP_VERTICAL, 'angle' => 0],
+            5 => ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 90],
+            6 => ['flip' => null, 'angle' => -90],
+            7 => ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => -90],
+            8 => ['flip' => null, 'angle' => 90],
+            default => ['flip' => null, 'angle' => 0],
+        };
+    }
+
+    /**
+     * The EXIF Orientation of a JPEG read from its APP1 segment, without the
+     * exif extension; null when there is none (or the block is malformed).
+     */
+    public static function jpegOrientation(string $jpeg): ?int
+    {
+        $length = strlen($jpeg);
+        if ($length < 4 || substr($jpeg, 0, 2) !== "\xFF\xD8") {
+            return null;
+        }
+        $pos = 2;
+        while ($pos + 4 <= $length && $jpeg[$pos] === "\xFF") {
+            $marker = ord($jpeg[$pos + 1]);
+            $size = (int) unpack('n', substr($jpeg, $pos + 2, 2))[1];
+            if ($marker === 0xDA || $size < 2) {
+                return null; // image data starts: no APP1 before it
+            }
+            if ($marker === 0xE1 && substr($jpeg, $pos + 4, 6) === "Exif\x00\x00") {
+                return self::tiffOrientation(substr($jpeg, $pos + 10, $size - 8));
+            }
+            $pos += 2 + $size;
+        }
+        return null;
+    }
+
+    /** Orientation tag (0x0112) of IFD0 in a TIFF block. */
+    private static function tiffOrientation(string $tiff): ?int
+    {
+        $order = substr($tiff, 0, 2);
+        if ($order !== 'II' && $order !== 'MM' || strlen($tiff) < 8) {
+            return null;
+        }
+        $short = $order === 'II' ? 'v' : 'n';
+        $long = $order === 'II' ? 'V' : 'N';
+        $ifd = (int) unpack($long, substr($tiff, 4, 4))[1];
+        if ($ifd < 8 || $ifd + 2 > strlen($tiff)) {
+            return null;
+        }
+        $entries = (int) unpack($short, substr($tiff, $ifd, 2))[1];
+        for ($i = 0; $i < $entries; $i++) {
+            $entry = $ifd + 2 + $i * 12;
+            if ($entry + 12 > strlen($tiff)) {
+                return null;
+            }
+            if ((int) unpack($short, substr($tiff, $entry, 2))[1] === 0x0112) {
+                $value = (int) unpack($short, substr($tiff, $entry + 8, 2))[1];
+                return $value >= 1 && $value <= 8 ? $value : null;
+            }
+        }
+        return null;
     }
 }

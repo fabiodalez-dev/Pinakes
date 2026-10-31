@@ -210,7 +210,10 @@ class MarcExportController
         $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($db);
         $lastId = 0;
         while (true) {
-            $sql = 'SELECT * FROM libri WHERE deleted_at IS NULL AND id > ?';
+            // A desiderata request is not a holding: BookMarcBuilder has no
+            // field for the flag, so exporting it would read as a real copy.
+            $sql = 'SELECT * FROM libri WHERE deleted_at IS NULL AND '
+                . \App\Support\BookVisibility::catalogue($db) . ' AND id > ?';
             $types = 'i';
             $params = [$lastId];
             if ($ids !== null) {

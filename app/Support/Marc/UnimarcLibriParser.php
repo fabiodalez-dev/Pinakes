@@ -141,7 +141,10 @@ class UnimarcLibriParser
                     if ($name !== '') {
                         $relator = $subs['4'][0] ?? '070';
                         $ruolo = $this->roleForRelator($relator);
-                        if ($tag === '700' && $authors === []) {
+                        // 700 is the primary responsibility, unless its relator says
+                        // otherwise: a translator or editor there stays one.
+                        if ($tag === '700' && $ruolo === 'co-autore'
+                            && !in_array('principale', array_column($authors, 'ruolo'), true)) {
                             $ruolo = 'principale';
                         }
                         $authors[] = ['name' => $name, 'ruolo' => $ruolo];

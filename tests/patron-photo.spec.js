@@ -23,8 +23,10 @@ const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 
-let pdfimages = true;
-try { execFileSync('pdfimages', ['-v'], { stdio: 'ignore' }); } catch { pdfimages = false; }
+// The card test reads the PDF with both poppler tools: pdfimages for the
+// photo, pdftotext for the name.
+let poppler = true;
+try { execFileSync('pdfimages', ['-v'], { stdio: 'ignore' }); execFileSync('pdftotext', ['-v'], { stdio: 'ignore' }); } catch { poppler = false; }
 
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME || (!DB_HOST && !DB_SOCKET), 'E2E credentials not configured');
 
@@ -152,7 +154,7 @@ test.describe.serial('Patron photo (phase 7)', () => {
   });
 
   test('the photo is printed on the library card', async ({ page }) => {
-    test.skip(!pdfimages, 'poppler pdfimages not installed');
+    test.skip(!poppler, 'poppler (pdfimages/pdftotext) not installed');
     await login(page);
     const resp = await page.request.get(`${BASE}/admin/users/${userId}/card-pdf?format=single`);
     expect(resp.status()).toBe(200);

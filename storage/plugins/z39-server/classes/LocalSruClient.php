@@ -29,7 +29,10 @@ final class LocalSruClient extends SruClient
         if (!is_array($own) || !is_array($target) || !isset($own['host'], $target['host'])) {
             return false;
         }
+        // The scheme too: http://own-host:443 on an HTTPS site is not this
+        // server, and answering it in-process would hide the TLS mismatch.
         return strcasecmp((string) $own['host'], (string) $target['host']) === 0
+            && strcasecmp((string) ($own['scheme'] ?? ''), (string) ($target['scheme'] ?? '')) === 0
             && \App\Support\Marc\MarcCoverFetcher::effectivePort($own) === \App\Support\Marc\MarcCoverFetcher::effectivePort($target)
             && rtrim((string) ($own['path'] ?? ''), '/') === rtrim((string) ($target['path'] ?? ''), '/');
     }
