@@ -2111,8 +2111,13 @@ document.addEventListener('DOMContentLoaded', function() {
               // A scheduled ('prenotato') loan is not awaiting pickup yet: branch
               // the footnote so it doesn't promise imminent pickup instructions.
               const isScheduled = result.loan_state === 'prenotato';
-              let pickupDeadline = addOpenDaysIso(storedStart, pickupExpiryDays, closedDaySet);
-              if (effectiveEndDate && effectiveEndDate < pickupDeadline) {
+              // The server's deadline and day count use the assigned copy's
+              // branch and every closure; the local rule (library-wide
+              // closures within the loaded horizon) is the fallback.
+              const serverPickup = typeof result.pickup_deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(result.pickup_deadline)
+                && Number.isInteger(result.pickup_days) && result.pickup_days >= 0;
+              let pickupDeadline = serverPickup ? result.pickup_deadline : addOpenDaysIso(storedStart, pickupExpiryDays, closedDaySet);
+              if (!serverPickup && effectiveEndDate && effectiveEndDate < pickupDeadline) {
                 pickupDeadline = effectiveEndDate;
               }
               // The open days actually available: fewer than the setting when
@@ -2120,7 +2125,9 @@ document.addEventListener('DOMContentLoaded', function() {
               const spanDays = openDaysBetweenIso(storedStart, pickupDeadline, closedDaySet);
               // Same count as the pickup emails: never more than the setting,
               // fewer when the loan ends first (closed days do not add any).
-              const pickupDays = Number.isFinite(spanDays) && spanDays >= 0 ? Math.min(pickupExpiryDays, spanDays) : pickupExpiryDays;
+              const pickupDays = serverPickup
+                ? result.pickup_days
+                : (Number.isFinite(spanDays) && spanDays >= 0 ? Math.min(pickupExpiryDays, spanDays) : pickupExpiryDays);
               const scheduledFootnote = scheduledFootnoteTpl
                 .replace('%s', formatDateIT(storedStart))
                 .replace('%d', String(pickupDays))
