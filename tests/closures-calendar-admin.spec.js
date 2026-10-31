@@ -45,6 +45,9 @@ let startMaxId = 0;
 // The preset rows carry the holiday names, not TAG: their ids are recorded so
 // the teardown removes exactly what this suite added.
 const presetIds = [];
+// Yearly Ferragosto rows that existed before the run, made non-yearly while the
+// preset is imported so the import must add the holiday itself; restored after.
+let parkedFerragosto = '';
 let prevWeekdays = null;
 let sedeId = 0;
 let today = '';
@@ -102,6 +105,7 @@ test.describe('Closures calendar — admin page', () => {
     // row recorded when it was imported. A closure another run added in the
     // meantime is left alone.
     db(`DELETE FROM calendario_chiusure WHERE descrizione LIKE '${TAG}%'${presetIds.length ? ` OR id IN (${presetIds.join(',')})` : ''}`);
+    if (/^\d+(,\d+)*$/.test(parkedFerragosto)) db(`UPDATE calendario_chiusure SET ricorrente_annuale=1 WHERE id IN (${parkedFerragosto})`);
     if (prevWeekdays === '') {
       db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     } else {
@@ -253,6 +257,14 @@ test.describe('Closures calendar — admin page', () => {
 
   test('Preset 1: importing the Italian holidays adds 10 yearly holidays plus Easter and Easter Monday', async () => {
     const beforeImport = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
+    // Make sure one recurring holiday is missing, so the import has to add it.
+    const ferragostoWhere = "ricorrente_annuale=1 AND sede_id IS NULL AND DATE_FORMAT(data_inizio,'%m-%d')='08-15' AND DATE_FORMAT(data_fine,'%m-%d')='08-15'";
+    const parked = db(`SELECT GROUP_CONCAT(id) FROM calendario_chiusure WHERE ${ferragostoWhere}`);
+    if (parked && parked !== 'NULL') {
+      parkedFerragosto = parked;
+      db(`UPDATE calendario_chiusure SET ricorrente_annuale=0 WHERE id IN (${parked})`);
+    }
+    expect(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE ${ferragostoWhere}`)).toBe('0');
     await page.goto(`${BASE}/admin/calendar`);
     await page.selectOption('#preset_year', String(presetYear()));
     await submitAndLand(page, '#import-preset');
@@ -260,6 +272,8 @@ test.describe('Closures calendar — admin page', () => {
     const presetYearValue = presetYear();
     const added = db(`SELECT GROUP_CONCAT(id) FROM calendario_chiusure WHERE id > ${beforeImport} AND sede_id IS NULL AND (ricorrente_annuale=1 OR YEAR(data_inizio)=${presetYearValue}) AND descrizione IN ('Natale','Santo Stefano','Capodanno','Epifania','Ferragosto','Ognissanti','Immacolata Concezione','Festa della Liberazione','Festa del Lavoro','Festa della Repubblica','Pasqua','Lunedì dell''Angelo (Pasquetta)')`);
     if (added && added !== 'NULL') presetIds.push(...added.split(',').map((id) => parseInt(id, 10)).filter((id) => id > 0));
+    // The missing holiday was inserted by this import, once, as a yearly closure.
+    expect(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE id > ${beforeImport} AND descrizione='Ferragosto' AND ${ferragostoWhere}`)).toBe('1');
     const count = parseInt(db(`SELECT COUNT(*) FROM calendario_chiusure WHERE id > ${startMaxId} AND descrizione IN ('Natale','Santo Stefano','Capodanno','Epifania','Ferragosto','Ognissanti','Immacolata Concezione','Festa della Liberazione','Festa del Lavoro','Festa della Repubblica') AND ricorrente_annuale=1`), 10);
     // Fixed holidays already present before this run are not duplicated.
     expect(count).toBeLessThanOrEqual(10);

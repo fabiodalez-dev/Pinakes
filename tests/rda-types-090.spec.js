@@ -3,6 +3,8 @@
 // media type, optional per-record override in the book form, and the BIBFRAME
 // output carrying the effective triple (derived types for every record, the
 // override when one is set: a book keeps txt/n/nc, an audiobook gets spw/s/sd).
+// The form, storage and book-page tests run on every install; only the ones
+// that read the BIBFRAME output need the bibframe-linked-data plugin active.
 const { test, expect } = require('@playwright/test');
 const h = require('./helpers/minor-features-090');
 
@@ -21,10 +23,11 @@ test.describe.serial('RDA content/media/carrier types', () => {
   let context;
   let page;
   let bookId = 0;
+  let bibframeActive = false;
+  const NO_BIBFRAME = 'bibframe-linked-data plugin is not active on this install';
 
   test.beforeAll(async ({ browser }) => {
-    const active = h.dbQuery("SELECT is_active FROM plugins WHERE name = 'bibframe-linked-data'");
-    test.skip(active !== '1', 'bibframe-linked-data plugin is not active on this install');
+    bibframeActive = h.dbQuery("SELECT is_active FROM plugins WHERE name = 'bibframe-linked-data'") === '1';
     context = await browser.newContext();
     page = await context.newPage();
     await h.loginAsAdmin(page);
@@ -44,6 +47,7 @@ test.describe.serial('RDA content/media/carrier types', () => {
     await expect(derived('rda_carrier_type')).toHaveText('Automatico: Volume (nc)');
     await page.selectOption('#tipo_media', 'dvd');
     await expect(derived('rda_content_type')).toHaveText('Automatico: Immagine in movimento bidimensionale (tdi)');
+    await expect(derived('rda_media_type')).toHaveText('Automatico: Video (v)');
     await expect(derived('rda_carrier_type')).toHaveText('Automatico: Videodisco (vd)');
     for (const id of ['rda_content_type', 'rda_media_type', 'rda_carrier_type']) {
       await expect(page.locator(`#${id}`)).toHaveValue('');
@@ -67,6 +71,7 @@ test.describe.serial('RDA content/media/carrier types', () => {
   });
 
   test('3. Without an override BIBFRAME carries the types the book page shows (audiobook: spw/s/sd)', async () => {
+    test.skip(!bibframeActive, NO_BIBFRAME);
     const body = await bibframe(page, bookId);
     expect(body).toContain('http://id.loc.gov/vocabulary/contentTypes/spw');
     expect(body).toContain('http://id.loc.gov/vocabulary/carriers/sd');
@@ -92,6 +97,7 @@ test.describe.serial('RDA content/media/carrier types', () => {
   });
 
   test('5. BIBFRAME uses the override, and only the overridden types', async () => {
+    test.skip(!bibframeActive, NO_BIBFRAME);
     const body = await bibframe(page, bookId);
     expect(body).toContain('http://id.loc.gov/vocabulary/carriers/cr');
     expect(body).toContain('http://id.loc.gov/vocabulary/mediaTypes/c');
@@ -109,8 +115,38 @@ test.describe.serial('RDA content/media/carrier types', () => {
     await h.submitBookForm(page);
     await expect.poll(() => h.dbQuery(`SELECT CONCAT_WS('|', IFNULL(rda_media_type,'NULL'), IFNULL(rda_carrier_type,'NULL')) FROM libri WHERE id = ${bookId}`), { timeout: 30000 })
       .toBe('NULL|NULL');
+    await page.goto(`${h.BASE}/admin/books/${bookId}`);
+    await expect(page.locator('#book-rda-types')).toHaveAttribute('data-rda', 'spw/s/sd');
+  });
+
+  test('7. After the clear BIBFRAME is back to the derived media and carrier', async () => {
+    test.skip(!bibframeActive, NO_BIBFRAME);
     const body = await bibframe(page, bookId);
     expect(body).toContain('http://id.loc.gov/vocabulary/carriers/sd');
     expect(body).not.toContain('http://id.loc.gov/vocabulary/carriers/cr');
+    expect(body).toContain('http://id.loc.gov/vocabulary/mediaTypes/s');
+    expect(body).not.toContain('http://id.loc.gov/vocabulary/mediaTypes/c');
+  });
+
+  test('8. A content type override is stored, reloaded and shown on the book page', async () => {
+    test.setTimeout(90000);
+    await page.goto(`${h.BASE}/admin/books/edit/${bookId}`);
+    await expect(page.locator('#bookForm')).toBeVisible({ timeout: 15000 });
+    await page.selectOption('#rda_content_type', 'prm');
+    await h.submitBookForm(page);
+    await expect.poll(() => h.dbQuery(`SELECT CONCAT_WS('|', IFNULL(rda_content_type,'NULL'), IFNULL(rda_media_type,'NULL'), IFNULL(rda_carrier_type,'NULL')) FROM libri WHERE id = ${bookId}`), { timeout: 30000 })
+      .toBe('prm|NULL|NULL');
+    await page.goto(`${h.BASE}/admin/books/edit/${bookId}`);
+    await expect(page.locator('#rda_content_type')).toHaveValue('prm');
+    await page.goto(`${h.BASE}/admin/books/${bookId}`);
+    await expect(page.locator('#book-rda-types')).toHaveAttribute('data-rda', 'prm/s/sd');
+    await expect(page.locator('#book-rda-types')).toHaveText('Musica eseguita · Audio · Disco sonoro');
+  });
+
+  test('9. BIBFRAME uses the content type override instead of the derived one', async () => {
+    test.skip(!bibframeActive, NO_BIBFRAME);
+    const body = await bibframe(page, bookId);
+    expect(body).toContain('http://id.loc.gov/vocabulary/contentTypes/prm');
+    expect(body).not.toContain('http://id.loc.gov/vocabulary/contentTypes/spw');
   });
 });
