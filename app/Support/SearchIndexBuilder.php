@@ -396,7 +396,9 @@ final class SearchIndexBuilder
             // (`+token*`): "haffner" in quotes must not answer for Schaffner.
             // The exact LIKE keeps the spelling, the REGEXP the word start;
             // both compare the lowered value under the binary collation.
-            $wordStart = '(^|[^[:alnum:]])' . preg_quote(mb_strtolower($wordBase, 'UTF-8'));
+            // `_` is a word character for the InnoDB FULLTEXT parser too, so
+            // "haffner" must not start a word after it (x_haffner).
+            $wordStart = '(^|[^[:alnum:]_])' . preg_quote(mb_strtolower($wordBase, 'UTF-8'));
             $exprCount = 0;
             $m = static function (string $expr) use ($exact, &$exprCount): string {
                 $exprCount++;

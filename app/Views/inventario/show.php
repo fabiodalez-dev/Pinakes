@@ -282,7 +282,7 @@ unset($workspaceHeader);
               <i class="fas fa-flag-checkered text-gray-600 mr-2"></i>
               <?= __("Chiudi la revisione") ?>
             </h2>
-            <p class="text-sm text-gray-600 mt-1"><?= __("Scegli cosa fare con le copie mancanti. La disponibilità dei libri viene ricalcolata.") ?></p>
+            <p class="text-sm text-gray-600 mt-1"><?= __("Scegli cosa fare con le copie mancanti. Se le segni come perse, la disponibilità dei libri viene ricalcolata; altrimenti non cambia.") ?></p>
           </div>
           <div class="p-6 space-y-4">
             <form method="post" action="<?= htmlspecialchars(url($base . '/close'), ENT_QUOTES, 'UTF-8') ?>" id="inventory-close-form"
