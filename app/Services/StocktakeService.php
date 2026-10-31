@@ -174,8 +174,10 @@ final class StocktakeService
      *
      * A .txt line is the code itself: only a tab (which no code can hold, see
      * normalizeCode()) separates it from trailing scanner columns, so a code
-     * such as "INV,001" survives. A .csv is read with a real CSV parser, using
-     * the delimiter of its first line, so a quoted "INV,001" survives too.
+     * such as "INV,001" survives. A .csv is read record by record with a real
+     * CSV parser, using the delimiter of its first line, so a quoted "INV,001"
+     * survives too, and so does a quoted cell that spans several lines. Only
+     * its first column is the code: a row whose first cell is empty has none.
      *
      * @return list<string>
      */
@@ -187,24 +189,10 @@ final class StocktakeService
         if (!mb_check_encoding($text, 'UTF-8')) {
             $text = mb_convert_encoding($text, 'UTF-8', 'ISO-8859-1');
         }
-        $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
-        $delimiter = $csv ? self::csvDelimiter($lines) : "\t";
         $codes = [];
         $first = true;
-        foreach ($lines as $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-            $cells = $csv ? str_getcsv($line, $delimiter, '"', '') : explode("\t", $line);
-            $cell = '';
-            foreach ($cells as $candidate) {
-                $candidate = trim((string) $candidate, " \"'");
-                if ($candidate !== '') {
-                    $cell = $candidate;
-                    break;
-                }
-            }
-            $cell = self::normalizeCode($cell);
+        foreach ($csv ? self::csvFirstCells($text) : self::txtFirstCells($text) as $cell) {
+            $cell = self::normalizeCode(trim($cell, " \"'"));
             if ($cell === '') {
                 continue;
             }
@@ -219,23 +207,78 @@ final class StocktakeService
     }
 
     /**
-     * The delimiter of a CSV export: the most frequent of , ; and tab on its
-     * first non-blank line (comma when the line has none, a one-column file).
+     * The first non-blank cell of every .txt line.
      *
-     * @param list<string> $lines
+     * @return list<string>
      */
-    private static function csvDelimiter(array $lines): string
+    private static function txtFirstCells(string $text): array
     {
-        foreach ($lines as $line) {
+        $cells = [];
+        foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
+            foreach (explode("\t", $line) as $candidate) {
+                if (trim($candidate, " \"'") !== '') {
+                    $cells[] = $candidate;
+                    break;
+                }
+            }
+        }
+        return $cells;
+    }
+
+    /**
+     * The first cell of every .csv record. Records are read whole, so a line
+     * break inside a quoted cell does not start a new record.
+     *
+     * @return list<string>
+     */
+    private static function csvFirstCells(string $text): array
+    {
+        // fgetcsv() does not split on a bare CR (old Mac exports).
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $stream = fopen('php://memory', 'r+');
+        if ($stream === false) {
+            throw new \RuntimeException('Cannot open a memory stream for the CSV file');
+        }
+        try {
+            fwrite($stream, $text);
+            rewind($stream);
+            $delimiter = self::csvDelimiter($text);
+            $cells = [];
+            while (($record = fgetcsv($stream, null, $delimiter, '"', '')) !== false) {
+                $cells[] = (string) ($record[0] ?? '');
+            }
+            return $cells;
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * The delimiter of a CSV export: the most frequent of , ; and tab on its
+     * first non-blank line, counting only those outside quoted cells (comma
+     * when the line has none, a one-column file).
+     */
+    private static function csvDelimiter(string $text): string
+    {
+        foreach (explode("\n", $text) as $line) {
             if (trim($line) === '') {
                 continue;
             }
+            $counts = [',' => 0, ';' => 0, "\t" => 0];
+            $quoted = false;
+            for ($i = 0, $n = strlen($line); $i < $n; $i++) {
+                $char = $line[$i];
+                if ($char === '"') {
+                    $quoted = !$quoted; // an escaped "" flips twice
+                } elseif (!$quoted && isset($counts[$char])) {
+                    $counts[$char]++;
+                }
+            }
             $best = ',';
             $bestCount = 0;
-            foreach ([',', ';', "\t"] as $candidate) {
-                $count = substr_count($line, $candidate);
+            foreach ($counts as $candidate => $count) {
                 if ($count > $bestCount) {
-                    $best = $candidate;
+                    $best = (string) $candidate;
                     $bestCount = $count;
                 }
             }

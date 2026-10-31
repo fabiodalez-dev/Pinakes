@@ -72,8 +72,12 @@ $check(S::normalizeCode(str_repeat('9', 300)) === str_repeat('9', 300), 'a long 
 $txt = "\xEF\xBB\xBFINV-1\nINV-2\r\n\r\nINV-1\n   \nINV-3";
 $check(S::parseCodeList($txt) === ['INV-1', 'INV-2', 'INV-1', 'INV-3'], 'a .txt list keeps order and repeats, skipping blank lines and the BOM');
 $csv = "codice;titolo\n\"INV-10\";\"Il nome della rosa\"\nINV-11;Altro\n;INV-12;x";
-$check(S::parseCodeList($csv, true) === ['INV-10', 'INV-11', 'INV-12'], 'a .csv list takes the first non-empty cell and skips the header');
+$check(S::parseCodeList($csv, true) === ['INV-10', 'INV-11'], 'a .csv list reads the first column only and skips the header: a row with an empty first cell has no code');
+$check(S::parseCodeList("codice;titolo\n;Il nome della rosa\nINV-13;x", true) === ['INV-13'], 'a title in the second column is never taken for a code');
 $check(S::parseCodeList("codice,titolo\n\"INV,001\",Titolo\nINV-2,Altro", true) === ['INV,001', 'INV-2'], 'a quoted .csv code keeps its comma');
+$check(S::parseCodeList("codice;note\nINV-20;\"prima riga\nseconda riga\"\nINV-21;x", true) === ['INV-20', 'INV-21'], 'a quoted .csv cell spanning two lines stays one record: its second line is not a code');
+$check(S::parseCodeList("\"INV,001\";Titolo\nINV-2;Altro", true) === ['INV,001', 'INV-2'], 'a comma inside quotes does not count when the delimiter is detected');
+$check(S::parseCodeList("INV-30;a\rINV-31;b\r", true) === ['INV-30', 'INV-31'], 'a .csv with bare CR line ends is split into records');
 $check(S::parseCodeList("INV-1\tx\nINV-2\ty", true) === ['INV-1', 'INV-2'], 'a tab-separated .csv is read by its own delimiter');
 $check(S::parseCodeList("INV,001\nINV;002\n") === ['INV,001', 'INV;002'], 'a .txt line is the whole code: commas and semicolons stay');
 $check(S::parseCodeList("INV-5\t2026-10-30 10:00\n") === ['INV-5'], 'a .txt scanner export drops the columns after a tab');
