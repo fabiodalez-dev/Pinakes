@@ -658,12 +658,6 @@ class ReservationsController
     // diverge again.
 
     /**
-     * Promote a newly-created request through the canonical approval pipeline
-     * when the automatic-approval setting is on (#301). Mirrors
-     * UserActionsController::autoApproveLoanRequest — a failure deliberately
-     * leaves the request pending so an administrator can still process it.
-     */
-    /**
      * The pickup deadline and open pickup days of an approved request, from
      * its stored row: the deadline already stored for a loan awaiting pickup,
      * otherwise the one activation will set (LibraryCalendar::pickupDeadline
@@ -690,6 +684,11 @@ class ReservationsController
     }
 
     /**
+     * Promote a newly-created request through the canonical approval pipeline
+     * when the automatic-approval setting is on (#301). Mirrors
+     * UserActionsController::autoApproveLoanRequest — a failure deliberately
+     * leaves the request pending so an administrator can still process it.
+     *
      * @param array<mixed>|null $approved set to the approval's JSON
      *        body (data_scadenza, copia_id…) when the loan was approved
      */
