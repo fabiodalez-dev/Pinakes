@@ -363,6 +363,59 @@ test.describe('Borrower request lifecycle', () => {
     });
 });
 
+test.describe('Reader request on a closed day', () => {
+    // The library is closed today: the auto-approved request starts on the
+    // next open day, so the app is told `prenotato` (with the start day), not
+    // `da_ritirare` as every approved request used to be reported.
+    test('with today closed and auto-approval on, POST /reservations answers status prenotato', async ({ request }) => {
+        const TAG = `E2E-MOBCAL-${RUN}`;
+        const prevAuto = F.dbScalar("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='auto_approve_requests'");
+        const prevWeekdays = F.dbScalar("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+        const setSetting = (key, value) => {
+            if (value === '' || value === null || value === undefined) {
+                F.dbExec(`DELETE FROM system_settings WHERE category='loans' AND setting_key='${key}'`);
+            } else {
+                F.dbExec(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','${key}',${F.sqlStr(value)}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+            }
+        };
+        const email = `circ_closed_${RUN}@pinakes.test`;
+        const userId = F.createUser(email, PASS, 'standard', 'CIRX');
+        ctx.users.push(userId);
+        const token = await F.login(request, email, PASS, 'circ-closed');
+        const bookId = await staffBook(request, 'Circ closed today', 1);
+        try {
+            // Inside the try: a failed setup still restores both settings.
+            setSetting('auto_approve_requests', '1');
+            setSetting('closed_weekdays', '');
+            F.dbExec(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('${ctx.today}', '${ctx.today}', '${TAG}')`);
+            const r = await F.api(request, 'POST', '/reservations', { token, body: { book_id: bookId } });
+            expect(r.status, r.text.slice(0, 300)).toBe(201);
+            expect(r.json.data.type).toBe('loan');
+            expect(r.json.data.auto_approved).toBe(true);
+            expect(r.json.data.status).toBe('prenotato');
+            // The exact next open day after today. Weekly closures are off, so
+            // only the library-wide closures (this run's and any already
+            // stored) can push it past tomorrow: walk them day by day.
+            const closures = F.dbRows('SELECT data_inizio, data_fine, ricorrente_annuale FROM calendario_chiusure WHERE sede_id IS NULL');
+            const closed = (ymd) => closures.some((c) => {
+                if (c.ricorrente_annuale !== '1') return ymd >= c.data_inizio && ymd <= c.data_fine;
+                const md = ymd.slice(5), from = c.data_inizio.slice(5), to = c.data_fine.slice(5);
+                return to < from ? (md >= from || md <= to) : (md >= from && md <= to);
+            });
+            let offset = 1;
+            while (offset < 400 && closed(isoDay(offset))) offset++;
+            expect(r.json.data.start_date).toBe(isoDay(offset));
+            expect(r.json.meta.message).not.toMatch(/attesa di ritiro/);
+            const stored = F.dbScalar(`SELECT CONCAT(stato,'|',data_prestito) FROM prestiti WHERE id=${r.json.data.loan_id}`);
+            expect(stored).toBe(`prenotato|${r.json.data.start_date}`);
+        } finally {
+            F.dbExec(`DELETE FROM calendario_chiusure WHERE descrizione='${TAG}'`);
+            setSetting('auto_approve_requests', prevAuto);
+            setSetting('closed_weekdays', prevWeekdays);
+        }
+    });
+});
+
 test.describe('Reservations and queue', () => {
     test('create → queue position, duplicate 409, cancel, reactivate; queue + availability', async ({ request }) => {
         const r = await F.api(request, 'POST', '/staff/reservations', {

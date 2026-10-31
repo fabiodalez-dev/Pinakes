@@ -74,7 +74,11 @@ class NotificationService {
                 $start = new \DateTimeImmutable(substr($windowStart, 0, 10));
                 $end = new \DateTimeImmutable(substr($deadline, 0, 10));
                 if ($end >= $start) {
-                    return (string) min($this->pickupExpiryDays(), (int) $start->diff($end)->days);
+                    // Open days only (closures calendar): a closed day inside
+                    // the window is not a day to collect the book; calendar
+                    // days without closures.
+                    $openDays = LibraryCalendar::forDb($this->db)->openDaysBetween($start->format('Y-m-d'), $end->format('Y-m-d'));
+                    return (string) min($this->pickupExpiryDays(), $openDays);
                 }
             } catch (\Throwable) {
             }
@@ -97,10 +101,11 @@ class NotificationService {
      * MaintenanceService::activateScheduledLoans() applies: start + pickup days,
      * never past the end of the loan. Lets the approval email name it up front.
      */
-    private function expectedPickupDeadline(string $start, string $end): string
+    private function expectedPickupDeadline(string $start, string $end, ?int $copiaId = null): string
     {
-        $deadline = (new \DateTimeImmutable($start))->modify('+' . $this->pickupExpiryDays() . ' days')->format('Y-m-d');
-        return ($end !== '' && $end < $deadline) ? $end : $deadline;
+        // Open days only (closures calendar, with the copy's branch), as
+        // activateScheduledLoans() computes it.
+        return LibraryCalendar::pickupDeadline($this->db, $start, $this->pickupExpiryDays(), $end !== '' ? $end : null, $copiaId);
     }
 
     /**
@@ -1922,9 +1927,9 @@ class NotificationService {
                 'giorni_prestito' => $days,
                 // A loan starting later gets its pickup deadline only on the start
                 // day; say now which one it will be and how many days that is.
-                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'])),
-                'scadenza_ritiro' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza']), false, $recipientLocale),
-                'pickup_deadline' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza']), false, $recipientLocale),
+                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null)),
+                'scadenza_ritiro' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), false, $recipientLocale),
+                'pickup_deadline' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), false, $recipientLocale),
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
                 'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'], $recipientLocale)
             ];

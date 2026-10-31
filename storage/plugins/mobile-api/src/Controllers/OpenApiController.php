@@ -600,6 +600,7 @@ final class OpenApiController
                                         'total_copies'       => ['type' => 'integer'],
                                         'earliest_available' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                                         'unavailable_dates'  => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date']],
+                                        'closed_dates'       => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date'], 'description' => 'Days the library is closed (closures calendar): not selectable as a start/pickup day; a return date on one moves to the next open day.'],
                                         'days'               => ['type' => 'array', 'items' => [
                                             'type'       => 'object',
                                             'properties' => [
@@ -711,7 +712,7 @@ final class OpenApiController
                 'post' => [
                     'tags'        => ['loans'],
                     'summary'     => 'Request a reservation / loan',
-                    'description' => 'Honors existing overlap, availability, max-active-loans, and automatic-approval settings (same as the web form). For immediate loans, data.auto_approved and data.status tell the client whether the request is pending or ready for pickup.',
+                    'description' => 'Honors existing overlap, availability, max-active-loans, and automatic-approval settings (same as the web form). For immediate loans, data.auto_approved and data.status tell the client whether the request is pending (pendente), ready for pickup (da_ritirare) or, when the library is closed today, scheduled to start on the next open day (prenotato, with data.start_date; Pinakes 0.9.0).',
                     'operationId' => 'postReservation',
                     'security'    => [['bearerAuth' => []]],
                     'requestBody' => [
@@ -730,7 +731,8 @@ final class OpenApiController
                                         'book_id' => ['type' => 'integer'],
                                         'loan_id' => ['type' => 'integer', 'nullable' => true],
                                         'auto_approved' => ['type' => 'boolean', 'nullable' => true],
-                                        'status' => ['type' => 'string', 'nullable' => true, 'enum' => ['pendente', 'da_ritirare']],
+                                        'status' => ['type' => 'string', 'nullable' => true, 'enum' => ['pendente', 'da_ritirare', 'prenotato']],
+                                        'start_date' => ['type' => 'string', 'format' => 'date', 'nullable' => true, 'description' => 'Start day of a scheduled (prenotato) loan; null otherwise.'],
                                     ],
                                 ]],
                             ]]],

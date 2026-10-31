@@ -889,9 +889,11 @@ class NcipServerPlugin
         }
 
         // Atomic checkout: lock the book row so concurrent requests serialize.
+        // The due date is the library-wide one; createLoanAtomic() moves it
+        // with the closures of the chosen copy's branch and hands it back.
         $today = \App\Support\DateHelper::today();
         $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->durationDays;
-        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
+        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays, $this->db);
         $failureReason = null;
         $loanId  = $this->createLoanAtomic($itemId, $userId, $dueDate, (int) ($caller['id'] ?? 0), $failureReason);
 
@@ -1168,7 +1170,7 @@ class NcipServerPlugin
         // A request is capped like the website and app ones: the loan length,
         // but never past the longest request window of the patron type.
         $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->requestDurationDays();
-        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
+        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays, $this->db);
         $failureReason = 'db_error';
         $requestOutcome = $this->createRequestItemNcip(
             $itemId,
@@ -1858,9 +1860,13 @@ class NcipServerPlugin
      * terminal — 'not_found' | 'duplicate' | 'ineligible' | 'max_loans' |
      * 'no_capacity' | 'no_copy'; transient/retryable — 'invalid_due' | 'db_error'.
      *
+     * $dueDate is the due date computed for the library as a whole; the copy
+     * is chosen only here, so a closure of its branch can move it (same rule
+     * as the staff desk). On success it holds the date stored on the loan.
+     *
      * @param-out string $failureReason
      */
-    private function createLoanAtomic(int $bookId, int $userId, string $dueDate, int $processedBy, ?string &$failureReason = null): ?int
+    private function createLoanAtomic(int $bookId, int $userId, string &$dueDate, int $processedBy, ?string &$failureReason = null): ?int
     {
         $failureReason = 'db_error';
         $this->db->begin_transaction();
@@ -1982,21 +1988,73 @@ class NcipServerPlugin
                               OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL))
                    ), '9999-12-31') DESC,
                    c.numero_inventario ASC
-                 LIMIT 1 FOR UPDATE";
+                 FOR UPDATE";
             $copyParams[] = $dueDate;
             $copyTypes .= 's';
 
             $copy = $this->db->prepare($copySql);
             $copy->bind_param($copyTypes, ...$copyParams);
             $copy->execute();
-            $copyRow = $copy->get_result()->fetch_assoc();
+            $copyRows = $copy->get_result()->fetch_all(MYSQLI_ASSOC);
             $copy->close();
-            if (!$copyRow) {
+            if ($copyRows === []) {
                 $failureReason = 'no_copy';
                 $this->db->rollback();
                 return null;
             }
-            $copyId = (int) $copyRow['id'];
+
+            // The copy is known only now: a due date closed at its branch moves
+            // to the branch's next open day, as PrestitiController::store() does
+            // for a desk loan, and the longer window is checked again, for the
+            // title's capacity and for the copy's own commitments (the copy was
+            // selected free up to the shorter date only). When that longer
+            // window does not fit, the next candidate (in the same preference
+            // order) is tried: another branch may be open on the original due
+            // date. Every candidate is locked.
+            $copyId = null;
+            $chosenDue = $dueDate;
+            $lastFailure = 'no_copy';
+            foreach ($copyRows as $copyRow) {
+                $candidateId = (int) $copyRow['id'];
+                $branchDue = \App\Services\CirculationPolicy::dueDateFor($dueDate, 0, $this->db, $candidateId);
+                if ($branchDue === $dueDate) {
+                    $copyId = $candidateId;
+                    $chosenDue = $dueDate;
+                    break;
+                }
+                if (!$capacity->hasFreeCapacity($bookId, $today, $branchDue)) {
+                    $lastFailure = 'no_capacity';
+                    continue;
+                }
+                $busy = $this->db->prepare(
+                    "SELECT 1 FROM prestiti p
+                     WHERE p.copia_id = ?
+                       AND p.data_prestito <= ?
+                       AND (p.stato = 'in_ritardo'
+                            OR (p.stato = 'in_corso' AND p.data_scadenza < ?)
+                            OR p.data_scadenza >= ?)
+                       AND ((p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                            OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL))
+                     LIMIT 1 FOR UPDATE"
+                );
+                $busy->bind_param('isss', $candidateId, $branchDue, $today, $today);
+                $busy->execute();
+                $copyBusy = (bool) $busy->get_result()->fetch_row();
+                $busy->close();
+                if ($copyBusy) {
+                    $lastFailure = 'no_copy';
+                    continue;
+                }
+                $copyId = $candidateId;
+                $chosenDue = $branchDue;
+                break;
+            }
+            if ($copyId === null) {
+                $failureReason = $lastFailure;
+                $this->db->rollback();
+                return null;
+            }
+            $dueDate = $chosenDue;
 
             $ins   = $this->db->prepare(
                 "INSERT INTO prestiti
@@ -2796,7 +2854,7 @@ class NcipServerPlugin
             }
             $renewDays = $renewPolicy->renewalDays;
             $currentDue = (string) $loan['data_scadenza'];
-            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($currentDue, $renewDays);
+            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($currentDue, $renewDays, $this->db, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
 
             // #336 parity con PrestitiController::renew/bulkExtend: il giorno di
             // scadenza corrente è già detenuto da QUESTO prestito, quindi la
@@ -2812,7 +2870,7 @@ class NcipServerPlugin
                 $this->db->rollback();
                 $failureReason = 'no_capacity';
                 // Same figures the web renew() redirect carries (LoanWindow).
-                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked);
+                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
                 return null;
             }
 
@@ -2838,7 +2896,7 @@ class NcipServerPlugin
                     $this->db->rollback();
                     $failureReason = 'overlap';
                     // The loan's own copy is needed by a later loan: name that day.
-                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked);
+                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
                     return null;
                 }
             }

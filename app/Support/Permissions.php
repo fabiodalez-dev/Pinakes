@@ -124,7 +124,10 @@ final class Permissions
             'loans.manage' => ['/admin/loans', '/admin/attendance', '/admin/reservations', '/api/loans', '/api/reservations', '/api/prestiti', '/prestiti', '/api/v1/staff/loans', '/api/v1/staff/reservations'],
             'users.manage' => ['/admin/users', '/api/users', '/api/utenti', '/api/admin/pending-registrations', '/api/admin/pending-registrations-count', '/api/v1/staff/users', '/api/search/utenti'],
             'digital.manage' => ['/admin/plugins/digital-library/upload'],
-            'settings.manage' => ['/admin/settings'],
+            // The closures calendar is a settings page: LibraryCalendarController
+            // admits Permissions::mayConfigure(). /admin/calendar/rotate-link is
+            // admin-only inside its route, whatever the map says.
+            'settings.manage' => ['/admin/settings', '/admin/calendar'],
             'inventory.manage' => ['/admin/inventory'],
         ];
         foreach ($groups as $permission => $prefixes) {

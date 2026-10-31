@@ -300,7 +300,7 @@ $checks['loan calendars use the configured duration without local-time date arit
     && str_contains($loanCreateView, 'addDaysToIso(startIso, defaultDays)')
     && !str_contains($loanCreateView, 'setMonth(endDate.getMonth() + 1)')
     && str_contains($frontend, '$defaultRequestLoanDays = $viewerPolicy->requestDurationDays()')
-    && str_contains($bookDetail, 'loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays)')
+    && str_contains($bookDetail, 'loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet)')
     && str_contains($bookDetail, 'addDaysToIso(startIso, defaultDays)')
     && !str_contains($bookDetail, 'setMonth(endDate.getMonth() + 1)');
 

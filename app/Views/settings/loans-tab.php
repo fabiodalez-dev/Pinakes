@@ -86,6 +86,23 @@
       </div>
     </div>
 
+    <!-- Closures calendar (own page: /admin/calendar) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="loans-closures-calendar">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-calendar-times text-gray-500"></i>
+          <?= __("Calendario chiusure") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Giorni in cui la biblioteca è chiusa: le scadenze che vi cadono passano al primo giorno di apertura e i giorni per il ritiro contano solo i giorni di apertura.") ?></p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <a href="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="open-closures-calendar" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
+          <i class="fas fa-calendar-alt"></i>
+          <?= __("Gestisci il calendario chiusure") ?>
+        </a>
+      </div>
+    </div>
+
     <!-- App timezone (loan clock for due dates and automatisms) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="space-y-4">

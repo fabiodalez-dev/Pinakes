@@ -108,6 +108,22 @@ CREATE TABLE `author_authority_alternates` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `calendario_chiusure` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `data_inizio` date NOT NULL,
+  `data_fine` date NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `ricorrente_annuale` tinyint(1) NOT NULL DEFAULT '0',
+  `sede_id` int DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_calendario_chiusure_range` (`data_inizio`,`data_fine`),
+  KEY `idx_calendario_chiusure_sede` (`sede_id`),
+  CONSTRAINT `fk_calendario_chiusure_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cms_pages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `slug` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,

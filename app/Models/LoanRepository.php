@@ -100,7 +100,7 @@ class LoanRepository
             // hardcoded era metà del default seminato (30) e ignorava la
             // configurazione dell'admin — stesso fix M5b già applicato a renew().
             $policy = (new \App\Services\CirculationPolicy($this->db))->forExistingLoan($id, $utente_id > 0 ? $utente_id : null);
-            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor((string) $data_prestito, $policy->durationDays);
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor((string) $data_prestito, $policy->durationDays, $this->db);
         }
         $processed_by = $data['processed_by'] ?? null;
         $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);

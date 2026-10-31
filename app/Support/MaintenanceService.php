@@ -1003,7 +1003,8 @@ class MaintenanceService
                 // data_scadenza (L1): senza il cap un prestito con finestra corta
                 // restava ritirabile (e la copia bloccata) oltre la fine del
                 // prestito stesso.
-                $pickupDeadline = date('Y-m-d', strtotime($today . " +{$pickupDays} days"));
+                // Open days only (closures calendar); identical to +N days without closures.
+                $pickupDeadline = LibraryCalendar::pickupDeadline($this->db, $today, $pickupDays, null, $copiaId);
                 if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $pickupDeadline) {
                     $pickupDeadline = $loan['data_scadenza'];
                 }
@@ -1204,6 +1205,10 @@ class MaintenanceService
     public function checkExpiredReservations(): int
     {
         $today = DateHelper::today();
+        // Closures calendar: nothing expires on a day the library is closed.
+        if (!LibraryCalendar::forDb($this->db)->isOpen($today)) {
+            return 0;
+        }
 
         // Find expired reservations. Oltre alle conversioni promosse
         // (origine='prenotazione'), anche le richieste dirette e NCIP mai
@@ -1282,6 +1287,12 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
+                // A closure of the assigned copy's branch counts too: the
+                // reader could not come in there today either.
+                if ($copiaId !== null && !LibraryCalendar::forDb($this->db)->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
                 // stessa transazione dell'UPDATE (regola di progetto).
@@ -1417,10 +1428,15 @@ class MaintenanceService
     public function checkExpiredPickups(): int
     {
         $today = DateHelper::today();
+        // Closures calendar: nothing expires on a day the library is closed.
+        $calendar = LibraryCalendar::forDb($this->db);
+        if (!$calendar->isOpen($today)) {
+            return 0;
+        }
 
         // Find expired pickups (da_ritirare with pickup_deadline passed)
         $stmt = $this->db->prepare("
-            SELECT id, libro_id, copia_id, utente_id
+            SELECT id, libro_id, copia_id, utente_id, pickup_deadline
             FROM prestiti
             WHERE stato = 'da_ritirare'
             AND attivo = 1
@@ -1437,6 +1453,10 @@ class MaintenanceService
         $result = $stmt->get_result();
         $expiredPickups = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
+        // A deadline that fell on a day later declared closed was already moved
+        // to the next open day when the calendar changed
+        // (LibraryCalendar::extendPickupDeadlines()), so the stored deadline is
+        // the one rule every path reads.
 
         $expiredCount = 0;
         $integrity = new DataIntegrity($this->db);
@@ -1483,6 +1503,12 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
+                // A closure of the copy's branch today: the pickup cannot
+                // expire on a day the reader could not come in.
+                if ($copiaId !== null && !$calendar->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // Audit: snapshot pre-mutazione, l'evento è registrato DENTRO la
                 // stessa transazione dell'UPDATE (regola di progetto).

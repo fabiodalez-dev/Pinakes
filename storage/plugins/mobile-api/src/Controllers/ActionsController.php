@@ -10,9 +10,11 @@ use App\Controllers\ProfileController;
 use App\Controllers\UserActionsController;
 use App\Controllers\UserWishlistController;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
+use App\Plugins\MobileApi\Support\CirculationOutcome;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Support\DateHelper;
+use App\Support\LoanWindow;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -257,19 +259,32 @@ final class ActionsController
                 $outcome   = $this->redirectOutcome($result);
 
                 if (isset($outcome['loan_request_success'])) {
-                    $autoApproved = ($outcome['auto_approved'] ?? '0') === '1';
+                    // The persisted state, not a guess: with the library closed
+                    // today the approved loan starts on the next open day and is
+                    // `prenotato`, not awaiting pickup.
+                    $status = CirculationOutcome::requestState($outcome);
+                    $loanId = isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null;
+                    $startDate = $status === 'prenotato' ? $this->loanStartDate($loanId) : null;
+                    $message = match ($status) {
+                        // Without the stored start the day is not promised:
+                        // today would be wrong when the library is closed.
+                        'prenotato' => $startDate !== null
+                            ? __('Prestito approvato: potrai ritirare il libro dal %s.', LoanWindow::displayDate($startDate))
+                            : __('Prestito prenotato con successo'),
+                        'da_ritirare' => __('Prestito approvato. Il libro è in attesa di ritiro.'),
+                        default => __('Richiesta di prestito inviata. In attesa di approvazione.'),
+                    };
                     return ResponseEnvelope::success(
                         $response,
                         [
                             'type' => 'loan',
                             'book_id' => $bookId,
-                            'loan_id' => isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null,
-                            'auto_approved' => $autoApproved,
-                            'status' => $autoApproved ? 'da_ritirare' : 'pendente',
+                            'loan_id' => $loanId,
+                            'auto_approved' => $status !== 'pendente',
+                            'status' => $status,
+                            'start_date' => $startDate,
                         ],
-                        ['message' => $autoApproved
-                            ? __('Prestito approvato. Il libro è in attesa di ritiro.')
-                            : __('Richiesta di prestito inviata. In attesa di approvazione.')],
+                        ['message' => $message],
                         201
                     );
                 }
@@ -1186,6 +1201,28 @@ final class ActionsController
      *
      * @return array<string, string>
      */
+    /** The stored start day (prestiti.data_prestito) of a loan, null when unknown. */
+    private function loanStartDate(?int $loanId): ?string
+    {
+        if ($loanId === null || $loanId <= 0) {
+            return null;
+        }
+        try {
+            $stmt = $this->db->prepare('SELECT data_prestito FROM prestiti WHERE id = ?');
+            if ($stmt === false) {
+                return null;
+            }
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_row();
+            $stmt->close();
+            $start = $row === null || $row[0] === null ? '' : substr((string) $row[0], 0, 10);
+            return DateHelper::isISODateFormat($start) ? $start : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     private function redirectOutcome(ResponseInterface $result): array
     {
         $location = $result->getHeaderLine('Location');
