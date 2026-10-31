@@ -189,6 +189,21 @@ try {
     $check(mb_strlen($longText) === StocktakeService::MAX_CODE_LENGTH && $tooLong(static fn () => $service->scan($second, $longText . 'Z', null, null)), 'a scanned code one character longer than a stored code is refused');
     $check($tooLong(static fn () => $service->importCodes($second, ["{$p}-C3", $longText . 'Z'], null, null)), 'an uploaded list holding a code that is too long is refused');
     $check((int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}") === $scansBefore, 'a refused code records nothing, and neither do the codes before it in the file');
+    // An upload is one unit (review #504): a write that fails on the second
+    // code takes the first one back, so the retry does not find it duplicate.
+    $importFailure = 'zzst_import_' . strtolower($run);
+    $db->query("CREATE TRIGGER {$importFailure} BEFORE INSERT ON inventario_scansioni FOR EACH ROW BEGIN IF NEW.codice_letto = '{$p}-BOOM' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZST simulated scan failure'; END IF; END");
+    $triggers[] = $importFailure;
+    $importFailed = false;
+    try {
+        $service->importCodes($second, ["{$p}-C3", "{$p}-BOOM"], null, null);
+    } catch (mysqli_sql_exception) {
+        $importFailed = true;
+    }
+    $db->query("DROP TRIGGER {$importFailure}");
+    $check($importFailed && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$second}") === $scansBefore, 'an upload that fails halfway records none of its codes');
+    $retry = $service->importCodes($second, ["{$p}-C3"], null, null);
+    $check($retry['outcomes']['in_prestito'] === 1 && $retry['outcomes']['duplicata'] === 0, 'uploading the file again records its codes, not duplicates');
     $service->cancel($second, null);
     $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$second}") === 'annullata' && $one("SELECT stato FROM copie WHERE id = {$c5}") === 'disponibile', 'cancelling leaves every copy as it was');
 

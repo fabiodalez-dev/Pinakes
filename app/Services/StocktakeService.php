@@ -529,14 +529,25 @@ final class StocktakeService
         $this->assertOpen($sessionId);
         $outcomes = array_fill_keys(self::OUTCOMES, 0);
         $total = 0;
-        foreach ($codes as $code) {
-            $code = self::normalizeCode($code);
-            if ($code === '') {
-                continue;
+        // One transaction for the whole file: a file that fails halfway records
+        // nothing, so uploading it again does not turn its first codes into
+        // duplicates. The session lock is taken once, as record() would.
+        $this->db->begin_transaction();
+        try {
+            $this->lockOpenSession($sessionId);
+            foreach ($codes as $code) {
+                $code = self::normalizeCode($code);
+                if ($code === '') {
+                    continue;
+                }
+                $result = $this->record($sessionId, $code, $operatorId, $scanShelf, true);
+                $outcomes[$result['esito']]++;
+                $total++;
             }
-            $result = $this->record($sessionId, $code, $operatorId, $scanShelf);
-            $outcomes[$result['esito']]++;
-            $total++;
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
         }
         return ['total' => $total, 'outcomes' => $outcomes];
     }
@@ -547,9 +558,13 @@ final class StocktakeService
      * it is out of scope, but the operator must be told it turned up rather
      * than that it is outside the filter.
      *
+     * With $insideTransaction the caller already holds a transaction and the
+     * session lock (importCodes()): the scan is written inside it, never in a
+     * nested one.
+     *
      * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool}
      */
-    private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf): array
+    private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf, bool $insideTransaction = false): array
     {
         // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
         $stmt = $this->db->prepare(
@@ -599,23 +614,32 @@ final class StocktakeService
         // and cancel() flip the state with an UPDATE that waits for that lock,
         // so a scan either lands before the session leaves 'aperta' (and close()
         // sees it before marking copies lost) or is refused afterwards.
-        $this->db->begin_transaction();
+        if (!$insideTransaction) {
+            $this->db->begin_transaction();
+        }
         try {
-            $this->lockOpenSession($sessionId);
+            if (!$insideTransaction) {
+                $this->lockOpenSession($sessionId);
+            }
             try {
                 $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
             } catch (\mysqli_sql_exception $e) {
                 // Two operators scanned the same copy at the same instant: the UNIQUE
                 // (sessione_id, copia_id) let one win, the other is a duplicate.
+                // A failed INSERT undoes only itself, not the surrounding transaction.
                 if ($e->getCode() !== 1062 || $storedCopyId === null) {
                     throw $e;
                 }
                 $outcome = 'duplicata';
                 $this->insertScan($sessionId, null, $code, $outcome, $operatorId);
             }
-            $this->db->commit();
+            if (!$insideTransaction) {
+                $this->db->commit();
+            }
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if (!$insideTransaction) {
+                $this->db->rollback();
+            }
             throw $e;
         }
 
