@@ -535,8 +535,11 @@ final class LibraryCalendar
      * is the day before it, and so it is for a timed DTEND at midnight (local
      * time) after DTSTART. A plain RRULE:FREQ=YEARLY makes the row recurring;
      * any other recurrence (a bounded one with COUNT/UNTIL, an interval of
-     * more than a year, a positional one with BYDAY/BYSETPOS…) is imported as
-     * its first occurrence only. A UTC DATE-TIME (trailing Z) and one with a
+     * more than a year, a positional one with BYDAY/BYSETPOS, a BYMONTH or
+     * BYMONTHDAY that is not DTSTART's…) is imported as its first occurrence
+     * only. So is a yearly event with an EXDATE: a stored closure cannot skip
+     * a year. An event whose DTSTART is itself excluded has no occurrence to
+     * import and is left out. A UTC DATE-TIME (trailing Z) and one with a
      * TZID parameter are read in $timezone (app.timezone by default) before
      * their day is taken. The spans are not validated here: the import
      * applies the same limits as the form.
@@ -554,14 +557,15 @@ final class LibraryCalendar
         foreach (explode("\n", $ics) as $line) {
             $line = rtrim($line);
             if (strcasecmp($line, 'BEGIN:VEVENT') === 0) {
-                $current = ['start' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'yearly' => false];
+                $current = ['start' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => []];
                 continue;
             }
             if ($current === null) {
                 continue;
             }
             if (strcasecmp($line, 'END:VEVENT') === 0) {
-                if ($current['start'] !== null) {
+                // RRULE and EXDATE may come before DTSTART: judged at the end.
+                if ($current['start'] !== null && !isset($current['exdates'][$current['start']])) {
                     $start = $current['start'];
                     $end = $current['end'];
                     if ($end === null) {
@@ -576,7 +580,7 @@ final class LibraryCalendar
                         'start' => $start,
                         'end' => $end,
                         'description' => mb_substr(trim($current['summary']), 0, 255),
-                        'yearly' => $current['yearly'],
+                        'yearly' => $current['rrule'] !== null && $current['exdates'] === [] && self::isPlainYearlyRule($current['rrule'], $start),
                     ];
                     if (count($events) >= $maxEvents) {
                         break;
@@ -612,7 +616,15 @@ final class LibraryCalendar
             } elseif ($name === 'SUMMARY') {
                 $current['summary'] = str_replace(['\\,', '\\;', '\\n', '\\N', '\\\\'], [',', ';', ' ', ' ', '\\'], $value);
             } elseif ($name === 'RRULE') {
-                $current['yearly'] = self::isPlainYearlyRule($value);
+                $current['rrule'] = $value;
+            } elseif ($name === 'EXDATE') {
+                $tzid = preg_match('/;TZID=("?)([^;:"]+)\1/i', $rawParams, $tz) === 1 ? $tz[2] : null;
+                foreach (explode(',', $value) as $excluded) {
+                    $parsed = self::icsDateTime($excluded, $timezone, $tzid);
+                    if ($parsed !== null) {
+                        $current['exdates'][$parsed['date']] = true;
+                    }
+                }
             }
         }
         return $events;
@@ -667,9 +679,10 @@ final class LibraryCalendar
      * True for a rule that repeats the same month-day span every year with
      * no end: FREQ=YEARLY, INTERVAL 1 (or absent), no COUNT/UNTIL, no
      * positional or weekday part. BYMONTH/BYMONTHDAY are accepted only as the
-     * restatement of DTSTART that calendar apps write.
+     * restatement of DTSTART ($start, Y-m-d) that calendar apps write: any
+     * other value names a different day than the one the row would close.
      */
-    private static function isPlainYearlyRule(string $rule): bool
+    private static function isPlainYearlyRule(string $rule, string $start): bool
     {
         $parts = [];
         foreach (explode(';', strtoupper(trim($rule))) as $part) {
@@ -695,6 +708,12 @@ final class LibraryCalendar
             if (isset($parts[$list]) && str_contains($parts[$list], ',')) {
                 return false;
             }
+        }
+        if (isset($parts['BYMONTH']) && (!ctype_digit($parts['BYMONTH']) || (int) $parts['BYMONTH'] !== (int) substr($start, 5, 2))) {
+            return false;
+        }
+        if (isset($parts['BYMONTHDAY']) && (!ctype_digit($parts['BYMONTHDAY']) || (int) $parts['BYMONTHDAY'] !== (int) substr($start, 8, 2))) {
+            return false;
         }
         return true;
     }
@@ -778,13 +797,22 @@ final class LibraryCalendar
         }
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Before the 0.9.0 migration ran the table does not exist: no closures.
+     * Any other failure is thrown, never read as "no closures": an empty
+     * calendar would let the loan write that asked for it store a due date
+     * on a closed day. forDb() caches nothing for a failed load.
+     *
+     * @return list<array<string, mixed>>
+     */
     private static function loadClosures(\mysqli $db, bool $rulesFromSelection = false): array
     {
         try {
-            // Before the 0.9.0 migration ran the table does not exist: no closures.
             $exists = $db->query("SHOW TABLES LIKE 'calendario_chiusure'");
-            if ($exists === false || $exists->num_rows === 0) {
+            if ($exists === false) {
+                throw new \RuntimeException('table lookup failed');
+            }
+            if ($exists->num_rows === 0) {
                 return [];
             }
             // A closure switched off (attiva = 0) stays stored but closes
@@ -799,10 +827,13 @@ final class LibraryCalendar
                 $filter .= ($filter === '' ? ' WHERE ' : ' AND ') . 'regola_festivita IS NULL';
             }
             $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure' . $filter);
-            return $result === false ? [] : $result->fetch_all(MYSQLI_ASSOC);
+            if ($result === false) {
+                throw new \RuntimeException('closures query failed');
+            }
+            return $result->fetch_all(MYSQLI_ASSOC);
         } catch (\Throwable $e) {
             SecureLogger::warning('LibraryCalendar: closures not readable: ' . $e->getMessage());
-            return [];
+            throw new \RuntimeException('LibraryCalendar: closures not readable', 0, $e);
         }
     }
 

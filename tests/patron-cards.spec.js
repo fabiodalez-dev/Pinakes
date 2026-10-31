@@ -60,7 +60,7 @@ async function login(page) {
 
 /**
  * Fetch a card PDF and return its text, page count, first page size (pt) and,
- * per page, every word with its left edge (pt) from `pdftotext -bbox`.
+ * per page, every word with its left and top edges (pt) from `pdftotext -bbox`.
  */
 async function inspectPdf(page, url) {
   const resp = await page.request.get(url.startsWith('http') ? url : `${BASE}${url}`);
@@ -74,13 +74,13 @@ async function inspectPdf(page, url) {
     const size = info.match(/Page size:\s*([\d.]+)\s*x\s*([\d.]+)\s*pts/i);
     const pages = info.match(/Pages:\s*(\d+)/);
     const pageTexts = [];
-    /** @type {{text: string, xMin: number}[][]} */
+    /** @type {{text: string, xMin: number, yMin: number}[][]} */
     const pageWords = [];
     const n = pages ? Number(pages[1]) : 0;
     for (let p = 1; p <= n; p++) {
       pageTexts.push(execFileSync('pdftotext', ['-f', String(p), '-l', String(p), '-layout', file, '-'], { encoding: 'utf-8' }));
       const bbox = execFileSync('pdftotext', ['-f', String(p), '-l', String(p), '-bbox', file, '-'], { encoding: 'utf-8' });
-      pageWords.push([...bbox.matchAll(/<word xMin="([\d.]+)"[^>]*>([^<]*)<\/word>/g)].map((m) => ({ text: m[2], xMin: parseFloat(m[1]) })));
+      pageWords.push([...bbox.matchAll(/<word xMin="([\d.]+)" yMin="([\d.]+)"[^>]*>([^<]*)<\/word>/g)].map((m) => ({ text: m[3], xMin: parseFloat(m[1]), yMin: parseFloat(m[2]) })));
     }
     return { text, pages: n, pageTexts, pageWords, width: size ? parseFloat(size[1]) : 0, height: size ? parseFloat(size[2]) : 0 };
   } finally {
@@ -207,6 +207,31 @@ test.describe.serial('Library cards (phase 7)', () => {
     expect(backWord, 'back text on the back sheet').toBeTruthy();
     expect(/** @type {{xMin: number}} */ (frontCode).xMin).toBeLessThan(half);
     expect(/** @type {{xMin: number}} */ (backWord).xMin).toBeGreaterThan(half);
+  });
+
+  test('several cards with a back: every back sits behind its own front (mirrored column, same row)', async ({ page }) => {
+    await login(page);
+    // Settings from the previous test: classic layout, A4 sheet, back text.
+    const pdf = await inspectPdf(page, `/admin/users/cards-pdf?ids=${ids.join(',')}&format=sheet`);
+    expect(pdf.pages).toBe(2); // one front sheet, one back sheet
+    // Classic landscape CR80 on A4: 2 columns x 5 rows, centred (PatronCardPdf::sheetGrid()).
+    const cardW = 85.6 * MM;
+    const cardH = 54 * MM;
+    const cols = 2;
+    const left = (pdf.width - cols * cardW) / 2;
+    const top = (pdf.height - 5 * cardH) / 2;
+    const slot = (/** @type {{xMin: number, yMin: number}} */ w) => `${Math.floor((w.xMin - left) / cardW)},${Math.floor((w.yMin - top) / cardH)}`;
+    // Fronts in reading order (the readers sort by surname): slots 0,0 · 1,0 · 0,1.
+    const fronts = READERS.map((r) => {
+      const word = pdf.pageWords[0].find((w) => w.text.includes(r.code));
+      expect(word, `front of ${r.code}`).toBeTruthy();
+      return slot(/** @type {{xMin: number, yMin: number}} */ (word));
+    });
+    expect(fronts).toEqual(['0,0', '1,0', '0,1']);
+    // One back per card, each in the mirrored column of its front's row.
+    const backs = pdf.pageWords[1].filter((w) => w.text === 'Regolamento').map(slot).sort();
+    const expected = fronts.map((f) => { const [c, r] = f.split(',').map(Number); return `${cols - 1 - c},${r}`; }).sort();
+    expect(backs).toEqual(expected);
   });
 
   test('each layout: minimal (no photo box), portrait (vertical card), QR code still prints the code', async ({ page }) => {

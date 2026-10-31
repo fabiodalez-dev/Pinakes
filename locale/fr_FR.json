@@ -9255,6 +9255,7 @@
   "Giorno della settimana non valido.": "Jour de la semaine non valide.",
   "Un'altra modifica del calendario è in corso: riprova tra poco.": "Une autre modification du calendrier est en cours : réessayez dans un instant.",
   "Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Avec cette fermeture annuelle, la bibliothèque serait fermée toute l'année : au moins un jour doit rester ouvert.",
+  "Con questi giorni di chiusura settimanale e le chiusure annuali la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "Avec ces jours de fermeture hebdomadaire et les fermetures annuelles, la bibliothèque serait fermée toute l'année : au moins un jour doit rester ouvert.",
   "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Fournisseur non attribué : il a été supprimé pendant l'importation.",
   "Il file dell'import non è più disponibile: caricalo di nuovo.": "Le fichier d'importation n'est plus disponible : chargez-le à nouveau.",
   "Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.": "Importation terminée, mais l'historique n'a pas été enregistré : le rapport d'erreurs ne peut pas être téléchargé.",
@@ -9270,5 +9271,14 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Rapport limité à %d entrées : les lignes suivantes ne sont pas listées, mais elles sont incluses dans les compteurs.",
+  "Report troncato": "Rapport tronqué",
+  "Un import è già in corso: attendi la fine o riprendilo da questa pagina.": "Une importation est déjà en cours : attendez qu'elle se termine ou reprenez-la depuis cette page.",
+  "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.": "L'importation est toujours active : reprenez-la ou réessayez dans %d minutes.",
+  "Import interrotto": "Importation interrompue",
+  "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s : %d sur %d lignes traitées. Vous pouvez la reprendre là où elle s'est arrêtée ou la fermer : les utilisateurs déjà créés sont conservés.",
+  "Annulla import": "Annuler l'importation",
+  "Riprendi import": "Reprendre l'importation",
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utilisateur non supprimé : sa photo ne peut pas être retirée du disque. Réessayez ou vérifiez les droits du dossier storage."
 }

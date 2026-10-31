@@ -9255,6 +9255,7 @@
   "Giorno della settimana non valido.": "Invalid day of the week.",
   "Un'altra modifica del calendario è in corso: riprova tra poco.": "Another calendar change is in progress: try again shortly.",
   "Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "With this yearly closure the library would be closed all year: at least one day must stay open.",
+  "Con questi giorni di chiusura settimanale e le chiusure annuali la biblioteca resterebbe chiusa tutto l'anno: almeno un giorno deve restare aperto.": "With these weekly closed days and the yearly closures the library would be closed all year: at least one day must stay open.",
   "Fornitore non assegnato: è stato eliminato durante l'importazione.": "Supplier not assigned: it was deleted during the import.",
   "Il file dell'import non è più disponibile: caricalo di nuovo.": "The import file is no longer available: upload it again.",
   "Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.": "Import completed, but the history entry was not saved: the error report cannot be downloaded.",
@@ -9270,5 +9271,14 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import complete, but its history was not saved. Try again to save it.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Result size limit reached: catalogue not queried.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "The SBN catalogue does not support searching by ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "This preview was replaced by another uploaded file: upload the file again to import it."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "This preview was replaced by another uploaded file: upload the file again to import it.",
+  "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Report limited to %d entries: later rows are not listed, but they are included in the counts.",
+  "Report troncato": "Report truncated",
+  "Un import è già in corso: attendi la fine o riprendilo da questa pagina.": "An import is already in progress: wait for it to finish or resume it from this page.",
+  "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.": "The import is still active: resume it, or try again in %d minutes.",
+  "Import interrotto": "Import interrupted",
+  "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d of %d rows processed. You can resume it from where it stopped or close it: the users already created are kept.",
+  "Annulla import": "Cancel import",
+  "Riprendi import": "Resume import",
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "User not deleted: their photo cannot be removed from disk. Try again or check the permissions of the storage folder."
 }

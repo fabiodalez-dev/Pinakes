@@ -37,7 +37,7 @@ class StocktakePdfGenerator
         $appName = (string) ConfigStore::get('app.name', 'Biblioteca');
         $title = __('Revisione inventariale');
 
-        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf = $this->createDocument();
         $pdf->SetCreator($appName);
         $pdf->SetAuthor($appName);
         $pdf->SetTitle($title . ' - ' . (string) $session['nome']);
@@ -137,6 +137,16 @@ class StocktakePdfGenerator
         $pdf->Cell(0, 5, sprintf(__('Documento generato il %s alle %s'), format_date($now->format('Y-m-d'), false, '/'), $now->format('H:i')), 0, 1, 'C');
 
         return $pdf->Output('', 'S');
+    }
+
+    /**
+     * The TCPDF document the report is drawn on. Its text ends up as glyph
+     * ids of a subset font, so a test that wants to read what was written
+     * swaps in a document that records the cells it is given.
+     */
+    protected function createDocument(): TCPDF
+    {
+        return new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
     }
 
     /**
