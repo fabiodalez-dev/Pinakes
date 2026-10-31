@@ -284,7 +284,7 @@ try {
 
     // The chunk endpoint: the position to resume from, a vanished staged file,
     // and an upload refused before it replaces the import in progress.
-    $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo']]; // a real account: import_logs.user_id is a foreign key
     $importer = new \App\Controllers\UserImportController();
     $requests = new \Slim\Psr7\Factory\ServerRequestFactory();
     $responses = new \Slim\Psr7\Factory\ResponseFactory();
@@ -318,10 +318,33 @@ try {
     $_SESSION['user_import'] = $running;
     [$status, $first] = $call('chunk', ['start' => 0]);
     $importLogIds[] = (string) ($first['import_id'] ?? '');
-    $check($status === 200 && ($first['done'] ?? false) === true && ($first['created'] ?? null) === 1 && !is_file($staged), 'the last block creates the reader and closes the run');
+    $check($status === 200 && ($first['import_id'] ?? '') !== '' && ($first['done'] ?? false) === true && ($first['created'] ?? null) === 1 && !is_file($staged), 'the last block creates the reader and closes the run');
     [$status, $replay] = $call('chunk', ['start' => 0]);
     $check($status === 200 && $replay === $first && (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$importEmail}'")->fetch_row()[0] === 1, 'a retry of the last block replays the final answer and creates nothing');
     $check($call('start', ['mapping' => [0 => 'nome', 2 => 'email']])[0] === 400, 'a finished run cannot be started again');
+
+    // A run under way (another tab) is neither replaced nor closed; the page
+    // learns its position and resumes it.
+    file_put_contents($staged, "nome;cognome;email\nZz;Import;zz-never@example.invalid\nZz;Two;zz-never2@example.invalid\n");
+    $live = ['total' => 2, 'next' => 1, 'active_at' => time()] + $running;
+    $_SESSION['user_import'] = $live;
+    [$status, $json] = $call('upload', []);
+    $check($status === 409 && ($json['processed'] ?? null) === 1 && ($json['total_rows'] ?? null) === 2 && ($_SESSION['user_import'] ?? null) === $live && is_file($staged), 'an upload during a live run is refused with its position, the run left intact');
+    [$status, $json] = $call('start', ['mapping' => [0 => 'nome', 2 => 'email']]);
+    $check($status === 409 && ($json['processed'] ?? null) === 1 && ($json['total_rows'] ?? null) === 2, 'a replayed start answers with the position to resume from');
+    [$status, $json] = $call('cancel', []);
+    $check($status === 409 && ($_SESSION['user_import'] ?? null) === $live && is_file($staged), 'a live run cannot be cancelled');
+    $check(\App\Controllers\UserImportController::resumable($live) === ['name' => 't.csv', 'processed' => 1, 'total' => 2]
+        && \App\Controllers\UserImportController::resumable(['finished' => true, 'result' => []]) === null
+        && \App\Controllers\UserImportController::resumable(['started' => false] + $running) === null, 'the page offers to resume only a started, unfinished run');
+    // Abandoned (no request for IDLE_SECONDS): "Annulla import" closes it and
+    // logs the partial run, so the accounts it created leave a trace.
+    $_SESSION['user_import'] = ['active_at' => time() - \App\Controllers\UserImportController::IDLE_SECONDS - 5] + $live;
+    [$status, $json] = $call('cancel', []);
+    $closedId = (string) ($json['import_id'] ?? '');
+    $importLogIds[] = $closedId;
+    $logged = $closedId !== '' ? $db->query("SELECT total_rows, import_type FROM import_logs WHERE import_id = '" . $db->real_escape_string($closedId) . "'")->fetch_assoc() : null;
+    $check($status === 200 && !isset($_SESSION['user_import']) && !is_file($staged) && is_array($logged) && (int) $logged['total_rows'] === 1 && $logged['import_type'] === 'users', 'an abandoned run is closed, its file released and its partial run logged');
     $_SESSION = [];
 
     // The user import's error report is served under the users permission.

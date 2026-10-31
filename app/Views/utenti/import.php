@@ -1,5 +1,6 @@
 <?php
 /** @var bool $patronTypes */
+/** @var array{name:string, processed:int, total:int}|null $resumeImport */
 use App\Support\Csrf;
 
 $csrfToken = Csrf::ensureToken();
@@ -68,8 +69,26 @@ unset($workspaceHeader);
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 space-y-6">
 
+        <?php if ($resumeImport !== null): ?>
+        <!-- An interrupted run: resume it or close it -->
+        <div class="bg-white rounded-lg shadow-sm border border-amber-200 p-6" id="user-import-step-resume">
+          <h2 class="text-xl font-semibold text-gray-900 mb-2 flex items-center">
+            <i class="fas fa-pause-circle text-amber-600 mr-2"></i>
+            <?= __("Import interrotto") ?>
+          </h2>
+          <p class="text-sm text-gray-600"><?= htmlspecialchars(sprintf(__('%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.'), $resumeImport['name'], $resumeImport['processed'], $resumeImport['total']), ENT_QUOTES, 'UTF-8') ?></p>
+          <div class="pk-form-actions mt-6 flex justify-end gap-3">
+            <button type="button" id="user-import-abandon" class="btn-secondary"><?= __("Annulla import") ?></button>
+            <button type="button" id="user-import-resume" class="px-6 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+              <i class="fas fa-play mr-2"></i>
+              <?= __("Riprendi import") ?>
+            </button>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Step 1: upload -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6" id="user-import-step-upload">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6<?= $resumeImport !== null ? ' hidden' : '' ?>" id="user-import-step-upload">
           <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
             <i class="fas fa-upload text-gray-600 mr-2"></i>
             <?= __("Carica File CSV") ?>
@@ -233,6 +252,7 @@ unset($workspaceHeader);
   const BASE = window.BASE_PATH || '';
   const CSRF = <?= json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const T = <?= json_encode($importI18n, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const RESUME = <?= json_encode($resumeImport, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (s, ...args) => { let i = 0; return String(s).replace(/%d/g, () => String(args[i++] ?? '')); };
@@ -263,6 +283,7 @@ unset($workspaceHeader);
       const err = new Error((data && data.error) || T.invalidResponse);
       err.status = res.status;
       err.processed = data && Number.isInteger(data.processed) ? data.processed : null;
+      err.total = data && Number.isInteger(data.total_rows) ? data.total_rows : null;
       throw err;
     }
     return data;
@@ -332,15 +353,46 @@ unset($workspaceHeader);
     try {
       started = await postJson('/admin/users/import/start', { mapping, send_invites: $('user_import_send_invites').checked });
     } catch (err) {
+      // Already started (the answer to a first click was lost): the server
+      // says where the run is, and it goes on from there.
+      if (err.status === 409 && err.processed !== null && err.total !== null) {
+        runImport(err.total, err.processed);
+        return;
+      }
       startBtn.disabled = false;
       showError(err.message || T.networkError);
       return;
     }
+    runImport(started.total_rows, 0);
+  });
+
+  if (RESUME) {
+    $('user-import-resume').addEventListener('click', () => {
+      clearError();
+      runImport(RESUME.total, RESUME.processed);
+    });
+    $('user-import-abandon').addEventListener('click', async () => {
+      clearError();
+      const button = $('user-import-abandon');
+      button.disabled = true;
+      try {
+        await postJson('/admin/users/import/cancel', {});
+      } catch (err) {
+        button.disabled = false;
+        showError(err.message || T.networkError);
+        return;
+      }
+      window.location.href = BASE + '/admin/users/import';
+    });
+  }
+
+  async function runImport(total, from) {
+    const resumePanel = $('user-import-step-resume');
+    if (resumePanel) { resumePanel.classList.add('hidden'); }
     $('user-import-step-upload').classList.add('hidden');
     $('user-import-step-mapping').classList.add('hidden');
     $('user-import-step-result').classList.remove('hidden');
-    const total = started.total_rows;
-    let start = 0;
+    let start = from;
     let last = null;
     let retries = 0;
     try {
@@ -393,6 +445,6 @@ unset($workspaceHeader);
       link.href = BASE + '/admin/users/import/errors?import_id=' + encodeURIComponent(last.import_id);
       link.classList.remove('hidden');
     }
-  });
+  }
 })();
 </script>

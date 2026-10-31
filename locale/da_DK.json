@@ -8823,5 +8823,11 @@
   "Il catalogo SBN non permette la ricerca per ISSN.": "SBN-kataloget understøtter ikke søgning efter ISSN.",
   "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Denne forhåndsvisning er blevet erstattet af en anden uploadet fil: upload filen igen for at importere den.",
   "Report limitato a %d voci: le righe successive non sono elencate, ma sono incluse nei conteggi.": "Rapporten er begrænset til %d poster: senere rækker vises ikke, men de er medregnet i tællingerne.",
-  "Report troncato": "Rapport afkortet"
+  "Report troncato": "Rapport afkortet",
+  "Un import è già in corso: attendi la fine o riprendilo da questa pagina.": "En import er allerede i gang: vent til den er færdig, eller genoptag den fra denne side.",
+  "L'import è ancora attivo: riprendilo, oppure riprova tra %d minuti.": "Importen er stadig aktiv: genoptag den, eller prøv igen om %d minutter.",
+  "Import interrotto": "Import afbrudt",
+  "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d af %d rækker behandlet. Du kan genoptage den, hvor den stoppede, eller lukke den: de brugere, der allerede er oprettet, bevares.",
+  "Annulla import": "Annuller import",
+  "Riprendi import": "Genoptag import"
 }
