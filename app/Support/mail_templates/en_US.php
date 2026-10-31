@@ -194,6 +194,17 @@ return [
 <p>If you no longer need it, you can cancel the loan from the “Reservations” page of your account: the book will go to someone else right away.</p>
 <p>Happy reading!</p>',
     ],
+    'card_expiring' => [
+        'subject' => '🪪 Your library card expires on {{data_scadenza_tessera}}',
+        'body' => '<h2>Your library card is about to expire</h2>
+<p>Hi {{utente_nome}},</p>
+<p>your library card (no. {{codice_tessera}}) expires on <strong>{{data_scadenza_tessera}}</strong> (days left: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Once it has expired you will not be able to borrow or reserve books until the card is renewed.</p>
+</div>
+<p>To renew it, ask at the library desk during opening hours.</p>
+<p>See you soon!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Pickup Cancelled',
         'body' => '<h2>Pickup Cancelled</h2>

@@ -145,6 +145,7 @@ try {
     logMessage("- Expiration warnings sent: " . $results['expiration_warnings']);
     logMessage("- Overdue notifications sent: " . $results['overdue_notifications']);
     logMessage("- Loan recalls sent: " . ($results['loan_recalls'] ?? 0));
+    logMessage("- Card expiry warnings sent: " . ($results['card_expiry_warnings'] ?? 0));
     logMessage("- Wishlist notifications sent: " . $results['wishlist_notifications']);
 
     if (!empty($results['errors'])) {

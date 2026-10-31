@@ -931,8 +931,18 @@ class FrontendController
         // default to max_loan_duration_days, so expose the same effective value
         // to the view instead of hardcoding one calendar month in JavaScript.
         $loanSettings = new \App\Models\SettingsRepository($db);
-        $maxRequestDays = $loanSettings->maxLoanDurationDays();
-        $defaultRequestLoanDays = $loanSettings->requestLoanDurationDays();
+        $circulation = new \App\Services\CirculationPolicy($db, $loanSettings);
+        // The viewer's circulation rules for this title (default patron type
+        // when anonymous): consultation-only material shows no request button,
+        // a patron type without reservations no "reserve when available".
+        $viewerPolicy = $circulation->forViewer(
+            !empty($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null,
+            $book_id
+        );
+        $consultationOnly = !$viewerPolicy->loanable;
+        $viewerReservationsEnabled = $viewerPolicy->user->reservationsEnabled;
+        $maxRequestDays = $viewerPolicy->maxRequestDays;
+        $defaultRequestLoanDays = $viewerPolicy->requestDurationDays();
         // Days to collect a booked loan once it starts: the scheduled-loan
         // message names them instead of a vague "when the date approaches".
         $pickupExpiryDays = max(1, (int) ($loanSettings->get('loans', 'pickup_expiry_days', '3') ?? 3));

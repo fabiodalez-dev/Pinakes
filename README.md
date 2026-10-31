@@ -33,7 +33,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **MARC bulk import and export, copy cataloguing**: ISO 2709 and MARCXML (MARC 21, UNIMARC, danMARC2, MARC-8) imported in chunks with a preview, the catalogue or a selection exported as MARC 21, MARCXML or UNIMARC, and records searched and imported from other catalogues over SRU.
 - **Visitor log, catalogue cards, suppliers and RDA types**: a kiosk visitor log with GDPR retention, ISBD catalogue cards as PDF, a suppliers register linked to books, RDA content/media/carrier overrides, and new statistics sections.
 - **Library cards and user import**: printable patron cards (CR80 or A4 sheets, Code128 or QR), patron photo from the webcam, and user import from CSV with column mapping.
-- **Patron types and circulation rules**: loan duration, renewals, request window and limits per patron type and material, from one circulation policy.
+- **Patron types and circulation rules**: one circulation policy for every channel (desk, website, app, NCIP); loan limit, duration, renewals, request window, reservations and card duration per patron type, a patron type × material rules matrix, consultation-only copies, card renewal and a card-expiry email.
 - **Closures calendar**: weekly closed days and closures; due dates and pickup deadlines move to the next open day.
 - **Fines and patron ledger**: optional late fines with grace days and a cap, an append-only ledger with payments, waivers and receipts, and an optional debt block.
 

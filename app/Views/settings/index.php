@@ -956,6 +956,9 @@ unset($workspaceHeader);
 
       <!-- Loans Settings -->
       <?php include __DIR__ . '/loans-tab.php'; ?>
+
+      <!-- Circulation: patron types and rules matrix (administrators only: no data, no panel) -->
+      <?php if (is_array($circulationData ?? null)) { include __DIR__ . '/circulation-tab.php'; } ?>
   </div>
 </div>
 

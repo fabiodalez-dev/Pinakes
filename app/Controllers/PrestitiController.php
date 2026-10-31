@@ -187,9 +187,9 @@ class PrestitiController
         // mezzanotte, e il '+1 month' della view divergeva dal default server (30gg).
         $defaultDataPrestito = \App\Support\DateHelper::today();
         $loanSettings = new \App\Models\SettingsRepository($db);
-        $defaultLoanDays = $loanSettings->loanDurationDays();
+        $defaultLoanDays = (new \App\Services\CirculationPolicy($db, $loanSettings))->defaults()->durationDays;
         $allowMultipleLoansSameBook = $loanSettings->allowsMultipleLoansSameBook();
-        $defaultDataScadenza = date('Y-m-d', strtotime($defaultDataPrestito . " +{$defaultLoanDays} days"));
+        $defaultDataScadenza = \App\Services\CirculationPolicy::dueDateFor($defaultDataPrestito, $defaultLoanDays);
         $loanSubmissionToken = \App\Support\OneTimeFormToken::issue('loan.create');
 
         ob_start();
@@ -267,13 +267,14 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
         }
         if (empty($data_scadenza)) {
-            // Default loan duration read from admin settings (fallback: 30 days)
-            $loanDays = (new \App\Models\SettingsRepository($db))->loanDurationDays();
+            // Default loan duration from the circulation rules of this patron
+            // and title (fallback: the global loans settings, 30 days).
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($utente_id, $libro_id)->durationDays;
             $startDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $data_prestito);
             if ($startDate === false) {
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
             }
-            $data_scadenza = $startDate->modify("+{$loanDays} days")->format('Y-m-d');
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($startDate->format('Y-m-d'), $loanDays);
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -386,19 +387,14 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=' . $eligibilityError)->withStatus(302);
             }
 
-            // Enforce max active loans per user (admin setting; 0 = no limit)
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('i', $utente_id);
-                $cntStmt->execute();
-                $cntResult = $cntStmt->get_result();
-                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
-                    $db->rollback();
-                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=max_loans_reached')->withStatus(302);
-                }
+            // Circulation rules of this patron and title (CirculationPolicy):
+            // loanability and active-loan limits (0 = no limit), counted under
+            // the user lock above.
+            $circulation = new \App\Services\CirculationPolicy($db);
+            $limitError = $circulation->loanLimitError($circulation->forLoan($utente_id, $libro_id), $utente_id);
+            if ($limitError !== null) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=' . $limitError)->withStatus(302);
             }
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan).
@@ -450,6 +446,12 @@ class PrestitiController
                 }
 
                 $forcedCopyId = (int) $codeRow['id'];
+
+                // A copy kept for in-house consultation is never lent.
+                if ((new \App\Services\CirculationPolicy($db))->isConsultationCopy($forcedCopyId)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=not_loanable')->withStatus(302);
+                }
 
                 // Multiple open rows for one borrower/title must represent
                 // different physical items even when their date windows do not
@@ -519,6 +521,7 @@ class PrestitiController
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
                     AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND " . (new \App\Services\CirculationPolicy($db))->lendableCopySql('c') . "
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti own
                         WHERE own.copia_id = c.id
@@ -1060,18 +1063,11 @@ class PrestitiController
                 // Cap prestiti attivi del NUOVO utente (M6): stesso enforcement di
                 // store() — senza, la riassegnazione admin aggira silenziosamente
                 // max_active_loans_per_user.
-                $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-                if ($maxLoans > 0) {
-                    $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                    $cntStmt->bind_param('i', $newUserId);
-                    $cntStmt->execute();
-                    $cntResult = $cntStmt->get_result();
-                    $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                    $cntStmt->close();
-                    if ($activeCount >= $maxLoans) {
-                        $db->rollback();
-                        return $response->withHeader('Location', url('/admin/loans') . '?error=max_loans_reached')->withStatus(302);
-                    }
+                $circulation = new \App\Services\CirculationPolicy($db);
+                $limitError = $circulation->loanLimitError($circulation->forExistingLoan($id, $newUserId), $newUserId);
+                if ($limitError !== null) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=' . $limitError)->withStatus(302);
                 }
             }
 
@@ -1298,10 +1294,7 @@ class PrestitiController
             if ($newScadenza > $oldScadenza
                 && in_array((string) $locked['stato'], ['in_corso', 'in_ritardo'], true)) {
                 try {
-                    $maxRenewals = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_renewals', '3') ?? 3);
-                    if ($maxRenewals < 0) {
-                        $maxRenewals = 3;
-                    }
+                    $maxRenewals = (new \App\Services\CirculationPolicy($db))->forExistingLoan($id)->maxRenewals;
                     (new NotificationService($db))->sendLoanRenewedNotification($id, $maxRenewals);
                 } catch (\Throwable $notifError) {
                     SecureLogger::warning('Loan update renewal notification failed', ['loan_id' => $id, 'error' => $notifError->getMessage()]);
@@ -2032,15 +2025,11 @@ class PrestitiController
         // PER prestito: un invio fallito non ferma né il batch (già durevole)
         // né le conferme degli altri prestiti.
         if ($extendedLoanIds !== []) {
-            $settingsRepo = new \App\Models\SettingsRepository($db);
-            $maxRenewals = (int) ($settingsRepo->get('loans', 'max_renewals', '3') ?? 3);
-            if ($maxRenewals < 0) {
-                $maxRenewals = 3;
-            }
+            $circulation = new \App\Services\CirculationPolicy($db);
             $notifier = new NotificationService($db);
             foreach ($extendedLoanIds as $extendedLoanId) {
                 try {
-                    $notifier->sendLoanRenewedNotification($extendedLoanId, $maxRenewals);
+                    $notifier->sendLoanRenewedNotification($extendedLoanId, $circulation->forExistingLoan($extendedLoanId)->maxRenewals);
                 } catch (\Throwable $notifError) {
                     SecureLogger::warning('Bulk extend renewal notification failed', ['loan_id' => $extendedLoanId, 'error' => $notifError->getMessage()]);
                 }
@@ -2202,12 +2191,11 @@ class PrestitiController
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=' . $eligibilityError))->withStatus(302);
         }
 
-        // Check renewal limit (max_renewals configurabile, default 3) — F2
-        $settingsRepo = new \App\Models\SettingsRepository($db);
-        $maxRenewals = (int) ($settingsRepo->get('loans', 'max_renewals', '3') ?? 3);
-        if ($maxRenewals < 0) {
-            $maxRenewals = 3;
-        }
+        // Check renewal limit (max_renewals configurabile, default 3) — F2.
+        // Limit and renewal length come from the circulation rules of this
+        // loan's patron and material (CirculationPolicy).
+        $renewPolicy = (new \App\Services\CirculationPolicy($db))->forExistingLoan($id);
+        $maxRenewals = $renewPolicy->maxRenewals;
         $currentRenewals = (int) $loan['renewals'];
         if ($currentRenewals >= $maxRenewals) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
@@ -2217,11 +2205,11 @@ class PrestitiController
 
         // Durata del rinnovo dalla setting di durata prestito (M5b): il vecchio
         // '+14 days' hardcoded ignorava la configurazione dell'admin.
-        $renewDays = $settingsRepo->loanDurationDays();
+        $renewDays = $renewPolicy->renewalDays;
 
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];
-        $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . " +{$renewDays} days"));
+        $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays);
         // Optional shorter renewal: the day before a scheduled loan or a
         // reservation, as the refusal below proposes ("Rinnova fino al D").
         // A real day, after the current due date, never past the standard
@@ -2308,7 +2296,7 @@ class PrestitiController
 
             // Use the locked values for calculations (in case they changed)
             $currentDueDate = $lockedLoan['data_scadenza'];
-            $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . " +{$renewDays} days"));
+            $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays);
             if ($requestedDue !== '') {
                 // Re-bound under the lock: the due date may have moved meanwhile.
                 if ($requestedDue <= (string) $currentDueDate || $requestedDue > $proposedNewDueDate) {

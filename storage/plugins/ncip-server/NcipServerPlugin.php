@@ -79,6 +79,9 @@ class NcipServerPlugin
         'user-ineligible-to-renew'     => ['renewitemprocessingerror.scm', 'User Ineligible To Renew This Item'],
         'maximum-renewals-exceeded'    => ['renewitemprocessingerror.scm', 'Maximum Renewals Exceeded'],
         'user-ineligible-to-request'   => ['requestitemprocessingerror.scm', 'User Ineligible To Request This Item'],
+        // Consultation-only material for this patron (CirculationPolicy).
+        'item-does-not-circulate'      => ['checkoutitemprocessingerror.scm', 'Item Does Not Circulate'],
+        'request-item-does-not-circulate' => ['requestitemprocessingerror.scm', 'Item Does Not Circulate'],
         'unknown-request'              => ['cancelrequestitemprocessingerror.scm', 'Unknown Request'],
     ];
 
@@ -887,9 +890,8 @@ class NcipServerPlugin
 
         // Atomic checkout: lock the book row so concurrent requests serialize.
         $today = \App\Support\DateHelper::today();
-        $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
-        $loanDays = $loanDays > 0 ? $loanDays : 30;
-        $dueDate = (new \DateTimeImmutable($today))->modify("+{$loanDays} days")->format('Y-m-d');
+        $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->durationDays;
+        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
         $failureReason = null;
         $loanId  = $this->createLoanAtomic($itemId, $userId, $dueDate, (int) ($caller['id'] ?? 0), $failureReason);
 
@@ -907,6 +909,8 @@ class NcipServerPlugin
                     return $this->xmlResponse($response, $this->buildProblem('User is not eligible to check out this item', 'user-ineligible-to-check-out'));
                 case 'max_loans':
                     return $this->xmlResponse($response, $this->buildProblem('Maximum item checkouts reached for this user', 'user-loan-limit-reached'));
+                case 'not_loanable':
+                    return $this->xmlResponse($response, $this->buildProblem('Item is for consultation only and does not circulate for this user', 'item-does-not-circulate'));
                 case 'no_capacity':
                 case 'no_copy':
                     return $this->xmlResponse($response, $this->buildProblem('No copies available', 'item-not-checked-in'));
@@ -1161,9 +1165,10 @@ class NcipServerPlugin
 
         $requestId = (string) ($message?->RequestId->RequestIdentifierValue ?? '');
         $today = \App\Support\DateHelper::today();
-        $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
-        $loanDays = $loanDays > 0 ? $loanDays : 30;
-        $dueDate = (new \DateTimeImmutable($today))->modify("+{$loanDays} days")->format('Y-m-d');
+        // A request is capped like the website and app ones: the loan length,
+        // but never past the longest request window of the patron type.
+        $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->requestDurationDays();
+        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays);
         $failureReason = 'db_error';
         $requestOutcome = $this->createRequestItemNcip(
             $itemId,
@@ -1178,6 +1183,8 @@ class NcipServerPlugin
                 'duplicate'   => 'duplicate-request',
                 'ineligible'  => 'user-ineligible-to-request',
                 'max_loans'   => 'user-ineligible-to-request',
+                'not_loanable' => 'request-item-does-not-circulate',
+                'reservation_limit', 'reservations_disabled' => 'user-ineligible-to-request',
                 default       => 'temporary-processing-failure',
             };
             SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $failureReason);
@@ -1921,22 +1928,18 @@ class NcipServerPlugin
                 return null;
             }
 
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $count = $this->db->prepare(
-                    "SELECT COUNT(*) FROM prestiti
-                     WHERE utente_id = ? AND attivo = 1
-                       AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')"
-                );
-                $count->bind_param('i', $userId);
-                $count->execute();
-                $activeLoans = (int) ($count->get_result()->fetch_row()[0] ?? 0);
-                $count->close();
-                if ($activeLoans >= $maxLoans) {
+            // Circulation rules of this patron and title (CirculationPolicy), counted
+            // under the user lock: loanability, total and per-material limits.
+            $circulation = new \App\Services\CirculationPolicy($this->db);
+            $limitError = $circulation->loanLimitError($circulation->forLoan($userId, $bookId), $userId);
+            if ($limitError !== null) {
+                if ($limitError === 'not_loanable') {
+                    $failureReason = 'not_loanable';
+                } else {
                     $failureReason = 'max_loans';
-                    $this->db->rollback();
-                    return null;
                 }
+                $this->db->rollback();
+                return null;
             }
 
             $capacity = new \App\Services\CapacityService($this->db);
@@ -1956,6 +1959,7 @@ class NcipServerPlugin
                 "SELECT c.id FROM copie c
                  WHERE c.libro_id = ?
                    AND c.stato IN ('disponibile','prenotato')
+                   AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
                    AND NOT EXISTS (
                        SELECT 1 FROM prestiti p
                        WHERE p.copia_id = c.id
@@ -2114,6 +2118,21 @@ class NcipServerPlugin
             // core patron entry point. If the only capacity depends on an
             // earlier return, persist a real FIFO reservation instead of a
             // bare pending loan that staff approval would inevitably reject.
+            // Patron type rules before the gate: consultation-only material
+            // is neither lent nor queued, and the reservation limit counts
+            // queue reservations plus requests awaiting approval.
+            $requestPolicy = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $bookId);
+            if (!$requestPolicy->loanable) {
+                $failureReason = 'not_loanable';
+                $this->db->rollback();
+                return null;
+            }
+            if ((new \App\Services\CirculationPolicy($this->db))->reservationLimitError($requestPolicy->user, $userId, queue: false) !== null) {
+                $failureReason = 'reservation_limit';
+                $this->db->rollback();
+                return null;
+            }
+
             $routing = (new \App\Services\LoanRequestGate($this->db))->route(
                 $bookId,
                 $userId,
@@ -2122,6 +2141,11 @@ class NcipServerPlugin
                 inCallerTransaction: true
             );
             if ($routing->isReservation()) {
+                if (!$requestPolicy->user->reservationsEnabled) {
+                    $failureReason = 'reservations_disabled';
+                    $this->db->rollback();
+                    return null;
+                }
                 $reservationId = (int) $routing->reservationId;
                 if (!$this->insertTransactionRecord(
                     'RequestItem',
@@ -2138,22 +2162,18 @@ class NcipServerPlugin
             // A waitlist reservation does not consume an active-loan slot.
             // Enforce the cap only after the gate kept the request on the loan
             // path, matching ReservationsController/UserActionsController.
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $count = $this->db->prepare(
-                    "SELECT COUNT(*) FROM prestiti
-                     WHERE utente_id = ? AND attivo = 1
-                       AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')"
-                );
-                $count->bind_param('i', $userId);
-                $count->execute();
-                $activeLoans = (int) ($count->get_result()->fetch_row()[0] ?? 0);
-                $count->close();
-                if ($activeLoans >= $maxLoans) {
+            // Circulation rules of this patron and title (CirculationPolicy), counted
+            // under the user lock: loanability, total and per-material limits.
+            $circulation = new \App\Services\CirculationPolicy($this->db);
+            $limitError = $circulation->loanLimitError($circulation->forLoan($userId, $bookId), $userId);
+            if ($limitError !== null) {
+                if ($limitError === 'not_loanable') {
+                    $failureReason = 'not_loanable';
+                } else {
                     $failureReason = 'max_loans';
-                    $this->db->rollback();
-                    return null;
                 }
+                $this->db->rollback();
+                return null;
             }
 
             $stmt = $this->db->prepare(
@@ -2766,18 +2786,17 @@ class NcipServerPlugin
                 return null;
             }
 
-            $settings = new \App\Models\SettingsRepository($this->db);
-            $maxRenewals = (int) ($settings->get('loans', 'max_renewals', '3') ?? 3);
-            $maxRenewals = $maxRenewals >= 0 ? $maxRenewals : 3;
+            // Renewal limit and length of this loan's patron and material.
+            $renewPolicy = (new \App\Services\CirculationPolicy($this->db))->forExistingLoan($loanId);
+            $maxRenewals = $renewPolicy->maxRenewals;
             if ((int) $loan['renewals'] >= $maxRenewals) {
                 $this->db->rollback();
                 $failureReason = 'max_renewals';
                 return null;
             }
-            $renewDays = (int) ($settings->get('loans', 'loan_duration_days', '30') ?? 30);
-            $renewDays = $renewDays > 0 ? $renewDays : 30;
+            $renewDays = $renewPolicy->renewalDays;
             $currentDue = (string) $loan['data_scadenza'];
-            $newDueDate = (new \DateTimeImmutable($currentDue))->modify("+{$renewDays} days")->format('Y-m-d');
+            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($currentDue, $renewDays);
 
             // #336 parity con PrestitiController::renew/bulkExtend: il giorno di
             // scadenza corrente è già detenuto da QUESTO prestito, quindi la

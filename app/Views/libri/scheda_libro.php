@@ -10,6 +10,8 @@ $libro = $libro ?? [];
 // on this flag. Default to false so a code path that includes this view without
 // setting it can never leak PII to a non-admin/staff viewer (finding F2).
 $isAdminOrStaff = $isAdminOrStaff ?? false;
+// Days a renewal of the active loan adds (CirculationPolicy, set by the controller).
+$renewalDays = isset($renewalDays) ? max(1, (int) $renewalDays) : 14;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 // i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
 $seriesTypeLabels = \App\Support\SeriesLabels::types();
@@ -403,7 +405,7 @@ unset($workspaceHeader);
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars(url('/admin/books/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
               <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
-                <i class="fas fa-redo-alt"></i> <?= __("Rinnova prestito (+14 giorni)") ?>
+                <i class="fas fa-redo-alt"></i> <?= htmlspecialchars(sprintf(__('Rinnova prestito (+%d giorni)'), $renewalDays), ENT_QUOTES, 'UTF-8') ?>
               </button>
             </form>
             <?php elseif ($isLate): ?>
@@ -1169,6 +1171,9 @@ unset($workspaceHeader);
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">
+                  <?php if ((int) ($copia['solo_consultazione'] ?? 0) === 1): ?>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mr-1" data-testid="copy-consultation-badge"><i class="fas fa-eye mr-1"></i><?= __("Solo consultazione") ?></span>
+                  <?php endif; ?>
                   <?php echo App\Support\HtmlHelper::e($copia['note'] ?? '-'); ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -1186,6 +1191,16 @@ unset($workspaceHeader);
                     $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
                     $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                     ?>
+                    <?php if (array_key_exists('solo_consultazione', $copia)): $copyConsultation = (int) $copia['solo_consultazione'] === 1; ?>
+                    <form method="post" action="<?= htmlspecialchars(url('/admin/books/copies/' . (int) $copia['id'] . '/consultation'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                      <input type="hidden" name="solo_consultazione" value="<?= $copyConsultation ? '0' : '1' ?>">
+                      <button type="submit" class="btn-icon btn-secondary text-gray-700 hover:text-gray-900 transition-colors" data-testid="copy-consultation-toggle"
+                              title="<?= htmlspecialchars($copyConsultation ? __('Rendi prestabile') : __('Riserva alla consultazione'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($copyConsultation ? __('Rendi prestabile') : __('Riserva alla consultazione'), ENT_QUOTES, 'UTF-8') ?>">
+                        <i class="fas <?= $copyConsultation ? 'fa-hand-holding' : 'fa-eye' ?>"></i>
+                      </button>
+                    </form>
+                    <?php endif; ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
                             onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['stato'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars((string) json_encode($copia['note'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
@@ -1829,7 +1844,7 @@ unset($workspaceHeader);
         e.preventDefault();
         Swal.fire({
           title: __('Rinnova prestito?'),
-          text: __('La scadenza verrà estesa di 14 giorni'),
+          text: <?= json_encode(sprintf(__('La scadenza verrà estesa di %d giorni'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
           icon:'question',
           showCancelButton:true,
           confirmButtonText: __('Rinnova'),
@@ -1838,7 +1853,7 @@ unset($workspaceHeader);
         }).then(r=>{ if(r.isConfirmed) e.target.submit(); });
         return false;
       }
-      return confirm(__('Rinnovare il prestito? La scadenza verrà estesa di 14 giorni.'));
+      return confirm(<?= json_encode(sprintf(__('Rinnovare il prestito? La scadenza verrà estesa di %d giorni.'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
     }
   </script>
 

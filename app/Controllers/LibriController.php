@@ -563,15 +563,15 @@ class LibriController
         // Renewal cap is admin-configurable (loans.max_renewals); pass it to the
         // view so the displayed limit and the "Renew" button gate match the
         // server-side check in PrestitiController::renew (#157).
-        $loanSettingsRepo = new \App\Models\SettingsRepository($db);
-        // Validate numeric BEFORE casting: a non-numeric stored value (e.g. "abc")
-        // would cast to 0, silently flipping the cap to "no renewals" instead of
-        // falling back to the safe default. Only a genuine number is honoured.
-        $rawMaxRenewals = $loanSettingsRepo->get('loans', 'max_renewals', '3');
-        $maxRenewals = is_numeric($rawMaxRenewals) ? (int) $rawMaxRenewals : 3;
-        if ($maxRenewals < 0) {
-            $maxRenewals = 3;
-        }
+        // The limit is the one of the active loan's patron and material
+        // (CirculationPolicy, which also validates a non-numeric stored value
+        // back to the default 3), the global one when nothing is on loan.
+        $circulation = new \App\Services\CirculationPolicy($db);
+        $activeLoanPolicy = !empty($activeLoan['id'])
+            ? $circulation->forExistingLoan((int) $activeLoan['id'])
+            : $circulation->defaults();
+        $maxRenewals = $activeLoanPolicy->maxRenewals;
+        $renewalDays = $activeLoanPolicy->renewalDays;
 
         // Issue #374: the audit timeline is staff-only. This route is also
         // reachable by patrons, so do not even query audit/operator data unless

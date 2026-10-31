@@ -13,8 +13,9 @@ use mysqli;
  * section, so a feature that is not installed (no table yet) simply does not
  * appear and the page keeps rendering.
  *
- * EXTENSION POINTS — loansByPatronType(), fines() and stocktakeOutcomes() are
- * placeholders that other 0.9.0 branches fill in, either by replacing the
+ * EXTENSION POINTS — fines() is a placeholder the fines branch fills in;
+ * loansByPatronType() (circulation policy) and stocktakeOutcomes() have their
+ * built-in provider. Each can still be filled or overridden, either by replacing the
  * body of the function or by registering a filter on its hook
  * (statistics.section.patron_types / .fines / .stocktake, initial value NULL,
  * argument the mysqli connection). They must keep the same signature and
@@ -91,14 +92,61 @@ final class StatisticsSections
     }
 
     /**
-     * EXTENSION POINT — loans by patron type (tipologie_lettore).
-     * Filled by the patron-types branch; NULL hides the section.
+     * Loans in the last 12 months grouped by patron type (tipologie_lettore).
+     * A reader without a type counts under the default type, as the
+     * circulation policy treats them. Every active type is listed, also with
+     * no loans; a deactivated type only when it has loans in the period. A
+     * filter on statistics.section.patron_types still wins; no patron types
+     * schema (upgrade not run yet) hides the section.
      *
      * @return array{rows: list<array{label: string, value: int|float|string}>, note?: string}|null
      */
     public static function loansByPatronType(mysqli $db): ?array
     {
-        return self::tableSection(Hooks::apply('statistics.section.patron_types', null, [$db]));
+        $hooked = self::tableSection(Hooks::apply('statistics.section.patron_types', null, [$db]));
+        if ($hooked !== null) {
+            return $hooked;
+        }
+        $policy = new \App\Services\CirculationPolicy($db);
+        if (!$policy->schemaReady()) {
+            return null;
+        }
+        $types = $policy->types();
+        if ($types === []) {
+            return null;
+        }
+        $defaultId = $policy->defaultTypeId() ?? 0;
+        $states = "'" . implode("','", self::CIRCULATED_STATES) . "'";
+        $sql = "SELECT COALESCE(u.tipologia_id, {$defaultId}) AS tipologia, COUNT(p.id) AS totale
+                FROM prestiti p
+                JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+                LEFT JOIN utenti u ON u.id = p.utente_id
+                WHERE p.stato IN ({$states})
+                  AND p.data_prestito >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+                GROUP BY COALESCE(u.tipologia_id, {$defaultId})";
+        $counts = [];
+        $res = $db->query($sql);
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $counts[(int) $row['tipologia']] = (int) $row['totale'];
+            }
+            $res->free();
+        }
+        $rows = [];
+        foreach ($types as $id => $type) {
+            $count = $counts[$id] ?? 0;
+            if ((int) $type['attiva'] !== 1 && $count === 0) {
+                continue;
+            }
+            $rows[] = ['label' => (string) $type['nome'], 'value' => $count];
+        }
+        $defaultName = $defaultId > 0 && isset($types[$defaultId]) ? (string) $types[$defaultId]['nome'] : '';
+        return [
+            'rows' => $rows,
+            'note' => $defaultName !== ''
+                ? sprintf(__('Ultimi 12 mesi. I lettori senza tipologia sono contati in «%s», la tipologia predefinita.'), $defaultName)
+                : __('Ultimi 12 mesi.'),
+        ];
     }
 
     /**

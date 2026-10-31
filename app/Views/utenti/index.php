@@ -231,6 +231,22 @@ unset($workspaceHeader);
             </select>
           </div>
 
+          <?php $patronTypeFilterOptions = isset($db) && $db instanceof \mysqli ? (new \App\Services\CirculationPolicy($db))->types() : []; ?>
+          <?php if ($patronTypeFilterOptions !== []): ?>
+          <div>
+            <label for="patron_type_filter" class="form-label">
+              <i class="fas fa-id-badge mr-1"></i>
+              <?= __("Tipologia lettore") ?>
+            </label>
+            <select id="patron_type_filter" class="form-input">
+              <option value=""><?= __("Tutte le tipologie") ?></option>
+              <?php foreach ($patronTypeFilterOptions as $ptId => $pt): ?>
+              <option value="<?= (int) $ptId ?>"><?= htmlspecialchars((string) ((string) $pt['nome']), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php endif; ?>
+
           <div>
             <label for="created_from" class="form-label">
               <i class="fas fa-calendar mr-1"></i>
@@ -397,6 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
           search_text: $('#search_text').val(),
           role_filter: $('#role_filter').val(),
           status_filter: $('#status_filter').val(),
+          patron_type_filter: $('#patron_type_filter').val() || '',
           created_from: $('#created_from').val()
         };
       },
@@ -610,7 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Filter event handlers
-  $('#search_text, #role_filter, #status_filter, #created_from').on('keyup change', function() {
+  $('#search_text, #role_filter, #status_filter, #patron_type_filter, #created_from').on('keyup change', function() {
     table.ajax.reload();
   });
 
@@ -643,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (clearBtn) {
       clearBtn.addEventListener('click', function() {
         // Clear all filter inputs
-        $('#search_text, #role_filter, #status_filter, #created_from').val('');
+        $('#search_text, #role_filter, #status_filter, #patron_type_filter, #created_from').val('');
 
         // Reload table
         table.ajax.reload();
@@ -747,6 +764,12 @@ document.addEventListener('DOMContentLoaded', function() {
         params.append('status_filter', statusFilter);
       }
 
+      // Patron type filter
+      const patronTypeFilter = document.getElementById('patron_type_filter')?.value || '';
+      if (patronTypeFilter) {
+        params.append('patron_type_filter', patronTypeFilter);
+      }
+
       // Created from filter
       const createdFrom = document.getElementById('created_from')?.value || '';
       if (createdFrom) {
@@ -796,6 +819,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (r && r.value) params.set('role_filter', r.value);
       if (st && st.value) params.set('status_filter', st.value);
       if (cf && cf.value) params.set('created_from', cf.value);
+      const pt = document.getElementById('patron_type_filter');
+      if (pt && pt.value) params.set('patron_type_filter', pt.value);
       const base = (window.BASE_PATH || '') + '/admin/users/export-pdf';
       const qs = params.toString();
       window.location.href = qs ? `${base}?${qs}` : base;

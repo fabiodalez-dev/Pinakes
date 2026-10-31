@@ -7,6 +7,7 @@ use App\Support\Csv;
 use App\Support\ImportLogger;
 use App\Support\NotificationService;
 use App\Support\PasswordSetupToken;
+use App\Support\PatronTypeAssignment;
 use App\Support\PatronTypeImport;
 use App\Support\RegistrationFields;
 use App\Support\SecureLogger;
@@ -517,6 +518,28 @@ class UserImportController
             }
         } catch (\Throwable $e) {
             $warn(__('Utente importato, ma la tipologia lettore non è stata assegnata.'), $e);
+        }
+        // Card expiry of the patron type, as the user form computes it with
+        // "calcola la scadenza" ticked: only when the file gave no expiry (an
+        // explicit date always wins), and from the default type when the row
+        // has no type or an unknown one, so a file without a type column gets
+        // the default type's card duration too. No duration: the expiry stays
+        // empty, as on the form.
+        if (($parsed['record']['data_scadenza_tessera'] ?? null) === null) {
+            try {
+                $expiry = PatronTypeAssignment::automaticCardExpiry($db, PatronTypeAssignment::of($db, $userId));
+                if ($expiry !== null) {
+                    $stmt = $db->prepare('UPDATE utenti SET data_scadenza_tessera = ? WHERE id = ?');
+                    if ($stmt === false) {
+                        throw new \RuntimeException($db->error);
+                    }
+                    $stmt->bind_param('si', $expiry, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            } catch (\Throwable $e) {
+                $warn(__('Utente importato, ma la scadenza della tessera non è stata calcolata.'), $e);
+            }
         }
         if ($notifier !== null) {
             try {

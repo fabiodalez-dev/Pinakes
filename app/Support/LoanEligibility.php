@@ -77,6 +77,17 @@ class LoanEligibility
                 return __('Utente sospeso: prestiti non consentiti');
             case 'card_expired':
                 return __('Tessera scaduta: rinnovala per richiedere prestiti');
+            // Circulation rules (CirculationPolicy: patron type × material).
+            case 'max_loans_reached':
+                return __('Hai raggiunto il numero massimo di prestiti attivi consentiti');
+            case 'media_limit_reached':
+                return __('Hai raggiunto il numero massimo di prestiti per questo tipo di materiale');
+            case 'not_loanable':
+                return __('Questo materiale è solo in consultazione: non può essere preso in prestito');
+            case 'reservations_disabled':
+                return __('Le prenotazioni non sono consentite per la tua tipologia di lettore');
+            case 'reservation_limit_reached':
+                return __('Hai raggiunto il numero massimo di prenotazioni e richieste in attesa');
             default:
                 return __('Utente non idoneo al prestito');
         }

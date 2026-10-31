@@ -99,6 +99,9 @@ $expect = [
     ['CREATE', 'copy_wrong_book', 422, 'validation_error', 'copy_code', null],
     ['CREATE', 'duplicate_reservation', 409, 'duplicate', null, 'duplicate_reservation'],
     ['CREATE', 'max_loans_reached', 409, 'max_loans_reached', null, null],
+    ['CREATE', 'media_limit_reached', 409, 'media_limit_reached', null, null],
+    ['CREATE', 'not_loanable', 409, 'not_loanable', null, null],
+    ['UPDATE', 'media_limit_reached', 409, 'media_limit_reached', null, null],
     ['CREATE', 'libro_in_prestito', 409, 'not_available', null, 'libro_in_prestito'],
     ['CREATE', 'duplicate_submission', 500, 'internal_error', null, null],
     ['UPDATE', 'loan_closed', 409, 'loan_closed', null, null],
@@ -118,6 +121,9 @@ $expect = [
     ['RESERVATION', 'capacity_full', 409, 'not_available', null, 'capacity_full'],
     ['RESERVATION', 'promoted_loan_active', 409, 'conflict', null, 'promoted_loan_active'],
     ['RESERVATION', 'not_found', 404, 'not_found', null, null],
+    ['RESERVATION', 'not_loanable', 409, 'not_loanable', null, null],
+    ['RESERVATION', 'reservations_disabled', 409, 'reservations_disabled', null, null],
+    ['RESERVATION', 'reservation_limit_reached', 409, 'reservation_limit_reached', null, null],
 ];
 foreach ($expect as [$table, $code, $status, $apiCode, $field, $reason]) {
     [$got, $body] = $decode(CirculationOutcome::error(new Response(), constant(CirculationOutcome::class . '::' . $table), $code, 'unit'));

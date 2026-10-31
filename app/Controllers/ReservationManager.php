@@ -160,8 +160,8 @@ class ReservationManager
         // App-timezone "today" (not PHP UTC) so MySQL-stored dates and the
         // eligibility comparison agree across the midnight boundary (#157).
         $today = \App\Support\DateHelper::today();
-        $maxLoans = max(0, (int) ((new \App\Models\SettingsRepository($this->db))
-            ->get('loans', 'max_active_loans_per_user', '0') ?? 0));
+        $circulation = new \App\Services\CirculationPolicy($this->db);
+        $limitSql = $circulation->totalLoanLimitSql('u');
         $ownTransaction = $this->beginTransactionIfNeeded();
 
         try {
@@ -202,25 +202,33 @@ class ReservationManager
             // irraggiungibile il primo candidato idoneo. Il predicato SQL cerca
             // direttamente il primo idoneo in FIFO; checkUser() rimane il gate
             // autorevole sotto la stessa transazione.
+            // Patrons the per-material rules refuse (not loanable for their
+            // type, or already at the limit for this material) are skipped
+            // like those at their total limit; CapacityService leaves the
+            // same reservations out of the occupied capacity.
+            $materialRefused = $circulation->materialRefusedReservationUserIds((int) $bookId);
+            $materialRefusedSql = $materialRefused === []
+                ? ''
+                : ' AND r.utente_id NOT IN (' . implode(',', array_map('intval', $materialRefused)) . ')';
             $stmt = $this->db->prepare("
                 SELECT r.*, u.email, u.nome, u.cognome
                 FROM prenotazioni r
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.libro_id = ? AND r.stato = 'attiva'
                 AND " . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
-                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "
-                AND (? <= 0 OR (
+                AND " . \App\Support\LoanEligibility::eligibleUserWhere('u') . "{$materialRefusedSql}
+                AND ({$limitSql} <= 0 OR (
                     SELECT COUNT(*)
                     FROM prestiti cap
                     WHERE cap.utente_id = r.utente_id
                       AND cap.attivo = 1
-                      AND cap.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
-                ) < ?)
+                      AND cap.stato IN (" . \App\Services\CirculationPolicy::ACTIVE_LOAN_STATES_SQL . ")
+                ) < {$limitSql})
                 ORDER BY r.queue_position ASC
                 LIMIT 1
                 FOR UPDATE
             ");
-            $stmt->bind_param('isssii', $bookId, $today, $today, $today, $maxLoans, $maxLoans);
+            $stmt->bind_param('isss', $bookId, $today, $today, $today);
             $stmt->execute();
             $result = $stmt->get_result();
             $nextReservation = $result ? $result->fetch_assoc() : null;
@@ -244,21 +252,15 @@ class ReservationManager
                         'motivo' => $eligibilityError,
                     ]);
                     $nextReservation = null;
-                } elseif ($maxLoans > 0) {
+                } else {
                     // The SQL predicate avoids head-of-line blocking; this
                     // second check under the user lock closes the race with
-                    // approvals for other books.
-                    $countStmt = $this->db->prepare("
-                        SELECT COUNT(*) AS c
-                        FROM prestiti
-                        WHERE utente_id = ? AND attivo = 1
-                          AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
-                    ");
-                    $countStmt->bind_param('i', $promotedUserId);
-                    $countStmt->execute();
-                    $activeCount = (int) ($countStmt->get_result()->fetch_assoc()['c'] ?? 0);
-                    $countStmt->close();
-                    if ($activeCount >= $maxLoans) {
+                    // approvals for other books (CirculationPolicy limits).
+                    $limitError = $circulation->loanLimitError(
+                        $circulation->forLoan($promotedUserId, (int) $bookId),
+                        $promotedUserId
+                    );
+                    if ($limitError !== null) {
                         $nextReservation = null;
                     }
                 }
@@ -494,6 +496,7 @@ class ReservationManager
                 SELECT c.id FROM copie c
                 WHERE c.libro_id = ?
                 AND c.stato IN ('disponibile', 'prenotato')
+                AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
                 AND NOT EXISTS (
                     SELECT 1 FROM prestiti own
                     WHERE own.copia_id = c.id
@@ -932,6 +935,7 @@ class ReservationManager
             $totalStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM copie
                 WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                  AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('') . "
             ");
             $totalStmt->bind_param('i', $bookId);
             $totalStmt->execute();
