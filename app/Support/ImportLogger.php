@@ -68,6 +68,39 @@ class ImportLogger
     }
 
     /**
+     * The logger of an import_logs row created earlier (a retry of a final
+     * save that failed): complete() and fail() update that row instead of a
+     * new one. Null when the row does not exist.
+     */
+    public static function resume(\mysqli $db, string $importId): ?self
+    {
+        $stmt = $db->prepare('SELECT 1 FROM import_logs WHERE import_id = ? LIMIT 1');
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param('s', $importId);
+        $stmt->execute();
+        $found = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        if (!$found) {
+            return null;
+        }
+        $logger = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $logger->db = $db;
+        $logger->importId = $importId;
+        $logger->stats = [
+            'imported' => 0,
+            'updated' => 0,
+            'failed' => 0,
+            'authors_created' => 0,
+            'publishers_created' => 0,
+            'scraped' => 0
+        ];
+        $logger->errors = [];
+        return $logger;
+    }
+
+    /**
      * Increment a statistic counter
      *
      * @param string $key One of: imported, updated, failed, authors_created, publishers_created, scraped
