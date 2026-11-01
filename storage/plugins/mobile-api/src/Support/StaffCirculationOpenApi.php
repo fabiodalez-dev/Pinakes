@@ -68,7 +68,9 @@ final class StaffCirculationOpenApi
         $loan = O::ok('The loan as it is now.', O::ref('StaffLoan'));
         $approvalErrors = O::notFound() + O::conflict('`conflict` (state changed, no copy, deadline passed — `message` is the server text) or `not_eligible` (user not eligible).');
         $returnBody = ['outcome' => ['type' => 'string', 'enum' => CirculationOutcome::RETURN_OUTCOMES, 'default' => 'restituito'],
-            'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 99999999.99, 'description' => 'Only for perso / danneggiato.']];
+            'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 99999999.99, 'description' => 'Only for perso / danneggiato.'],
+            'waive_fine' => ['type' => 'boolean', 'default' => false, 'description' => 'Mobile API 1.10.0: waive the late fine this return charges (the amount GET /staff/loans/{id} shows in late_fine.accruing_cents). Requires waive_reason.'],
+            'waive_reason' => ['type' => 'string', 'maxLength' => 255, 'description' => 'Mandatory with waive_fine (422 validation_error, meta.field waive_reason).']];
         $returnErrors = O::invalid() + O::conflict('`not_returnable`, `concurrent_retry` (retry once).');
         $reason = O::inlineBody(['reason' => ['type' => 'string', 'maxLength' => 500]]);
         $idemHeader = ['name' => 'Idempotency-Key', 'in' => 'header', 'required' => false,
@@ -120,7 +122,7 @@ final class StaffCirculationOpenApi
                 'requestBody' => O::inlineBody(['ids' => ['type' => 'array', 'maxItems' => 50, 'items' => ['type' => 'integer']]], ['ids']),
             ])],
             '/staff/loans/{id}' => [
-                'get' => O::op($t, 'staffLoan', 'One loan', ['200' => $loan] + O::notFound(), $loanId),
+                'get' => O::op($t, 'staffLoan', 'One loan', ['200' => O::ok('The loan, with late_fine (Mobile API 1.10.0).', ['allOf' => [O::ref('StaffLoan'), O::ref('StaffLoanLateFine')]])] + O::notFound(), $loanId),
                 'put' => O::op($t, 'staffUpdateLoan', 'Edit borrower or dates (merged over the current row)', [
                     '200' => $loan,
                 ] + O::notFound() + O::invalid() + O::conflict('`loan_closed`, `concurrent_retry`, `not_available`, `not_eligible`, `duplicate`, `max_loans_reached`.'), $loanId + [
@@ -131,7 +133,7 @@ final class StaffCirculationOpenApi
             '/staff/loans/{id}/reject' => ['post' => O::op($t, 'staffRejectLoan', 'Reject a pending request', ['200' => $loan] + $approvalErrors, $loanId + ['requestBody' => $reason])],
             '/staff/loans/{id}/pickup' => ['post' => O::op($t, 'staffConfirmPickup', 'Confirm the pickup (copy handed over)', ['200' => $loan] + $approvalErrors, $loanId)],
             '/staff/loans/{id}/cancel-pickup' => ['post' => O::op($t, 'staffCancelPickup', 'Cancel a loan waiting for pickup', ['200' => $loan] + $approvalErrors, $loanId + ['requestBody' => $reason])],
-            '/staff/loans/{id}/return' => ['post' => O::op($t, 'staffReturnLoan', 'Record the return with the copy outcome', ['200' => $loan] + O::notFound() + $returnErrors, $loanId + [
+            '/staff/loans/{id}/return' => ['post' => O::op($t, 'staffReturnLoan', 'Record the return with the copy outcome', ['200' => O::ok('The returned loan, with late_fine (charged_cents = the late fine written, net of the waiver).', ['allOf' => [O::ref('StaffLoan'), O::ref('StaffLoanLateFine')]])] + O::notFound() + $returnErrors, $loanId + [
                 'requestBody' => O::inlineBody($returnBody),
             ])],
             '/staff/loans/{id}/renew' => ['post' => O::op($t, 'staffRenewLoan', 'Renew by the configured loan duration, or until an earlier date', [
@@ -182,7 +184,11 @@ final class StaffCirculationOpenApi
             ]])],
             '/staff/users' => ['get' => O::op($t, 'staffUsers', 'Search borrowers (name, email, card, phone)', [
                 '200' => O::ok('Users.', O::listOf('StaffUser')),
-            ] + O::invalid(), ['parameters' => [O::query('q', 'string', 'At least 2 characters.', true), O::query('limit', 'integer', '1..50, default 20.')]])],
+            ] + O::invalid(), ['parameters' => [
+                O::query('q', 'string', 'At least 2 characters; optional (empty) when patron_type_id is given.'),
+                O::query('patron_type_id', 'integer', 'Mobile API 1.10.0: only this patron type (accounts without a type count as the default one). 422 when unknown.'),
+                O::query('limit', 'integer', '1..50, default 20.'),
+            ]])],
             '/staff/users/{id}' => ['get' => O::op($t, 'staffUser', 'A borrower with open loans and active reservations', [
                 '200' => O::ok('User.', ['allOf' => [O::ref('StaffUser'), O::object(['loans' => O::listOf('StaffLoan'), 'reservations' => O::listOf('StaffReservation')])]]),
             ] + O::notFound(), ['parameters' => [O::path('id', 'User id')]])],
@@ -242,6 +248,24 @@ final class StaffCirculationOpenApi
                 'status' => ['type' => 'string', 'enum' => ['attivo', 'sospeso', 'scaduto']], 'card_expires_at' => $nd, 'role' => $s,
                 'active_loans' => $i, 'active_reservations' => $i, 'eligible' => $b,
                 'eligibility_reason' => ['type' => ['string', 'null'], 'description' => 'user_suspended | card_expired | debt_block | …'],
+                // Mobile API 1.10.0 (Pinakes 0.9.0 patron fields)
+                'patron_type' => ['oneOf' => [['type' => 'null'], O::object(['id' => $i, 'code' => $s, 'name' => $s,
+                    'assigned' => ['type' => 'boolean', 'description' => 'False when the account has no type of its own and follows the default one.']])],
+                    'description' => 'Effective patron type; null while circulation rules are off.'],
+                'has_photo' => $b,
+                'photo_url' => ['type' => ['string', 'null'], 'description' => 'Authorised GET /staff/users/{id}/photo URL (bearer token), versioned; null without a photo or with patron_photos off.'],
+                'ledger' => ['oneOf' => [['type' => 'null'], O::object(['balance_cents' => $i, 'currency' => $s, 'debt_blocked' => $b])],
+                    'description' => 'Balance summary; null while the fines module is off. Details: GET /staff/users/{id}/ledger.'],
+                'can_edit' => ['type' => 'boolean', 'description' => 'The caller may change this record (patron type, photo): an administrator always, a Staff account only its own.'],
+            ]),
+            'StaffLoanLateFine' => O::object([
+                'late_fine' => ['oneOf' => [['type' => 'null'], O::object([
+                    'currency' => $s,
+                    'automatic_fines' => ['type' => 'boolean', 'description' => 'Late fines are charged automatically at return.'],
+                    'accruing_days' => ['type' => 'integer', 'description' => 'Late days a return today would be fined for (open loans; 0 otherwise).'],
+                    'accruing_cents' => ['type' => 'integer', 'description' => 'Fine a return today would charge — show it before confirming, offer waive_fine.'],
+                    'charged_cents' => ['type' => 'integer', 'description' => 'Late fine already written for this loan, net of waivers and reversals.'],
+                ])], 'description' => 'Null while the fines module is off.'],
             ]),
             'StaffCopy' => O::object([
                 'id' => $i, 'inventory_number' => $s, 'status' => $s, 'status_label' => $s, 'notes' => $ns,

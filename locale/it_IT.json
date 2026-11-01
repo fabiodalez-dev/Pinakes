@@ -9292,5 +9292,8 @@
   "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie",
   "Altri %d campi non mostrati": "Altri %d campi non mostrati",
   "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Selezione non valida per l'esportazione: riprova dalla lista dei libri.",
-  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato."
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.",
+  "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.": "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.",
+  "Pagamento non trovato.": "Pagamento non trovato.",
+  "Foto non trovata.": "Foto non trovata."
 }
