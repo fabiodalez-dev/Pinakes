@@ -8585,5 +8585,6 @@
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Größenlimit der Ergebnisse erreicht: Katalog nicht abgefragt.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Der SBN-Katalog unterstützt keine Suche nach ISSN.",
   "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Diese Vorschau wurde durch eine andere hochgeladene Datei ersetzt: Laden Sie die Datei erneut hoch, um sie zu importieren.",
-  "Altri %d campi non mostrati": "%d weitere Felder nicht angezeigt"
+  "Altri %d campi non mostrati": "%d weitere Felder nicht angezeigt",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Ungültige Auswahl für den Export: Versuche es erneut aus der Bücherliste."
 }

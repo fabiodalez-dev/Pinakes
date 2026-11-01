@@ -438,6 +438,14 @@ $check(Iso2709Reader::parse(substr(Iso2709Writer::serialize($good), 0, -1))->sub
 
 echo "Export selection and oversized records\n";
 $check(\App\Controllers\MarcExportController::parseIds('12abc, 7,7, 0,-3, 9 ,x') === [7, 9], '72 export ids: only all-digit tokens, positive, unique ("12abc" is not book 12)');
+$_SESSION = [];
+$arrayIds = (new \App\Controllers\MarcExportController())->export(
+    (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/admin/books/export/marc')->withQueryParams(['format' => 'marcxml', 'ids' => ['12', '13']]),
+    new \Slim\Psr7\Response(),
+    (new \ReflectionClass(\mysqli::class))->newInstanceWithoutConstructor()
+);
+$check($arrayIds->getStatusCode() === 302 && str_contains($arrayIds->getHeaderLine('Location'), '/admin/books') && ($_SESSION['error_message'] ?? '') !== '', '72b export ids sent as an array (ids[]=12) are refused, not answered with an empty download');
+$_SESSION = [];
 $huge = ['id' => 1, 'titolo' => 'T', 'descrizione' => str_repeat('parola ', 3000),
     'parole_chiave' => implode(', ', array_map(static fn (int $i): string => 'soggetto ' . str_repeat('x', 200) . " {$i}", range(1, 600)))];
 $check($threwOverflow = (static function () use ($huge): bool {

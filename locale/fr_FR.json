@@ -8585,5 +8585,6 @@
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN.",
   "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer.",
-  "Altri %d campi non mostrati": "%d autres champs non affichés"
+  "Altri %d campi non mostrati": "%d autres champs non affichés",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Sélection non valide pour l'export : réessayez depuis la liste des livres."
 }
