@@ -346,6 +346,41 @@ try {
         $img = $out !== null ? imagecreatefromjpeg($out) : false;
         $check($ok && $img !== false && imagesx($img) === 200 && imagesy($img) === 400 && $isRed($img, 100, 50) === $redOnTop && $isRed($img, 100, 350) === !$redOnTop, "EXIF Orientation {$orientation} is mirrored and rotated upright");
     }
+    // A short write (a full disk mid-file) fails and leaves no partial file.
+    if (!in_array('pcishort', stream_get_wrappers(), true)) {
+        stream_wrapper_register('pcishort', get_class(new class {
+            /** @var array<string, string> */
+            public static array $files = [];
+            /** @var resource|null */
+            public $context;
+            private string $key = '';
+            public function stream_open(string $path, string $mode, int $options, ?string &$opened): bool
+            {
+                $this->key = $path;
+                self::$files[$path] = '';
+                return true;
+            }
+            public function stream_write(string $data): int
+            {
+                $half = intdiv(strlen($data), 2);
+                self::$files[$this->key] .= substr($data, 0, $half);
+                return $half;
+            }
+            public function stream_close(): void
+            {
+            }
+            public function unlink(string $path): bool
+            {
+                unset(self::$files[$path]);
+                return true;
+            }
+            public function url_stat(string $path, int $flags): array|false
+            {
+                return isset(self::$files[$path]) ? ['size' => strlen(self::$files[$path])] : false;
+            }
+        }));
+    }
+    $check(PatronPhoto::writeFile('pcishort://photo.jpg', str_repeat('x', 100)) === false && !file_exists('pcishort://photo.jpg'), 'a short photo write fails and removes the partial file');
     file_put_contents($src, "<?php echo 'x';");
     $check(PatronPhoto::store($db, $userId, $src) === 'invalid_image', 'a non-image is refused');
     $check(PatronPhoto::absolutePath('patron_photos/../../.env') === null && PatronPhoto::absolutePath('/etc/passwd') === null, 'a tampered reference never resolves');
