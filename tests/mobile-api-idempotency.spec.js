@@ -391,6 +391,54 @@ const ENDPOINTS = [
     { name: 'PUT /staff/settings/labels',        method: 'PUT',    path: '/staff/settings/labels',        auth: true, tokenKey: 'staffToken', kind: 'write2xx',
         body: (c) => c.labelSettings /* the current values: a no-op both times */ },
 
+    // ── Mobile API 1.10.0: library settings of the 0.9.0 modules ──
+    // Admin-only rows use the administrator token (adminToken, from the E2E
+    // admin account); the fixtures carry RUN_ID and afterAll removes them and
+    // puts back the weekly closed days.
+    { name: 'GET /staff/settings/modules',       method: 'GET',    path: '/staff/settings/modules',       auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/settings/modules',       method: 'PUT',    path: '/staff/settings/modules',       auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: (c) => ({ attendance_retention_days: c.s090Retention }) /* the current value: a no-op both times */ },
+    { name: 'GET /staff/settings/loans',         method: 'GET',    path: '/staff/settings/loans',         auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/settings/loans',         method: 'PUT',    path: '/staff/settings/loans',         auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ loan_duration_days: c.s090LoanDuration }) /* the current value */ },
+    { name: 'GET /staff/settings/cards',         method: 'GET',    path: '/staff/settings/cards',         auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/settings/cards',         method: 'PUT',    path: '/staff/settings/cards',         auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ title: c.s090CardTitle }) /* the current value */ },
+    { name: 'GET /staff/circulation/types',      method: 'GET',    path: '/staff/circulation/types',      auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'POST /staff/circulation/types',     method: 'POST',   path: '/staff/circulation/types',      auth: true, tokenKey: 'adminToken', kind: 'conflict2',
+        body: () => ({ name: `Idem type new ${RUN_ID}`, code: `idem-new-${process.pid}` }) /* 2nd: same code → 422 */ },
+    { name: 'GET /staff/circulation/types/{id}', method: 'GET',    path: '/staff/circulation/types/{s090TypeId}', route: '/staff/circulation/types/{id}', auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'PUT /staff/circulation/types/{id}', method: 'PUT',    path: '/staff/circulation/types/{s090TypeId}', route: '/staff/circulation/types/{id}', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ description: 'Idempotent description' }) },
+    { name: 'POST /staff/circulation/types/{id}/default', method: 'POST', path: '/staff/circulation/types/{s090DefaultTypeId}/default', route: '/staff/circulation/types/{id}/default', auth: true, tokenKey: 'adminToken', kind: 'write2xx' /* the current default: a no-op */ },
+    { name: 'POST /staff/circulation/types/{id}/move', method: 'POST', path: '/staff/circulation/types/{s090TypeId}/move', route: '/staff/circulation/types/{id}/move', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ direction: 'down' }) /* the fixture is last: a no-op */ },
+    { name: 'DELETE /staff/circulation/types/{id}', method: 'DELETE', path: '/staff/circulation/types/{s090TypeDeleteId}', route: '/staff/circulation/types/{id}', auth: true, tokenKey: 'adminToken', kind: 'gone2' },
+    { name: 'GET /staff/circulation/rules',      method: 'GET',    path: '/staff/circulation/rules',      auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'PUT /staff/circulation/rules',      method: 'PUT',    path: '/staff/circulation/rules',      auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ cells: [] }) /* no cell named: the matrix is saved as stored */ },
+    { name: 'GET /staff/calendar',               method: 'GET',    path: '/staff/calendar',               auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'PUT /staff/calendar/weekdays',      method: 'PUT',    path: '/staff/calendar/weekdays',      auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: (c) => ({ closed_weekdays: c.s090ClosedWeekdays }) /* the current days (raw row restored in afterAll) */ },
+    { name: 'POST /staff/calendar/closures',     method: 'POST',   path: '/staff/calendar/closures',      auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ start_date: '2031-03-03', description: `Idem closure new ${RUN_ID}` }) /* without a key each call adds one */ },
+    { name: 'PUT /staff/calendar/closures/{id}', method: 'PUT',    path: '/staff/calendar/closures/{s090ClosureId}', route: '/staff/calendar/closures/{id}', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ end_date: '2031-03-05' }) },
+    { name: 'DELETE /staff/calendar/closures/{id}', method: 'DELETE', path: '/staff/calendar/closures/{s090ClosureDeleteId}', route: '/staff/calendar/closures/{id}', auth: true, tokenKey: 'adminToken', kind: 'gone2' },
+    { name: 'GET /staff/calendar/holidays/countries', method: 'GET', path: '/staff/calendar/holidays/countries?country=IT', route: '/staff/calendar/holidays/countries', auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'POST /staff/calendar/holidays/preset', method: 'POST', path: '/staff/calendar/holidays/preset', auth: true, tokenKey: 'adminToken', kind: 'conflict2', firstAny: true,
+        body: () => ({ country: 'ZZ', rules: [] }) /* unknown country → both 422, the selection is untouched */ },
+    { name: 'PUT /staff/calendar/holidays/yearly', method: 'PUT',  path: '/staff/calendar/holidays/yearly', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ closures: [] }) },
+    { name: 'POST /staff/calendar/custom-holidays', method: 'POST', path: '/staff/calendar/custom-holidays', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ name: `Idem holiday new ${RUN_ID}`, kind: 'fixed', month: 3, day: 3 }) /* no uniqueness: both 201 */ },
+    { name: 'PUT /staff/calendar/custom-holidays/{id}', method: 'PUT', path: '/staff/calendar/custom-holidays/{s090CustomId}', route: '/staff/calendar/custom-holidays/{id}', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ duration_days: 2 }) },
+    { name: 'POST /staff/calendar/custom-holidays/{id}/toggle', method: 'POST', path: '/staff/calendar/custom-holidays/{s090CustomId}/toggle', route: '/staff/calendar/custom-holidays/{id}/toggle', auth: true, tokenKey: 'adminToken', kind: 'write2xx' /* off, then on again */ },
+    { name: 'DELETE /staff/calendar/custom-holidays/{id}', method: 'DELETE', path: '/staff/calendar/custom-holidays/{s090CustomDeleteId}', route: '/staff/calendar/custom-holidays/{id}', auth: true, tokenKey: 'adminToken', kind: 'gone2' },
+    { name: 'POST /staff/calendar/import-ics',   method: 'POST',   path: '/staff/calendar/import-ics',    auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        multipart: () => ({ ics_file: { name: 'idem.ics', mimeType: 'text/calendar', buffer: Buffer.from(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20310404\r\nSUMMARY:Idem ICS ${RUN_ID}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`) } }) /* 2nd: already present, added 0 */ },
+
     // ── Mobile API 1.7.0: staff work on plugin content (desiderata, archives) ──
     { name: 'GET /staff/desiderata/offers',     method: 'GET',    path: '/staff/desiderata/offers?status=all', route: '/staff/desiderata/offers', auth: true, tokenKey: 'staffToken', kind: 'safeGet', skipIf: (c) => !c.desiderataActive },
     { name: 'POST /staff/desiderata/offers/{id}/accept', method: 'POST', path: '/staff/desiderata/offers/{offerAcceptId}/accept', route: '/staff/desiderata/offers/{id}/accept', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.desiderataActive /* accepting an accepted offer is a no-op */ },
@@ -886,6 +934,32 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         const feedUrl = String((await cal.json()).data.feed_url || '');
         ctx.calendarToken = (feedUrl.match(/\/calendar\/feed\/([a-f0-9]{64})\.ics$/) || [])[1] || 'missing';
 
+        // ── Mobile API 1.10.0 library settings fixtures (admin-only rows) ──
+        const adminLogin = await call(request, 'POST', `${API}/auth/login`, {
+            body: { email: ADMIN_EMAIL, password: ADMIN_PASS, device_name: 'IdemAdmin090', device_id: 'idem-admin-090', platform: 'test' },
+        });
+        expect(adminLogin.status(), 'admin login must succeed').toBe(200);
+        ctx.adminToken = (await adminLogin.json()).data.token;
+        const adminJson = async (method, route, body) => {
+            const r = await call(request, method, `${API}${route}`, { token: ctx.adminToken, body });
+            expect(r.status(), `fixture ${method} ${route}`).toBeLessThan(300);
+            return (await r.json()).data;
+        };
+        ctx.s090Retention = (await adminJson('GET', '/staff/settings/modules')).attendance_retention_days;
+        ctx.s090LoanDuration = (await adminJson('GET', '/staff/settings/loans')).settings.loan_duration_days;
+        ctx.s090CardTitle = (await adminJson('GET', '/staff/settings/cards')).settings.title;
+        const s090Types = await adminJson('GET', '/staff/circulation/types');
+        ctx.s090DefaultTypeId = s090Types.default_type_id;
+        ctx.s090TypeId = (await adminJson('POST', '/staff/circulation/types', { name: `Idem type ${RUN_ID}`, code: `idem-${process.pid}` })).id;
+        ctx.s090TypeDeleteId = (await adminJson('POST', '/staff/circulation/types', { name: `Idem type delete ${RUN_ID}`, code: `idem-del-${process.pid}` })).id;
+        ctx.s090ClosedWeekdaysRaw = dbScalar("SELECT COUNT(*) FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'") === '1'
+            ? dbScalar("SELECT HEX(setting_value) FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'") : null;
+        ctx.s090ClosedWeekdays = (await adminJson('GET', '/staff/calendar')).closed_weekdays;
+        ctx.s090ClosureId = (await adminJson('POST', '/staff/calendar/closures', { start_date: '2031-02-03', description: `Idem closure ${RUN_ID}` })).id;
+        ctx.s090ClosureDeleteId = (await adminJson('POST', '/staff/calendar/closures', { start_date: '2031-02-10', description: `Idem closure delete ${RUN_ID}` })).id;
+        ctx.s090CustomId = (await adminJson('POST', '/staff/calendar/custom-holidays', { name: `Idem holiday ${RUN_ID}`, kind: 'fixed', month: 2, day: 2 })).id;
+        ctx.s090CustomDeleteId = (await adminJson('POST', '/staff/calendar/custom-holidays', { name: `Idem holiday delete ${RUN_ID}`, kind: 'fixed', month: 2, day: 4 })).id;
+
         // ── Book Club bridge probe (optional plugin) ────────────────────────
         // The bridge answers /bookclub/health only when both plugins are active.
         // When it does, opportunistically pick existing club data and make the
@@ -1007,6 +1081,28 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             } catch {}
             await flushCache();
         }
+        // Mobile API 1.10.0 library settings fixtures.
+        try {
+            const types = dbScalar(`SELECT GROUP_CONCAT(id) FROM tipologie_lettore WHERE nome LIKE '%${RUN_ID}%' AND predefinita = 0`);
+            if (types && types !== 'NULL') {
+                dbExec(`UPDATE utenti SET tipologia_id = NULL WHERE tipologia_id IN (${types})`);
+                dbExec(`DELETE FROM regole_prestito WHERE tipologia_id IN (${types})`);
+                dbExec(`DELETE FROM tipologie_lettore WHERE id IN (${types})`);
+            }
+        } catch {}
+        try { dbExec(`DELETE FROM calendario_chiusure WHERE descrizione LIKE '%${RUN_ID}%'`); } catch {}
+        try { dbExec(`DELETE FROM festivita_personalizzate WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
+        if (ctx.s090ClosedWeekdaysRaw !== undefined) {
+            try {
+                if (ctx.s090ClosedWeekdaysRaw === null) {
+                    dbExec("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+                } else {
+                    dbExec(`UPDATE system_settings SET setting_value=CONVERT(UNHEX('${ctx.s090ClosedWeekdaysRaw}') USING utf8mb4) WHERE category='loans' AND setting_key='closed_weekdays'`);
+                }
+            } catch {}
+        }
+        try { dbExec("DELETE FROM mobile_app_tokens WHERE device_id='idem-admin-090'"); } catch {}
+        await flushCache();
         try { dbExec(`DELETE FROM admin_notifications WHERE message LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE v FROM volumi v LEFT JOIN libri l ON l.id = v.opera_id WHERE l.id IS NULL`); } catch {}
         try { dbExec(`DELETE FROM desiderata_offers WHERE title LIKE '%${RUN_ID}%'`); } catch {}

@@ -1694,9 +1694,9 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_mode: string, card_renewal_base: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string, fines_enabled: bool, closures_calendar_enabled: bool, circulation_rules_enabled: bool}
      */
-    private function resolveLoansSettings(SettingsRepository $repository): array
+    public function resolveLoansSettings(SettingsRepository $repository): array
     {
         return [
             'loan_duration_days'       => (int) ($repository->get('loans', 'loan_duration_days', '30') ?? 30),
