@@ -150,7 +150,7 @@ $norm = static fn (string $method, string $path): string => strtoupper($method) 
 foreach ([
     \App\Plugins\MobileApi\Staff090\Areas\SuppliersArea::class => ['suppliers', 'suppliers', 5],
     \App\Plugins\MobileApi\Staff090\Areas\CatalogueCardsArea::class => ['catalogue_cards', 'catalogue_cards', 2],
-    \App\Plugins\MobileApi\Staff090\Areas\MarcArea::class => ['marc', 'marc', 9],
+    \App\Plugins\MobileApi\Staff090\Areas\MarcArea::class => ['marc', 'marc', 10],
 ] as $class => [$area, $feature, $count]) {
     $check($class::area() === $area && $class::feature() === $feature && $class::circulation() === false, "{$area}: area, feature, not circulation");
     $routes = [];
