@@ -152,8 +152,15 @@ final class StaffMarcController
         $userId = (int) ($user['id'] ?? 0);
         $tokenId = $request->getAttribute(AppAuthMiddleware::ATTR_TOKEN_ID);
         $db = $this->db;
+        // The core state once the upload staged its file, until a job row owns it.
+        $staged = null;
         try {
             $this->store->purgeExpired();
+            // Widen `kind` before the core stages the file, so a failing ALTER
+            // refuses the upload instead of stranding a file no job points to.
+            if (!ImportJobStore::widenKind($db)) {
+                throw new \RuntimeException('import job kind column could not be widened');
+            }
             $form = ['flavour' => $flavour, 'encoding' => $encoding, 'duplicates' => $mode];
             if ($covers) {
                 $form['download_covers'] = '1';
@@ -179,6 +186,7 @@ final class StaffMarcController
             if (!is_array($state)) {
                 throw new \RuntimeException('MARC import state not captured');
             }
+            $staged = $state;
             // What the upload answered besides the core state: kept with the
             // job so GET /staff/marc/imports/{id} shows the preview again.
             $state[MarcJobMapper::UPLOAD_KEY] = [
@@ -199,9 +207,14 @@ final class StaffMarcController
                 $covers,
                 $state
             );
+            $staged = null;
 
             return ResponseEnvelope::success($response, MarcJobMapper::map((array) $this->store->find($id, $userId, true)), [], 201);
         } catch (\Throwable $e) {
+            // No job row: purgeExpired() would never find the staged file.
+            if (is_array($staged)) {
+                ImportJobStore::unlinkUpload($staged);
+            }
             return $this->fail($response, 'marc upload', $e);
         }
     }

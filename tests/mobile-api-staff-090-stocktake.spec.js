@@ -395,6 +395,15 @@ test('12. staff closes leaving the missing copies; marking them lost is admin-on
     const scan = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'staff', { body: { code: code('A1') } });
     expect(scan.status).toBe(409);
     expect(scan.json.error.code).toBe('session_closed');
+    // A scan recorded before the close still replays to a retry with its key,
+    // so the phone learns it landed; a new key on the closed session is refused.
+    const replayed = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'staff', { body: { code: code('A3'), shelf_id: data.shelfX }, extraHeaders: { 'Idempotency-Key': `mst-scan-${RUN}` } });
+    expect(replayed.status).toBe(200);
+    expect(replayed.json.meta.replayed).toBe(true);
+    expect(replayed.json.data.scan.outcome).toBe('found');
+    const fresh = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'staff', { body: { code: code('A1') }, extraHeaders: { 'Idempotency-Key': `mst-scan-closed-${RUN}` } });
+    expect(fresh.status).toBe(409);
+    expect(fresh.json.error.code).toBe('session_closed');
     const up = await call(request, 'POST', `${P}/sessions/${s1}/upload`, 'staff', { multipart: { file: { name: 'c.txt', mimeType: 'text/plain', buffer: Buffer.from(code('A1')) } } });
     expect(up.status).toBe(409);
     const cancel = await call(request, 'POST', `${P}/sessions/${s1}/cancel`, 'staff');

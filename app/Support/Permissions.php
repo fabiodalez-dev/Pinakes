@@ -124,6 +124,9 @@ final class Permissions
         // loan desk, not the users module, so a users-only role reads the ledger but
         // cannot move money.
         if (preg_match('#^/admin/users/\d+/ledger/#', $path) === 1) { return 'loans.manage'; }
+        // The app's ledger has the same split: reading /api/v1/staff/users/{id}/ledger
+        // follows the reader record, everything below it follows the loan desk.
+        if (preg_match('#^/api/v1/staff/users/\d+/ledger/#', $path) === 1) { return 'loans.manage'; }
         $groups = [
             'catalog.manage' => ['/admin/books', '/admin/authors', '/admin/publishers', '/admin/suppliers', '/api/v1/staff/suppliers', '/api/v1/staff/marc', '/api/v1/staff/copy-cataloging', '/admin/genres', '/admin/series', '/admin/placement', '/admin/copies', '/admin/import', '/admin/imports', '/admin/imports-history', '/api/books', '/api/authors', '/api/publishers', '/api/genres', '/api/series', '/api/copies', '/api/dewey', '/api/scrape', '/api/libri', '/api/autori', '/api/editori', '/api/collane', '/api/collocazione', '/api/cover', '/admin/periodicals', '/api/v1/staff/lookups', '/api/v1/staff/isbn', '/api/v1/staff/copies', '/api/v1/staff/books', '/api/v1/staff/authors', '/api/v1/staff/publishers', '/api/v1/staff/imports', '/api/v1/staff/periodicals', '/api/v1/staff/series', '/api/v1/staff/genres', '/api/v1/staff/works', '/api/v1/staff/covers', '/api/v1/staff/enrich', '/api/v1/staff/shelves', '/api/v1/staff/archives', '/api/search/editori', '/api/search/generi', '/api/search/preview', '/api/generi', '/admin/archives', '/admin/opere', '/admin/espressioni'],
             'loans.manage' => ['/admin/loans', '/admin/attendance', '/admin/reservations', '/api/loans', '/api/reservations', '/api/prestiti', '/prestiti', '/api/v1/staff/loans', '/api/v1/staff/reservations', '/api/v1/staff/attendance'],

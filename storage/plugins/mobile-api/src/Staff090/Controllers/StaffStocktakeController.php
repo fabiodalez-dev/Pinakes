@@ -389,9 +389,6 @@ final class StaffStocktakeController
             if ($session === null) {
                 return $this->notFound($response);
             }
-            if (($conflict = $this->notOpen($response, $session)) !== null) {
-                return $conflict;
-            }
             $staffId = $this->operatorId($request) ?? 0;
             $db = $this->db;
             $form = ['codice' => $code, 'scaffale_corrente' => $shelfId !== null ? (string) $shelfId : ''];
@@ -405,6 +402,15 @@ final class StaffStocktakeController
                 $id,
                 ['session_id' => $id, 'code' => $code, 'shelf_id' => $shelfId],
                 function () use ($db, $form, $id, $response): ResponseInterface|int {
+                    // Checked only for a key not stored yet: a scan recorded before
+                    // the session closed still replays its result to a retry.
+                    $current = $this->service->find($id);
+                    if ($current === null) {
+                        return $this->notFound($response);
+                    }
+                    if (($conflict = $this->notOpen($response, $current)) !== null) {
+                        return $conflict;
+                    }
                     $outcome = Delegation::run(static fn (): ResponseInterface => (new InventoryController())->scan(
                         Delegation::request('POST', '/admin/inventory/' . $id . '/scan', $form),
                         new SlimResponse(),
