@@ -145,6 +145,18 @@ $check(($records($all(MarcXmlReader::fromString($single)))[0] ?? null)?->toArray
 echo "Format detection\n";
 $check(MarcFormat::containerOfFile("$fx/marc21-utf8.mrc") === MarcFormat::CONTAINER_ISO2709 && MarcFormat::containerOfFile("$fx/marc21-collection.xml") === MarcFormat::CONTAINER_XML, '32 container told from the first bytes');
 $check(MarcFormat::detectContainer("\xEF\xBB\xBF  <?xml") === MarcFormat::CONTAINER_XML && MarcFormat::detectContainer('titolo;autori') === null, '33 a BOM is skipped, a CSV is neither');
+// CodeRabbit on PR #505: a record of 400 fields has a 4800-byte directory,
+// so its first field terminator lies past the 4096 bytes first read.
+$wide = new MarcRecord();
+$wide->addDataField('245', '1', '0', [['a', 'Molti campi']]);
+for ($f = 0; $f < 400; $f++) {
+    $wide->addDataField('650', ' ', '4', [['a', "s{$f}"]]);
+}
+$wideFile = tempnam(sys_get_temp_dir(), 'marcwide');
+file_put_contents($wideFile, Iso2709Writer::serialize($wide));
+$check(MarcFormat::containerOfFile($wideFile) === MarcFormat::CONTAINER_ISO2709 && count(iterator_to_array(Iso2709Reader::fromPath($wideFile), false)) === 1, '33b a record whose directory is longer than 4096 bytes is still recognised as ISO 2709');
+@unlink($wideFile);
+$check(MarcFormat::detectContainer('00030nam  2200025   4500' . "\x1F" . 'xxxxxxx') === null, '33c a head whose base address does not follow a field terminator is not ISO 2709');
 $uni = $records($all(Iso2709Reader::fromPath("$fx/unimarc-utf8.mrc")));
 $check(MarcFormat::detectFlavour($rosa) === MarcFormat::MARC21 && MarcFormat::detectFlavour($uni[0]) === MarcFormat::UNIMARC, '34 MARC 21 by its 245, UNIMARC by its 200');
 $dan = new MarcRecord();
