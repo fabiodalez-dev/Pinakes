@@ -525,6 +525,44 @@ $check(is_string($ok) && str_contains($ok, __('%d scartate perché con le altre 
     && !str_contains($ok, __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', 1, 0, 1)), 'ICS: a whole-year discard is reported as such, not as a span over the limit');
 $clearClosures();
 
+// A whole year of one-day yearly events: only the last one (Dec 31, which
+// closes every common year) is discarded, and the whole-year guard reads the
+// yearly rows once for the import instead of once per event.
+$countingDb = new class ($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null)) extends mysqli {
+    public int $yearlyReads = 0;
+    public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+    {
+        if (str_contains($query, 'WHERE ricorrente_annuale = 1')) {
+            $this->yearlyReads++;
+        }
+        return parent::query($query, $result_mode);
+    }
+};
+$countingDb->set_charset('utf8mb4');
+$wholeYear = "BEGIN:VCALENDAR\n";
+for ($d = '2026-01-01'; $d <= '2026-12-31'; $d = $shift($d, 1)) {
+    $wholeYear .= "BEGIN:VEVENT\nDTSTART;VALUE=DATE:" . str_replace('-', '', $d) . "\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\n";
+}
+$wholeYear .= "END:VCALENDAR\n";
+$controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($wholeYear)]), new \Slim\Psr7\Response(), $countingDb);
+[$ok, $err] = $flash();
+$stillOpen = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE descrizione = '{$tag}' AND DATE_FORMAT(data_inizio, '%m-%d') = '12-31'")->fetch_row()[0];
+$check($ok !== null && $taggedRows() === 364 && $stillOpen === 0, 'ICS: 365 one-day yearly events keep 364, the one that closes the whole year is discarded (' . $taggedRows() . ' kept)');
+$check($countingDb->yearlyReads === 1, "ICS: the whole-year guard reads the yearly rows once per import ({$countingDb->yearlyReads} reads)");
+$countingDb->close();
+$clearClosures();
+// Carried from event to event per branch too: with a branch closed Jan 1 -
+// Jun 30 every year, a library-wide import keeps Jul 1 - Dec 30 and drops the
+// Dec 31 that follows it, which would close that branch's whole year.
+$addClosure('2026-01-01', '2026-06-30', $sedeId, 1);
+$branchYear = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260701\nDTEND;VALUE=DATE:20261231\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20261231\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\nEND:VCALENDAR\n";
+$controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($branchYear)]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$keptBranchYear = $db->query("SELECT DATE_FORMAT(data_inizio, '%m-%d') FROM calendario_chiusure WHERE descrizione = '{$tag}' AND sede_id IS NULL")->fetch_all();
+$check($ok !== null && array_column($keptBranchYear, 0) === ['07-01'], 'ICS: a library-wide event that would close a branch\'s last open day is discarded after an earlier event of the same import moved it');
+$clearClosures();
+
 // update() re-checks the closure under the calendar lock: another operator
 // holds the lock, deletes the closure meanwhile, and the update that was
 // waiting for the lock reports "not found" instead of "updated".
