@@ -317,7 +317,7 @@ test.describe('Visitor log', () => {
     test('retention settings: Staff 403, administrator saves, invalid → 422', async ({ request }) => {
         const denied = await F.api(request, 'PUT', '/staff/attendance/settings', { token: ctx.staff, body: { retention_days: 30 } });
         expect(denied.status).toBe(403);
-        expect(denied.json.error.code).toBe('forbidden');
+        expect(denied.json.error.code).toBe('not_permitted');
         for (const v of [-1, 3651, 'abc', null, 1.5]) {
             const bad = await F.api(request, 'PUT', '/staff/attendance/settings', { token: ctx.admin, body: { retention_days: v } });
             expect(bad.status, String(v)).toBe(422);

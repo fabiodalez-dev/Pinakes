@@ -175,7 +175,7 @@ test.describe('Patron types', () => {
         const route = `/staff/users/${ctx.patronId}/patron-type`;
         const denied = await F.api(request, 'PUT', route, { token: ctx.staff, body: { patron_type_id: ctx.typeId } });
         expect(denied.status).toBe(403);
-        expect(denied.json.error.code).toBe('forbidden');
+        expect(denied.json.error.code).toBe('not_permitted');
         expect(F.dbScalar(`SELECT COALESCE(tipologia_id, 'NULL') FROM utenti WHERE id=${ctx.patronId}`)).toBe('NULL');
 
         const r = await F.api(request, 'PUT', route, { token: ctx.admin, body: { patron_type_id: ctx.typeId, recompute_card_expiry: true } });

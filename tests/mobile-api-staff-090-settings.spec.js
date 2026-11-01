@@ -138,7 +138,7 @@ test('modules: staff reads but may not save; admin saves a partial map and keeps
     expect(staffView.json.data.can_configure).toBe(false);
     const forbidden = await api(request, 'PUT', '/staff/settings/modules', 'staff', { features: { stocktake: true } });
     expect(forbidden.status).toBe(403);
-    expect(forbidden.json.error.code).toBe('forbidden');
+    expect(forbidden.json.error.code).toBe('not_permitted');
 
     const before = await api(request, 'GET', '/staff/settings/modules', 'admin');
     expect(before.status).toBe(200);
@@ -199,7 +199,7 @@ test('loans: staff saves its fields, gets 403 on money policy; partial saves kee
 
     const money = await api(request, 'PUT', '/staff/settings/loans', 'staff', { daily_fine_cents: 100, max_renewals: 2 });
     expect(money.status).toBe(403);
-    expect(money.json.error.code).toBe('forbidden');
+    expect(money.json.error.code).toBe('not_permitted');
     expect(Object.keys(money.json.meta.fields)).toEqual(['daily_fine_cents']);
     expect((await api(request, 'GET', '/staff/settings/loans', 'staff')).json.data.settings.max_renewals).toBe(before.max_renewals);
 

@@ -375,7 +375,7 @@ test('11. the CSV and PDF reports download with their file name', async ({ reque
 test('12. staff closes leaving the missing copies; marking them lost is admin-only; a closed session takes no scans', async ({ request }) => {
     const lost = await call(request, 'POST', `${P}/sessions/${s2}/close`, 'staff', { body: { missing_action: 'lost' } });
     expect(lost.status).toBe(403);
-    expect(lost.json.error.code).toBe('forbidden');
+    expect(lost.json.error.code).toBe('not_permitted');
     expect(fx.dbScalar(`SELECT stato FROM inventario_sessioni WHERE id=${s2}`)).toBe('aperta');
     const bad = await call(request, 'POST', `${P}/sessions/${s2}/close`, 'staff', { body: { missing_action: 'burn' } });
     expect(bad.status).toBe(422);
