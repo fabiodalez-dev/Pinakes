@@ -204,7 +204,7 @@ final class StaffLedgerController
                         };
                     });
                     if ($outcome->status === 403) {
-                        return ResponseEnvelope::error($response, 'forbidden', __('Accesso negato.'), 403);
+                        return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
                     }
                     $error = $outcome->queryValue('ledger_error');
                     if ($error !== null) {
@@ -241,7 +241,7 @@ final class StaffLedgerController
                 $movementId
             ));
             if ($outcome->status === 403) {
-                return ResponseEnvelope::error($response, 'forbidden', __('Accesso negato.'), 403);
+                return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
             }
             if ($outcome->status === 404) {
                 return ResponseEnvelope::error($response, 'not_found', __('Pagamento non trovato.'), 404);

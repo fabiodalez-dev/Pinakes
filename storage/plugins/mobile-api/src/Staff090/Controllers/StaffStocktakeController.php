@@ -494,7 +494,7 @@ final class StaffStocktakeController
         }
         $markLost = $action === 'perso';
         if ($markLost && !StaffRoleMiddleware::isAdmin($request)) {
-            return ResponseEnvelope::error($response, 'forbidden', __('Solo un amministratore può chiudere la revisione segnando come perse le copie mancanti.'), 403);
+            return ResponseEnvelope::error($response, 'not_permitted', __('Solo un amministratore può chiudere la revisione segnando come perse le copie mancanti.'), 403);
         }
         try {
             $session = $this->service->find($id);

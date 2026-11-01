@@ -235,7 +235,7 @@ final class StaffAttendanceController
             ));
             $error = $outcome->flash('error_message');
             if ($error !== null) {
-                return ResponseEnvelope::error($response, 'forbidden', $error, 403);
+                return ResponseEnvelope::error($response, 'not_permitted', $error, 403);
             }
             $message = $outcome->flash('success_message');
             if ($message === null) {
@@ -254,7 +254,7 @@ final class StaffAttendanceController
         // The kiosk's rule (AttendanceController::purge): AdminAuthMiddleware
         // admits Staff, the purge itself is for administrators.
         if (!StaffRoleMiddleware::isAdmin($request)) {
-            return ResponseEnvelope::error($response, 'forbidden', __('Operazione riservata agli amministratori.'), 403);
+            return ResponseEnvelope::error($response, 'not_permitted', __('Operazione riservata agli amministratori.'), 403);
         }
         try {
             $repo = new AttendanceRepository($this->db);

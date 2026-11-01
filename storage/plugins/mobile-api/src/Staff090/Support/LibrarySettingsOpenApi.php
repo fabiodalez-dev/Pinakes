@@ -83,7 +83,7 @@ final class LibrarySettingsOpenApi
     private static function adminGate(string $module): array
     {
         return [
-            '403' => O::err('`forbidden`: the caller may not configure the library (only administrators, or a custom role with settings.manage; Staff accounts are refused, as on the web).'),
+            '403' => O::err('`not_permitted`: the caller may not configure the library (only administrators, or a custom role with settings.manage; Staff accounts are refused, as on the web).'),
             '404' => O::err('`feature_disabled`: the `' . $module . '` module is off and the caller may not configure it (an administrator still gets 200: configuration mode). `not_found` for an unknown id.'),
         ];
     }
@@ -163,7 +163,7 @@ final class LibrarySettingsOpenApi
             'get' => O::op($t, 'staffSettingsModules', 'Every 0.9.0 module switch: saved value, effective value, group, parent.', ['200' => O::ok('The switches.', O::ref('StaffModulesSettings'))]),
             'put' => O::op($t, 'staffSettingsModulesUpdate', 'Change some switches (administrators). Keys left out keep their value; a Loans-tab key is saved through the loans form with every other loan setting kept.', [
                 '200' => O::ok('The switches after the save.', O::ref('StaffModulesSettings')),
-                '403' => O::err('`forbidden`: Staff accounts may not change modules.'),
+                '403' => O::err('`not_permitted`: Staff accounts may not change modules.'),
             ] + self::invalid(), ['requestBody' => O::inlineBody([
                 'features' => ['type' => 'object', 'additionalProperties' => ['type' => 'boolean'], 'description' => 'Partial map Features key => on/off.'],
                 'attendance_retention_days' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 3650],
@@ -173,7 +173,7 @@ final class LibrarySettingsOpenApi
             'get' => O::op($t, 'staffSettingsLoans', 'Settings → Loans values, with the fields this caller may change.', ['200' => O::ok('The loan settings.', O::ref('StaffLoanSettings'))]),
             'put' => O::op($t, 'staffSettingsLoansUpdate', 'Partial save of Settings → Loans. Staff may change every field except the admin-only ones (money policy, grace, card renewal base, fine email); omitted fields keep their stored value.', [
                 '200' => O::ok('The loan settings after the save.', O::ref('StaffLoanSettings')),
-                '403' => O::err('`forbidden`: an admin-only field was sent by a Staff account (meta.fields names them); nothing is saved.'),
+                '403' => O::err('`not_permitted`: an admin-only field was sent by a Staff account (meta.fields names them); nothing is saved.'),
             ] + self::invalid(), ['requestBody' => O::body('StaffLoanSettingsValues')]),
         ];
         $doc['paths']['/staff/settings/cards'] = [

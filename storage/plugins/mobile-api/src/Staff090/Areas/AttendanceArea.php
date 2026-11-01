@@ -142,12 +142,12 @@ final class AttendanceArea implements StaffArea
         ] + $unavailable, ['parameters' => [$days]])];
         $doc['paths']['/staff/attendance/settings'] = ['put' => O::op($t, 'staffAttendanceSettings', 'Set the retention (administrators, visitor_log)', [
             '200' => O::ok('Saved.', O::object(['retention' => $retention, 'message' => $s])),
-            '403' => O::err('`forbidden`: Staff account (the web setting is administrator-only; see can_configure).'),
+            '403' => O::err('`not_permitted`: Staff account (the web setting is administrator-only; see can_configure).'),
             '422' => O::err('`validation` (meta.fields.retention_days: not an integer 0..3650).'),
         ], ['requestBody' => O::inlineBody(['retention_days' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 3650, 'description' => '0 = keep forever.']], ['retention_days'])])];
         $doc['paths']['/staff/attendance/purge'] = ['post' => O::op($t, 'staffAttendancePurge', 'Delete the visits older than the retention now (administrators, visitor_log)', [
             '200' => O::ok('Done (0 with retention 0). Not idempotent in effect: a second call deletes what has aged since.', O::object(['deleted' => $i, 'retention' => $retention, 'message' => $s])),
-            '403' => O::err('`forbidden`: Staff account.'),
+            '403' => O::err('`not_permitted`: Staff account.'),
         ] + $unavailable)];
 
         return $doc;

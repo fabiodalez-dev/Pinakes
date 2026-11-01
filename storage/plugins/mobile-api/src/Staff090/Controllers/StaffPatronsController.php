@@ -426,7 +426,7 @@ final class StaffPatronsController
 
     private function forbidden(ResponseInterface $response): ResponseInterface
     {
-        return ResponseEnvelope::error($response, 'forbidden', __('Accesso negato.'), 403);
+        return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
     }
 
     private function userNotFound(ResponseInterface $response): ResponseInterface

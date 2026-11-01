@@ -78,7 +78,7 @@ final class PatronsArea implements StaffArea
         ])];
         $doc['paths']['/staff/users/{id}/patron-type'] = ['put' => O::op($t, 'staffSetPatronType', 'Assign a patron type (circulation_rules)', [
             '200' => array_merge($user, ['description' => 'Updated user; meta.card_expiry_recomputed tells whether the card expiry was set from the type.']),
-            '403' => O::err('`forbidden`: the web editor rule — an administrator edits every account, a Staff account only its own (StaffUser.can_edit).'),
+            '403' => O::err('`not_permitted`: the web editor rule — an administrator edits every account, a Staff account only its own (StaffUser.can_edit).'),
             '422' => O::err('`validation` (meta.field patron_type_id: unknown or deactivated type; recompute_card_expiry).'),
         ] + O::notFound(), [
             'parameters' => [$userId],
@@ -108,7 +108,7 @@ final class PatronsArea implements StaffArea
             ] + O::notFound(), ['parameters' => [$userId], 'description' => '404 not_found when the user has no photo.']),
             'post' => O::op($t, 'staffUploadUserPhoto', 'Set the patron photo (patron_photos, 30/min)', [
                 '200' => $photoState,
-                '403' => O::err('`forbidden`: same rule as the web editor (StaffUser.can_edit).'),
+                '403' => O::err('`not_permitted`: same rule as the web editor (StaffUser.can_edit).'),
                 '422' => O::err('`validation` (meta.field photo): missing, larger than 5 MB, or not a JPEG/PNG/WebP image.'),
             ] + O::notFound(), [
                 'parameters' => [$userId],
@@ -116,7 +116,7 @@ final class PatronsArea implements StaffArea
             ]),
             'delete' => O::op($t, 'staffDeleteUserPhoto', 'Remove the patron photo (patron_photos)', [
                 '200' => $photoState,
-                '403' => O::err('`forbidden`: same rule as the web editor (StaffUser.can_edit).'),
+                '403' => O::err('`not_permitted`: same rule as the web editor (StaffUser.can_edit).'),
             ] + O::notFound(), ['parameters' => [$userId], 'description' => 'Idempotent: removing a photo that is not there answers 200 has_photo=false.']),
         ];
 

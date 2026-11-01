@@ -133,7 +133,7 @@ final class StocktakeOpenApi
             ] + $notFound + $closed + $validation, ['parameters' => [$sid], 'requestBody' => O::multipart([
                 'file' => ['type' => 'string', 'format' => 'binary'], 'shelf_id' => ['type' => 'integer'],
             ], ['file'])])],
-            '/staff/stocktake/sessions/{id}/close' => ['post' => O::op($t, 'staffStocktakeClose', 'Close the session. missing_action=lost (administrators only, 403 `forbidden` otherwise) marks the missing copies lost; posting lost again on a session closed with lost finishes a marking cut short', [
+            '/staff/stocktake/sessions/{id}/close' => ['post' => O::op($t, 'staffStocktakeClose', 'Close the session. missing_action=lost (administrators only, 403 `not_permitted` otherwise) marks the missing copies lost; posting lost again on a session closed with lost finishes a marking cut short', [
                 '200' => O::ok('The closed session plus close_result.', ['allOf' => [O::ref('StocktakeSession')], 'properties' => ['close_result' => O::object([
                     'resumed' => $bool, 'marked_lost' => $int, 'pending_lost' => $int,
                     'partial' => ['type' => 'boolean', 'description' => 'Closed, but some copies could not be updated (see message).'], 'message' => $str,

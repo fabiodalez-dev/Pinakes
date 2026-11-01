@@ -47,7 +47,7 @@ final class SettingsKit
     /**
      * The configuration gate followed by the controller's own mayConfigure()
      * guard (patron types, rules matrix, closures calendar): module off and
-     * not an administrator = 404 feature_disabled, module on = 403 forbidden.
+     * not an administrator = 404 feature_disabled, module on = 403 not_permitted.
      */
     public static function adminArea(string $feature, ResponseInterface $response): ?ResponseInterface
     {
@@ -63,7 +63,7 @@ final class SettingsKit
     {
         return ResponseEnvelope::error(
             $response,
-            'forbidden',
+            'not_permitted',
             __('Operazione riservata agli amministratori'),
             403,
             $fields === [] ? [] : ['fields' => $fields]
