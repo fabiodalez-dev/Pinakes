@@ -195,7 +195,18 @@ async function api(request, method, path, { token, body, multipart, extraHeaders
         opts.headers['Content-Type'] = 'application/json';
         opts.data = JSON.stringify(body);
     }
-    const res = await request.fetch(path.startsWith('http') ? path : `${API}${path}`, opts);
+    const url = path.startsWith('http') ? path : `${API}${path}`;
+    let res;
+    try {
+        res = await request.fetch(url, opts);
+    } catch (error) {
+        // Apache closes a kept-alive connection after MaxKeepAliveRequests
+        // (100 by default) or KeepAliveTimeout; a request sent on it at that
+        // moment fails with no response at all, so the server never saw it.
+        // A long loop of calls meets that race: retry once on a fresh socket.
+        if (!/socket hang up|ECONNRESET/.test(String(error && error.message))) throw error;
+        res = await request.fetch(url, opts);
+    }
     const text = await res.text();
     let json = null;
     try { json = JSON.parse(text); } catch { json = null; }
