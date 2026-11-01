@@ -912,6 +912,14 @@ final class StocktakeService
      */
     private function unscannedExpected(int $sessionId, bool $frozen = false): array
     {
+        /** @var list<array<string,mixed>> $rows */
+        $rows = $this->unscannedExpectedResult($sessionId, $frozen)->fetch_all(MYSQLI_ASSOC);
+        return $rows;
+    }
+
+    /** The unscanned expected copies as a buffered result, read one row at a time by the report. */
+    private function unscannedExpectedResult(int $sessionId, bool $frozen): \mysqli_result
+    {
         $stmt = $this->db->prepare(
             'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, '
             . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, c.updated_at AS copia_aggiornata_il, '
@@ -929,10 +937,12 @@ final class StocktakeService
         }
         $stmt->bind_param('i', $sessionId);
         $stmt->execute();
-        /** @var list<array<string,mixed>> $rows */
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $result = $stmt->get_result();
         $stmt->close();
-        return $rows;
+        if ($result === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        return $result;
     }
 
     /**
@@ -942,39 +952,69 @@ final class StocktakeService
      * close marked lost stays a `mancante` row, with `stato_copia` saying
      * 'perso'. `stato_copia` is always the copy's state today.
      *
+     * With $limit at most that many rows are read: the PDF export asks for one
+     * more than it can hold, to tell a report that grew past its limit.
+     *
      * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
      */
-    public function reportRows(int $sessionId): array
+    public function reportRows(int $sessionId, ?int $limit = null): array
     {
         $rows = [];
-        foreach ($this->unscannedExpected($sessionId, $this->isFrozen($sessionId)) as $row) {
-            $rows[] = [
-                'categoria' => (int) $row['in_prestito'] === 1 ? 'in_prestito' : 'mancante',
-                'codice' => (string) ($row['numero_inventario'] ?? ('#' . (int) $row['copia_id'])),
-                'titolo' => (string) ($row['titolo'] ?? ''),
-                'tipo_media' => (string) ($row['tipo_media'] ?? ''),
-                'collocazione' => (string) ($row['collocazione'] ?? ''),
-                'scaffale_atteso' => $row['scaffale_atteso'] !== null ? $this->shelfLabel((int) $row['scaffale_atteso']) : '',
-                'stato_copia' => (string) ($row['stato_attuale'] ?? ''),
-                'operatore' => '',
-                'quando' => '',
-            ];
-        }
-        // Every scan, not the latest N: the summary counts them all, so must the report.
-        foreach ($this->scans($sessionId, null, null) as $scan) {
-            $rows[] = [
-                'categoria' => (string) $scan['esito'],
-                'codice' => (string) $scan['codice_letto'],
-                'titolo' => (string) ($scan['titolo'] ?? ''),
-                'tipo_media' => (string) ($scan['tipo_media'] ?? ''),
-                'collocazione' => (string) ($scan['collocazione'] ?? ''),
-                'scaffale_atteso' => $scan['scaffale_atteso'] !== null ? $this->shelfLabel((int) $scan['scaffale_atteso']) : '',
-                'stato_copia' => (string) ($scan['stato_copia'] ?? ''),
-                'operatore' => (string) ($scan['operatore'] ?? ''),
-                'quando' => (string) ($scan['scansionato_il'] ?? ''),
-            ];
+        foreach ($this->eachReportRow($sessionId) as $row) {
+            if ($limit !== null && count($rows) >= $limit) {
+                break;
+            }
+            $rows[] = $row;
         }
         return $rows;
+    }
+
+    /**
+     * The rows of reportRows() one at a time, for an export that writes them
+     * as they come (the CSV) instead of holding the whole report: the database
+     * results are buffered by the driver, but never turned into one PHP array.
+     *
+     * @return \Generator<int,array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
+     */
+    public function eachReportRow(int $sessionId): \Generator
+    {
+        $result = $this->unscannedExpectedResult($sessionId, $this->isFrozen($sessionId));
+        try {
+            while (is_array($row = $result->fetch_assoc())) {
+                yield [
+                    'categoria' => (int) $row['in_prestito'] === 1 ? 'in_prestito' : 'mancante',
+                    'codice' => (string) ($row['numero_inventario'] ?? ('#' . (int) $row['copia_id'])),
+                    'titolo' => (string) ($row['titolo'] ?? ''),
+                    'tipo_media' => (string) ($row['tipo_media'] ?? ''),
+                    'collocazione' => (string) ($row['collocazione'] ?? ''),
+                    'scaffale_atteso' => $row['scaffale_atteso'] !== null ? $this->shelfLabel((int) $row['scaffale_atteso']) : '',
+                    'stato_copia' => (string) ($row['stato_attuale'] ?? ''),
+                    'operatore' => '',
+                    'quando' => '',
+                ];
+            }
+        } finally {
+            $result->free();
+        }
+        // Every scan, not the latest N: the summary counts them all, so must the report.
+        $result = $this->scansResult($sessionId, null, null);
+        try {
+            while (is_array($scan = $result->fetch_assoc())) {
+                yield [
+                    'categoria' => (string) $scan['esito'],
+                    'codice' => (string) $scan['codice_letto'],
+                    'titolo' => (string) ($scan['titolo'] ?? ''),
+                    'tipo_media' => (string) ($scan['tipo_media'] ?? ''),
+                    'collocazione' => (string) ($scan['collocazione'] ?? ''),
+                    'scaffale_atteso' => $scan['scaffale_atteso'] !== null ? $this->shelfLabel((int) $scan['scaffale_atteso']) : '',
+                    'stato_copia' => (string) ($scan['stato_copia'] ?? ''),
+                    'operatore' => (string) ($scan['operatore'] ?? ''),
+                    'quando' => (string) ($scan['scansionato_il'] ?? ''),
+                ];
+            }
+        } finally {
+            $result->free();
+        }
     }
 
     /** How many rows reportRows() returns, counted without loading them. */
@@ -1004,6 +1044,13 @@ final class StocktakeService
      */
     public function scans(int $sessionId, ?int $operatorId = null, ?int $limit = 200): array
     {
+        /** @var list<array<string,mixed>> $rows */
+        $rows = $this->scansResult($sessionId, $operatorId, $limit)->fetch_all(MYSQLI_ASSOC);
+        return $rows;
+    }
+
+    private function scansResult(int $sessionId, ?int $operatorId, ?int $limit): \mysqli_result
+    {
         $limit = $limit === null ? null : max(1, min(100000, $limit));
         $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, s.scansionato_da, s.copia_id, '
             . 'COALESCE(c.numero_inventario, a.codice_atteso, s.codice_letto) AS codice, COALESCE(l.titolo, a.titolo_atteso) AS titolo, '
@@ -1027,10 +1074,12 @@ final class StocktakeService
             $stmt->bind_param('i', $sessionId);
         }
         $stmt->execute();
-        /** @var list<array<string,mixed>> $rows */
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $result = $stmt->get_result();
         $stmt->close();
-        return $rows;
+        if ($result === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        return $result;
     }
 
     /**

@@ -231,6 +231,27 @@ try {
     $pdfResponse = (new App\Controllers\InventoryController())->exportPdf((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $big);
     $check($pdfResponse->getStatusCode() === 302 && str_ends_with($pdfResponse->getHeaderLine('Location'), '/admin/inventory/' . $big) && (string) $pdfResponse->getBody() === '', 'a report over the PDF row limit is not rendered: the export goes back to the session');
     $check(($_SESSION['error_message'] ?? '') === sprintf(__('Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.'), $bigRows, App\Support\StocktakePdfGenerator::MAX_ROWS), 'with a message that points to the CSV report');
+    // The rows checked against the limit are the rows the PDF is built from
+    // (review #504): the generator itself refuses more, and the export reads
+    // the report once, one row past the limit, instead of counting it apart.
+    $overLimit = false;
+    try {
+        $pdfGenerator->generate((array) $service->find($big), [], $service->reportRows($big), [], []);
+    } catch (LengthException $e) {
+        $overLimit = true;
+    }
+    $check($overLimit, 'the PDF generator refuses more rows than MAX_ROWS instead of building them');
+    $check(count($service->reportRows($big, App\Support\StocktakePdfGenerator::MAX_ROWS + 1)) === App\Support\StocktakePdfGenerator::MAX_ROWS + 1 && count($service->reportRows($sessionId, 2)) === 2, 'reportRows() with a limit reads no more rows than asked');
+    // The CSV export writes the report row by row into a temporary stream
+    // (review #504), so a report too large for the PDF is still exported whole.
+    memory_reset_peak_usage();
+    $memBefore = memory_get_usage();
+    $bigCsv = (new App\Controllers\InventoryController())->exportCsv((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $big);
+    $csvPeak = memory_get_peak_usage() - $memBefore;
+    $bigCsvBody = (string) $bigCsv->getBody();
+    // Holding every row as a PHP array took about 19 times the file size; streaming them takes about 2.
+    $check($csvPeak < 5 * strlen($bigCsvBody), 'exporting the CSV never holds the whole report in memory: the peak stays within a few times the file size');
+    $check(str_starts_with($bigCsvBody, "\xEF\xBB\xBF") && substr_count($bigCsvBody, "\n") === $bigRows + 1 && str_contains($bigCsvBody, "{$p}-BIG-" . ($bigRows - 1)), 'the streamed CSV keeps the BOM, the header and every one of the rows over the PDF limit');
     $smallResponse = (new App\Controllers\InventoryController())->exportPdf((new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'), new Slim\Psr7\Response(), $db, $second);
     $check($smallResponse->getStatusCode() === 200 && str_starts_with((string) $smallResponse->getBody(), '%PDF'), 'a report within the limit is still exported as PDF');
 
