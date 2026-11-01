@@ -310,5 +310,35 @@ if ($node === '') {
     $eq($out, ['2027-03-11', '2025-12-31', '2025-12-31', '2026-06-01'], 'toOpenDayIso crosses a 434-day closure both ways and leaves open days alone');
 }
 
+// ── loanWindowFrom() (book-detail.php) stops at the loaded availability ──
+// Moving the longest return date over closed days must not reach a day the
+// availability did not load (no occupancy data reads as free).
+if ($node === '') {
+    echo "SKIP loanWindowFrom: node not available\n";
+} else {
+    $fns = '';
+    foreach (['addDaysToIso', 'daysBetweenIso', 'toOpenDayIso', 'loanWindowFrom'] as $fn) {
+        if (preg_match('/function ' . $fn . '\(.*?\n    }\n/s', $viewSrc, $fnSrc) !== 1) {
+            $check(false, "{$fn} found in book-detail.php");
+            continue;
+        }
+        $fns .= $fnSrc[0];
+    }
+    $loaded = [];
+    for ($d = '2026-01-01'; $d <= '2026-06-29'; $d = LibraryCalendar::shift($d, 1)) {
+        $loaded[] = ['date' => $d, 'state' => 'free'];
+    }
+    $closedTail = ['2026-06-29', '2026-06-30', '2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04', '2026-07-05'];
+    $js = $fns . 'const avail = {}; for (const d of ' . json_encode($loaded) . ') avail[d.date] = d;'
+        . 'const w = loanWindowFrom("2026-01-01", avail, 30, 180, new Set(' . json_encode($closedTail) . '));'
+        . 'const plain = loanWindowFrom("2026-01-01", avail, 30, 60, new Set());'
+        . 'process.stdout.write(JSON.stringify([w.maxEndDate, w.endDate, w.capped, plain.maxEndDate]));';
+    $script = tempnam(sys_get_temp_dir(), 'loanwindow') . '.js';
+    file_put_contents($script, $js);
+    $out = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
+    @unlink($script);
+    $eq($out, ['2026-06-28', '2026-01-31', false, '2026-03-02'], 'loanWindowFrom: a longest return date moved past the loaded days stops at the last open loaded day; inside them nothing changes');
+}
+
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";
 exit($failures === 0 ? 0 : 1);
