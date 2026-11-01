@@ -264,6 +264,26 @@ try {
     $db->query("DELETE FROM utenti WHERE id = {$op1}");
     $check((int) $db->query("SELECT COUNT(*) FROM mobile_idempotency_keys WHERE user_id = {$op1}")->fetch_row()[0] === 0, 'keys follow their operator (ON DELETE CASCADE)');
 
+    echo "\nF. 1.10.0 upgrade widens mobile_import_jobs.kind\n";
+    $kindType = static fn (): string => strtolower((string) $db->query(
+        "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs' AND COLUMN_NAME = 'kind'"
+    )->fetch_row()[0]);
+    $check($kindType() === 'varchar(32)', 'a fresh activation creates kind as VARCHAR(32)');
+    $db->query("DELETE FROM mobile_import_jobs");
+    $db->query("ALTER TABLE mobile_import_jobs MODIFY kind ENUM('csv','librarything') NOT NULL");
+    $oldJob = $jobs->create($op2, null, 'librarything', 'old.tsv', 3, 10, false, ['legacy' => true]);
+    $db->query("UPDATE plugins SET version = '1.9.0' WHERE name = 'mobile-api'");
+    $check($kindType() === "enum('csv','librarything')", 'rewound: a 1.9.0 installation has the two-value ENUM and a saved job');
+    $manager->autoRegisterBundledPlugins();
+    $check($kindType() === 'varchar(32)', 'the real bundled-plugin sync widens kind to VARCHAR(32)');
+    $legacy = $jobs->find($oldJob, $op2, false);
+    $check($legacy !== null && $legacy['kind'] === 'librarything' && $legacy['state'] === ['legacy' => true], 'the job saved before the upgrade keeps its kind and state');
+    $marcJob = $jobs->create($op2, null, 'marc', 'records.mrc', 5, 10, false, []);
+    $check(($jobs->find($marcJob, $op2, false)['kind'] ?? null) === 'marc', 'a 1.10.0 job kind (marc) is stored');
+    $manager->autoRegisterBundledPlugins();
+    $check($kindType() === 'varchar(32)' && $jobs->find($oldJob, $op2, false) !== null, 'a second sync is a no-op');
+
     $db->close();
 } catch (\Throwable $error) {
     $fatal = $error;
