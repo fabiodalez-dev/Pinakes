@@ -320,14 +320,17 @@ try {
     $check(PatronPhoto::jpegOrientation((string) file_get_contents($src)) === 6 && PatronPhoto::jpegOrientation($jpeg) === null && PatronPhoto::jpegOrientation('not a jpeg') === null, 'the EXIF Orientation is read from the APP1 block directly');
     $check(PatronPhoto::orientationTransform(5) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 90] && PatronPhoto::orientationTransform(7) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => -90]
         && PatronPhoto::orientationTransform(2) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 0] && PatronPhoto::orientationTransform(4) === ['flip' => IMG_FLIP_VERTICAL, 'angle' => 0]
+        && PatronPhoto::orientationTransform(3) === ['flip' => null, 'angle' => 180] && PatronPhoto::orientationTransform(6) === ['flip' => null, 'angle' => -90] && PatronPhoto::orientationTransform(8) === ['flip' => null, 'angle' => 90]
         && PatronPhoto::orientationTransform(1) === ['flip' => null, 'angle' => 0] && PatronPhoto::orientationTransform(null) === ['flip' => null, 'angle' => 0], 'every EXIF orientation maps to a mirror and a rotation');
     $check(PatronPhoto::store($db, $userId, $src) === null, 'a JPEG with EXIF orientation is accepted');
     $rotatedPath = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
     $photoFiles[] = $rotatedPath;
     $rotatedInfo = $rotatedPath !== null ? getimagesize($rotatedPath) : false;
     $check($rotatedInfo !== false && $rotatedInfo[1] > $rotatedInfo[0], 'EXIF Orientation 6 is applied: the stored photo is upright (portrait)');
-    // Orientation 5 (transpose) and 7 (transverse) on a landscape image whose
-    // left half is red: transposed the red half is on top, transversed at the bottom.
+    // Orientation 5 (transpose), 6 (90° clockwise), 7 (transverse) and 8 (90°
+    // counter-clockwise) on a landscape image whose left half is red: the red
+    // half ends up on top for 5 and 6, at the bottom for 7 and 8, so the
+    // direction of the rotation is checked, not only the portrait shape.
     $halves = imagecreatetruecolor(400, 200);
     imagefill($halves, 0, 0, (int) imagecolorallocate($halves, 20, 20, 220));
     imagefilledrectangle($halves, 0, 0, 199, 199, (int) imagecolorallocate($halves, 220, 20, 20));
@@ -338,13 +341,13 @@ try {
         $c = imagecolorat($img, $x, $y);
         return (($c >> 16) & 0xFF) > 150 && ($c & 0xFF) < 100;
     };
-    foreach ([5 => true, 7 => false] as $orientation => $redOnTop) {
+    foreach ([5 => true, 6 => true, 7 => false, 8 => false] as $orientation => $redOnTop) {
         file_put_contents($src, $withOrientation($halvesJpeg, $orientation));
         $ok = PatronPhoto::store($db, $userId, $src) === null;
         $out = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
         $photoFiles[] = $out;
         $img = $out !== null ? imagecreatefromjpeg($out) : false;
-        $check($ok && $img !== false && imagesx($img) === 200 && imagesy($img) === 400 && $isRed($img, 100, 50) === $redOnTop && $isRed($img, 100, 350) === !$redOnTop, "EXIF Orientation {$orientation} is mirrored and rotated upright");
+        $check($ok && $img !== false && imagesx($img) === 200 && imagesy($img) === 400 && $isRed($img, 100, 50) === $redOnTop && $isRed($img, 100, 350) === !$redOnTop, "EXIF Orientation {$orientation} is turned upright in the right direction");
     }
     // A short write (a full disk mid-file) fails and leaves no partial file.
     if (!in_array('pcishort', stream_get_wrappers(), true)) {
