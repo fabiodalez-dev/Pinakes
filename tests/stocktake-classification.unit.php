@@ -82,6 +82,10 @@ $check(S::parseCodeList("INV-1\tx\nINV-2\ty", true) === ['INV-1', 'INV-2'], 'a t
 $check(S::parseCodeList("INV,001\nINV;002\n") === ['INV,001', 'INV;002'], 'a .txt line is the whole code: commas and semicolons stay');
 $check(S::parseCodeList("INV-5\t2026-10-30 10:00\n") === ['INV-5'], 'a .txt scanner export drops the columns after a tab');
 $check(S::parseCodeList("Barcode\n123") === ['123'], 'an English header is skipped too');
+$check(S::parseCodeList("\tIl nome della rosa\nINV-6\tx\n") === ['INV-6'], 'a .txt line that starts with a tab has no code: the title after it is never recorded as one');
+$check(S::parseCodeList("\"INV\n1\";Titolo\nINV-2;Altro", true) === ['INV1', 'INV-2'], 'the delimiter is read from the first record: a quoted first cell spanning two lines does not hide the semicolon after it');
+$check(S::parseCodeList("codice\n\"\"\"INV-7\"\"\"\nO'BRIEN-1'\n", true) === ['"INV-7"', "O'BRIEN-1'"], 'a quote that is part of a .csv code is kept: fgetcsv() already removed the CSV quoting');
+$check(S::parseCodeList("\"INV-8\"\n'INV-9'\nINV-10\"\n") === ['INV-8', 'INV-9', 'INV-10"'], 'a .txt line drops only one pair of quotes wrapping the whole code');
 $check(S::parseCodeList("codice-1\ncodice") === ['codice-1', 'codice'], 'only the first line can be a header');
 $latin1 = "INV-\xE9";
 $check(S::parseCodeList($latin1) === ['INV-é'], 'a Latin-1 export is read as UTF-8');
