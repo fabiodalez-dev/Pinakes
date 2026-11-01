@@ -52,6 +52,7 @@ $books = [];
 $sessionIds = [];
 $triggers = [];
 $borrowerId = 0;
+$other = null;
 try {
     foreach (['X', 'Y'] as $tag) {
         $db->query("INSERT INTO scaffali (codice, nome, lettera) VALUES ('{$p}{$tag}', 'Stocktake {$tag}', '{$tag}')");
@@ -273,6 +274,7 @@ try {
     $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
     $other->commit();
     $other->close();
+    $other = null;
     $check($blocked && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$third}") === 0, 'a scan racing a pending close is not recorded');
     $check($refused(static fn () => $service->scan($third, "{$p}-C5", null, null)), 'once the close commits the scan is refused');
 
@@ -408,8 +410,40 @@ try {
     (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $fifth);
     $check(($_SESSION['error_message'] ?? '') === __('Azione non valida.') && $one("SELECT stato FROM inventario_sessioni WHERE id = {$fifth}") === 'aperta', 'an unknown missing-copies action is refused and the session stays open');
 
+    // A scan reads the loan status under the locks a return takes (review
+    // #504): while a return of the copy is still uncommitted the scan waits
+    // for it, instead of recording the copy as on loan from the state before.
+    $returnBook = $addBook('B9', $shelves['X']);
+    $returnCopy = $addCopy($returnBook, 'R1', 'prestato');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$returnBook}, {$returnCopy}, {$borrowerId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'in_corso', 'diretto', 1)");
+    $returnLoan = (int) $db->insert_id;
+    $returnSession = $service->open('ZZST return ' . $run, null, ['collocazione_da' => "{$p}.B9", 'collocazione_a' => "{$p}.B9"], null);
+    $sessionIds[] = $returnSession;
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->begin_transaction();
+    $other->query("SELECT id FROM prestiti WHERE id = {$returnLoan} FOR UPDATE");
+    $other->query("UPDATE prestiti SET stato = 'restituito', attivo = 0, data_restituzione = CURDATE() WHERE id = {$returnLoan}");
+    $other->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$returnCopy}");
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    $waited = false;
+    try {
+        $service->scan($returnSession, "{$p}-R1", null, $shelves['X']);
+    } catch (mysqli_sql_exception $e) {
+        $waited = $e->getCode() === 1205;
+    }
+    $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+    $check($waited && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$returnSession}") === 0, 'a scan during an uncommitted return of the copy waits for it and records nothing from the state before the return');
+    $other->commit();
+    $other->close();
+    $other = null;
+    $check($service->scan($returnSession, "{$p}-R1", null, $shelves['X'])['esito'] === 'trovata', 'once the return is committed the same scan finds the copy on the shelf');
+
     echo "SUCCESS {$checks} stocktake snapshot checks\n";
 } finally {
+    if ($other instanceof mysqli) {
+        $other->rollback(); // a failed run must not leave the return holding its locks
+        $other->close();
+    }
     foreach ($triggers as $trigger) {
         $db->query("DROP TRIGGER IF EXISTS {$trigger}");
     }

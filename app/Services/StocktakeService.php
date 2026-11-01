@@ -577,50 +577,6 @@ final class StocktakeService
      */
     private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf, bool $insideTransaction = false): array
     {
-        // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
-        $stmt = $this->db->prepare(
-            'SELECT c.id, c.libro_id, c.stato, l.titolo, l.collocazione FROM copie c '
-            . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
-            . 'WHERE c.numero_inventario = ? LIMIT 1'
-        );
-        if ($stmt === false) {
-            throw new \RuntimeException($this->db->error);
-        }
-        $stmt->bind_param('s', $code);
-        $stmt->execute();
-        $copy = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        $copyId = is_array($copy) ? (int) $copy['id'] : null;
-        $expected = null;
-        $alreadyScanned = false;
-        $onLoan = false;
-        if ($copyId !== null) {
-            $stmt = $this->db->prepare('SELECT scaffale_atteso FROM inventario_attese WHERE sessione_id = ? AND copia_id = ?');
-            if ($stmt === false) {
-                throw new \RuntimeException($this->db->error);
-            }
-            $stmt->bind_param('ii', $sessionId, $copyId);
-            $stmt->execute();
-            $expected = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            $stmt = $this->db->prepare('SELECT 1 FROM inventario_scansioni WHERE sessione_id = ? AND copia_id = ? LIMIT 1');
-            if ($stmt === false) {
-                throw new \RuntimeException($this->db->error);
-            }
-            $stmt->bind_param('ii', $sessionId, $copyId);
-            $stmt->execute();
-            $alreadyScanned = $stmt->get_result()->fetch_row() !== null;
-            $stmt->close();
-
-            $onLoan = in_array((string) ($copy['stato'] ?? ''), self::ON_LOAN_COPY_STATES, true) || $this->isOnLoan($copyId);
-        }
-
-        $expectedShelf = is_array($expected) && $expected['scaffale_atteso'] !== null ? (int) $expected['scaffale_atteso'] : null;
-        $outcome = self::classify($copyId !== null, $alreadyScanned, is_array($expected), $onLoan, $expectedShelf, $scanShelf);
-
-        $storedCopyId = in_array($outcome, ['sconosciuta', 'duplicata'], true) ? null : $copyId;
         // The scan is written under a shared lock on the session row. close()
         // and cancel() flip the state with an UPDATE that waits for that lock,
         // so a scan either lands before the session leaves 'aperta' (and close()
@@ -632,6 +588,56 @@ final class StocktakeService
             if (!$insideTransaction) {
                 $this->lockOpenSession($sessionId);
             }
+            // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
+            $stmt = $this->db->prepare(
+                'SELECT c.id, c.libro_id, c.stato, l.titolo, l.collocazione FROM copie c '
+                . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
+                . 'WHERE c.numero_inventario = ? LIMIT 1'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('s', $code);
+            $stmt->execute();
+            $copy = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            $copyId = is_array($copy) ? (int) $copy['id'] : null;
+            $expected = null;
+            $alreadyScanned = false;
+            $onLoan = false;
+            if ($copyId !== null) {
+                $stmt = $this->db->prepare('SELECT scaffale_atteso FROM inventario_attese WHERE sessione_id = ? AND copia_id = ?');
+                if ($stmt === false) {
+                    throw new \RuntimeException($this->db->error);
+                }
+                $stmt->bind_param('ii', $sessionId, $copyId);
+                $stmt->execute();
+                $expected = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+
+                $stmt = $this->db->prepare('SELECT 1 FROM inventario_scansioni WHERE sessione_id = ? AND copia_id = ? LIMIT 1');
+                if ($stmt === false) {
+                    throw new \RuntimeException($this->db->error);
+                }
+                $stmt->bind_param('ii', $sessionId, $copyId);
+                $stmt->execute();
+                $alreadyScanned = $stmt->get_result()->fetch_row() !== null;
+                $stmt->close();
+
+                // The loan status is read inside the transaction with locking
+                // reads, in the order a return takes its locks (the loan, then
+                // the copy): a return in progress is waited for, so the scan
+                // never records 'in_prestito' for a copy already back on the shelf.
+                $onLoan = $this->isOnLoan($copyId, true);
+                $copy['stato'] = $this->lockedCopyState($copyId) ?? (string) ($copy['stato'] ?? '');
+                $onLoan = $onLoan || in_array($copy['stato'], self::ON_LOAN_COPY_STATES, true);
+            }
+
+            $expectedShelf = is_array($expected) && $expected['scaffale_atteso'] !== null ? (int) $expected['scaffale_atteso'] : null;
+            $outcome = self::classify($copyId !== null, $alreadyScanned, is_array($expected), $onLoan, $expectedShelf, $scanShelf);
+
+            $storedCopyId = in_array($outcome, ['sconosciuta', 'duplicata'], true) ? null : $copyId;
             try {
                 $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
             } catch (\mysqli_sql_exception $e) {
@@ -735,10 +741,14 @@ final class StocktakeService
             . 'SELECT 1 FROM prestiti p WHERE p.copia_id = a.copia_id AND p.attivo = 1 AND p.stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ')))';
     }
 
-    /** Lent, or set aside on the pickup shelf: see ON_LOAN_LOAN_STATES. */
-    private function isOnLoan(int $copyId): bool
+    /**
+     * Lent, or set aside on the pickup shelf: see ON_LOAN_LOAN_STATES. With
+     * $lock the read is a locking one (inside a transaction), which waits for
+     * a return of the copy still in progress and reads what it committed.
+     */
+    private function isOnLoan(int $copyId, bool $lock = false): bool
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ') LIMIT 1');
+        $stmt = $this->db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ') LIMIT 1' . ($lock ? ' LOCK IN SHARE MODE' : ''));
         if ($stmt === false) {
             return false;
         }
@@ -747,6 +757,20 @@ final class StocktakeService
         $found = $stmt->get_result()->fetch_row() !== null;
         $stmt->close();
         return $found;
+    }
+
+    /** The copy's state, read under a shared lock (inside a transaction); null when it is gone. */
+    private function lockedCopyState(int $copyId): ?string
+    {
+        $stmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? LOCK IN SHARE MODE');
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return $row === null ? null : (string) $row[0];
     }
 
     /** @var array<int,string> */
