@@ -103,10 +103,27 @@ $shift = static fn (string $d, int $n): string => LibraryCalendar::shift($d, $n)
 // ── Zero config ───────────────────────────────────────────────────────────
 $setWeekdays('');
 $clearClosures();
-$plain = $shift($today, 30);
+// Closures this run did not add (another suite's, or the operator's) stay in
+// the table: the dates below are taken where none of them closes the library.
+$baseline = LibraryCalendar::forDb($db);
+$openFrom = static function (string $from, int $span = 0) use ($baseline, $shift): string {
+    for ($day = $from, $i = 0; $i < 1100; $day = $shift($day, 1), $i++) {
+        $allOpen = true;
+        for ($k = 0; $k <= $span && $allOpen; $k++) {
+            $allOpen = $baseline->isOpen($shift($day, $k));
+        }
+        if ($allOpen) {
+            return $day;
+        }
+    }
+    return $from;
+};
+$plain = $openFrom($shift($today, 30));
 $check(LibraryCalendar::dueDate($db, $plain) === $plain, 'zero config: dueDate is the computed date');
-$check(LibraryCalendar::pickupDeadline($db, $today, 3) === $shift($today, 3), 'zero config: pickupDeadline is today + N');
-$check(LibraryCalendar::pickupDeadline($db, $today, 3, $shift($today, 1)) === $shift($today, 1), 'pickupDeadline is capped at the due date');
+// From a day whose next three days are open: the deadline is plain + N.
+$pickFrom = $shift($openFrom($shift($today, 1), 2), -1);
+$check(LibraryCalendar::pickupDeadline($db, $pickFrom, 3) === $shift($pickFrom, 3), 'zero config: pickupDeadline is start + N');
+$check(LibraryCalendar::pickupDeadline($db, $pickFrom, 3, $shift($pickFrom, 1)) === $shift($pickFrom, 1), 'pickupDeadline is capped at the due date');
 
 // ── A closures read that fails is not an empty calendar ──────────────────
 $broken = new mysqli($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
@@ -154,8 +171,9 @@ LibraryCalendar::reset();
 
 // ── 14-day loan ending on Sunday → Monday ─────────────────────────────────
 $setWeekdays('0');
+// A Sunday that, like the Monday after it, no pre-existing closure closes.
 $sunday = $shift($today, 20);
-while ((int) (new DateTimeImmutable($sunday))->format('w') !== 0) {
+while ((int) (new DateTimeImmutable($sunday))->format('w') !== 0 || !$baseline->isOpen($sunday) || !$baseline->isOpen($shift($sunday, 1))) {
     $sunday = $shift($sunday, 1);
 }
 $start = $shift($sunday, -14);
@@ -481,9 +499,13 @@ $controller->store($post(['data_inizio' => '2026-08-16', 'data_fine' => '2027-08
 $check($ok !== null && $taggedRows() === 1, 'yearly: a closure leaving only Aug 15 open is stored');
 $controller->importPreset($post(['year' => substr($today, 0, 4)]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
-$presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'")->fetch_row()[0];
+// Only rows the preset itself would write (the holiday names, library-wide):
+// a closure someone else stores meanwhile is neither counted nor deleted.
+$holidayNames = implode(',', array_map(static fn (array $h): string => "'" . $db->real_escape_string($h['description']) . "'", LibraryCalendar::italianHolidays((int) substr($today, 0, 4))));
+$presetWhere = "id > {$maxBefore} AND sede_id IS NULL AND descrizione IN ({$holidayNames})";
+$presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE {$presetWhere}")->fetch_row()[0];
 $check($err !== null && $ok === null && $presetRows === 0, 'preset: an import that would close the whole year is refused and rolled back (' . $presetRows . ' rows kept)');
-$db->query("DELETE FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'");
+$db->query("DELETE FROM calendario_chiusure WHERE {$presetWhere}");
 $clearClosures();
 
 $icsFile = static function (string $body): \Slim\Psr7\UploadedFile {
