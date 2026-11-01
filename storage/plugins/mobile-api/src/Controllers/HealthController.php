@@ -117,7 +117,8 @@ final class HealthController
                     'frbr'            => $this->pluginActive('frbr-lrm'),
                     'digital_library' => $this->pluginActive('digital-library'),
                     // The LibraryThing TSV import/export is core (no plugin to probe).
-                ]),
+                ]) + \App\Plugins\MobileApi\Staff090\AreaRegistry::healthFlags()
+                   + $this->moduleFlags(),
                 'catalogue_mode'       => $catalogueMode,
                 'loan_approval_required' => $loanApprovalRequired,
                 'app_access_enabled'   => $appAccessEnabled,
@@ -218,5 +219,23 @@ final class HealthController
         $https  = strtolower((string) ($server['HTTPS'] ?? ''));
 
         return $https !== '' && $https !== 'off';
+    }
+
+    /**
+     * Mobile API 1.10.0: the effective state of every Pinakes 0.9.0 module
+     * (Settings -> Modules and Settings -> Loans), keyed by its Features key.
+     * Keys already published above keep their value; older servers omit the
+     * rest and the app treats a missing key as off.
+     *
+     * @return array<string, bool>
+     */
+    private function moduleFlags(): array
+    {
+        $flags = [];
+        foreach (\App\Support\Features::keys() as $key) {
+            $flags[$key] = \App\Support\Features::enabled($key);
+        }
+
+        return $flags;
     }
 }

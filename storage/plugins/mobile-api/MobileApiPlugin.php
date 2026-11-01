@@ -87,6 +87,13 @@ require_once __DIR__ . '/src/Controllers/StaffDesiderataController.php';
 require_once __DIR__ . '/src/Controllers/StaffArchivesController.php';
 require_once __DIR__ . '/src/Controllers/StaffWorksController.php';
 require_once __DIR__ . '/src/Controllers/StaffDigitalController.php';
+// Mobile API 1.10.0: the Pinakes 0.9.0 staff areas load themselves from
+// src/Staff090 (support, controllers, areas), so a new area needs no line here.
+require_once __DIR__ . '/src/Staff090/AreaRegistry.php';
+foreach (\App\Plugins\MobileApi\Staff090\AreaRegistry::files() as $staff090File) {
+    require_once $staff090File;
+}
+unset($staff090File);
 
 /**
  * Mobile API plugin.
@@ -380,7 +387,7 @@ class MobileApiPlugin
                 id              CHAR(36)     NOT NULL PRIMARY KEY,
                 user_id         INT          NOT NULL,
                 token_id        INT          NULL,
-                kind            ENUM('csv','librarything') NOT NULL,
+                kind            VARCHAR(32)  NOT NULL,
                 file_name       VARCHAR(255) NOT NULL,
                 total_rows      INT          NOT NULL DEFAULT 0,
                 processed       INT          NOT NULL DEFAULT 0,
@@ -415,7 +422,38 @@ class MobileApiPlugin
             }
         }
 
+        // Mobile API 1.10.0: job kinds beyond csv/librarything (MARC, patron
+        // CSV, copy cataloguing). Installs created before 1.10.0 still have the
+        // two-value ENUM; widen it once (the plugin version bump re-runs this).
+        if (!in_array('mobile_import_jobs', $failed, true) && !$this->widenImportJobKind()) {
+            $failed[] = 'mobile_import_jobs.kind';
+        }
+
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /** Turns the pre-1.10.0 ENUM `kind` into VARCHAR(32); a no-op afterwards. */
+    private function widenImportJobKind(): bool
+    {
+        $result = $this->db->query(
+            "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs' AND COLUMN_NAME = 'kind'"
+        );
+        if (!$result instanceof \mysqli_result) {
+            SecureLogger::error('[MobileApi] reading mobile_import_jobs.kind failed: ' . $this->db->error);
+            return false;
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        if (!is_array($row) || strtolower((string) ($row['DATA_TYPE'] ?? '')) !== 'enum') {
+            return true;
+        }
+        if ($this->db->query('ALTER TABLE mobile_import_jobs MODIFY kind VARCHAR(32) NOT NULL') !== true) {
+            SecureLogger::error('[MobileApi] widening mobile_import_jobs.kind failed: ' . $this->db->error);
+            return false;
+        }
+
+        return true;
     }
 
     // ─── Hook registration ──────────────────────────────────────────────────
@@ -1157,6 +1195,46 @@ class MobileApiPlugin
                 ['GET', '/staff/settings/labels', static fn ($c, $q, $r, $a) => $c->settings($q, $r)],
                 ['PUT', '/staff/settings/labels', static fn ($c, $q, $r, $a) => $c->updateSettings($q, $r)],
             ]);
+
+            // ── Mobile API 1.10.0: the Pinakes 0.9.0 staff areas (stocktake,
+            // patrons, fines, library settings, cataloguing, visitor log...).
+            // A route of a switched-off module answers 404 feature_disabled,
+            // the shape the app already reads for catalogue mode.
+            $featureGuard = static function (string $feature): callable {
+                return static function (
+                    ServerRequestInterface $request,
+                    \Psr\Http\Server\RequestHandlerInterface $handler
+                ) use ($feature): ResponseInterface {
+                    if (!\App\Support\Features::enabled($feature)) {
+                        return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                            new \Slim\Psr7\Response(),
+                            'feature_disabled',
+                            __('Funzione non disponibile su questa istanza.'),
+                            404
+                        );
+                    }
+                    return $handler->handle($request);
+                };
+            };
+            foreach (\App\Plugins\MobileApi\Staff090\AreaRegistry::areas() as $areaClass) {
+                foreach ($areaClass::routes() as $route) {
+                    [$method, $pattern, $handler] = $route;
+                    $mapped = $group->map([$method], $pattern, function ($request, $response, array $args) use ($db, $handler) {
+                        return $handler($db, $request, $response, $args);
+                    });
+                    if (isset($route['limit'])) {
+                        $mapped->add($throttle(...$route['limit']));
+                    }
+                    $feature = array_key_exists('feature', $route) ? $route['feature'] : $areaClass::feature();
+                    if ($feature !== null) {
+                        $mapped->add($featureGuard($feature));
+                    }
+                    if ($route['circulation'] ?? $areaClass::circulation()) {
+                        $mapped->add($catalogueModeGuard);
+                    }
+                    $mapped->add($staffMw())->add($quotaMw())->add($authMw());
+                }
+            }
         });
 
         // Answer in the language the app is showing (Accept-Language).

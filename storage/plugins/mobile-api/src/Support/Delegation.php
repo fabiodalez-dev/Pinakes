@@ -37,6 +37,15 @@ final class Delegation
         'import_errors',
         'import_progress',
         '_one_time_form_tokens',
+        // Pinakes 0.9.0 (Mobile API 1.10.0 staff areas)
+        'marc_import_data',
+        'marc_import_done',
+        'user_import',
+        'copy_cataloging_results',
+        'copy_cataloging_last_import',
+        'supplier_form_old',
+        'custom_holiday_draft',
+        'attendance_sede_id',
     ];
 
     private function __construct()

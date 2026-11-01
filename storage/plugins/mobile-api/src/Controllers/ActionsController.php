@@ -638,6 +638,32 @@ final class ActionsController
 
     // ─── GET /me ─────────────────────────────────────────────────────────────
 
+    /**
+     * Mobile API 1.10.0: the reader's patron type (Pinakes 0.9.0), the one
+     * whose loan rules apply. A user without a stored type belongs to the
+     * default type. Null when the circulation rules module is off or the
+     * 0.9.0 schema is not there yet.
+     *
+     * @return array{id: int|null, code: string, name: string}|null
+     */
+    private function patronType(int $userId): ?array
+    {
+        if (!\App\Support\Features::enabled('circulation_rules')) {
+            return null;
+        }
+        $policy = new \App\Services\CirculationPolicy($this->db);
+        if (!$policy->schemaReady()) {
+            return null;
+        }
+        $typeId = \App\Support\PatronTypeAssignment::of($this->db, $userId) ?? $policy->defaultTypeId();
+
+        return [
+            'id'   => $typeId,
+            'code' => \App\Support\PatronTypeAssignment::codeOf($this->db, $typeId, $policy),
+            'name' => \App\Support\PatronTypeAssignment::nameOf($this->db, $typeId, $policy),
+        ];
+    }
+
     public function getProfile(Request $request, ResponseInterface $response): ResponseInterface
     {
         $userId = $this->userId($request);
@@ -683,6 +709,7 @@ final class ActionsController
                 'email_verificata'  => ((int) ($row['email_verificata'] ?? 0)) === 1,
                 'stato'             => (string) ($row['stato'] ?? ''),
                 'custom_fields'     => \App\Support\RegistrationFields::editableFieldsForUser($this->db, $userId),
+                'patron_type'       => $this->patronType($userId),
             ];
 
             $data += \App\Support\Permissions::describe(\App\Support\Permissions::viewer($userId, $this->db));
