@@ -22,6 +22,11 @@ final class ImportJobStore
 {
     public const TTL_HOURS = 24;
     public const SESSION_KEYS = ['csv' => 'csv_import_data', 'librarything' => 'librarything_import'];
+    /** The kinds the pre-1.10.0 ENUM column accepts. */
+    private const LEGACY_KINDS = ['csv', 'librarything'];
+
+    /** Set once `kind` is known to be wide, so create() checks it once per process at most. */
+    private static bool $kindWide = false;
 
     public function __construct(private mysqli $db)
     {
@@ -32,6 +37,13 @@ final class ImportJobStore
      */
     public function create(int $userId, ?int $tokenId, string $kind, string $fileName, int $totalRows, int $chunkSize, bool $scraping, array $state): string
     {
+        // An admin-UI upgrade runs the plugin's OLD onActivate() (the class is
+        // already in memory), and the boot self-heal only probes tables, so an
+        // upgraded install can still carry the two-value ENUM. Widen it here,
+        // before the first job of a newer kind, instead of failing its INSERT.
+        if (!in_array($kind, self::LEGACY_KINDS, true) && !self::$kindWide && !self::widenKind($this->db)) {
+            throw new \RuntimeException('import job kind column could not be widened: ' . $this->db->error);
+        }
         $id = self::uuid();
         $json = self::encode($state);
         $ttl = self::TTL_HOURS;
@@ -48,6 +60,34 @@ final class ImportJobStore
         $stmt->close();
 
         return $id;
+    }
+
+    /**
+     * Turns the pre-1.10.0 ENUM `kind` into VARCHAR(32); a no-op afterwards.
+     * Called by the plugin's ensureSchema() and, lazily, before the first job
+     * of a kind the ENUM does not know.
+     */
+    public static function widenKind(mysqli $db): bool
+    {
+        $result = $db->query(
+            "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs' AND COLUMN_NAME = 'kind'"
+        );
+        if (!$result instanceof \mysqli_result) {
+            \App\Support\SecureLogger::error('[MobileApi] reading mobile_import_jobs.kind failed: ' . $db->error);
+            return false;
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        if (is_array($row) && strtolower((string) ($row['DATA_TYPE'] ?? '')) === 'enum'
+            && $db->query('ALTER TABLE mobile_import_jobs MODIFY kind VARCHAR(32) NOT NULL') !== true) {
+            \App\Support\SecureLogger::error('[MobileApi] widening mobile_import_jobs.kind failed: ' . $db->error);
+            return false;
+        }
+        // A missing table is ensureSchema()'s job; only a confirmed column is cached.
+        self::$kindWide = is_array($row);
+
+        return true;
     }
 
     /**

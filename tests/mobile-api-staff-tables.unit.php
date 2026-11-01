@@ -290,6 +290,20 @@ try {
     $manager->autoRegisterBundledPlugins();
     $check($kindType() === 'varchar(32)' && $jobs->find($oldJob, $op2, false) !== null, 'a second sync is a no-op');
 
+    // The admin-UI upgrade runs the OLD onActivate() (stale class), so the version
+    // is stamped 1.10.0 while kind is still the ENUM, and the boot sync sees a
+    // complete schema. The first job of a newer kind must widen it by itself.
+    $db->query("DELETE FROM mobile_import_jobs");
+    $db->query("ALTER TABLE mobile_import_jobs MODIFY kind ENUM('csv','librarything') NOT NULL");
+    (new \ReflectionProperty(\App\Plugins\MobileApi\Support\ImportJobStore::class, 'kindWide'))->setValue(null, false);
+    $manager->autoRegisterBundledPlugins();
+    $check($kindType() === "enum('csv','librarything')", 'stale-class upgrade: version already 1.10.0, kind still the ENUM after the boot sync');
+    $csvJob = $jobs->create($op2, null, 'csv', 'books.csv', 2, 10, false, []);
+    $check($kindType() === "enum('csv','librarything')" && $jobs->find($csvJob, $op2, false) !== null, 'a CSV job does not touch the column');
+    $userJob = $jobs->create($op2, null, 'users', 'patrons.csv', 4, 10, false, []);
+    $check($kindType() === 'varchar(32)', 'the first patron-import job widens kind to VARCHAR(32)');
+    $check(($jobs->find($userJob, $op2, false)['kind'] ?? null) === 'users' && $jobs->find($csvJob, $op2, false) !== null, 'the new job is stored and the earlier one is kept');
+
     $db->close();
 } catch (\Throwable $error) {
     $fatal = $error;

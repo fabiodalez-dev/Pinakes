@@ -424,7 +424,9 @@ class MobileApiPlugin
 
         // Mobile API 1.10.0: job kinds beyond csv/librarything (MARC, patron
         // CSV, copy cataloguing). Installs created before 1.10.0 still have the
-        // two-value ENUM; widen it once (the plugin version bump re-runs this).
+        // two-value ENUM; widen it once. An admin-UI upgrade may run the old
+        // onActivate(), so ImportJobStore::create() also widens it before the
+        // first job of a newer kind.
         if (!in_array('mobile_import_jobs', $failed, true) && !$this->widenImportJobKind()) {
             $failed[] = 'mobile_import_jobs.kind';
         }
@@ -435,25 +437,7 @@ class MobileApiPlugin
     /** Turns the pre-1.10.0 ENUM `kind` into VARCHAR(32); a no-op afterwards. */
     private function widenImportJobKind(): bool
     {
-        $result = $this->db->query(
-            "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs' AND COLUMN_NAME = 'kind'"
-        );
-        if (!$result instanceof \mysqli_result) {
-            SecureLogger::error('[MobileApi] reading mobile_import_jobs.kind failed: ' . $this->db->error);
-            return false;
-        }
-        $row = $result->fetch_assoc();
-        $result->free();
-        if (!is_array($row) || strtolower((string) ($row['DATA_TYPE'] ?? '')) !== 'enum') {
-            return true;
-        }
-        if ($this->db->query('ALTER TABLE mobile_import_jobs MODIFY kind VARCHAR(32) NOT NULL') !== true) {
-            SecureLogger::error('[MobileApi] widening mobile_import_jobs.kind failed: ' . $this->db->error);
-            return false;
-        }
-
-        return true;
+        return \App\Plugins\MobileApi\Support\ImportJobStore::widenKind($this->db);
     }
 
     // ─── Hook registration ──────────────────────────────────────────────────
