@@ -782,7 +782,7 @@ class ReservationsController
      * answer the filter would give, without hiding the record from the
      * operator or from the reader who already has it reserved.
      */
-    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null): ?array
+    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null, bool $coverLoanWindow = false): ?array
     {
         $bookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL");
         $bookStmt->bind_param('i', $bookId);
@@ -838,6 +838,14 @@ class ReservationsController
         // a closed day forward to the next open day (additive field).
         $from = $startDate ?? \App\Support\DateHelper::today();
         $closedHorizon = max(0, $days - 1) + max($policy->durationDays, $policy->maxRequestDays) + 31;
+        // start_until is the last day a request may start on. A start picked
+        // there still needs occupancy data for its whole loan window, closed
+        // days included: with $coverLoanWindow the days run on as far as the
+        // closed days do, or a booked day past them would read as free.
+        $startUntil = \App\Support\LibraryCalendar::shift($from, max(0, $days - 1));
+        if ($coverLoanWindow) {
+            $days = $closedHorizon + 1;
+        }
         $closedDates = \App\Support\LibraryCalendar::forDb($this->db)
             ->closedDatesBetween($from, \App\Support\LibraryCalendar::shift($from, $closedHorizon));
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
@@ -845,6 +853,7 @@ class ReservationsController
             'max_loan_duration_days' => $policy->maxRequestDays,
             'staff_loan_duration_days' => $policy->durationDays,
             'closed_dates' => $closedDates,
+            'start_until' => $startUntil,
         ];
     }
 
