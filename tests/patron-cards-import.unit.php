@@ -413,6 +413,19 @@ try {
         @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
     }
     unset($_SESSION['error_message']);
+    // A DELETE refused by a foreign key (a reservation still pointing to the
+    // reader, here a scratch child table) leaves the photo and its reference.
+    $holder = 'zz_pci_hold_' . $suffix;
+    $db->query("CREATE TABLE {$holder} (utente_id INT NOT NULL, FOREIGN KEY (utente_id) REFERENCES utenti (id)) ENGINE=InnoDB");
+    $db->query("INSERT INTO {$holder} (utente_id) VALUES ({$victimId})");
+    try {
+        $status = $deleteUser();
+    } catch (\Throwable $e) {
+        $status = 0;
+    }
+    $db->query("DROP TABLE IF EXISTS {$holder}");
+    $check($status === 302 && $victimExists() && $victimPhoto !== null && is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) !== null && isset($_SESSION['error_message']), 'a DELETE refused by the database keeps the reader\'s photo and its reference');
+    unset($_SESSION['error_message']);
     $check($deleteUser() === 302 && !$victimExists() && $victimPhoto !== null && !is_file($victimPhoto), 'deleting a reader without loans removes the account and its photo');
     $_SESSION = [];
 
@@ -619,6 +632,7 @@ try {
 
     echo "SUCCESS {$checks} checks\n";
 } finally {
+    $db->query("DROP TABLE IF EXISTS zz_pci_hold_{$suffix}");
     $db->query("DROP TABLE IF EXISTS {$types}");
     $db->query("DROP TABLE IF EXISTS {$users}");
     if ($userId > 0) {
