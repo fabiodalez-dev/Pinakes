@@ -281,6 +281,12 @@ try {
     $check($legacy !== null && $legacy['kind'] === 'librarything' && $legacy['state'] === ['legacy' => true], 'the job saved before the upgrade keeps its kind and state');
     $marcJob = $jobs->create($op2, null, 'marc', 'records.mrc', 5, 10, false, []);
     $check(($jobs->find($marcJob, $op2, false)['kind'] ?? null) === 'marc', 'a 1.10.0 job kind (marc) is stored');
+    $ids = static fn (array $rows): array => array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    $legacyList = $ids($jobs->listFor($op2, 0, 10, ['csv', 'librarything']));
+    $check(in_array($oldJob, $legacyList, true) && !in_array($marcJob, $legacyList, true), 'listFor() filtered by kind leaves the marc job out of the CSV/LibraryThing list');
+    $allList = $ids($jobs->listFor($op2, 0, 10));
+    $check(in_array($oldJob, $allList, true) && in_array($marcJob, $allList, true), 'listFor() without a filter lists every kind');
+    $check($jobs->listFor($op2, 0, 10, []) === [], 'an empty kind filter lists nothing');
     $manager->autoRegisterBundledPlugins();
     $check($kindType() === 'varchar(32)' && $jobs->find($oldJob, $op2, false) !== null, 'a second sync is a no-op');
 

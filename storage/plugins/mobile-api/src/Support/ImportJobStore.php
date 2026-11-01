@@ -79,19 +79,35 @@ final class ImportJobStore
     /**
      * Unexpired jobs of this operator, newest first.
      *
+     * @param list<string>|null $kinds only these job kinds (null: every kind)
      * @return list<array<string, mixed>>
      */
-    public function listFor(int $userId, int $offset, int $limit): array
+    public function listFor(int $userId, int $offset, int $limit, ?array $kinds = null): array
     {
+        // Mobile API 1.10.0: the store also holds MARC, patron CSV and copy
+        // cataloguing jobs; each endpoint lists only the kinds it drives.
+        $kindFilter = '';
+        $types = 'i';
+        $params = [$userId];
+        if ($kinds !== null) {
+            if ($kinds === []) {
+                return [];
+            }
+            $kindFilter = ' AND j.kind IN (' . implode(',', array_fill(0, count($kinds), '?')) . ')';
+            $types .= str_repeat('s', count($kinds));
+            array_push($params, ...array_map('strval', $kinds));
+        }
         $stmt = $this->db->prepare(
-            'SELECT j.*, 0 AS expired FROM mobile_import_jobs j WHERE j.user_id = ? AND j.expires_at >= NOW()
+            'SELECT j.*, 0 AS expired FROM mobile_import_jobs j WHERE j.user_id = ? AND j.expires_at >= NOW()' . $kindFilter . '
               ORDER BY j.created_at DESC, j.id LIMIT ? OFFSET ?'
         );
         if ($stmt === false) {
             throw new \RuntimeException('import job list prepare failed');
         }
         $fetch = $limit + 1;
-        $stmt->bind_param('iii', $userId, $fetch, $offset);
+        $types .= 'ii';
+        array_push($params, $fetch, $offset);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         $rows = [];
