@@ -3129,7 +3129,9 @@ return function (App $app): void {
             if ($forUser !== null && is_numeric($forUser) && \App\Support\Permissions::can('loans.manage')) {
                 $excludeUserId = (int) $forUser;
             }
-            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180, $excludeUserId);
+            // 180 days to start in, and occupancy data past them for the
+            // longest loan a start on the last of them can ask for.
+            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180, $excludeUserId, true);
             if ($availability === null) {
                 $response->getBody()->write(json_encode(['success' => false, 'message' => __('Libro non trovato')]));
                 return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
@@ -3154,7 +3156,9 @@ return function (App $app): void {
                     // this material (CirculationPolicy), for the admin form.
                     'staff_loan_duration_days' => $availability['staff_loan_duration_days'] ?? null,
                     // Closures calendar: days the library is closed (not a start/pickup day).
-                    'closed_dates' => $availability['closed_dates'] ?? []
+                    'closed_dates' => $availability['closed_dates'] ?? [],
+                    // Last day a request may start on; 'days' run past it.
+                    'start_until' => $availability['start_until'] ?? null
                 ]
             ];
             $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
