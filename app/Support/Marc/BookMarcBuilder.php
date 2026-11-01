@@ -245,6 +245,22 @@ final class BookMarcBuilder
     }
 
     /**
+     * The UNIMARC field of a book's genre: a 608 form / genre access point
+     * with $2 local, the counterpart of the MARC 21 655 the genre goes to.
+     * A 606 is a topical subject, so another catalogue's 606 $2 local stays a
+     * keyword on re-import (UnimarcLibriMapper). Every UNIMARC writer of this
+     * application (this builder, the SRU server's UNIMARC/XML formatter) uses
+     * it, so a Pinakes-to-Pinakes copy keeps the genre. Null without a genre.
+     *
+     * @return array{0: string, 1: string, 2: string, 3: list<array{0: string, 1: string}>}|null
+     */
+    public static function unimarcGenreField(string $genre): ?array
+    {
+        $genre = trim($genre);
+        return $genre === '' ? null : ['608', ' ', ' ', [['a', $genre], ['2', 'local']]];
+    }
+
+    /**
      * @param array<string, mixed>       $row
      * @param list<array<string, mixed>> $authors
      * @param list<array<string, mixed>> $publishers
@@ -382,11 +398,10 @@ final class BookMarcBuilder
         foreach (self::keywords($row) as $kw) {
             $record->addDataField('606', ' ', ' ', [['a', $kw]]);
         }
-        // 608 — Form / genre access point, $2 local: the UNIMARC counterpart
-        // of the MARC 21 655 the genre goes to. A 606 is a topical subject, so
-        // another catalogue's 606 $2 local stays a keyword on re-import.
-        if ($genre !== null && !empty($genre['nome'])) {
-            $record->addDataField('608', ' ', ' ', [['a', (string) $genre['nome']], ['2', 'local']]);
+        // 608 — the genre (unimarcGenreField()).
+        $genreField = self::unimarcGenreField($genre !== null ? (string) ($genre['nome'] ?? '') : '');
+        if ($genreField !== null) {
+            $record->addDataField($genreField[0], $genreField[1], $genreField[2], $genreField[3]);
         }
 
         // 676 — Dewey (extended)
