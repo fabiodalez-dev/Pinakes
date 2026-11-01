@@ -133,7 +133,7 @@ final class Permissions
             // admits Permissions::mayConfigure(). /admin/calendar/rotate-link is
             // admin-only inside its route, whatever the map says.
             'settings.manage' => ['/admin/settings', '/admin/calendar'],
-            'inventory.manage' => ['/admin/inventory'],
+            'inventory.manage' => ['/admin/inventory', '/api/v1/staff/stocktake'],
         ];
         foreach ($groups as $permission => $prefixes) {
             foreach ($prefixes as $prefix) {

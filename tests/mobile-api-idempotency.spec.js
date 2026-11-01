@@ -20,10 +20,10 @@
 const { test, expect } = require('@playwright/test');
 
 // 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
-// fines, so it switches it on for its run and puts back what was there.
+// fines and stocktake, so it switches them on for its run and puts back what was there.
 const featureToggles = require('./helpers/feature-toggles');
 let featureSnapshot;
-test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines', 'stocktake']); });
 test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const { flushCache } = require('./helpers/flush-cache');
@@ -483,6 +483,25 @@ const ENDPOINTS = [
     { name: 'GET /periodicals/{periodicalId}',       method: 'GET', path: '/periodicals/{periodicalId}',             auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalId },
     { name: 'GET /periodicals/years/{yearId}/issues', method: 'GET', path: '/periodicals/years/{periodicalYearId}/issues', auth: true, kind: 'etag', skipIf: (c) => !c.periodicalsActive || !c.periodicalYearId },
     { name: 'GET /periodicals/issues/{issueId}',     method: 'GET', path: '/periodicals/issues/{periodicalIssueId}', auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalIssueId },
+
+    // ── Mobile API 1.10.0: inventory stocktake (module `stocktake`, sessions on the empty fixture shelf) ──
+    { name: 'GET /staff/stocktake/options', method: 'GET', path: '/staff/stocktake/options', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions', method: 'GET', path: '/staff/stocktake/sessions', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/stocktake/sessions', method: 'POST', path: '/staff/stocktake/sessions', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ name: `Idem stocktake new ${RUN_ID}`, shelf_id: c.staffShelfId }) /* no Idempotency-Key: each call opens one session, both 201 */ },
+    { name: 'GET /staff/stocktake/sessions/{id}', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}', route: '/staff/stocktake/sessions/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions/{id}/state', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/state', route: '/staff/stocktake/sessions/{id}/state', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions/{id}/scans', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/scans', route: '/staff/stocktake/sessions/{id}/scans', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/stocktake/sessions/{id}/scans', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeId}/scans', route: '/staff/stocktake/sessions/{id}/scans', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ code: `IDEM-UNKNOWN-${RUN_ID}` }) /* no key: each read is a scan (unknown code), both 201 */ },
+    { name: 'GET /staff/stocktake/sessions/{id}/report', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report', route: '/staff/stocktake/sessions/{id}/report', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/stocktake/sessions/{id}/upload', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeId}/upload', route: '/staff/stocktake/sessions/{id}/upload', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: () => ({ file: { name: 'idem.txt', mimeType: 'text/plain', buffer: Buffer.from(`IDEM-LIST-${RUN_ID}\n`) } }) /* each upload records its codes again, both 200 */ },
+    { name: 'POST /staff/stocktake/sessions/{id}/close', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeCloseId}/close', route: '/staff/stocktake/sessions/{id}/close', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({ missing_action: 'none' }) /* 2nd: session_closed */ },
+    { name: 'POST /staff/stocktake/sessions/{id}/cancel', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeCancelId}/cancel', route: '/staff/stocktake/sessions/{id}/cancel', auth: true, tokenKey: 'staffToken', kind: 'conflict2' /* 2nd: session_cancelled */ },
+    { name: 'GET /staff/stocktake/sessions/{id}/report.csv', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report.csv', route: '/staff/stocktake/sessions/{id}/report.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions/{id}/report.pdf', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report.pdf', route: '/staff/stocktake/sessions/{id}/report.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -693,6 +712,10 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         ctx.staffShelfCode = shelf.code;
         ctx.staffShelfCode2 = `J${String(process.pid).slice(-4)}${String(Date.now()).slice(-6)}`;
         ctx.staffLevelId = (await staffPost(`/staff/shelves/${ctx.staffShelfId}/levels`, { number: 1 })).id;
+        // Mobile API 1.10.0 stocktake: sessions on the empty fixture shelf (nothing expected).
+        ctx.stocktakeId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
+        ctx.stocktakeCloseId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake close ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
+        ctx.stocktakeCancelId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake cancel ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
         try {
             const probe = await call(request, 'GET', `${API}/staff/isbn/9780140328721`, { token: ctx.staffToken });
             ctx.scraperStub = probe.status() === 200 && (await probe.json())?.data?.preview?.title === 'Fantastic Mr. Fox';
@@ -922,6 +945,13 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                 }
                 try { dbExec(`DELETE FROM volumi WHERE opera_id IN (${books}) OR volume_id IN (${books})`); } catch {}
                 dbExec(`DELETE FROM libri WHERE id IN (${books})`);
+            }
+        } catch {}
+        try {
+            const sessions = dbScalar(`SELECT GROUP_CONCAT(id) FROM inventario_sessioni WHERE nome LIKE '%${RUN_ID}%'`);
+            if (sessions && sessions !== 'NULL') {
+                dbExec(`DELETE FROM log_modifiche WHERE tabella='inventario_sessioni' AND record_id IN (${sessions})`);
+                dbExec(`DELETE FROM inventario_sessioni WHERE id IN (${sessions})`);
             }
         } catch {}
         try { dbExec(`DELETE FROM autori WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
