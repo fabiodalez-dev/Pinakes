@@ -2,6 +2,22 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.0-rc.2]
+
+Release candidate: published as a GitHub prerelease, offered only to installations that opt in with `UPDATER_CHANNEL=rc` or `UPDATER_ALLOW_PRERELEASE=1`. No migration: the only schema change is in the Mobile API plugin, which widens `mobile_import_jobs.kind` from an ENUM to `VARCHAR(32)` in its own `ensureSchema()` when it upgrades to 1.10.0.
+
+### Everything the 0.9.0 admin does, from the Android app (Mobile API 1.10.0)
+
+- **Stocktake from the phone.** `/api/v1/staff/stocktake`: the create-form options (shelves with their levels, genres, media types, the scan outcomes with the web's colours and sounds), the session list with its counters, opening a session, a light polling state, scanning (each read classified as on the web, replayable with an `Idempotency-Key`), uploading a code list, the paged scans and report rows, closing with or without marking missing copies lost (administrators only, resumable as on the web), cancelling, and the CSV and PDF reports. Open, scan, close, cancel and the reports go through `InventoryController`, so the module check, the administrator check, the messages and the activity log are the web's. `StocktakeService` now returns the id of the scan it records and reads and pages scans by offset and outcome.
+- **Patrons and the ledger at the desk.** A reader's patron type (the card expiry recomputed as in the user form), card renewal, card printing and photo; the reader's ledger with balance, accruing fines, movements, payments, charges and waivers (each write retried safely with an `Idempotency-Key`) and the PDF receipt; the fine preview at return and its waiver with a reason.
+- **Library settings, patron types, rules and closures.** The module switches, Settings → Loans and the card settings; patron types and the patron type × material rules matrix; the closures calendar with weekly closed days, closures, the public holidays of each country, the library's own holidays and ICS import. Patron types, the rules and the calendar are administrator-only, as on the web.
+- **Cataloguing.** Suppliers and the supplier and RDA fields in the book form, catalogue cards as PDF, MARC export and chunked MARC import (driven like the CSV import, with the open jobs listed so the app can resume one started elsewhere), and copy cataloguing over SRU.
+- **Visitor log, statistics and patron import.** The visitor log with card reading at the entrance and guests, the statistics page, and patron import from CSV with column mapping, chunked processing and the error report.
+- **One gate per area.** Every area answers 404 `feature_disabled` when its module is off and goes through the same controllers and services as the website. An action the account's role does not allow answers 403 `not_permitted`; `forbidden` stays the refusal of the role itself, so the app keeps the staff area open. `/health` reports each 0.9.0 module and one `staff_<area>` flag per area; `/me` gives the reader's patron type. `Permissions` maps the new `/api/v1/staff/*` prefixes to the same permissions as their admin pages (a custom stocktake role reaches the stocktake endpoints and nothing else).
+- **Core support.** The statistics queries moved to `App\Support\LoanStatistics` so the admin page and the app read the same numbers; the loans settings resolver, the circulation-form field limits and the module dependency map are reused by the API instead of copied.
+
+The Android app gains the matching screens in its next release.
+
 ## [0.9.0-rc.1]
 
 Release candidate: published as a GitHub prerelease, offered only to installations that opt in with `UPDATER_CHANNEL=rc` or `UPDATER_ALLOW_PRERELEASE=1`. Every new module can be switched off in Settings → Modules and Settings → Loans; an upgraded installation keeps its settings, and stocktake, suppliers, the visitor log, RDA overrides and fines start switched off there (a library that already used one of them on an earlier 0.9.0 build keeps it on).
