@@ -10,6 +10,7 @@ use App\Support\StocktakePdfGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Psr7\Factory\StreamFactory;
 
 /**
  * Admin → Inventory stocktake (/admin/inventory). Route access is
@@ -417,9 +418,18 @@ class InventoryController
             return $response->withStatus(404);
         }
         $labels = self::outcomeLabels();
-        $writer = Csv::writerToString(',', "'");
+        // Written row by row into a temporary stream (spilled to disk past
+        // 2 MB), never held as one string: a stocktake of the whole catalogue
+        // has as many rows as copies, and this export is the way to get a
+        // report too large for the PDF.
+        $stream = fopen('php://temp', 'w+b');
+        if ($stream === false) {
+            throw new \RuntimeException('Cannot open a temporary stream for the CSV report');
+        }
+        fwrite($stream, "\xEF\xBB\xBF");
+        $writer = Csv::writerToStream($stream, ',', "'");
         $writer->insertOne([__('Esito'), __('Codice copia'), __('Titolo'), __('Collocazione'), __('Scaffale atteso'), __('Stato copia'), __('Operatore'), __('Data scansione'), __('Tipo media')]);
-        foreach ($service->reportRows($id) as $row) {
+        foreach ($service->eachReportRow($id) as $row) {
             $writer->insertOne([
                 $labels[$row['categoria']] ?? $row['categoria'],
                 $row['codice'],
@@ -433,8 +443,9 @@ class InventoryController
                 $row['tipo_media'] !== '' ? \App\Support\MediaLabels::tipoMediaDisplayName($row['tipo_media']) : '',
             ]);
         }
-        $response->getBody()->write("\xEF\xBB\xBF" . $writer->toString());
+        rewind($stream);
         return $response
+            ->withBody((new StreamFactory())->createStreamFromResource($stream))
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $this->fileBase($session) . '.csv"')
             ->withHeader('Cache-Control', 'no-store');
@@ -451,15 +462,21 @@ class InventoryController
             $response->getBody()->write(__('Revisione non trovata.'));
             return $response->withStatus(404);
         }
-        $rows = $service->reportRowCount($id);
-        if ($rows > StocktakePdfGenerator::MAX_ROWS) {
-            $_SESSION['error_message'] = sprintf(__('Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.'), $rows, StocktakePdfGenerator::MAX_ROWS);
+        // The count refuses a large report before any row is loaded. The rows
+        // are then read once, one past the limit, and checked again: scans
+        // recorded between the two reads may have pushed the report over it,
+        // and the rows checked are the very ones the PDF is built from.
+        $total = $service->reportRowCount($id);
+        $rows = $total <= StocktakePdfGenerator::MAX_ROWS ? $service->reportRows($id, StocktakePdfGenerator::MAX_ROWS + 1) : [];
+        if ($total > StocktakePdfGenerator::MAX_ROWS || count($rows) > StocktakePdfGenerator::MAX_ROWS) {
+            $total = max($total, count($rows), $service->reportRowCount($id));
+            $_SESSION['error_message'] = sprintf(__('Il report ha troppe righe per il PDF (%d, al massimo %d): scarica il report CSV.'), $total, StocktakePdfGenerator::MAX_ROWS);
             return $this->redirect($response, '/admin/inventory/' . $id);
         }
         $pdf = (new StocktakePdfGenerator())->generate(
             $session,
             $service->summary($id),
-            $service->reportRows($id),
+            $rows,
             $this->filterLabels($db, $service, $session['filtro']),
             self::outcomeLabels()
         );

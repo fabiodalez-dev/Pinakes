@@ -614,6 +614,9 @@ class ReservationsController
                     }
                 } catch (\Throwable $windowError) {
                     \App\Support\SecureLogger::warning('ReservationsController: stored window not readable', ['error' => $windowError->getMessage()]);
+                    if ($loanState !== null) {
+                        [$pickupDeadline, $pickupDays] = $this->fallbackPickup($startDate, $endDate, $approved);
+                    }
                 }
 
                 $response->getBody()->write(json_encode([
@@ -681,6 +684,29 @@ class ReservationsController
             : \App\Support\LibraryCalendar::pickupDeadline($this->db, $startDate, $setting, \App\Support\DateHelper::isISODateFormat($endDate) ? $endDate : null, $copiaId);
         $openDays = \App\Support\LibraryCalendar::forDb($this->db)->openDaysBetween($startDate, $deadline, \App\Support\LibraryCalendar::branchOfCopy($this->db, $copiaId));
         return [$deadline, min($setting, $openDays)];
+    }
+
+    /**
+     * The pickup estimate when the stored row cannot be read back: the copy
+     * the approval assigned (its JSON body carries copia_id) still brings its
+     * branch closures, so the page does not fall back to the library-wide
+     * ones. Counted from the requested start, it is an estimate, not the
+     * deadline the approval stored (that one counts from the approval day).
+     * The request is already committed: a failure here only loses the
+     * estimate, never the success.
+     *
+     * @param array<mixed>|null $approved
+     * @return array{0: ?string, 1: ?int}
+     */
+    private function fallbackPickup(string $startDate, string $endDate, ?array $approved): array
+    {
+        try {
+            $copiaId = is_array($approved) && is_numeric($approved['copia_id'] ?? null) ? (int) $approved['copia_id'] : null;
+            return $this->expectedPickup($startDate, $endDate, ['copia_id' => $copiaId, 'pickup_deadline' => null]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('ReservationsController: pickup estimate not computed', ['error' => $e->getMessage()]);
+            return [null, null];
+        }
     }
 
     /**

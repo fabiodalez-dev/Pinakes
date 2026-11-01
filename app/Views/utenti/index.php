@@ -608,6 +608,14 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   function openCards(format) {
     if (selectedUsers.size === 0) return;
+    const maxCards = <?= json_encode(\App\Controllers\PatronCardsController::MAX_BULK, JSON_HEX_TAG) ?>;
+    if (selectedUsers.size > maxCards) {
+      // The server refuses more than maxCards cards: say so before opening an empty tab.
+      const title = <?= json_encode(__('Troppi utenti selezionati'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      const text = <?= json_encode(__('Si possono stampare al massimo %d tessere alla volta: selezionane di meno.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>.replace('%d', maxCards);
+      if (window.Swal) { Swal.fire({ icon: 'warning', title, text }); } else { alert(text); }
+      return;
+    }
     const ids = Array.from(selectedUsers).join(',');
     window.open((window.BASE_PATH || '') + '/admin/users/cards-pdf?format=' + format + '&ids=' + encodeURIComponent(ids), '_blank', 'noopener');
   }

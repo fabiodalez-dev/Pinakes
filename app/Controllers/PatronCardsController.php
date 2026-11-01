@@ -65,7 +65,10 @@ class PatronCardsController
             return $response->withStatus(400);
         }
         if (count($ids) > self::MAX_BULK) {
-            $ids = array_slice($ids, 0, self::MAX_BULK, true);
+            // Never a PDF with fewer cards than were selected: the page warns
+            // before opening it, and a request that gets here anyway is refused.
+            $response->getBody()->write(sprintf(__('Si possono stampare al massimo %d tessere alla volta: selezionane di meno.'), self::MAX_BULK));
+            return $response->withStatus(422)->withHeader('Content-Type', 'text/plain; charset=UTF-8');
         }
         $rows = array_values(array_filter($this->loadUsers($db, array_values($ids)), fn (array $row): bool => $this->canRead($row)));
         if ($rows === []) {

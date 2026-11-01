@@ -69,7 +69,9 @@ test.describe('Closures calendar — patron-type durations and renewals', () => 
     if (prevWeekdays === '') F.dbQuery("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     else setWeekdays(prevWeekdays);
     const ids = Object.values(books).map((b) => b.id);
-    if (ids.length) F.dbQuery(`DELETE FROM admin_notifications WHERE related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids.join(',')}))`);
+    // related_id also holds message, user, reservation and review ids: only
+    // the loan notifications (the loan types, or a general one about loans).
+    if (ids.length) F.dbQuery(`DELETE FROM admin_notifications WHERE (type IN ('new_loan_request','overdue_loan') OR (type='general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids.join(',')}))`);
     F.deleteTitles(ids);
     F.deletePatrons([patron?.id]);
     F.deleteTypes(PREFIX);

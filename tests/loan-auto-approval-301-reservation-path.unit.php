@@ -201,7 +201,7 @@ $due = (new DateTimeImmutable($today))->modify('+14 days')->format('Y-m-d');
 
 // Drive the REAL createReservation with a JSON request + session user, exactly
 // like the book-detail modal does (CSRF is middleware, not in the controller).
-$callCreate = static function (int $bookId, int $userId, ?string $start = null, ?string $end = null) use ($db, $today, $due): array {
+$callCreate = static function (int $bookId, int $userId, ?string $start = null, ?string $end = null, ?mysqli $conn = null) use ($db, $today, $due): array {
     $start = $start ?? $today;
     $end = $end ?? $due;
     $_SESSION['user'] = ['id' => $userId, 'tipo_utente' => 'standard'];
@@ -214,7 +214,7 @@ $callCreate = static function (int $bookId, int $userId, ?string $start = null, 
         ->withHeader('Content-Type', 'application/json');
     $request->getBody()->write((string) json_encode(['start_date' => $start, 'end_date' => $end]));
     $request->getBody()->rewind();
-    $controller = new ReservationsController($db);
+    $controller = new ReservationsController($conn ?? $db);
     $result = $controller->createReservation($request, new SlimResponse(), ['id' => $bookId]);
     $payload = json_decode((string) $result->getBody(), true) ?: [];
     unset($_SESSION['user']);
@@ -467,8 +467,25 @@ $check($loanField($loanFutureId, 'pickup_deadline') === null, '22 scheduled loan
 // the request answers with even when it moved over a branch closure.
 echo "D2. scheduled request: pickup deadline and due date with the copy's branch closures\n";
 $pickupSetting = max(1, (int) ($settings->get('loans', 'pickup_expiry_days', '3') ?? 3));
+// The pickup window counted day by day: $days open days after $from (with
+// $branch's closures), never past the due date $cap, and the open days it
+// holds. A setting longer than the 14-day loan ends at the due date with
+// fewer days than the setting.
+$walkPickup = static function (string $from, int $days, string $cap, ?int $branch) use ($db): array {
+    $calendar = \App\Support\LibraryCalendar::forDb($db);
+    $day = $from;
+    $counted = 0;
+    while ($counted < $days && $day < $cap) {
+        $day = \App\Support\LibraryCalendar::shift($day, 1);
+        if ($calendar->isOpen($day, $branch)) {
+            $counted++;
+        }
+    }
+    return [$day, $counted];
+};
 $check(($resFuture['payload']['pickup_deadline'] ?? null) === \App\Support\LibraryCalendar::pickupDeadline($db, $futureStart, $pickupSetting, $futureEnd, (int) $loanField($loanFutureId, 'copia_id')), '22a scheduled response carries the pickup deadline activation will set');
-$check(($resFuture['payload']['pickup_days'] ?? null) === $pickupSetting, '22b and the open pickup days');
+[, $futurePickupDays] = $walkPickup($futureStart, $pickupSetting, (string) $loanField($loanFutureId, 'data_scadenza'), null);
+$check(($resFuture['payload']['pickup_days'] ?? null) === $futurePickupDays, "22b and the open pickup days ({$futurePickupDays})");
 $calTag = 'ZZRES301CAL_' . $run;
 $db->query("INSERT INTO sedi (nome) VALUES ('{$calTag}')");
 $calSede = (int) $db->insert_id;
@@ -485,10 +502,10 @@ try {
     $resBranch = $callCreate($calBook, $makeUser(), $futureStart, $futureEnd);
     $branchLoanId = (int) ($resBranch['payload']['loan_request_id'] ?? 0);
     $check(($resBranch['payload']['loan_state'] ?? '') === 'prenotato' && (int) $loanField($branchLoanId, 'copia_id') === $calCopy, '22c the request on the branch copy is scheduled on that copy');
-    $expectedPickup = (new DateTimeImmutable($futureStart))->modify('+' . ($pickupSetting + 1) . ' days')->format('Y-m-d');
-    $check(($resBranch['payload']['pickup_deadline'] ?? null) === $expectedPickup, "22d the pickup deadline skips the branch's closed day ({$expectedPickup})");
-    $check(($resBranch['payload']['pickup_days'] ?? null) === $pickupSetting, '22e the closed day adds no pickup day');
     $movedDue = (new DateTimeImmutable($futureEnd))->modify('+1 day')->format('Y-m-d');
+    [$expectedPickup, $expectedPickupDays] = $walkPickup($futureStart, $pickupSetting, $movedDue, $calSede);
+    $check(($resBranch['payload']['pickup_deadline'] ?? null) === $expectedPickup, "22d the pickup deadline skips the branch's closed day ({$expectedPickup})");
+    $check(($resBranch['payload']['pickup_days'] ?? null) === $expectedPickupDays, "22e the closed day adds no pickup day ({$expectedPickupDays})");
     $check(($resBranch['payload']['end_date'] ?? null) === $movedDue && $loanField($branchLoanId, 'data_scadenza') === $movedDue, '22f the due date moved over the branch closure is the one answered');
 
     // The approval hands back the due date it wrote, so the answer does not
@@ -507,6 +524,37 @@ try {
     $approvedState = $autoApprove->invokeArgs(new ReservationsController($db), [(new ServerRequestFactory())->createServerRequest('POST', '/'), $pendingId, true, &$approvedBody]);
     unset($_SESSION['user']);
     $check($approvedState === 'prenotato' && is_array($approvedBody) && ($approvedBody['data_scadenza'] ?? null) === $movedDue, '22g the automatic approval returns the due date it wrote');
+
+    // When the stored window cannot be read back, the pickup estimate still
+    // comes with the assigned copy's branch closures (the approval hands the
+    // copy back), not null for the page to compute with library-wide ones.
+    $db->query("UPDATE prestiti SET stato = 'annullato', attivo = 0 WHERE id = {$pendingId}");
+    $db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$calCopy}");
+    $noReadBack = $socket !== '' && file_exists($socket)
+        ? new class (null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket) extends mysqli {
+            public function prepare(string $query): mysqli_stmt|false
+            {
+                if (str_starts_with($query, 'SELECT data_prestito, data_scadenza, copia_id, pickup_deadline FROM prestiti')) {
+                    throw new RuntimeException('stored window read refused by the test');
+                }
+                return parent::prepare($query);
+            }
+        }
+        : new class (getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306))) extends mysqli {
+            public function prepare(string $query): mysqli_stmt|false
+            {
+                if (str_starts_with($query, 'SELECT data_prestito, data_scadenza, copia_id, pickup_deadline FROM prestiti')) {
+                    throw new RuntimeException('stored window read refused by the test');
+                }
+                return parent::prepare($query);
+            }
+        };
+    $noReadBack->set_charset('utf8mb4');
+    \App\Support\DateHelper::synchronizeDatabaseSession($noReadBack);
+    $resNoReadBack = $callCreate($calBook, $makeUser(), $futureStart, $futureEnd, $noReadBack);
+    $noReadBack->close();
+    $check(($resNoReadBack['payload']['success'] ?? false) === true && ($resNoReadBack['payload']['loan_state'] ?? '') === 'prenotato', '22h a request whose stored window cannot be read back still succeeds');
+    $check(($resNoReadBack['payload']['pickup_deadline'] ?? null) === $expectedPickup && ($resNoReadBack['payload']['pickup_days'] ?? null) === $expectedPickupDays, "22i and its pickup estimate still skips the copy's branch closures ({$expectedPickup})");
 } finally {
     $db->query("DELETE FROM calendario_chiusure WHERE descrizione = '{$calTag}'");
     $db->query("UPDATE copie SET sede_id = NULL WHERE id = {$calCopy}");

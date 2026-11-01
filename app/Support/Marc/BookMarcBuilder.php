@@ -245,6 +245,22 @@ final class BookMarcBuilder
     }
 
     /**
+     * The UNIMARC field of a book's genre: a 608 form / genre access point
+     * with $2 local, the counterpart of the MARC 21 655 the genre goes to.
+     * A 606 is a topical subject, so another catalogue's 606 $2 local stays a
+     * keyword on re-import (UnimarcLibriMapper). Every UNIMARC writer of this
+     * application (this builder, the SRU server's UNIMARC/XML formatter) uses
+     * it, so a Pinakes-to-Pinakes copy keeps the genre. Null without a genre.
+     *
+     * @return array{0: string, 1: string, 2: string, 3: list<array{0: string, 1: string}>}|null
+     */
+    public static function unimarcGenreField(string $genre): ?array
+    {
+        $genre = trim($genre);
+        return $genre === '' ? null : ['608', ' ', ' ', [['a', $genre], ['2', 'local']]];
+    }
+
+    /**
      * @param array<string, mixed>       $row
      * @param list<array<string, mixed>> $authors
      * @param list<array<string, mixed>> $publishers
@@ -267,12 +283,12 @@ final class BookMarcBuilder
         $updated = strtotime((string) ($row['updated_at'] ?? '')) ?: time();
         $record->addControlField('005', gmdate('YmdHis', $updated) . '.0');
 
-        // 010 — ISBN only. 073 — EAN (an EAN that is just the ISBN-13 again
-        // is not repeated).
+        // 010 — ISBN, one field per form the book has (ISBN-13 and ISBN-10,
+        // as MARC 21 repeats 020): a re-import gets both back. 073 — EAN (an
+        // EAN that is just the ISBN-13 again is not repeated).
         foreach (['isbn13', 'isbn10'] as $col) {
             if (!empty($row[$col])) {
                 $record->addDataField('010', ' ', ' ', [['a', (string) $row[$col]]]);
-                break;
             }
         }
         // 011 — ISSN, for a serial (the UNIMARC counterpart of MARC 21 022).
@@ -286,11 +302,21 @@ final class BookMarcBuilder
         }
 
         // 100 — General processing data
-        $langCode = MarcLanguage::marcCodeOf((string) ($row['lingua'] ?? 'italiano'));
         $record->addDataField('100', ' ', ' ', [['a', self::unimarcField100a($row)]]);
 
-        // 101 — Language of the item; 102 — Country of publication
-        $record->addDataField('101', '0', ' ', [['a', $langCode]]);
+        // 101 — Language of the item, one $a per language ("inglese,
+        // italiano" is two, as in the MARC 21 041); 102 — Country of publication
+        $langCodes = [];
+        foreach (MarcLanguage::listOf((string) ($row['lingua'] ?? '')) as $language) {
+            $code = MarcLanguage::codeFor($language);
+            if ($code !== null && !in_array($code, $langCodes, true)) {
+                $langCodes[] = $code;
+            }
+        }
+        if ($langCodes === []) {
+            $langCodes = [MarcLanguage::marcCodeOf((string) ($row['lingua'] ?? 'italiano'))];
+        }
+        $record->addDataField('101', '0', ' ', array_map(static fn (string $c): array => ['a', $c], $langCodes));
         $record->addDataField('102', ' ', ' ', [['a', 'IT']]);
 
         // 181 — RDA content type ($c, $2 rdacontent), when it is not plain
@@ -368,13 +394,14 @@ final class BookMarcBuilder
             $record->addDataField('330', ' ', ' ', [['a', $desc]]);
         }
 
-        // 606 — Subject: genre, then keywords. The genre carries $2 local
-        // (like the MARC 21 655) so a re-import tells it from the keywords.
-        if ($genre !== null && !empty($genre['nome'])) {
-            $record->addDataField('606', ' ', ' ', [['a', (string) $genre['nome']], ['2', 'local']]);
-        }
+        // 606 — Subject: the keywords.
         foreach (self::keywords($row) as $kw) {
             $record->addDataField('606', ' ', ' ', [['a', $kw]]);
+        }
+        // 608 — the genre (unimarcGenreField()).
+        $genreField = self::unimarcGenreField($genre !== null ? (string) ($genre['nome'] ?? '') : '');
+        if ($genreField !== null) {
+            $record->addDataField($genreField[0], $genreField[1], $genreField[2], $genreField[3]);
         }
 
         // 676 — Dewey (extended)

@@ -41,8 +41,13 @@ class MarcExportController
         }
         $ids = null;
         if (array_key_exists('ids', $params)) {
-            $raw = is_string($params['ids']) ? $params['ids'] : '';
-            $ids = self::parseIds($raw);
+            // ids[]=12&ids[]=13 is not the comma list this endpoint reads:
+            // refused, instead of answering with an empty download.
+            if (!is_string($params['ids'])) {
+                $_SESSION['error_message'] = __('Selezione non valida per l\'esportazione: riprova dalla lista dei libri.');
+                return $response->withHeader('Location', url('/admin/books'))->withStatus(302);
+            }
+            $ids = self::parseIds($params['ids']);
             if (count($ids) > self::MAX_SELECTED) {
                 $_SESSION['error_message'] = sprintf(
                     __('Selezione troppo grande per l\'esportazione: %d libri (massimo 1000). Riduci la selezione e riprova.'),
