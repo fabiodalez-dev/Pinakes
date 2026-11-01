@@ -1200,8 +1200,10 @@ class MobileApiPlugin
             // patrons, fines, library settings, cataloguing, visitor log...).
             // A route of a switched-off module answers 404 feature_disabled,
             // the shape the app already reads for catalogue mode.
+            // Slim binds closure middleware to its container, so these
+            // closures must not be static.
             $featureGuard = static function (string $feature): callable {
-                return static function (
+                return function (
                     ServerRequestInterface $request,
                     \Psr\Http\Server\RequestHandlerInterface $handler
                 ) use ($feature): ResponseInterface {
@@ -1219,20 +1221,36 @@ class MobileApiPlugin
             foreach (\App\Plugins\MobileApi\Staff090\AreaRegistry::areas() as $areaClass) {
                 foreach ($areaClass::routes() as $route) {
                     [$method, $pattern, $handler] = $route;
-                    $mapped = $group->map([$method], $pattern, function ($request, $response, array $args) use ($db, $handler) {
-                        return $handler($db, $request, $response, $args);
-                    });
+                    // Innermost first; the auth chain is added last so it runs first.
+                    $middleware = [];
                     if (isset($route['limit'])) {
-                        $mapped->add($throttle(...$route['limit']));
+                        $middleware[] = $throttle(...$route['limit']);
                     }
                     $feature = array_key_exists('feature', $route) ? $route['feature'] : $areaClass::feature();
                     if ($feature !== null) {
-                        $mapped->add($featureGuard($feature));
+                        $middleware[] = $featureGuard($feature);
                     }
                     if ($route['circulation'] ?? $areaClass::circulation()) {
-                        $mapped->add($catalogueModeGuard);
+                        $middleware[] = $catalogueModeGuard;
                     }
-                    $mapped->add($staffMw())->add($quotaMw())->add($authMw());
+                    array_push($middleware, $staffMw(), $quotaMw(), $authMw());
+
+                    $mapped = $group->map([$method], $pattern, function ($request, $response, array $args) use ($db, $handler) {
+                        // Defence in depth: a route reached without the auth
+                        // chain (a middleware that failed to attach) refuses.
+                        if ($request->getAttribute(AppAuthMiddleware::ATTR_USER) === null) {
+                            return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                                $response,
+                                'unauthorized',
+                                __('Token di autenticazione mancante o non valido.'),
+                                401
+                            );
+                        }
+                        return $handler($db, $request, $response, $args);
+                    });
+                    foreach ($middleware as $layer) {
+                        $mapped->add($layer);
+                    }
                 }
             }
         });
