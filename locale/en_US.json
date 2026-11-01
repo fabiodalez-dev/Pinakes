@@ -9302,5 +9302,8 @@
   "Indica un numero di giorni tra 0 e %d.": "Enter a number of days between 0 and %d.",
   "Inserisci il codice della tessera.": "Enter the library card code.",
   "Presenza registrata.": "Visit recorded.",
-  "Report degli errori non disponibile per questa importazione.": "No error report is available for this import."
+  "Report degli errori non disponibile per questa importazione.": "No error report is available for this import.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Copy cataloguing requires the active Z39.50/SRU plugin.",
+  "Puoi importare al massimo %d record alla volta.": "You can import at most %d records at a time.",
+  "Ricerca non trovata: ripeti la ricerca.": "Search not found: search again."
 }

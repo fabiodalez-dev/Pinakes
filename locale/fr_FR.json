@@ -9302,5 +9302,8 @@
   "Indica un numero di giorni tra 0 e %d.": "Indiquez un nombre de jours entre 0 et %d.",
   "Inserisci il codice della tessera.": "Saisissez le numéro de la carte de lecteur.",
   "Presenza registrata.": "Visite enregistrée.",
-  "Report degli errori non disponibile per questa importazione.": "Aucun rapport d'erreurs n'est disponible pour cet import."
+  "Report degli errori non disponibile per questa importazione.": "Aucun rapport d'erreurs n'est disponible pour cet import.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "La catalogation dérivée nécessite le plugin Z39.50/SRU actif.",
+  "Puoi importare al massimo %d record alla volta.": "Vous pouvez importer au maximum %d notices à la fois.",
+  "Ricerca non trovata: ripeti la ricerca.": "Recherche introuvable : relancez la recherche."
 }

@@ -765,8 +765,11 @@ class Z39ServerPlugin
         ]);
     }
 
-    /** The copy cataloguing service, on the plugin's configured servers. */
-    private function copyCataloging(): \Plugins\Z39Server\Classes\CopyCataloging
+    /**
+     * The copy cataloguing service, on the plugin's configured servers.
+     * Public for the Mobile API, which lists the same servers as the page.
+     */
+    public function copyCataloging(): \Plugins\Z39Server\Classes\CopyCataloging
     {
         require_once __DIR__ . '/classes/CopyCataloging.php';
         $servers = json_decode($this->getSetting('servers', '[]'), true);

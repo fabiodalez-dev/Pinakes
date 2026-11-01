@@ -9302,5 +9302,8 @@
   "Indica un numero di giorni tra 0 e %d.": "Angiv et antal dage mellem 0 og %d.",
   "Inserisci il codice della tessera.": "Indtast lånerkortets nummer.",
   "Presenza registrata.": "Besøg registreret.",
-  "Report degli errori non disponibile per questa importazione.": "Der er ingen fejlrapport for denne import."
+  "Report degli errori non disponibile per questa importazione.": "Der er ingen fejlrapport for denne import.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Kopikatalogisering kræver, at Z39.50/SRU-pluginnet er aktivt.",
+  "Puoi importare al massimo %d record alla volta.": "Du kan højst importere %d poster ad gangen.",
+  "Ricerca non trovata: ripeti la ricerca.": "Søgningen blev ikke fundet: søg igen."
 }

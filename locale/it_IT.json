@@ -9302,5 +9302,8 @@
   "Indica un numero di giorni tra 0 e %d.": "Indica un numero di giorni tra 0 e %d.",
   "Inserisci il codice della tessera.": "Inserisci il codice della tessera.",
   "Presenza registrata.": "Presenza registrata.",
-  "Report degli errori non disponibile per questa importazione.": "Report degli errori non disponibile per questa importazione."
+  "Report degli errori non disponibile per questa importazione.": "Report degli errori non disponibile per questa importazione.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.",
+  "Puoi importare al massimo %d record alla volta.": "Puoi importare al massimo %d record alla volta.",
+  "Ricerca non trovata: ripeti la ricerca.": "Ricerca non trovata: ripeti la ricerca."
 }

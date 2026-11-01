@@ -9302,5 +9302,8 @@
   "Indica un numero di giorni tra 0 e %d.": "Gib eine Anzahl von Tagen zwischen 0 und %d an.",
   "Inserisci il codice della tessera.": "Gib die Nummer des Bibliotheksausweises ein.",
   "Presenza registrata.": "Besuch erfasst.",
-  "Report degli errori non disponibile per questa importazione.": "Für diesen Import ist kein Fehlerbericht verfügbar."
+  "Report degli errori non disponibile per questa importazione.": "Für diesen Import ist kein Fehlerbericht verfügbar.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Die Fremddatenübernahme erfordert das aktive Z39.50/SRU-Plugin.",
+  "Puoi importare al massimo %d record alla volta.": "Sie können höchstens %d Datensätze auf einmal importieren.",
+  "Ricerca non trovata: ripeti la ricerca.": "Suche nicht gefunden: Bitte erneut suchen."
 }
