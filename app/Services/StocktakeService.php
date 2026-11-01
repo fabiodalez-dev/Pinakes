@@ -625,12 +625,22 @@ final class StocktakeService
                 $alreadyScanned = $stmt->get_result()->fetch_row() !== null;
                 $stmt->close();
 
-                // The loan status is read inside the transaction with locking
-                // reads, in the order a return takes its locks (the loan, then
-                // the copy): a return in progress is waited for, so the scan
-                // never records 'in_prestito' for a copy already back on the shelf.
-                $onLoan = $this->isOnLoan($copyId, true);
-                $copy['stato'] = $this->lockedCopyState($copyId) ?? (string) ($copy['stato'] ?? '');
+                if ($insideTransaction) {
+                    // A file upload holds one transaction for the whole file:
+                    // locking reads would keep loans and returns of every copy
+                    // already recorded waiting until the last code, and deadlock
+                    // with a loan of a copy further down the file. It reads the
+                    // committed state, as the upload found it.
+                    $onLoan = $this->isOnLoan($copyId);
+                } else {
+                    // A single scan reads the loan status inside its short
+                    // transaction with locking reads, in the order a return
+                    // takes its locks (the loan, then the copy): a return in
+                    // progress is waited for, so the scan never records
+                    // 'in_prestito' for a copy already back on the shelf.
+                    $onLoan = $this->isOnLoan($copyId, true);
+                    $copy['stato'] = $this->lockedCopyState($copyId) ?? (string) ($copy['stato'] ?? '');
+                }
                 $onLoan = $onLoan || in_array($copy['stato'], self::ON_LOAN_COPY_STATES, true);
             }
 
