@@ -86,7 +86,7 @@ Release candidate: published as a GitHub prerelease, offered only to installatio
 - **Mobile API**: `/health.features` gains `fines`, `closures_calendar` and `circulation_rules`; with fines off `GET /me/movements` answers 404 `feature_disabled`.
 
 ### Fixes
-- **Installer: no false "triggers missing" warning.** Every fresh install ended on a page saying the database user could not create triggers and asking for `installer/database/triggers.sql` to be run by hand, even when every trigger had been created: the importer counted a trigger only when its chunk began with `CREATE TRIGGER`, while each chunk begins with comments and a `DROP TRIGGER`. The count now finds the statement wherever it sits, and when a trigger really fails the final page shows the database's own message (escaped) instead of the fixed permissions text.
+- **Installer: no false "triggers missing" warning.** Every fresh install ended on a page saying the database user could not create triggers and asking for `installer/database/triggers.sql` to be run by hand, even when every trigger had been created: the importer counted a trigger only when its chunk began with `CREATE TRIGGER`, while each chunk begins with comments and a `DROP TRIGGER`. The count now finds the statement wherever it sits, and when a trigger really fails the final page says that some triggers could not be created, instead of blaming the database user's permissions, and shows the database's own message (escaped) under it.
 
 ### Migration
 
