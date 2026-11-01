@@ -145,6 +145,9 @@ if (!empty($triggerWarnings)):
         <h4 style="margin-bottom: 10px;"><i class="fas fa-exclamation-triangle"></i>
             <?= __("Attenzione: Azione Manuale Richiesta") ?></h4>
         <p><?= __("L'utente del database non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.") ?></p>
+        <?php foreach ($triggerWarnings as $triggerWarning): ?>
+            <p style="margin-top: 10px;"><code><?= htmlspecialchars((string) $triggerWarning, ENT_QUOTES, 'UTF-8') ?></code></p>
+        <?php endforeach; ?>
         <p style="margin-top: 10px;"><strong><?= __("Azione richiesta:") ?></strong>
             <?= __("Chiedi al tuo amministratore di database di eseguire i comandi contenuti nel file") ?> <code>installer/database/triggers.sql</code>.</p>
     </div>
