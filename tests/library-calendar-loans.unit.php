@@ -466,6 +466,40 @@ $check($err === __('Sede non trovata.') && $taggedRows() === 0, 'ICS: an unknown
 $controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($halves)]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
 $check($ok !== null && $taggedRows() === 1, 'ICS: the yearly event that would close the whole year is discarded, the other kept');
+$check(is_string($ok) && str_contains($ok, __('%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l\'anno.', 1))
+    && !str_contains($ok, __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', 1, 0, 1)), 'ICS: a whole-year discard is reported as such, not as a span over the limit');
+$clearClosures();
+
+// update() re-checks the closure under the calendar lock: another operator
+// holds the lock, deletes the closure meanwhile, and the update that was
+// waiting for the lock reports "not found" instead of "updated".
+$addClosure($shift($today, 60), $shift($today, 60));
+$raceId = (int) $db->query("SELECT MAX(id) FROM calendario_chiusure WHERE descrizione = '{$tag}'")->fetch_row()[0];
+$holderCode = <<<'PHP'
+    [$host, $user, $pass, $name, $port, $socket, $lock, $id] = json_decode($argv[1], true);
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+    $db = new mysqli($host, $user, $pass, $name, $port, $socket ?: null);
+    $stmt = $db->prepare('SELECT GET_LOCK(?, 5)');
+    $stmt->bind_param('s', $lock);
+    $stmt->execute();
+    echo ((int) $stmt->get_result()->fetch_row()[0] === 1 ? 'locked' : 'busy'), "\n";
+    $stmt->close();
+    usleep(1500000);
+    $db->query('DELETE FROM calendario_chiusure WHERE id = ' . (int) $id);
+    $db->query("SELECT RELEASE_LOCK('" . $db->real_escape_string($lock) . "')");
+    PHP;
+$holderArgs = json_encode([$env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? ''), 'pinakes-calendar:' . md5($env['DB_NAME']), $raceId]);
+$holder = proc_open([PHP_BINARY, '-r', $holderCode, '--', $holderArgs], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $holderPipes);
+$holderState = is_resource($holder) ? trim((string) fgets($holderPipes[1])) : 'no process';
+$check($holderState === 'locked', "race: a second connection holds the calendar lock ({$holderState})");
+$controller->update($post(['data_inizio' => $shift($today, 61), 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db, $raceId);
+[$ok, $err] = $flash();
+if (is_resource($holder)) {
+    fclose($holderPipes[1]);
+    fclose($holderPipes[2]);
+    proc_close($holder);
+}
+$check($ok === null && $err === __('Chiusura non trovata.'), 'race: an update whose closure was deleted while it waited for the lock reports "not found", not "updated"');
 $clearClosures();
 $_SESSION = [];
 

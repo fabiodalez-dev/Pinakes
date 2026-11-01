@@ -8938,7 +8938,7 @@
   "Natale": "Noël",
   "Nessuna chiusura configurata": "Aucune fermeture configurée",
   "Ogni anno": "Chaque année",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Chaque événement du calendrier devient un jour ou une période de fermeture ; les événements annuels (RRULE FREQ=YEARLY) se répètent chaque année.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Chaque événement du calendrier devient un jour ou une période de fermeture. Seule une récurrence annuelle simple (RRULE FREQ=YEARLY sans COUNT, UNTIL, EXDATE ni jours de la semaine, chaque année à la même date) se répète chaque année ; toute autre récurrence n'importe que sa première occurrence comme fermeture unique.",
   "Ognissanti": "Toussaint",
   "Pasqua": "Pâques",
   "Ricorrenza": "Récurrence",
@@ -8996,5 +8996,6 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s : %d sur %d lignes traitées. Vous pouvez la reprendre là où elle s'est arrêtée ou la fermer : les utilisateurs déjà créés sont conservés.",
   "Annulla import": "Annuler l'importation",
   "Riprendi import": "Reprendre l'importation",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utilisateur non supprimé : sa photo ne peut pas être retirée du disque. Réessayez ou vérifiez les droits du dossier storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utilisateur non supprimé : sa photo ne peut pas être retirée du disque. Réessayez ou vérifiez les droits du dossier storage.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d écartées car, avec les autres fermetures annuelles, elles laisseraient la bibliothèque fermée toute l'année."
 }

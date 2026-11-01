@@ -8938,7 +8938,7 @@
   "Natale": "Natale",
   "Nessuna chiusura configurata": "Nessuna chiusura configurata",
   "Ogni anno": "Ogni anno",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.",
   "Ognissanti": "Ognissanti",
   "Pasqua": "Pasqua",
   "Ricorrenza": "Ricorrenza",
@@ -8996,5 +8996,6 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.",
   "Annulla import": "Annulla import",
   "Riprendi import": "Riprendi import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno."
 }

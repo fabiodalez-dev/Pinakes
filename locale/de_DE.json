@@ -8938,7 +8938,7 @@
   "Natale": "Weihnachten",
   "Nessuna chiusura configurata": "Keine Schließungen eingerichtet",
   "Ogni anno": "Jedes Jahr",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Jedes Kalenderereignis wird zu einem Schließtag oder -zeitraum; jährliche Ereignisse (RRULE FREQ=YEARLY) wiederholen sich jedes Jahr.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Jedes Kalenderereignis wird zu einem Schließtag oder -zeitraum. Nur eine einfache jährliche Wiederholung (RRULE FREQ=YEARLY ohne COUNT, UNTIL, EXDATE oder Wochentage, jedes Jahr am selben Datum) wiederholt sich jedes Jahr; bei jeder anderen Wiederholung wird nur das erste Vorkommen als einzelne Schließung importiert.",
   "Ognissanti": "Allerheiligen",
   "Pasqua": "Ostersonntag",
   "Ricorrenza": "Wiederholung",
@@ -8996,5 +8996,6 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d von %d Zeilen verarbeitet. Sie können ihn dort fortsetzen, wo er angehalten hat, oder ihn schließen: Die bereits angelegten Benutzer bleiben erhalten.",
   "Annulla import": "Import abbrechen",
   "Riprendi import": "Import fortsetzen",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Benutzer nicht gelöscht: Sein Foto kann nicht von der Festplatte entfernt werden. Versuchen Sie es erneut oder prüfen Sie die Berechtigungen des Ordners storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Benutzer nicht gelöscht: Sein Foto kann nicht von der Festplatte entfernt werden. Versuchen Sie es erneut oder prüfen Sie die Berechtigungen des Ordners storage.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d verworfen, weil sie zusammen mit den anderen jährlichen Schließungen die Bibliothek das ganze Jahr geschlossen halten würden."
 }

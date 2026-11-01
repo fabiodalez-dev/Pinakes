@@ -8938,7 +8938,7 @@
   "Natale": "Christmas Day",
   "Nessuna chiusura configurata": "No closures configured",
   "Ogni anno": "Every year",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Each calendar event becomes a closed day or period; yearly events (RRULE FREQ=YEARLY) repeat every year.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Each calendar event becomes a closed day or period. Only a plain yearly recurrence (RRULE FREQ=YEARLY with no COUNT, UNTIL, EXDATE or weekdays, every year on the same date) repeats every year; any other recurrence imports only its first occurrence as a single closure.",
   "Ognissanti": "All Saints' Day",
   "Pasqua": "Easter Sunday",
   "Ricorrenza": "Recurrence",
@@ -8996,5 +8996,6 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d of %d rows processed. You can resume it from where it stopped or close it: the users already created are kept.",
   "Annulla import": "Cancel import",
   "Riprendi import": "Resume import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "User not deleted: their photo cannot be removed from disk. Try again or check the permissions of the storage folder."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "User not deleted: their photo cannot be removed from disk. Try again or check the permissions of the storage folder.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d discarded because, together with the other yearly closures, they would keep the library closed all year."
 }

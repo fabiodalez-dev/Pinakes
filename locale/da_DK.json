@@ -8938,7 +8938,7 @@
   "Natale": "Juledag",
   "Nessuna chiusura configurata": "Ingen lukninger oprettet",
   "Ogni anno": "Hvert år",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Hver kalenderbegivenhed bliver en lukkedag eller -periode; årlige begivenheder (RRULE FREQ=YEARLY) gentages hvert år.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Hver kalenderbegivenhed bliver en lukkedag eller -periode. Kun en simpel årlig gentagelse (RRULE FREQ=YEARLY uden COUNT, UNTIL, EXDATE eller ugedage, hvert år på samme dato) gentages hvert år; enhver anden gentagelse importerer kun den første forekomst som en enkelt lukning.",
   "Ognissanti": "Allehelgensdag",
   "Pasqua": "Påskedag",
   "Ricorrenza": "Gentagelse",
@@ -8996,5 +8996,6 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d af %d rækker behandlet. Du kan genoptage den, hvor den stoppede, eller lukke den: de brugere, der allerede er oprettet, bevares.",
   "Annulla import": "Annuller import",
   "Riprendi import": "Genoptag import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Brugeren blev ikke slettet: brugerens foto kan ikke fjernes fra disken. Prøv igen, eller kontrollér rettighederne til mappen storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Brugeren blev ikke slettet: brugerens foto kan ikke fjernes fra disken. Prøv igen, eller kontrollér rettighederne til mappen storage.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d kasseret, fordi de sammen med de andre årlige lukninger ville holde biblioteket lukket hele året."
 }

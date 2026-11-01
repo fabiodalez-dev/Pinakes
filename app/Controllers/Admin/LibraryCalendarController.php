@@ -142,6 +142,12 @@ class LibraryCalendarController
             return $this->back($response, null, $id);
         }
         $error = $this->commitChange($db, function () use ($db, $row, $id): ?string {
+            // Again under the lock: a closure another operator deleted since
+            // the check above would make the UPDATE touch no row and still
+            // report "updated".
+            if (!$this->closureExists($db, $id)) {
+                return __('Chiusura non trovata.');
+            }
             $sede = $row['sede'];
             $yearly = $row['yearly'] ? 1 : 0;
             $stmt = $db->prepare('UPDATE calendario_chiusure SET data_inizio = ?, data_fine = ?, descrizione = ?, ricorrente_annuale = ?, sede_id = ? WHERE id = ?');
@@ -259,8 +265,9 @@ class LibraryCalendarController
         $added = 0;
         $skipped = 0;
         $rejected = 0;
+        $coverageRejected = 0;
         $events = LibraryCalendar::parseIcs($ics);
-        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected): ?string {
+        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected, &$coverageRejected): ?string {
             foreach ($events as $event) {
                 // The same limits as the form: a yearly event longer than a
                 // year would otherwise be stored as a closure of every day.
@@ -284,7 +291,7 @@ class LibraryCalendarController
                 // of the year are refused, the event is not kept.
                 if ($this->yearCoverageError($db, $row) !== null) {
                     $this->deleteClosure($db, $newId);
-                    $rejected++;
+                    $coverageRejected++;
                     continue;
                 }
                 $added++;
@@ -295,9 +302,15 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $error;
             return $this->back($response);
         }
-        $_SESSION['success_message'] = $rejected > 0
+        $message = $rejected > 0
             ? __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', $added, $skipped, $rejected)
             : __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);
+        // A different cause, a different fix: the span is fine, the yearly
+        // rows together would leave no open day.
+        if ($coverageRejected > 0) {
+            $message .= ' ' . __('%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l\'anno.', $coverageRejected);
+        }
+        $_SESSION['success_message'] = $message;
         return $this->back($response);
     }
 
