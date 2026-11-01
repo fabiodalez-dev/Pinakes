@@ -696,11 +696,13 @@ unset($workspaceHeader);
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
-                <?php foreach ($closures as $closure):
+                <?php $missingRules = array_flip($holidays['missing']);
+                foreach ($closures as $closure):
                     $cid = (int) $closure['id'];
                     $yearlyRow = (int) $closure['ricorrente_annuale'] === 1;
                     $presetRow = ($closure['regola_festivita'] ?? null) !== null;
-                    $activeRow = (int) ($closure['attiva'] ?? 1) === 1;
+                    // A holiday the dataset no longer knows closes nothing (the notice above names it).
+                    $activeRow = (int) ($closure['attiva'] ?? 1) === 1 && !($presetRow && isset($missingRules[(string) $closure['regola_festivita']]));
                     $startLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_inizio']) : $displayDate((string) $closure['data_inizio']);
                     $endLabel = $yearlyRow ? $fmt('d MMMM', (string) $closure['data_fine']) : $displayDate((string) $closure['data_fine']); ?>
                   <tr class="hover:bg-gray-50" data-closure-id="<?= $cid ?>">

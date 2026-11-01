@@ -292,12 +292,18 @@ test.describe('Holidays for every country and calendar', () => {
     setSetting('calendar', 'holiday_country', 'IT');
     setSetting('calendar', 'holiday_region', '');
     setSetting('calendar', 'holiday_rules', '["IT:new_year","IT:zz_vanished_rule","IT:christmas"]');
+    db(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, ricorrente_annuale, sede_id, regola_festivita, attiva) VALUES ('2000-03-03', '2000-03-03', ${S(TAG + ' vanished')}, 1, NULL, 'IT:zz_vanished_rule', 1)`);
+    const vanishedId = db(`SELECT id FROM calendario_chiusure WHERE regola_festivita = 'IT:zz_vanished_rule' ORDER BY id DESC LIMIT 1`);
     try {
       await page.goto(`${BASE}/admin/calendar`);
       const notice = page.locator('[data-holiday-missing]');
       await expect(notice).toBeVisible();
       await expect(notice).toContainText('zz_vanished_rule');
       await expect(notice).not.toContainText('new_year');
+      // Its stored row is listed as suspended, as the notice says, not as a live holiday.
+      const vanishedRow = page.locator(`tr[data-closure-id="${vanishedId}"]`);
+      await expect(vanishedRow.locator('[data-badge="holiday"]')).toHaveCount(1);
+      await expect(vanishedRow.locator('[data-badge="inactive"]')).toHaveCount(1);
       // The known choices are still ticked; the vanished one is not a row.
       await expect(page.locator('input[data-holiday-rule][value="IT:christmas"]')).toBeChecked();
       await expect(page.locator('[data-holiday-row="IT:zz_vanished_rule"]')).toHaveCount(0);
@@ -310,6 +316,7 @@ test.describe('Holidays for every country and calendar', () => {
       await expect(page.locator('[data-holiday-missing]')).toHaveCount(0);
       expect(db("SELECT setting_value FROM system_settings WHERE category='calendar' AND setting_key='holiday_rules'")).not.toContain('zz_vanished_rule');
     } finally {
+      db(`DELETE FROM calendario_chiusure WHERE regola_festivita = 'IT:zz_vanished_rule'`);
       ['holiday_country', 'holiday_region', 'holiday_rules'].forEach((k, i) => setSetting('calendar', k, before[i]));
     }
   });
