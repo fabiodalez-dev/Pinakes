@@ -2731,7 +2731,7 @@
   "L'ora dell'evento deve essere nel formato corretto (HH:MM).": "Begivenhedens tidspunkt skal være i det korrekte format (TT:MM).",
   "L'ora deve essere nel formato corretto (HH:MM).": "Klokkeslættet skal være i det korrekte format (TT:MM).",
   "L'ultima sezione che invita all'azione": "Den sidste opfordring til handling",
-  "L'utente del database non ha i permessi per creare i TRIGGER. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.": "Databasebrugeren har ikke tilladelse til at oprette TRIGGERES. Installationen er fuldført, men for at garantere fuld dataintegritet er det nødvendigt at installere dem manuelt.",
+  "Alcuni trigger del database non sono stati creati. L'installazione è stata completata, ma per garantire la piena integrità dei dati è necessario installarli manualmente.": "Nogle databasetriggere kunne ikke oprettes. Installationen er gennemført, men for at sikre fuld dataintegritet skal de installeres manuelt.",
   "L'utente ha ritirato il libro?": "Har brugeren afhentet bogen?",
   "L'utente non è in stato sospeso. Solo gli utenti sospesi richiedono approvazione.": "Brugeren er ikke i suspenderet tilstand. Kun suspenderede brugere kræver godkendelse.",
   "L'utente riceverà un'email con link di verifica (valido 7 giorni) e potrà attivare autonomamente l'account.": "Brugeren modtager en e-mail med et bekræftelseslink (gyldigt i 7 dage) og kan selv aktivere kontoen.",
