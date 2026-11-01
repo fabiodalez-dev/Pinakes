@@ -247,6 +247,11 @@ try {
     $setSetting('legacy_penalties_backfilled', null);
     $check($ledger->balanceCents($u5) === 0 && $ledger->debtBalanceCents($u5) === 800, 'backfill pending: the debt balance counts the unconverted 8.00, the ledger balance does not');
     $check(LoanEligibility::checkUser($db, $u5) === 'debt_block' && !$sqlEligible($u5), 'backfill pending, unconverted 8.00 over the threshold 5: blocked in PHP and SQL');
+    // Loss penalties off: the library does not mirror those amounts, the
+    // backfill never completes, and the visible balance leaves them out.
+    \App\Support\Features::override('loss_penalties', false);
+    $check($ledger->debtBalanceCents($u5) === 0 && LoanEligibility::checkUser($db, $u5) === null && $sqlEligible($u5), 'loss penalties off, marker unset: the unconverted 8.00 blocks nobody in PHP or SQL');
+    \App\Support\Features::override('loss_penalties', true);
     $setSetting('legacy_penalties_backfilled', '1');
     $check(LoanEligibility::checkUser($db, $u5) === null && $sqlEligible($u5), 'marker set: the debt block reads the ledger alone, as before');
     $setSetting('legacy_penalties_backfilled', null);
