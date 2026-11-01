@@ -510,6 +510,15 @@ try {
 $singleRecord = is_string($single) ? Iso2709Reader::parse(substr($single, 0, -1)) : null;
 $check($singleRecord !== null && count($singleRecord->fieldsByTag('700')) + count($singleRecord->fieldsByTag('701')) <= \App\Controllers\MarcExportController::REDUCED_AUTHORS
     && $singleRecord->first('856') === null && $singleRecord->first('676') === null, '74c the single UNIMARC download of the same book is the reduced record too, still without the extended fields');
+// CodeRabbit on PR #505: the download answered 200 with a reduced record or
+// a cut field and said nothing; it now says so in headers (and the log).
+$mrcResponse = new ReflectionMethod($oai, 'unimarcMrcResponse');
+$reducedDownload = $mrcResponse->invoke($oai, new \Slim\Psr7\Response(), 1, $huge, $crowd, [], null);
+$cutDownload = $mrcResponse->invoke($oai, new \Slim\Psr7\Response(), 2, ['id' => 2, 'titolo' => 'T', 'descrizione' => str_repeat('lunga ', 2000)], [], [], null);
+$plainDownload = $mrcResponse->invoke($oai, new \Slim\Psr7\Response(), 3, ['id' => 3, 'titolo' => 'T'], [], [], null);
+$check($reducedDownload->getStatusCode() === 200 && $reducedDownload->getHeaderLine('X-Pinakes-Record-Fit') === 'reduced', '74d a single UNIMARC download sent as a reduced record says so in X-Pinakes-Record-Fit');
+$check($cutDownload->getStatusCode() === 200 && $cutDownload->getHeaderLine('X-Pinakes-Fields-Cut') === '1' && $cutDownload->getHeaderLine('X-Pinakes-Record-Fit') === '', '74e a field cut to the ISO 2709 field limit is reported in X-Pinakes-Fields-Cut');
+$check(!$plainDownload->hasHeader('X-Pinakes-Record-Fit') && !$plainDownload->hasHeader('X-Pinakes-Fields-Cut'), '74f a record that fits as it is carries neither header');
 echo "Language names round trip\n";
 $roundTrip = true;
 foreach (['ita', 'eng', 'fre', 'ger', 'rus', 'chi', 'jpn', 'fin', 'gre', 'lat', 'ice', 'cze', 'hun', 'rum', 'tur', 'heb', 'kor', 'tha', 'grc', 'nor'] as $code) {

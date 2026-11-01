@@ -3964,8 +3964,28 @@ class OaiPmhServerPlugin
         $publishers = $this->fetchPublishersForBook($id, !empty($row['editore_id']) ? (int) $row['editore_id'] : null);
         $genre      = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
 
+        return $this->unimarcMrcResponse($response, $id, $row, $authors, $publishers, $genre);
+    }
+
+    /**
+     * The ISO 2709 download response of one book. A record that had to be
+     * shortened or reduced to fit 99,999 bytes, or a field cut to the
+     * 9,999-byte field limit, is still a 200 with the file, but says so: in
+     * the X-Pinakes-Record-Fit header (shortened / reduced), in
+     * X-Pinakes-Fields-Cut (how many fields), and in the log, as the bulk
+     * MARC export logs it, so no metadata is lost silently.
+     *
+     * @param array<string, mixed>       $row
+     * @param list<array<string, mixed>> $authors
+     * @param list<array<string, mixed>> $publishers
+     * @param array<string, mixed>|null  $genre
+     */
+    private function unimarcMrcResponse(ResponseInterface $response, int $id, array $row, array $authors, array $publishers, ?array $genre): ResponseInterface
+    {
+        $level = 'full';
+        $cuts = [];
         try {
-            $binary = $this->bookToFittingIso2709($row, $authors, $publishers, $genre);
+            $binary = $this->bookToFittingIso2709($row, $authors, $publishers, $genre, $level, $cuts);
         } catch (\OverflowException $e) {
             $response->getBody()->write(json_encode(['error' => true, 'message' => 'Record too long for ISO 2709: ' . $e->getMessage()]));
             return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
@@ -3973,10 +3993,21 @@ class OaiPmhServerPlugin
         $filename = 'unimarc-' . $id . '.mrc';
 
         $response->getBody()->write($binary);
-        return $response
+        $response = $response
             ->withStatus(200)
             ->withHeader('Content-Type', 'application/marc')
             ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+        if ($level !== 'full') {
+            \App\Support\SecureLogger::warning('[OAI-PMH] UNIMARC download over the ISO 2709 limit, sent ' . ($level === 'shortened' ? 'with long texts shortened' : 'as a reduced record'), ['book_id' => $id]);
+            $response = $response->withHeader('X-Pinakes-Record-Fit', (string) $level);
+        }
+        foreach ($cuts as $cut) {
+            \App\Support\SecureLogger::warning('[OAI-PMH] UNIMARC download field cut to the ISO 2709 field limit', ['book_id' => $id, 'detail' => $cut]);
+        }
+        if ($cuts !== []) {
+            $response = $response->withHeader('X-Pinakes-Fields-Cut', (string) count($cuts));
+        }
+        return $response;
     }
 
     /**
@@ -4075,32 +4106,43 @@ class OaiPmhServerPlugin
      * long free texts shortened, else the reduced record the bulk export
      * falls back to (short texts, at most 20 authors and 5 publishers). The
      * record stays the plain one (not extended), as the download always was.
+     * $level says which record was written (full, shortened, reduced) and
+     * $cuts lists the fields of that record cut to the 9,999-byte limit.
      *
      * @param array<string, mixed>       $row
      * @param list<array<string, mixed>> $authors
      * @param list<array<string, mixed>> $publishers
      * @param array<string, mixed>|null  $genre
+     * @param list<string>               $cuts
      * @throws \OverflowException when even the reduced record does not fit
      */
-    private function bookToFittingIso2709(array $row, array $authors, array $publishers, ?array $genre): string
+    private function bookToFittingIso2709(array $row, array $authors, array $publishers, ?array $genre, string &$level = '', array &$cuts = []): string
     {
         $export = \App\Controllers\MarcExportController::class;
         $attempts = [
-            [$row, $authors, $publishers],
-            [$export::shortenTexts($row), $authors, $publishers],
-            [$export::shortenTexts($row, $export::REDUCED_TEXT_LENGTH), array_slice($authors, 0, $export::REDUCED_AUTHORS), array_slice($publishers, 0, $export::REDUCED_PUBLISHERS)],
+            'full' => [$row, $authors, $publishers],
+            'shortened' => [$export::shortenTexts($row), $authors, $publishers],
+            'reduced' => [$export::shortenTexts($row, $export::REDUCED_TEXT_LENGTH), array_slice($authors, 0, $export::REDUCED_AUTHORS), array_slice($publishers, 0, $export::REDUCED_PUBLISHERS)],
         ];
         $reduced = array_pop($attempts);
-        foreach ($attempts as [$r, $a, $p]) {
+        foreach ($attempts as $name => [$r, $a, $p]) {
             try {
-                return $this->bookToIso2709($r, $a, $p, $genre);
+                $notes = [];
+                $bytes = $this->bookToIso2709($r, $a, $p, $genre, $notes);
+                $level = $name;
+                $cuts = $notes;
+                return $bytes;
             } catch (\OverflowException) {
                 continue;
             }
         }
         // The reduced record is the last attempt: its overflow is the caller's.
         [$r, $a, $p] = $reduced;
-        return $this->bookToIso2709($r, $a, $p, $genre);
+        $notes = [];
+        $bytes = $this->bookToIso2709($r, $a, $p, $genre, $notes);
+        $level = 'reduced';
+        $cuts = $notes;
+        return $bytes;
     }
 
     /**
@@ -4112,17 +4154,22 @@ class OaiPmhServerPlugin
      * @param list<array<string, mixed>>        $authors
      * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
+     * @param list<string>                      $cuts the fields cut to the 9,999-byte field limit
      */
     private function bookToIso2709(
         array $row,
         array $authors,
         array $publishers,
-        ?array $genre
+        ?array $genre,
+        array &$cuts = []
     ): string {
         // Same record as the MARCXchange download, serialized by the shared
         // ISO 2709 writer: leader length (00-04) and base address (12-16)
         // filled in, every other leader position as the template says.
-        return Iso2709Writer::serialize(BookMarcBuilder::unimarc($row, $authors, $publishers, $genre));
+        $notes = [];
+        $bytes = Iso2709Writer::serialize(BookMarcBuilder::unimarc($row, $authors, $publishers, $genre), $notes);
+        $cuts = $notes ?? [];
+        return $bytes;
     }
 
     // ── Digital-assets admin UI ───────────────────────────────────────────────
