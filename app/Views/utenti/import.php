@@ -436,9 +436,11 @@ unset($workspaceHeader);
       }
       if (closed.history_warning) {
         // Closed, but not written to the history: say it here, a reload
-        // would show the empty upload form as if nothing had happened.
+        // would show the empty upload form as if nothing had happened. The
+        // upload form comes back under the warning so a new file can follow.
         previewId = null;
         $('user-import-step-resume').classList.add('hidden');
+        $('user-import-step-upload').classList.remove('hidden');
         showError(closed.history_warning);
         return;
       }
