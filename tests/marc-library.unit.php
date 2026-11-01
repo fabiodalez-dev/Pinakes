@@ -16,6 +16,7 @@ use App\Support\Marc\Danmarc2LibriMapper;
 use App\Support\Marc\Iso2709Reader;
 use App\Support\Marc\Iso2709Writer;
 use App\Support\Marc\Marc21LibriMapper;
+use App\Support\Marc\MarcLanguage;
 use App\Support\Marc\MarcMediaType;
 use App\Support\Marc\Marc8Decoder;
 use App\Support\Marc\MarcBookData;
@@ -313,7 +314,7 @@ $lcgft->addDataField('655', ' ', '7', [['a', 'Detective and mystery fiction.'], 
 $lcgft->addDataField('655', ' ', '4', [['a', 'Thrillers.']]);
 $check((new Marc21LibriMapper())->map($lcgft)['genere'] === '', '67r a 655 of another scheme, or without $2, is not imported as the genre');
 $withGenreU = BookMarcBuilder::unimarc($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
-$check($withGenreU->subfield('606', 'a') === 'Narrativa' && $withGenreU->subfield('606', '2') === 'local', '67r2 UNIMARC writes the genre as a 606 $2 local');
+$check($withGenreU->subfield('608', 'a') === 'Narrativa' && $withGenreU->subfield('608', '2') === 'local' && $withGenreU->subfieldValues('606', 'a') === ['avventura', 'viaggi'], '67r2 UNIMARC writes the genre as a 608 $2 local (form / genre, as MARC 21 655), the keywords as 606');
 $backGenreU = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($withGenreU))))[0]);
 $check($backGenreU['genere'] === 'Narrativa' && $backGenreU['parole_chiave'] === ['avventura', 'viaggi'], '67r3 UNIMARC export → import: the genre comes back as the genre, the keywords as keywords');
 $uniOne = static function (array $fields): array {
@@ -326,6 +327,17 @@ $uniOne = static function (array $fields): array {
 };
 $check($uniOne([['606', ' ', ' ', [['a', 'Storia'], ['2', 'FI']]]])['genere'] === '' && $uniOne([['606', ' ', ' ', [['a', 'Storia'], ['2', 'FI']]]])['parole_chiave'] === ['Storia'], '67r4 a 606 of another scheme stays a keyword');
 $check($uniOne([['101', '0', ' ', [['a', 'swa']]]])['lingua'] === '' && $uniOne([['101', '0', ' ', [['a', 'deu']]]])['lingua'] !== '', '67r5 an unknown UNIMARC language code stays empty instead of being stored as a name');
+// CodeRabbit on PR #505: another catalogue's 606 $2 local is a local
+// subject, not this catalogue's genre; it stays a keyword.
+$localSubjects = $uniOne([['606', ' ', ' ', [['a', 'Storia locale'], ['2', 'local']]], ['606', ' ', ' ', [['a', 'Valtellina'], ['2', 'local']]]]);
+$check($localSubjects['genere'] === '' && $localSubjects['parole_chiave'] === ['Storia locale', 'Valtellina'], '67r7 606 $2 local subjects of another catalogue are keywords, none becomes the genre');
+$bothIsbn = BookMarcBuilder::unimarc(['isbn10' => '8845292614'] + $row, $authors, [], null, true);
+$backBoth = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($bothIsbn))))[0]);
+$check($bothIsbn->subfieldValues('010', 'a') === ['9788845292613', '8845292614'] && $backBoth['isbn13'] === '9788845292613' && $backBoth['isbn10'] === '8845292614', '67r8 UNIMARC writes a 010 for the ISBN-13 and for the ISBN-10, and both come back');
+$twoLang = BookMarcBuilder::unimarc(['lingua' => 'inglese, italiano'] + $row, $authors, [], null, true);
+$backLang = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($twoLang))))[0]);
+$check($twoLang->subfieldValues('101', 'a') === ['eng', 'ita'] && count(MarcLanguage::listOf($backLang['lingua'])) === 2, '67r9 UNIMARC writes a 101 $a per language and every one comes back');
+$check(BookMarcBuilder::unimarc(['lingua' => ''] + $row, $authors, [], null, true)->subfieldValues('101', 'a') === ['und'], '67r10 a book without a language keeps a single 101 $a');
 $onlyTranslator = $uniOne([['700', ' ', '1', [['a', 'Weaver'], ['b', 'William'], ['4', '730']]]]);
 $check($onlyTranslator['traduttore'] === ['William Weaver'] && $onlyTranslator['autori'] === [], '67r6 a 700 whose relator is a translator stays a translator');
 $firstAuthor = $uniOne([['700', ' ', '1', [['a', 'Weaver'], ['b', 'William'], ['4', '730']]], ['701', ' ', '1', [['a', 'Eco'], ['b', 'Umberto']]]]);
