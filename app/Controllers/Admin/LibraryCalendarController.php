@@ -35,17 +35,14 @@ class LibraryCalendarController
             return $guard;
         }
         $query = $request->getQueryParams();
-        $today = DateHelper::today();
-
-        $month = is_string($query['month'] ?? null) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $query['month']) === 1
-            ? $query['month']
-            : substr($today, 0, 7);
-        $branches = $this->branches($db);
-        $previewSede = isset($query['sede']) && is_numeric($query['sede']) && isset($branches[(int) $query['sede']]) ? (int) $query['sede'] : null;
-
-        $calendar = LibraryCalendar::fromDatabase($db, configuration: true);
-        $closedWeekdays = $calendar->closedWeekdays();
-        $closures = $this->closures($db);
+        [
+            'today' => $today, 'month' => $month, 'branches' => $branches, 'previewSede' => $previewSede,
+            'calendar' => $calendar, 'closedWeekdays' => $closedWeekdays, 'closures' => $closures,
+            'yearlyClosures' => $yearlyClosures, 'monthStart' => $monthStart, 'monthEnd' => $monthEnd,
+            'monthClosed' => $monthClosed, 'prevMonth' => $prevMonth, 'nextMonth' => $nextMonth,
+            'currentYear' => $currentYear, 'holidays' => $holidays, 'customHolidays' => $customHolidays,
+            'customSchema' => $customSchema,
+        ] = self::viewData($db, $query);
 
         $editId = isset($query['edit']) && is_numeric($query['edit']) ? (int) $query['edit'] : 0;
         $editing = null;
@@ -55,19 +52,6 @@ class LibraryCalendarController
                 $editing = $row;
             }
         }
-        $yearlyClosures = array_values(array_filter(
-            $closures,
-            static fn (array $row): bool => (int) $row['ricorrente_annuale'] === 1 && ($row['regola_festivita'] ?? null) === null
-        ));
-
-        $monthStart = $month . '-01';
-        $monthEnd = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('last day of this month')->format('Y-m-d');
-        $monthClosed = array_flip($calendar->closedDatesBetween($monthStart, $monthEnd, $previewSede));
-        $prevMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('-1 month')->format('Y-m');
-        $nextMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('+1 month')->format('Y-m');
-        $currentYear = (int) substr($today, 0, 4);
-        $holidays = $this->holidayPreview($db, $query, $currentYear);
-        $customHolidays = CustomHolidays::all($db);
         $customEditId = isset($query['custom_edit']) && is_numeric($query['custom_edit']) ? (int) $query['custom_edit'] : 0;
         $customEditing = $customEditId > 0 ? CustomHolidays::find($db, $customEditId) : null;
         $customDraft = $_SESSION['custom_holiday_draft'] ?? null;
@@ -75,7 +59,6 @@ class LibraryCalendarController
         if (is_array($customDraft) && (int) ($customDraft['id'] ?? 0) === ($customEditing !== null ? $customEditId : 0)) {
             $customEditing = $customDraft;
         }
-        $customSchema = CustomHolidays::schemaReady($db);
 
         ob_start();
         require __DIR__ . '/../../Views/admin/calendar.php';
@@ -85,6 +68,62 @@ class LibraryCalendarController
         $html = ob_get_clean();
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /**
+     * What the calendar page shows, for the page and for the Mobile API: the
+     * month asked for (`month` = YYYY-MM, this month otherwise) with its closed
+     * days for the branch in `sede` (every branch otherwise), the weekly closed
+     * days, every closure row, the yearly ones added by hand, the holiday
+     * preset card (`holiday_country`, `holiday_region`, `holiday_year`), the
+     * library's own holidays and the branches.
+     *
+     * @param array<mixed> $query
+     * @return array{today: string, month: string, branches: array<int, string>, previewSede: ?int, calendar: LibraryCalendar,
+     *               closedWeekdays: list<int>, closures: list<array<string, mixed>>, yearlyClosures: list<array<string, mixed>>,
+     *               monthStart: string, monthEnd: string, monthClosed: array<string, int>, prevMonth: string, nextMonth: string,
+     *               currentYear: int, holidays: array<string, mixed>, customHolidays: list<array<string, mixed>>, customSchema: bool}
+     */
+    public static function viewData(\mysqli $db, array $query): array
+    {
+        $self = new self();
+        $today = DateHelper::today();
+        $month = is_string($query['month'] ?? null) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $query['month']) === 1
+            ? $query['month']
+            : substr($today, 0, 7);
+        $branches = $self->branches($db);
+        $previewSede = isset($query['sede']) && is_numeric($query['sede']) && isset($branches[(int) $query['sede']]) ? (int) $query['sede'] : null;
+
+        $calendar = LibraryCalendar::fromDatabase($db, configuration: true);
+        $closures = $self->closures($db);
+        $yearlyClosures = array_values(array_filter(
+            $closures,
+            static fn (array $row): bool => (int) $row['ricorrente_annuale'] === 1 && ($row['regola_festivita'] ?? null) === null
+        ));
+
+        $monthStart = $month . '-01';
+        $monthEnd = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('last day of this month')->format('Y-m-d');
+        $currentYear = (int) substr($today, 0, 4);
+
+        return [
+            'today' => $today,
+            'month' => $month,
+            'branches' => $branches,
+            'previewSede' => $previewSede,
+            'calendar' => $calendar,
+            'closedWeekdays' => $calendar->closedWeekdays(),
+            'closures' => $closures,
+            'yearlyClosures' => $yearlyClosures,
+            'monthStart' => $monthStart,
+            'monthEnd' => $monthEnd,
+            'monthClosed' => array_flip($calendar->closedDatesBetween($monthStart, $monthEnd, $previewSede)),
+            'prevMonth' => (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('-1 month')->format('Y-m'),
+            'nextMonth' => (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('+1 month')->format('Y-m'),
+            'currentYear' => $currentYear,
+            'holidays' => $self->holidayPreview($db, $query, $currentYear),
+            'customHolidays' => CustomHolidays::all($db),
+            'customSchema' => CustomHolidays::schemaReady($db),
+        ];
     }
 
     public function saveWeekdays(Request $request, Response $response, \mysqli $db): Response
