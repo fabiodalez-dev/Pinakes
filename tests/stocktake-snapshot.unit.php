@@ -302,6 +302,32 @@ try {
     $check($blocked && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$third}") === 0, 'a scan racing a pending close is not recorded');
     $check($refused(static fn () => $service->scan($third, "{$p}-C5", null, null)), 'once the close commits the scan is refused');
 
+    // A loan at the desk holds the copy row (review #504): a single scan of it
+    // waits for the loan, a file upload does not lock circulation rows at all.
+    $locked = $service->open('ZZST locks ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $locked;
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->begin_transaction();
+    $other->query("SELECT id FROM copie WHERE id = {$c5} FOR UPDATE");
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    try {
+        $service->scan($locked, "{$p}-C5", null, null);
+        $scanWaited = false;
+    } catch (\Throwable) {
+        $scanWaited = true;
+    }
+    try {
+        $uploadTotal = $service->importCodes($locked, ["{$p}-C5"], null, null)['total'];
+    } catch (\Throwable) {
+        $uploadTotal = -1;
+    }
+    $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+    $other->rollback();
+    $other->close();
+    $other = null;
+    $check($scanWaited, 'a single scan of a copy a loan holds waits for the loan');
+    $check($uploadTotal === 1 && (int) $one("SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id = {$locked}") === 1, 'a file upload of the same copy is recorded without waiting on the loan');
+
     // Closing with "mark lost" from the page must run to the end: the session
     // is claimed first, so a request cut off halfway could not be retried.
     $fourth = $service->open('ZZST4 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
