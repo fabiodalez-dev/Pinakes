@@ -136,7 +136,7 @@ test('health flags, reader 403 on every route, custom roles follow the catalogue
     for (const [method, route] of [
         ['GET', '/staff/suppliers'], ['POST', '/staff/suppliers'], ['GET', '/staff/suppliers/1'], ['PUT', '/staff/suppliers/1'], ['DELETE', '/staff/suppliers/1'],
         ['GET', '/staff/books/1/catalogue-card.pdf'], ['GET', '/staff/books/catalogue-cards.pdf?ids=1'],
-        ['GET', '/staff/marc/options'], ['POST', '/staff/marc/imports'], ['GET', `/staff/marc/imports/${job}`], ['POST', `/staff/marc/imports/${job}/chunk`],
+        ['GET', '/staff/marc/options'], ['GET', '/staff/marc/imports'], ['POST', '/staff/marc/imports'], ['GET', `/staff/marc/imports/${job}`], ['POST', `/staff/marc/imports/${job}/chunk`],
         ['DELETE', `/staff/marc/imports/${job}`], ['GET', '/staff/marc/export'],
         ['GET', '/staff/copy-cataloging/servers'], ['POST', '/staff/copy-cataloging/search'], ['POST', '/staff/copy-cataloging/import'],
     ]) {
@@ -352,6 +352,13 @@ test.describe('MARC import', () => {
         expect(job.preview[0].isbn).toMatch(/^97[89]\d{10}$/);
         // The detail shows the same job.
         expect((await F.api(request, 'GET', `/staff/marc/imports/${job.id}`, { token: ctx.staff })).json.data.preview.length).toBe(3);
+        // The list finds it (resume from another device); another operator's list does not.
+        const mine = await F.api(request, 'GET', '/staff/marc/imports', { token: ctx.staff });
+        expect(mine.status, mine.text).toBe(200);
+        expect(mine.json.data.map((j) => j.id)).toContain(job.id);
+        expect(mine.json.data.every((j) => j.kind === 'marc')).toBe(true);
+        const others = await F.api(request, 'GET', '/staff/marc/imports', { token: ctx.other });
+        expect(others.json.data.map((j) => j.id)).not.toContain(job.id);
 
         let r = await F.api(request, 'POST', `/staff/marc/imports/${job.id}/chunk`, { token: ctx.staff, body: { start: 1 } });
         expect([r.status, r.json.error.code, r.json.meta.processed]).toEqual([409, 'out_of_order', 0]);

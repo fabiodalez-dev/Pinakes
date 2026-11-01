@@ -41,6 +41,7 @@ final class MarcArea implements StaffArea
 
         return [
             ['GET', '/staff/marc/options', static fn (\mysqli $db, $q, $r, array $a) => $m($db)->options($q, $r)],
+            ['GET', '/staff/marc/imports', static fn (\mysqli $db, $q, $r, array $a) => $m($db)->list($q, $r)],
             ['POST', '/staff/marc/imports', static fn (\mysqli $db, $q, $r, array $a) => $m($db)->create($q, $r)],
             ['GET', '/staff/marc/imports/' . self::JOB_ID, static fn (\mysqli $db, $q, $r, array $a) => $m($db)->detail($q, $r, (string) $a['id'])],
             ['POST', '/staff/marc/imports/' . self::JOB_ID . '/chunk', static fn (\mysqli $db, $q, $r, array $a) => $m($db)->chunk($q, $r, (string) $a['id'])],
@@ -150,7 +151,9 @@ final class MarcArea implements StaffArea
             '/staff/marc/options' => ['get' => O::op($t, 'staffMarcOptions', 'Choices of the MARC import / export forms and copy cataloguing availability', [
                 '200' => O::ok('Options.', O::ref('MarcOptions')),
             ])],
-            '/staff/marc/imports' => ['post' => O::op($t, 'staffMarcImportUpload', 'Upload a MARC file: stages its records and answers the job with a preview', [
+            '/staff/marc/imports' => ['get' => O::op($t, 'staffMarcImports', 'The caller\'s unexpired MARC import jobs, newest first (paged: limit, cursor): an import left running elsewhere can be resumed', [
+                '200' => O::ok('Jobs.', ['type' => 'array', 'items' => O::ref('MarcImportJob')]),
+            ]), 'post' => O::op($t, 'staffMarcImportUpload', 'Upload a MARC file: stages its records and answers the job with a preview', [
                 '201' => O::ok('Job created (status ready, processed 0).', O::ref('MarcImportJob')),
                 '422' => O::err('`validation`: meta.fields.file (no file, wrong extension, over 20 MB, no readable MARC record) or an unknown flavour / encoding / duplicates / supplier_id.'),
             ], ['requestBody' => O::multipart([

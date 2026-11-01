@@ -38,6 +38,7 @@ final class UserImportArea implements StaffArea
 
         return [
             ['GET', $b . '/example.csv', static fn (\mysqli $db, $q, $r, array $a) => (new C($db))->example($q, $r), 'limit' => [30, 60, 'staff_user_import_example']],
+            ['GET', $b, static fn (\mysqli $db, $q, $r, array $a) => (new C($db))->list($q, $r)],
             ['POST', $b, static fn (\mysqli $db, $q, $r, array $a) => (new C($db))->create($q, $r), 'limit' => [30, 60, 'staff_user_import_upload']],
             ['GET', $b . $id, static fn (\mysqli $db, $q, $r, array $a) => (new C($db))->detail($q, $r, (string) $a['id'])],
             ['POST', $b . $id . '/start', static fn (\mysqli $db, $q, $r, array $a) => (new C($db))->start($q, $r, (string) $a['id'])],
@@ -90,7 +91,9 @@ final class UserImportArea implements StaffArea
         $gone = ['410' => O::err('`gone`: the job is completed, cancelled, failed or expired (meta.status).')];
         $notFound = ['404' => O::err('`not_found`: no such job, or another operator\'s job (only administrators see every job). `feature_disabled`.')];
 
-        $doc['paths']['/staff/user-imports'] = ['post' => O::op($t, 'staffUserImportUpload', 'Upload a patron CSV (user_import, 30/min)', [
+        $doc['paths']['/staff/user-imports'] = ['get' => O::op($t, 'staffUserImports', 'The caller\'s unexpired patron import jobs, newest first (paged: limit, cursor): a job started elsewhere can be resumed', [
+            '200' => O::ok('Jobs.', ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/UserImportJob']]),
+        ]), 'post' => O::op($t, 'staffUserImportUpload', 'Upload a patron CSV (user_import, 30/min)', [
             '201' => $job('Job created (status ready, not started): headers, preview, fields and the suggested mapping.'),
             '422' => O::err('`validation` (meta.fields.file: missing, not .csv/.tsv/.txt, over 5 MB, empty or unreadable, no ";", "," or TAB separator; meta.fields.delimiter).'),
         ], ['requestBody' => O::multipart([

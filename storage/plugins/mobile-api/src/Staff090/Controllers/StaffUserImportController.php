@@ -119,6 +119,26 @@ final class StaffUserImportController
         }
     }
 
+    /**
+     * GET /staff/user-imports: the caller's unexpired patron import jobs,
+     * newest first, so a job started elsewhere can be found and resumed.
+     */
+    public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $limit = StaffPaging::limit($request, 30, 100);
+        $offset = StaffPaging::offset($request);
+        try {
+            $this->store->purgeExpired();
+            $rows = $this->store->listFor((int) (StaffPaging::user($request)['id'] ?? 0), $offset, $limit, [self::KIND]);
+            $hasMore = count($rows) > $limit;
+            $jobs = array_map(static fn (array $r): array => UserImportJob::map($r), array_slice($rows, 0, $limit));
+
+            return ResponseEnvelope::success($response, $jobs, StaffPaging::meta(count($jobs), $limit, $offset, $hasMore));
+        } catch (\Throwable $e) {
+            return $this->fail($response, 'user import list', $e);
+        }
+    }
+
     /** GET /staff/user-imports/{id} */
     public function detail(ServerRequestInterface $request, ResponseInterface $response, string $id): ResponseInterface
     {

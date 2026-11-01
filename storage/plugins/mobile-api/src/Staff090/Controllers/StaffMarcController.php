@@ -281,6 +281,27 @@ final class StaffMarcController
 
     // ─── Reads / cancel ─────────────────────────────────────────────────────
 
+    /**
+     * GET /staff/marc/imports: the caller's unexpired MARC jobs, newest first,
+     * so an import left running on another device or after the app lost its
+     * job id can be found and resumed.
+     */
+    public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $limit = StaffPaging::limit($request, 30, 100);
+        $offset = StaffPaging::offset($request);
+        try {
+            $this->store->purgeExpired();
+            $rows = $this->store->listFor((int) (StaffPaging::user($request)['id'] ?? 0), $offset, $limit, [self::KIND]);
+            $hasMore = count($rows) > $limit;
+            $jobs = array_map(static fn (array $r): array => MarcJobMapper::map($r), array_slice($rows, 0, $limit));
+
+            return ResponseEnvelope::success($response, $jobs, StaffPaging::meta(count($jobs), $limit, $offset, $hasMore));
+        } catch (\Throwable $e) {
+            return $this->fail($response, 'marc list', $e);
+        }
+    }
+
     public function detail(ServerRequestInterface $request, ResponseInterface $response, string $id): ResponseInterface
     {
         try {

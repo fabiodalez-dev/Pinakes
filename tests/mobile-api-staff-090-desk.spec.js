@@ -144,6 +144,7 @@ const ROUTES = () => [
     ['POST', '/staff/attendance/purge'],
     ['GET', '/staff/statistics'],
     ['GET', '/staff/statistics/fines.csv'],
+    ['GET', '/staff/user-imports'],
     ['POST', '/staff/user-imports'],
     ['GET', '/staff/user-imports/example.csv'],
     ['GET', `/staff/user-imports/${JOB0}`],
@@ -180,6 +181,7 @@ test.describe('Guards and discovery', () => {
             expect(doc.paths[p], p).toBeTruthy();
         }
         expect(Object.keys(doc.paths['/staff/user-imports/{id}']).sort()).toEqual(['delete', 'get']);
+        expect(Object.keys(doc.paths['/staff/user-imports']).sort()).toEqual(['get', 'post']);
         for (const s of ['AttendanceVisit', 'AttendanceOverview', 'StaffStatistics', 'UserImportJob']) {
             expect(doc.components.schemas[s], s).toBeTruthy();
         }
@@ -495,6 +497,11 @@ test.describe('Patron CSV import', () => {
         expect(job.fields.filter((f) => f.required).map((f) => f.key)).toEqual(['nome', 'email']);
         expect(job.fields.map((f) => f.key)).not.toContain('password');
         expect(fs.existsSync(stagedFile(job.id))).toBe(true);
+        // The list finds the job (resume from another device) and holds only patron imports.
+        const listed = await F.api(request, 'GET', '/staff/user-imports', { token: ctx.staff });
+        expect(listed.status, listed.text).toBe(200);
+        expect(listed.json.data.map((j) => j.id)).toContain(job.id);
+        expect(listed.json.data.every((j) => j.kind === 'users')).toBe(true);
 
         // Chunk before start, invalid mappings.
         const early = await F.api(request, 'POST', `/staff/user-imports/${job.id}/chunk`, { token: ctx.staff, body: {} });
