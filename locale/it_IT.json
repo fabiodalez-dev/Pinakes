@@ -8548,7 +8548,7 @@
   "Impossibile aprire il file caricato": "Impossibile aprire il file caricato",
   "Indica cosa cercare e almeno un catalogo": "Indica cosa cercare e almeno un catalogo",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",

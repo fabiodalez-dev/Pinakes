@@ -534,5 +534,17 @@ foreach (MarcXmlReader::fromString($xmlDoc) as $item) {
 }
 $check(count($items) === 2 && !array_filter($items, static fn ($i): bool => $i instanceof MarcReadError), '77 a well-formed file stays error-free when the consumer leaves libxml errors behind');
 
+echo "Import page\n";
+// The page's file picker and Uppy accept every extension the server does
+// (CodeRabbit on PR #505: .marcxml was refused by Uppy before upload).
+$serverExtensions = (new \ReflectionClassConstant(\App\Controllers\MarcImportController::class, 'EXTENSIONS'))->getValue();
+$importView = (string) file_get_contents($root . '/app/Views/admin/marc_import.php');
+preg_match('/accept="([^"]+)"/', $importView, $acceptMatch);
+preg_match('/allowedFileTypes:\s*\[([^\]]+)\]/', $importView, $uppyMatch);
+$acceptList = array_map('trim', explode(',', $acceptMatch[1] ?? ''));
+$uppyList = array_map(static fn (string $e): string => trim($e, " '\""), explode(',', $uppyMatch[1] ?? ''));
+$missing = array_filter($serverExtensions, static fn (string $e): bool => !in_array('.' . $e, $acceptList, true) || !in_array('.' . $e, $uppyList, true));
+$check($missing === [], '78 the import page accepts every extension the server accepts (' . implode(', ', $serverExtensions) . ')');
+
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

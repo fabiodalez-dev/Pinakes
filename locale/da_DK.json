@@ -8548,7 +8548,7 @@
   "Impossibile aprire il file caricato": "Den uploadede fil kan ikke åbnes",
   "Indica cosa cercare e almeno un catalogo": "Angiv hvad der skal søges efter og mindst ét katalog",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Omslagene, som posterne henviser til, gemmes lokalt. Det gør importen langsommere.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Beholdninger (felt 852/949/952) importeres ikke: hver bog får ét eksemplar",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Beholdninger (felt 852/949/952) importeres ikke: hver oprettet bog får ét eksemplar, bøger der allerede er i kataloget beholder deres egne",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Bøger der allerede findes (samme ISBN-13, ISBN-10 eller EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",

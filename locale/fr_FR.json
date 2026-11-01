@@ -8548,7 +8548,7 @@
   "Impossibile aprire il file caricato": "Impossible d'ouvrir le fichier chargé",
   "Indica cosa cercare e almeno un catalogo": "Indiquez quoi rechercher et au moins un catalogue",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Les couvertures indiquées dans les notices sont enregistrées localement. Cela ralentit l'import.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre reçoit un exemplaire",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre créé reçoit un exemplaire, ceux déjà au catalogue gardent les leurs",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Livres déjà présents (même ISBN-13, ISBN-10 ou EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
