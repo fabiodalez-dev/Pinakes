@@ -102,7 +102,6 @@ class MarcImportController
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        $this->discardStaging();
         $staging = $dir . '/marc_import_' . preg_replace('/[^A-Za-z0-9]/', '', session_id()) . '_' . bin2hex(random_bytes(6)) . '.jsonl';
         $out = @fopen($staging, 'wb');
         if ($out === false) {
@@ -164,6 +163,9 @@ class MarcImportController
         // second upload (another tab) replaces the session state, and a page
         // still showing the first preview must not import the second file.
         $stagingId = bin2hex(random_bytes(12));
+        // The previous preview is dropped only now: a file that cannot be
+        // staged leaves it (its file and session state) importable.
+        $this->discardStaging();
         $_SESSION[self::SESSION_KEY] = [
             'staging_id' => $stagingId,
             'file_path' => $staging,

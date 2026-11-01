@@ -171,7 +171,14 @@ $check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, $d
 // 4. Post-commit failures are warnings, not failed records.
 $envFile = $root . '/.env';
 if (!is_file($envFile)) {
-    echo "  SKIP database checks: no .env\n";
+    // The database paths (post-commit warnings, tipo_media, dedup, chunks)
+    // are the point of this file: under CI_STRICT_TESTS a missing .env is a
+    // failure, otherwise a skip the runner recognises (SKIP: at the start).
+    if (getenv('CI_STRICT_TESTS') === '1') {
+        $check(false, '.env present for the database checks');
+    } else {
+        echo "SKIP: database checks: no .env\n";
+    }
 } else {
     $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
     $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
@@ -327,6 +334,16 @@ if (!is_file($envFile)) {
             $check($staleStatus === 409 && ($staleBody['stale'] ?? false) === true && ($_SESSION['marc_import_data']['processed'] ?? null) === 0, 'a chunk of a preview another upload replaced is refused, nothing of the current file is imported');
             [$noIdStatus] = $chunkCall(['start' => 0, 'size' => 10]);
             $check($noIdStatus === 409 && ($_SESSION['marc_import_data']['processed'] ?? null) === 0, 'a chunk without the preview id is refused too');
+            // A second upload that cannot be staged (no record in it) leaves
+            // the current preview importable: its file and its session state.
+            $emptyUpload = tempnam(sys_get_temp_dir(), 'zzmr');
+            file_put_contents($emptyUpload, '<?xml version="1.0"?><collection xmlns="http://www.loc.gov/MARC21/slim"></collection>');
+            $uploadRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/books/import/marc/upload')
+                ->withParsedBody(['duplicates' => 'skip'])
+                ->withUploadedFiles(['marc_file' => new \Slim\Psr7\UploadedFile($emptyUpload, 'vuoto.xml', 'application/xml', (int) filesize($emptyUpload), UPLOAD_ERR_OK)]);
+            $emptyRes = $controller->upload($uploadRequest, new \Slim\Psr7\Response(), $db);
+            @unlink($emptyUpload);
+            $check($emptyRes->getStatusCode() === 400 && ($_SESSION['marc_import_data']['staging_id'] ?? null) === 'current-preview' && is_file($stagingFile), 'an upload that cannot be staged keeps the previous preview and its staging file');
 
             $historyTrigger = 'zzmr_hist_' . strtolower($run);
             $db->query("CREATE TRIGGER {$historyTrigger} BEFORE UPDATE ON import_logs FOR EACH ROW BEGIN IF NEW.status = 'completed' AND NEW.file_name = '" . $db->real_escape_string($historyName) . "' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'history probe'; END IF; END");
@@ -406,7 +423,11 @@ if (is_file($envFile) && function_exists('imagecreatetruecolor')) {
         }
     }
 } else {
-    echo "  SKIP orphan cover check: no .env or no GD\n";
+    if (getenv('CI_STRICT_TESTS') === '1' && !is_file($envFile)) {
+        $check(false, '.env present for the orphan cover check');
+    } else {
+        echo "SKIP: orphan cover check: no .env or no GD\n";
+    }
 }
 
 // 6. The MARC export leaves desiderata requests out: MARC has no field for
