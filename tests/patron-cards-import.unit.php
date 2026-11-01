@@ -642,6 +642,30 @@ try {
     $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 1, 'its block, naming the same preview, imports the row once and reports the repeat as a duplicate');
     $_SESSION = [];
 
+    // Blocks resume at the byte offset where the previous one stopped: the
+    // rows already done are never parsed again. A blank line and a quoted
+    // cell spanning lines are split as at upload. After the first block the
+    // bytes already imported are overwritten with junk lines: counting rows
+    // from the top would now land on the wrong record, the offset does not.
+    $blockCsv = "nome;cognome;email\n";
+    for ($i = 1; $i <= UserImport::CHUNK_SIZE + 3; $i++) {
+        $blockCsv .= $i === 4 ? "Zz;\"Multi\nline\";zz-pci-blk-{$suffix}-{$i}@example.invalid\n\n" : "Zz;Block{$i};zz-pci-blk-{$suffix}-{$i}@example.invalid\n";
+    }
+    file_put_contents($staged, $blockCsv);
+    $blockTotal = count(\App\Support\Csv::readerFromPath($staged, ';')) - 1;
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo'], 'user_import' => ['total' => $blockTotal] + $previewA];
+    $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => 0]);
+    $offset = (int) ($_SESSION['user_import']['offset'] ?? 0);
+    $check($status === 200 && ($json['processed'] ?? null) === UserImport::CHUNK_SIZE && $offset > 0, 'the first block keeps the byte offset of the next row');
+    file_put_contents($staged, str_repeat("x\n", intdiv($offset, 2)) . str_repeat('x', $offset % 2) . substr($blockCsv, $offset));
+    [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => UserImport::CHUNK_SIZE]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $blockCount = (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email LIKE 'zz-pci-blk-{$suffix}-%'")->fetch_row()[0];
+    $multiline = $db->query("SELECT cognome FROM utenti WHERE email = 'zz-pci-blk-{$suffix}-4@example.invalid'")->fetch_row()[0] ?? null;
+    $check($status === 200 && ($json['done'] ?? false) === true && ($json['created'] ?? null) === $blockTotal && $blockCount === $blockTotal && $multiline === "Multi\nline" && ($json['failed'] ?? null) === 0, 'the next block resumes at that offset and imports every remaining row once');
+    $_SESSION = [];
+
     // The import page links the import history (a catalog.manage page) only
     // for an account that may open it, the expired-import notice included.
     $renderImportPage = static function (array $user, array $expiredImport): string {
@@ -687,6 +711,7 @@ try {
     $db->query("DELETE FROM utenti WHERE email = '{$importEmail}'");
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-stale-{$suffix}@example.invalid'");
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
+    $db->query("DELETE FROM utenti WHERE email LIKE 'zz-pci-blk-{$suffix}-%'");
     foreach ($importLogIds as $logId) {
         $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
         $stmt->bind_param('s', $logId);

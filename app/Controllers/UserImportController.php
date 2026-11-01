@@ -320,10 +320,23 @@ class UserImportController
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
         $state['active_at'] = time(); // driven by a page: not abandoned (isRunning())
 
-        try {
-            $reader = Csv::readerFromPath((string) $state['file'], (string) $state['delimiter']);
-        } catch (\Throwable) {
+        $handle = @fopen((string) $state['file'], 'rb');
+        if ($handle === false) {
             return $this->json($response, ['success' => false, 'error' => __('Impossibile aprire il file CSV')], 500);
+        }
+        // Each block resumes at the byte where the previous one stopped, so
+        // a large file is read once instead of again from the top for every
+        // block. Only the first block (or a run started before the offset
+        // was kept) skips the header and the rows already done by counting.
+        $delimiter = (string) $state['delimiter'];
+        if (is_int($state['offset'] ?? null)) {
+            fseek($handle, $state['offset']);
+        } else {
+            for ($skip = 1 + $start; $skip > 0; $skip--) {
+                if (self::nextRecord($handle, $delimiter) === null) {
+                    break;
+                }
+            }
         }
 
         $customDefinitions = RegistrationFields::definitions($db);
@@ -340,11 +353,10 @@ class UserImportController
         $notifier = $state['send_invites'] ? new NotificationService($db) : null;
 
         $line = $start + 2; // header is line 1
-        $records = (new Statement())->offset(1 + $start)->limit(UserImport::CHUNK_SIZE)->process($reader);
         $processed = 0;
-        foreach ($records as $row) {
+        while ($processed < UserImport::CHUNK_SIZE && ($row = self::nextRecord($handle, $delimiter)) !== null) {
+            $offset = (int) ftell($handle);
             $processed++;
-            $row = array_values((array) $row);
             $label = '';
             try {
                 $parsed = UserImport::normalizeRow($row, $state['mapping'], $customDefinitions, $locales, $visible);
@@ -392,10 +404,13 @@ class UserImportController
                 }
             } finally {
                 $line++;
+                // Position and byte offset move together, row by row.
                 $state['next'] = $start + $processed;
+                $state['offset'] = $offset;
                 $state['active_at'] = time();
             }
         }
+        fclose($handle);
 
         $state['next'] = $start + $processed;
         $done = $processed === 0 || $state['next'] >= $total;
@@ -428,6 +443,25 @@ class UserImportController
             SecureLogger::info('Users imported from CSV', $summary + ['by' => $_SESSION['user']['id'] ?? null]);
         }
         return $this->json($response, $payload);
+    }
+
+    /**
+     * The next non-blank record of an open CSV, or null at its end. Split
+     * with the same controls as Csv::readerFromPath() (double-quote
+     * enclosure, no escape character, blank lines skipped), so the rows match
+     * the ones the league Reader counted and previewed at upload.
+     *
+     * @param resource $handle
+     * @return list<?string>|null
+     */
+    private static function nextRecord($handle, string $delimiter): ?array
+    {
+        while (($row = fgetcsv($handle, null, $delimiter, '"', '')) !== false) {
+            if ($row !== [null]) {
+                return $row;
+            }
+        }
+        return null;
     }
 
     /**
