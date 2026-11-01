@@ -140,6 +140,8 @@ const STAFF_EMAIL = `idem_staff_${RUN_ID}@pinakes.test`;
 const STAFF_CARD  = `IDEMS${String(process.pid).padStart(6, '0')}`.slice(0, 20);
 // 1x1 PNG and a minimal PDF for the archive upload rows.
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+/** A 32x32 PNG (the patron photo refuses images under 16 px). */
+const PNG_32PX = Buffer.from(execFileSync('php', ['-r', '$i=imagecreatetruecolor(32,32);imagefill($i,0,0,imagecolorallocate($i,30,90,200));ob_start();imagepng($i);echo base64_encode(ob_get_clean());'], { encoding: 'utf-8' }).trim(), 'base64');
 const TINY_PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
 /** Multipart body of a one-row CSV import (Mobile API 1.7.0 rows). */
 function importCsv(title) {
@@ -310,6 +312,28 @@ const ENDPOINTS = [
     { name: 'GET /staff/users',                  method: 'GET',    path: '/staff/users?q=Idem',           route: '/staff/users', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'GET /staff/users/{id}',             method: 'GET',    path: '/staff/users/{userId}',         route: '/staff/users/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'GET /staff/copies/by-code',         method: 'GET',    path: '/staff/copies/by-code?code={circCopyCode}', route: '/staff/copies/by-code', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+
+    // ── Mobile API 1.10.0: patron tools + staff ledger (Pinakes 0.9.0) ──
+    // The Staff token edits only its own record (web editor rule), so the
+    // patron-type and photo rows act on the staff account itself.
+    { name: 'GET /staff/patron-types',           method: 'GET',    path: '/staff/patron-types',           auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/users/{id}/patron-type', method: 'PUT',    path: '/staff/users/{staffUserId}/patron-type', route: '/staff/users/{id}/patron-type', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ patron_type_id: null }) /* same assignment twice: both 200 */ },
+    { name: 'POST /staff/users/{id}/renew-card', method: 'POST',   path: '/staff/users/{userId}/renew-card', route: '/staff/users/{id}/renew-card', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* no key: each call renews, both 201 */ },
+    { name: 'GET /staff/users/cards.pdf',        method: 'GET',    path: '/staff/users/cards.pdf?ids={userId},{staffUserId}', route: '/staff/users/cards.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/users/{id}/card.pdf',    method: 'GET',    path: '/staff/users/{userId}/card.pdf', route: '/staff/users/{id}/card.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/users/{id}/photo',      method: 'POST',   path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: () => ({ photo: { name: 'idem.png', mimeType: 'image/png', buffer: PNG_32PX } }) /* the second replaces the first */ },
+    { name: 'GET /staff/users/{id}/photo',       method: 'GET',    path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'DELETE /staff/users/{id}/photo',    method: 'DELETE', path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* removing nothing is 200 too */ },
+    { name: 'GET /staff/users/{id}/ledger',      method: 'GET',    path: '/staff/users/{userId}/ledger',  route: '/staff/users/{id}/ledger', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/users/{id}/ledger/charges', method: 'POST', path: '/staff/users/{userId}/ledger/charges', route: '/staff/users/{id}/ledger/charges', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ amount_cents: 300, description: `Idem charge ${RUN_ID}`, idempotency_key: `idem-charge-${RUN_ID}` }) /* 201, then the replay 200 */ },
+    { name: 'POST /staff/users/{id}/ledger/payments', method: 'POST', path: '/staff/users/{userId}/ledger/payments', route: '/staff/users/{id}/ledger/payments', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ amount_cents: 100, method: 'contanti', note: `Idem payment ${RUN_ID}`, idempotency_key: `idem-payment-${RUN_ID}` }) },
+    { name: 'POST /staff/users/{id}/ledger/waivers', method: 'POST', path: '/staff/users/{userId}/ledger/waivers', route: '/staff/users/{id}/ledger/waivers', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ amount_cents: 100, reason: `Idem waiver ${RUN_ID}`, idempotency_key: `idem-waiver-${RUN_ID}` }) },
+    { name: 'GET /staff/users/{id}/ledger/movements/{movement}/receipt.pdf', method: 'GET', path: '/staff/users/{userId}/ledger/movements/{ledgerPaymentId}/receipt.pdf', route: '/staff/users/{id}/ledger/movements/{movement}/receipt.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
 
     // ── Mobile API 1.7.0: staff content tools (copies, series, merges, labels) ──
     { name: 'GET /staff/copies/{id}',            method: 'GET',    path: '/staff/copies/{staffCopyId}',   route: '/staff/copies/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
@@ -678,6 +702,13 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         });
         expect(staffLogin.status(), 'staff login must succeed').toBe(200);
         ctx.staffToken = (await staffLogin.json()).data.token;
+        // Mobile API 1.10.0 ledger rows: a charge and a payment of the borrower
+        // (the receipt row needs a payment id; the payment/waiver rows a balance).
+        dbExec(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at)
+                VALUES (${ctx.userId}, 'addebito_manuale', 5.00, 'Idem fixture charge ${RUN_ID}', NOW())`);
+        dbExec(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, metodo_pagamento, created_at)
+                VALUES (${ctx.userId}, 'pagamento', -2.00, 'Idem fixture payment ${RUN_ID}', 'contanti', NOW())`);
+        ctx.ledgerPaymentId = parseInt(dbScalar(`SELECT MAX(id) FROM movimenti_lettore WHERE utente_id=${ctx.userId} AND tipo='pagamento'`) || '0', 10);
         const staffPost = async (route, body) => {
             const r = await call(request, 'POST', `${API}${route}`, { token: ctx.staffToken, body });
             expect(r.status(), `fixture POST ${route}`).toBe(201);
@@ -995,6 +1026,13 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try { dbExec(`DELETE FROM collane WHERE nome LIKE '%${RUN_ID}%' AND parent_id IS NOT NULL`); } catch {}
         try { dbExec(`DELETE FROM collane WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE FROM mobile_calendar_tokens WHERE user_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM movimenti_lettore WHERE utente_id=${ctx.userId} AND descrizione LIKE '%${RUN_ID}%'`); } catch {}
+        if (ctx.staffUserId) {
+            try {
+                const photo = dbScalar(`SELECT COALESCE(foto_profilo_url, '') FROM utenti WHERE id=${ctx.staffUserId}`);
+                if (/^patron_photos\/\d+-[a-f0-9]{16}\.jpg$/.test(photo)) fs.unlinkSync(path.join(__dirname, '..', 'storage', photo));
+            } catch {}
+        }
         if (ctx.staffUserId) {
             try { dbExec(`DELETE FROM mobile_app_tokens WHERE user_id=${ctx.staffUserId}`); } catch {}
             try { dbExec(`DELETE FROM log_modifiche WHERE utente_id=${ctx.staffUserId}`); } catch {}
