@@ -410,11 +410,11 @@ final class StaffArchivesController
                 $types .= 's';
                 $params[] = $type;
             }
-            if ($q !== '') {
-                $where[] = '(ar.authorised_form LIKE ? OR ar.parallel_forms LIKE ? OR ar.other_forms LIKE ?)';
-                $like = '%' . $q . '%';
-                $types .= 'sss';
-                array_push($params, $like, $like, $like);
+            $search = \App\Support\ExactSearch::filterCondition(['ar.authorised_form', 'ar.parallel_forms', 'ar.other_forms'], $q);
+            if ($search !== null) {
+                $where[] = $search['sql'];
+                $types .= $search['types'];
+                array_push($params, ...$search['params']);
             }
             $sql = 'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence,
                            (SELECT COUNT(DISTINCT aua.archival_unit_id) FROM archival_unit_authority aua

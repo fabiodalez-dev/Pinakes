@@ -146,23 +146,30 @@ $check(
 
 // 8. Author autocomplete hardening: EVERY pseudonimo LIKE placeholder must be
 //    paired with ESCAPE (exhaustive — a future path added without it fails
-//    here), and the wildcard-escaping bind pattern must be present. Caught a
-//    real gap on first run: two of the three SearchController paths shipped
-//    unescaped because a replace-all fix silently missed their indentation.
+//    here), and the bind must escape LIKE wildcards. Caught a real gap on
+//    first run: two of the three SearchController paths shipped unescaped
+//    because a replace-all fix silently missed their indentation. Since #501
+//    the paths build their LIKEs through ExactSearch, so the invariant is
+//    checked there: the SQL it emits carries ESCAPE in both modes and the
+//    pattern escapes \, % and _.
+$likeOk = str_contains(\App\Support\ExactSearch::likeSql('a.pseudonimo', false), "LIKE ? ESCAPE '\\\\'")
+    && str_contains(\App\Support\ExactSearch::likeSql('a.pseudonimo', true), "LIKE LOWER(?) ESCAPE '\\\\'")
+    && \App\Support\ExactSearch::likePattern('5%_\\') === '%5\\%\\_\\\\%';
+$check($likeOk, 'ExactSearch: LIKE carries ESCAPE and the bind escapes \\, % and _');
+
 $search = $src('app/Controllers/SearchController.php');
 $check(
     preg_match('/pseudonimo LIKE \?(?! ESCAPE)/', $search) === 0
-        && substr_count($search, "pseudonimo LIKE ? ESCAPE") >= 3
-        && substr_count($search, "str_replace(['\\\\', '%', '_']") >= 3,
-    'SearchController: every pseudonimo LIKE uses ESCAPE + wildcard-escaped bind'
+        && substr_count($search, "ExactSearch::wordsCondition(['nome', 'pseudonimo']") + substr_count($search, "ExactSearch::wordsCondition(['a.nome', 'a.pseudonimo']") >= 3,
+    'SearchController: every pseudonimo LIKE goes through ExactSearch (ESCAPE + escaped bind)'
 );
 
 // 9. Same exhaustive invariant in the mobile API author filter.
 $mobile = $src('storage/plugins/mobile-api/src/Controllers/CatalogController.php');
 $check(
     preg_match('/pseudonimo LIKE \?(?! ESCAPE)/', $mobile) === 0
-        && str_contains($mobile, "str_replace(['\\\\', '%', '_']"),
-    'mobile-api CatalogController: every pseudonimo LIKE uses ESCAPE + escaped bind'
+        && str_contains($mobile, "ExactSearch::filterCondition(['a_a.nome', 'a_a.pseudonimo']"),
+    'mobile-api CatalogController: every pseudonimo LIKE goes through ExactSearch'
 );
 
 // 10. View-escaping rule: the contributor display in book-detail must never

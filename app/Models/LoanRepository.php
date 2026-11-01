@@ -99,8 +99,8 @@ class LoanRepository
             // Fallback dalla setting di durata prestito: il vecchio +14gg
             // hardcoded era metà del default seminato (30) e ignorava la
             // configurazione dell'admin — stesso fix M5b già applicato a renew().
-            $loanDays = (new SettingsRepository($this->db))->loanDurationDays();
-            $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+            $policy = (new \App\Services\CirculationPolicy($this->db))->forExistingLoan($id, $utente_id > 0 ? $utente_id : null);
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor((string) $data_prestito, $policy->durationDays, $this->db);
         }
         $processed_by = $data['processed_by'] ?? null;
         $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);
@@ -253,6 +253,10 @@ class LoanRepository
                 return false;
             }
 
+            // Late fine into the patron ledger, atomic with the close (plan §7).
+            // Idempotent (late:<id>) and 0 while fines are disabled.
+            $lateFineCents = \App\Services\PatronLedger::forDb($this->db)->chargeLateReturn($id, null);
+
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
             $integrity = new DataIntegrity($this->db);
@@ -316,6 +320,14 @@ class LoanRepository
             $reservationManager->flushDeferredNotifications();
         } catch (\Throwable $e) {
             SecureLogger::warning('LoanRepository::close flush notifications warning', ['error' => $e->getMessage()]);
+        }
+
+        if ($lateFineCents > 0) {
+            try {
+                (new \App\Support\NotificationService($this->db))->sendFineChargedNotification($id);
+            } catch (\Throwable $e) {
+                SecureLogger::warning('LoanRepository::close fine notification warning', ['error' => $e->getMessage()]);
+            }
         }
 
         // validateAndUpdateLoan has its own transaction, call it after main transaction completes

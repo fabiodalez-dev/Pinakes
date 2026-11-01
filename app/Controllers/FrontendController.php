@@ -931,8 +931,18 @@ class FrontendController
         // default to max_loan_duration_days, so expose the same effective value
         // to the view instead of hardcoding one calendar month in JavaScript.
         $loanSettings = new \App\Models\SettingsRepository($db);
-        $maxRequestDays = $loanSettings->maxLoanDurationDays();
-        $defaultRequestLoanDays = $loanSettings->requestLoanDurationDays();
+        $circulation = new \App\Services\CirculationPolicy($db, $loanSettings);
+        // The viewer's circulation rules for this title (default patron type
+        // when anonymous): consultation-only material shows no request button,
+        // a patron type without reservations no "reserve when available".
+        $viewerPolicy = $circulation->forViewer(
+            !empty($_SESSION['user']['id']) ? (int) $_SESSION['user']['id'] : null,
+            $book_id
+        );
+        $consultationOnly = !$viewerPolicy->loanable;
+        $viewerReservationsEnabled = $viewerPolicy->user->reservationsEnabled;
+        $maxRequestDays = $viewerPolicy->maxRequestDays;
+        $defaultRequestLoanDays = $viewerPolicy->requestDurationDays();
         // Days to collect a booked loan once it starts: the scheduled-loan
         // message names them instead of a vague "when the date approaches".
         $pickupExpiryDays = max(1, (int) ($loanSettings->get('loans', 'pickup_expiry_days', '3') ?? 3));
@@ -1660,15 +1670,19 @@ class FrontendController
             // #143), so the catalog filter results agree with the publisher
             // facet count (which already counts secondaries). Gate the junction
             // subquery on table existence (pre-migration safety).
+            // The name must match exactly, accents included (#501): the
+            // collation alone would also return the books of "Häffner" for
+            // the publisher "Haffner".
+            $primary = \App\Support\ExactSearch::equalsCondition('e.nome', (string) $filters['editore']);
             if (\App\Support\SchemaInfo::hasLibriEditori($db)) {
-                $conditions[] = "(e.nome = ? OR EXISTS (SELECT 1 FROM libri_editori le2 JOIN editori e2 ON le2.editore_id = e2.id WHERE le2.libro_id = l.id AND e2.nome = ?))";
-                $params[] = $filters['editore'];
-                $params[] = $filters['editore'];
-                $types .= 'ss';
+                $secondary = \App\Support\ExactSearch::equalsCondition('e2.nome', (string) $filters['editore']);
+                $conditions[] = "({$primary['sql']} OR EXISTS (SELECT 1 FROM libri_editori le2 JOIN editori e2 ON le2.editore_id = e2.id WHERE le2.libro_id = l.id AND {$secondary['sql']}))";
+                array_push($params, ...$primary['params'], ...$secondary['params']);
+                $types .= $primary['types'] . $secondary['types'];
             } else {
-                $conditions[] = "e.nome = ?";
-                $params[] = $filters['editore'];
-                $types .= 's';
+                $conditions[] = $primary['sql'];
+                array_push($params, ...$primary['params']);
+                $types .= $primary['types'];
             }
         }
 
@@ -1714,12 +1728,17 @@ class FrontendController
 
         if (!empty($filters['autore'])) {
             $variants = \App\Services\UnifiedCatalogService::nameVariants((string)$filters['autore']);
-            $marks = implode(',', array_fill(0, count($variants), '?'));
-            $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_name JOIN autori a_name ON a_name.id=la_name.autore_id
-                WHERE la_name.libro_id=l.id AND la_name.ruolo IN ('principale','co-autore')
-                  AND (TRIM(a_name.nome) IN ($marks) OR TRIM(a_name.pseudonimo) IN ($marks)))";
-            array_push($params, ...$variants, ...$variants);
-            $types .= str_repeat('s', count($variants) * 2);
+            // Exact spelling, accents included (#501): "Haffner" must not
+            // also list the books of "Häffner".
+            $byName = \App\Support\ExactSearch::inCondition('TRIM(a_name.nome)', $variants);
+            $byPseudonym = \App\Support\ExactSearch::inCondition('TRIM(a_name.pseudonimo)', $variants);
+            if ($byName !== null && $byPseudonym !== null) {
+                $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_name JOIN autori a_name ON a_name.id=la_name.autore_id
+                    WHERE la_name.libro_id=l.id AND la_name.ruolo IN ('principale','co-autore')
+                      AND ({$byName['sql']} OR {$byPseudonym['sql']}))";
+                array_push($params, ...$byName['params'], ...$byPseudonym['params']);
+                $types .= $byName['types'] . $byPseudonym['types'];
+            }
         }
 
         if (!empty($filters['autore_id'])) {
@@ -1982,7 +2001,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)"
         : "";
     $queryEditori = "
-        SELECT e.nome, COUNT(DISTINCT l.id) AS cnt
+        SELECT MIN(e.nome) AS nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
         JOIN libri l ON (e.id = l.editore_id{$facetExists})
                         AND l.deleted_at IS NULL AND " . $visibility . "
@@ -2000,8 +2019,10 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
     // (editori.nome has no UNIQUE constraint — same-named rows are legitimate),
     // so grouping per id would render duplicate labels each with a partial count
     // that no single filtered result could match. Grouping by name merges them
-    // and makes each badge equal the count the name filter returns.
-    $queryEditori .= " GROUP BY e.nome HAVING cnt > 0 ORDER BY e.nome";
+    // and makes each badge equal the count the name filter returns. The group
+    // key keeps accents distinct (#501) — "Haffner" and "Häffner" are two
+    // publishers — while still ignoring case, exactly like the filter does.
+    $queryEditori .= " GROUP BY LOWER(e.nome) COLLATE utf8mb4_bin HAVING cnt > 0 ORDER BY nome";
 
     $stmt = $db->prepare($queryEditori);
     if (!empty($paramsEd)) {
@@ -2346,9 +2367,13 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // UNIQUE on nome by design), so resolving a single id with LIMIT 1 would
         // show an arbitrary homonym and hide the others' bibliography — mirrors
         // publisherArchive(). The header shows the lowest id, deterministically.
-        $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE nome = ? ORDER BY id";
+        // Homonyms only: same spelling, accents included (#501). The collation
+        // alone would treat "Haffner" and "Häffner" as one name and merge two
+        // people's bibliographies on one page.
+        $byName = \App\Support\ExactSearch::equalsCondition('nome', $authorName);
+        $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE {$byName['sql']} ORDER BY id";
         $stmt = $db->prepare($authorQuery);
-        $stmt->bind_param('s', $authorName);
+        $stmt->bind_param($byName['types'], ...$byName['params']);
         $stmt->execute();
         $authorResult = $stmt->get_result();
 
@@ -2382,9 +2407,11 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // Find EVERY publisher with this name. Duplicates legitimately share a
         // name (the merge feature exists because of that), so resolving a single
         // id with LIMIT 1 would hide the books of the other same-named publishers.
-        $publisherQuery = "SELECT id, nome, indirizzo, sito_web FROM editori WHERE nome = ? ORDER BY id";
+        // Same spelling, accents included (#501): see authorArchive().
+        $byName = \App\Support\ExactSearch::equalsCondition('nome', $publisherName);
+        $publisherQuery = "SELECT id, nome, indirizzo, sito_web FROM editori WHERE {$byName['sql']} ORDER BY id";
         $stmt = $db->prepare($publisherQuery);
-        $stmt->bind_param('s', $publisherName);
+        $stmt->bind_param($byName['types'], ...$byName['params']);
         $stmt->execute();
         $publisherResult = $stmt->get_result();
 

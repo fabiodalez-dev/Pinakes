@@ -95,6 +95,15 @@ final class HealthController
                     'staff_catalog' => true,
                     'catalog_sync'  => true,
                     'calendar_feed' => !$catalogueMode,
+                    // Mobile API 1.9.0: the optional circulation modules of
+                    // Settings -> Loans (already false in catalogue mode).
+                    // Older servers omit these keys: the app treats them as off.
+                    'automatic_fines'   => \App\Support\Features::enabled('automatic_fines'),
+                    'debt_block'        => \App\Support\Features::enabled('debt_block'),
+                    'consultation_only' => \App\Support\Features::enabled('consultation_only'),
+                    'fines'             => \App\Support\Features::enabled('fines'),
+                    'closures_calendar' => \App\Support\Features::enabled('closures_calendar'),
+                    'circulation_rules' => \App\Support\Features::enabled('circulation_rules'),
                     // Mobile API 1.7.0 staff areas: true only when the area's
                     // routes are registered (StaffAreas::IMPLEMENTED) AND its
                     // prerequisite holds. Older servers omit these keys.

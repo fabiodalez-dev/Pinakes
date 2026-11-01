@@ -17,7 +17,7 @@ concurrency:
 jobs:
   e2e:
     name: Full E2E suite (Playwright · Apache · MySQL)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     services:
@@ -389,3 +389,301 @@ jobs:
           name: apache-error-log-${{ github.run_id }}
           path: /var/log/apache2/pinakes-error.log
           retention-days: 7
+
+  # ── 0.9.0 feature suites ──────────────────────────────────────────────────
+  # Every Playwright suite added by the 0.9.0 stack (circulation rules, patron
+  # types, closures calendar, fines ledger, debt block, stocktake, MARC, cards,
+  # patron photo, user import, statistics, suppliers, RDA types, #501 quoted
+  # search). Same environment as the deep regression shards — Apache/mod_php,
+  # MySQL, Mailpit behind a real sendmail transport, the CI MySQL wrapper and
+  # poppler for the PDF assertions — on a fresh install bootstrapped by the
+  # full lifecycle suite. Two groups run in parallel; each list is explicit so
+  # a new spec has to be added here on purpose.
+  feature-090:
+    name: 0.9.0 feature suites (${{ matrix.group }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: circulation
+            specs: >-
+              tests/circulation-card.spec.js
+              tests/circulation-consultation.spec.js
+              tests/circulation-interop.spec.js
+              tests/circulation-patron-types.spec.js
+              tests/circulation-reservations.spec.js
+              tests/circulation-rules-matrix.spec.js
+              tests/circulation-settings-access.spec.js
+              tests/closures-calendar-admin.spec.js
+              tests/closures-calendar-circulation.spec.js
+              tests/closures-calendar-loans.spec.js
+              tests/debt-block.spec.js
+              tests/feature-toggle-circulation-rules.spec.js
+              tests/feature-toggle-closures-calendar.spec.js
+              tests/feature-toggle-fines.spec.js
+              tests/fines-closed-days.spec.js
+              tests/fines-ledger.spec.js
+              tests/fines-patron-types.spec.js
+              tests/holidays-preset.spec.js
+              tests/holidays-world.spec.js
+              tests/stack-090-integration.spec.js
+              tests/stack-090-review-fixes.spec.js
+              tests/stack-090-zero-config.spec.js
+          - group: catalogue
+            specs: >-
+              tests/attendance-090.spec.js
+              tests/catalogue-cards-090.spec.js
+              tests/feature-toggle-catalogue-cards.spec.js
+              tests/feature-toggles-followups.spec.js
+              tests/feature-toggle-marc.spec.js
+              tests/feature-toggle-patron-cards.spec.js
+              tests/feature-toggle-rda-types.spec.js
+              tests/feature-toggle-stocktake.spec.js
+              tests/feature-toggle-suppliers.spec.js
+              tests/feature-toggle-user-import.spec.js
+              tests/feature-toggle-visitor-log.spec.js
+              tests/feature-toggles-settings.spec.js
+              tests/inventory-stocktake.spec.js
+              tests/issue-501-admin-lists.spec.js
+              tests/issue-501-exact-quoted-search.spec.js
+              tests/issue-501-name-pages.spec.js
+              tests/issue-501-quoted-hint.spec.js
+              tests/issue-501-quoted-new-author.spec.js
+              tests/issue-501-search-fields.spec.js
+              tests/issue-501-search-hint.spec.js
+              tests/marc-bulk-export.spec.js
+              tests/marc-bulk-import.spec.js
+              tests/marc-copy-cataloging.spec.js
+              tests/patron-cards.spec.js
+              tests/patron-photo.spec.js
+              tests/rda-types-090.spec.js
+              tests/statistics-090.spec.js
+              tests/suppliers-090.spec.js
+              tests/user-import.spec.js
+
+    services:
+      mysql:
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      mailpit:
+        image: axllent/mailpit:v1.21@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      E2E_BASE_URL: http://localhost:8081
+      APP_URL: http://localhost:8081
+      E2E_ADMIN_EMAIL: admin@pinakes.test
+      E2E_ADMIN_PASS: Test1234!
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: 3306
+      E2E_DB_USER: root
+      E2E_DB_PASS: root
+      E2E_DB_NAME: pinakes_test
+      E2E_INSTALL_ROOT: ${{ github.workspace }}
+      MAILPIT_API: http://127.0.0.1:8025/api/v1
+      E2E_PHP_UPLOAD_MAX_BYTES: 8388608
+      E2E_PHP_POST_MAX_BYTES: 10485760
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Apache, PHP module, MySQL client, mail transport and poppler
+        run: |
+          # This job never installs Google Chrome. Remove its hosted-runner
+          # apt source before the first refresh so mirror syncs cannot break CI.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -q
+          # poppler-utils: patron-cards and patron-photo read the generated
+          # PDFs back with pdftotext/pdfinfo/pdfimages.
+          sudo apt-get install -y apache2 libapache2-mod-php php-apcu default-mysql-client msmtp-mta poppler-utils
+          sudo a2enmod rewrite headers env
+          php_module="$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)"
+          [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
+          sudo a2dissite 000-default || true
+          sudo tee /etc/msmtprc >/dev/null <<'EOF'
+          defaults
+          account default
+          host 127.0.0.1
+          port 1025
+          tls off
+          from pinakes-ci@localhost
+          EOF
+          sudo chmod 644 /etc/msmtprc
+          while IFS= read -r conf_dir; do
+            sudo tee "${conf_dir}/99-pinakes-ci.ini" >/dev/null <<'EOF'
+          sendmail_path = "/usr/bin/msmtp -t"
+          upload_max_filesize = 8M
+          post_max_size = 10M
+          apc.enable=1
+          apc.enable_cli=1
+          EOF
+          done < <(find /etc/php -type d -path '*/conf.d' | sort -u)
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml, apcu
+          ini-values: apc.enable=1, apc.enable_cli=1
+          coverage: none
+
+      - name: Setup Node 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies and Chromium
+        run: |
+          composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          npm ci --silent
+          npx playwright install chromium --with-deps
+
+      - name: Route legacy MySQL test clients to the service container
+        run: echo "${GITHUB_WORKSPACE}/scripts/ci-bin" >> "${GITHUB_PATH}"
+
+      - name: Verify test coverage policy
+        run: npm run test:ci-policy
+
+      - name: Configure Apache on port 8081
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          sudo tee /etc/apache2/sites-available/pinakes.conf >/dev/null <<EOF
+          Listen 8081
+          <VirtualHost *:8081>
+              ServerName localhost
+              DocumentRoot ${WORKSPACE}/public
+              SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
+              SetEnv PINAKES_E2E_SCRAPER_STUB 1
+              # E2E only — arms GET /_e2e/flush-cache so specs that write to the
+              # DB directly can invalidate the page cache; 404s when unset.
+              SetEnv PINAKES_E2E_CACHE_FLUSH 1
+              <Directory "${WORKSPACE}/public">
+                  Options -Indexes +FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+              ErrorLog \${APACHE_LOG_DIR}/pinakes-error.log
+              CustomLog \${APACHE_LOG_DIR}/pinakes-access.log combined
+          </VirtualHost>
+          EOF
+          sudo a2ensite pinakes
+          sudo apachectl configtest
+
+      - name: Grant runtime permissions and start Apache
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          path="${WORKSPACE}"
+          while [ "${path}" != "/" ]; do
+            sudo chmod o+x "${path}"
+            path="$(dirname "${path}")"
+          done
+          sudo chmod 777 "${WORKSPACE}"
+          sudo chmod -R 777 "${WORKSPACE}/storage"
+          sudo mkdir -p "${WORKSPACE}/public/uploads"
+          sudo chmod -R 777 "${WORKSPACE}/public/uploads"
+          sudo systemctl start apache2
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8081/installer/ && exit 0
+            sleep 1
+          done
+          sudo cat /var/log/apache2/pinakes-error.log || true
+          exit 1
+
+      - name: Bootstrap a complete fresh installation
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/bootstrap-${{ matrix.group }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bootstrap-${{ matrix.group }}
+        run: npx playwright test tests/full-test.spec.js --config=tests/playwright.ci.config.js --workers=1
+
+      - name: Audit bootstrap failures, flakes and suspicious skips
+        if: always()
+        env:
+          RESULT_FILE: test-results/bootstrap-${{ matrix.group }}.json
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
+
+      - name: Seed deterministic cross-suite fixtures
+        env:
+          E2E_RUN_SEED: '1'
+          E2E_OFFLINE_SEED: '1'
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/setup-${{ matrix.group }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-setup-${{ matrix.group }}
+        run: |
+          npx playwright test \
+            tests/interop-00-activate-plugins.spec.js \
+            tests/archives-seed-50.spec.js \
+            tests/seed-catalog.spec.js \
+            tests/persistent-seed-crud.spec.js \
+            --config=tests/playwright.ci.config.js \
+            --workers=1
+          sudo chmod -R 777 "${GITHUB_WORKSPACE}/storage"
+          sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads"
+          # The CLI-level helpers (app clock, migrations) read the same
+          # throwaway CI credentials the installer protected from Apache users.
+          sudo chmod 640 "${GITHUB_WORKSPACE}/.env"
+          sudo chgrp "$(id -gn)" "${GITHUB_WORKSPACE}/.env"
+
+      - name: Audit setup fixtures
+        if: always()
+        env:
+          RESULT_FILE: test-results/setup-${{ matrix.group }}.json
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
+
+      - name: Run the 0.9.0 ${{ matrix.group }} suites
+        id: feature-suites
+        env:
+          SPECS: ${{ matrix.specs }}
+          GROUP: ${{ matrix.group }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/feature-090-${{ matrix.group }}.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-feature-090-${{ matrix.group }}
+        run: |
+          read -r -a spec_files <<< "${SPECS}"
+          for spec in "${spec_files[@]}"; do
+            [ -f "${spec}" ] || { echo "Listed spec does not exist: ${spec}"; exit 1; }
+          done
+          printf 'Running %s 0.9.0 specs (%s)\n' "${#spec_files[@]}" "${GROUP}"
+          npx playwright test "${spec_files[@]}" \
+            --config=tests/playwright.ci.config.js \
+            --workers=1
+
+      - name: Audit failures, flakes and skips (zero skips allowed)
+        if: always() && steps.feature-suites.outcome != 'skipped'
+        env:
+          RESULT_FILE: test-results/feature-090-${{ matrix.group }}.json
+          # The shared audit tolerates skips with an environmental reason.
+          # These suites were written for this environment: every test runs.
+          PLAYWRIGHT_MAX_SKIPPED: '0'
+        run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
+
+      - name: Upload browser evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: feature-090-${{ matrix.group }}-${{ github.run_id }}
+          path: |
+            playwright-report-feature-090-${{ matrix.group }}/
+            playwright-report-bootstrap-${{ matrix.group }}/
+            playwright-report-setup-${{ matrix.group }}/
+            test-results/
+            storage/logs/app.log
+            /var/log/apache2/pinakes-error.log
+            /var/log/apache2/pinakes-access.log
+          retention-days: 14
+          if-no-files-found: warn

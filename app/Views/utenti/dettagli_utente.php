@@ -21,6 +21,9 @@ $ruolo = $utente['tipo_utente'] ?? 'standard';
 $creatoIl = $utente['created_at'] ?? '';
 $aggiornatoIl = $utente['updated_at'] ?? '';
 $note = $utente['note_utente'] ?? '';
+$photoRaw = (string) ($utente['foto_profilo_url'] ?? '');
+$photoStored = \App\Support\PatronPhoto::absolutePath($photoRaw) !== null ? $photoRaw : null;
+$photoUrl = $photoStored !== null ? url('/admin/users/' . $id . '/photo') . '?v=' . substr(sha1($photoStored), 0, 10) : null;
 
 $statusLabels = [
     'attivo' => __('Attivo'),
@@ -122,6 +125,12 @@ ob_start();
 ?><?= $display($name, __("Utente senza nome")); ?>
 
     <div class="flex items-center gap-3 shrink-0">
+        <?php if (\App\Support\Features::enabled('patron_cards')): ?>
+        <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" id="print-card" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
+            <i class="fas fa-id-card mr-2"></i>
+            <?= __("Stampa tessera") ?>
+        </a>
+        <?php endif; ?>
         <a href="<?= htmlspecialchars(url('/admin/loans/create?utente_id=' . $id), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors duration-200 inline-flex items-center border border-gray-300">
             <i class="fas fa-handshake mr-2"></i>
             <?= __("Nuovo Prestito") ?>
@@ -148,6 +157,52 @@ $workspaceHeader['actions'] = (string) ob_get_clean();
 require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
+
+  <?php if (\App\Support\Features::enabled('patron_photos')): // photos are independent of printing ?>
+  <section class="bg-white border border-gray-200 rounded-lg p-6" id="patron-card-section">
+    <?php $cardsOn = \App\Support\Features::enabled('patron_cards'); ?>
+    <h2 class="text-lg font-medium text-gray-900"><?= $cardsOn ? __("Foto e tessera") : __("Foto") ?></h2>
+    <div class="mt-4 flex flex-col sm:flex-row gap-6">
+      <div class="shrink-0">
+        <?php if ($photoUrl !== null): ?>
+          <img src="<?= htmlspecialchars($photoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars(__('Foto di %s', $name), ENT_QUOTES, 'UTF-8') ?>" id="patron-photo" class="w-32 h-40 object-cover rounded-lg border border-gray-200">
+        <?php else: ?>
+          <div id="patron-photo-empty" class="w-32 h-40 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400">
+            <i class="fas fa-user text-3xl" aria-hidden="true"></i>
+            <span class="sr-only"><?= __("Nessuna foto") ?></span>
+          </div>
+        <?php endif; ?>
+      </div>
+      <div class="space-y-3 text-sm text-gray-600">
+        <p><?= $cardsOn ? __("La foto compare sulla tessera stampata. È un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") : __("La foto è un dato personale: è visibile solo al personale e può essere eliminata in qualsiasi momento.") ?></p>
+        <div class="flex flex-wrap items-center gap-3">
+          <?php if ($cardsOn): ?>
+          <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=single'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
+            <i class="fas fa-id-card mr-2"></i><?= __("Tessera singola (CR80)") ?>
+          </a>
+          <a href="<?= htmlspecialchars(url('/admin/users/' . $id . '/card-pdf?format=sheet'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" class="btn-secondary">
+            <i class="fas fa-th mr-2"></i><?= __("Foglio A4") ?>
+          </a>
+          <?php endif; ?>
+          <a href="<?= htmlspecialchars(url('/admin/users/edit/' . $id) . '#patron-photo-widget', ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary">
+            <i class="fas fa-camera mr-2"></i><?= $photoUrl !== null ? __("Cambia foto") : __("Aggiungi foto") ?>
+          </a>
+          <?php if ($photoUrl !== null): ?>
+          <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/photo/delete'), ENT_QUOTES, 'UTF-8') ?>" id="delete-photo-form"
+                data-swal-confirm="<?= htmlspecialchars(__('La foto verrà eliminata definitivamente. Continuare?'), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm-title="<?= htmlspecialchars(__('Elimina foto'), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm-button="<?= htmlspecialchars(__('Elimina foto'), ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+            <button type="submit" class="btn-danger-outline px-4 py-2 rounded-lg inline-flex items-center">
+              <i class="fas fa-trash mr-2"></i><?= __("Elimina foto") ?>
+            </button>
+          </form>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+  </section>
+  <?php endif; ?>
 
   <section class="bg-white border border-gray-200 rounded-lg p-6">
     <h2 class="text-lg font-medium text-gray-900"><?= __("Informazioni Personali") ?></h2>
@@ -238,8 +293,65 @@ unset($workspaceHeader);
           <?= !empty($dataUltimoAccesso) ? format_date($dataUltimoAccesso, true, '/') : '—'; ?>
         </dd>
       </div>
+      <?php if (\App\Support\Features::enabled('circulation_rules')): // patron types module ?>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Tipologia lettore") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1" data-testid="patron-type-name">
+          <?= htmlspecialchars((string) ($patronTypeName ?? __('Standard')), ENT_QUOTES, 'UTF-8'); ?>
+          <?php if (empty($patronTypeIsOwn)): ?><span class="text-xs text-gray-500">(<?= __("predefinita") ?>)</span><?php endif; ?>
+        </dd>
+      </div>
+      <?php endif; ?>
     </dl>
   </section>
+
+  <?php if (isset($patronPolicy) && in_array($ruolo, ['standard', 'premium'], true)): ?>
+  <section class="bg-white border border-gray-200 rounded-lg p-6" data-testid="patron-effective-rules">
+    <h2 class="text-lg font-medium text-gray-900"><?= __("Regole di circolazione") ?></h2>
+    <dl class="mt-4 grid gap-4 sm:grid-cols-2">
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Prestiti attivi massimi") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= $patronPolicy->maxActiveLoans > 0 ? (int) $patronPolicy->maxActiveLoans : __('Nessun limite') ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Durata prestito (giorni)") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= (int) $patronPolicy->durationDays ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Durata massima richiedibile (giorni)") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= (int) $patronPolicy->maxRequestDays ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Rinnovi massimi") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= (int) $patronPolicy->maxRenewals ?></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Prenotazioni") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1">
+          <?= !$patronPolicy->user->reservationsEnabled
+              ? __('Prenotazioni disattivate')
+              : ($patronPolicy->user->maxReservations > 0 ? sprintf(__('Massimo %d'), $patronPolicy->user->maxReservations) : __('Nessun limite')) ?>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-sm text-gray-500"><?= __("Durata tessera (giorni)") ?></dt>
+        <dd class="text-sm text-gray-900 mt-1"><?= $patronPolicy->user->cardDurationDays !== null ? (int) $patronPolicy->user->cardDurationDays : '—' ?></dd>
+      </div>
+    </dl>
+    <p class="text-xs text-gray-500 mt-3"><?= __("Le regole per tipo di materiale (Impostazioni → Circolazione) possono ridurre questi valori per singoli materiali.") ?></p>
+    <form method="POST" action="<?= htmlspecialchars(url('/admin/users/' . $id . '/renew-card'), ENT_QUOTES, 'UTF-8') ?>" class="mt-4"
+          data-swal-confirm="<?= htmlspecialchars(sprintf(__('Rinnovare la tessera fino al %s?'), format_date($cardRenewalPreview ?? \App\Support\PatronTypeAssignment::todayPlus($patronPolicy->user->cardDurationDays ?? \App\Support\PatronTypeAssignment::DEFAULT_RENEWAL_DAYS), false, '/')), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm-title="<?= htmlspecialchars(__('Rinnova tessera'), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm-button="<?= htmlspecialchars(__('Rinnova tessera'), ENT_QUOTES, 'UTF-8') ?>"
+          data-swal-confirm-kind="action">
+      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
+      <button type="submit" data-testid="renew-card" class="px-4 py-3 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center justify-center gap-2 border border-gray-800">
+        <i class="fas fa-id-card"></i>
+        <span class="font-medium"><?= __("Rinnova tessera") ?></span>
+      </button>
+    </form>
+  </section>
+  <?php endif; ?>
 
   <?php if ($stato === 'sospeso'): ?>
   <!-- Approval Actions -->
@@ -339,6 +451,8 @@ unset($workspaceHeader);
         </table>
     </div>
   </div>
+
+  <?php if (!empty($ledgerEnabled)) { require __DIR__ . '/_movimenti.php'; } ?>
 
   <?php if ($note !== ''): ?>
     <section class="bg-white border border-gray-200 rounded-lg p-6 mt-6">

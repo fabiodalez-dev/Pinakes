@@ -695,12 +695,13 @@ class BulkEnrichmentService
         }
 
         // Try to find existing publisher
-        $stmt = $this->db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
+        // Exact spelling first when the collation also admits "Haffner" for "Häffner" (#501).
+        $stmt = $this->db->prepare("SELECT id FROM editori WHERE nome = ? ORDER BY " . \App\Support\ExactSearch::exactFirstSql('nome') . ", id LIMIT 1");
         if ($stmt === false) {
             return null;
         }
 
-        $stmt->bind_param('s', $name);
+        $stmt->bind_param('ss', $name, $name);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
@@ -792,12 +793,13 @@ class BulkEnrichmentService
         }
 
         // Try to find existing author
-        $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
+        // Exact spelling first when the collation also admits "Haffner" for "Häffner" (#501).
+        $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? ORDER BY " . \App\Support\ExactSearch::exactFirstSql('nome') . ", id LIMIT 1");
         if ($stmt === false) {
             return null;
         }
 
-        $stmt->bind_param('s', $name);
+        $stmt->bind_param('ss', $name, $name);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();

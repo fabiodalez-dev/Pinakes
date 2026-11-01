@@ -18,7 +18,7 @@ concurrency:
 jobs:
   workflow-security:
     name: Workflow, YAML and shell security
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read # Read workflow and script sources.
@@ -58,7 +58,7 @@ jobs:
   dependency-review:
     name: Dependency diff policy
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read # Compare dependency manifests in the pull request.
@@ -75,7 +75,7 @@ jobs:
 
   repository-security:
     name: Secrets, vulnerabilities and misconfigurations
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: read # Scan the repository and complete Git history.
@@ -108,7 +108,7 @@ jobs:
 
   release-artifact:
     name: Reproducible release, SBOM and archive audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
       contents: read # Build the release from checked-out sources.

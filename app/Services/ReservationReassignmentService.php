@@ -640,6 +640,7 @@ class ReservationReassignmentService
             FROM copie c
             WHERE c.libro_id = ?
             AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+            AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
             AND NOT EXISTS (
                 SELECT 1
                 FROM prestiti own

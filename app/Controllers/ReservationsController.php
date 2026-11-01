@@ -290,6 +290,11 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // A start day the library is closed moves to the next open day, as the
+        // request calendar proposes it (a crafted request cannot start on a
+        // closure); identical without closures.
+        $startDate = \App\Support\LibraryCalendar::forDb($this->db)->nextOpenDay($startDate);
+
         if ($endDate && $endDate < $startDate) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_range', 'message' => __('La data di fine non può precedere la data di inizio')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
@@ -297,22 +302,25 @@ class ReservationsController
 
         // Configurable duration cap (anti-DoS): applies both to an explicit
         // end_date and to the default end computed from loan_duration_days.
-        $settings = new \App\Models\SettingsRepository($this->db);
-        $maxDurationDays = $settings->maxLoanDurationDays();
+        $circulation = new \App\Services\CirculationPolicy($this->db);
+        $requestPolicy = $circulation->forLoan($userId, (int) $bookId);
+        $maxDurationDays = $requestPolicy->maxRequestDays;
 
         // If no end date specified, set it using the configured loan duration (fallback: 30 days)
         if (!$endDate) {
-            $loanDays = $settings->requestLoanDurationDays();
-            $endDateTime = new DateTime($startDate);
-            $endDateTime->modify("+{$loanDays} days");
-            $endDate = $endDateTime->format('Y-m-d');
+            $endDate = \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $requestPolicy->requestDurationDays());
         }
 
-        $requestedDurationDays = (int) (new DateTime($startDate))->diff(new DateTime($endDate))->days;
-        if ($requestedDurationDays > $maxDurationDays) {
+        // The longest loan ends on the maximum day, moved forward like every
+        // due date when it falls on a closed day (closed days are not loan
+        // days); without closures this is start + maximum, as before.
+        if ($endDate > \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $maxDurationDays, $this->db)) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'max_duration_exceeded', 'message' => __('Il periodo richiesto supera la durata massima consentita di %d giorni', $maxDurationDays)]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        // Closures calendar: a return date on a closed day moves to the next
+        // open day (after the duration cap: closed days are not loan days).
+        $endDate = \App\Services\CirculationPolicy::dueDateFor($endDate, 0, $this->db);
 
         // Availability decision routes through CapacityService — the single
         // capacity authority — so this web loan-request gate matches the mobile
@@ -410,11 +418,39 @@ class ReservationsController
             // capacity-free pending loan be created. The gate runs inside THIS
             // transaction (inCallerTransaction: true) under the canonical book
             // lock taken above.
+            // Circulation rules of the patron type, under the user lock:
+            // consultation-only material is neither lent nor queued, and the
+            // reservation limit counts queue reservations plus requests
+            // awaiting approval (CirculationPolicy).
+            $policyError = !$requestPolicy->loanable
+                ? 'not_loanable'
+                : $circulation->reservationLimitError($requestPolicy->user, $userId, queue: false);
+            if ($policyError !== null) {
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => $policyError,
+                    'message' => \App\Support\LoanEligibility::errorMessage($policyError),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
             $routing = (new \App\Services\LoanRequestGate($this->db))
                 ->route($bookId, $userId, $startDate, $endDate, inCallerTransaction: true);
             $assignableCopyId = $routing->assignableCopyId;
 
             if ($routing->isReservation()) {
+                // The gate queued the request: refused for a patron type
+                // without reservations (the row is rolled back with the rest).
+                if (!$requestPolicy->user->reservationsEnabled) {
+                    $this->db->rollback();
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'error' => 'reservations_disabled',
+                        'message' => \App\Support\LoanEligibility::errorMessage('reservations_disabled'),
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+                }
                 $reservationId = (int) $routing->reservationId;
                 $this->db->commit();
 
@@ -425,6 +461,9 @@ class ReservationsController
                     'auto_approved' => false,
                     'status' => 'reserved',
                     'loan_state' => null,
+                    // The stored window (closed days already skipped).
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             }
@@ -433,19 +472,17 @@ class ReservationsController
             // A real waitlist reservation is intentionally handled above: like
             // UserActionsController::reserve(), it does not consume an active-
             // loan slot until promotion.
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $cntStmt = $this->db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('i', $userId);
-                $cntStmt->execute();
-                $cntResult = $cntStmt->get_result();
-                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
-                    $this->db->rollback();
-                    $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai raggiunto il numero massimo di prestiti attivi consentiti')]));
-                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
-                }
+            $limitError = $circulation->loanLimitError($requestPolicy, $userId);
+            if ($limitError !== null) {
+                $this->db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'error' => $limitError,
+                    'message' => $limitError === 'max_loans_reached'
+                        ? __('Hai raggiunto il numero massimo di prestiti attivi consentiti')
+                        : \App\Support\LoanEligibility::errorMessage($limitError),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
             }
 
             // Read the setting while the canonical book lock is still held. With
@@ -518,9 +555,16 @@ class ReservationsController
                 // ?string: the persisted state ('prenotato' scheduled loan /
                 // 'da_ritirare' immediate pickup) on success, null when the
                 // request stays pending (setting off / approval failed).
+                $approved = null;
                 $loanState = $autoApproveEnabled
-                    ? $this->autoApproveLoanRequest($request, $loanRequestId, true)
+                    ? $this->autoApproveLoanRequest($request, $loanRequestId, true, $approved)
                     : null;
+                // The due date the approval wrote (it may have moved over a
+                // closure of the assigned copy's branch): the fallback below
+                // when the stored window cannot be read back.
+                if (is_array($approved) && is_string($approved['data_scadenza'] ?? null) && \App\Support\DateHelper::isISODateFormat($approved['data_scadenza'])) {
+                    $endDate = $approved['data_scadenza'];
+                }
 
                 if ($loanState === null) {
                     // Send notification to admins (an auto-approved request no
@@ -549,6 +593,32 @@ class ReservationsController
                     $status = 'pending_approval';
                 }
 
+                // The window as stored: approval may still move the due date
+                // over a closure of the assigned copy's branch.
+                // The request is already committed: a failed read only loses
+                // the refinement, never the success the reader must see.
+                $pickupDeadline = null;
+                $pickupDays = null;
+                try {
+                    $storedWindow = $this->db->prepare('SELECT data_prestito, data_scadenza, copia_id, pickup_deadline FROM prestiti WHERE id = ?');
+                    $storedWindow->bind_param('i', $loanRequestId);
+                    $storedWindow->execute();
+                    $storedRow = $storedWindow->get_result()->fetch_assoc();
+                    $storedWindow->close();
+                    if (is_array($storedRow)) {
+                        $startDate = (string) ($storedRow['data_prestito'] ?? $startDate);
+                        $endDate = (string) ($storedRow['data_scadenza'] ?? $endDate);
+                        if ($loanState !== null) {
+                            [$pickupDeadline, $pickupDays] = $this->expectedPickup($startDate, $endDate, $storedRow);
+                        }
+                    }
+                } catch (\Throwable $windowError) {
+                    \App\Support\SecureLogger::warning('ReservationsController: stored window not readable', ['error' => $windowError->getMessage()]);
+                    if ($loanState !== null) {
+                        [$pickupDeadline, $pickupDays] = $this->fallbackPickup($startDate, $endDate, $approved);
+                    }
+                }
+
                 $response->getBody()->write(json_encode([
                     'success' => true,
                     'message' => $message,
@@ -558,6 +628,15 @@ class ReservationsController
                     'auto_approved' => $loanState !== null,
                     'status' => $status,
                     'loan_state' => $loanState,
+                    // The stored window (closed days already skipped).
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    // An approved loan's pickup deadline and open pickup days,
+                    // with the closures of the assigned copy's branch (null
+                    // when unknown: the page then computes them itself). For
+                    // a scheduled loan it is the estimate activation applies.
+                    'pickup_deadline' => $pickupDeadline,
+                    'pickup_days' => $pickupDays,
                 ]));
                 return $response->withHeader('Content-Type', 'application/json');
             } else {
@@ -582,12 +661,64 @@ class ReservationsController
     // diverge again.
 
     /**
+     * The pickup deadline and open pickup days of an approved request, from
+     * its stored row: the deadline already stored for a loan awaiting pickup,
+     * otherwise the one activation will set (LibraryCalendar::pickupDeadline
+     * with the assigned copy's branch, capped at the due date). The days
+     * follow the pickup emails: never more than the setting, fewer when the
+     * loan ends first or closed days fall inside the window.
+     *
+     * @param array<string, mixed> $row prestiti row (copia_id, pickup_deadline)
+     * @return array{0: ?string, 1: ?int}
+     */
+    private function expectedPickup(string $startDate, string $endDate, array $row): array
+    {
+        if (!\App\Support\DateHelper::isISODateFormat($startDate)) {
+            return [null, null];
+        }
+        $copiaId = !empty($row['copia_id']) ? (int) $row['copia_id'] : null;
+        $setting = max(1, (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'pickup_expiry_days', '3') ?? 3));
+        $stored = $row['pickup_deadline'] !== null ? substr((string) $row['pickup_deadline'], 0, 10) : '';
+        $deadline = \App\Support\DateHelper::isISODateFormat($stored)
+            ? $stored
+            : \App\Support\LibraryCalendar::pickupDeadline($this->db, $startDate, $setting, \App\Support\DateHelper::isISODateFormat($endDate) ? $endDate : null, $copiaId);
+        $openDays = \App\Support\LibraryCalendar::forDb($this->db)->openDaysBetween($startDate, $deadline, \App\Support\LibraryCalendar::branchOfCopy($this->db, $copiaId));
+        return [$deadline, min($setting, $openDays)];
+    }
+
+    /**
+     * The pickup estimate when the stored row cannot be read back: the copy
+     * the approval assigned (its JSON body carries copia_id) still brings its
+     * branch closures, so the page does not fall back to the library-wide
+     * ones. Counted from the requested start, it is an estimate, not the
+     * deadline the approval stored (that one counts from the approval day).
+     * The request is already committed: a failure here only loses the
+     * estimate, never the success.
+     *
+     * @param array<mixed>|null $approved
+     * @return array{0: ?string, 1: ?int}
+     */
+    private function fallbackPickup(string $startDate, string $endDate, ?array $approved): array
+    {
+        try {
+            $copiaId = is_array($approved) && is_numeric($approved['copia_id'] ?? null) ? (int) $approved['copia_id'] : null;
+            return $this->expectedPickup($startDate, $endDate, ['copia_id' => $copiaId, 'pickup_deadline' => null]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('ReservationsController: pickup estimate not computed', ['error' => $e->getMessage()]);
+            return [null, null];
+        }
+    }
+
+    /**
      * Promote a newly-created request through the canonical approval pipeline
      * when the automatic-approval setting is on (#301). Mirrors
      * UserActionsController::autoApproveLoanRequest — a failure deliberately
      * leaves the request pending so an administrator can still process it.
+     *
+     * @param array<mixed>|null $approved set to the approval's JSON
+     *        body (data_scadenza, copia_id…) when the loan was approved
      */
-    private function autoApproveLoanRequest($request, int $loanId, ?bool $knownEnabled = null): ?string
+    private function autoApproveLoanRequest($request, int $loanId, ?bool $knownEnabled = null, ?array &$approved = null): ?string
     {
         // When the caller already captured the setting under the book lock it
         // passes that decision in $knownEnabled. Legacy/internal callers may omit
@@ -617,6 +748,7 @@ class ReservationsController
                 // so the response can describe the real outcome instead of
                 // assuming "awaiting pickup".
                 $body = json_decode((string) $result->getBody(), true);
+                $approved = is_array($body) ? $body : null;
                 return is_array($body) && isset($body['loan_state']) && is_string($body['loan_state'])
                     ? $body['loan_state']
                     : 'da_ritirare';
@@ -650,7 +782,7 @@ class ReservationsController
      * answer the filter would give, without hiding the record from the
      * operator or from the reader who already has it reserved.
      */
-    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null): ?array
+    public function getBookAvailabilityData($bookId, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null, bool $coverLoanWindow = false): ?array
     {
         $bookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL");
         $bookStmt->bind_param('i', $bookId);
@@ -696,10 +828,32 @@ class ReservationsController
         // The durations every calendar proposes with (public book page, admin
         // loan and reservation forms, the app): the configured default, capped
         // by the maximum the request endpoints enforce, from one source.
-        $settings = new \App\Models\SettingsRepository($this->db);
+        $circulation = new \App\Services\CirculationPolicy($this->db);
+        $policy = $excludeUserId !== null
+            ? $circulation->forLoan($excludeUserId, (int) $bookId)
+            : $circulation->defaults();
+        // Closures calendar: closed days in the same horizon, so the request
+        // calendars can refuse them as a start/pickup day, plus enough days
+        // past it for the browser to move a proposed due date that falls on
+        // a closed day forward to the next open day (additive field).
+        $from = $startDate ?? \App\Support\DateHelper::today();
+        $closedHorizon = max(0, $days - 1) + max($policy->durationDays, $policy->maxRequestDays) + 31;
+        // start_until is the last day a request may start on. A start picked
+        // there still needs occupancy data for its whole loan window, closed
+        // days included: with $coverLoanWindow the days run on as far as the
+        // closed days do, or a booked day past them would read as free.
+        $startUntil = \App\Support\LibraryCalendar::shift($from, max(0, $days - 1));
+        if ($coverLoanWindow) {
+            $days = $closedHorizon + 1;
+        }
+        $closedDates = \App\Support\LibraryCalendar::forDb($this->db)
+            ->closedDatesBetween($from, \App\Support\LibraryCalendar::shift($from, $closedHorizon));
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
-            'loan_duration_days' => $settings->requestLoanDurationDays(),
-            'max_loan_duration_days' => $settings->maxLoanDurationDays(),
+            'loan_duration_days' => $policy->requestDurationDays(),
+            'max_loan_duration_days' => $policy->maxRequestDays,
+            'staff_loan_duration_days' => $policy->durationDays,
+            'closed_dates' => $closedDates,
+            'start_until' => $startUntil,
         ];
     }
 
@@ -794,6 +948,7 @@ class ReservationsController
                 SELECT COUNT(*) as total FROM copie
                 WHERE libro_id = ?
                 AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('') . "
             ");
             $stmt->bind_param('i', $bookId);
             $stmt->execute();

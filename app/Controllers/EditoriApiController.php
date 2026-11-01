@@ -34,33 +34,23 @@ class EditoriApiController
         // HAVING clause for libri_count filter (applied after subquery)
         $having_clause = '';
 
-        if ($search_text !== '') {
-            $where_prepared .= " AND e.nome LIKE ? ";
-            $params_for_where[] = "%$search_text%";
-            $param_types_for_where .= 's';
-            $params[] = "%$search_text%";
-            $param_types .= 's';
-        }
-        if ($search_sito !== '') {
-            $where_prepared .= " AND e.sito_web LIKE ? ";
-            $params_for_where[] = "%$search_sito%";
-            $param_types_for_where .= 's';
-            $params[] = "%$search_sito%";
-            $param_types .= 's';
-        }
-        if ($search_via !== '') {
-            $where_prepared .= " AND e.indirizzo LIKE ? ";
-            $params_for_where[] = "%$search_via%";
-            $param_types_for_where .= 's';
-            $params[] = "%$search_via%";
-            $param_types .= 's';
-        }
-        if ($search_cap !== '') {
-            $where_prepared .= " AND e.indirizzo LIKE ? ";
-            $params_for_where[] = "%$search_cap%";
-            $param_types_for_where .= 's';
-            $params[] = "%$search_cap%";
-            $param_types .= 's';
+        // A value wrapped in quotes matches the exact spelling, accents
+        // included (#501). The same fragment feeds both the count query
+        // ($params_for_where) and the page query ($params).
+        foreach ([
+            ['e.nome', $search_text],
+            ['e.sito_web', $search_sito],
+            ['e.indirizzo', $search_via],
+            ['e.indirizzo', $search_cap],
+        ] as [$expr, $value]) {
+            $cond = $value !== '' ? \App\Support\ExactSearch::filterCondition([$expr], $value) : null;
+            if ($cond !== null) {
+                $where_prepared .= ' AND ' . $cond['sql'] . ' ';
+                array_push($params_for_where, ...$cond['params']);
+                $param_types_for_where .= $cond['types'];
+                array_push($params, ...$cond['params']);
+                $param_types .= $cond['types'];
+            }
         }
         // Book count filter - uses HAVING since libri_count is computed
         if ($filter_libri_count !== '') {

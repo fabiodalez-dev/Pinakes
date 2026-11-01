@@ -214,11 +214,6 @@ class UNIMARCXMLFormatter extends RecordFormatter
             ]));
         }
 
-        // 606 — Subject — genre
-        if (!empty($record['genere'])) {
-            $recordEl->appendChild($this->df('606', ' ', ' ', [['a', (string) $record['genere']]]));
-        }
-
         // 606 — Subject — keywords
         if (!empty($record['parole_chiave'])) {
             foreach (explode(',', (string) $record['parole_chiave']) as $kw) {
@@ -227,6 +222,14 @@ class UNIMARCXMLFormatter extends RecordFormatter
                     $recordEl->appendChild($this->df('606', ' ', ' ', [['a', $kw]]));
                 }
             }
+        }
+
+        // 608 — the genre, as every UNIMARC record of this application
+        // writes it (BookMarcBuilder::unimarcGenreField(): 608 $2 local), so a
+        // copy catalogued from this server gets it back as the genre.
+        $genreField = \App\Support\Marc\BookMarcBuilder::unimarcGenreField((string) ($record['genere'] ?? ''));
+        if ($genreField !== null) {
+            $recordEl->appendChild($this->df($genreField[0], $genreField[1], $genreField[2], $genreField[3]));
         }
 
         // 700/701/702 — creators and secondary intellectual responsibility.
@@ -255,6 +258,16 @@ class UNIMARCXMLFormatter extends RecordFormatter
         // 856 — Electronic location and access (public record URL)
         if (!empty($record['public_url'])) {
             $recordEl->appendChild($this->df('856', '4', ' ', [['u', (string) $record['public_url']]]));
+        }
+
+        // 856 — the cover image, for copy cataloguing between Pinakes
+        // installations (and any client that reads 856 $u). Additive: the
+        // record URL above is unchanged.
+        if (!empty($record['copertina_url'])) {
+            $recordEl->appendChild($this->df('856', '4', ' ', [
+                ['u', $this->absoluteCoverUrl((string) $record['copertina_url'])],
+                ['z', 'Cover image'],
+            ]));
         }
 
         // 801 — Originating source

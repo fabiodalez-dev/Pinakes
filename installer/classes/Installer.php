@@ -612,7 +612,8 @@ class Installer {
 
             try {
                 $pdo->exec($statement);
-                if (stripos($statement, 'CREATE TRIGGER') === 0) {
+                // A chunk carries its comments and DROP TRIGGER before the CREATE
+                if (preg_match('/^\s*CREATE\s+TRIGGER\b/mi', $statement) === 1) {
                     $executedTriggers++;
                 }
             } catch (PDOException $e) {

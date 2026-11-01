@@ -70,7 +70,17 @@ $check($source !== false && str_contains($source, "'search.unified.sources'"),  
 $check($source !== false && str_contains($source, "'admin.menu.render'"),        'plannedHooks lists admin.menu.render');
 $check($source !== false && str_contains($source, "'libri.authority.resolve'"),  'plannedHooks lists libri.authority.resolve');
 $check($source !== false && str_contains($source, 'reference_code LIKE ?'),      'unified search matches archival reference_code');
-$check($source !== false && str_contains($source, "bind_param('ssss'"),          'unified search binds reference_code LIKE placeholder');
+// The unified search binds whatever the shared condition builds (one
+// placeholder per column and term, #501); the real query is exercised in
+// tests/exact-search-archives-501.unit.php. Here: it uses that builder and
+// binds its own types/params instead of a hard-coded type string.
+$unified = $source !== false ? (string) strstr((string) strstr($source, 'public function addArchivalSources('), 'public function getPublicArchiveResults(', true) : '';
+$check(
+    str_contains($unified, '$this->archiveSearchCondition($q)')
+        && str_contains($unified, "bind_param(\$match['types'], ...\$match['params'])")
+        && str_contains($source, "['reference_code', 'constructed_title', 'formal_title', 'scope_content']"),
+    'unified search binds reference_code LIKE placeholder'
+);
 
 echo "\nOAI-PMH interoperability regressions:\n";
 $check($source !== false && str_contains($source, "\$app->get('/archives/{id:[0-9]+}/dc.xml'"), 'public Dublin Core route exists');

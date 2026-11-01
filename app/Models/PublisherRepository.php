@@ -143,6 +143,8 @@ class PublisherRepository
 
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
+        // Quotes typed around a new name mean "exact spelling" (#501).
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
         $indirizzo = \App\Support\HtmlHelper::decode($data['indirizzo'] ?? '');
         $telefono = \App\Support\HtmlHelper::decode($data['telefono'] ?? '');
@@ -182,6 +184,8 @@ class PublisherRepository
 
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
+        // Quotes around the whole name are never stored, as in create() (#501).
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
         $indirizzo = \App\Support\HtmlHelper::decode($data['indirizzo'] ?? '');
         $telefono = \App\Support\HtmlHelper::decode($data['telefono'] ?? '');
@@ -283,8 +287,21 @@ class PublisherRepository
     {
         $name = trim($name);
         if ($name === '') return null;
-        $stmt = $this->db->prepare('SELECT id FROM editori WHERE nome = ? LIMIT 1');
-        $stmt->bind_param('s', $name);
+        // Typed in quotes: only that exact spelling (accents included, case
+        // ignored) is reused, so a new "Häffner" is not merged into Haffner.
+        $quoted = \App\Support\ExactSearch::quotedValue($name);
+        if ($quoted !== null) {
+            $match = \App\Support\ExactSearch::equalsCondition('nome', $quoted);
+            $stmt = $this->db->prepare("SELECT id FROM editori WHERE {$match['sql']} ORDER BY id LIMIT 1");
+            $stmt->bind_param($match['types'], ...$match['params']);
+            $stmt->execute();
+            $stmt->bind_result($id);
+            return $stmt->fetch() ? (int) $id : null;
+        }
+        // The collation folds accents, so "Häffner" also matches "Haffner";
+        // when both are on file the exact spelling wins (#501).
+        $stmt = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY ' . \App\Support\ExactSearch::exactFirstSql('nome') . ', id LIMIT 1');
+        $stmt->bind_param('ss', $name, $name);
         $stmt->execute();
         $stmt->bind_result($id);
         if ($stmt->fetch()) { return (int)$id; }

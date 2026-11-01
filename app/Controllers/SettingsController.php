@@ -68,6 +68,7 @@ class SettingsController
         $contactSettings = $this->resolveContactSettings($repository);
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
+        $cardSettings = \App\Support\PatronCardSettings::resolve($repository);
         $eventSettings = $this->resolveEventSettings($repository);
         // Catalogue header (Settings → CMS): edit the configured site language.
         // Historical translations stay stored for later language changes.
@@ -79,6 +80,22 @@ class SettingsController
         $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $loansSettings = $this->resolveLoansSettings($repository);
+        // Patron types and rules matrix (Settings → Circulation): reserved to
+        // administrators like every CirculationSettingsController action, so
+        // staff gets no data and the view renders no panel (the section is
+        // absent from the settings catalogue for them too).
+        $circulationData = \App\Support\Permissions::mayConfigure()
+            ? CirculationSettingsController::viewData($db)
+            : null;
+        // Optional modules (Settings → Modules): the saved switches.
+        $moduleSettings = \App\Support\Features::snapshot();
+        $legacyPenaltyImpact = ['count' => 0, 'cents' => 0];
+        // Only while loss mirroring is off: the notice describes switching it on.
+        if (\App\Support\Permissions::mayConfigure() && !\App\Support\Features::stored('loss_penalties') && \App\Services\PatronLedger::schemaReady($db)) {
+            $row = $db->query("SELECT COUNT(*) AS n, COALESCE(SUM(p.sanzione),0) AS amount FROM prestiti p WHERE p.sanzione > 0 AND NOT EXISTS (SELECT 1 FROM movimenti_lettore m WHERE m.chiave_idempotenza = CONCAT('penalty:',p.id))")->fetch_assoc();
+            $legacyPenaltyImpact = ['count' => (int) ($row['n'] ?? 0), 'cents' => \App\Services\FineParameters::decimalToCents($row['amount'] ?? 0)];
+        }
+        $attendanceRetentionDays = \App\Models\AttendanceRepository::retentionDays($repository);
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
         // Custom registration fields (issue #255) — edited from the email tab's
@@ -104,6 +121,7 @@ class SettingsController
             'contactSettings',
             'privacySettings',
             'labelSettings',
+            'cardSettings',
             'eventSettings',
             'catalogHeaderLocales',
             'catalogHeaderTexts',
@@ -112,6 +130,10 @@ class SettingsController
             'eventsHeaderDefaults',
             'advancedSettings',
             'loansSettings',
+            'circulationData',
+            'moduleSettings',
+            'attendanceRetentionDays',
+            'legacyPenaltyImpact',
             'contactMessages',
             'activeTab',
             'db',
@@ -1089,9 +1111,11 @@ class SettingsController
 
         // Handle catalogue mode setting (stored in 'system' category)
         $catalogueMode = isset($data['catalogue_mode']) && $data['catalogue_mode'] === '1' ? '1' : '0';
+        $consultationWasOn = \App\Support\Features::enabled('consultation_only');
         $repository->set('system', 'catalogue_mode', $catalogueMode);
         ConfigStore::set('system.catalogue_mode', $catalogueMode === '1');
         ConfigStore::clearCache();
+        $this->refreshConsultationAvailability($db, $consultationWasOn);
 
         $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
             ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
@@ -1299,6 +1323,20 @@ class SettingsController
         }
 
         return $this->redirect($response, '/admin/settings?tab=labels');
+    }
+
+    /** Save the library card settings (Settings → Tessere). */
+    public function updateCards(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+        \App\Support\PatronCardSettings::save($repository, \App\Support\PatronCardSettings::sanitize($data));
+
+        $_SESSION['success_message'] = __('Impostazioni tessere aggiornate correttamente.');
+        return $this->redirect($response, '/admin/settings?tab=cards');
     }
 
     public function toggleApi(Request $request, Response $response, mysqli $db): Response
@@ -1656,7 +1694,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string}
      */
     private function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1664,6 +1702,8 @@ class SettingsController
             'loan_duration_days'       => (int) ($repository->get('loans', 'loan_duration_days', '30') ?? 30),
             'pickup_expiry_days'       => (int) ($repository->get('loans', 'pickup_expiry_days', '3') ?? 3),
             'pickup_reminder_days'     => (int) ($repository->get('loans', 'pickup_reminder_days', '2') ?? 2),
+            // Card-expiry warning (circulation policy): 0 = off.
+            'card_expiry_warning_days' => (int) ($repository->get('loans', 'card_expiry_warning_days', '0') ?? 0),
             'max_renewals'             => (int) ($repository->get('loans', 'max_renewals', '3') ?? 3),
             'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
@@ -1675,8 +1715,29 @@ class SettingsController
             'recall_max_count'         => (int) ($repository->get('loans', 'recall_max_count', '3') ?? 3),
             // App-wide clock for due dates and automatisms (DateHelper reads it).
             'app_timezone'             => (string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'),
+            // Plan §7: fines and debt block. Empty string = not set (disabled).
+            'daily_fine'               => (string) ($repository->get('loans', 'daily_fine', '') ?? ''),
+            'fine_grace_mode'          => (string) $repository->get('loans', 'fine_grace_mode', 'threshold'),
+            'card_renewal_base'        => (string) $repository->get('loans', 'card_renewal_base', 'today'),
+            'fine_grace_days'          => (int) ($repository->get('loans', 'fine_grace_days', '0') ?? 0),
+            'fine_max_per_loan'        => (string) ($repository->get('loans', 'fine_max_per_loan', '') ?? ''),
+            'debt_block_threshold'     => (string) ($repository->get('loans', 'debt_block_threshold', '') ?? ''),
+            'fine_charged_email'       => (string) ($repository->get('loans', 'fine_charged_email', '0') ?? '0') === '1',
+            'currency'                 => \App\Services\FineParameters::currency(),
+            // Optional circulation modules switched from this tab (the saved
+            // switch, not the catalogue-mode-adjusted one).
+            'fines_enabled'            => \App\Support\Features::stored('fines'),
+            'closures_calendar_enabled' => \App\Support\Features::stored('closures_calendar'),
+            'circulation_rules_enabled' => \App\Support\Features::stored('circulation_rules'),
         ];
     }
+
+    /** Fine amounts of the loans tab → the patron type column with the same label (CirculationSettingsController::fieldLabel()). */
+    private const FINE_AMOUNT_FIELDS = [
+        'daily_fine' => 'multa_giornaliera',
+        'fine_max_per_loan' => 'multa_massima_prestito',
+        'debt_block_threshold' => 'soglia_blocco_debito',
+    ];
 
     public function updateLoansSettings(Request $request, Response $response, mysqli $db): Response
     {
@@ -1685,6 +1746,23 @@ class SettingsController
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
+
+        // Plan §7: a fine amount above FineParameters::MAX_SETTING_CENTS is a
+        // typing error, not a policy: the tab is sent back untouched with the
+        // field named, before anything below is written.
+        if (\App\Support\Permissions::mayConfigure()) {
+            foreach (self::FINE_AMOUNT_FIELDS as $amountKey => $column) {
+                $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
+                if (\App\Services\FineParameters::exceedsSettingMax($raw)) {
+                    $_SESSION['error_message'] = sprintf(
+                        __('Importo non valido per "%1$s": il massimo consentito è %2$s.'),
+                        \App\Controllers\CirculationSettingsController::fieldLabel($column),
+                        \App\Services\FineParameters::format(\App\Services\FineParameters::MAX_SETTING_CENTS)
+                    );
+                    return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
+                }
+            }
+        }
 
         // Clamp to sane bounds on BOTH ends — a hand-crafted POST must not be
         // able to persist absurd durations/renewals (the UI min/max attributes
@@ -1696,6 +1774,7 @@ class SettingsController
         $loanDurationDays = min(3650, max(1, (int) ($data['loan_duration_days'] ?? 30)));         // 1 day … 10 years
         $pickupExpiryDays = min(30,   max(1, (int) ($data['pickup_expiry_days'] ?? 3)));          // 1 … 30 days (matches the loans-tab input max)
         $pickupReminderDays = min(30, max(0, (int) ($data['pickup_reminder_days'] ?? 2)));        // 0 (off) … 30 days before the pickup deadline
+        $cardExpiryWarningDays = min(365, max(0, (int) ($data['card_expiry_warning_days'] ?? 0))); // 0 (off) … 365 days before the card expires
         $maxRenewals      = min(100,  max(0, (int) ($data['max_renewals'] ?? 3)));                // 0 … 100
         $maxActiveLoans   = min(1000, max(0, (int) ($data['max_active_loans_per_user'] ?? 0)));   // 0 (unlimited) … 1000
         $maxLoanDuration  = min(3650, max(1, (int) ($data['max_loan_duration_days'] ?? 90)));     // 1 day … 10 years (reservation-window cap enforced by ReservationsController)
@@ -1716,6 +1795,7 @@ class SettingsController
         $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
         $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
         $repository->set('loans', 'pickup_reminder_days', (string) $pickupReminderDays);
+        $repository->set('loans', 'card_expiry_warning_days', (string) $cardExpiryWarningDays);
         $repository->set('loans', 'max_renewals', (string) $maxRenewals);
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
@@ -1724,6 +1804,51 @@ class SettingsController
         $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
         $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
         $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
+
+        // Plan §7: fines and debt block. Amounts accept a decimal comma; an
+        // empty or malformed value is stored as '' (= disabled), never coerced
+        // into a number the operator did not type. They are money policy:
+        // staff may save the rest of this tab, but these keys stay as they
+        // are unless an administrator saves them (AdminAuthMiddleware admits
+        // staff, so the check is here).
+        if (\App\Support\Permissions::mayConfigure()) {
+            foreach (array_keys(self::FINE_AMOUNT_FIELDS) as $amountKey) {
+                $raw = isset($data[$amountKey]) && is_scalar($data[$amountKey]) ? (string) $data[$amountKey] : '';
+                $cents = \App\Services\FineParameters::toCents($raw);
+                $repository->set('loans', $amountKey, $cents !== null && $cents > 0 ? \App\Services\FineParameters::centsToDecimal($cents) : '');
+            }
+            $repository->set('loans', 'fine_grace_days', (string) min(365, max(0, (int) ($data['fine_grace_days'] ?? 0))));
+            $fineEmail = isset($data['fine_charged_email']) && is_scalar($data['fine_charged_email'])
+                && (string) $data['fine_charged_email'] === '1';
+            $repository->set('loans', 'fine_charged_email', $fineEmail ? '1' : '0');
+            // The three circulation modules of this tab (patron type rules,
+            // closures calendar, fines): library policy, administrators only.
+            \App\Support\Features::preserveInherited($repository);
+            foreach (['fine_grace_mode' => ['threshold', 'deduct'], 'card_renewal_base' => ['today', 'expiry']] as $key => $allowed) {
+                if (isset($data[$key]) && is_string($data[$key]) && in_array($data[$key], $allowed, true)) {
+                    $repository->set('loans', $key, $data[$key]);
+                }
+            }
+            $lossWasOn = \App\Support\Features::enabled('loss_penalties');
+            $calendarWasOn = \App\Support\Features::enabled('closures_calendar');
+            $consultationWasOn = \App\Support\Features::enabled('consultation_only');
+            $this->saveFeatureSwitches($repository, $data, \App\Support\Features::LOANS_TAB);
+            $this->refreshConsultationAvailability($db, $consultationWasOn);
+            if (!$lossWasOn && \App\Support\Features::enabled('loss_penalties')) {
+                $repository->set('loans', 'legacy_penalties_backfilled', '0');
+            }
+            // The calendar switched on applies its closures at once: a pending
+            // pickup whose deadline now falls on a closed day moves to the
+            // next open day, as when the calendar itself is saved.
+            if (\App\Support\Features::enabled('closures_calendar') !== $calendarWasOn) {
+                \App\Support\LibraryCalendar::reset();
+                try {
+                    \App\Support\LibraryCalendar::extendPickupDeadlines($db);
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
+                }
+            }
+        }
 
         // App timezone: DateHelper computes the loan clock ("today"/"now") from
         // this. Validate against the canonical identifier list — an invalid or
@@ -1738,6 +1863,80 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni prestiti aggiornate correttamente.');
         return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
+    }
+
+    /**
+     * Save Settings → Modules. Switching a module off hides it everywhere, so
+     * it is library policy: AdminAuthMiddleware admits staff, the check is
+     * here, as for the other policy settings.
+     */
+    public function updateModules(Request $request, Response $response, mysqli $db): Response
+    {
+        if (!\App\Support\Permissions::mayConfigure()) {
+            $_SESSION['error_message'] = __('Accesso negato. Permessi insufficienti.');
+            return $this->redirect($response, '/admin/settings');
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+        \App\Support\Features::preserveInherited($repository);
+        $this->saveFeatureSwitches($repository, $data, \App\Support\Features::MODULES_TAB);
+        $retention = filter_var($data['attendance_retention_days'] ?? null, FILTER_VALIDATE_INT);
+        if ($retention !== false && $retention >= 0) {
+            $days = min(\App\Models\AttendanceRepository::MAX_RETENTION_DAYS, $retention);
+            $repository->set('attendance', 'retention_days', (string) $days);
+        }
+
+        $_SESSION['success_message'] = __('Moduli aggiornati correttamente.');
+        return $this->redirect($response, '/admin/settings?tab=modules');
+    }
+
+    /**
+     * The consultation-only switch decides which copies count as available
+     * (CirculationPolicy::lendableCopySql()). When its effective value
+     * changed, the stored availability of the books that have such a copy,
+     * the only ones whose count moves, is recalculated at once.
+     */
+    private function refreshConsultationAvailability(mysqli $db, bool $wasOn): void
+    {
+        if (\App\Support\Features::enabled('consultation_only') === $wasOn) {
+            return;
+        }
+        try {
+            $result = $db->query("SELECT DISTINCT c.libro_id FROM copie c JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL WHERE c.solo_consultazione = 1");
+            if (!$result instanceof \mysqli_result) {
+                return;
+            }
+            $integrity = new \App\Support\DataIntegrity($db);
+            foreach ($result->fetch_all(MYSQLI_NUM) as [$bookId]) {
+                $integrity->recalculateBookAvailability((int) $bookId);
+            }
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Consultation availability not recalculated: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Write features.<key> for each of $keys from the checkbox feature_<key>
+     * (absent = off). SettingsRepository::set() drops the ConfigStore cache,
+     * so the next request already reads the new value.
+     *
+     * @param array<mixed> $data
+     * @param list<string> $keys
+     */
+    private function saveFeatureSwitches(SettingsRepository $repository, array $data, array $keys): void
+    {
+        foreach ($keys as $key) {
+            $field = 'feature_' . $key;
+            // Old pages/API clients do not know the new controls: absence preserves them.
+            if ((isset(\App\Support\Features::INHERITED[$key]) || $key === 'attendance_retention') && !array_key_exists($field, $data)) {
+                continue;
+            }
+            $on = isset($data[$field]) && is_scalar($data[$field]) && (string) $data[$field] === '1';
+            $repository->set('features', $key, $on ? '1' : '0');
+        }
     }
 
     /** A 302 back to an admin path inside the application. */

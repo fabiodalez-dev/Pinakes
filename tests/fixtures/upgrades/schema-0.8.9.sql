@@ -1,0 +1,1486 @@
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `admin_notifications` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `type` enum('new_message','new_reservation','new_user','overdue_loan','new_loan_request','new_review','general') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `link` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_read` tinyint(1) DEFAULT '0',
+  `related_id` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_is_read` (`is_read`),
+  KEY `idx_type` (`type`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+CREATE TABLE `email_delivery_outbox` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `recipient_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `template_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `variables_json` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `attempts` int unsigned NOT NULL DEFAULT '0',
+  `available_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `claim_token` char(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `claimed_at` datetime DEFAULT NULL,
+  `last_error` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_email_outbox_due` (`available_at`,`claim_token`),
+  KEY `idx_email_outbox_claimed` (`claimed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `api_keys` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `api_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `is_active` tinyint(1) DEFAULT '1',
+  `last_used_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `api_key` (`api_key`),
+  KEY `idx_api_key` (`api_key`),
+  KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `autori` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `data_nascita` date DEFAULT NULL,
+  `data_morte` date DEFAULT NULL,
+  `nazionalità` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `pseudonimo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `biografia` text COLLATE utf8mb4_unicode_ci,
+  `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `foto` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `collegamenti` json DEFAULT NULL,
+  `gnd_id` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `viaf_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `viaf_uri` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `isni_id` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `isni_uri` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `authority_source` enum('manual','viaf','isni','sbn','wikidata') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `authority_confidence` enum('exact','probable','candidate','rejected') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_isni_id` (`isni_id`),
+  KEY `idx_viaf_id` (`viaf_id`),
+  UNIQUE KEY `uq_autori_gnd` (`gnd_id`),
+  FULLTEXT KEY `ft_autori_nome` (`nome`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `author_authority_alternates` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `autore_id` int NOT NULL,
+  `source` enum('viaf','isni','sbn','wikidata','manual') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `authority_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `label` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `uri` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `confidence` enum('exact','probable','candidate','rejected') COLLATE utf8mb4_unicode_ci DEFAULT 'candidate',
+  `payload_json` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_autore_id` (`autore_id`),
+  KEY `idx_authority` (`source`,`authority_id`),
+  CONSTRAINT `fk_author_authority_alternates_autore` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `cms_pages` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `slug` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `locale` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'en_US',
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `image` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `meta_description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_slug` (`slug`),
+  KEY `idx_active` (`is_active`),
+  KEY `idx_cms_locale` (`locale`),
+  KEY `idx_cms_slug_locale` (`slug`,`locale`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `contact_messages` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `cognome` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `telefono` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `indirizzo` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `messaggio` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `privacy_accepted` tinyint(1) DEFAULT '0',
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `is_read` tinyint(1) DEFAULT '0',
+  `is_archived` tinyint(1) DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `read_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_email` (`email`),
+  KEY `idx_read` (`is_read`),
+  KEY `idx_archived` (`is_archived`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `copie` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `sede_id` int DEFAULT NULL,
+  `numero_inventario` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `stato` enum('disponibile','prestato','prenotato','manutenzione','in_restauro','perso','danneggiato','in_trasferimento') COLLATE utf8mb4_unicode_ci DEFAULT 'disponibile',
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_numero_inventario` (`numero_inventario`),
+  KEY `idx_libro_id` (`libro_id`),
+  KEY `idx_stato` (`stato`),
+  KEY `idx_sede_id` (`sede_id`),
+  CONSTRAINT `copie_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `copie_ibfk_2` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `donazioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `donatore_id` int NOT NULL,
+  `data_donazione` datetime DEFAULT CURRENT_TIMESTAMP,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `stato` enum('in_valutazione','accettata','rifiutata') COLLATE utf8mb4_unicode_ci DEFAULT 'in_valutazione',
+  `valore` decimal(10,2) DEFAULT NULL,
+  `tipo_donazione` enum('libri','fondi','materiali','altro') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `tax_receipt` tinyint(1) DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `donatore_id` (`donatore_id`),
+  KEY `idx_donazioni_tipo_donazione` (`tipo_donazione`),
+  CONSTRAINT `donazioni_ibfk_1` FOREIGN KEY (`donatore_id`) REFERENCES `utenti` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `editori` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `indirizzo` text COLLATE utf8mb4_unicode_ci,
+  `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `referente_nome` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `referente_telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `referente_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `codice_fiscale` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `codice_fiscale` (`codice_fiscale`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `email_templates` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `locale` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'it_IT',
+  `subject` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `body` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name_locale` (`name`,`locale`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `feedback` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `tipo` enum('feedback','problema','suggerimento') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `messaggio` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `data_invio` datetime DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `utente_id` (`utente_id`),
+  KEY `idx_feedback_tipo` (`tipo`),
+  CONSTRAINT `feedback_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `generi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `parent_id` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_nome_parent` (`nome`,`parent_id`),
+  KEY `parent_id` (`parent_id`),
+  CONSTRAINT `generi_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `generi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `home_content` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `section_key` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Chiave sezione (hero, features, cta, etc)',
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Titolo principale',
+  `subtitle` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Sottotitolo o descrizione',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Contenuto aggiuntivo (HTML permesso)',
+  `button_text` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Testo pulsante CTA',
+  `button_link` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Link pulsante CTA',
+  `background_image` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Percorso immagine di sfondo',
+  `seo_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Custom SEO title (overrides default)',
+  `seo_description` text COLLATE utf8mb4_unicode_ci COMMENT 'Custom meta description',
+  `seo_keywords` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'SEO keywords (comma-separated)',
+  `og_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Custom Open Graph image (overrides hero background)',
+  `og_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Open Graph Title',
+  `og_description` text COLLATE utf8mb4_unicode_ci COMMENT 'Open Graph Description',
+  `og_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'website' COMMENT 'Open Graph Type (website, article, etc.)',
+  `og_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Open Graph URL',
+  `twitter_card` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'summary_large_image' COMMENT 'Twitter Card Type',
+  `twitter_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Twitter Card Title',
+  `twitter_description` text COLLATE utf8mb4_unicode_ci COMMENT 'Twitter Card Description',
+  `twitter_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Twitter Card Image URL',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT 'Se 0 la sezione non viene mostrata',
+  `display_order` int DEFAULT '0' COMMENT 'Ordine di visualizzazione',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `section_key` (`section_key`),
+  KEY `idx_active` (`is_active`),
+  KEY `idx_order` (`display_order`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contenuti editabili homepage';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `import_logs`
+-- Import tracking system for CSV and LibraryThing imports
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `import_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `import_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique identifier for this import session',
+  `import_type` enum('csv','librarything') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import',
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original filename uploaded',
+  `user_id` int DEFAULT NULL COMMENT 'User who initiated the import',
+  `total_rows` int NOT NULL DEFAULT '0' COMMENT 'Total rows in CSV',
+  `imported` int NOT NULL DEFAULT '0' COMMENT 'Successfully imported books (new)',
+  `updated` int NOT NULL DEFAULT '0' COMMENT 'Updated existing books',
+  `failed` int NOT NULL DEFAULT '0' COMMENT 'Failed rows',
+  `authors_created` int NOT NULL DEFAULT '0' COMMENT 'New authors created',
+  `publishers_created` int NOT NULL DEFAULT '0' COMMENT 'New publishers created',
+  `scraped` int NOT NULL DEFAULT '0' COMMENT 'Books enriched via scraping',
+  `errors_json` mediumtext COLLATE utf8mb4_unicode_ci COMMENT 'JSON array of errors with line numbers and messages',
+  `started_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'When import started',
+  `completed_at` timestamp NULL DEFAULT NULL COMMENT 'When import completed or failed',
+  `status` enum('processing','completed','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'processing' COMMENT 'Current import status',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `import_id` (`import_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_import_type` (`import_type`),
+  KEY `idx_started_at` (`started_at`),
+  KEY `idx_status` (`status`),
+  KEY `idx_type_status` (`import_type`,`status`),
+  CONSTRAINT `import_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Import tracking and error logging';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `events` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content` text COLLATE utf8mb4_unicode_ci,
+  `event_date` date NOT NULL,
+  `event_time` time DEFAULT NULL,
+  `featured_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `seo_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `seo_description` text COLLATE utf8mb4_unicode_ci,
+  `seo_keywords` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `og_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `og_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `og_description` text COLLATE utf8mb4_unicode_ci,
+  `og_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'article',
+  `og_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `twitter_card` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'summary_large_image',
+  `twitter_title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `twitter_description` text COLLATE utf8mb4_unicode_ci,
+  `twitter_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_events_active` (`is_active`),
+  KEY `idx_events_date` (`event_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Library events and activities';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `languages` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Language code: it_IT, en_US, es_ES, fr_FR, de_DE, etc.',
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'English name: Italian, English, Spanish, French, German',
+  `native_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Native name: Italiano, English, Español, Français, Deutsch',
+  `flag_emoji` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 0xF09F8C90 COMMENT 'Flag emoji: ??, ??, ??, ??, ??',
+  `is_default` tinyint(1) DEFAULT '0' COMMENT 'Is this the default language for new users?',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT 'Is this language active and selectable?',
+  `translation_file` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path to translation file: locale/es_ES.json',
+  `total_keys` int DEFAULT '0' COMMENT 'Total translation keys in system',
+  `translated_keys` int DEFAULT '0' COMMENT 'Number of translated keys for this language',
+  `completion_percentage` decimal(5,2) DEFAULT '0.00' COMMENT 'Translation completion percentage',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_code` (`code`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `idx_is_default` (`is_default`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores available languages for the application';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `libri` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `isbn10` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `isbn13` varchar(13) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `issn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ISSN for periodicals (LibraryThing)',
+  `titolo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sottotitolo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `anno_pubblicazione` smallint DEFAULT NULL,
+  `lingua` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `original_languages` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original languages (LibraryThing)',
+  `edizione` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `luogo_pubblicazione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Place of publication as printed (MARC 264 $a)',
+  `numero_pagine` int DEFAULT NULL,
+  `genere_id` int DEFAULT NULL,
+  `sottogenere_id` int DEFAULT NULL,
+  `scaffale_id` int DEFAULT NULL,
+  `mensola_id` int DEFAULT NULL,
+  `posizione_progressiva` int DEFAULT NULL,
+  `collocazione` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `posizione_id` int DEFAULT NULL,
+  `stato` enum('disponibile','prestato','prenotato','perso','danneggiato','non_disponibile') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'disponibile' COMMENT 'Derived availability summary, auto-managed by the loan engine (DataIntegrity::recalculateBookAvailability); non_disponibile = has copies but none circulating',
+  `data_acquisizione` date DEFAULT NULL,
+  `entry_date` date DEFAULT NULL COMMENT 'LibraryThing entry date',
+  `date_started` date DEFAULT NULL COMMENT 'Date started reading (LibraryThing)',
+  `date_read` date DEFAULT NULL COMMENT 'Date finished reading (LibraryThing)',
+  `tipo_acquisizione` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'acquisto' COMMENT 'Free-text acquisition type (e.g. acquisto, donazione, prestito)',
+  `copertina_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `descrizione` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `descrizione_plain` text DEFAULT NULL,
+  `review` text COLLATE utf8mb4_unicode_ci COMMENT 'Book review (LibraryThing)',
+  `rating` tinyint unsigned DEFAULT NULL COMMENT 'Rating 1-5 (LibraryThing)',
+  `comment` text COLLATE utf8mb4_unicode_ci COMMENT 'Public comment (LibraryThing)',
+  `private_comment` text COLLATE utf8mb4_unicode_ci COMMENT 'Private comment (LibraryThing)',
+  `parole_chiave` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `search_index` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `catalog_author_display` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived principal-author display used by public catalog listings',
+  `catalog_author_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived canonical name of the principal catalog author',
+  `catalog_author_sort` varchar(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived surname/sort key for catalog author ordering',
+  `formato` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cartaceo',
+  `tipo_media` enum('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro',
+  `peso` float DEFAULT NULL,
+  `dimensioni` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `physical_description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical description (LibraryThing)',
+  `prezzo` decimal(10,2) DEFAULT NULL,
+  `value` decimal(10,2) DEFAULT NULL COMMENT 'Current value (LibraryThing)',
+  `condition_lt` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical condition (LibraryThing)',
+  `lt_fields_visibility` json DEFAULT NULL COMMENT 'Frontend visibility preferences for LibraryThing fields',
+  `copie_totali` int DEFAULT '1',
+  `copie_disponibili` int DEFAULT '1',
+  `editore_id` int DEFAULT NULL,
+  `source` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Source/vendor (LibraryThing)',
+  `from_where` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'From where acquired (LibraryThing)',
+  `lending_patron` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Current lending patron (LibraryThing)',
+  `lending_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Lending status (LibraryThing)',
+  `lending_start` date DEFAULT NULL COMMENT 'Lending start date (LibraryThing)',
+  `lending_end` date DEFAULT NULL COMMENT 'Lending end date (LibraryThing)',
+  `numero_inventario` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `classificazione_dewey` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `dewey_wording` text COLLATE utf8mb4_unicode_ci COMMENT 'Dewey classification description (LibraryThing)',
+  `lccn` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Library of Congress Control Number (LibraryThing)',
+  `lc_classification` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'LC Classification (LibraryThing)',
+  `other_call_number` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Other call number (LibraryThing)',
+  `collana` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `numero_serie` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note_varie` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `file_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `audio_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `traduttore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `illustratore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `curatore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ean` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'European Article Number',
+  `bcid` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'BCID (LibraryThing)',
+  `barcode` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical barcode (LibraryThing)',
+  `oclc` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'OCLC number (LibraryThing)',
+  `work_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'LibraryThing Work ID',
+  `data_pubblicazione` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '' COMMENT 'Original publication date in Italian format',
+  `deleted_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `isbn13` (`isbn13`),
+  UNIQUE KEY `isbn10` (`isbn10`),
+  UNIQUE KEY `ean` (`ean`),
+  KEY `genere_id` (`genere_id`),
+  KEY `idx_libri_sottogenere` (`sottogenere_id`),
+  KEY `posizione_id` (`posizione_id`),
+  KEY `idx_libri_titolo_sottotitolo` (`titolo`,`sottotitolo`),
+  KEY `editore_id` (`editore_id`),
+  KEY `idx_libri_stato` (`stato`),
+  KEY `idx_libri_tipo_media_deleted_at` (`deleted_at`,`tipo_media`),
+  KEY `fk_libri_mensola` (`mensola_id`),
+  KEY `idx_libri_scaffale_mensola` (`scaffale_id`,`mensola_id`),
+  KEY `idx_libri_posizione_progressiva` (`posizione_progressiva`),
+  KEY `idx_collana` (`collana`),
+  KEY `idx_lt_rating` (`rating`),
+  KEY `idx_lt_date_read` (`date_read`),
+  KEY `idx_lt_lending_status` (`lending_status`),
+  KEY `idx_lt_lccn` (`lccn`),
+  KEY `idx_lt_barcode` (`barcode`),
+  KEY `idx_lt_oclc` (`oclc`),
+  KEY `idx_lt_work_id` (`work_id`),
+  KEY `idx_lt_issn` (`issn`),
+  KEY `idx_libri_updated_at` (`updated_at`),
+  KEY `idx_libri_deleted_created` (`deleted_at`,`created_at`),
+  KEY `idx_libri_genere_deleted_created` (`genere_id`,`deleted_at`,`created_at`),
+  KEY `idx_libri_catalog_author_sort` (`catalog_author_sort`,`id`),
+  FULLTEXT KEY `ft_libri_search` (`titolo`,`sottotitolo`,`descrizione`,`parole_chiave`),
+  FULLTEXT KEY `ft_libri_search_index` (`search_index`),
+  CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_libri_scaffale` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `libri_ibfk_1` FOREIGN KEY (`editore_id`) REFERENCES `editori` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `libri_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_libri_sottogenere` FOREIGN KEY (`sottogenere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `chk_lt_rating` CHECK ((`rating` is null or (`rating` between 1 and 5)))
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `digital_assets` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `url` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `md5_hash` char(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `filesize` bigint unsigned NOT NULL DEFAULT '0',
+  `image_width` int unsigned NOT NULL DEFAULT '0',
+  `image_height` int unsigned NOT NULL DEFAULT '0',
+  `ppi` smallint unsigned NOT NULL DEFAULT '300',
+  `filetype` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PDF',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_libro_id` (`libro_id`),
+  CONSTRAINT `digital_assets_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `libri_autori` (
+  `libro_id` int NOT NULL,
+  `autore_id` int NOT NULL,
+  `ruolo` enum('principale','co-autore','traduttore','illustratore','curatore','colorista') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ordine_credito` int DEFAULT NULL,
+  PRIMARY KEY (`libro_id`,`autore_id`,`ruolo`),
+  KEY `libro_id` (`libro_id`),
+  KEY `autore_id` (`autore_id`),
+  CONSTRAINT `libri_autori_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `libri_autori_ibfk_2` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `catalog_materialized_snapshots` (
+  `cache_key` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `generation` bigint NOT NULL,
+  `payload` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`cache_key`),
+  KEY `idx_catalog_snapshots_updated` (`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generation-bound shared materialization of bounded catalog counts and facets';
+-- Tracks only role links created by authoritative importers. Keeping this
+-- provenance outside libri_autori lets a re-import replace its own stale
+-- contributors without deleting an identical association added manually.
+CREATE TABLE `libri_autori_import_sources` (
+  `libro_id` int NOT NULL,
+  `autore_id` int NOT NULL,
+  `ruolo` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`libro_id`,`autore_id`,`ruolo`,`source`),
+  KEY `idx_lais_autore` (`autore_id`),
+  CONSTRAINT `libri_autori_import_sources_book_fk` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `libri_autori_import_sources_author_fk` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+-- Multi-publisher junction (issue #143). A book may have more than one
+-- publisher; libri.editore_id is retained as the PRIMARY publisher (ordine=0)
+-- for backward compatibility with single-publisher consumers.
+CREATE TABLE `libri_editori` (
+  `libro_id` int NOT NULL,
+  `editore_id` int NOT NULL,
+  `ordine` int DEFAULT NULL,
+  PRIMARY KEY (`libro_id`,`editore_id`),
+  KEY `libro_id` (`libro_id`),
+  KEY `editore_id` (`editore_id`),
+  CONSTRAINT `libri_editori_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `libri_editori_ibfk_2` FOREIGN KEY (`editore_id`) REFERENCES `editori` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `libri_donati` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `donazione_id` int NOT NULL,
+  `libro_id` int NOT NULL,
+  `quantita` int DEFAULT '1',
+  `condizione` enum('nuovo','ottimo','buono','discreto') COLLATE utf8mb4_unicode_ci DEFAULT 'ottimo',
+  `note_condizione` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `libro_id` (`libro_id`),
+  KEY `idx_libri_donati_donazione_id` (`donazione_id`),
+  CONSTRAINT `libri_donati_ibfk_1` FOREIGN KEY (`donazione_id`) REFERENCES `donazioni` (`id`),
+  CONSTRAINT `libri_donati_ibfk_2` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `libri_tag` (
+  `libro_id` int NOT NULL,
+  `tag_id` int NOT NULL,
+  PRIMARY KEY (`libro_id`,`tag_id`),
+  KEY `tag_id` (`tag_id`),
+  CONSTRAINT `libri_tag_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `libri_tag_ibfk_2` FOREIGN KEY (`tag_id`) REFERENCES `tag` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `log_modifiche` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tabella` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `record_id` int NOT NULL,
+  `azione` enum('inserimento','aggiornamento','cancellazione') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `dati_precedenti` text COLLATE utf8mb4_unicode_ci,
+  `dati_nuovi` text COLLATE utf8mb4_unicode_ci,
+  `utente_id` int DEFAULT NULL,
+  `data_modifica` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `utente_id` (`utente_id`),
+  KEY `idx_log_modifiche_tabella_record_id` (`tabella`,`record_id`),
+  CONSTRAINT `log_modifiche_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `mensole` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `scaffale_id` int NOT NULL,
+  `numero_livello` int NOT NULL,
+  `genere_id` int DEFAULT NULL,
+  `descrizione` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `ordine` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `scaffale_id` (`scaffale_id`,`numero_livello`),
+  KEY `genere_id` (`genere_id`),
+  CONSTRAINT `mensole_ibfk_1` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `mensole_ibfk_2` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_data` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
+  `data_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Data key',
+  `data_value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Data value (can store JSON)',
+  `data_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'string' COMMENT 'Data type hint',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_plugin_key` (`plugin_id`,`data_key`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  CONSTRAINT `fk_plugin_data_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generic plugin data storage';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_hooks` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
+  `hook_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Hook identifier',
+  `callback_class` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'PHP class to call',
+  `callback_method` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Method name in class',
+  `priority` int NOT NULL DEFAULT '10' COMMENT 'Execution priority (lower = earlier)',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Whether hook is active',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_plugin_hook_callback` (`plugin_id`,`hook_name`,`callback_method`),
+  KEY `idx_hook_name` (`hook_name`,`priority`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  KEY `idx_active` (`is_active`),
+  CONSTRAINT `fk_plugin_hooks_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin hooks registry';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_logs` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned DEFAULT NULL COMMENT 'Reference to plugin (NULL for system logs)',
+  `level` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'info' COMMENT 'Log level',
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Log message',
+  `context` json DEFAULT NULL COMMENT 'Additional context data',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  KEY `idx_level` (`level`),
+  KEY `idx_created_at` (`created_at`),
+  CONSTRAINT `fk_plugin_logs_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin activity and error logs';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugin_settings` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `plugin_id` int unsigned NOT NULL COMMENT 'Reference to plugin',
+  `setting_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Setting key',
+  `setting_value` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Setting value (can store JSON)',
+  `autoload` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Whether to autoload this setting',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_plugin_setting` (`plugin_id`,`setting_key`),
+  KEY `idx_plugin_id` (`plugin_id`),
+  KEY `idx_autoload` (`autoload`),
+  CONSTRAINT `fk_plugin_settings_plugin` FOREIGN KEY (`plugin_id`) REFERENCES `plugins` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin-specific settings and configuration';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `plugins` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin unique identifier',
+  `display_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Human-readable plugin name',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Plugin description',
+  `version` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin version',
+  `author` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Plugin author name',
+  `author_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Author website URL',
+  `plugin_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Plugin website/repository URL',
+  `is_active` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Whether plugin is activated',
+  `path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Plugin directory path',
+  `main_file` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Main plugin file',
+  `requires_php` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Minimum PHP version required',
+  `requires_app` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Minimum app version required',
+  `metadata` json DEFAULT NULL COMMENT 'Additional plugin metadata',
+  `installed_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Installation timestamp',
+  `updated_at` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update timestamp',
+  `activated_at` datetime DEFAULT NULL COMMENT 'Last activation timestamp',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_plugin_name` (`name`),
+  KEY `idx_active` (`is_active`),
+  KEY `idx_name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Plugin registry and metadata';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `oai_deleted_records` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `entity_type` enum('book','archival_unit') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `entity_id` bigint unsigned NOT NULL,
+  `oai_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `datestamp` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_entity` (`entity_type`,`entity_id`),
+  KEY `idx_oai_id` (`oai_id`),
+  KEY `idx_datestamp` (`datestamp`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `oai_resumption_tokens` (
+  `token` varchar(64) NOT NULL,
+  `payload` json NOT NULL,
+  `expires_at` datetime NOT NULL,
+  PRIMARY KEY (`token`),
+  KEY `idx_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `mag_project_config` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `project_code` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'PINAKES',
+  `institution_code` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'IT',
+  `collection_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Biblioteca Pinakes',
+  `rights_statement` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'In Copyright',
+  `base_url` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_project_code` (`project_code`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ncip_partners` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `agency_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `endpoint_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `isil` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_code` (`code`),
+  KEY `idx_active` (`active`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ncip_transactions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `partner_id` int DEFAULT NULL,
+  `message_type` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `prestito_id` int DEFAULT NULL,
+  `prenotazione_id` int DEFAULT NULL,
+  `request_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` enum('pending','success','error') NOT NULL DEFAULT 'pending',
+  `error_msg` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_partner` (`partner_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_prestito` (`prestito_id`),
+  KEY `idx_prenotazione` (`prenotazione_id`),
+  CONSTRAINT `ncip_transactions_ibfk_1` FOREIGN KEY (`partner_id`) REFERENCES `ncip_partners` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `ncip_transactions_ibfk_2` FOREIGN KEY (`prestito_id`) REFERENCES `prestiti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `ncip_transactions_ibfk_3` FOREIGN KEY (`prenotazione_id`) REFERENCES `prenotazioni` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `posizioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `scaffale_id` int NOT NULL,
+  `mensola_id` int NOT NULL,
+  `genere_id` int NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `ordine` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `scaffale_id` (`scaffale_id`,`mensola_id`,`genere_id`),
+  KEY `mensola_id` (`mensola_id`),
+  KEY `genere_id` (`genere_id`),
+  CONSTRAINT `posizioni_ibfk_1` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `posizioni_ibfk_2` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `posizioni_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `preferenze_notifica_utenti` (
+  `utente_id` int NOT NULL,
+  `notifica_tipo` enum('email','sms','push') COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`utente_id`,`notifica_tipo`),
+  CONSTRAINT `preferenze_notifica_utenti_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `prenotazioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `utente_id` int NOT NULL,
+  `data_prenotazione` datetime DEFAULT CURRENT_TIMESTAMP,
+  `data_inizio_richiesta` date DEFAULT NULL,
+  `data_fine_richiesta` date DEFAULT NULL,
+  `data_scadenza_prenotazione` datetime DEFAULT NULL,
+  `queue_position` int DEFAULT NULL,
+  `notifica_inviata` tinyint(1) DEFAULT '0',
+  `stato` enum('attiva','completata','annullata') COLLATE utf8mb4_unicode_ci DEFAULT 'attiva',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `libro_id` (`libro_id`),
+  KEY `utente_id` (`utente_id`),
+  KEY `idx_prenotazioni_data_scadenza_prenotazione` (`data_scadenza_prenotazione`),
+  KEY `idx_stato_libro` (`stato`,`libro_id`),
+  KEY `idx_queue_position` (`queue_position`),
+  CONSTRAINT `prenotazioni_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
+  CONSTRAINT `prenotazioni_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `prestiti` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `copia_id` int DEFAULT NULL,
+  `utente_id` int NOT NULL,
+  `data_prestito` date NOT NULL,
+  `data_scadenza` date NOT NULL,
+  `pickup_deadline` date DEFAULT NULL,
+  `data_restituzione` date DEFAULT NULL,
+  `restituito_in_ritardo` tinyint(1) NOT NULL DEFAULT '0',
+  `stato` enum('pendente','prenotato','da_ritirare','in_corso','restituito','in_ritardo','perso','danneggiato','annullato','scaduto') COLLATE utf8mb4_unicode_ci DEFAULT 'pendente',
+  `origine` enum('richiesta','prenotazione','diretto','ncip') COLLATE utf8mb4_unicode_ci DEFAULT 'richiesta',
+  `ncip_request_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sanzione` decimal(10,2) DEFAULT '0.00',
+  `renewals` int DEFAULT '0',
+  `processed_by` int DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `attivo` tinyint(1) NOT NULL DEFAULT '1',
+  `warning_sent` tinyint(1) DEFAULT '0',
+  `overdue_notification_sent` tinyint(1) DEFAULT '0',
+  `pickup_notification_sent` tinyint(1) DEFAULT '0',
+  `pickup_notification_claim_token` char(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `pickup_notification_last_attempt_at` datetime DEFAULT NULL,
+  `recall_count` int NOT NULL DEFAULT '0',
+  `last_recall_at` datetime DEFAULT NULL,
+  `pickup_reminder_sent_for` date DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `libro_id` (`libro_id`),
+  KEY `utente_id` (`utente_id`),
+  KEY `processed_by` (`processed_by`),
+  KEY `idx_prestiti_data_scadenza` (`data_scadenza`),
+  KEY `idx_prestiti_status` (`stato`,`data_scadenza`),
+  KEY `idx_prestiti_libro_stato` (`libro_id`,`stato`),
+  KEY `idx_prestiti_attivo_stato` (`attivo`,`stato`),
+  KEY `idx_prestiti_stato_origine` (`stato`,`origine`),
+  KEY `idx_copia_id` (`copia_id`),
+  KEY `idx_prestiti_pickup_deadline` (`pickup_deadline`),
+  KEY `idx_origine` (`origine`),
+  KEY `idx_prestiti_ncip_request_id` (`ncip_request_id`),
+  KEY `idx_libro_utente` (`libro_id`,`utente_id`),
+  CONSTRAINT `fk_prestiti_copia` FOREIGN KEY (`copia_id`) REFERENCES `copie` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `prestiti_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
+  CONSTRAINT `prestiti_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`),
+  CONSTRAINT `prestiti_ibfk_3` FOREIGN KEY (`processed_by`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `recensioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `utente_id` int NOT NULL,
+  `stelle` int NOT NULL DEFAULT '0',
+  `titolo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `stato` enum('pendente','approvata','rifiutata') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendente',
+  `approved_by` int DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `data_recensione` datetime DEFAULT CURRENT_TIMESTAMP,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_user_book_review` (`libro_id`,`utente_id`),
+  KEY `idx_recensioni_libro_id` (`libro_id`),
+  KEY `idx_recensioni_utente_id` (`utente_id`),
+  KEY `idx_recensioni_stato` (`stato`),
+  KEY `idx_recensioni_approved_by` (`approved_by`),
+  CONSTRAINT `recensioni_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `recensioni_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `recensioni_ibfk_3` FOREIGN KEY (`approved_by`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `recensioni_chk_1` CHECK ((`stelle` between 1 and 5))
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `scaffali` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `lettera` varchar(1) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `ordine` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  -- #153: `lettera` is NOT unique — bookcase codes are multi-character (L1, L2…)
+  -- and only `codice` identifies a bookcase. `lettera` is a derived helper.
+  KEY `lettera` (`lettera`),
+  UNIQUE KEY `uniq_codice` (`codice`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sedi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Nome della sede (es. Sede Centrale, Succursale Nord)',
+  `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Codice identificativo della sede',
+  `indirizzo` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `citta` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cap` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provincia` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orari_apertura` text COLLATE utf8mb4_unicode_ci COMMENT 'Orari di apertura in formato libero',
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_codice` (`codice`),
+  KEY `idx_is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Sedi della biblioteca (per sistemi multi-sede)';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `staff` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `cognome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ruolo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `data_assunzione` date DEFAULT NULL,
+  `stato` enum('attivo','inattivo') COLLATE utf8mb4_unicode_ci DEFAULT 'attivo',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `system_settings` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `setting_key` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `setting_value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_setting` (`category`,`setting_key`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `tag` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nome` (`nome`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `ruoli` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `permessi` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ruoli_nome` (`nome`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE `utenti` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codice_tessera` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `cognome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `indirizzo` text COLLATE utf8mb4_unicode_ci,
+  `data_nascita` date DEFAULT NULL,
+  `sesso` enum('M','F','Altro') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `foto_profilo_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `data_registrazione` datetime DEFAULT CURRENT_TIMESTAMP,
+  `data_scadenza_tessera` date DEFAULT NULL,
+  `stato` enum('attivo','sospeso','scaduto') COLLATE utf8mb4_unicode_ci DEFAULT 'attivo',
+  `ruolo_id` int DEFAULT NULL,
+  `accesso_digitale` tinyint(1) NOT NULL DEFAULT 0,
+  `tipo_utente` enum('standard','premium','staff','admin') COLLATE utf8mb4_unicode_ci DEFAULT 'standard',
+  `cod_fiscale` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note_utente` text COLLATE utf8mb4_unicode_ci,
+  `email_verificata` tinyint(1) DEFAULT '0',
+  `privacy_accettata` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'GDPR privacy policy acceptance flag',
+  `data_accettazione_privacy` datetime DEFAULT NULL COMMENT 'UTC timestamp of privacy acceptance',
+  `privacy_policy_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Version of accepted privacy policy',
+  `locale` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 'it_IT',
+  `token_verifica_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `data_token_verifica` datetime DEFAULT NULL,
+  `token_reset_password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `data_token_reset` datetime DEFAULT NULL,
+  `data_ultimo_accesso` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `codice_tessera` (`codice_tessera`),
+  UNIQUE KEY `email` (`email`),
+  UNIQUE KEY `cod_fiscale` (`cod_fiscale`),
+  KEY `idx_utenti_email` (`email`),
+  KEY `idx_utenti_codice_tessera` (`codice_tessera`),
+  KEY `idx_utenti_cod_fiscale` (`cod_fiscale`),
+  KEY `idx_utenti_data_scadenza_tessera` (`data_scadenza_tessera`),
+  KEY `idx_utenti_data_ultimo_accesso` (`data_ultimo_accesso`),
+  KEY `idx_tipo_utente` (`tipo_utente`),
+  KEY `idx_utenti_ruolo` (`ruolo_id`),
+  CONSTRAINT `fk_utenti_ruolo` FOREIGN KEY (`ruolo_id`) REFERENCES `ruoli` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `registrazione_campi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `etichetta` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('text','textarea','email','url','number','checkbox') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
+  `obbligatorio` tinyint(1) NOT NULL DEFAULT '0',
+  `attivo` tinyint(1) NOT NULL DEFAULT '1',
+  `ordine` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `utenti_campi_valori` (
+  `utente_id` int NOT NULL,
+  `campo_id` int NOT NULL,
+  `valore` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`utente_id`, `campo_id`),
+  KEY `idx_ucv_campo` (`campo_id`),
+  CONSTRAINT `utenti_campi_valori_utente_fk` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `utenti_campi_valori_campo_fk` FOREIGN KEY (`campo_id`) REFERENCES `registrazione_campi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `wishlist` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `libro_id` int NOT NULL,
+  `data_aggiunta` datetime DEFAULT CURRENT_TIMESTAMP,
+  `notified` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `utente_id` (`utente_id`,`libro_id`),
+  KEY `idx_wishlist_utente_id` (`utente_id`),
+  KEY `idx_wishlist_libro_id` (`libro_id`),
+  CONSTRAINT `wishlist_ibfk_1` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `wishlist_ibfk_2` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `collane`
+-- Series metadata: name, description
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `collane` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `parent_id` int DEFAULT NULL COMMENT 'Parent series/cycle for nested series hierarchies',
+  `tipo` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'serie' COMMENT 'Series kind: serie, universo, ciclo, stagione, spin_off, arco, collezione_editoriale, altro',
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Series name (must match libri.collana values)',
+  `descrizione` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Series description',
+  `gruppo_serie` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Umbrella series/universe grouping for spin-offs',
+  `ciclo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Cycle or season label inside the series group',
+  `ordine_ciclo` smallint unsigned DEFAULT NULL COMMENT 'Sort order for cycle/season inside the group',
+  `is_completa` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Admin flag: all expected volumes are present in the catalogue',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_collana_nome` (`nome`),
+  KEY `idx_collane_parent` (`parent_id`),
+  KEY `idx_collane_tipo` (`tipo`),
+  KEY `idx_collane_gruppo_serie` (`gruppo_serie`),
+  KEY `idx_collane_gruppo_ordine` (`gruppo_serie`,`ordine_ciclo`,`nome`),
+  CONSTRAINT `fk_collane_parent` FOREIGN KEY (`parent_id`) REFERENCES `collane` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `chk_collane_tipo` CHECK (`tipo` IN ('serie','universo','ciclo','stagione','spin_off','arco','collezione_editoriale','altro'))
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `libri_collane` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `collana_id` int NOT NULL,
+  `numero_serie` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `tipo_appartenenza` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'principale',
+  `is_principale` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_libro_collana` (`libro_id`,`collana_id`),
+  KEY `idx_lc_collana` (`collana_id`),
+  KEY `idx_lc_principale` (`libro_id`,`is_principale`),
+  CONSTRAINT `fk_lc_collana` FOREIGN KEY (`collana_id`) REFERENCES `collane` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_lc_libro` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_lc_principale_consistency` CHECK (
+    (`tipo_appartenenza` = 'principale' AND `is_principale` = 1)
+    OR (`tipo_appartenenza` <> 'principale' AND `is_principale` = 0)
+  )
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `volumi`
+-- Multi-volume works: links parent works to individual volume books
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `volumi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `opera_id` int NOT NULL COMMENT 'Parent work (the complete multi-volume work)',
+  `volume_id` int NOT NULL COMMENT 'Child book (individual volume)',
+  `numero_volume` smallint unsigned DEFAULT '1' COMMENT 'Volume number within the work',
+  `titolo_volume` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Override title for this volume',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_volume_id` (`volume_id`),
+  KEY `idx_opera` (`opera_id`),
+  CONSTRAINT `fk_volumi_opera` FOREIGN KEY (`opera_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_volumi_volume` FOREIGN KEY (`volume_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_volumi_not_self` CHECK (`opera_id` <> `volume_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `z39_access_logs`
+-- Plugin: Z39.50/SRU Server
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `z39_access_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Client IP address',
+  `user_agent` text COLLATE utf8mb4_unicode_ci COMMENT 'Client user agent',
+  `operation` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'SRU operation (explain, searchRetrieve, scan)',
+  `query` text COLLATE utf8mb4_unicode_ci COMMENT 'CQL query string',
+  `format` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Record format requested',
+  `num_records` int DEFAULT '0' COMMENT 'Number of records returned',
+  `response_time_ms` int DEFAULT NULL COMMENT 'Response time in milliseconds',
+  `http_status` int DEFAULT NULL COMMENT 'HTTP status code',
+  `error_message` text COLLATE utf8mb4_unicode_ci COMMENT 'Error message if any',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ip` (`ip_address`),
+  KEY `idx_operation` (`operation`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `z39_rate_limits`
+-- Plugin: Z39.50/SRU Server
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `z39_rate_limits` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `request_count` int DEFAULT '1',
+  `window_start` datetime NOT NULL,
+  `last_request` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_ip_window` (`ip_address`,`window_start`),
+  KEY `idx_window` (`window_start`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `themes`
+-- Theme Management System
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `themes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Theme display name',
+  `slug` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique theme identifier',
+  `version` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT '1.0.0' COMMENT 'Theme version',
+  `author` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT 'Admin' COMMENT 'Theme author',
+  `description` text COLLATE utf8mb4_unicode_ci COMMENT 'Theme description',
+  `active` tinyint(1) DEFAULT '0' COMMENT '1 = active theme, 0 = inactive',
+  `settings` json DEFAULT NULL COMMENT 'Theme settings (colors, typography, logo, advanced)',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_active` (`active`),
+  KEY `idx_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Theme management system';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `migrations`
+-- Application Update System
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `migrations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Version number (e.g., 0.3.0)',
+  `filename` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Migration filename',
+  `batch` int NOT NULL DEFAULT '1' COMMENT 'Batch number for rollback',
+  `executed_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT 'When migration was executed',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_version` (`version`),
+  KEY `idx_batch` (`batch`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks executed database migrations';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `update_logs`
+-- Application Update System
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `update_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `from_version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `to_version` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('started','completed','failed','rolled_back') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'started',
+  `backup_path` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path to backup file',
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` datetime DEFAULT NULL,
+  `executed_by` int DEFAULT NULL COMMENT 'User ID who initiated update',
+  PRIMARY KEY (`id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_started` (`started_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Logs all update attempts';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `user_sessions`
+-- GDPR: Database-backed persistent sessions ("Remember Me")
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_sessions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `token_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'SHA-256 hash of the token',
+  `device_info` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Browser/device identifier',
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'IPv4 or IPv6',
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `last_used_at` datetime DEFAULT NULL,
+  `is_revoked` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_sessions_utente_id` (`utente_id`),
+  KEY `idx_user_sessions_token_hash` (`token_hash`),
+  KEY `idx_user_sessions_expires_at` (`expires_at`),
+  KEY `idx_user_sessions_is_revoked` (`is_revoked`),
+  CONSTRAINT `fk_user_sessions_utente` FOREIGN KEY (`utente_id`)
+      REFERENCES `utenti` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Database-backed persistent sessions for Remember Me';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `gdpr_requests`
+-- GDPR: Track data export/delete/rectification requests
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `gdpr_requests` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL COMMENT 'NULL if user deleted',
+  `utente_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Preserved for audit',
+  `request_type` enum('export','delete','rectification') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('pending','processing','completed','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `requested_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` datetime DEFAULT NULL,
+  `processed_by` int DEFAULT NULL COMMENT 'Admin user ID',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`id`),
+  KEY `idx_gdpr_requests_utente_id` (`utente_id`),
+  KEY `idx_gdpr_requests_status` (`status`),
+  KEY `idx_gdpr_requests_type` (`request_type`),
+  CONSTRAINT `fk_gdpr_requests_utente` FOREIGN KEY (`utente_id`)
+      REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_gdpr_requests_admin` FOREIGN KEY (`processed_by`)
+      REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='GDPR data subject request tracking';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `consent_log`
+-- GDPR Article 7: Audit trail for consent changes
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `consent_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL,
+  `consent_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'privacy_policy, marketing, analytics, etc.',
+  `consent_given` tinyint(1) NOT NULL,
+  `consent_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_consent_log_utente_id` (`utente_id`),
+  KEY `idx_consent_log_type` (`consent_type`),
+  KEY `idx_consent_log_created_at` (`created_at`),
+  KEY `idx_consent_log_utente_type` (`utente_id`, `consent_type`, `created_at`),
+  CONSTRAINT `fk_consent_log_utente` FOREIGN KEY (`utente_id`)
+      REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='GDPR Article 7 consent audit trail';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+
+--
+-- Mobile API plugin tables (bundled + active by default since 0.7.21).
+-- Mirrors MobileApiPlugin::ensureSchema() (idempotent, single source of truth
+-- on activation/upgrade). Kept here so a fresh install — where the plugin is
+-- auto-activated — has the tables ready. FK_CHECKS is off during this import.
+--
+CREATE TABLE IF NOT EXISTS mobile_app_tokens (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT          NOT NULL,
+    token_hash   CHAR(64)     NOT NULL,
+    device_name  VARCHAR(190) NULL,
+    device_id    VARCHAR(190) NULL,
+    platform     VARCHAR(32)  NULL,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME     NULL,
+    revoked_at   DATETIME     NULL,
+    expires_at   DATETIME     NULL,
+    UNIQUE KEY uq_token_hash (token_hash),
+    KEY idx_user       (user_id),
+    KEY idx_user_active (user_id, revoked_at),
+    CONSTRAINT fk_mobile_token_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_push_subscriptions (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    user_id         INT          NOT NULL,
+    token_id        INT          NULL,
+    provider        ENUM('unifiedpush','fcm') NOT NULL DEFAULT 'unifiedpush',
+    endpoint        VARCHAR(500) NULL,
+    registration_id VARCHAR(500) NULL,
+    public_key      VARCHAR(255) NULL,
+    auth            VARCHAR(255) NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_ok_at      DATETIME     NULL,
+    failure_count   INT          NOT NULL DEFAULT 0,
+    KEY idx_user     (user_id),
+    KEY idx_token    (token_id),
+    CONSTRAINT fk_mobile_push_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE,
+    CONSTRAINT fk_mobile_push_token
+        FOREIGN KEY (token_id) REFERENCES mobile_app_tokens (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_push_prefs (
+    user_id           INT       NOT NULL PRIMARY KEY,
+    loan_due          TINYINT(1) NOT NULL DEFAULT 1,
+    loan_overdue      TINYINT(1) NOT NULL DEFAULT 1,
+    reservation_ready TINYINT(1) NOT NULL DEFAULT 1,
+    new_message       TINYINT(1) NOT NULL DEFAULT 1,
+    book_available    TINYINT(1) NOT NULL DEFAULT 1,
+    quiet_start       TIME      NULL,
+    quiet_end         TIME      NULL,
+    CONSTRAINT fk_mobile_prefs_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_availability_watchers (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT       NOT NULL,
+    libro_id   INT       NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_book (user_id, libro_id),
+    KEY idx_libro (libro_id),
+    CONSTRAINT fk_mobile_watch_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE,
+    CONSTRAINT fk_mobile_watch_book
+        FOREIGN KEY (libro_id) REFERENCES libri (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_push_log (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT          NOT NULL,
+    event_key  VARCHAR(191) NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_event (user_id, event_key),
+    KEY idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+INSERT IGNORE INTO ruoli (nome, permessi) VALUES
+('Catalogatore', '["backend.access","catalog.manage"]'),
+('Addetto prestiti', '["backend.access","loans.manage"]'),
+('Archivista', '["backend.access","catalog.manage","digital.manage","digital.access"]');

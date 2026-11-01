@@ -18,6 +18,13 @@
 // Run: /tmp/run-e2e.sh tests/mobile-api-idempotency.spec.js --config=tests/playwright.config.js --workers=1
 
 const { test, expect } = require('@playwright/test');
+
+// 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
+// fines, so it switches it on for its run and puts back what was there.
+const featureToggles = require('./helpers/feature-toggles');
+let featureSnapshot;
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const { flushCache } = require('./helpers/flush-cache');
 const fs = require('fs');
@@ -196,6 +203,7 @@ const ENDPOINTS = [
     { name: 'GET /catalog/genres',               method: 'GET',    path: '/catalog/genres',               auth: true,  kind: 'etag' },
     { name: 'GET /catalog/languages',            method: 'GET',    path: '/catalog/languages',            auth: true,  kind: 'etag' },
     { name: 'GET /me/loans',                     method: 'GET',    path: '/me/loans',                     auth: true,  kind: 'safeGet' },
+    { name: 'GET /me/movements',                 method: 'GET',    path: '/me/movements',                 auth: true,  kind: 'safeGet' },
     { name: 'GET /me/reservations',              method: 'GET',    path: '/me/reservations',              auth: true,  kind: 'safeGet' },
     { name: 'POST /reservations',                method: 'POST',   path: '/reservations',                 auth: true,  kind: 'conflict2',
         body: (ctx) => ({ book_id: ctx.bookId }), firstAny: true /* 1st may 201 or 422 (availability); 2nd identical must be rejected */ },

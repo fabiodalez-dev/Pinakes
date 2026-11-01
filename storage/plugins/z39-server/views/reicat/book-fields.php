@@ -61,6 +61,8 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
     </div>
     <div id="reicat-import-status" class="text-sm mb-4 hidden"></div>
 
+    <?php $unimarcOn = \App\Support\Features::enabled('marc'); // MARC module (Settings → Modules) ?>
+    <?php if ($unimarcOn): ?>
     <!-- Import UNIMARC (round-trip with the export below) -->
     <div class="mb-6 pt-4 border-t border-emerald-200">
         <label for="reicat_import_unimarc" class="form-label flex items-center gap-2">
@@ -83,6 +85,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
         </div>
     </div>
     <div id="reicat-unimarc-status" class="text-sm mb-4 hidden"></div>
+    <?php endif; ?>
 
     <!-- SBN identifiers -->
     <div class="form-grid-2 mb-4">
@@ -137,7 +140,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
         </p>
     </div>
 
-    <?php if ($id > 0): ?>
+    <?php if ($id > 0 && $unimarcOn): ?>
     <!-- UNIMARC export -->
     <div class="pt-3 border-t border-emerald-200">
         <a href="<?php echo htmlspecialchars(url('/admin/books/' . $id . '/export.unimarc.xml'), ENT_QUOTES, 'UTF-8'); ?>"
@@ -363,7 +366,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
         box.classList.remove('hidden');
     }
 
-    document.getElementById('reicat-import-unimarc-btn').addEventListener('click', function () {
+    document.getElementById('reicat-import-unimarc-btn')?.addEventListener('click', function () {
         const btn = this;
         const ta = document.getElementById('reicat_import_unimarc');
         const fileInput = document.getElementById('reicat_import_unimarc_file');

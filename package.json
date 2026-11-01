@@ -34,7 +34,7 @@
   "dependencies": {
     "sortablejs": "^1.15.6",
     "star-rating.js": "^4.3.1",
-    "tinymce": "^8.1.2"
+    "tinymce": "^8.10.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

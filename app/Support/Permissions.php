@@ -6,7 +6,7 @@ namespace App\Support;
 /** Capabilities are independent of reader membership (standard/premium). */
 final class Permissions
 {
-    public const ALL = ['backend.access', 'catalog.manage', 'loans.manage', 'digital.manage', 'digital.access', 'users.manage', 'settings.manage'];
+    public const ALL = ['backend.access', 'catalog.manage', 'loans.manage', 'digital.manage', 'digital.access', 'users.manage', 'settings.manage', 'inventory.manage'];
 
     /** @return array<string, string> */
     public static function labels(): array
@@ -19,6 +19,7 @@ final class Permissions
             'digital.access' => __('Apertura allegati riservati'),
             'users.manage' => __('Gestione utenti'),
             'settings.manage' => __('Impostazioni'),
+            'inventory.manage' => __('Revisione inventariale'),
         ];
     }
 
@@ -118,12 +119,21 @@ final class Permissions
             || preg_match('#^/admin/frbr-lrm/opere/\d+/espressioni$#', $path) === 1) {
             return 'catalog.manage';
         }
+        // The reader ledger (payment, manual charge, waiver, receipt) is a loan-desk
+        // action that happens to live under the reader record's URL: it follows the
+        // loan desk, not the users module, so a users-only role reads the ledger but
+        // cannot move money.
+        if (preg_match('#^/admin/users/\d+/ledger/#', $path) === 1) { return 'loans.manage'; }
         $groups = [
-            'catalog.manage' => ['/admin/books', '/admin/authors', '/admin/publishers', '/admin/genres', '/admin/series', '/admin/placement', '/admin/copies', '/admin/import', '/admin/imports', '/admin/imports-history', '/api/books', '/api/authors', '/api/publishers', '/api/genres', '/api/series', '/api/copies', '/api/dewey', '/api/scrape', '/api/libri', '/api/autori', '/api/editori', '/api/collane', '/api/collocazione', '/api/cover', '/admin/periodicals', '/api/v1/staff/lookups', '/api/v1/staff/isbn', '/api/v1/staff/copies', '/api/v1/staff/books', '/api/v1/staff/authors', '/api/v1/staff/publishers', '/api/v1/staff/imports', '/api/v1/staff/periodicals', '/api/v1/staff/series', '/api/v1/staff/genres', '/api/v1/staff/works', '/api/v1/staff/covers', '/api/v1/staff/enrich', '/api/v1/staff/shelves', '/api/v1/staff/archives', '/api/search/editori', '/api/search/generi', '/api/search/preview', '/api/generi', '/admin/archives', '/admin/opere', '/admin/espressioni'],
-            'loans.manage' => ['/admin/loans', '/admin/reservations', '/api/loans', '/api/reservations', '/api/prestiti', '/prestiti', '/api/v1/staff/loans', '/api/v1/staff/reservations'],
+            'catalog.manage' => ['/admin/books', '/admin/authors', '/admin/publishers', '/admin/suppliers', '/admin/genres', '/admin/series', '/admin/placement', '/admin/copies', '/admin/import', '/admin/imports', '/admin/imports-history', '/api/books', '/api/authors', '/api/publishers', '/api/genres', '/api/series', '/api/copies', '/api/dewey', '/api/scrape', '/api/libri', '/api/autori', '/api/editori', '/api/collane', '/api/collocazione', '/api/cover', '/admin/periodicals', '/api/v1/staff/lookups', '/api/v1/staff/isbn', '/api/v1/staff/copies', '/api/v1/staff/books', '/api/v1/staff/authors', '/api/v1/staff/publishers', '/api/v1/staff/imports', '/api/v1/staff/periodicals', '/api/v1/staff/series', '/api/v1/staff/genres', '/api/v1/staff/works', '/api/v1/staff/covers', '/api/v1/staff/enrich', '/api/v1/staff/shelves', '/api/v1/staff/archives', '/api/search/editori', '/api/search/generi', '/api/search/preview', '/api/generi', '/admin/archives', '/admin/opere', '/admin/espressioni'],
+            'loans.manage' => ['/admin/loans', '/admin/attendance', '/admin/reservations', '/api/loans', '/api/reservations', '/api/prestiti', '/prestiti', '/api/v1/staff/loans', '/api/v1/staff/reservations'],
             'users.manage' => ['/admin/users', '/api/users', '/api/utenti', '/api/admin/pending-registrations', '/api/admin/pending-registrations-count', '/api/v1/staff/users', '/api/search/utenti'],
             'digital.manage' => ['/admin/plugins/digital-library/upload'],
-            'settings.manage' => ['/admin/settings'],
+            // The closures calendar is a settings page: LibraryCalendarController
+            // admits Permissions::mayConfigure(). /admin/calendar/rotate-link is
+            // admin-only inside its route, whatever the map says.
+            'settings.manage' => ['/admin/settings', '/admin/calendar'],
+            'inventory.manage' => ['/admin/inventory'],
         ];
         foreach ($groups as $permission => $prefixes) {
             foreach ($prefixes as $prefix) {

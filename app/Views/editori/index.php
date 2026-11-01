@@ -56,11 +56,12 @@ unset($workspaceHeader);
         <div class="entity-filter-grid publisher-filter-grid">
           <!-- Search Text -->
           <div>
-            <label class="form-label">
+            <label for="search_nome" class="form-label">
               <i class="fas fa-search mr-1"></i><?= __("Cerca") ?>
             </label>
-            <input id="search_nome" type="text" placeholder="<?= htmlspecialchars(__('Nome editore...'), ENT_QUOTES, 'UTF-8') ?>"
+            <input id="search_nome" type="text" aria-describedby="search_nome_hint" placeholder="<?= htmlspecialchars(__('Nome editore...'), ENT_QUOTES, 'UTF-8') ?>"
                    class="form-input" />
+            <p id="search_nome_hint" class="text-xs text-gray-500 mt-1"><?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?></p>
           </div>
 
           <!-- Books Count Filter -->

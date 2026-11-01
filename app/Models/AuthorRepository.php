@@ -137,6 +137,9 @@ class AuthorRepository
 
         // Decode HTML entities to prevent double encoding
         $nome = \App\Support\HtmlHelper::decode($data['nome']);
+        // Quotes typed around a new name mean "exact spelling" (#501); they
+        // are never part of the stored name.
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
         $pseudonimo = \App\Support\HtmlHelper::decode($data['pseudonimo'] ?? '');
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
@@ -213,7 +216,12 @@ class AuthorRepository
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
 
         // Normalize author name to canonical format ("Name Surname")
-        // This ensures consistency when updating existing authors
+        // This ensures consistency when updating existing authors. Quotes
+        // around the whole name are never stored, as in create() (#501).
+        // One record holds one name: normalizeStored() would split a '|' or
+        // ';' in it as a cache-column list, so the edit form would store
+        // another name than create() does.
+        $nome = \App\Support\ExactSearch::quotedValue($nome) ?? $nome;
         $nome = \App\Support\AuthorNormalizer::normalize($nome);
 
         // Base columns always present.
@@ -300,6 +308,26 @@ class AuthorRepository
      * @param string $name Author name in any format
      * @return int|null Author ID if found, null otherwise
      */
+    /**
+     * Author written exactly like $name (accents distinct, case ignored), as
+     * typed or in canonical "Name Surname" form; null when there is none.
+     */
+    private function findByExactName(string $name): ?int
+    {
+        foreach (array_unique([$name, \App\Support\AuthorNormalizer::normalize($name)]) as $candidate) {
+            $match = \App\Support\ExactSearch::equalsCondition('nome', $candidate);
+            $stmt = $this->db->prepare("SELECT id FROM autori WHERE {$match['sql']} ORDER BY id LIMIT 1");
+            $stmt->bind_param($match['types'], ...$match['params']);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($row) {
+                return (int) $row['id'];
+            }
+        }
+        return null;
+    }
+
     public function findByCanonicalName(string $name): ?int
     {
         $name = trim($name);
@@ -307,12 +335,26 @@ class AuthorRepository
             return null;
         }
 
+        // A name typed in quotes asks for that exact spelling (#501): only an
+        // author written the same way (accents included, case ignored) is
+        // reused, and the accent-tolerant steps below are skipped, so
+        // "Häffner" in quotes becomes a new author when only Haffner exists.
+        $quoted = \App\Support\ExactSearch::quotedValue($name);
+        if ($quoted !== null) {
+            return $this->findByExactName($quoted);
+        }
+
         // Normalize the input name first (this is the key fix!)
         $normalizedInput = \App\Support\AuthorNormalizer::normalize($name);
 
+        // The collation folds accents, so `nome = ?` also admits "Haffner"
+        // for "Häffner". When both are on file the exact spelling must win
+        // (#501): order the byte-identical row first in every equality step.
+        $exactFirst = \App\Support\ExactSearch::exactFirstSql('nome');
+
         // First try exact match with normalized name
-        $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $normalizedInput);
+        $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? ORDER BY {$exactFirst}, id LIMIT 1");
+        $stmt->bind_param('ss', $normalizedInput, $normalizedInput);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();
@@ -323,8 +365,8 @@ class AuthorRepository
 
         // Also try the original name (in case DB has unnormalized entries)
         if ($normalizedInput !== $name) {
-            $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? LIMIT 1");
-            $stmt->bind_param('s', $name);
+            $stmt = $this->db->prepare("SELECT id FROM autori WHERE nome = ? ORDER BY {$exactFirst}, id LIMIT 1");
+            $stmt->bind_param('ss', $name, $name);
             $stmt->execute();
             $res = $stmt->get_result();
             $row = $res->fetch_assoc();
@@ -336,8 +378,8 @@ class AuthorRepository
 
         // Try case-insensitive match with normalized name
         $lowerNormalized = mb_strtolower($normalizedInput, 'UTF-8');
-        $stmt = $this->db->prepare("SELECT id FROM autori WHERE LOWER(nome) = ? LIMIT 1");
-        $stmt->bind_param('s', $lowerNormalized);
+        $stmt = $this->db->prepare("SELECT id FROM autori WHERE LOWER(nome) = ? ORDER BY (LOWER(nome) COLLATE utf8mb4_bin = ?) DESC, id LIMIT 1");
+        $stmt->bind_param('ss', $lowerNormalized, $lowerNormalized);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();

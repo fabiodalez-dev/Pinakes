@@ -194,6 +194,17 @@ return [
 <p>Wenn du es nicht mehr brauchst, kannst du die Ausleihe auf der Seite „Reservierungen“ deines Kontos stornieren: Das Buch geht dann sofort an jemand anderen.</p>
 <p>Viel Freude beim Lesen!</p>',
     ],
+    'card_expiring' => [
+        'subject' => '🪪 Dein Bibliotheksausweis läuft am {{data_scadenza_tessera}} ab',
+        'body' => '<h2>Dein Bibliotheksausweis läuft bald ab</h2>
+<p>Hallo {{utente_nome}},</p>
+<p>dein Bibliotheksausweis (Nr. {{codice_tessera}}) läuft am <strong>{{data_scadenza_tessera}}</strong> ab (verbleibende Tage: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Nach dem Ablauf kannst du keine Bücher mehr ausleihen oder vormerken, bis der Ausweis verlängert wird.</p>
+</div>
+<p>Zum Verlängern wende dich während der Öffnungszeiten an die Theke der Bibliothek.</p>
+<p>Bis bald!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Abholung storniert',
         'body' => '<h2>Abholung storniert</h2>
@@ -292,6 +303,22 @@ return [
 </ul>
 <p><a href="{{approve_url}}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Anfrage verwalten</a></p>',
     ],
+    'fine_charged' => [
+        'subject' => '💶 Gebühr für verspätete Rückgabe: {{multa}}',
+        'body' => '<h2>Gebühr für verspätete Rückgabe</h2>
+<p>Hallo {{utente_nome}},</p>
+<p>das folgende Buch wurde nach Ablauf der Leihfrist zurückgegeben, dafür wurde dir eine Gebühr berechnet.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Buch:</strong> {{libro_titolo}}</p>
+    <p><strong>Fällig am:</strong> {{data_scadenza}}</p>
+    <p><strong>Zurückgegeben am:</strong> {{data_restituzione}}</p>
+    <p><strong>Tage Verspätung:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Gebühr:</strong> {{multa}}</p>
+    <p><strong>Offener Betrag:</strong> {{saldo}}</p>
+</div>
+<p>Du kannst den Betrag an der Ausleihtheke begleichen.</p>
+<p>Viele Grüße<br>Dein Bibliotheksteam</p>',
+    ],
     'loan_returned' => [
         'subject' => '✅ Rückgabe bestätigt',
         'body' => '<h2>Rückgabe bestätigt</h2>
@@ -301,6 +328,7 @@ return [
     <p><strong>Buch:</strong> {{libro_titolo}}</p>
     <p><strong>Rückgabedatum:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Wir hoffen, die Lektüre hat dir gefallen. Bis bald in der Bibliothek!</p>
 <p>Mit freundlichen Grüßen,<br>Dein Bibliotheksteam</p>',
     ],

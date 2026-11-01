@@ -241,7 +241,7 @@ final class StaffCirculationOpenApi
                 'id' => $i, 'name' => $s, 'email' => $s, 'card_number' => $ns,
                 'status' => ['type' => 'string', 'enum' => ['attivo', 'sospeso', 'scaduto']], 'card_expires_at' => $nd, 'role' => $s,
                 'active_loans' => $i, 'active_reservations' => $i, 'eligible' => $b,
-                'eligibility_reason' => ['type' => ['string', 'null'], 'description' => 'user_suspended | card_expired | …'],
+                'eligibility_reason' => ['type' => ['string', 'null'], 'description' => 'user_suspended | card_expired | debt_block | …'],
             ]),
             'StaffCopy' => O::object([
                 'id' => $i, 'inventory_number' => $s, 'status' => $s, 'status_label' => $s, 'notes' => $ns,

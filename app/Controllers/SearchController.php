@@ -31,19 +31,13 @@ class SearchController
         // SessionRoleRefreshMiddleware) receive them, as on the admin-only /api/autori.
         $lifeDates = $this->isOperatorSession($request) ? ', data_nascita, data_morte' : '';
         $select = "id, nome{$lifeDates}, {$label}";
-        if ($q !== '') {
-            // Split query into words — each word must match (AND logic)
-            $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
-            $conditions = [];
-            $params = [];
-            $types = '';
-            foreach ($words as $word) {
-                $conditions[] = '(nome LIKE ? ESCAPE \'\\\\\' OR pseudonimo LIKE ? ESCAPE \'\\\\\')';
-                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
-                $params[] = $like;
-                $params[] = $like;
-                $types .= 'ss';
-            }
+        // Every word must match (AND); a quoted group is matched with its
+        // exact spelling, accents included (#501).
+        $cond = $q !== '' ? \App\Support\ExactSearch::wordsCondition(['nome', 'pseudonimo'], $q, \App\Support\ExactSearch::MAX_FILTER_TERMS) : null;
+        if ($cond !== null) {
+            $conditions = [$cond['sql']];
+            $params = $cond['params'];
+            $types = $cond['types'];
             $sql = "SELECT {$select} FROM autori WHERE " . implode(' AND ', $conditions)
                 . " ORDER BY " . \App\Support\AuthorName::preferredSql('autori');
             $stmt = $db->prepare($sql);
@@ -72,17 +66,13 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows = [];
-        if ($q !== '') {
-            // Split query into words — each word must match (AND logic)
-            $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
-            $conditions = [];
-            $params = [];
-            $types = '';
-            foreach ($words as $word) {
-                $conditions[] = 'nome LIKE ?';
-                $params[] = '%' . $word . '%';
-                $types .= 's';
-            }
+        // Every word must match (AND); a quoted group is matched with its
+        // exact spelling, accents included (#501).
+        $cond = $q !== '' ? \App\Support\ExactSearch::wordsCondition(['nome'], $q, \App\Support\ExactSearch::MAX_FILTER_TERMS) : null;
+        if ($cond !== null) {
+            $conditions = [$cond['sql']];
+            $params = $cond['params'];
+            $types = $cond['types'];
             $sql = "SELECT id, nome AS label FROM editori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome";
             $stmt = $db->prepare($sql);
             $stmt->bind_param($types, ...$params);
@@ -101,8 +91,13 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows=[];
-        if ($q !== '') {
-            $s = '%'.$q.'%';
+        // Quoted value = exact spelling, accents included (#501). The full
+        // name in either order is searched too, so "Mario Rossi" — what the
+        // label shows — finds Mario Rossi, as the mobile staff picker does.
+        $search = $q !== ''
+            ? \App\Support\ExactSearch::filterCondition(['nome', 'cognome', 'telefono', 'email', 'codice_tessera', "CONCAT(nome, ' ', cognome)", "CONCAT(cognome, ' ', nome)"], $q)
+            : null;
+        if ($search !== null) {
             $stmt = $db->prepare("
                 SELECT id,
                        CONCAT(
@@ -113,15 +108,11 @@ class SearchController
                            END
                        ) AS label
                 FROM utenti
-                WHERE (nome LIKE ?
-                   OR cognome LIKE ?
-                   OR telefono LIKE ?
-                   OR email LIKE ?
-                   OR codice_tessera LIKE ?)" . \App\Support\Permissions::accountScopeSql('', \App\Support\Permissions::SCOPE_BORROWER) . "
+                WHERE {$search['sql']}" . \App\Support\Permissions::accountScopeSql('', \App\Support\Permissions::SCOPE_BORROWER) . "
                 ORDER BY cognome, nome
                 LIMIT 20
             ");
-            $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+            $stmt->bind_param($search['types'], ...$search['params']);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -399,17 +390,15 @@ class SearchController
     private function searchAuthors(mysqli $db, string $query): array
     {
         $results = [];
-        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
-        $conditions = [];
-        $params = [];
-        $types = '';
-        foreach ($words as $word) {
-            $conditions[] = '(nome LIKE ? ESCAPE \'\\\\\' OR pseudonimo LIKE ? ESCAPE \'\\\\\')';
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
-            $params[] = $like;
-            $params[] = $like;
-            $types .= 'ss';
+        // Every word must match (AND); a quoted group is matched with its
+        // exact spelling, accents included (#501).
+        $cond = \App\Support\ExactSearch::wordsCondition(['nome', 'pseudonimo'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
+        if ($cond === null) {
+            return [];
         }
+        $conditions = [$cond['sql']];
+        $params = $cond['params'];
+        $types = $cond['types'];
         $sql = "SELECT id, " . \App\Support\AuthorName::displaySql('autori') . " AS label FROM autori WHERE "
             . implode(' AND ', $conditions) . " ORDER BY "
             . \App\Support\AuthorName::preferredSql('autori') . " LIMIT 5";
@@ -433,15 +422,15 @@ class SearchController
     private function searchPublishers(mysqli $db, string $query): array
     {
         $results = [];
-        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
-        $conditions = [];
-        $params = [];
-        $types = '';
-        foreach ($words as $word) {
-            $conditions[] = 'nome LIKE ?';
-            $params[] = '%' . $word . '%';
-            $types .= 's';
+        // Every word must match (AND); a quoted group is matched with its
+        // exact spelling, accents included (#501).
+        $cond = \App\Support\ExactSearch::wordsCondition(['nome'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
+        if ($cond === null) {
+            return [];
         }
+        $conditions = [$cond['sql']];
+        $params = $cond['params'];
+        $types = $cond['types'];
         $sql = "SELECT id, nome AS label FROM editori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 5";
         $stmt = $db->prepare($sql);
         $stmt->bind_param($types, ...$params);
@@ -528,17 +517,15 @@ class SearchController
     private function searchAuthorsWithDetails(mysqli $db, string $query): array
     {
         $results = [];
-        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
-        $conditions = [];
-        $params = [];
-        $types = '';
-        foreach ($words as $word) {
-            $conditions[] = '(a.nome LIKE ? ESCAPE \'\\\\\' OR a.pseudonimo LIKE ? ESCAPE \'\\\\\')';
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
-            $params[] = $like;
-            $params[] = $like;
-            $types .= 'ss';
+        // Every word must match (AND); a quoted group is matched with its
+        // exact spelling, accents included (#501).
+        $cond = \App\Support\ExactSearch::wordsCondition(['a.nome', 'a.pseudonimo'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
+        if ($cond === null) {
+            return [];
         }
+        $conditions = [$cond['sql']];
+        $params = $cond['params'];
+        $types = $cond['types'];
 
         $sql = "
             SELECT a.id, a.nome, a.pseudonimo, a.biografia,
@@ -572,15 +559,15 @@ class SearchController
     private function searchPublishersWithDetails(mysqli $db, string $query): array
     {
         $results = [];
-        $words = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
-        $conditions = [];
-        $params = [];
-        $types = '';
-        foreach ($words as $word) {
-            $conditions[] = 'e.nome LIKE ?';
-            $params[] = '%' . $word . '%';
-            $types .= 's';
+        // Every word must match (AND); a quoted group is matched with its
+        // exact spelling, accents included (#501).
+        $cond = \App\Support\ExactSearch::wordsCondition(['e.nome'], $query, \App\Support\ExactSearch::MAX_FILTER_TERMS);
+        if ($cond === null) {
+            return [];
         }
+        $conditions = [$cond['sql']];
+        $params = $cond['params'];
+        $types = $cond['types'];
 
         // issue #143: count books where the publisher is primary OR a secondary
         // one in the junction; gate the subquery on table existence so the count
@@ -622,10 +609,10 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows=[];
-        if ($q !== '') {
-            $s = '%'.$q.'%';
-            $stmt = $db->prepare("SELECT id, nome AS label FROM generi WHERE nome LIKE ? ORDER BY nome LIMIT 20");
-            $stmt->bind_param('s', $s);
+        $search = \App\Support\ExactSearch::filterCondition(['nome'], $q);
+        if ($search !== null) {
+            $stmt = $db->prepare("SELECT id, nome AS label FROM generi WHERE {$search['sql']} ORDER BY nome LIMIT 20");
+            $stmt->bind_param($search['types'], ...$search['params']);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -641,8 +628,8 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows = [];
-        if ($q !== '') {
-            $s = '%' . $q . '%';
+        $search = \App\Support\ExactSearch::filterCondition(['s.nome', 's.codice', 'CAST(m.numero_livello AS CHAR)'], $q);
+        if ($search !== null) {
             $stmt = $db->prepare("
                 SELECT p.id,
                        CONCAT(
@@ -653,11 +640,11 @@ class SearchController
                 FROM posizioni p
                 JOIN scaffali s ON p.scaffale_id = s.id
                 JOIN mensole m ON p.mensola_id = m.id
-                WHERE s.nome LIKE ? OR s.codice LIKE ? OR CAST(m.numero_livello AS CHAR) LIKE ?
+                WHERE {$search['sql']}
                 ORDER BY s.ordine, m.numero_livello
                 LIMIT 20
             ");
-            $stmt->bind_param('sss', $s, $s, $s);
+            $stmt->bind_param($search['types'], ...$search['params']);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {

@@ -689,11 +689,9 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
         ->withHeader('X-Content-Type-Options', 'nosniff')
         ->withHeader('X-XSS-Protection', '1; mode=block')
         ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-        // camera=(self): the in-browser copy-code barcode scanner (zxing-wasm)
-        // needs getUserMedia on same-origin loan/return pages. Denying it
-        // (camera=()) blocked the scanner entirely. geolocation/microphone stay
-        // denied — nothing in the app uses them.
-        ->withHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(self)');
+        // See ContentSecurityPolicy::permissionsPolicy(): camera for the
+        // same origin only (barcode scanner, patron photo), nothing else.
+        ->withHeader('Permissions-Policy', \App\Support\ContentSecurityPolicy::permissionsPolicy());
 
     if (!$response->hasHeader('Strict-Transport-Security') && (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) {
         $response = $response->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');

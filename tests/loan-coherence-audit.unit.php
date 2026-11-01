@@ -140,7 +140,8 @@ $checks['DashboardStats::counts() guards every prestiti sub-count with a soft-de
 // 5. LoanRepository::update() fallback honours the configured duration.
 $checks['LoanRepository::update fallback reads loan_duration_days'] =
     !str_contains($loanRepo, "+14 days")
-    && str_contains($loanRepo, 'loanDurationDays()');
+    && str_contains($loanRepo, '->durationDays')
+    && str_contains($loanRepo, 'CirculationPolicy::dueDateFor(');
 
 // 6. rejectLoan promotes the waitlist + flushes deferred notifications.
 $rejectBody = $extractMethod($approval, 'public function rejectLoan(');
@@ -185,7 +186,7 @@ $checks['user dashboard views use the app clock for overdue'] =
 // 11. #301: the book-detail modal path (createReservation) must honour the
 //     automatic-approval setting like UserActionsController::loan does.
 $checks['createReservation honours auto_approve_requests (#301)'] =
-    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId, true)')
+    str_contains($reservations, 'autoApproveLoanRequest($request, $loanRequestId, true')
     && str_contains($reservations, "'automatic_loan_approval'");
 
 // 12. rejectLoan must keep an audit row (annullato), never DELETE it.
@@ -298,8 +299,8 @@ $checks['loan calendars use the configured duration without local-time date arit
     && str_contains($loanCreateView, 'loanWindowFrom(startIso, effectiveLoanDays)')
     && str_contains($loanCreateView, 'addDaysToIso(startIso, defaultDays)')
     && !str_contains($loanCreateView, 'setMonth(endDate.getMonth() + 1)')
-    && str_contains($frontend, '$defaultRequestLoanDays = $loanSettings->requestLoanDurationDays()')
-    && str_contains($bookDetail, 'loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays)')
+    && str_contains($frontend, '$defaultRequestLoanDays = $viewerPolicy->requestDurationDays()')
+    && str_contains($bookDetail, 'loanWindowFrom(startIso, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet)')
     && str_contains($bookDetail, 'addDaysToIso(startIso, defaultDays)')
     && !str_contains($bookDetail, 'setMonth(endDate.getMonth() + 1)');
 

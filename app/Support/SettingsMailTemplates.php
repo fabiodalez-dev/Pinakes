@@ -432,6 +432,22 @@ HTML,
 <p>Buona lettura!</p>
 HTML,
             ],
+            'card_expiring' => [
+                'label' => __('Tessera in scadenza'),
+                'description' => __("Inviata qualche giorno prima della scadenza della tessera del lettore. I giorni di preavviso si impostano in Impostazioni → Prestiti (0 = disattivata)."),
+                'subject' => '🪪 La tua tessera scade il {{data_scadenza_tessera}}',
+                'placeholders' => ['utente_nome', 'codice_tessera', 'data_scadenza_tessera', 'giorni_rimasti'],
+                'body' => <<<'HTML'
+<h2>La tua tessera sta per scadere</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>la tua tessera della biblioteca (n. {{codice_tessera}}) scade il <strong>{{data_scadenza_tessera}}</strong> (giorni rimasti: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Dopo la scadenza non potrai più chiedere prestiti né prenotare libri finché la tessera non viene rinnovata.</p>
+</div>
+<p>Per rinnovarla rivolgiti al banco della biblioteca durante gli orari di apertura.</p>
+<p>A presto!</p>
+HTML,
+            ],
             'loan_pickup_cancelled' => [
                 'label' => __('Ritiro annullato'),
                 'description' => __("Inviata quando un ritiro viene annullato dall'amministratore."),
@@ -453,7 +469,7 @@ HTML,
                 'label' => __('Restituzione confermata'),
                 'description' => __("Inviata all'utente quando un prestito viene registrato come restituito."),
                 'subject' => '✅ Restituzione confermata',
-                'placeholders' => ['utente_nome', 'libro_titolo', 'data_restituzione'],
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_restituzione', 'multa'],
                 'body' => <<<'HTML'
 <h2>Restituzione confermata</h2>
 <p>Ciao {{utente_nome}},</p>
@@ -462,6 +478,7 @@ HTML,
     <p><strong>Libro:</strong> {{libro_titolo}}</p>
     <p><strong>Data restituzione:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Speriamo che la lettura ti sia piaciuta. A presto in biblioteca!</p>
 <p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
@@ -483,6 +500,27 @@ HTML,
     <p><strong>Importo registrato:</strong> {{sanzione}}</p>
 </div>
 <p>Per qualsiasi chiarimento contatta la biblioteca.</p>
+HTML,
+            ],
+            'fine_charged' => [
+                'label' => __('Multa per ritardo addebitata'),
+                'description' => __("Inviata al lettore quando la restituzione in ritardo genera una multa. Si attiva in Impostazioni → Prestiti → Multe."),
+                'subject' => '💶 Multa per ritardo: {{multa}}',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_scadenza', 'data_restituzione', 'giorni_ritardo', 'multa', 'saldo'],
+                'body' => <<<'HTML'
+<h2>Multa per ritardo nella restituzione</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>il libro seguente è stato restituito dopo la scadenza e ti è stata addebitata una multa.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Scadenza:</strong> {{data_scadenza}}</p>
+    <p><strong>Restituito il:</strong> {{data_restituzione}}</p>
+    <p><strong>Giorni di ritardo:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Multa:</strong> {{multa}}</p>
+    <p><strong>Saldo da pagare:</strong> {{saldo}}</p>
+</div>
+<p>Puoi saldare l'importo al banco della biblioteca.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
             ],
             'reservation_expired' => [
@@ -675,6 +713,85 @@ HTML,
     {
         $all = self::all($locale);
         return $all[$template] ?? null;
+    }
+
+    /**
+     * Bodies a template shipped with BEFORE its current default, so an
+     * upgraded install's stored row can be told apart from a customised one:
+     * SettingsRepository::ensureEmailTemplates() moves a row that still
+     * equals one of them to the current default and leaves any other text
+     * alone. Empty for a template whose default never changed.
+     *
+     * loan_returned (0.9.0): the only change was the added `<p>{{multa}}</p>`
+     * line, so the previous in-code/mail_templates default is the current one
+     * without that line; the English, German and French installer seeds of
+     * the same template carried their own wording (and the {{user_name}} /
+     * {{book_title}} aliases), listed as they were shipped.
+     *
+     * @return list<string>
+     */
+    public static function retiredBodies(string $template, ?string $locale = null): array
+    {
+        if ($template !== 'loan_returned') {
+            return [];
+        }
+        $current = (string) (self::get($template, $locale)['body'] ?? '');
+        $bodies = [];
+        $previous = str_replace("<p>{{multa}}</p>\n", '', $current);
+        if ($previous !== $current) {
+            $bodies[] = $previous;
+        }
+        $seeds = [
+            'en_US' => <<<'HTML'
+<h2>Return Confirmed</h2>
+<p>Hello {{user_name}},</p>
+<p>We confirm the return of the following book. Thank you!</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Book:</strong> {{book_title}}</p>
+    <p><strong>Return date:</strong> {{data_restituzione}}</p>
+</div>
+<p>We hope you enjoyed the book. See you soon at the library!</p>
+<p>Best regards,<br>The Library Team</p>
+HTML,
+            'de_DE' => <<<'HTML'
+<h2>Rückgabe bestätigt</h2>
+<p>Guten Tag {{user_name}},</p>
+<p>wir bestätigen die Rückgabe des folgenden Buches. Vielen Dank!</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Buch:</strong> {{book_title}}</p>
+    <p><strong>Rückgabedatum:</strong> {{data_restituzione}}</p>
+</div>
+<p>Wir hoffen, die Lektüre hat Ihnen gefallen. Bis bald in der Bibliothek!</p>
+<p>Mit freundlichen Grüßen,<br>Das Bibliotheksteam</p>
+HTML,
+            'fr_FR' => <<<'HTML'
+<h2>Retour confirmé</h2>
+<p>Bonjour {{user_name}},</p>
+<p>Nous confirmons le retour du livre suivant. Merci !</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Livre :</strong> {{book_title}}</p>
+    <p><strong>Date de retour :</strong> {{data_restituzione}}</p>
+</div>
+<p>Nous espérons que la lecture vous a plu. À bientôt à la bibliothèque !</p>
+<p>Cordialement,<br>L'équipe de la bibliothèque</p>
+HTML,
+        ];
+        $key = self::shippedLocaleKey($locale);
+        if ($key !== null && isset($seeds[$key])) {
+            $bodies[] = $seeds[$key];
+        }
+        return $bodies;
+    }
+
+    /** The mail_templates file key ($locale → en_US/de_DE/fr_FR/da_DK), null for Italian or an unknown locale. */
+    private static function shippedLocaleKey(?string $locale): ?string
+    {
+        $locale = str_replace('-', '_', trim((string) $locale));
+        if ($locale === '' || str_starts_with($locale, 'it')) {
+            return null;
+        }
+        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'da' => 'da_DK', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR', 'da_DK' => 'da_DK'];
+        return $map[$locale] ?? ($map[substr($locale, 0, 2)] ?? null);
     }
 
     /**

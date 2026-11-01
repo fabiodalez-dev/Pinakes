@@ -677,6 +677,9 @@ unset($workspaceHeader);
                             <optgroup label="[DK] Danmark">
                                 <option value="dbc">* DBC - Danish union catalogue (danMARC2)</option>
                             </optgroup>
+                            <optgroup label="Pinakes">
+                                <option value="pinakes"><?= __("Altra installazione Pinakes") ?></option>
+                            </optgroup>
                             <optgroup label="[...] Altri Paesi">
                                 <option value="kb">KB - Koninklijke Bibliotheek (NL)</option>
                                 <option value="ndl">NDL - National Diet Library (JP)</option>
@@ -1007,6 +1010,16 @@ unset($workspaceHeader);
             syntax: 'marcxml',
             indexes: { isbn: 'isbn' }
         },
+        // Another Pinakes installation: its SRU server answers at /api/sru
+        // with MARCXML records that carry the cover in 856. Replace the host.
+        pinakes: {
+            name: '[Pinakes] ' + <?= json_encode(__('Altra installazione Pinakes'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            url: 'https://biblioteca.example.org/api/sru',
+            db: '',
+            version: '1.2',
+            syntax: 'marcxml',
+            indexes: { isbn: 'bath.isbn', issn: 'bath.issn', title: 'dc.title', author: 'dc.creator', any: 'cql.anywhere' }
+        },
         // [DK] The Danish union catalogue through DBC OpenSearch: danMARC2
         // records in MARCXchange. agency and profile are DBC's public test
         // pair; a Danish library puts its own in the URL.
@@ -1119,6 +1132,9 @@ unset($workspaceHeader);
 
         const row = document.createElement('div');
         row.className = 'z39-server-row bg-gray-50 rounded-xl p-4 border border-gray-200 relative group';
+        // Search indexes beyond ISBN (title, author, any: copy cataloguing)
+        // have no input of their own: they ride on the row and are saved back.
+        row.dataset.indexes = JSON.stringify(server.indexes && typeof server.indexes === 'object' ? server.indexes : {});
         row.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div class="md:col-span-3">
@@ -1224,9 +1240,9 @@ unset($workspaceHeader);
                 version: row.querySelector('[name="server_version[]"]')?.value.trim() || '1.1',
                 syntax: row.querySelector('[name="server_syntax[]"]').value,
                 quote_search_terms: row.querySelector('[name="server_quote_terms[]"]')?.checked || false,
-                indexes: {
+                indexes: Object.assign((() => { try { return JSON.parse(row.dataset.indexes || '{}') || {}; } catch (e) { return {}; } })(), {
                     isbn: row.querySelector('[name="server_isbn_index[]"]').value || 'isbn'
-                },
+                }),
                 enabled: true
             });
         });

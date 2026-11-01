@@ -1,5 +1,5 @@
 /**
- * TinyMCE version 8.1.2 (TBD)
+ * TinyMCE version 8.10.0 (2026-10-14)
  */
 
 (function () {
@@ -9,13 +9,12 @@
 
     /* eslint-disable @typescript-eslint/no-wrapper-object-types */
     const hasProto = (v, constructor, predicate) => {
-        var _a;
         if (predicate(v, constructor.prototype)) {
             return true;
         }
         else {
             // String-based fallback time
-            return ((_a = v.constructor) === null || _a === void 0 ? void 0 : _a.name) === constructor.name;
+            return v.constructor?.name === constructor.name;
         }
     };
     const typeOf = (x) => {
@@ -58,6 +57,11 @@
      * strict-null-checks
      */
     class Optional {
+        tag;
+        value;
+        // Sneaky optimisation: every instance of Optional.none is identical, so just
+        // reuse the same object
+        static singletonNone = new Optional(false);
         // The internal representation has a `tag` and a `value`, but both are
         // private: able to be console.logged, but not able to be accessed by code
         constructor(tag, value) {
@@ -225,7 +229,7 @@
          */
         getOrDie(message) {
             if (!this.tag) {
-                throw new Error(message !== null && message !== void 0 ? message : 'Called getOrDie on None');
+                throw new Error(message ?? 'Called getOrDie on None');
             }
             else {
                 return this.value;
@@ -289,9 +293,6 @@
             return this.tag ? `some(${this.value})` : 'none()';
         }
     }
-    // Sneaky optimisation: every instance of Optional.none is identical, so just
-    // reuse the same object
-    Optional.singletonNone = new Optional(false);
 
     const nativeSlice = Array.prototype.slice;
     const nativePush = Array.prototype.push;
@@ -474,7 +475,6 @@
     };
 
     const guess = (url) => {
-        var _a;
         const mimes = {
             mp3: 'audio/mpeg',
             m4a: 'audio/x-m4a',
@@ -484,7 +484,7 @@
             ogg: 'video/ogg',
             swf: 'application/x-shockwave-flash'
         };
-        const fileEnd = (_a = url.toLowerCase().split('.').pop()) !== null && _a !== void 0 ? _a : '';
+        const fileEnd = url.toLowerCase().split('.').pop() ?? '';
         return get$1(mimes, fileEnd).getOr('');
     };
 
@@ -731,10 +731,9 @@
         }
     };
     const dataToHtml = (editor, dataIn) => {
-        var _a;
         const data = global$5.extend({}, dataIn);
         if (!data.source) {
-            global$5.extend(data, htmlToData((_a = data.embed) !== null && _a !== void 0 ? _a : '', editor.schema));
+            global$5.extend(data, htmlToData(data.embed ?? '', editor.schema));
             if (!data.source) {
                 return '';
             }
@@ -967,11 +966,10 @@
         return hasDimensionsChanged(prevData, newData) && isEmbedIframe(newData.source, prevData.type);
     };
     const submitForm = (prevData, newData, editor) => {
-        var _a;
         newData.embed =
             shouldInsertAsNewIframe(prevData, newData) && hasDimensions(editor)
                 ? dataToHtml(editor, { ...newData, embed: '' })
-                : updateHtml((_a = newData.embed) !== null && _a !== void 0 ? _a : '', newData, false, editor.schema);
+                : updateHtml(newData.embed ?? '', newData, false, editor.schema);
         // Only fetch the embed HTML content if the URL has changed from what it previously was
         if (newData.embed && (prevData.source === newData.source || isCached(newData.source))) {
             handleInsert(editor, newData.embed);
@@ -998,9 +996,8 @@
             }
         };
         const handleEmbed = (api) => {
-            var _a;
             const data = unwrap(api.getData());
-            const dataFromEmbed = htmlToData((_a = data.embed) !== null && _a !== void 0 ? _a : '', editor.schema);
+            const dataFromEmbed = htmlToData(data.embed ?? '', editor.schema);
             api.setData(wrap(dataFromEmbed));
         };
         const handleUpdate = (api, sourceInput, prevData) => {
@@ -1184,7 +1181,6 @@
         return placeHolder;
     };
     const createPreviewNode = (editor, node) => {
-        var _a;
         const name = node.name;
         const previewWrapper = new global$2('span', 1);
         previewWrapper.attr({
@@ -1194,7 +1190,7 @@
             'class': 'mce-preview-object mce-object-' + name
         });
         retainAttributesAndInnerHtml(editor, node, previewWrapper);
-        const styles = editor.dom.parseStyle((_a = node.attr('style')) !== null && _a !== void 0 ? _a : '');
+        const styles = editor.dom.parseStyle(node.attr('style') ?? '');
         const previewNode = new global$2(name, 1);
         setDimensions(node, previewNode, styles);
         previewNode.attr({
@@ -1229,10 +1225,9 @@
         return previewWrapper;
     };
     const retainAttributesAndInnerHtml = (editor, sourceNode, targetNode) => {
-        var _a;
         // Prefix all attributes except internal (data-mce-*), width, height and style since we
         // will add these to the placeholder
-        const attribs = (_a = sourceNode.attributes) !== null && _a !== void 0 ? _a : [];
+        const attribs = sourceNode.attributes ?? [];
         let ai = attribs.length;
         while (ai--) {
             const attrName = attribs[ai].name;
@@ -1292,13 +1287,83 @@
         }
     };
 
-    const parseAndSanitize = (editor, context, html) => {
+    const parseAndSanitize = (editor, html) => {
         const getEditorOption = editor.options.get;
         const sanitize = getEditorOption('xss_sanitization');
         const validate = shouldFilterHtml(editor);
-        return Parser(editor.schema, { sanitize, validate }).parse(html, { context });
+        return Parser(editor.schema, { sanitize, validate }).parse(html);
     };
 
+    let nonNonScriptingDocument;
+    const createNonScriptingDocument = () => {
+        if (isNonNullable(nonNonScriptingDocument)) {
+            return nonNonScriptingDocument;
+        }
+        nonNonScriptingDocument = new DOMParser().parseFromString('', 'text/html');
+        return nonNonScriptingDocument;
+    };
+    const buildMediaElement = (editor, node) => {
+        const doc = createNonScriptingDocument();
+        const realElmName = node.attr('data-mce-object');
+        const element = doc.createElement(realElmName);
+        // Add width/height to everything but audio
+        if (realElmName !== 'audio') {
+            const className = node.attr('class');
+            const firstChild = node.firstChild;
+            if (className && className.indexOf('mce-preview-object') !== -1 && firstChild) {
+                const width = firstChild.attr('width');
+                const height = firstChild.attr('height');
+                if (isString(width)) {
+                    element.setAttribute('width', width);
+                }
+                if (isString(height)) {
+                    element.setAttribute('height', height);
+                }
+            }
+            else {
+                const width = node.attr('width');
+                const height = node.attr('height');
+                if (isString(width)) {
+                    element.setAttribute('width', width);
+                }
+                if (isString(height)) {
+                    element.setAttribute('height', height);
+                }
+            }
+        }
+        const style = node.attr('style');
+        if (isString(style)) {
+            element.setAttribute('style', style);
+        }
+        // Unprefix all placeholder attributes
+        const attribs = node.attributes ?? [];
+        let ai = attribs.length;
+        while (ai--) {
+            const attrName = attribs[ai].name;
+            if (attrName.indexOf('data-mce-p-') === 0) {
+                element.setAttribute(attrName.substr(11), attribs[ai].value);
+            }
+        }
+        // Inject innerhtml
+        const innerHtml = node.attr('data-mce-html');
+        if (isString(innerHtml)) {
+            element.innerHTML = unescape(innerHtml);
+        }
+        else {
+            element.innerHTML = '\u00a0';
+        }
+        const fragment = parseAndSanitize(editor, element.outerHTML);
+        const newElement = fragment.getAll(realElmName)[0];
+        if (isNonNullable(newElement)) {
+            if (!isString(innerHtml)) {
+                newElement.empty();
+            }
+            return Optional.some(newElement);
+        }
+        else {
+            return Optional.none();
+        }
+    };
     const setup$1 = (editor) => {
         editor.on('PreInit', () => {
             const { schema, serializer, parser } = editor;
@@ -1322,51 +1387,14 @@
             // Converts iframe, video etc into placeholder images
             parser.addNodeFilter('iframe,video,audio,object,embed', placeHolderConverter(editor));
             // Replaces placeholder images with real elements for video, object, iframe etc
-            serializer.addAttributeFilter('data-mce-object', (nodes, name) => {
-                var _a;
+            serializer.addAttributeFilter('data-mce-object', (nodes) => {
                 let i = nodes.length;
                 while (i--) {
                     const node = nodes[i];
                     if (!node.parent) {
                         continue;
                     }
-                    const realElmName = node.attr(name);
-                    const realElm = new global$2(realElmName, 1);
-                    // Add width/height to everything but audio
-                    if (realElmName !== 'audio') {
-                        const className = node.attr('class');
-                        if (className && className.indexOf('mce-preview-object') !== -1 && node.firstChild) {
-                            realElm.attr({
-                                width: node.firstChild.attr('width'),
-                                height: node.firstChild.attr('height')
-                            });
-                        }
-                        else {
-                            realElm.attr({
-                                width: node.attr('width'),
-                                height: node.attr('height')
-                            });
-                        }
-                    }
-                    realElm.attr({
-                        style: node.attr('style')
-                    });
-                    // Unprefix all placeholder attributes
-                    const attribs = (_a = node.attributes) !== null && _a !== void 0 ? _a : [];
-                    let ai = attribs.length;
-                    while (ai--) {
-                        const attrName = attribs[ai].name;
-                        if (attrName.indexOf('data-mce-p-') === 0) {
-                            realElm.attr(attrName.substr(11), attribs[ai].value);
-                        }
-                    }
-                    // Inject innerhtml
-                    const innerHtml = node.attr('data-mce-html');
-                    if (innerHtml) {
-                        const fragment = parseAndSanitize(editor, realElmName, unescape(innerHtml));
-                        each$1(fragment.children(), (child) => realElm.append(child));
-                    }
-                    node.replace(realElm);
+                    buildMediaElement(editor, node).fold(() => node.remove(), (realElm) => node.replace(realElm));
                 }
             });
         });
@@ -1426,15 +1454,19 @@
         });
     };
 
+    const PLUGIN_CODE = 'media';
     var Plugin = () => {
-        global$6.add('media', (editor) => {
+        global$6.add(PLUGIN_CODE, (editor) => {
             register$2(editor);
             register$1(editor);
             register(editor);
             setup(editor);
             setup$1(editor);
             setup$2(editor);
-            return get(editor);
+            return {
+                ...get(editor),
+                getMetadata: () => ({ name: 'Media', type: 'opensource', slug: PLUGIN_CODE })
+            };
         });
     };
 

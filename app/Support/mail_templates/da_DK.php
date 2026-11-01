@@ -203,6 +203,17 @@ return [
 <p>Har du ikke længere brug for den, kan du annullere lånet på siden »Reservationer« på din konto: så går bogen straks videre til en anden.</p>
 <p>God læselyst!</p>',
     ],
+    'card_expiring' => [
+        'subject' => '🪪 Dit lånerkort udløber den {{data_scadenza_tessera}}',
+        'body' => '<h2>Dit lånerkort udløber snart</h2>
+<p>Hej {{utente_nome}},</p>
+<p>dit lånerkort (nr. {{codice_tessera}}) udløber den <strong>{{data_scadenza_tessera}}</strong> (dage tilbage: {{giorni_rimasti}}).</p>
+<div style="background-color: #fef3c7; padding: 20px; border-radius: 10px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+    <p style="margin: 5px 0;">Når det er udløbet, kan du ikke låne eller reservere bøger, før kortet er fornyet.</p>
+</div>
+<p>Henvend dig ved bibliotekets skranke i åbningstiden for at forny det.</p>
+<p>På gensyn!</p>',
+    ],
     'loan_pickup_cancelled' => [
         'subject' => '❌ Afhentning annulleret',
         'body' => '<h2>Afhentning annulleret</h2>
@@ -303,6 +314,22 @@ return [
             <p><a href="{{approve_url}}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Administrer Anmodning</a></p>
         ',
     ],
+    'fine_charged' => [
+        'subject' => '💶 Gebyr for for sen aflevering: {{multa}}',
+        'body' => '<h2>Gebyr for for sen aflevering</h2>
+<p>Hej {{utente_nome}},</p>
+<p>bogen herunder blev afleveret efter afleveringsfristen, og der er pålagt et gebyr på din konto.</p>
+<div style="background-color: #fff7ed; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Bog:</strong> {{libro_titolo}}</p>
+    <p><strong>Afleveringsfrist:</strong> {{data_scadenza}}</p>
+    <p><strong>Afleveret den:</strong> {{data_restituzione}}</p>
+    <p><strong>Dage for sent:</strong> {{giorni_ritardo}}</p>
+    <p><strong>Gebyr:</strong> {{multa}}</p>
+    <p><strong>Saldo til betaling:</strong> {{saldo}}</p>
+</div>
+<p>Du kan betale beløbet ved bibliotekets skranke.</p>
+<p>Venlig hilsen<br>Biblioteket</p>',
+    ],
     'loan_returned' => [
         'subject' => '✅ Aflevering bekræftet',
         'body' => '<h2>Aflevering bekræftet</h2>
@@ -312,6 +339,7 @@ return [
     <p><strong>Bog:</strong> {{libro_titolo}}</p>
     <p><strong>Afleveringsdato:</strong> {{data_restituzione}}</p>
 </div>
+<p>{{multa}}</p>
 <p>Vi håber, du nød læsningen. Vi ses snart på biblioteket!</p>
 <p>Med venlig hilsen,<br>Bibliotekets team</p>',
     ],

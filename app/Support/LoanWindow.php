@@ -133,10 +133,17 @@ final class LoanWindow
      *                                later commitment on the loan's own copy.
      * @param string|null $extensionBase Bulk extensions of overdue loans count
      *                                  their days from today, not the past due date.
+     * @param LibraryCalendar|null $calendar The closures calendar: the proposed
+     *        due date must be an open day, and a due date moved forward past a
+     *        closure would run into the conflict, so it steps back to the last
+     *        open day before the first blocked one.
+     * @param int|null $sedeId The branch of the loan's copy: renewals move due
+     *        dates forward with its closures too, so the step back uses them as
+     *        well (otherwise "renew until D" could move D onto the conflict).
      * @return array{first_conflict_date: string, max_due_date: string, max_extension_days: int}|null
      *         null when nothing bounds the extension.
      */
-    public static function renewalCap(string $currentDue, array $conflictDates, ?string $extensionBase = null): ?array
+    public static function renewalCap(string $currentDue, array $conflictDates, ?string $extensionBase = null, ?LibraryCalendar $calendar = null, ?int $sedeId = null): ?array
     {
         $future = array_filter($conflictDates, static fn (string $d): bool => $d > $currentDue);
         if ($future === []) {
@@ -144,6 +151,9 @@ final class LoanWindow
         }
         $firstConflict = min($future);
         $maxDue = (new DateTime($firstConflict))->modify('-1 day')->format('Y-m-d');
+        if ($calendar !== null && $calendar->hasRules()) {
+            $maxDue = $calendar->previousOpenDay($maxDue, $sedeId);
+        }
         $base = max($currentDue, $extensionBase ?? $currentDue);
         // An existing conflict before today's bulk-extension base leaves no
         // extension possible; never propose a due date in the past.
@@ -185,9 +195,9 @@ final class LoanWindow
      * @param string[] $conflictDates
      * @return array{max_extension_days?: int, max_due_date?: string, blocked_from?: string}
      */
-    public static function renewalRedirectParams(string $currentDue, array $conflictDates, ?string $extensionBase = null): array
+    public static function renewalRedirectParams(string $currentDue, array $conflictDates, ?string $extensionBase = null, ?LibraryCalendar $calendar = null, ?int $sedeId = null): array
     {
-        $cap = self::renewalCap($currentDue, $conflictDates, $extensionBase);
+        $cap = self::renewalCap($currentDue, $conflictDates, $extensionBase, $calendar, $sedeId);
         if ($cap === null) {
             return [];
         }

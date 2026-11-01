@@ -47,6 +47,22 @@ if (expected === 0) {
   console.error('✗ The suite executed zero passing tests');
   failed = true;
 }
+// Optional hard ceiling on skips, for suites written for the CI environment
+// where any skip (whatever its reason) means a test silently did not run.
+const maxSkippedRaw = process.env.PLAYWRIGHT_MAX_SKIPPED;
+if (maxSkippedRaw !== undefined && maxSkippedRaw !== '') {
+  const maxSkipped = Number(maxSkippedRaw);
+  if (!Number.isInteger(maxSkipped) || maxSkipped < 0) {
+    console.error(`✗ PLAYWRIGHT_MAX_SKIPPED must be a non-negative integer, got "${maxSkippedRaw}"`);
+    failed = true;
+  } else if (skipped > maxSkipped) {
+    console.error(`✗ ${skipped} skipped test(s), at most ${maxSkipped} allowed:`);
+    for (const item of skipReasons.slice(0, 30)) {
+      console.error(`  - ${item.file}: ${item.title} — ${item.reason || '<no reason>'}`);
+    }
+    failed = true;
+  }
+}
 if (suspicious.length > 0) {
   console.error(`✗ ${suspicious.length} suspicious skip(s) hide missing fixtures or infrastructure:`);
   for (const item of suspicious.slice(0, 30)) {

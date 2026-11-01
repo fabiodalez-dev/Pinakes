@@ -18,7 +18,7 @@ concurrency:
 jobs:
   database:
     name: ${{ matrix.database.name }} schema and behavior
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
       contents: read # Read application, schema and test sources.

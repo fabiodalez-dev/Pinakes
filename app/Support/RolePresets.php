@@ -12,6 +12,7 @@ final class RolePresets
             'Catalogatore' => __('Catalogatore'),
             'Addetto prestiti' => __('Addetto prestiti'),
             'Archivista' => __('Archivista'),
+            'Revisore inventario' => __('Revisore inventario'),
             default => $name,
         };
     }
@@ -22,6 +23,7 @@ final class RolePresets
             'Catalogatore' => __('Profilo iniziale per gestire libri, autori ed editori, senza gestire prestiti, utenti o file riservati.'),
             'Addetto prestiti' => __('Profilo iniziale per registrare prestiti, restituzioni e prenotazioni, senza modificare il catalogo o le impostazioni.'),
             'Archivista' => __('Profilo iniziale per catalogare e gestire gli allegati digitali, compresa l’apertura dei file riservati.'),
+            'Revisore inventario' => __('Profilo iniziale per partecipare alle revisioni inventariali: aprire una sessione e scansionare le copie, senza modificare il catalogo né dichiarare perse le copie.'),
             default => '',
         };
     }

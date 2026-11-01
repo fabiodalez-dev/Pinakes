@@ -10,6 +10,8 @@ $libro = $libro ?? [];
 // on this flag. Default to false so a code path that includes this view without
 // setting it can never leak PII to a non-admin/staff viewer (finding F2).
 $isAdminOrStaff = $isAdminOrStaff ?? false;
+// Days a renewal of the active loan adds (CirculationPolicy, set by the controller).
+$renewalDays = isset($renewalDays) ? max(1, (int) $renewalDays) : 14;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 // i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
 $seriesTypeLabels = \App\Support\SeriesLabels::types();
@@ -104,6 +106,13 @@ $btnDanger  = 'btn-danger-outline';
         case 'renewal_failed':
             echo __('Rinnovo non riuscito. Riprova.');
             break;
+        case 'user_not_found':
+        case 'user_suspended':
+        case 'card_expired':
+        case 'debt_block':
+            // renew() re-checks the borrower (LoanEligibility::checkUser).
+            echo htmlspecialchars(\App\Support\LoanEligibility::errorMessage($errorKey), ENT_QUOTES, 'UTF-8');
+            break;
         default:
             echo __('Operazione non riuscita. Riprova.');
     }
@@ -176,6 +185,13 @@ ob_start();
             <i class="fas fa-barcode"></i>
             <?= __("Stampa etichetta") ?>
           </a>
+          <!-- Scheda catalografica ISBD -->
+          <?php if (\App\Support\Features::enabled('catalogue_cards')): ?>
+          <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/catalogue-card'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" id="catalogue-card-link" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+            <i class="fas fa-address-card"></i>
+            <?= __("Scheda catalografica") ?>
+          </a>
+          <?php endif; ?>
           <!-- Visualizza nel frontend -->
           <a href="<?php echo htmlspecialchars(book_url($libro), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-eye"></i>
@@ -398,7 +414,7 @@ unset($workspaceHeader);
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars(url('/admin/books/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
               <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
-                <i class="fas fa-redo-alt"></i> <?= __("Rinnova prestito (+14 giorni)") ?>
+                <i class="fas fa-redo-alt"></i> <?= htmlspecialchars(sprintf(__('Rinnova prestito (+%d giorni)'), $renewalDays), ENT_QUOTES, 'UTF-8') ?>
               </button>
             </form>
             <?php elseif ($isLate): ?>
@@ -577,6 +593,30 @@ unset($workspaceHeader);
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Tipo acquisizione") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(__($libro['tipo_acquisizione'])); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php
+            $bookSupplier = (!empty($libro['fornitore_id']) && isset($db) && $db instanceof \mysqli && \App\Support\Features::enabled('suppliers'))
+                ? (new \App\Models\SupplierRepository($db))->getById((int) $libro['fornitore_id'])
+                : null;
+            ?>
+            <?php if ($bookSupplier !== null): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Fornitore") ?></dt>
+              <dd class="text-gray-900 font-medium" id="book-supplier"><a class="hover:underline" href="<?= htmlspecialchars(url('/admin/suppliers/edit/' . (int) $bookSupplier['id']), ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars((string) ((string) $bookSupplier['nome']), ENT_QUOTES, 'UTF-8'); ?></a></dd>
+            </div>
+            <?php endif; ?>
+            <?php
+            $rdaEffective = \App\Support\RdaTypes::effective($libro);
+            $rdaParts = [];
+            foreach ($rdaEffective as $rdaKind => $rdaCode) {
+                $rdaParts[] = __(\App\Support\RdaTypes::label($rdaKind, $rdaCode));
+            }
+            ?>
+            <?php if (\App\Support\Features::enabled('rda_types')): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tipologia RDA") ?></dt>
+              <dd class="text-gray-900 font-medium" id="book-rda-types" data-rda="<?= htmlspecialchars(implode('/', $rdaEffective), ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars(implode(' · ', $rdaParts), ENT_QUOTES, 'UTF-8'); ?></dd>
             </div>
             <?php endif; ?>
             <?php
@@ -1142,6 +1182,9 @@ unset($workspaceHeader);
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 text-sm text-gray-500">
+                  <?php if ((int) ($copia['solo_consultazione'] ?? 0) === 1 && \App\Support\Features::enabled('consultation_only')): ?>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 mr-1" data-testid="copy-consultation-badge"><i class="fas fa-eye mr-1"></i><?= __("Solo consultazione") ?></span>
+                  <?php endif; ?>
                   <?php echo App\Support\HtmlHelper::e($copia['note'] ?? '-'); ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -1159,6 +1202,16 @@ unset($workspaceHeader);
                     $canEdit = empty($copia['prestito_id']) || $bookAtLibrary;
                     $canDelete = $canEdit && in_array($rawCopiaStatus, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true);
                     ?>
+                    <?php if (array_key_exists('solo_consultazione', $copia) && \App\Support\Features::enabled('consultation_only')): $copyConsultation = (int) $copia['solo_consultazione'] === 1; ?>
+                    <form method="post" action="<?= htmlspecialchars(url('/admin/books/copies/' . (int) $copia['id'] . '/consultation'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                      <input type="hidden" name="solo_consultazione" value="<?= $copyConsultation ? '0' : '1' ?>">
+                      <button type="submit" class="btn-icon btn-secondary text-gray-700 hover:text-gray-900 transition-colors" data-testid="copy-consultation-toggle"
+                              title="<?= htmlspecialchars($copyConsultation ? __('Rendi prestabile') : __('Riserva alla consultazione'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($copyConsultation ? __('Rendi prestabile') : __('Riserva alla consultazione'), ENT_QUOTES, 'UTF-8') ?>">
+                        <i class="fas <?= $copyConsultation ? 'fa-hand-holding' : 'fa-eye' ?>"></i>
+                      </button>
+                    </form>
+                    <?php endif; ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
                             onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['stato'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars((string) json_encode($copia['note'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
@@ -1802,7 +1855,7 @@ unset($workspaceHeader);
         e.preventDefault();
         Swal.fire({
           title: __('Rinnova prestito?'),
-          text: __('La scadenza verrà estesa di 14 giorni'),
+          text: <?= json_encode(sprintf(__('La scadenza verrà estesa di %d giorni'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
           icon:'question',
           showCancelButton:true,
           confirmButtonText: __('Rinnova'),
@@ -1811,7 +1864,7 @@ unset($workspaceHeader);
         }).then(r=>{ if(r.isConfirmed) e.target.submit(); });
         return false;
       }
-      return confirm(__('Rinnovare il prestito? La scadenza verrà estesa di 14 giorni.'));
+      return confirm(<?= json_encode(sprintf(__('Rinnovare il prestito? La scadenza verrà estesa di %d giorni.'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
     }
   </script>
 

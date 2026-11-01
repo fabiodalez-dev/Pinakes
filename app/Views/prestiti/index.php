@@ -74,6 +74,7 @@ $applicationToday = \App\Support\DateHelper::today();
                 case 'user_not_found':
                 case 'user_suspended':
                 case 'card_expired':
+                case 'debt_block':
                     echo \App\Support\LoanEligibility::errorMessage($errorKey);
                     break;
                 case 'loan_not_closable':
@@ -136,6 +137,12 @@ $applicationToday = \App\Support\DateHelper::today();
                     break;
                 case 'renewal_failed':
                     echo __('Rinnovo non riuscito. Riprova.');
+                    break;
+                case 'media_limit_reached':
+                    echo __('L\'utente ha raggiunto il numero massimo di prestiti consentiti per questo tipo di materiale dalla sua tipologia di lettore.');
+                    break;
+                case 'not_loanable':
+                    echo __('Questo materiale (o la copia indicata) è solo in consultazione per la tipologia di questo lettore.');
                     break;
                 default:
                     echo __('Errore durante l\'aggiornamento del prestito.');

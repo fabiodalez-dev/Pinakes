@@ -593,6 +593,32 @@ $svc->rows("DELETE FROM emeroteca_testate WHERE titolo LIKE 'Calvino Notes%' OR 
     $before=(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n'];
     (new EmerotecaPlugin($db,new \App\Support\HookManager($db)))->onUninstall();
     check412($before>0 && (int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_contributi')[0]['n']===$before,'uninstalling the plugin keeps the standalone articles');
+    // #501: the page, its field filters and the header must agree on quotes.
+    $quotedIds = [];
+    foreach (['Haffner','Häffner'] as $surname) {
+        $quotedIds[] = $svc->save(['titolo'=>"Zquoted501 $surname", 'autori'=>"Zquoted501 $surname", 'contenitore_titolo'=>"Zquoted501 $surname", 'keywords'=>"Zquoted501 $surname", 'pubblico'=>1]);
+    }
+    foreach (['zquoted501 haffner'=>2, 'zquoted501 "häffner"'=>1, '"zquoted501 haffner"'=>1, '"ZQUOTED501 HÄFFNER"'=>1] as $term=>$expected) {
+        $result=$svc->search($term,0,true);
+        check412($result['total']===$expected,"#501 article search: $term");
+        $hits=(new ReflectionMethod(EmerotecaPlugin::class,'emerotecaArticleHits'))->invoke($plugin,$term);
+        check412($hits['total']===$expected,"#501 header articles agree with search: $term");
+    }
+    foreach (['autore','pubblicazione','keyword'] as $filter) {
+        check412($svc->search('',0,true,1,[$filter=>'zquoted501 haffner'])['total']===2,"#501 tolerant article $filter filter");
+        $result=$svc->search('',0,true,1,[$filter=>'"zquoted501 häffner"']);
+        check412($result['total']===1 && (int)$result['rows'][0]['id']===$quotedIds[1],"#501 exact article $filter filter");
+    }
+    foreach (['Haffner','Häffner'] as $surname) {
+        $svc->rows('INSERT INTO emeroteca_testate (titolo) VALUES (?)',["Zquoted501 $surname"]);
+    }
+    foreach (['zquoted501 haffner'=>2,'"zquoted501 häffner"'=>1,'"zquoted501 haffner"'=>1] as $term=>$expected) {
+        $condition=EmerotecaPlugin::testataSearchCondition($term,true);
+        $count=(int)$svc->rows('SELECT COUNT(*) n FROM emeroteca_testate t WHERE '.$condition['sql'],$condition['params'])[0]['n'];
+        check412($count===$expected,"#501 periodical listing: $term");
+        $hits=(new ReflectionMethod(EmerotecaPlugin::class,'emerotecaTestataHits'))->invoke($plugin,$term);
+        check412($hits['total']===$count,"#501 periodical header/list parity: $term");
+    }
     echo "SUCCESS $n behavioural checks\n";
 } finally {
     foreach(['emeroteca_testate_editori','emeroteca_contributi_autori','emeroteca_contributi','emeroteca_articoli','emeroteca_abbonamenti','emeroteca_fascicoli','emeroteca_annate','emeroteca_testate','plugin_hooks','plugin_settings','plugins'] as $t) { $db->query('DROP TABLE IF EXISTS '.$t); }

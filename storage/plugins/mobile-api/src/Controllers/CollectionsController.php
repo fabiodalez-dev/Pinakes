@@ -138,10 +138,21 @@ final class CollectionsController
         $where = ['u.deleted_at IS NULL' . $this->publishedSql('u.')]; $values = [];
         if ($parent !== null) { $where[] = 'u.parent_id = ?'; $values[] = $parent; }
         elseif ($query === '' && $level === '' && $from === null && $to === null) { $where[] = 'u.parent_id IS NULL'; }
-        if ($query !== '') {
-            $where[] = "(u.reference_code LIKE ? ESCAPE '!' OR u.constructed_title LIKE ? ESCAPE '!' OR u.formal_title LIKE ? ESCAPE '!' OR u.scope_content LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND ar.authorised_form LIKE ? ESCAPE '!'))";
-            $pattern = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $query) . '%';
-            array_push($values, $pattern, $pattern, $pattern, $pattern, $pattern);
+        $unitColumns = ['u.reference_code', 'u.constructed_title', 'u.formal_title', 'u.scope_content'];
+        $search = \App\Support\ExactSearch::filterCondition($unitColumns, $query);
+        if ($query !== '' && $search === null) {
+            // Only quotes were typed: nothing to match yet. Without this the
+            // root-only filter above is skipped (the query is not empty) and
+            // the whole archive would come back.
+            return ResponseEnvelope::success($response, [], ['next_cursor' => null, 'total_count' => 0])->withHeader('Cache-Control', 'no-store');
+        }
+        if ($search !== null) {
+            // A linked authority record may meet the terms too, by the same
+            // rule (one EXISTS holds every term, see ArchivesPlugin).
+            $withAuthority = \App\Support\ExactSearch::filterCondition([...$unitColumns, 'ar.authorised_form'], $query) ?? $search;
+            $where[] = '(' . $search['sql'] . ' OR EXISTS (SELECT 1 FROM archival_unit_authority aua JOIN authority_records ar ON ar.id = aua.authority_id WHERE aua.archival_unit_id = u.id AND ar.deleted_at IS NULL AND '
+                . $withAuthority['sql'] . '))';
+            array_push($values, ...$search['params'], ...$withAuthority['params']);
         }
         if ($level !== '') { $where[] = 'u.level = ?'; $values[] = $level; }
         if ($from !== null) { $where[] = 'u.date_start IS NOT NULL AND GREATEST(u.date_start, COALESCE(u.date_end, u.date_start)) >= ?'; $values[] = $from; }

@@ -128,6 +128,18 @@ unset($workspaceHeader);
             <span class="text-gray-800"><?= htmlspecialchars(($sanzioneCurrency === 'EUR' ? '€' : $sanzioneCurrency) . ' ' . number_format((float) $prestito['sanzione'], 2, ',', '.'), ENT_QUOTES, 'UTF-8'); ?></span>
           </div>
           <?php endif; ?>
+          <?php if (($loanFineAccruedCents ?? 0) > 0): ?>
+          <div>
+            <span class="font-semibold text-gray-600"><?= __("Multa maturata") ?>:</span>
+            <span class="text-gray-800" data-loan-fine-accrued="<?= (int) $loanFineAccruedCents ?>"><?= htmlspecialchars(\App\Services\FineParameters::format((int) $loanFineAccruedCents), ENT_QUOTES, 'UTF-8'); ?></span>
+          </div>
+          <?php endif; ?>
+          <?php if (($loanFineChargedCents ?? 0) > 0): ?>
+          <div>
+            <span class="font-semibold text-gray-600"><?= __("Multa per ritardo") ?>:</span>
+            <span class="text-gray-800" data-loan-fine-charged="<?= (int) $loanFineChargedCents ?>"><?= htmlspecialchars(\App\Services\FineParameters::format((int) $loanFineChargedCents), ENT_QUOTES, 'UTF-8'); ?></span>
+          </div>
+          <?php endif; ?>
           <?php if (!empty($prestito['last_recall_at'])): ?>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Ultimo Sollecito:") ?></span>

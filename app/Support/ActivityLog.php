@@ -64,6 +64,7 @@ final class ActivityLog
         'copy.created' => 'Copia fisica aggiunta',
         'copy.updated' => 'Copia fisica aggiornata',
         'copy.deleted' => 'Copia fisica eliminata',
+        'copy.inventory_lost' => 'Copia dichiarata persa in revisione inventariale',
         'import.created' => 'Libro creato tramite importazione',
         'import.updated' => 'Libro aggiornato tramite importazione',
         'enrich.updated' => 'Metadati arricchiti',
@@ -96,6 +97,11 @@ final class ActivityLog
         'subscription.created' => 'Abbonamento creato',
         'subscription.updated' => 'Abbonamento aggiornato',
         'subscription.deleted' => 'Abbonamento eliminato',
+        // Inventory stocktake sessions (recordEntityEvent on inventario_sessioni)
+        'inventory.opened' => 'Revisione inventariale aperta',
+        'inventory.closed' => 'Revisione inventariale chiusa',
+        'inventory.cancelled' => 'Revisione inventariale annullata',
+        'inventory.lost_resumed' => 'Revisione inventariale: copie mancanti segnate come perse dopo la chiusura',
     ];
 
     /** @var array<string,string> */
@@ -348,6 +354,46 @@ final class ActivityLog
             $type = null;
         }
         return self::fetch($db, $page, $perPage, null, $type, $operatorId, $q);
+    }
+
+    /**
+     * The events recordEntityEvent() wrote for one non-book record, newest
+     * first, at most $limit of them. The book feeds (recent(), forBook())
+     * read tabella = 'libri' only, so this is the reader for entity events,
+     * such as the open/close/cancel history of a stocktake session.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function forEntity(mysqli $db, string $tabella, int $recordId, int $limit = 50): array
+    {
+        if ($recordId <= 0 || $tabella === '' || $tabella === 'libri') {
+            return [];
+        }
+        $limit = max(1, min(200, $limit));
+        try {
+            $stmt = $db->prepare(
+                "SELECT lm.*, TRIM(CONCAT(u.nome, ' ', u.cognome)) AS operator_name "
+                . 'FROM log_modifiche lm '
+                . 'LEFT JOIN utenti u ON u.id = lm.utente_id '
+                . 'WHERE lm.tabella = ? AND lm.record_id = ? '
+                . 'ORDER BY lm.data_modifica DESC, lm.id DESC LIMIT ?'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($db->error);
+            }
+            $stmt->bind_param('sii', $tabella, $recordId, $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $items = [];
+            while ($row = $result->fetch_assoc()) {
+                $items[] = self::decodeRow($row);
+            }
+            $stmt->close();
+            return $items;
+        } catch (\Throwable $e) {
+            SecureLogger::warning('ActivityLog entity read failed', ['tabella' => $tabella, 'error' => $e->getMessage()]);
+            return [];
+        }
     }
 
     /** @return list<array{id:int,name:string}> */

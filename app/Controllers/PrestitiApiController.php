@@ -64,15 +64,14 @@ class PrestitiApiController
             $params[] = $statoSpecifico;
             $param_types .= 's';
         }
-        if ($search_value !== '') {
-            $where_prepared .= " AND (l.titolo LIKE ?
-                          OR CONCAT(u.nome, ' ', u.cognome) LIKE ?
-                          OR CONCAT(staff.nome, ' ', staff.cognome) LIKE ?) ";
-            $search_param = "%$search_value%";
-            $params[] = $search_param;
-            $params[] = $search_param;
-            $params[] = $search_param;
-            $param_types .= 'sss';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $search_value !== ''
+            ? \App\Support\ExactSearch::filterCondition(['l.titolo', "CONCAT(u.nome, ' ', u.cognome)", "CONCAT(staff.nome, ' ', staff.cognome)"], $search_value)
+            : null;
+        if ($search !== null) {
+            $where_prepared .= ' AND ' . $search['sql'] . ' ';
+            array_push($params, ...$search['params']);
+            $param_types .= $search['types'];
         }
 
         // Count total records with prepared statement

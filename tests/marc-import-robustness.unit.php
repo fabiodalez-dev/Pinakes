@@ -1,0 +1,528 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * MARC import edge cases raised in review of the bulk import (#505):
+ *  - once a book is committed, a failure of the extra MARC columns or of the
+ *    search index is a warning on an imported record, not a failed record;
+ *  - a cover copied from this installation keeps the extension of its bytes
+ *    (WebP stays .webp, GIF stays .gif);
+ *  - a re-import full of duplicates lists at most MAX_LISTED_DUPLICATES of
+ *    them in the session state and the import log;
+ *  - in fill mode a family is written as soon as one of its columns is empty
+ *    and no field the book has is overwritten;
+ *  - overwrite mode updates the media type of an existing book (a DVD record
+ *    matched to a printed book makes it a DVD) and never its format or price;
+ *    fill mode leaves the media type, since a book always has one;
+ *  - an overwrite that replaces a downloaded cover removes the old file
+ *    unless another book still points at it;
+ *  - a chunk must name the preview that staged its file, a lost last chunk
+ *    response is answered again, and a failed history save is retried on
+ *    the same import_logs row.
+ *
+ * The database part touches only the book it creates (title prefixed ZZMR)
+ * and removes it with the probe trigger.
+ * Run: php tests/marc-import-robustness.unit.php   (exit 0 iff every check passes)
+ */
+
+use App\Controllers\MarcImportController;
+use App\Support\Marc\MarcBookImporter;
+use App\Support\Marc\MarcCoverFetcher;
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+// The module under test is on, whatever features.* says in the database
+// this runs against (Settings → Modules / Loans).
+\App\Support\Features::override('rda_types', true);
+require_once $root . '/app/helpers.php';
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+$pass = 0;
+$fail = 0;
+$check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
+    if ($ok) {
+        $pass++;
+        echo "  OK   {$label}\n";
+    } else {
+        $fail++;
+        echo "  FAIL {$label}\n";
+    }
+};
+
+// 1. Duplicates listed in the report are capped.
+$state = ['errors' => []];
+for ($i = 1; $i <= MarcImportController::MAX_LISTED_DUPLICATES + 50; $i++) {
+    MarcImportController::listSkippedDuplicate($state, $i, 'Book ' . $i, $i);
+}
+$check(count($state['errors']) === MarcImportController::MAX_LISTED_DUPLICATES, 'duplicates beyond the cap are not listed one by one');
+$check(($state['errors'][0]['type'] ?? '') === 'duplicate' && ($state['errors'][0]['line'] ?? 0) === 1, 'the first duplicates keep their position and type');
+
+// 1b. Parse errors, failed records and cover warnings: all counted, a capped number listed.
+$state = ['errors' => []];
+$over = MarcImportController::MAX_LISTED_ISSUES + 30;
+for ($i = 1; $i <= $over; $i++) {
+    MarcImportController::listIssue($state, ['line' => $i, 'title' => 'T' . $i, 'message' => 'cover host down', 'type' => 'cover']);
+    MarcImportController::listIssue($state, ['line' => $i, 'title' => 'T' . $i, 'message' => 'bad record', 'type' => 'parse']);
+}
+MarcImportController::listIssue($state, ['line' => 1, 'title' => 'V', 'message' => 'invalid', 'type' => 'validation']);
+$check(count($state['errors']) === 2 * MarcImportController::MAX_LISTED_ISSUES + 1, 'each issue type is listed up to MAX_LISTED_ISSUES');
+$check(MarcImportController::failedCount($state) === $over + 1, 'failed counts every parse and validation issue, listed or not');
+$check(MarcImportController::failedCount(['errors' => [['type' => 'parse'], ['type' => 'cover'], ['type' => 'validation']]]) === 2, 'a state without counters falls back to the listed errors');
+
+// 1c. MARCXML with a DOCTYPE is refused before any entity is expanded.
+$doctype = '<?xml version="1.0"?><!DOCTYPE c [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;&a;">]>'
+    . '<collection xmlns="http://www.loc.gov/MARC21/slim"><record><leader>00000nam a2200000 a 4500</leader>'
+    . '<datafield tag="245" ind1="0" ind2="0"><subfield code="a">&b;</subfield></datafield></record></collection>';
+$items = iterator_to_array(\App\Support\Marc\MarcXmlReader::fromString($doctype));
+$check(count($items) === 1 && reset($items) instanceof \App\Support\Marc\MarcReadError, 'a MARCXML file with a DOCTYPE yields one read error and no record');
+
+// 2. Local cover copies take their extension from the image bytes.
+$coversDir = $root . '/public/uploads/copertine';
+$copyLocal = new ReflectionMethod(MarcCoverFetcher::class, 'copyLocal');
+$created = [];
+if (!function_exists('imagecreatetruecolor')) {
+    echo "  SKIP cover extension checks: GD not available\n";
+} else {
+    if (!is_dir($coversDir)) {
+        mkdir($coversDir, 0775, true);
+    }
+    $img = imagecreatetruecolor(4, 4);
+    $writers = ['png' => 'imagepng', 'gif' => 'imagegif', 'jpg' => 'imagejpeg'];
+    if (function_exists('imagewebp')) {
+        $writers['webp'] = 'imagewebp';
+    }
+    foreach ($writers as $ext => $writer) {
+        // Source named .jpg on purpose: the stored name must follow the bytes.
+        $source = $coversDir . '/zzmr_source_' . bin2hex(random_bytes(3)) . '.jpg';
+        $writer($img, $source);
+        $created[] = $source;
+        try {
+            $stored = (string) $copyLocal->invoke(new MarcCoverFetcher(), $source);
+            $created[] = $root . '/public' . $stored;
+            $check(str_ends_with($stored, '.' . $ext), "a {$ext} image is stored as .{$ext}");
+        } catch (Throwable $e) {
+            $check(false, "a {$ext} image is stored as .{$ext} (" . $e->getMessage() . ')');
+        }
+    }
+    $bogus = $coversDir . '/zzmr_bogus_' . bin2hex(random_bytes(3)) . '.png';
+    file_put_contents($bogus, 'not an image');
+    $created[] = $bogus;
+    try {
+        $copyLocal->invoke(new MarcCoverFetcher(), $bogus);
+        $check(false, 'a file that is not an image is refused');
+    } catch (RuntimeException) {
+        $check(true, 'a file that is not an image is refused');
+    }
+}
+foreach ($created as $file) {
+    @unlink($file);
+}
+
+// 3. Fill mode never overwrites a field the book has; a family is filled as
+//    soon as one of its columns is empty (pure: MarcBookImporter::plan()).
+$existing = [
+    'id' => 7, 'isbn13' => '9788845292613', 'isbn10' => '', 'ean' => '', 'titolo' => 'Old title', 'sottotitolo' => '',
+    'anno_pubblicazione' => null, 'lingua' => 'Italiano', 'edizione' => '', 'numero_pagine' => null,
+    'collana' => 'Serie', 'numero_serie' => '', 'classificazione_dewey' => '', 'parole_chiave' => 'old',
+    'descrizione' => '', 'editore_id' => 5, 'genere_id' => null, 'traduttore' => 'Old Translator', 'illustratore' => '',
+    'curatore' => '', 'formato' => 'cartaceo', 'tipo_media' => 'libro', 'prezzo' => null, '_principal_authors' => 1,
+];
+$data = \App\Support\Marc\MarcBookData::empty();
+$data = [
+    'titolo' => 'New title', 'isbn13' => '9780140449136', 'isbn10' => '0140449132', 'collana' => 'Altra', 'numero_serie' => '3',
+    'traduttore' => ['New Translator'], 'illustratore' => ['Ill Ustrator'], 'autori' => ['Some Author'], 'editori' => ['Pub'],
+    'genere' => 'Narrativa', 'anno_pubblicazione' => '2001', 'parole_chiave' => ['new'], 'tipo_media' => 'dvd',
+] + $data;
+$csv = new \App\Controllers\CsvImportController();
+$parsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($data));
+[$fill, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $data, $parsed, $existing);
+$check($fill['isbn'] === false && $row['isbn13'] === '9788845292613' && $row['isbn10'] === '', 'fill: the ISBN-10 of another work is not added next to the book\'s ISBN-13');
+$sameWork = ['isbn13' => '9780140449136', 'isbn10' => '0140449132'] + $data;
+[$fillSame, $rowSame] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $sameWork, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($sameWork)), ['isbn13' => '9780140449136'] + $existing);
+$check($fillSame['isbn'] === true && $rowSame['isbn13'] === '9780140449136' && $rowSame['isbn10'] === '0140449132', 'fill: the ISBN family is written for the empty ISBN-10 when it is the same ISBN as the book\'s ISBN-13');
+[$fillTen, $rowTen] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $data, $parsed, ['isbn13' => '', 'isbn10' => '8845292614'] + $existing);
+$check($fillTen['isbn'] === false && $rowTen['isbn13'] === '' && $rowTen['isbn10'] === '8845292614', 'fill: the ISBN-13 of another work is not added next to the book\'s ISBN-10 either');
+$check($fill['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '3', 'fill: the series number is filled, the series name kept');
+$check($fill['contributors'] === true && $row['traduttore'] === 'Old Translator' && $row['illustratore'] === 'Ill Ustrator', 'fill: the illustrator is filled, the translator kept');
+$check($fill['titolo'] === false && $fill['keywords'] === false && $fill['authors'] === false && $fill['publisher'] === false, 'fill: title, keywords, authors and publisher the book has are not touched');
+$check($fill['anno'] === true && $fill['genre'] === true && $fill['sottotitolo'] === false && $fill['formato'] === false, 'fill: an empty year and genre are filled; a family the record does not carry, and the format, are not');
+$check($fill['tipo_media'] === false, 'fill: the media type of a book is left (a book always has one)');
+[$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $data, $parsed, $existing);
+$check($over['isbn'] === true && $over['titolo'] === true && $row['isbn13'] === '9780140449136' && $row['titolo'] === 'New title' && $row['traduttore'] === 'New Translator', 'overwrite: the record\'s values replace the book\'s');
+$check($over['tipo_media'] === true && $row['tipo_media'] === 'dvd' && $over['formato'] === false && $over['prezzo'] === false, 'overwrite: a DVD record updates the media type of a printed book; the format and the price are not written');
+$partial = ['isbn13' => '9780140449136', 'titolo' => 'New title'] + \App\Support\Marc\MarcBookData::empty();
+$partialParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial));
+[$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $partialParsed, ['isbn10' => '0140449132', 'traduttore' => 'Old Translator'] + $existing);
+$check($row['isbn10'] === '0140449132' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value (the ISBN-10 of the same ISBN)');
+// CodeRabbit on PR #505: the ISBN-10 the book has is another work's (it is
+// the 10-digit form of 9788845292613, not of the record's 9780140449136).
+[, $rowPair] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $partialParsed, ['isbn10' => '8845292614'] + $existing);
+$check($rowPair['isbn13'] === '9780140449136' && $rowPair['isbn10'] === '', 'overwrite: the book\'s ISBN-10 of another work is cleared, not kept next to the record\'s ISBN-13');
+// The colorist has no legacy column: a book whose translator, illustrator
+// and editor columns are all set still gets the record's colorist.
+$colorRecord = ['titolo' => 'Old title', 'colorista' => ['Col Orista']] + \App\Support\Marc\MarcBookData::empty();
+$colorParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($colorRecord));
+$fullLegacy = ['traduttore' => 'T', 'illustratore' => 'I', 'curatore' => 'C', '_colorist_links' => 0] + $existing;
+[$fillColor] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $colorRecord, $colorParsed, $fullLegacy);
+[$fillColorLinked] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $colorRecord, $colorParsed, ['_colorist_links' => 1] + $fullLegacy);
+$check($fillColor['contributors'] === true && $fillColorLinked['contributors'] === false, 'fill: a record\'s colorist is added to a book without one, even when every legacy contributor column is set; a book with a colorist keeps it');
+$check($over['tipo_media'] === false, 'overwrite: a record without a media type leaves the book\'s');
+$numberOnly = ['titolo' => 'Old title', 'numero_serie' => '7'] + \App\Support\Marc\MarcBookData::empty();
+$numberParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($numberOnly));
+[$fillNumber, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $numberOnly, $numberParsed, $existing);
+$check($fillNumber['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '7', 'fill: a record with only the series number fills it and keeps the series name');
+[$overNumber, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $numberOnly, $numberParsed, ['numero_serie' => '2'] + $existing);
+$check($overNumber['collana'] === true && $row['collana'] === 'Serie' && $row['numero_serie'] === '7', 'overwrite: a record with only the series number replaces the number, the series name is kept');
+// An overwrite that changes the media type clears the RDA overrides the
+// record does not carry (they described the old material).
+$allColumns = static fn (string $column): bool => true;
+$printed = ['tipo_media' => 'libro', 'rda_content_type' => '', 'rda_media_type' => 'n', 'rda_carrier_type' => 'nb', 'dimensioni' => '21 cm'];
+$dvdRecord = ['tipo_media' => 'dvd', 'rda_content_type' => 'tdi'] + \App\Support\Marc\MarcBookData::empty();
+$up = MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, $dvdRecord, $printed, $allColumns);
+$check($up === ['rda_content_type' => 'tdi', 'rda_media_type' => null, 'rda_carrier_type' => null], 'overwrite that changes the media type: the record\'s RDA override is written, the book\'s other overrides are cleared, other columns untouched');
+$check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, ['tipo_media' => 'libro'] + \App\Support\Marc\MarcBookData::empty(), $printed, $allColumns) === [], 'overwrite with the same media type keeps the book\'s RDA overrides');
+$check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_FILL, $dvdRecord, $printed, $allColumns) === ['rda_content_type' => 'tdi'], 'fill mode never clears an RDA override, only fills an empty one');
+$check(MarcBookImporter::extraColumnUpdates(MarcBookImporter::MODE_OVERWRITE, $dvdRecord, $printed, static fn (string $c): bool => !str_starts_with($c, 'rda_')) === [], 'without the RDA columns nothing RDA is written or cleared');
+
+// 4. Post-commit failures are warnings, not failed records.
+$envFile = $root . '/.env';
+if (!is_file($envFile)) {
+    // The database paths (post-commit warnings, tipo_media, dedup, chunks)
+    // are the point of this file: under CI_STRICT_TESTS a missing .env is a
+    // failure, otherwise a skip the runner recognises (SKIP: at the start).
+    if (getenv('CI_STRICT_TESTS') === '1') {
+        $check(false, '.env present for the database checks');
+    } else {
+        echo "SKIP: database checks: no .env\n";
+    }
+} else {
+    $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
+    $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $db->set_charset('utf8mb4');
+    $hasColumn = $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'dimensioni'")->num_rows === 1;
+    if (!$hasColumn) {
+        if (getenv('CI_STRICT_TESTS') === '1') {
+            $check(false, 'libri.dimensioni exists');
+        } else {
+            echo "  SKIP database checks: libri.dimensioni missing\n";
+        }
+    } else {
+        $run = strtoupper(bin2hex(random_bytes(3)));
+        $title = 'ZZMR' . $run . ' post-commit';
+        $trigger = 'zzmr_probe_' . strtolower($run);
+        $db->query("CREATE TRIGGER {$trigger} BEFORE UPDATE ON libri FOR EACH ROW BEGIN IF NEW.dimensioni = 'ZZFAIL' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'probe failure'; END IF; END");
+        try {
+            $counters = [];
+            $warnings = [];
+            $importer = new MarcBookImporter($db, MarcBookImporter::MODE_SKIP, false);
+            $threw = false;
+            $result = null;
+            try {
+                $result = $importer->import(['titolo' => $title, 'dimensioni' => 'ZZFAIL'], $counters, $warnings);
+            } catch (Throwable $e) {
+                $threw = true;
+                echo '       (threw: ' . $e->getMessage() . ")\n";
+            }
+            $check(!$threw && ($result['action'] ?? '') === 'created', 'a failing extra-column write does not fail the record');
+            $check((int) ($counters['imported'] ?? 0) === 1, 'the record is counted once, as imported');
+            $check(count($warnings) === 1 && str_contains($warnings[0], 'probe failure'), 'the failure is reported as a warning');
+            $stmt = $db->prepare('SELECT COUNT(*) FROM libri WHERE titolo = ? AND deleted_at IS NULL');
+            $stmt->bind_param('s', $title);
+            $stmt->execute();
+            $check((int) $stmt->get_result()->fetch_row()[0] === 1, 'the book is in the catalogue, matching the report');
+            $stmt->close();
+
+            // 5. Overwrite mode updates the media type of an existing book and
+            //    leaves its format alone; fill mode leaves the media type.
+            $twelve = '979' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+            $sum = 0;
+            for ($i = 0; $i < 12; $i++) {
+                $sum += (int) $twelve[$i] * ($i % 2 === 0 ? 1 : 3);
+            }
+            $isbn = $twelve . ((10 - $sum % 10) % 10);
+            $mediaTitle = 'ZZMR' . $run . ' media type';
+            $counters = [];
+            $warnings = [];
+            $created = (new MarcBookImporter($db, MarcBookImporter::MODE_SKIP, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn], $counters, $warnings);
+            $mediaId = (int) ($created['id'] ?? 0);
+            $mediaRow = static function () use ($db, $mediaId): array {
+                $stmt = $db->prepare('SELECT tipo_media, formato, prezzo FROM libri WHERE id = ?');
+                $stmt->bind_param('i', $mediaId);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc() ?: [];
+                $stmt->close();
+                return $row;
+            };
+            $before = $mediaRow();
+            $check(($created['action'] ?? '') === 'created' && ($before['tipo_media'] ?? '') === 'libro' && ($before['formato'] ?? '') === 'cartaceo', 'a record with no media type creates a printed book');
+            $updated = (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'tipo_media' => 'dvd'], $counters, $warnings);
+            $after = $mediaRow();
+            $check(($updated['action'] ?? '') === 'updated' && ($after['tipo_media'] ?? '') === 'dvd', 'overwrite: the DVD record makes the book a DVD');
+            $check(($after['formato'] ?? '') === ($before['formato'] ?? '') && ($after['prezzo'] ?? null) === ($before['prezzo'] ?? null), 'overwrite: the format and the price are left as they were');
+            (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, false))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'tipo_media' => 'libro'], $counters, $warnings);
+            $check(($mediaRow()['tipo_media'] ?? '') === 'dvd', 'fill: the media type the book has is left');
+
+            // 5b. An overwrite that replaces the book's downloaded cover
+            //     removes the old file once no book points at it.
+            if (function_exists('imagecreatetruecolor')) {
+                $coversDir = $root . '/public/uploads/copertine';
+                $source = $coversDir . '/zzmr_cover_src_' . strtolower($run) . '.png';
+                imagepng(imagecreatetruecolor(4, 4), $source);
+                $coverUrl = absoluteUrl('/uploads/copertine/' . basename($source));
+                $coverOf = static function () use ($db, $mediaId): string {
+                    $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id = ?');
+                    $stmt->bind_param('i', $mediaId);
+                    $stmt->execute();
+                    $value = (string) ($stmt->get_result()->fetch_row()[0] ?? '');
+                    $stmt->close();
+                    return $value;
+                };
+                try {
+                    (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, true))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'copertina_url' => $coverUrl], $counters, $warnings);
+                    $first = $coverOf();
+                    (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, true))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'copertina_url' => $coverUrl], $counters, $warnings);
+                    $second = $coverOf();
+                    $check(str_starts_with($first, '/uploads/copertine/') && $second !== $first && is_file($root . '/public' . $second), 'overwrite: a re-imported cover is stored again and attached');
+                    $check(!is_file($root . '/public' . $first), 'overwrite: the cover file it replaced is removed');
+                    // A file another book still points at is kept.
+                    $db->query("INSERT INTO libri (titolo, copertina_url) VALUES ('" . $db->real_escape_string('ZZMR' . $run . ' shared cover') . "', '" . $db->real_escape_string($second) . "')");
+                    (new MarcBookImporter($db, MarcBookImporter::MODE_OVERWRITE, true))->import(['titolo' => $mediaTitle, 'isbn13' => $isbn, 'copertina_url' => $coverUrl], $counters, $warnings);
+                    $third = $coverOf();
+                    $check($third !== $second && is_file($root . '/public' . $second), 'overwrite: a replaced cover another book still uses is kept');
+                    foreach ([$first, $second, $third] as $stored) {
+                        @unlink($root . '/public' . $stored);
+                    }
+                } finally {
+                    @unlink($source);
+                }
+            }
+
+            // Title + first author without an ISBN: the author resolves as the
+            // import links it, so a re-import of the same record finds the book.
+            $dedupTitle = 'ZZMR' . $run . ' dedup Werke';
+            $umlaut = 'ZZMR' . $run . ' Häffner';
+            $db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($umlaut) . "')");
+            $umlautId = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo) VALUES ('" . $db->real_escape_string($dedupTitle) . "')");
+            $umlautBook = (int) $db->insert_id;
+            $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$umlautBook}, {$umlautId}, 'principale')");
+            $plainRecord = ['titolo' => $dedupTitle, 'autori' => 'ZZMR' . $run . ' Haffner'];
+            $skip = new MarcBookImporter($db, MarcBookImporter::MODE_SKIP, false);
+            $check($skip->findExisting($plainRecord) === $umlautBook, 'dedup: with only Häffner on file, a Haffner record finds the book the import would link to');
+            $skip->import($plainRecord, $counters, $warnings);
+            $skip->import($plainRecord, $counters, $warnings);
+            $countStmt = $db->prepare('SELECT COUNT(*) FROM libri WHERE titolo = ? AND deleted_at IS NULL');
+            $countStmt->bind_param('s', $dedupTitle);
+            $countStmt->execute();
+            $check((int) $countStmt->get_result()->fetch_row()[0] === 1, 'dedup: importing that record twice leaves one book');
+            $countStmt->close();
+            $plain = 'ZZMR' . $run . ' Haffner';
+            $db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($plain) . "')");
+            $plainId = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo) VALUES ('" . $db->real_escape_string($dedupTitle) . "')");
+            $plainBook = (int) $db->insert_id;
+            $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$plainBook}, {$plainId}, 'principale')");
+            $check($skip->findExisting($plainRecord) === $plainBook, 'dedup: once Haffner is on file too, the Haffner record matches his book, not Häffner\'s');
+            $check($skip->findExisting(['titolo' => 'ZZMR' . $run . ' dedup Wérke', 'autori' => $plain]) === null, 'dedup: a title that differs by an accent is another book');
+            // Only a principal author counts (CodeRabbit on PR #505): the
+            // translator of a book with the same title is not its author.
+            $roleTitle = 'ZZMR' . $run . ' dedup ruolo';
+            $translatorName = 'ZZMR' . $run . ' Traduttrice';
+            $db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($translatorName) . "')");
+            $translatorId = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo) VALUES ('" . $db->real_escape_string($roleTitle) . "')");
+            $roleBook = (int) $db->insert_id;
+            $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$roleBook}, {$translatorId}, 'traduttore')");
+            $check($skip->findExisting(['titolo' => $roleTitle, 'autori' => $translatorName]) === null, 'dedup: a book where the record\'s first author is only the translator is not a duplicate');
+            // A new record without an ISBN, imported twice through the CSV
+            // pipeline from nothing: one book, one principal author link.
+            $freshTitle = 'ZZMR' . $run . ' nuovo senza isbn';
+            $freshRecord = ['titolo' => $freshTitle, 'autori' => ['ZZMR' . $run . ' Autrice Nuova']];
+            $firstFresh = $skip->import($freshRecord, $counters, $warnings);
+            $secondFresh = $skip->import($freshRecord, $counters, $warnings);
+            $freshStmt = $db->prepare("SELECT COUNT(DISTINCT l.id), COUNT(la.autore_id) FROM libri l LEFT JOIN libri_autori la ON la.libro_id = l.id AND la.ruolo = 'principale' WHERE l.titolo = ? AND l.deleted_at IS NULL");
+            $freshStmt->bind_param('s', $freshTitle);
+            $freshStmt->execute();
+            [$freshBooks, $freshLinks] = array_map('intval', $freshStmt->get_result()->fetch_row());
+            $freshStmt->close();
+            $check(($firstFresh['action'] ?? '') === 'created' && ($secondFresh['action'] ?? '') === 'skipped' && $freshBooks === 1 && $freshLinks === 1, 'dedup: a new record without an ISBN imported twice leaves one book with one principal author');
+            // Identifiers of two different books (CodeRabbit on PR #505): the
+            // ISBN-13 of one and the EAN of another name no single book.
+            $isbnOf = static function (): string {
+                $twelve = '979' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+                $sum = 0;
+                for ($i = 0; $i < 12; $i++) {
+                    $sum += (int) $twelve[$i] * ($i % 2 === 0 ? 1 : 3);
+                }
+                return $twelve . ((10 - $sum % 10) % 10);
+            };
+            [$isbnA, $eanB] = [$isbnOf(), $isbnOf()];
+            $db->query("INSERT INTO libri (titolo, isbn13) VALUES ('" . $db->real_escape_string('ZZMR' . $run . ' conflitto A') . "', '{$isbnA}')");
+            $bookA = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo, ean) VALUES ('" . $db->real_escape_string('ZZMR' . $run . ' conflitto B') . "', '{$eanB}')");
+            $conflictError = null;
+            try {
+                (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, false))->import(['titolo' => 'ZZMR' . $run . ' conflitto record', 'isbn13' => $isbnA, 'ean' => $eanB, 'anno_pubblicazione' => '1999', 'sottotitolo' => 'di B'], $counters, $warnings);
+            } catch (Throwable $e) {
+                $conflictError = $e->getMessage();
+            }
+            $aStmt = $db->prepare('SELECT sottotitolo, anno_pubblicazione FROM libri WHERE id = ?');
+            $aStmt->bind_param('i', $bookA);
+            $aStmt->execute();
+            $aRow = $aStmt->get_result()->fetch_assoc() ?: [];
+            $aStmt->close();
+            $check($conflictError !== null && str_contains($conflictError, 'ISBN') && (string) ($aRow['sottotitolo'] ?? '') === '' && ($aRow['anno_pubblicazione'] ?? null) === null, 'fill: a record whose ISBN and EAN belong to two different books is refused, neither book is written');
+
+            // 6. Chunks belong to the preview that staged them; a lost last
+            //    response is answered again; a failed history save is retried
+            //    on the same import_logs row.
+            $controller = new MarcImportController();
+            $chunkCall = static function (array $body) use ($controller, $db): array {
+                $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/books/import/marc/chunk')
+                    ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream((string) json_encode($body)));
+                $res = $controller->chunk($request, new \Slim\Psr7\Response(), $db);
+                return [$res->getStatusCode(), json_decode((string) $res->getBody(), true)];
+            };
+            $uploads = $root . '/writable/uploads';
+            if (!is_dir($uploads)) {
+                mkdir($uploads, 0775, true);
+            }
+            $historyName = 'ZZMR' . $run . ' history.mrc';
+            $stagingFile = $uploads . '/marc_import_zzmr_' . strtolower($run) . '.jsonl';
+            file_put_contents($stagingFile, json_encode(['p' => 1, 'e' => 'bad record', 'x' => '']) . "\n");
+            $_SESSION = ['marc_import_data' => [
+                'staging_id' => 'current-preview', 'file_path' => $stagingFile, 'original_filename' => $historyName,
+                'total_rows' => 1, 'mode' => 'skip', 'covers' => false, 'offset' => 0, 'processed' => 0, 'counters' => [], 'errors' => [],
+            ]];
+            [$staleStatus, $staleBody] = $chunkCall(['staging_id' => 'replaced-preview', 'start' => 0, 'size' => 10]);
+            $check($staleStatus === 409 && ($staleBody['stale'] ?? false) === true && ($_SESSION['marc_import_data']['processed'] ?? null) === 0, 'a chunk of a preview another upload replaced is refused, nothing of the current file is imported');
+            [$noIdStatus] = $chunkCall(['start' => 0, 'size' => 10]);
+            $check($noIdStatus === 409 && ($_SESSION['marc_import_data']['processed'] ?? null) === 0, 'a chunk without the preview id is refused too');
+            // A second upload that cannot be staged (no record in it) leaves
+            // the current preview importable: its file and its session state.
+            $emptyUpload = tempnam(sys_get_temp_dir(), 'zzmr');
+            file_put_contents($emptyUpload, '<?xml version="1.0"?><collection xmlns="http://www.loc.gov/MARC21/slim"></collection>');
+            $uploadRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/books/import/marc/upload')
+                ->withParsedBody(['duplicates' => 'skip'])
+                ->withUploadedFiles(['marc_file' => new \Slim\Psr7\UploadedFile($emptyUpload, 'vuoto.xml', 'application/xml', (int) filesize($emptyUpload), UPLOAD_ERR_OK)]);
+            $emptyRes = $controller->upload($uploadRequest, new \Slim\Psr7\Response(), $db);
+            @unlink($emptyUpload);
+            $check($emptyRes->getStatusCode() === 400 && ($_SESSION['marc_import_data']['staging_id'] ?? null) === 'current-preview' && is_file($stagingFile), 'an upload that cannot be staged keeps the previous preview and its staging file');
+
+            $historyTrigger = 'zzmr_hist_' . strtolower($run);
+            $db->query("CREATE TRIGGER {$historyTrigger} BEFORE UPDATE ON import_logs FOR EACH ROW BEGIN IF NEW.status = 'completed' AND NEW.file_name = '" . $db->real_escape_string($historyName) . "' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'history probe'; END IF; END");
+            try {
+                [$failStatus] = $chunkCall(['staging_id' => 'current-preview', 'start' => 0, 'size' => 10]);
+            } finally {
+                $db->query("DROP TRIGGER IF EXISTS {$historyTrigger}");
+            }
+            $check($failStatus === 500 && is_array($_SESSION['marc_import_data'] ?? null) && !empty($_SESSION['marc_import_data']['import_id']), 'a failed history save keeps the state and the id of its history row');
+            [$retryStatus, $retryBody] = $chunkCall(['staging_id' => 'current-preview', 'start' => 1, 'size' => 10]);
+            $rowsStmt = $db->prepare("SELECT COUNT(*), SUM(status = 'completed') FROM import_logs WHERE file_name = ?");
+            $rowsStmt->bind_param('s', $historyName);
+            $rowsStmt->execute();
+            [$historyRows, $completedRows] = $rowsStmt->get_result()->fetch_row();
+            $rowsStmt->close();
+            $check($retryStatus === 200 && ($retryBody['complete'] ?? false) === true && (int) $historyRows === 1 && (int) $completedRows === 1, 'the retry completes the same history row: one row, completed, no failed duplicate');
+            $check(!is_file($stagingFile) && !isset($_SESSION['marc_import_data']), 'the completed import drops its staged file and state');
+            [$replayStatus, $replayBody] = $chunkCall(['staging_id' => 'current-preview', 'start' => 0, 'size' => 10]);
+            $check($replayStatus === 200 && $replayBody === $retryBody, 'a retry after a lost last response gets the completed import\'s answer again, not "session expired"');
+            [$expiredStatus] = $chunkCall(['staging_id' => 'unknown', 'start' => 0, 'size' => 10]);
+            $check($expiredStatus === 400, 'a chunk for no known preview is still "session expired"');
+            @unlink($stagingFile);
+            $_SESSION = [];
+        } finally {
+            $db->query("DROP TRIGGER IF EXISTS {$trigger}");
+            $like = 'ZZMR' . $run . '%';
+            $stmt = $db->prepare('SELECT id FROM libri WHERE titolo LIKE ?');
+            $stmt->bind_param('s', $like);
+            $stmt->execute();
+            foreach ($stmt->get_result()->fetch_all() as [$bookId]) {
+                $bookId = (int) $bookId;
+                $db->query("DELETE FROM libri_autori WHERE libro_id = {$bookId}");
+                $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$bookId}");
+                $db->query("DELETE FROM copie WHERE libro_id = {$bookId}");
+                $db->query("DELETE FROM libri WHERE id = {$bookId}");
+            }
+            $stmt->close();
+            $logLike = 'ZZMR' . $run . '%';
+            $logStmt = $db->prepare('DELETE FROM import_logs WHERE file_name LIKE ?');
+            $logStmt->bind_param('s', $logLike);
+            $logStmt->execute();
+            $logStmt->close();
+            $authorLike = 'ZZMR' . $run . ' %';
+            $authorStmt = $db->prepare('DELETE FROM autori WHERE nome LIKE ? AND id NOT IN (SELECT autore_id FROM libri_autori)');
+            $authorStmt->bind_param('s', $authorLike);
+            $authorStmt->execute();
+            $authorStmt->close();
+        }
+    }
+}
+
+// 5. A cover downloaded for a book row that is not updated is removed.
+$check(MarcCoverFetcher::discard('/uploads/copertine/../../index.php') === null && is_file($root . '/public/index.php'), 'discard() never leaves the covers folder');
+if (is_file($envFile) && function_exists('imagecreatetruecolor')) {
+    $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
+    $coverDb = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $coverDb->set_charset('utf8mb4');
+    if (!is_dir($coversDir)) {
+        mkdir($coversDir, 0775, true);
+    }
+    $source = $coversDir . '/zzmr_orphan_' . bin2hex(random_bytes(3)) . '.png';
+    imagepng(imagecreatetruecolor(4, 4), $source);
+    $before = glob($coversDir . '/copertina_*') ?: [];
+    try {
+        $importer = new MarcBookImporter($coverDb, MarcBookImporter::MODE_SKIP, true, new MarcCoverFetcher());
+        $writeCover = new ReflectionMethod(MarcBookImporter::class, 'writeCover');
+        $counters = ['covers' => 0];
+        $warnings = [];
+        // No book has id 0: the UPDATE matches no row.
+        $writeCover->invokeArgs($importer, [0, absoluteUrl('/uploads/copertine/' . basename($source)), null, &$counters, &$warnings]);
+        $after = glob($coversDir . '/copertina_*') ?: [];
+        $check($warnings === [] && array_values(array_diff($after, $before)) === [] && $counters['covers'] === 0, 'a cover fetched for a book row that is not updated is removed and not counted');
+    } finally {
+        @unlink($source);
+        foreach (array_diff(glob($coversDir . '/copertina_*') ?: [], $before) as $leftover) {
+            @unlink($leftover);
+        }
+    }
+} else {
+    if (getenv('CI_STRICT_TESTS') === '1' && !is_file($envFile)) {
+        $check(false, '.env present for the orphan cover check');
+    } else {
+        echo "SKIP: orphan cover check: no .env or no GD\n";
+    }
+}
+
+// 6. The MARC export leaves desiderata requests out: MARC has no field for
+//    the flag, so a request would reach the recipient as a holding.
+if (is_file($envFile)) {
+    $env = Dotenv\Dotenv::parse((string) file_get_contents($envFile));
+    $exportDb = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $exportDb->set_charset('utf8mb4');
+    if ($exportDb->query("SHOW COLUMNS FROM libri LIKE 'is_desiderata'")->num_rows === 0) {
+        echo "  SKIP desiderata export check: libri.is_desiderata missing\n";
+    } else {
+        $tag = 'ZZMX' . strtoupper(bin2hex(random_bytes(3)));
+        $ids = [];
+        try {
+            foreach ([0, 1] as $wanted) {
+                $exportDb->query("INSERT INTO libri (titolo, is_desiderata) VALUES ('{$tag} {$wanted}', {$wanted})");
+                $ids[$wanted] = (int) $exportDb->insert_id;
+            }
+            $books = new ReflectionMethod(\App\Controllers\MarcExportController::class, 'books');
+            $exported = [];
+            foreach ($books->invoke(new \App\Controllers\MarcExportController(), $exportDb, array_values($ids)) as [$row]) {
+                $exported[] = (int) $row['id'];
+            }
+            $check($exported === [$ids[0]], 'the MARC export skips a desiderata request even when it is selected');
+        } finally {
+            foreach ($ids as $id) {
+                $exportDb->query("DELETE FROM libri WHERE id = {$id}");
+            }
+        }
+    }
+}
+
+echo "\n{$pass} passed, {$fail} failed\n";
+exit($fail === 0 ? 0 : 1);

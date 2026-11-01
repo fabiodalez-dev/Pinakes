@@ -108,6 +108,25 @@ CREATE TABLE `author_authority_alternates` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `calendario_chiusure` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `data_inizio` date NOT NULL,
+  `data_fine` date NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `ricorrente_annuale` tinyint(1) NOT NULL DEFAULT '0',
+  `sede_id` int DEFAULT NULL,
+  `regola_festivita` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_calendario_chiusure_range` (`data_inizio`,`data_fine`),
+  KEY `idx_calendario_chiusure_sede` (`sede_id`),
+  KEY `idx_calendario_chiusure_regola` (`regola_festivita`),
+  CONSTRAINT `fk_calendario_chiusure_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cms_pages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `slug` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -160,6 +179,7 @@ CREATE TABLE `copie` (
   `numero_inventario` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `stato` enum('disponibile','prestato','prenotato','manutenzione','in_restauro','perso','danneggiato','in_trasferimento') COLLATE utf8mb4_unicode_ci DEFAULT 'disponibile',
   `note` text COLLATE utf8mb4_unicode_ci,
+  `solo_consultazione` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -208,6 +228,68 @@ CREATE TABLE `editori` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `codice_fiscale` (`codice_fiscale`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `festivita_personalizzate` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('fixed','nth_weekday','easter','orthodox_easter','calendar','dates') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mese` tinyint DEFAULT NULL,
+  `giorno` tinyint DEFAULT NULL,
+  `giorno_settimana` tinyint DEFAULT NULL,
+  `occorrenza` tinyint DEFAULT NULL,
+  `scarto_giorni` smallint DEFAULT NULL,
+  `calendario` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `date_specifiche` text COLLATE utf8mb4_unicode_ci,
+  `durata_giorni` tinyint NOT NULL DEFAULT '1',
+  `fine_settimana` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `anno_inizio` smallint DEFAULT NULL,
+  `anno_fine` smallint DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_festivita_personalizzate_sede` (`sede_id`),
+  CONSTRAINT `fk_festivita_personalizzate_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `fornitori` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `referente` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telefono` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `indirizzo` text COLLATE utf8mb4_unicode_ci,
+  `partita_iva` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_fornitori_nome` (`nome`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Suppliers books are acquired from';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `presenze` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int DEFAULT NULL,
+  `sede_id` int DEFAULT NULL,
+  `tipo` enum('socio','ospite') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ospite',
+  `nome_ospite` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `motivo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_presenze_created` (`created_at`),
+  KEY `idx_presenze_utente` (`utente_id`),
+  KEY `idx_presenze_sede` (`sede_id`),
+  CONSTRAINT `fk_presenze_utente` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_presenze_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Visitor log: one row per library visit (member card scan or guest)';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -300,7 +382,7 @@ CREATE TABLE `home_content` (
 CREATE TABLE `import_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
   `import_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Unique identifier for this import session',
-  `import_type` enum('csv','librarything') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import',
+  `import_type` enum('csv','librarything','marc','users') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of import',
   `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Original filename uploaded',
   `user_id` int DEFAULT NULL COMMENT 'User who initiated the import',
   `total_rows` int NOT NULL DEFAULT '0' COMMENT 'Total rows in CSV',
@@ -420,6 +502,9 @@ CREATE TABLE `libri` (
   `catalog_author_sort` varchar(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Derived surname/sort key for catalog author ordering',
   `formato` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cartaceo',
   `tipo_media` enum('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro',
+  `rda_content_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA content type override (LC code), NULL = derived from tipo_media',
+  `rda_media_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA media type override (LC code), NULL = derived from tipo_media',
+  `rda_carrier_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA carrier type override (LC code), NULL = derived from tipo_media',
   `peso` float DEFAULT NULL,
   `dimensioni` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `physical_description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical description (LibraryThing)',
@@ -430,6 +515,7 @@ CREATE TABLE `libri` (
   `copie_totali` int DEFAULT '1',
   `copie_disponibili` int DEFAULT '1',
   `editore_id` int DEFAULT NULL,
+  `fornitore_id` int DEFAULT NULL COMMENT 'Supplier the copy was acquired from (fornitori)',
   `source` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Source/vendor (LibraryThing)',
   `from_where` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'From where acquired (LibraryThing)',
   `lending_patron` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Current lending patron (LibraryThing)',
@@ -468,6 +554,7 @@ CREATE TABLE `libri` (
   KEY `posizione_id` (`posizione_id`),
   KEY `idx_libri_titolo_sottotitolo` (`titolo`,`sottotitolo`),
   KEY `editore_id` (`editore_id`),
+  KEY `idx_libri_fornitore` (`fornitore_id`),
   KEY `idx_libri_stato` (`stato`),
   KEY `idx_libri_tipo_media_deleted_at` (`deleted_at`,`tipo_media`),
   KEY `fk_libri_mensola` (`mensola_id`),
@@ -491,6 +578,7 @@ CREATE TABLE `libri` (
   CONSTRAINT `fk_libri_mensola` FOREIGN KEY (`mensola_id`) REFERENCES `mensole` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_scaffale` FOREIGN KEY (`scaffale_id`) REFERENCES `scaffali` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_1` FOREIGN KEY (`editore_id`) REFERENCES `editori` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_libri_fornitore` FOREIGN KEY (`fornitore_id`) REFERENCES `fornitori` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_3` FOREIGN KEY (`genere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_libri_sottogenere` FOREIGN KEY (`sottogenere_id`) REFERENCES `generi` (`id`) ON DELETE SET NULL,
   CONSTRAINT `libri_ibfk_5` FOREIGN KEY (`posizione_id`) REFERENCES `posizioni` (`id`) ON DELETE SET NULL,
@@ -1031,6 +1119,51 @@ CREATE TABLE IF NOT EXISTS `ruoli` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+CREATE TABLE IF NOT EXISTS `tipologie_lettore` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `codice` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descrizione` text COLLATE utf8mb4_unicode_ci,
+  `max_prestiti` int DEFAULT NULL,
+  `durata_prestito_giorni` int DEFAULT NULL,
+  `max_durata_richiesta_giorni` int DEFAULT NULL,
+  `max_rinnovi` int DEFAULT NULL,
+  `giorni_rinnovo` int DEFAULT NULL,
+  `prenotazioni_abilitate` tinyint(1) NOT NULL DEFAULT '1',
+  `max_prenotazioni` int DEFAULT NULL,
+  `durata_tessera_giorni` int DEFAULT NULL,
+  `multa_giornaliera` decimal(10,2) DEFAULT NULL,
+  `giorni_tolleranza` int DEFAULT NULL,
+  `multa_massima_prestito` decimal(10,2) DEFAULT NULL,
+  `soglia_blocco_debito` decimal(10,2) DEFAULT NULL,
+  `predefinita` tinyint(1) NOT NULL DEFAULT '0',
+  `attiva` tinyint(1) NOT NULL DEFAULT '1',
+  `ordinamento` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_tipologie_lettore_codice` (`codice`),
+  KEY `idx_tipologie_lettore_ordinamento` (`ordinamento`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `regole_prestito` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tipologia_id` int NOT NULL DEFAULT '0',
+  `tipo_media` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '*',
+  `prestabile` tinyint(1) DEFAULT NULL,
+  `max_prestiti` int DEFAULT NULL,
+  `durata_prestito_giorni` int DEFAULT NULL,
+  `max_rinnovi` int DEFAULT NULL,
+  `giorni_rinnovo` int DEFAULT NULL,
+  `multa_giornaliera` decimal(10,2) DEFAULT NULL,
+  `multa_massima_prestito` decimal(10,2) DEFAULT NULL,
+  `giorni_tolleranza` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_regole_prestito_tipologia_media` (`tipologia_id`,`tipo_media`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `utenti` (
   `id` int NOT NULL AUTO_INCREMENT,
   `codice_tessera` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1056,6 +1189,8 @@ CREATE TABLE `utenti` (
   `data_accettazione_privacy` datetime DEFAULT NULL COMMENT 'UTC timestamp of privacy acceptance',
   `privacy_policy_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Version of accepted privacy policy',
   `locale` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT 'it_IT',
+  `tipologia_id` int DEFAULT NULL,
+  `card_expiry_warning_sent_for` date DEFAULT NULL,
   `token_verifica_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `data_token_verifica` datetime DEFAULT NULL,
   `token_reset_password` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1074,7 +1209,9 @@ CREATE TABLE `utenti` (
   KEY `idx_utenti_data_ultimo_accesso` (`data_ultimo_accesso`),
   KEY `idx_tipo_utente` (`tipo_utente`),
   KEY `idx_utenti_ruolo` (`ruolo_id`),
-  CONSTRAINT `fk_utenti_ruolo` FOREIGN KEY (`ruolo_id`) REFERENCES `ruoli` (`id`) ON DELETE RESTRICT
+  KEY `idx_utenti_tipologia` (`tipologia_id`),
+  CONSTRAINT `fk_utenti_ruolo` FOREIGN KEY (`ruolo_id`) REFERENCES `ruoli` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_utenti_tipologia` FOREIGN KEY (`tipologia_id`) REFERENCES `tipologie_lettore` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -1104,6 +1241,27 @@ CREATE TABLE `utenti_campi_valori` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `movimenti_lettore` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `utente_id` int NOT NULL,
+  `prestito_id` int DEFAULT NULL,
+  `tipo` enum('multa_ritardo','addebito_perdita','addebito_danno','addebito_manuale','pagamento','condono','storno') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `importo` decimal(10,2) NOT NULL,
+  `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `metodo_pagamento` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `creato_da` int DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `chiave_idempotenza` varchar(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_movimenti_chiave` (`chiave_idempotenza`),
+  KEY `idx_movimenti_utente` (`utente_id`,`importo`),
+  KEY `idx_movimenti_prestito` (`prestito_id`),
+  KEY `idx_movimenti_tipo_data` (`tipo`,`created_at`),
+  KEY `idx_movimenti_creato_da` (`creato_da`),
+  CONSTRAINT `fk_movimenti_utente` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_movimenti_prestito` FOREIGN KEY (`prestito_id`) REFERENCES `prestiti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_movimenti_creato_da` FOREIGN KEY (`creato_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE `wishlist` (
   `id` int NOT NULL AUTO_INCREMENT,
   `utente_id` int NOT NULL,
@@ -1470,6 +1628,59 @@ CREATE TABLE IF NOT EXISTS mobile_push_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+-- Inventory stocktake (0.9.0): sessions, expected-copy snapshot, scans.
+CREATE TABLE `inventario_sessioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sede_id` int DEFAULT NULL,
+  `filtro` json DEFAULT NULL,
+  `stato` enum('aperta','chiusa','annullata') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'aperta',
+  `totale_attese` int NOT NULL DEFAULT '0',
+  `aperta_da` int DEFAULT NULL,
+  `aperta_il` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `chiusa_da` int DEFAULT NULL,
+  `chiusa_il` datetime DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `azione_mancanti` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_inventario_sessioni_stato` (`stato`),
+  KEY `idx_inventario_sessioni_sede` (`sede_id`),
+  KEY `idx_inventario_sessioni_aperta_da` (`aperta_da`),
+  KEY `idx_inventario_sessioni_chiusa_da` (`chiusa_da`),
+  CONSTRAINT `fk_inventario_sessioni_sede` FOREIGN KEY (`sede_id`) REFERENCES `sedi` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_inventario_sessioni_aperta_da` FOREIGN KEY (`aperta_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_inventario_sessioni_chiusa_da` FOREIGN KEY (`chiusa_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `inventario_attese` (
+  `sessione_id` int NOT NULL,
+  `copia_id` int NOT NULL,
+  `scaffale_atteso` int DEFAULT NULL,
+  `stato_all_apertura` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `esito_chiusura` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `codice_atteso` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `titolo_atteso` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`sessione_id`,`copia_id`),
+  KEY `idx_inventario_attese_copia` (`copia_id`),
+  CONSTRAINT `fk_inventario_attese_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `inventario_scansioni` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `sessione_id` int NOT NULL,
+  `copia_id` int DEFAULT NULL,
+  `codice_letto` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `esito` enum('trovata','fuori_posto','in_prestito','sconosciuta','duplicata','fuori_ambito') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `scansionato_da` int DEFAULT NULL,
+  `scansionato_il` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_inventario_scansioni_copia` (`sessione_id`,`copia_id`),
+  KEY `idx_inventario_scansioni_operatore` (`sessione_id`,`scansionato_da`),
+  KEY `idx_inventario_scansioni_utente` (`scansionato_da`),
+  CONSTRAINT `fk_inventario_scansioni_sessione` FOREIGN KEY (`sessione_id`) REFERENCES `inventario_sessioni` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_inventario_scansioni_utente` FOREIGN KEY (`scansionato_da`) REFERENCES `utenti` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -1483,4 +1694,5 @@ CREATE TABLE IF NOT EXISTS mobile_push_log (
 INSERT IGNORE INTO ruoli (nome, permessi) VALUES
 ('Catalogatore', '["backend.access","catalog.manage"]'),
 ('Addetto prestiti', '["backend.access","loans.manage"]'),
-('Archivista', '["backend.access","catalog.manage","digital.manage","digital.access"]');
+('Archivista', '["backend.access","catalog.manage","digital.manage","digital.access"]'),
+('Revisore inventario', '["backend.access","inventory.manage"]');

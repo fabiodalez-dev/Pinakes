@@ -35,7 +35,10 @@ final class CirculationOutcome
         'duplicate_reservation' => [409, 'duplicate', null, true],
         'user_suspended'        => [409, 'not_eligible', null, true],
         'card_expired'          => [409, 'not_eligible', null, true],
+        'debt_block'            => [409, 'not_eligible', null, true],
         'max_loans_reached'     => [409, 'max_loans_reached', null, false],
+        'media_limit_reached'   => [409, 'media_limit_reached', null, false],
+        'not_loanable'          => [409, 'not_loanable', null, false],
         'copy_not_available'    => [409, 'not_available', null, true],
         'no_copies_available'   => [409, 'not_available', null, true],
         'libro_in_prestito'     => [409, 'not_available', null, true],
@@ -54,6 +57,7 @@ final class CirculationOutcome
     public const RETURN = [
         'invalid_status'   => [422, 'validation_error', 'outcome', false],
         'invalid_penalty'  => [422, 'validation_error', 'penalty', false],
+        'waiver_reason_required' => [422, 'validation_error', 'waiver_reason', false],
         'not_returnable'   => [409, 'not_returnable', null, false],
         'concurrent_retry' => [409, 'concurrent_retry', null, false],
         'update_failed'    => [500, 'internal_error', null, false],
@@ -72,6 +76,7 @@ final class CirculationOutcome
         'user_not_found'      => [409, 'not_eligible', null, true],
         'user_suspended'      => [409, 'not_eligible', null, true],
         'card_expired'        => [409, 'not_eligible', null, true],
+        'debt_block'          => [409, 'not_eligible', null, true],
         'renewal_failed'      => [500, 'internal_error', null, false],
         'book_not_found'      => [404, 'not_found', null, false],
     ];
@@ -97,6 +102,10 @@ final class CirculationOutcome
         'promoted_loan_active' => [409, 'conflict', null, true],
         'user_suspended'       => [409, 'not_eligible', null, true],
         'card_expired'         => [409, 'not_eligible', null, true],
+        'not_loanable'         => [409, 'not_loanable', null, false],
+        'reservations_disabled' => [409, 'reservations_disabled', null, false],
+        'reservation_limit_reached' => [409, 'reservation_limit_reached', null, false],
+        'debt_block'           => [409, 'not_eligible', null, true],
         'save_failed'          => [500, 'internal_error', null, false],
         'update_failed'        => [500, 'internal_error', null, false],
     ];
@@ -213,6 +222,26 @@ final class CirculationOutcome
     }
 
     /**
+     * The state of a reader's loan request after UserActionsController::loan()
+     * (POST /reservations on an available title): the request stays
+     * `pendente` unless it was auto-approved, in which case loan() threads
+     * the persisted state through the redirect as `loan_state`: `prenotato`
+     * when the start day is ahead (the library is closed today, so the loan
+     * starts on the next open day), `da_ritirare` when it starts today. An
+     * approved request without a usable state is reported as `da_ritirare`.
+     *
+     * @param array<string, string> $outcome the redirect query of loan()
+     */
+    public static function requestState(array $outcome): string
+    {
+        if (($outcome['auto_approved'] ?? '0') !== '1') {
+            return 'pendente';
+        }
+        $state = (string) ($outcome['loan_state'] ?? '');
+        return in_array($state, ['prenotato', 'da_ritirare'], true) ? $state : 'da_ritirare';
+    }
+
+    /**
      * Presentation hint for a reservation row.
      *
      * @return list<string>
@@ -229,7 +258,7 @@ final class CirculationOutcome
     /** Client-safe message for a core outcome code. */
     public static function message(string $coreCode): string
     {
-        if (in_array($coreCode, ['user_not_found', 'user_suspended', 'card_expired'], true)) {
+        if (in_array($coreCode, ['user_not_found', 'user_suspended', 'card_expired', 'debt_block'], true)) {
             return \App\Support\LoanEligibility::errorMessage($coreCode);
         }
 
@@ -244,12 +273,17 @@ final class CirculationOutcome
             'copy_wrong_book'       => __('La copia indicata appartiene a un altro libro.'),
             'duplicate_reservation', 'duplicate' => __('Esiste già un prestito o una prenotazione attiva per questo utente e questo libro.'),
             'max_loans_reached'     => __('L\'utente ha raggiunto il numero massimo di prestiti attivi.'),
+            'media_limit_reached'   => __('L\'utente ha raggiunto il numero massimo di prestiti per questo tipo di materiale.'),
+            'not_loanable'          => __('Questo materiale è solo in consultazione per la tipologia del lettore.'),
+            'reservations_disabled' => __('Le prenotazioni non sono consentite per la tipologia del lettore.'),
+            'reservation_limit_reached' => __('Il lettore ha raggiunto il numero massimo di prenotazioni.'),
             'copy_not_available', 'no_copies_available', 'libro_in_prestito', 'loan_copy_conflict',
             'extension_conflicts', 'capacity_full', 'bulk_extend_conflict' => __('Nessuna copia disponibile per il periodo richiesto.'),
             'loan_closed'           => __('Il prestito è chiuso e non può essere modificato.'),
             'concurrent_retry'      => __('Operazione in conflitto con un\'altra in corso. Riprova.'),
             'invalid_status'        => __('Stato non valido.'),
             'invalid_penalty'       => __('Importo della sanzione non valido.'),
+            'waiver_reason_required' => __('Per condonare la multa serve una motivazione.'),
             'not_returnable'        => __('Il prestito non può essere restituito nello stato attuale.'),
             'loan_not_found', 'not_found' => __('Elemento non trovato.'),
             'loan_not_active', 'loan_not_picked_up' => __('Il prestito non è attivo.'),

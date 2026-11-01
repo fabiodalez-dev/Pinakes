@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     name: Verify and build release (read-only)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read # Checkout and inspect the tagged source; never publish from this job.
@@ -152,7 +152,7 @@ jobs:
   publish:
     name: Attest and publish verified release
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write # Create the GitHub Release and upload its assets.
