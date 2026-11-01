@@ -82,25 +82,49 @@ final class PatronLedger
 
     /**
      * Whether movimenti_lettore exists. Code ships before its migration runs
-     * during an upgrade: until then there is no balance, so no debt block in
-     * SQL or PHP, and nothing for the maintenance backfill to do.
+     * during an upgrade: until then there is no balance, so nothing to show
+     * and nothing for the maintenance backfill to do.
+     *
+     * A probe that fails (connection lost, information_schema unreadable)
+     * also answers false here: the display paths (reader record, reports,
+     * notifications) then show no balance instead of a 500. The decisions
+     * that must not drop a rule on an error use schemaReadyOrFail().
      *
      * Only a positive answer is cached: a long-running process (cron) that
      * probed before the migration sees the table as soon as it exists.
      */
     public static function schemaReady(mysqli $db): bool
     {
+        try {
+            return self::probeSchema($db);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('Ledger schema probe failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * schemaReady() for the debt block and the deletion guard: false only
+     * when the table is really absent (upgrade window). A failed probe
+     * throws, so a database error refuses the loan or the deletion instead
+     * of reading as "no ledger" and admitting a patron over the threshold.
+     */
+    public static function schemaReadyOrFail(mysqli $db): bool
+    {
+        return self::probeSchema($db);
+    }
+
+    private static function probeSchema(mysqli $db): bool
+    {
         self::$schemaReady ??= new \WeakMap();
         if (isset(self::$schemaReady[$db])) {
             return true;
         }
-        $ready = false;
-        try {
-            $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'");
-            $ready = $result instanceof \mysqli_result && (int) ($result->fetch_row()[0] ?? 0) === 1;
-        } catch (\Throwable) {
-            $ready = false;
+        $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimenti_lettore'");
+        if (!$result instanceof \mysqli_result) {
+            throw new \RuntimeException('Ledger schema probe failed: ' . $db->error);
         }
+        $ready = (int) ($result->fetch_row()[0] ?? 0) === 1;
         if ($ready) {
             self::$schemaReady[$db] = true;
         }
@@ -119,6 +143,15 @@ final class PatronLedger
         return \App\Support\Features::enabled('fines') && self::schemaReady($db);
     }
 
+    /**
+     * active() for the paths that admit or refuse a patron: a failed schema
+     * probe throws (schemaReadyOrFail()) instead of switching the debt block off.
+     */
+    public static function activeOrFail(mysqli $db): bool
+    {
+        return \App\Support\Features::enabled('fines') && self::schemaReadyOrFail($db);
+    }
+
     /** Drop the per-request schema probe (tests that migrate a database mid-process). */
     public static function resetSchemaCache(): void
     {
@@ -129,6 +162,57 @@ final class PatronLedger
     public static function balanceSql(string $userIdExpr): string
     {
         return "(SELECT COALESCE(SUM(ml.importo), 0) FROM movimenti_lettore ml WHERE ml.utente_id = {$userIdExpr})";
+    }
+
+    /**
+     * Whether the legacy penalty conversion has not completed yet
+     * (loans.legacy_penalties_backfilled unset): the upgrade's pass was
+     * deferred or failed and maintenance has not finished it.
+     */
+    public static function legacyPenaltiesPending(mysqli $db): bool
+    {
+        return (new \App\Models\SettingsRepository($db))->get('loans', 'legacy_penalties_backfilled', '0') !== '1';
+    }
+
+    /**
+     * SQL expression for the prestiti.sanzione amounts of $userIdExpr that
+     * have no penalty:<loan> ledger row yet: exactly what the backfill will
+     * charge, so adding it gives the balance the patron will have once the
+     * conversion completes. $userIdExpr is a fixed column reference.
+     */
+    public static function pendingLegacyPenaltiesSql(string $userIdExpr): string
+    {
+        return "(SELECT COALESCE(SUM(lp.sanzione), 0) FROM prestiti lp WHERE lp.utente_id = {$userIdExpr} AND lp.sanzione > 0"
+            . " AND NOT EXISTS (SELECT 1 FROM movimenti_lettore lm WHERE lm.chiave_idempotenza = CONCAT('penalty:', lp.id)))";
+    }
+
+    /**
+     * The balance the debt block compares with the threshold: the ledger,
+     * plus the legacy penalties not converted yet while the backfill is
+     * pending, so a deferred or failed conversion does not reopen loans to a
+     * patron over the threshold until maintenance finishes it. Once the
+     * marker is set this is balanceSql() and costs nothing more.
+     */
+    public static function debtBalanceSql(string $userIdExpr, mysqli $db): string
+    {
+        if (!self::legacyPenaltiesPending($db)) {
+            return self::balanceSql($userIdExpr);
+        }
+        return '(' . self::balanceSql($userIdExpr) . ' + ' . self::pendingLegacyPenaltiesSql($userIdExpr) . ')';
+    }
+
+    /** PHP twin of debtBalanceSql() for one patron. */
+    public function debtBalanceCents(int $userId): int
+    {
+        if (!self::legacyPenaltiesPending($this->db)) {
+            return $this->balanceCents($userId);
+        }
+        $stmt = $this->db->prepare('SELECT ' . self::debtBalanceSql('?', $this->db));
+        $stmt->bind_param('ii', $userId, $userId);
+        $stmt->execute();
+        $value = $stmt->get_result()->fetch_row()[0] ?? 0;
+        $stmt->close();
+        return FineParameters::decimalToCents($value);
     }
 
     public function balanceCents(int $userId): int

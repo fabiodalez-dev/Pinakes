@@ -8548,7 +8548,6 @@
   "Impossibile aprire il file caricato": "Impossibile aprire il file caricato",
   "Indica cosa cercare e almeno un catalogo": "Indica cosa cercare e almeno un catalogo",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
@@ -8932,7 +8931,7 @@
   "Natale": "Natale",
   "Nessuna chiusura configurata": "Nessuna chiusura configurata",
   "Ogni anno": "Ogni anno",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.",
   "Ognissanti": "Ognissanti",
   "Pasqua": "Pasqua",
   "Ricorrenza": "Ricorrenza",
@@ -9283,5 +9282,15 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.",
   "Annulla import": "Annulla import",
   "Riprendi import": "Riprendi import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.",
+  "Troppi utenti selezionati": "Troppi utenti selezionati",
+  "Si possono stampare al massimo %d tessere alla volta: selezionane di meno.": "Si possono stampare al massimo %d tessere alla volta: selezionane di meno.",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie",
+  "Altri %d campi non mostrati": "Altri %d campi non mostrati",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Selezione non valida per l'esportazione: riprova dalla lista dei libri.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato."
 }

@@ -25,6 +25,10 @@ final class UserImport
      * An uploaded CSV holds patrons' personal data. One that no import has
      * read for this long (the tab was closed, the session expired, the
      * preview was abandoned) is deleted by the next visit to the import page.
+     * The one exception is the interrupted run of the visiting session
+     * itself, which that page offers to resume: the visit marks its file as
+     * in use, so it lives at most this long past the last visit of a session
+     * still alive, and "Annulla import" releases it at once.
      */
     public const STALE_UPLOAD_SECONDS = 3600;
 

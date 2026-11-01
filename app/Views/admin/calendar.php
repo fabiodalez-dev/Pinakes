@@ -588,7 +588,7 @@ unset($workspaceHeader);
         <div class="p-6">
           <form method="POST" action="<?= htmlspecialchars(url('/admin/calendar/import-ics'), ENT_QUOTES, 'UTF-8') ?>" enctype="multipart/form-data" class="space-y-4">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
-            <p class="text-sm text-gray-600"><?= __("Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.") ?></p>
+            <p class="text-sm text-gray-600"><?= __("Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.") ?></p>
             <div>
               <label for="ics_file" class="form-label"><i class="fas fa-file mr-1"></i><?= __("File ICS") ?></label>
               <input type="file" id="ics_file" name="ics_file" accept=".ics,text/calendar" class="form-input" required>

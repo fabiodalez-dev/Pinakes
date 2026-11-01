@@ -1699,12 +1699,22 @@ document.addEventListener('DOMContentLoaded', function() {
           break;
         }
       }
-      const maxEndDate = firstBlocked === null
+      let maxEndDate = firstBlocked === null
         ? toOpenDayIso(addDaysToIso(startIso, lookAhead), 1, closedSet)
         : toOpenDayIso(addDaysToIso(firstBlocked, -1), -1, closedSet);
+      // A day past the loaded availability has no occupancy data and would
+      // pass for free (moving over closed days can reach one): the return
+      // date stops at the last loaded day, or the open day before it.
+      let lastLoaded = null;
+      for (const day in availabilityByDate) {
+        if (lastLoaded === null || day > lastLoaded) lastLoaded = day;
+      }
+      if (lastLoaded !== null && maxEndDate > lastLoaded) {
+        maxEndDate = toOpenDayIso(lastLoaded, -1, closedSet);
+      }
       const defaultEnd = toOpenDayIso(addDaysToIso(startIso, defaultDays), 1, closedSet);
       const capped = firstBlocked !== null && maxEndDate < defaultEnd;
-      const endDate = capped ? maxEndDate : defaultEnd;
+      const endDate = maxEndDate < defaultEnd ? maxEndDate : defaultEnd;
       return {
         endDate,
         maxEndDate,

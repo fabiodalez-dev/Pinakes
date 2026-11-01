@@ -167,7 +167,8 @@ try {
     } catch (Throwable $e) {
         $outcome = get_class($e) . ': ' . $e->getMessage();
     }
-    $eq($outcome, 'RuntimeException: LibraryCalendar: closures not readable', 'an unreadable calendar raises instead of reading as open');
+    // The first read that fails raises: the weekly closed days are read before the closures.
+    $eq(preg_match('/^RuntimeException: LibraryCalendar: (closed weekdays|closures) not readable$/', $outcome) === 1 ? 'raised' : $outcome, 'raised', 'an unreadable calendar raises instead of reading as open');
     $add = static function (array $data) use ($db, $branch): int {
         $row = CustomHolidays::validate(array_replace(['nome' => 'ZZ custom', 'attiva' => '1'], $data), [$branch]);
         if (!is_array($row)) {

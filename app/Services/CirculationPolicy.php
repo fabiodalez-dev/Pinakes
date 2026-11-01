@@ -375,15 +375,18 @@ final class CirculationPolicy
      */
     public function debtBlockError(int $userId): ?string
     {
-        // No ledger table (code deployed before its migration): no balance, no block.
-        if (!PatronLedger::active($this->db) || !\App\Support\Features::enabled('debt_block')) {
+        // No ledger table (code deployed before its migration) or fines off: no
+        // balance, no block. A failed probe throws: an error must not admit the patron.
+        if (!PatronLedger::activeOrFail($this->db) || !\App\Support\Features::enabled('debt_block')) {
             return null;
         }
         $threshold = FineParameters::moneyToCents($this->forUser($userId)->debtBlockThreshold);
         if ($threshold === null || $threshold <= 0) {
             return null;
         }
-        return PatronLedger::forDb($this->db)->balanceCents($userId) > $threshold ? 'debt_block' : null;
+        // debtBalanceCents(): legacy penalties the upgrade did not convert yet
+        // count too, until the backfill completes.
+        return PatronLedger::forDb($this->db)->debtBalanceCents($userId) > $threshold ? 'debt_block' : null;
     }
 
     /**

@@ -193,7 +193,9 @@ class UserImportController
         }
 
         $fields = $this->targetFields($db);
-        $this->closeSessionImport($db);
+        // '' = the run this upload replaces was closed but its history entry
+        // could not be written: said apart from the conversion notice.
+        $closedId = $this->closeSessionImport($db);
         // Start, every block and "Annulla import" name the preview they come
         // from: an upload in another tab replaces this state, and a page
         // still showing the earlier preview must not apply its mapping to
@@ -219,6 +221,7 @@ class UserImportController
             'fields' => $fields,
             'mapping' => UserImport::guessMapping($headers, $fields),
             'notice' => $converted ? __('Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell\'anteprima.') : null,
+            'history_warning' => $closedId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
         ]);
     }
 
@@ -256,7 +259,8 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => $check['error']], 422);
         }
         $state['mapping'] = $check['mapping'];
-        $state['send_invites'] = !empty($body['send_invites']);
+        // A real boolean: the string "false" must not send invitations.
+        $state['send_invites'] = filter_var($body['send_invites'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $state['started'] = true;
         $state['created'] = 0;
         $state['duplicates'] = 0;
@@ -264,8 +268,6 @@ class UserImportController
         $state['invited'] = 0;
         $state['invite_failed'] = 0;
         $state['errors'] = [];
-        $state['seen_emails'] = [];
-        $state['seen_codes'] = [];
         $state['next'] = 0;
         $state['active_at'] = time();
         $_SESSION[self::SESSION_KEY] = $state;
@@ -325,17 +327,32 @@ class UserImportController
             $importId = $this->closeSessionImport($db);
             return $this->json($response, [
                 'success' => false,
-                'error' => __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
+                'error' => $importId === ''
+                    ? __('Il file dell\'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.')
+                    : __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
                 'import_id' => $importId,
             ], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
         $state['active_at'] = time(); // driven by a page: not abandoned (isRunning())
 
-        try {
-            $reader = Csv::readerFromPath((string) $state['file'], (string) $state['delimiter']);
-        } catch (\Throwable) {
+        $handle = @fopen((string) $state['file'], 'rb');
+        if ($handle === false) {
             return $this->json($response, ['success' => false, 'error' => __('Impossibile aprire il file CSV')], 500);
+        }
+        // Each block resumes at the byte where the previous one stopped, so
+        // a large file is read once instead of again from the top for every
+        // block. Only the first block (or a run started before the offset
+        // was kept) skips the header and the rows already done by counting.
+        $delimiter = (string) $state['delimiter'];
+        if (is_int($state['offset'] ?? null)) {
+            fseek($handle, $state['offset']);
+        } else {
+            for ($skip = 1 + $start; $skip > 0; $skip--) {
+                if (self::nextRecord($handle, $delimiter) === null) {
+                    break;
+                }
+            }
         }
 
         $customDefinitions = RegistrationFields::definitions($db);
@@ -352,11 +369,10 @@ class UserImportController
         $notifier = $state['send_invites'] ? new NotificationService($db) : null;
 
         $line = $start + 2; // header is line 1
-        $records = (new Statement())->offset(1 + $start)->limit(UserImport::CHUNK_SIZE)->process($reader);
         $processed = 0;
-        foreach ($records as $row) {
+        while ($processed < UserImport::CHUNK_SIZE && ($row = self::nextRecord($handle, $delimiter)) !== null) {
+            $offset = (int) ftell($handle);
             $processed++;
-            $row = array_values((array) $row);
             $label = '';
             try {
                 $parsed = UserImport::normalizeRow($row, $state['mapping'], $customDefinitions, $locales, $visible);
@@ -368,11 +384,14 @@ class UserImportController
                 }
                 $email = (string) $record['email'];
                 $code = (string) ($record['codice_tessera'] ?? '');
-                if (isset($state['seen_emails'][$email]) || $this->exists($db, 'email', $email)) {
+                // The rows inserted by earlier blocks are in the table already:
+                // exists() catches a repeat within the file too, without a
+                // per-row set in the session that grows with every import.
+                if ($this->exists($db, 'email', $email)) {
                     $this->duplicate($state, $line, $label, sprintf(__('Email già registrata: %s'), $email));
                     continue;
                 }
-                if ($code !== '' && (isset($state['seen_codes'][mb_strtolower($code)]) || $this->exists($db, 'codice_tessera', $code))) {
+                if ($code !== '' && $this->exists($db, 'codice_tessera', $code)) {
                     $this->duplicate($state, $line, $label, sprintf(__('Codice tessera già assegnato: %s'), $code));
                     continue;
                 }
@@ -382,8 +401,6 @@ class UserImportController
                 $record['locale'] ??= $installLocale;
 
                 $userId = $this->insertUser($db, $record);
-                $state['seen_emails'][$email] = true;
-                $state['seen_codes'][mb_strtolower((string) $record['codice_tessera'])] = true;
                 $state['created']++;
                 // The account exists from here on: what follows completes it, so
                 // a failure is a warning on a created row, never a failed row
@@ -403,10 +420,13 @@ class UserImportController
                 }
             } finally {
                 $line++;
+                // Position and byte offset move together, row by row.
                 $state['next'] = $start + $processed;
+                $state['offset'] = $offset;
                 $state['active_at'] = time();
             }
         }
+        fclose($handle);
 
         $state['next'] = $start + $processed;
         $done = $processed === 0 || $state['next'] >= $total;
@@ -442,6 +462,25 @@ class UserImportController
     }
 
     /**
+     * The next non-blank record of an open CSV, or null at its end. Split
+     * with the same controls as Csv::readerFromPath() (double-quote
+     * enclosure, no escape character, blank lines skipped), so the rows match
+     * the ones the league Reader counted and previewed at upload.
+     *
+     * @param resource $handle
+     * @return list<?string>|null
+     */
+    private static function nextRecord($handle, string $delimiter): ?array
+    {
+        while (($row = fgetcsv($handle, null, $delimiter, '"', '')) !== false) {
+            if ($row !== [null]) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    /**
      * "Annulla import" on an interrupted run: the rows already written stay
      * (they are real accounts now) and go into the import history as a
      * partial run; the staged file and the session state are released. A run
@@ -472,7 +511,13 @@ class UserImportController
             ], 409);
         }
         $importId = $this->closeSessionImport($db);
-        return $this->json($response, ['success' => true, 'import_id' => $importId]);
+        // The run is closed either way; when its history entry could not be
+        // written the page says so instead of moving on as if it were.
+        return $this->json($response, [
+            'success' => true,
+            'import_id' => $importId,
+            'history_warning' => $importId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
+        ]);
     }
 
     /**
@@ -528,7 +573,8 @@ class UserImportController
     /**
      * Release the session's import: a started run is written to the import
      * history first (as far as it got), so the accounts it created are not
-     * left without a trace. Returns that run's import_id, or null.
+     * left without a trace. Returns that run's import_id, '' when its history
+     * entry could not be written, or null when no started run was closed.
      */
     private function closeSessionImport(mysqli $db): ?string
     {
