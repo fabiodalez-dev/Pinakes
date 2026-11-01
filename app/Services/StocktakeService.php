@@ -507,7 +507,7 @@ final class StocktakeService
     /**
      * Record one scanned or typed code.
      *
-     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool}
+     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool,scansione_id:int}
      */
     public function scan(int $sessionId, string $rawCode, ?int $operatorId, ?int $scanShelf = null): array
     {
@@ -573,7 +573,7 @@ final class StocktakeService
      * session lock (importCodes()): the scan is written inside it, never in a
      * nested one.
      *
-     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool}
+     * @return array{esito:string,codice:string,copia_id:int|null,libro_id:int|null,titolo:string,collocazione:string,scaffale_atteso:string,stato_copia:string,fuori_circolazione:bool,scansione_id:int}
      */
     private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf, bool $insideTransaction = false): array
     {
@@ -588,19 +588,7 @@ final class StocktakeService
             if (!$insideTransaction) {
                 $this->lockOpenSession($sessionId);
             }
-            // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
-            $stmt = $this->db->prepare(
-                'SELECT c.id, c.libro_id, c.stato, l.titolo, l.collocazione FROM copie c '
-                . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
-                . 'WHERE c.numero_inventario = ? LIMIT 1'
-            );
-            if ($stmt === false) {
-                throw new \RuntimeException($this->db->error);
-            }
-            $stmt->bind_param('s', $code);
-            $stmt->execute();
-            $copy = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            $copy = $this->copyByCode($code);
 
             $copyId = is_array($copy) ? (int) $copy['id'] : null;
             $expected = null;
@@ -639,7 +627,7 @@ final class StocktakeService
                     // progress is waited for, so the scan never records
                     // 'in_prestito' for a copy already back on the shelf.
                     $onLoan = $this->isOnLoan($copyId, true);
-                    $copy['stato'] = $this->lockedCopyState($copyId) ?? (string) ($copy['stato'] ?? '');
+                    $copy['stato'] = $this->lockedCopyState($copyId) ?? $copy['stato'];
                 }
                 $onLoan = $onLoan || in_array($copy['stato'], self::ON_LOAN_COPY_STATES, true);
             }
@@ -649,7 +637,7 @@ final class StocktakeService
 
             $storedCopyId = in_array($outcome, ['sconosciuta', 'duplicata'], true) ? null : $copyId;
             try {
-                $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
+                $scanId = $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
             } catch (\mysqli_sql_exception $e) {
                 // Two operators scanned the same copy at the same instant: the UNIQUE
                 // (sessione_id, copia_id) let one win, the other is a duplicate.
@@ -658,7 +646,7 @@ final class StocktakeService
                     throw $e;
                 }
                 $outcome = 'duplicata';
-                $this->insertScan($sessionId, null, $code, $outcome, $operatorId);
+                $scanId = $this->insertScan($sessionId, null, $code, $outcome, $operatorId);
             }
             if (!$insideTransaction) {
                 $this->db->commit();
@@ -680,7 +668,40 @@ final class StocktakeService
             'scaffale_atteso' => $expectedShelf !== null ? $this->shelfLabel($expectedShelf) : '',
             'stato_copia' => is_array($copy) ? (string) $copy['stato'] : '',
             'fuori_circolazione' => is_array($copy) && in_array((string) $copy['stato'], self::OFF_SHELF_STATES, true),
+            'scansione_id' => $scanId,
         ];
+    }
+
+    /**
+     * The copy a scanned code names: a copy of a book still in the catalogue
+     * (`copie` has no deleted_at, so a copy of a removed book is unknown).
+     *
+     * @return array{id:int|string,libro_id:int|string,stato:string,titolo:string,collocazione:string|null}|null
+     */
+    public function copyByCode(string $code): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT c.id, c.libro_id, c.stato, l.titolo, l.collocazione FROM copie c '
+            . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
+            . 'WHERE c.numero_inventario = ? LIMIT 1'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('s', $code);
+        $stmt->execute();
+        $copy = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        /** @var array{id:int|string,libro_id:int|string,stato:string,titolo:string,collocazione:string|null}|null $copy */
+        return is_array($copy) ? $copy : null;
+    }
+
+    /**
+     * True for a copy state that takes the copy out of circulation (OFF_SHELF_STATES).
+     */
+    public static function isOffShelfState(string $state): bool
+    {
+        return in_array($state, self::OFF_SHELF_STATES, true);
     }
 
     private function lockOpenSession(int $sessionId): void
@@ -719,7 +740,7 @@ final class StocktakeService
         }
     }
 
-    private function insertScan(int $sessionId, ?int $copyId, string $code, string $outcome, ?int $operatorId): void
+    private function insertScan(int $sessionId, ?int $copyId, string $code, string $outcome, ?int $operatorId): int
     {
         $stmt = $this->db->prepare(
             'INSERT INTO inventario_scansioni (sessione_id, copia_id, codice_letto, esito, scansionato_da, scansionato_il) VALUES (?, ?, ?, ?, ?, NOW())'
@@ -730,6 +751,7 @@ final class StocktakeService
         try {
             $stmt->bind_param('iissi', $sessionId, $copyId, $code, $outcome, $operatorId);
             $stmt->execute();
+            return (int) $stmt->insert_id;
         } finally {
             $stmt->close();
         }
@@ -1052,17 +1074,56 @@ final class StocktakeService
      *
      * @return list<array<string,mixed>>
      */
-    public function scans(int $sessionId, ?int $operatorId = null, ?int $limit = 200): array
+    public function scans(int $sessionId, ?int $operatorId = null, ?int $limit = 200, int $offset = 0, ?string $outcome = null): array
     {
         /** @var list<array<string,mixed>> $rows */
-        $rows = $this->scansResult($sessionId, $operatorId, $limit)->fetch_all(MYSQLI_ASSOC);
+        $rows = $this->scansResult($sessionId, $operatorId, $limit, $offset, $outcome)->fetch_all(MYSQLI_ASSOC);
         return $rows;
     }
 
-    private function scansResult(int $sessionId, ?int $operatorId, ?int $limit): \mysqli_result
+    /** How many scans scans() can page through with the same filters. */
+    public function scanCount(int $sessionId, ?int $operatorId = null, ?string $outcome = null): int
+    {
+        $sql = 'SELECT COUNT(*) FROM inventario_scansioni s WHERE s.sessione_id = ?';
+        $types = 'i';
+        $params = [$sessionId];
+        if ($operatorId !== null) {
+            $sql .= ' AND s.scansionato_da = ?';
+            $types .= 'i';
+            $params[] = $operatorId;
+        }
+        if ($outcome !== null) {
+            $sql .= ' AND s.esito = ?';
+            $types .= 's';
+            $params[] = $outcome;
+        }
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return (int) ($row[0] ?? 0);
+    }
+
+    /**
+     * One scan of the session, with the columns of scans().
+     *
+     * @return array<string,mixed>|null
+     */
+    public function scanRow(int $sessionId, int $scanId): ?array
+    {
+        $row = $this->scansResult($sessionId, null, 1, 0, null, $scanId)->fetch_assoc();
+        return is_array($row) ? $row : null;
+    }
+
+    private function scansResult(int $sessionId, ?int $operatorId, ?int $limit, int $offset = 0, ?string $outcome = null, ?int $scanId = null): \mysqli_result
     {
         $limit = $limit === null ? null : max(1, min(100000, $limit));
-        $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, s.scansionato_da, s.copia_id, '
+        $offset = max(0, $offset);
+        $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, s.scansionato_da, s.copia_id, c.libro_id, '
             . 'COALESCE(c.numero_inventario, a.codice_atteso, s.codice_letto) AS codice, COALESCE(l.titolo, a.titolo_atteso) AS titolo, '
             . 'l.collocazione, l.tipo_media, c.stato AS stato_copia, a.scaffale_atteso, '
             . "TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS operatore "
@@ -1073,16 +1134,28 @@ final class StocktakeService
             . 'LEFT JOIN utenti u ON u.id = s.scansionato_da '
             . 'WHERE s.sessione_id = ?'
             . ($operatorId !== null ? ' AND s.scansionato_da = ?' : '')
-            . ' ORDER BY s.id DESC' . ($limit !== null ? ' LIMIT ' . $limit : '');
+            . ($outcome !== null ? ' AND s.esito = ?' : '')
+            . ($scanId !== null ? ' AND s.id = ?' : '')
+            . ' ORDER BY s.id DESC' . ($limit !== null ? ' LIMIT ' . $limit . ($offset > 0 ? ' OFFSET ' . $offset : '') : '');
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
+        $types = 'i';
+        $params = [$sessionId];
         if ($operatorId !== null) {
-            $stmt->bind_param('ii', $sessionId, $operatorId);
-        } else {
-            $stmt->bind_param('i', $sessionId);
+            $types .= 'i';
+            $params[] = $operatorId;
         }
+        if ($outcome !== null) {
+            $types .= 's';
+            $params[] = $outcome;
+        }
+        if ($scanId !== null) {
+            $types .= 'i';
+            $params[] = $scanId;
+        }
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         $stmt->close();
