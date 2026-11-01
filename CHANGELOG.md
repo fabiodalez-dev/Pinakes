@@ -85,6 +85,9 @@ Release candidate: published as a GitHub prerelease, offered only to installatio
 - **Catalogue mode** still wins: it also switches off the visitor log, the closures calendar, fines and patron type rules, and the Presenze sidebar entry, which used to stay visible in catalogue mode, now disappears.
 - **Mobile API**: `/health.features` gains `fines`, `closures_calendar` and `circulation_rules`; with fines off `GET /me/movements` answers 404 `feature_disabled`.
 
+### Fixes
+- **Installer: no false "triggers missing" warning.** Every fresh install ended on a page saying the database user could not create triggers and asking for `installer/database/triggers.sql` to be run by hand, even when every trigger had been created: the importer counted a trigger only when its chunk began with `CREATE TRIGGER`, while each chunk begins with comments and a `DROP TRIGGER`. The count now finds the statement wherever it sits, and when a trigger really fails the final page shows the database's own message (escaped) instead of the fixed permissions text.
+
 ### Migration
 
 - `migrate_0.9.0-rc.1.sql`, section "MARC bulk import / copy cataloguing": `import_logs.import_type` gains the value `marc`, appended to the enum computed from the current one, so the order of the sections does not matter. Idempotent; existing rows are untouched.
