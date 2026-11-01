@@ -20,10 +20,10 @@
 const { test, expect } = require('@playwright/test');
 
 // 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
-// fines and stocktake, so it switches them on for its run and puts back what was there.
+// fines, stocktake, the visitor log and the patron CSV import, so it switches them on for its run and puts back what was there.
 const featureToggles = require('./helpers/feature-toggles');
 let featureSnapshot;
-test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines', 'stocktake']); });
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines', 'stocktake', 'visitor_log', 'user_import']); });
 test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const { flushCache } = require('./helpers/flush-cache');
@@ -148,6 +148,11 @@ function importCsv(title) {
     return { file: { name: 'idem.csv', mimeType: 'text/csv', buffer: Buffer.from(`titolo;autori\n${title};Idem Author Import ${RUN_ID}\n`) }, kind: 'csv' };
 }
 /** A valid, run-unique ISBN-13 (978 prefix + mod-10 check digit). */
+/** A one-row patron CSV (Mobile API 1.10.0 user import rows); the email carries RUN_ID. */
+function userImportCsv(label) {
+    return { file: { name: 'idem-users.csv', mimeType: 'text/csv', buffer: Buffer.from(`nome;email\nIdem ${label};idem-uimp-${label}-${RUN_ID}@example.test\n`) }, delimiter: ';' };
+}
+
 function isbn13FromRun() {
     const base = '978' + String(Date.now()).slice(-6) + String(process.pid).padStart(3, '0').slice(-3);
     let sum = 0;
@@ -574,6 +579,29 @@ const ENDPOINTS = [
     { name: 'POST /staff/stocktake/sessions/{id}/cancel', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeCancelId}/cancel', route: '/staff/stocktake/sessions/{id}/cancel', auth: true, tokenKey: 'staffToken', kind: 'conflict2' /* 2nd: session_cancelled */ },
     { name: 'GET /staff/stocktake/sessions/{id}/report.csv', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report.csv', route: '/staff/stocktake/sessions/{id}/report.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'GET /staff/stocktake/sessions/{id}/report.pdf', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report.pdf', route: '/staff/stocktake/sessions/{id}/report.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+
+    // ── Mobile API 1.10.0: visitor log (visitor_log), statistics, patron CSV import (user_import) ──
+    { name: 'GET /staff/attendance', method: 'GET', path: '/staff/attendance', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/attendance/check-ins', method: 'POST', path: '/staff/attendance/check-ins', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ card_code: c.attendanceCard, idempotency_key: `idem-checkin-${RUN_ID}` }) /* 1st 201, 2nd replays the same visit: 200 */ },
+    { name: 'POST /staff/attendance/guests', method: 'POST', path: '/staff/attendance/guests', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ name: `Idem guest ${RUN_ID}`, idempotency_key: `idem-guest-${RUN_ID}` }) /* 1st 201, 2nd replay 200 */ },
+    { name: 'GET /staff/attendance/export.csv', method: 'GET', path: '/staff/attendance/export.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/attendance/settings', method: 'PUT', path: '/staff/attendance/settings', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: (c) => ({ retention_days: c.attendanceRetention }) /* the current value again: both 200 */ },
+    { name: 'POST /staff/attendance/purge', method: 'POST', path: '/staff/attendance/purge', auth: true, tokenKey: 'adminToken', kind: 'write2xx' /* the 2nd finds nothing more to delete: 200 deleted=0 */ },
+    { name: 'GET /staff/statistics', method: 'GET', path: '/staff/statistics', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/statistics/fines.csv', method: 'GET', path: '/staff/statistics/fines.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/user-imports', method: 'POST', path: '/staff/user-imports', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: () => userImportCsv('upload') /* each upload is a new job: both 201 */ },
+    { name: 'GET /staff/user-imports/example.csv', method: 'GET', path: '/staff/user-imports/example.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/user-imports/{id}', method: 'GET', path: '/staff/user-imports/{userImportJobId}', route: '/staff/user-imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/user-imports/{id}/start', method: 'POST', path: '/staff/user-imports/{userImportJobId}/start', route: '/staff/user-imports/{id}/start', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({}) /* 2nd: 409 already_started */ },
+    { name: 'POST /staff/user-imports/{id}/chunk', method: 'POST', path: '/staff/user-imports/{userImportChunkJobId}/chunk', route: '/staff/user-imports/{id}/chunk', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({ start: 0 }) /* 1st completes the 1-row job; 2nd: 410 gone */ },
+    { name: 'DELETE /staff/user-imports/{id}', method: 'DELETE', path: '/staff/user-imports/{userImportCancelJobId}', route: '/staff/user-imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* cancel is idempotent */ },
+    { name: 'GET /staff/user-imports/{id}/errors.csv', method: 'GET', path: '/staff/user-imports/{userImportDoneJobId}/errors.csv', route: '/staff/user-imports/{id}/errors.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -795,6 +823,39 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         ctx.stocktakeId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
         ctx.stocktakeCloseId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake close ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
         ctx.stocktakeCancelId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake cancel ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
+        // Mobile API 1.10.0 visitor log: the administrator-only rows (settings,
+        // purge) need an admin token; the settings row writes the current
+        // retention back. Patron import jobs: one ready, one started (chunk),
+        // one to cancel, one completed (error report).
+        const adminLogin = await call(request, 'POST', `${API}/auth/login`, {
+            body: { email: ADMIN_EMAIL, password: ADMIN_PASS, device_name: 'IdemAdminDesk', device_id: 'idem-admin-desk', platform: 'test' },
+        });
+        expect(adminLogin.status(), 'admin login must succeed').toBe(200);
+        ctx.adminToken = (await adminLogin.json()).data.token;
+        ctx.attendanceCard = dbScalar(`SELECT COALESCE(codice_tessera, '') FROM utenti WHERE id=${ctx.userId}`);
+        if (ctx.attendanceCard === '') {
+            dbExec(`UPDATE utenti SET codice_tessera='${USER_CARD}' WHERE id=${ctx.userId}`);
+            ctx.attendanceCard = USER_CARD;
+        }
+        ctx.oldAttendanceRetention = dbScalar("SELECT COALESCE(MAX(setting_value), '') FROM system_settings WHERE category='attendance' AND setting_key='retention_days'");
+        ctx.attendanceRetention = /^\d+$/.test(ctx.oldAttendanceRetention) ? Math.min(3650, parseInt(ctx.oldAttendanceRetention, 10)) : 365;
+        const userImportJob = async (label) => {
+            const r = await call(request, 'POST', `${API}/staff/user-imports`, { token: ctx.staffToken, multipart: userImportCsv(label) });
+            expect(r.status(), 'user import upload fixture').toBe(201);
+            return (await r.json()).data.id;
+        };
+        const userImportStart = async (id) => {
+            const r = await call(request, 'POST', `${API}/staff/user-imports/${id}/start`, { token: ctx.staffToken, body: {} });
+            expect(r.status(), 'user import start fixture').toBe(200);
+        };
+        ctx.userImportJobId = await userImportJob('ready');
+        ctx.userImportChunkJobId = await userImportJob('chunk');
+        await userImportStart(ctx.userImportChunkJobId);
+        ctx.userImportCancelJobId = await userImportJob('cancel');
+        ctx.userImportDoneJobId = await userImportJob('done');
+        await userImportStart(ctx.userImportDoneJobId);
+        const uiDone = await call(request, 'POST', `${API}/staff/user-imports/${ctx.userImportDoneJobId}/chunk`, { token: ctx.staffToken, body: {} });
+        expect(uiDone.status(), 'user import chunk fixture').toBe(200);
         try {
             const probe = await call(request, 'GET', `${API}/staff/isbn/9780140328721`, { token: ctx.staffToken });
             ctx.scraperStub = probe.status() === 200 && (await probe.json())?.data?.preview?.title === 'Fantastic Mr. Fox';
@@ -1022,6 +1083,28 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
     });
 
     test.afterAll(async () => {
+        // Mobile API 1.10.0 desk rows: visits, the retention setting, the admin
+        // token, the patron import jobs (staged files) and the readers they created.
+        try { dbExec(`DELETE FROM presenze WHERE utente_id=${ctx.userId} OR nome_ospite LIKE '%${RUN_ID}%'`); } catch {}
+        if (ctx.oldAttendanceRetention !== undefined) {
+            try {
+                if (ctx.oldAttendanceRetention === '') {
+                    dbExec("DELETE FROM system_settings WHERE category='attendance' AND setting_key='retention_days'");
+                } else {
+                    dbExec(`UPDATE system_settings SET setting_value=${sqlStr(ctx.oldAttendanceRetention)} WHERE category='attendance' AND setting_key='retention_days'`);
+                }
+            } catch {}
+        }
+        try { dbExec("DELETE FROM mobile_app_tokens WHERE device_id='idem-admin-desk'"); } catch {}
+        if (ctx.staffUserId) {
+            try {
+                const staged = dbScalar(`SELECT GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(state, '$.core.file')) SEPARATOR '|') FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId} AND kind='users'`);
+                for (const f of (staged && staged !== 'NULL' ? staged.split('|') : [])) {
+                    if (/\/writable\/uploads\/user_import_[a-f0-9]+\.csv$/.test(f)) { try { fs.unlinkSync(f); } catch {} }
+                }
+            } catch {}
+        }
+        try { dbExec(`DELETE FROM utenti WHERE email LIKE 'idem-uimp-%-${RUN_ID}@example.test'`); } catch {}
         try { dbExec(`DELETE FROM mobile_app_tokens WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM mobile_push_subscriptions WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM wishlist WHERE utente_id=${ctx.userId}`); } catch {}

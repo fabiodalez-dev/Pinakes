@@ -9295,5 +9295,12 @@
   "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Les identifiants de la notice (ISBN, EAN) appartiennent à des livres différents du catalogue : notice non importée.",
   "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.": "Une clé d'idempotence est obligatoire : envoyez l'en-tête Idempotency-Key.",
   "Pagamento non trovato.": "Paiement introuvable.",
-  "Foto non trovata.": "Photo introuvable."
+  "Foto non trovata.": "Photo introuvable.",
+  "Avvia l'importazione prima di elaborare le righe.": "Lancez l'import avant de traiter les lignes.",
+  "Il file dell'import non è più disponibile: carica di nuovo il file per completarlo.": "Le fichier de l'import n'est plus disponible : téléversez à nouveau le fichier pour le terminer.",
+  "Il report sarà disponibile al termine dell'importazione.": "Le rapport sera disponible à la fin de l'import.",
+  "Indica un numero di giorni tra 0 e %d.": "Indiquez un nombre de jours entre 0 et %d.",
+  "Inserisci il codice della tessera.": "Saisissez le numéro de la carte de lecteur.",
+  "Presenza registrata.": "Visite enregistrée.",
+  "Report degli errori non disponibile per questa importazione.": "Aucun rapport d'erreurs n'est disponible pour cet import."
 }

@@ -9295,5 +9295,12 @@
   "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "The record's identifiers (ISBN, EAN) belong to different books in the catalogue: record not imported.",
   "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.": "An idempotency key is required: send the Idempotency-Key header.",
   "Pagamento non trovato.": "Payment not found.",
-  "Foto non trovata.": "Photo not found."
+  "Foto non trovata.": "Photo not found.",
+  "Avvia l'importazione prima di elaborare le righe.": "Start the import before processing the rows.",
+  "Il file dell'import non è più disponibile: carica di nuovo il file per completarlo.": "The import file is no longer available: upload the file again to complete it.",
+  "Il report sarà disponibile al termine dell'importazione.": "The report will be available when the import is over.",
+  "Indica un numero di giorni tra 0 e %d.": "Enter a number of days between 0 and %d.",
+  "Inserisci il codice della tessera.": "Enter the library card code.",
+  "Presenza registrata.": "Visit recorded.",
+  "Report degli errori non disponibile per questa importazione.": "No error report is available for this import."
 }
