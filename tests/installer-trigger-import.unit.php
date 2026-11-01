@@ -11,6 +11,9 @@ declare(strict_types=1);
  *
  * Runs the real importer and the real triggers.sql against a sandbox database:
  * importTriggers() drops and creates triggers, so it must never see a shared one.
+ * The sandbox (INSTALLER_TRIGGER_SANDBOX_DB, default <DB_NAME>_migtrg) is never
+ * dropped: the test empties only its tables, and refuses a database that holds
+ * tables without the marker this test leaves behind.
  *
  * Run:  php tests/installer-trigger-import.unit.php   (exit 0 iff all pass)
  */
@@ -47,17 +50,43 @@ $check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
     $ok ? $pass++ : $fail++;
 };
 
-$sandbox = $setting('DB_NAME') . '_migtrg';
+$sandbox = getenv('INSTALLER_TRIGGER_SANDBOX_DB') ?: ($setting('DB_NAME') . '_migtrg');
+$ownNames = array_map('strtolower', array_filter([$setting('DB_NAME'), (string) getenv('E2E_DB_NAME'), (string) ($env['DB_NAME'] ?? '')], static fn (string $name): bool => $name !== ''));
+if (in_array(strtolower($sandbox), $ownNames, true) || !preg_match('/^[A-Za-z0-9_]{1,64}$/', $sandbox)) {
+    fwrite(STDERR, "FAIL: the sandbox name is the installation's own database or not a plain identifier. Name a disposable one.\n");
+    exit(1);
+}
+$marker = '_installer_trigger_sandbox';
 $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
 $triggersSql = (string) file_get_contents($root . '/installer/database/triggers.sql');
 preg_match_all('/^\s*CREATE\s+TRIGGER\s+`([^`]+)`/mi', $triggersSql, $declared);
 $expected = $declared[1];
 sort($expected);
 
-$resetSandbox = static function () use ($admin, $sandbox, $schema): void {
-    $admin->query("DROP DATABASE IF EXISTS `{$sandbox}`");
-    $admin->query("CREATE DATABASE `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+$admin->query("CREATE DATABASE IF NOT EXISTS `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+$admin->select_db($sandbox);
+$tables = array_column($admin->query('SHOW TABLES')->fetch_all(), 0);
+if ($tables !== [] && !in_array($marker, $tables, true)) {
+    fwrite(STDERR, "FAIL: database `{$sandbox}` already holds tables this test did not create. Set INSTALLER_TRIGGER_SANDBOX_DB to a disposable name.\n");
+    exit(1);
+}
+
+// Empties the sandbox but keeps the database and the ownership marker: the
+// tables' triggers go with them.
+$wipeSandbox = static function () use ($admin, $sandbox, $marker): void {
     $admin->select_db($sandbox);
+    $admin->query('SET foreign_key_checks = 0');
+    foreach (array_column($admin->query('SHOW TABLES')->fetch_all(), 0) as $table) {
+        if ($table !== $marker) {
+            $admin->query('DROP TABLE IF EXISTS `' . $table . '`');
+        }
+    }
+    $admin->query('SET foreign_key_checks = 1');
+    $admin->query("CREATE TABLE IF NOT EXISTS `{$marker}` (id TINYINT PRIMARY KEY)");
+};
+
+$resetSandbox = static function () use ($admin, $schema, $wipeSandbox): void {
+    $wipeSandbox();
     $admin->multi_query($schema);
     do {
         if ($result = $admin->store_result()) {
@@ -117,7 +146,7 @@ try {
         'the failure does not take the healthy triggers down with it'
     );
 } finally {
-    $admin->query("DROP DATABASE IF EXISTS `{$sandbox}`");
+    $wipeSandbox();
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";
