@@ -42,6 +42,20 @@ function weekday(iso) {
   return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
 }
 
+// Days the library-wide closures in the table close (whatever run stored
+// them), with the LibraryCalendar rules: a yearly row shorter than a year
+// repeats its month-day span, wrapping over New Year; any other row is its
+// own interval. The weekly closed days are not included.
+function libraryClosedInDb() {
+  const rows = db("SELECT CONCAT(data_inizio,'|',data_fine,'|',ricorrente_annuale,'|',DATEDIFF(data_fine,data_inizio)) FROM calendario_chiusure WHERE sede_id IS NULL")
+    .split('\n').filter(Boolean).map((line) => line.split('|'));
+  return (iso) => rows.some(([from, to, yearly, span]) => {
+    if (yearly !== '1' || Number(span) > 363) return iso >= from && iso <= to;
+    const md = iso.slice(5), a = from.slice(5), b = to.slice(5);
+    return b < a ? (md >= a || md <= b) : (md >= a && md <= b);
+  });
+}
+
 const RUN = Date.now().toString().slice(-7);
 const TAG = `E2E-CAL-${RUN}`;
 let startMaxId = 0;
@@ -52,6 +66,11 @@ const presetIds = [];
 // preset is imported so the import must add the holiday itself; restored after.
 let parkedFerragosto = '';
 let prevWeekdays = null;
+// Pending pickups (id → pickup_deadline) before the run: every calendar save
+// moves a deadline that lands on a closed day (LibraryCalendar::
+// extendPickupDeadlines), so the teardown puts back the ones this run moved.
+/** @type {Array<[number, string]>} */
+let prevPickups = [];
 // The original loans.closed_weekdays, kept outside the database: a run killed
 // after beforeAll cleared it would otherwise read '' as the original next time.
 const WEEKDAYS_STASH = path.join(os.tmpdir(), `pinakes-e2e-closed-weekdays-${DB_NAME.replace(/[^\w-]/g, '_')}.json`);
@@ -100,7 +119,11 @@ test.describe('Closures calendar — admin page', () => {
     prevWeekdays = stashed && typeof stashed.value === 'string'
       ? stashed.value
       : db("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
-    fs.writeFileSync(WEEKDAYS_STASH, JSON.stringify({ value: prevWeekdays }));
+    prevPickups = stashed && Array.isArray(stashed.pickups)
+      ? stashed.pickups
+      : db("SELECT CONCAT(id,'|',pickup_deadline) FROM prestiti WHERE stato='da_ritirare' AND attivo=1 AND pickup_deadline IS NOT NULL")
+        .split('\n').filter(Boolean).map((line) => line.split('|')).map(([id, deadline]) => [parseInt(id, 10), deadline]);
+    fs.writeFileSync(WEEKDAYS_STASH, JSON.stringify({ value: prevWeekdays, pickups: prevPickups }));
     db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     db(`INSERT INTO sedi (nome) VALUES ('${TAG} Succursale')`);
     sedeId = parseInt(db(`SELECT id FROM sedi WHERE nome='${TAG} Succursale'`), 10);
@@ -124,6 +147,15 @@ test.describe('Closures calendar — admin page', () => {
       } else {
         db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${prevWeekdays}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
       }
+    }
+    // Only pickups still pending whose deadline this run moved forward: one
+    // collected, cancelled or moved back meanwhile is left as it is.
+    for (const [id, deadline] of prevPickups) {
+      if (Number.isInteger(id) && id > 0 && /^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+        db(`UPDATE prestiti SET pickup_deadline='${deadline}' WHERE id=${id} AND stato='da_ritirare' AND attivo=1 AND pickup_deadline > '${deadline}'`);
+      }
+    }
+    if (prevWeekdays !== null) {
       try { fs.unlinkSync(WEEKDAYS_STASH); } catch { /* already gone */ }
     }
     if (sedeId) db(`DELETE FROM sedi WHERE id=${sedeId}`);
@@ -235,9 +267,12 @@ test.describe('Closures calendar — admin page', () => {
     await page.goto(`${BASE}/admin/calendar?month=${farYear}-09`);
     const days = await page.locator('[data-calendar-day]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-calendar-day'), e.getAttribute('data-closed')]));
     expect(days.length).toBe(30);
+    // A library closure already in the table (another run's, an operator's)
+    // closes its days too: the rule alone does not decide them.
+    const closedByRow = libraryClosedInDb();
     for (const [iso, closed] of days) {
       const w = weekday(iso);
-      expect(closed, iso).toBe(w === 0 || w === 1 ? '1' : '0');
+      expect(closed, iso).toBe(w === 0 || w === 1 || closedByRow(iso) ? '1' : '0');
     }
   });
 
@@ -256,7 +291,15 @@ test.describe('Closures calendar — admin page', () => {
     await submitAndLand(page, '#save-weekdays');
     expect(db("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'")).toBe('');
     await page.goto(`${BASE}/admin/calendar?month=${farYear}-09`);
-    await expect(page.locator('[data-calendar-day][data-closed="1"]')).toHaveCount(0);
+    // Only the days a library closure in the table closes stay closed.
+    const closedByRow = libraryClosedInDb();
+    const expectedClosed = [];
+    for (let d = 1; d <= 30; d++) {
+      const iso = `${farYear}-09-${String(d).padStart(2, '0')}`;
+      if (closedByRow(iso)) expectedClosed.push(iso);
+    }
+    const closedDays = await page.locator('[data-calendar-day][data-closed="1"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-calendar-day')));
+    expect(closedDays.sort()).toEqual(expectedClosed);
   });
 
   test('Weekly 6: the page is reachable from the sidebar and from Settings > Loans', async () => {
