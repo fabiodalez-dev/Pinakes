@@ -133,8 +133,9 @@ test.describe.serial('Late fines skip the days the library is closed', () => {
     // there are put aside and come back afterwards with their id and
     // created_at. Run it on a dedicated E2E database; a closure another
     // process adds meanwhile is never deleted by the teardown (only this
-    // suite's TAG rows are).
-    savedClosures = F.dbQuery('SELECT CONCAT_WS(0x1f, id, data_inizio, data_fine, ricorrente_annuale, IFNULL(sede_id, \'\'), IFNULL(descrizione, \'\'), created_at) FROM calendario_chiusure').split('\n').filter(Boolean);
+    // suite's TAG rows are). descrizione travels as hex: `mysql -B` escapes
+    // backslashes, tabs and newlines, and a newline would split the row.
+    savedClosures = F.dbQuery('SELECT CONCAT_WS(0x1f, id, data_inizio, data_fine, ricorrente_annuale, IFNULL(sede_id, \'\'), HEX(descrizione), created_at) FROM calendario_chiusure').split('\n').filter(Boolean);
     F.dbQuery('DELETE FROM calendario_chiusure');
     restoreSetting('closed_weekdays', null);
     F.dbQuery(`INSERT INTO sedi (nome) VALUES (${F.sqlStr(`${TAG} Succursale`)})`);
@@ -159,9 +160,9 @@ test.describe.serial('Late fines skip the days the library is closed', () => {
     clearConfigCache();
     F.dbQuery(`DELETE FROM calendario_chiusure WHERE descrizione LIKE ${F.sqlStr(`${TAG}%`)}`);
     for (const line of savedClosures) {
-      const [id, start, end, yearly, sede, description, createdAt] = line.split('\x1f');
+      const [id, start, end, yearly, sede, descriptionHex, createdAt] = line.split('\x1f');
       // INSERT IGNORE: a row someone re-created with the same id meanwhile wins.
-      F.dbQuery(`INSERT IGNORE INTO calendario_chiusure (id, data_inizio, data_fine, ricorrente_annuale, sede_id, descrizione, created_at) VALUES (${Number(id)}, '${start}', '${end}', ${Number(yearly)}, ${sede === '' ? 'NULL' : Number(sede)}, ${F.sqlStr(description)}, ${createdAt ? F.sqlStr(createdAt) : 'CURRENT_TIMESTAMP'})`);
+      F.dbQuery(`INSERT IGNORE INTO calendario_chiusure (id, data_inizio, data_fine, ricorrente_annuale, sede_id, descrizione, created_at) VALUES (${Number(id)}, '${start}', '${end}', ${Number(yearly)}, ${sede === '' ? 'NULL' : Number(sede)}, CONVERT(UNHEX(${F.sqlStr(descriptionHex)}) USING utf8mb4), ${createdAt ? F.sqlStr(createdAt) : 'CURRENT_TIMESTAMP'})`);
     }
     try { F.dbQuery(`DELETE FROM movimenti_lettore WHERE utente_id=${patron?.id || 0}`); } catch { /* */ }
     F.deleteTitles(titles);
