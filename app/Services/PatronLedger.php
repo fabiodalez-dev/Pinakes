@@ -166,11 +166,18 @@ final class PatronLedger
 
     /**
      * Whether the legacy penalty conversion has not completed yet
-     * (loans.legacy_penalties_backfilled unset): the upgrade's pass was
-     * deferred or failed and maintenance has not finished it.
+     * (loans.legacy_penalties_backfilled unset) while loss penalties are
+     * on: the upgrade's pass was deferred or failed and maintenance has not
+     * finished it.
      */
     public static function legacyPenaltiesPending(mysqli $db): bool
     {
+        // With loss penalties off the library does not mirror prestiti.sanzione
+        // in the ledger (the backfill never runs), so nothing is pending: the
+        // debt block reads the ledger alone, the balance staff and patrons see.
+        if (!\App\Support\Features::enabled('loss_penalties')) {
+            return false;
+        }
         return (new \App\Models\SettingsRepository($db))->get('loans', 'legacy_penalties_backfilled', '0') !== '1';
     }
 
