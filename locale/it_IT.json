@@ -9295,5 +9295,12 @@
   "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.",
   "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.": "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.",
   "Pagamento non trovato.": "Pagamento non trovato.",
-  "Foto non trovata.": "Foto non trovata."
+  "Foto non trovata.": "Foto non trovata.",
+  "Avvia l'importazione prima di elaborare le righe.": "Avvia l'importazione prima di elaborare le righe.",
+  "Il file dell'import non è più disponibile: carica di nuovo il file per completarlo.": "Il file dell'import non è più disponibile: carica di nuovo il file per completarlo.",
+  "Il report sarà disponibile al termine dell'importazione.": "Il report sarà disponibile al termine dell'importazione.",
+  "Indica un numero di giorni tra 0 e %d.": "Indica un numero di giorni tra 0 e %d.",
+  "Inserisci il codice della tessera.": "Inserisci il codice della tessera.",
+  "Presenza registrata.": "Presenza registrata.",
+  "Report degli errori non disponibile per questa importazione.": "Report degli errori non disponibile per questa importazione."
 }

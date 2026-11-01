@@ -9295,5 +9295,12 @@
   "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Postens identifikatorer (ISBN, EAN) tilhører forskellige bøger i kataloget: posten blev ikke importeret.",
   "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.": "En idempotensnøgle er påkrævet: send headeren Idempotency-Key.",
   "Pagamento non trovato.": "Betalingen blev ikke fundet.",
-  "Foto non trovata.": "Fotoet blev ikke fundet."
+  "Foto non trovata.": "Fotoet blev ikke fundet.",
+  "Avvia l'importazione prima di elaborare le righe.": "Start importen, før rækkerne behandles.",
+  "Il file dell'import non è più disponibile: carica di nuovo il file per completarlo.": "Importfilen er ikke længere tilgængelig: upload filen igen for at fuldføre den.",
+  "Il report sarà disponibile al termine dell'importazione.": "Rapporten er tilgængelig, når importen er afsluttet.",
+  "Indica un numero di giorni tra 0 e %d.": "Angiv et antal dage mellem 0 og %d.",
+  "Inserisci il codice della tessera.": "Indtast lånerkortets nummer.",
+  "Presenza registrata.": "Besøg registreret.",
+  "Report degli errori non disponibile per questa importazione.": "Der er ingen fejlrapport for denne import."
 }

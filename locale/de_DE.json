@@ -9295,5 +9295,12 @@
   "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Die Kennungen des Datensatzes (ISBN, EAN) gehören zu verschiedenen Büchern im Katalog: Datensatz nicht importiert.",
   "Chiave di idempotenza obbligatoria: invia l'header Idempotency-Key.": "Ein Idempotenzschlüssel ist erforderlich: Sende den Header Idempotency-Key.",
   "Pagamento non trovato.": "Zahlung nicht gefunden.",
-  "Foto non trovata.": "Foto nicht gefunden."
+  "Foto non trovata.": "Foto nicht gefunden.",
+  "Avvia l'importazione prima di elaborare le righe.": "Starte den Import, bevor die Zeilen verarbeitet werden.",
+  "Il file dell'import non è più disponibile: carica di nuovo il file per completarlo.": "Die Importdatei ist nicht mehr verfügbar: Lade die Datei erneut hoch, um den Import abzuschließen.",
+  "Il report sarà disponibile al termine dell'importazione.": "Der Bericht ist nach Abschluss des Imports verfügbar.",
+  "Indica un numero di giorni tra 0 e %d.": "Gib eine Anzahl von Tagen zwischen 0 und %d an.",
+  "Inserisci il codice della tessera.": "Gib die Nummer des Bibliotheksausweises ein.",
+  "Presenza registrata.": "Besuch erfasst.",
+  "Report degli errori non disponibile per questa importazione.": "Für diesen Import ist kein Fehlerbericht verfügbar."
 }
