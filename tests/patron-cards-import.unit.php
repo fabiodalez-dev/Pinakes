@@ -458,7 +458,7 @@ try {
     $pid = bin2hex(random_bytes(12));
     $running = ['preview_id' => $pid, 'file' => $staged, 'name' => 't.csv', 'delimiter' => ';', 'total' => 1, 'columns' => 3, 'started' => true, 'next' => 0,
         'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0, 'failed' => 0,
-        'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []];
+        'invited' => 0, 'invite_failed' => 0, 'errors' => []];
     $_SESSION['user_import'] = $running;
     [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 10]);
     $check($status === 409 && ($json['processed'] ?? null) === 0 && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block out of sequence is refused with the position to resume from');
@@ -542,7 +542,7 @@ try {
     [$status, $json] = $call('start', ['mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
     $check($status === 409 && ($json['stale'] ?? false) === true && ($_SESSION['user_import'] ?? null) === $previewA, 'a Start without a preview id is refused with 409 stale');
     $startedA = ['started' => true, 'next' => 0, 'active_at' => time(), 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0,
-        'failed' => 0, 'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []] + $previewA;
+        'failed' => 0, 'invited' => 0, 'invite_failed' => 0, 'errors' => []] + $previewA;
     $_SESSION['user_import'] = $startedA;
     [$status, $json] = $call('chunk', ['preview_id' => $tabB, 'start' => 0]);
     $check($status === 409 && ($json['stale'] ?? false) === true && !isset($json['processed']) && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block from a replaced preview is refused without a position to "resume" from');
@@ -551,12 +551,17 @@ try {
     [$status, $json] = $call('cancel', ['preview_id' => $tabB]);
     $check($status === 200 && ($json['stale'] ?? false) === true && ($_SESSION['user_import'] ?? null) === $startedA && is_file($staged), 'a cancel from a replaced preview leaves the current import alone');
     $check($staleCount() === 0, 'no account was created from the stale requests');
-    $_SESSION['user_import'] = $previewA;
-    [$status, $json] = $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    // The file repeats its row with the email in upper case: the repeat is a
+    // duplicate found in the table, no per-row set is kept in the session.
+    file_put_contents($staged, "nome;cognome;email\nZz;Stale;{$staleEmail}\nZz;Again;" . strtoupper($staleEmail) . "\n");
+    $_SESSION['user_import'] = ['total' => 2] + $previewA;
+    [$status, $json] = $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => 'false']);
     $check($status === 200 && !empty($_SESSION['user_import']['started']), 'a Start naming the current preview proceeds');
+    $check(($_SESSION['user_import']['send_invites'] ?? null) === false, 'send_invites "false" (a string) sends no invitations');
+    $check(!array_key_exists('seen_emails', $_SESSION['user_import']) && !array_key_exists('seen_codes', $_SESSION['user_import']), 'the session keeps no set of the emails and codes already imported');
     [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => 0]);
     $importLogIds[] = (string) ($json['import_id'] ?? '');
-    $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1, 'its block, naming the same preview, imports the row');
+    $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 1, 'its block, naming the same preview, imports the row once and reports the repeat as a duplicate');
     $_SESSION = [];
 
     // The import page links the import history (a catalog.manage page) only

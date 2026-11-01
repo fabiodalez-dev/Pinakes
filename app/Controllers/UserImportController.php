@@ -243,7 +243,8 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => $check['error']], 422);
         }
         $state['mapping'] = $check['mapping'];
-        $state['send_invites'] = !empty($body['send_invites']);
+        // A real boolean: the string "false" must not send invitations.
+        $state['send_invites'] = filter_var($body['send_invites'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $state['started'] = true;
         $state['created'] = 0;
         $state['duplicates'] = 0;
@@ -251,8 +252,6 @@ class UserImportController
         $state['invited'] = 0;
         $state['invite_failed'] = 0;
         $state['errors'] = [];
-        $state['seen_emails'] = [];
-        $state['seen_codes'] = [];
         $state['next'] = 0;
         $state['active_at'] = time();
         $_SESSION[self::SESSION_KEY] = $state;
@@ -352,11 +351,14 @@ class UserImportController
                 }
                 $email = (string) $record['email'];
                 $code = (string) ($record['codice_tessera'] ?? '');
-                if (isset($state['seen_emails'][$email]) || $this->exists($db, 'email', $email)) {
+                // The rows inserted by earlier blocks are in the table already:
+                // exists() catches a repeat within the file too, without a
+                // per-row set in the session that grows with every import.
+                if ($this->exists($db, 'email', $email)) {
                     $this->duplicate($state, $line, $label, sprintf(__('Email già registrata: %s'), $email));
                     continue;
                 }
-                if ($code !== '' && (isset($state['seen_codes'][mb_strtolower($code)]) || $this->exists($db, 'codice_tessera', $code))) {
+                if ($code !== '' && $this->exists($db, 'codice_tessera', $code)) {
                     $this->duplicate($state, $line, $label, sprintf(__('Codice tessera già assegnato: %s'), $code));
                     continue;
                 }
@@ -366,8 +368,6 @@ class UserImportController
                 $record['locale'] ??= $installLocale;
 
                 $userId = $this->insertUser($db, $record);
-                $state['seen_emails'][$email] = true;
-                $state['seen_codes'][mb_strtolower((string) $record['codice_tessera'])] = true;
                 $state['created']++;
                 // The account exists from here on: what follows completes it, so
                 // a failure is a warning on a created row, never a failed row
