@@ -175,7 +175,7 @@ final class StocktakeService
      * A .txt line is the code itself: only a tab (which no code can hold, see
      * normalizeCode()) separates it from trailing scanner columns, so a code
      * such as "INV,001" survives. A .csv is read record by record with a real
-     * CSV parser, using the delimiter of its first line, so a quoted "INV,001"
+     * CSV parser, using the delimiter of its first record, so a quoted "INV,001"
      * survives too, and so does a quoted cell that spans several lines. Only
      * its first column is the code: a row whose first cell is empty has none.
      *
@@ -192,7 +192,14 @@ final class StocktakeService
         $codes = [];
         $first = true;
         foreach ($csv ? self::csvFirstCells($text) : self::txtFirstCells($text) as $cell) {
-            $cell = self::normalizeCode(trim($cell, " \"'"));
+            $cell = trim($cell);
+            // fgetcsv() already removed the CSV quoting, so a quote left in a
+            // .csv cell is part of the code. A .txt line has no quoting rules:
+            // only one pair of quotes wrapping the whole line is dropped.
+            if (!$csv && preg_match('/^(["\'])(.*)\1$/su', $cell, $m) === 1) {
+                $cell = $m[2];
+            }
+            $cell = self::normalizeCode($cell);
             if ($cell === '') {
                 continue;
             }
@@ -207,7 +214,9 @@ final class StocktakeService
     }
 
     /**
-     * The first non-blank cell of every .txt line.
+     * The first cell of every .txt line: what comes before its first tab. A
+     * line that starts with a tab has no code, as a .csv row whose first cell
+     * is empty: the next cell is a scanner column (a title, a date), never a code.
      *
      * @return list<string>
      */
@@ -215,12 +224,7 @@ final class StocktakeService
     {
         $cells = [];
         foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
-            foreach (explode("\t", $line) as $candidate) {
-                if (trim($candidate, " \"'") !== '') {
-                    $cells[] = $candidate;
-                    break;
-                }
-            }
+            $cells[] = explode("\t", $line, 2)[0];
         }
         return $cells;
     }
@@ -254,37 +258,43 @@ final class StocktakeService
     }
 
     /**
-     * The delimiter of a CSV export: the most frequent of , ; and tab on its
-     * first non-blank line, counting only those outside quoted cells (comma
-     * when the line has none, a one-column file).
+     * The delimiter of a CSV export: the most frequent of , ; and tab in its
+     * first non-blank record, counting only those outside quoted cells (comma
+     * when the record has none, a one-column file). The record ends at the
+     * first line break outside quotes, so a quoted first cell that spans
+     * several lines does not hide the delimiter that follows it.
      */
     private static function csvDelimiter(string $text): string
     {
-        foreach (explode("\n", $text) as $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-            $counts = [',' => 0, ';' => 0, "\t" => 0];
-            $quoted = false;
-            for ($i = 0, $n = strlen($line); $i < $n; $i++) {
-                $char = $line[$i];
-                if ($char === '"') {
-                    $quoted = !$quoted; // an escaped "" flips twice
-                } elseif (!$quoted && isset($counts[$char])) {
-                    $counts[$char]++;
+        $counts = [',' => 0, ';' => 0, "\t" => 0];
+        $quoted = false;
+        $blank = true;
+        for ($i = 0, $n = strlen($text); $i < $n; $i++) {
+            $char = $text[$i];
+            if ($char === '"') {
+                $quoted = !$quoted; // an escaped "" flips twice
+                $blank = false;
+            } elseif (!$quoted && $char === "\n") {
+                if (!$blank) {
+                    break;
                 }
+                $counts = [',' => 0, ';' => 0, "\t" => 0]; // a blank line: keep looking
+            } elseif (!$quoted && isset($counts[$char])) {
+                $counts[$char]++;
+                $blank = false;
+            } elseif (!ctype_space($char)) {
+                $blank = false;
             }
-            $best = ',';
-            $bestCount = 0;
-            foreach ($counts as $candidate => $count) {
-                if ($count > $bestCount) {
-                    $best = (string) $candidate;
-                    $bestCount = $count;
-                }
-            }
-            return $best;
         }
-        return ',';
+        $best = ',';
+        $bestCount = 0;
+        foreach ($counts as $candidate => $count) {
+            if ($count > $bestCount) {
+                $best = (string) $candidate;
+                $bestCount = $count;
+            }
+        }
+        return $best;
     }
 
     /**
