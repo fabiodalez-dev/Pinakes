@@ -8549,7 +8549,6 @@
   "Impossibile aprire il file caricato": "Impossible d'ouvrir le fichier chargé",
   "Indica cosa cercare e almeno un catalogo": "Indiquez quoi rechercher et au moins un catalogue",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Les couvertures indiquées dans les notices sont enregistrées localement. Cela ralentit l'import.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre reçoit un exemplaire",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Livres déjà présents (même ISBN-13, ISBN-10 ou EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
@@ -8997,5 +8996,14 @@
   "Annulla import": "Annuler l'importation",
   "Riprendi import": "Reprendre l'importation",
   "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utilisateur non supprimé : sa photo ne peut pas être retirée du disque. Réessayez ou vérifiez les droits du dossier storage.",
-  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d écartées car, avec les autres fermetures annuelles, elles laisseraient la bibliothèque fermée toute l'année."
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d écartées car, avec les autres fermetures annuelles, elles laisseraient la bibliothèque fermée toute l'année.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "L'importation précédente a été fermée, mais l'historique des importations n'a pas pu être mis à jour : les utilisateurs déjà créés sont conservés.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "Le fichier d'importation n'est plus disponible et l'historique des importations n'a pas pu être mis à jour : les utilisateurs déjà créés sont conservés. Chargez à nouveau le fichier pour terminer l'importation.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "Le fichier de l'importation interrompue «%s» n'était plus disponible : l'importation a été fermée après %d lignes sur %d, mais l'historique des importations n'a pas pu être mis à jour. Les utilisateurs déjà créés sont conservés ; pour la terminer, chargez à nouveau le fichier.",
+  "Troppi utenti selezionati": "Trop d'utilisateurs sélectionnés",
+  "Si possono stampare al massimo %d tessere alla volta: selezionane di meno.": "Au maximum %d cartes de lecteur peuvent être imprimées à la fois : sélectionnez moins d'utilisateurs.",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre créé reçoit un exemplaire, ceux déjà au catalogue gardent les leurs",
+  "Altri %d campi non mostrati": "%d autres champs non affichés",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Sélection non valide pour l'export : réessayez depuis la liste des livres.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Les identifiants de la notice (ISBN, EAN) appartiennent à des livres différents du catalogue : notice non importée."
 }

@@ -16,6 +16,7 @@ use App\Support\Marc\Danmarc2LibriMapper;
 use App\Support\Marc\Iso2709Reader;
 use App\Support\Marc\Iso2709Writer;
 use App\Support\Marc\Marc21LibriMapper;
+use App\Support\Marc\MarcLanguage;
 use App\Support\Marc\MarcMediaType;
 use App\Support\Marc\Marc8Decoder;
 use App\Support\Marc\MarcBookData;
@@ -145,6 +146,18 @@ $check(($records($all(MarcXmlReader::fromString($single)))[0] ?? null)?->toArray
 echo "Format detection\n";
 $check(MarcFormat::containerOfFile("$fx/marc21-utf8.mrc") === MarcFormat::CONTAINER_ISO2709 && MarcFormat::containerOfFile("$fx/marc21-collection.xml") === MarcFormat::CONTAINER_XML, '32 container told from the first bytes');
 $check(MarcFormat::detectContainer("\xEF\xBB\xBF  <?xml") === MarcFormat::CONTAINER_XML && MarcFormat::detectContainer('titolo;autori') === null, '33 a BOM is skipped, a CSV is neither');
+// CodeRabbit on PR #505: a record of 400 fields has a 4800-byte directory,
+// so its first field terminator lies past the 4096 bytes first read.
+$wide = new MarcRecord();
+$wide->addDataField('245', '1', '0', [['a', 'Molti campi']]);
+for ($f = 0; $f < 400; $f++) {
+    $wide->addDataField('650', ' ', '4', [['a', "s{$f}"]]);
+}
+$wideFile = tempnam(sys_get_temp_dir(), 'marcwide');
+file_put_contents($wideFile, Iso2709Writer::serialize($wide));
+$check(MarcFormat::containerOfFile($wideFile) === MarcFormat::CONTAINER_ISO2709 && count(iterator_to_array(Iso2709Reader::fromPath($wideFile), false)) === 1, '33b a record whose directory is longer than 4096 bytes is still recognised as ISO 2709');
+@unlink($wideFile);
+$check(MarcFormat::detectContainer('00030nam  2200025   4500' . "\x1F" . 'xxxxxxx') === null, '33c a head whose base address does not follow a field terminator is not ISO 2709');
 $uni = $records($all(Iso2709Reader::fromPath("$fx/unimarc-utf8.mrc")));
 $check(MarcFormat::detectFlavour($rosa) === MarcFormat::MARC21 && MarcFormat::detectFlavour($uni[0]) === MarcFormat::UNIMARC, '34 MARC 21 by its 245, UNIMARC by its 200');
 $dan = new MarcRecord();
@@ -301,7 +314,7 @@ $lcgft->addDataField('655', ' ', '7', [['a', 'Detective and mystery fiction.'], 
 $lcgft->addDataField('655', ' ', '4', [['a', 'Thrillers.']]);
 $check((new Marc21LibriMapper())->map($lcgft)['genere'] === '', '67r a 655 of another scheme, or without $2, is not imported as the genre');
 $withGenreU = BookMarcBuilder::unimarc($row, $authors, [], ['id' => 3, 'nome' => 'Narrativa'], true);
-$check($withGenreU->subfield('606', 'a') === 'Narrativa' && $withGenreU->subfield('606', '2') === 'local', '67r2 UNIMARC writes the genre as a 606 $2 local');
+$check($withGenreU->subfield('608', 'a') === 'Narrativa' && $withGenreU->subfield('608', '2') === 'local' && $withGenreU->subfieldValues('606', 'a') === ['avventura', 'viaggi'], '67r2 UNIMARC writes the genre as a 608 $2 local (form / genre, as MARC 21 655), the keywords as 606');
 $backGenreU = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($withGenreU))))[0]);
 $check($backGenreU['genere'] === 'Narrativa' && $backGenreU['parole_chiave'] === ['avventura', 'viaggi'], '67r3 UNIMARC export → import: the genre comes back as the genre, the keywords as keywords');
 $uniOne = static function (array $fields): array {
@@ -314,6 +327,17 @@ $uniOne = static function (array $fields): array {
 };
 $check($uniOne([['606', ' ', ' ', [['a', 'Storia'], ['2', 'FI']]]])['genere'] === '' && $uniOne([['606', ' ', ' ', [['a', 'Storia'], ['2', 'FI']]]])['parole_chiave'] === ['Storia'], '67r4 a 606 of another scheme stays a keyword');
 $check($uniOne([['101', '0', ' ', [['a', 'swa']]]])['lingua'] === '' && $uniOne([['101', '0', ' ', [['a', 'deu']]]])['lingua'] !== '', '67r5 an unknown UNIMARC language code stays empty instead of being stored as a name');
+// CodeRabbit on PR #505: another catalogue's 606 $2 local is a local
+// subject, not this catalogue's genre; it stays a keyword.
+$localSubjects = $uniOne([['606', ' ', ' ', [['a', 'Storia locale'], ['2', 'local']]], ['606', ' ', ' ', [['a', 'Valtellina'], ['2', 'local']]]]);
+$check($localSubjects['genere'] === '' && $localSubjects['parole_chiave'] === ['Storia locale', 'Valtellina'], '67r7 606 $2 local subjects of another catalogue are keywords, none becomes the genre');
+$bothIsbn = BookMarcBuilder::unimarc(['isbn10' => '8845292614'] + $row, $authors, [], null, true);
+$backBoth = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($bothIsbn))))[0]);
+$check($bothIsbn->subfieldValues('010', 'a') === ['9788845292613', '8845292614'] && $backBoth['isbn13'] === '9788845292613' && $backBoth['isbn10'] === '8845292614', '67r8 UNIMARC writes a 010 for the ISBN-13 and for the ISBN-10, and both come back');
+$twoLang = BookMarcBuilder::unimarc(['lingua' => 'inglese, italiano'] + $row, $authors, [], null, true);
+$backLang = (new UnimarcLibriMapper())->map($records($all(Iso2709Reader::fromString(Iso2709Writer::serialize($twoLang))))[0]);
+$check($twoLang->subfieldValues('101', 'a') === ['eng', 'ita'] && count(MarcLanguage::listOf($backLang['lingua'])) === 2, '67r9 UNIMARC writes a 101 $a per language and every one comes back');
+$check(BookMarcBuilder::unimarc(['lingua' => ''] + $row, $authors, [], null, true)->subfieldValues('101', 'a') === ['und'], '67r10 a book without a language keeps a single 101 $a');
 $onlyTranslator = $uniOne([['700', ' ', '1', [['a', 'Weaver'], ['b', 'William'], ['4', '730']]]]);
 $check($onlyTranslator['traduttore'] === ['William Weaver'] && $onlyTranslator['autori'] === [], '67r6 a 700 whose relator is a translator stays a translator');
 $firstAuthor = $uniOne([['700', ' ', '1', [['a', 'Weaver'], ['b', 'William'], ['4', '730']]], ['701', ' ', '1', [['a', 'Eco'], ['b', 'Umberto']]]]);
@@ -438,6 +462,14 @@ $check(Iso2709Reader::parse(substr(Iso2709Writer::serialize($good), 0, -1))->sub
 
 echo "Export selection and oversized records\n";
 $check(\App\Controllers\MarcExportController::parseIds('12abc, 7,7, 0,-3, 9 ,x') === [7, 9], '72 export ids: only all-digit tokens, positive, unique ("12abc" is not book 12)');
+$_SESSION = [];
+$arrayIds = (new \App\Controllers\MarcExportController())->export(
+    (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/admin/books/export/marc')->withQueryParams(['format' => 'marcxml', 'ids' => ['12', '13']]),
+    new \Slim\Psr7\Response(),
+    (new \ReflectionClass(\mysqli::class))->newInstanceWithoutConstructor()
+);
+$check($arrayIds->getStatusCode() === 302 && str_contains($arrayIds->getHeaderLine('Location'), '/admin/books') && ($_SESSION['error_message'] ?? '') !== '', '72b export ids sent as an array (ids[]=12) are refused, not answered with an empty download');
+$_SESSION = [];
 $huge = ['id' => 1, 'titolo' => 'T', 'descrizione' => str_repeat('parola ', 3000),
     'parole_chiave' => implode(', ', array_map(static fn (int $i): string => 'soggetto ' . str_repeat('x', 200) . " {$i}", range(1, 600)))];
 $check($threwOverflow = (static function () use ($huge): bool {
@@ -478,6 +510,15 @@ try {
 $singleRecord = is_string($single) ? Iso2709Reader::parse(substr($single, 0, -1)) : null;
 $check($singleRecord !== null && count($singleRecord->fieldsByTag('700')) + count($singleRecord->fieldsByTag('701')) <= \App\Controllers\MarcExportController::REDUCED_AUTHORS
     && $singleRecord->first('856') === null && $singleRecord->first('676') === null, '74c the single UNIMARC download of the same book is the reduced record too, still without the extended fields');
+// CodeRabbit on PR #505: the download answered 200 with a reduced record or
+// a cut field and said nothing; it now says so in headers (and the log).
+$mrcResponse = new ReflectionMethod($oai, 'unimarcMrcResponse');
+$reducedDownload = $mrcResponse->invoke($oai, new \Slim\Psr7\Response(), 1, $huge, $crowd, [], null);
+$cutDownload = $mrcResponse->invoke($oai, new \Slim\Psr7\Response(), 2, ['id' => 2, 'titolo' => 'T', 'descrizione' => str_repeat('lunga ', 2000)], [], [], null);
+$plainDownload = $mrcResponse->invoke($oai, new \Slim\Psr7\Response(), 3, ['id' => 3, 'titolo' => 'T'], [], [], null);
+$check($reducedDownload->getStatusCode() === 200 && $reducedDownload->getHeaderLine('X-Pinakes-Record-Fit') === 'reduced', '74d a single UNIMARC download sent as a reduced record says so in X-Pinakes-Record-Fit');
+$check($cutDownload->getStatusCode() === 200 && $cutDownload->getHeaderLine('X-Pinakes-Fields-Cut') === '1' && $cutDownload->getHeaderLine('X-Pinakes-Record-Fit') === '', '74e a field cut to the ISO 2709 field limit is reported in X-Pinakes-Fields-Cut');
+$check(!$plainDownload->hasHeader('X-Pinakes-Record-Fit') && !$plainDownload->hasHeader('X-Pinakes-Fields-Cut'), '74f a record that fits as it is carries neither header');
 echo "Language names round trip\n";
 $roundTrip = true;
 foreach (['ita', 'eng', 'fre', 'ger', 'rus', 'chi', 'jpn', 'fin', 'gre', 'lat', 'ice', 'cze', 'hun', 'rum', 'tur', 'heb', 'kor', 'tha', 'grc', 'nor'] as $code) {
@@ -501,6 +542,18 @@ foreach (MarcXmlReader::fromString($xmlDoc) as $item) {
     @(new DOMDocument())->loadXML('<broken>');
 }
 $check(count($items) === 2 && !array_filter($items, static fn ($i): bool => $i instanceof MarcReadError), '77 a well-formed file stays error-free when the consumer leaves libxml errors behind');
+
+echo "Import page\n";
+// The page's file picker and Uppy accept every extension the server does
+// (CodeRabbit on PR #505: .marcxml was refused by Uppy before upload).
+$serverExtensions = (new \ReflectionClassConstant(\App\Controllers\MarcImportController::class, 'EXTENSIONS'))->getValue();
+$importView = (string) file_get_contents($root . '/app/Views/admin/marc_import.php');
+preg_match('/accept="([^"]+)"/', $importView, $acceptMatch);
+preg_match('/allowedFileTypes:\s*\[([^\]]+)\]/', $importView, $uppyMatch);
+$acceptList = array_map('trim', explode(',', $acceptMatch[1] ?? ''));
+$uppyList = array_map(static fn (string $e): string => trim($e, " '\""), explode(',', $uppyMatch[1] ?? ''));
+$missing = array_filter($serverExtensions, static fn (string $e): bool => !in_array('.' . $e, $acceptList, true) || !in_array('.' . $e, $uppyList, true));
+$check($missing === [], '78 the import page accepts every extension the server accepts (' . implode(', ', $serverExtensions) . ')');
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";
 exit($fail === 0 ? 0 : 1);

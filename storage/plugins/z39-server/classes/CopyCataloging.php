@@ -23,6 +23,8 @@ require_once __DIR__ . '/SbnClient.php';
 final class CopyCataloging
 {
     private const SESSION_KEY = 'copy_cataloging_results';
+    /** The last import's token, request fingerprint and answer (replay of a lost response). */
+    private const LAST_IMPORT_KEY = 'copy_cataloging_last_import';
     private const MAX_RESULTS = 100;
     /**
      * Largest total of book data kept in the session for one search (JSON
@@ -31,6 +33,15 @@ final class CopyCataloging
      * session before anything is imported.
      */
     public const MAX_STORED_BYTES = 4 * 1024 * 1024;
+
+    /**
+     * The detail view of a result lists at most this many MARC fields, each
+     * cut to MAX_DETAIL_CHARS characters: it is only for reading (the import
+     * uses the book data in the session), and every field of every record,
+     * mapped or not, would otherwise travel whole in the JSON answer.
+     */
+    public const MAX_DETAIL_LINES = 300;
+    public const MAX_DETAIL_CHARS = 2000;
 
     /** National catalogues offered even when not configured. */
     private const PRESETS = [
@@ -178,11 +189,15 @@ final class CopyCataloging
                     break;
                 }
                 $encoded = (string) json_encode($record['data']);
-                if ($storedBytes + strlen($encoded) > self::MAX_STORED_BYTES) {
+                $detail = $this->detail((array) $record['data'], $record['marc'] ?? null);
+                // The detail travels in the answer too: it counts against the
+                // same cap, so the page's JSON stays bounded as well.
+                $size = strlen($encoded) + strlen((string) json_encode($detail));
+                if ($storedBytes + $size > self::MAX_STORED_BYTES) {
                     $sizeFull = true;
                     break;
                 }
-                $storedBytes += strlen($encoded);
+                $storedBytes += $size;
                 $added++;
                 $id = substr(hash('sha256', $key . '|' . $n . '|' . $encoded), 0, 16);
                 $data = (array) $record['data'];
@@ -205,7 +220,7 @@ final class CopyCataloging
                     'isbn' => (string) (($data['isbn13'] ?? '') !== '' ? $data['isbn13'] : ($data['isbn10'] ?? '')),
                     'copertina' => (string) ($data['copertina_url'] ?? ''),
                     'existing_id' => $existing,
-                    'detail' => $this->detail($data, $record['marc'] ?? null),
+                    'detail' => $detail,
                 ];
             }
             // The count is what the page lists for this server: the records the
@@ -219,10 +234,35 @@ final class CopyCataloging
     /**
      * Import the chosen results of the last search.
      *
+     * $token is the page's import token: the page keeps it until an import
+     * succeeds, so the same request sent again after its answer was lost
+     * (same token, same ids, mode and covers) gets the first answer back
+     * instead of writing the records again and adding a second history
+     * entry. A deliberate re-import comes with a new token.
+     *
      * @param list<string> $ids
      * @return array{imported: int, updated: int, skipped: int, failed: int, covers: int, items: list<array<string, mixed>>, import_id: ?string}
      */
-    public function import(array $ids, string $mode, bool $covers): array
+    public function import(array $ids, string $mode, bool $covers, string $token = ''): array
+    {
+        $fingerprint = hash('sha256', (string) json_encode([array_values(array_unique($ids)), $mode, $covers]));
+        $last = $_SESSION[self::LAST_IMPORT_KEY] ?? null;
+        if ($token !== '' && is_array($last) && is_array($last['result'] ?? null)
+            && hash_equals((string) ($last['token'] ?? ''), $token) && hash_equals((string) ($last['fingerprint'] ?? ''), $fingerprint)) {
+            return $last['result'];
+        }
+        $result = $this->runImport($ids, $mode, $covers);
+        if ($token !== '') {
+            $_SESSION[self::LAST_IMPORT_KEY] = ['token' => $token, 'fingerprint' => $fingerprint, 'result' => $result];
+        }
+        return $result;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array{imported: int, updated: int, skipped: int, failed: int, covers: int, items: list<array<string, mixed>>, import_id: ?string}
+     */
+    private function runImport(array $ids, string $mode, bool $covers): array
     {
         $stored = is_array($_SESSION[self::SESSION_KEY] ?? null) ? $_SESSION[self::SESSION_KEY] : [];
         $importer = new MarcBookImporter($this->db, in_array($mode, MarcBookImporter::MODES, true) ? $mode : MarcBookImporter::MODE_SKIP, $covers);
@@ -341,6 +381,27 @@ final class CopyCataloging
      * @return list<array{tag: string, ind: string, value: string}>
      */
     private function detail(array $data, ?array $marc): array
+    {
+        $lines = $this->detailLines($data, $marc);
+        $more = count($lines) - self::MAX_DETAIL_LINES;
+        $lines = array_slice($lines, 0, self::MAX_DETAIL_LINES);
+        foreach ($lines as $i => $line) {
+            if (mb_strlen($line['value']) > self::MAX_DETAIL_CHARS) {
+                $lines[$i]['value'] = mb_substr($line['value'], 0, self::MAX_DETAIL_CHARS) . '…';
+            }
+        }
+        if ($more > 0) {
+            $lines[] = ['tag' => '…', 'ind' => '', 'value' => sprintf(__('Altri %d campi non mostrati'), $more)];
+        }
+        return $lines;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed>|null $marc
+     * @return list<array{tag: string, ind: string, value: string}>
+     */
+    private function detailLines(array $data, ?array $marc): array
     {
         $lines = [];
         if (is_array($marc)) {

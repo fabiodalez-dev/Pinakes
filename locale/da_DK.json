@@ -8549,7 +8549,6 @@
   "Impossibile aprire il file caricato": "Den uploadede fil kan ikke åbnes",
   "Indica cosa cercare e almeno un catalogo": "Angiv hvad der skal søges efter og mindst ét katalog",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Omslagene, som posterne henviser til, gemmes lokalt. Det gør importen langsommere.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Beholdninger (felt 852/949/952) importeres ikke: hver bog får ét eksemplar",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Bøger der allerede findes (samme ISBN-13, ISBN-10 eller EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
@@ -8997,5 +8996,14 @@
   "Annulla import": "Annuller import",
   "Riprendi import": "Genoptag import",
   "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Brugeren blev ikke slettet: brugerens foto kan ikke fjernes fra disken. Prøv igen, eller kontrollér rettighederne til mappen storage.",
-  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d kasseret, fordi de sammen med de andre årlige lukninger ville holde biblioteket lukket hele året."
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d kasseret, fordi de sammen med de andre årlige lukninger ville holde biblioteket lukket hele året.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "Den forrige import blev lukket, men importhistorikken kunne ikke opdateres: de allerede oprettede brugere bevares.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "Importfilen er ikke længere tilgængelig, og importhistorikken kunne ikke opdateres: de allerede oprettede brugere bevares. Upload filen igen for at fuldføre importen.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "Filen til den afbrudte import «%s» var ikke længere tilgængelig: importen blev lukket efter %d af %d rækker, men importhistorikken kunne ikke opdateres. De allerede oprettede brugere bevares; upload filen igen for at fuldføre den.",
+  "Troppi utenti selezionati": "For mange brugere valgt",
+  "Si possono stampare al massimo %d tessere alla volta: selezionane di meno.": "Der kan højst udskrives %d lånerkort ad gangen: vælg færre brugere.",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Beholdninger (felt 852/949/952) importeres ikke: hver oprettet bog får ét eksemplar, bøger der allerede er i kataloget beholder deres egne",
+  "Altri %d campi non mostrati": "%d flere felter vises ikke",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Ugyldigt udvalg til eksporten: prøv igen fra boglisten.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Postens identifikatorer (ISBN, EAN) tilhører forskellige bøger i kataloget: posten blev ikke importeret."
 }
