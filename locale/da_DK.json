@@ -9292,5 +9292,8 @@
   "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Beholdninger (felt 852/949/952) importeres ikke: hver oprettet bog får ét eksemplar, bøger der allerede er i kataloget beholder deres egne",
   "Altri %d campi non mostrati": "%d flere felter vises ikke",
   "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Ugyldigt udvalg til eksporten: prøv igen fra boglisten.",
-  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Postens identifikatorer (ISBN, EAN) tilhører forskellige bøger i kataloget: posten blev ikke importeret."
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Postens identifikatorer (ISBN, EAN) tilhører forskellige bøger i kataloget: posten blev ikke importeret.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Kopikatalogisering kræver, at Z39.50/SRU-pluginnet er aktivt.",
+  "Puoi importare al massimo %d record alla volta.": "Du kan højst importere %d poster ad gangen.",
+  "Ricerca non trovata: ripeti la ricerca.": "Søgningen blev ikke fundet: søg igen."
 }

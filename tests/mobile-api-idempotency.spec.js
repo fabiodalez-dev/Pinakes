@@ -20,10 +20,11 @@
 const { test, expect } = require('@playwright/test');
 
 // 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
-// fines, so it switches it on for its run and puts back what was there.
+// fines and the cataloguing modules (suppliers, MARC, catalogue cards), so
+// it switches them on for its run and puts back what was there.
 const featureToggles = require('./helpers/feature-toggles');
 let featureSnapshot;
-test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines', 'suppliers', 'marc', 'catalogue_cards']); });
 test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const { flushCache } = require('./helpers/flush-cache');
@@ -366,6 +367,30 @@ const ENDPOINTS = [
     { name: 'GET /staff/settings/labels',        method: 'GET',    path: '/staff/settings/labels',        auth: true, tokenKey: 'staffToken', kind: 'etag' },
     { name: 'PUT /staff/settings/labels',        method: 'PUT',    path: '/staff/settings/labels',        auth: true, tokenKey: 'staffToken', kind: 'write2xx',
         body: (c) => c.labelSettings /* the current values: a no-op both times */ },
+
+    // ── Mobile API 1.10.0: Pinakes 0.9.0 cataloguing (suppliers, catalogue cards, MARC, copy cataloguing) ──
+    { name: 'GET /staff/suppliers',              method: 'GET',    path: '/staff/suppliers',              auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/suppliers',             method: 'POST',   path: '/staff/suppliers',              auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ name: `Idem supplier new ${RUN_ID}` }) /* no Idempotency-Key, no uniqueness: both 201 */ },
+    { name: 'GET /staff/suppliers/{id}',         method: 'GET',    path: '/staff/suppliers/{supplierId}', route: '/staff/suppliers/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/suppliers/{id}',         method: 'PUT',    path: '/staff/suppliers/{supplierId}', route: '/staff/suppliers/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ notes: 'Idempotent note' }) },
+    { name: 'DELETE /staff/suppliers/{id}',      method: 'DELETE', path: '/staff/suppliers/{supplierDeleteId}', route: '/staff/suppliers/{id}', auth: true, tokenKey: 'staffToken', kind: 'gone2' },
+    { name: 'GET /staff/books/{id}/catalogue-card.pdf', method: 'GET', path: '/staff/books/{staffBookId}/catalogue-card.pdf', route: '/staff/books/{id}/catalogue-card.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/books/catalogue-cards.pdf', method: 'GET', path: '/staff/books/catalogue-cards.pdf?ids={staffBookId}', route: '/staff/books/catalogue-cards.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/marc/options',           method: 'GET',    path: '/staff/marc/options',           auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/marc/imports',          method: 'POST',   path: '/staff/marc/imports',           auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: (c) => ({ file: { name: 'idem.mrc', mimeType: 'application/octet-stream', buffer: c.marcBuffer } }) /* each upload is a new job: both 201 */ },
+    { name: 'GET /staff/marc/imports/{id}',      method: 'GET',    path: '/staff/marc/imports/{marcJobId}', route: '/staff/marc/imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/marc/imports/{id}/chunk', method: 'POST', path: '/staff/marc/imports/{marcJobId}/chunk', route: '/staff/marc/imports/{id}/chunk', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({ start: 0 }) /* 1st completes the 1-record job; 2nd: 410 gone */ },
+    { name: 'DELETE /staff/marc/imports/{id}',   method: 'DELETE', path: '/staff/marc/imports/{marcCancelJobId}', route: '/staff/marc/imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* cancel is idempotent */ },
+    { name: 'GET /staff/marc/export',            method: 'GET',    path: '/staff/marc/export?format=marcxml&ids={staffBookId}', route: '/staff/marc/export', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/copy-cataloging/servers', method: 'GET',   path: '/staff/copy-cataloging/servers', auth: true, tokenKey: 'staffToken', kind: 'safeGet', skipIf: (c) => !c.z39Active },
+    { name: 'POST /staff/copy-cataloging/search', method: 'POST',  path: '/staff/copy-cataloging/search', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.copySearchId,
+        body: () => ({ servers: ['local'], index: 'title', term: `Idem staff fixture ${RUN_ID}` }) /* each search is a new search_id: both 201 */ },
+    { name: 'POST /staff/copy-cataloging/import', method: 'POST',  path: '/staff/copy-cataloging/import', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.copySearchId,
+        body: (c) => ({ search_id: c.copySearchId, ids: [c.copyResultId], duplicates: 'skip' }) /* the fixture book (no ISBN) comes back as a new title each time: both 200; RUN_ID cleanup removes them */ },
 
     // ── Mobile API 1.7.0: staff work on plugin content (desiderata, archives) ──
     { name: 'GET /staff/desiderata/offers',     method: 'GET',    path: '/staff/desiderata/offers?status=all', route: '/staff/desiderata/offers', auth: true, tokenKey: 'staffToken', kind: 'safeGet', skipIf: (c) => !c.desiderataActive },
@@ -760,6 +785,31 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         const done = await call(request, 'POST', `${API}/staff/imports/${doneJob}/chunk`, { token: ctx.staffToken, body: {} });
         expect(done.status(), 'import chunk fixture').toBe(200);
         ctx.importLogId = dbScalar(`SELECT import_id FROM import_logs WHERE user_id=${ctx.staffUserId} ORDER BY started_at DESC LIMIT 1`) || 'missing';
+        // Mobile API 1.10.0 cataloguing fixtures.
+        ctx.supplierId = (await staffPost('/staff/suppliers', { name: `Idem supplier ${RUN_ID}` })).id;
+        ctx.supplierDeleteId = (await staffPost('/staff/suppliers', { name: `Idem supplier delete ${RUN_ID}` })).id;
+        {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idem-marc-'));
+            const file = path.join(dir, 'idem.mrc');
+            execFileSync('php', [path.join(__dirname, 'helpers', 'marc-fixtures.php'), 'e2e', file, RUN_ID, '1', 'mrc']);
+            ctx.marcBuffer = fs.readFileSync(file);
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+        const marcJob = async () => {
+            const r = await call(request, 'POST', `${API}/staff/marc/imports`, { token: ctx.staffToken, multipart: { file: { name: 'idem.mrc', mimeType: 'application/octet-stream', buffer: ctx.marcBuffer } } });
+            expect(r.status(), 'MARC upload fixture').toBe(201);
+            return (await r.json()).data.id;
+        };
+        ctx.marcJobId = await marcJob();
+        ctx.marcCancelJobId = await marcJob();
+        ctx.z39Active = dbScalar("SELECT is_active FROM plugins WHERE name='z39-server'") === '1';
+        if (ctx.z39Active) {
+            const search = await call(request, 'POST', `${API}/staff/copy-cataloging/search`, { token: ctx.staffToken, body: { servers: ['local'], index: 'title', term: `Idem staff fixture ${RUN_ID}` } });
+            const found = search.status() === 201 ? (await search.json()).data : null;
+            // No ISBN on the fixture: the result is found by title, not flagged as a duplicate.
+            const hit = found ? found.results.find((r) => r.title === `Idem staff fixture ${RUN_ID}`) : null;
+            if (hit) { ctx.copySearchId = found.search_id; ctx.copyResultId = hit.id; }
+        }
         const enrich = await call(request, 'GET', `${API}/staff/enrich`, { token: ctx.staffToken });
         ctx.enrichCron = (await enrich.json()).data.cron_enabled;
         // Plugin content (only when the plugins are active).
@@ -908,7 +958,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try {
             const books = dbScalar(`SELECT GROUP_CONCAT(id) FROM libri WHERE titolo LIKE '%${RUN_ID}%'`);
             if (books && books !== 'NULL') {
-                for (const t of ['prestiti', 'prenotazioni', 'copie', 'libri_autori', 'libri_editori', 'libri_collane']) {
+                for (const t of ['prestiti', 'prenotazioni', 'copie', 'libri_autori_import_sources', 'libri_autori', 'libri_editori', 'libri_collane']) {
                     try { dbExec(`DELETE FROM ${t} WHERE libro_id IN (${books})`); } catch {}
                 }
                 try { dbExec(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${books})`); } catch {}
@@ -990,8 +1040,17 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         } catch {}
         if (ctx.staffUserId) {
             try { dbExec(`DELETE FROM import_logs WHERE user_id=${ctx.staffUserId}`); } catch {}
+            // Staged records of the MARC jobs never run (1.10.0 rows).
+            try {
+                const states = dbScalar(`SELECT GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(state, '$.file_path')) SEPARATOR '|') FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId} AND kind='marc'`);
+                for (const f of (states && states !== 'NULL' ? states.split('|') : [])) {
+                    if (/\/writable\/uploads\/marc_import_[^/]+\.jsonl$/.test(f)) { try { fs.unlinkSync(f); } catch {} }
+                }
+            } catch {}
             try { dbExec(`DELETE FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId}`); } catch {}
+            try { dbExec(`DELETE FROM mobile_idempotency_keys WHERE user_id=${ctx.staffUserId}`); } catch {}
         }
+        try { dbExec(`DELETE FROM fornitori WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE FROM collane WHERE nome LIKE '%${RUN_ID}%' AND parent_id IS NOT NULL`); } catch {}
         try { dbExec(`DELETE FROM collane WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE FROM mobile_calendar_tokens WHERE user_id=${ctx.userId}`); } catch {}

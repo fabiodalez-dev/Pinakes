@@ -9292,5 +9292,8 @@
   "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre créé reçoit un exemplaire, ceux déjà au catalogue gardent les leurs",
   "Altri %d campi non mostrati": "%d autres champs non affichés",
   "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Sélection non valide pour l'export : réessayez depuis la liste des livres.",
-  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Les identifiants de la notice (ISBN, EAN) appartiennent à des livres différents du catalogue : notice non importée."
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Les identifiants de la notice (ISBN, EAN) appartiennent à des livres différents du catalogue : notice non importée.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "La catalogation dérivée nécessite le plugin Z39.50/SRU actif.",
+  "Puoi importare al massimo %d record alla volta.": "Vous pouvez importer au maximum %d notices à la fois.",
+  "Ricerca non trovata: ripeti la ricerca.": "Recherche introuvable : relancez la recherche."
 }

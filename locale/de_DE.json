@@ -9292,5 +9292,8 @@
   "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Exemplardaten (Felder 852/949/952) werden nicht importiert: jedes neu angelegte Buch erhält ein Exemplar, bereits vorhandene Bücher behalten ihre eigenen",
   "Altri %d campi non mostrati": "%d weitere Felder nicht angezeigt",
   "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Ungültige Auswahl für den Export: Versuche es erneut aus der Bücherliste.",
-  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Die Kennungen des Datensatzes (ISBN, EAN) gehören zu verschiedenen Büchern im Katalog: Datensatz nicht importiert."
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Die Kennungen des Datensatzes (ISBN, EAN) gehören zu verschiedenen Büchern im Katalog: Datensatz nicht importiert.",
+  "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Die Fremddatenübernahme erfordert das aktive Z39.50/SRU-Plugin.",
+  "Puoi importare al massimo %d record alla volta.": "Sie können höchstens %d Datensätze auf einmal importieren.",
+  "Ricerca non trovata: ripeti la ricerca.": "Suche nicht gefunden: Bitte erneut suchen."
 }

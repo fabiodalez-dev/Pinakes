@@ -108,6 +108,22 @@ final class StaffBooksController
                     array_values(\App\Support\SeriesLabels::types())
                 );
             }
+            // Pinakes 0.9.0 (Mobile API 1.10.0): each list only while its module is on.
+            if (\App\Support\Features::enabled('suppliers')) {
+                $data['suppliers'] = [];
+                foreach ((new \App\Models\SupplierRepository($this->db))->options() as $id => $name) {
+                    $data['suppliers'][] = ['id' => $id, 'name' => $name];
+                }
+            }
+            if (\App\Support\Features::enabled('rda_types')) {
+                foreach (\App\Support\RdaTypes::COLUMNS as $kind => $column) {
+                    $values = [];
+                    foreach (\App\Support\RdaTypes::options($kind) as $code => $label) {
+                        $values[] = ['value' => $code, 'label' => __($label)];
+                    }
+                    $data[$column . 's'] = $values;
+                }
+            }
             if (\App\Plugins\MobileApi\Support\StaffAreas::implemented('circulation')) {
                 $data['return_outcomes'] = [
                     ['value' => 'restituito', 'label' => __('Restituito')],
@@ -353,7 +369,7 @@ final class StaffBooksController
         $json = JsonBody::parse($request);
 
         try {
-            $invalid = StaffBookPayload::validate($json, true) ?? $this->validateReferences($json);
+            $invalid = StaffBookPayload::validate($json, true) ?? $this->validateCataloguing($json) ?? $this->validateReferences($json);
             if ($invalid !== null) {
                 return ResponseEnvelope::error($response, 'validation_error', $invalid['message'], 422, ['field' => $invalid['field']]);
             }
@@ -362,6 +378,7 @@ final class StaffBooksController
             }
 
             $post = StaffBookPayload::toCreatePost($json);
+            StaffBookPayload::applyCataloguing($post, $json, self::suppliersOn(), \App\Support\Features::enabled('rda_types'));
             $outcome = $this->delegate(function () use ($post): ResponseInterface {
                 $mock = (new ServerRequestFactory())
                     ->createServerRequest('POST', '/admin/books/create')
@@ -396,7 +413,7 @@ final class StaffBooksController
                 return ResponseEnvelope::error($response, 'not_found', __('Libro non trovato.'), 404);
             }
 
-            $invalid = StaffBookPayload::validate($json, false) ?? $this->validateReferences($json);
+            $invalid = StaffBookPayload::validate($json, false) ?? $this->validateCataloguing($json) ?? $this->validateReferences($json);
             if ($invalid !== null) {
                 return ResponseEnvelope::error($response, 'validation_error', $invalid['message'], 422, ['field' => $invalid['field']]);
             }
@@ -405,6 +422,7 @@ final class StaffBooksController
             }
 
             $post = StaffBookPayload::toUpdatePost($json, $current);
+            StaffBookPayload::applyCataloguing($post, $json, self::suppliersOn(), \App\Support\Features::enabled('rda_types'));
             $outcome = $this->delegate(function () use ($post, $bookId): ResponseInterface {
                 $mock = (new ServerRequestFactory())
                     ->createServerRequest('POST', '/admin/books/update/' . $bookId)
@@ -850,6 +868,34 @@ final class StaffBooksController
 
         SecureLogger::error('[MobileApi] staff book delegation: unexpected HTTP ' . $status);
         return ResponseEnvelope::error($response, 'internal_error', __('Errore interno.'), 500);
+    }
+
+    /** The suppliers module is on and its schema is in place. */
+    private static function suppliersOn(): bool
+    {
+        return \App\Support\Features::enabled('suppliers');
+    }
+
+    /**
+     * The 0.9.0 cataloguing keys: well-formed, and a supplier that exists
+     * (the web form would silently keep the old one; the app gets a 422).
+     *
+     * @param array<string, mixed> $json
+     * @return array{field:string, message:string}|null
+     */
+    private function validateCataloguing(array $json): ?array
+    {
+        $suppliersOn = self::suppliersOn() && (new \App\Models\SupplierRepository($this->db))->isAvailable();
+        $invalid = StaffBookPayload::validateCataloguing($json, $suppliersOn, \App\Support\Features::enabled('rda_types'));
+        if ($invalid !== null) {
+            return $invalid;
+        }
+        $supplierId = $suppliersOn ? StaffBookPayload::intOrNull($json['supplier_id'] ?? null) : null;
+        if ($supplierId !== null && $supplierId > 0 && \App\Support\CataloguingExtras::existingSupplierId($this->db, $supplierId) === null) {
+            return ['field' => 'supplier_id', 'message' => __('Riferimento inesistente.')];
+        }
+
+        return null;
     }
 
     /**

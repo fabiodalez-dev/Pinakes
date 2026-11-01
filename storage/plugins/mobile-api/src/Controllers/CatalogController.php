@@ -725,6 +725,16 @@ final class CatalogController
             $bind[] = $authorId; $types .= 'i';
         }
 
+        // Operator view only (GET /staff/books): the supplier the copy was
+        // acquired from (Pinakes 0.9.0, the book list's supplier filter).
+        // Ignored while the suppliers module is off, like on the web.
+        $supplierId = $this->operatorView && isset($params['supplier_id']) ? Input::int($params['supplier_id']) : 0;
+        if ($supplierId > 0 && \App\Support\Features::enabled('suppliers')
+            && (new \App\Models\SupplierRepository($this->db))->isAvailable()) {
+            $conditions[] = 'l.fornitore_id = ?';
+            $bind[] = $supplierId; $types .= 'i';
+        }
+
         // Genre cascade id: match the id at ANY level of the hierarchy (same
         // semantics as the web catalog) so filtering by a top genre also returns
         // books classified under its descendants.

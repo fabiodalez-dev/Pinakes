@@ -80,6 +80,16 @@ final class StaffBookPayload
 
     public const MAX_COPIES = 100;
 
+    /**
+     * RDA override JSON key => RdaTypes kind (Pinakes 0.9.0, module rda_types).
+     * The JSON key is also the form key CataloguingExtras::save() reads.
+     */
+    public const RDA_FIELDS = [
+        'rda_content_type' => \App\Support\RdaTypes::KIND_CONTENT,
+        'rda_media_type'   => \App\Support\RdaTypes::KIND_MEDIA,
+        'rda_carrier_type' => \App\Support\RdaTypes::KIND_CARRIER,
+    ];
+
     private function __construct()
     {
     }
@@ -241,6 +251,59 @@ final class StaffBookPayload
         }
 
         return null;
+    }
+
+    /**
+     * Validate the 0.9.0 cataloguing keys (supplier, RDA overrides). A key of
+     * a module that is switched off is not validated: like the web form,
+     * the save ignores it. null or '' means "none" / "derived".
+     *
+     * @param array<string, mixed> $json
+     * @return array{field:string, message:string}|null
+     */
+    public static function validateCataloguing(array $json, bool $suppliersOn, bool $rdaOn): ?array
+    {
+        if ($suppliersOn && array_key_exists('supplier_id', $json) && $json['supplier_id'] !== null && $json['supplier_id'] !== '') {
+            $id = self::intOrNull($json['supplier_id']);
+            if ($id === null || $id <= 0) {
+                return self::fail('supplier_id', __('Valore non valido.'));
+            }
+        }
+        if ($rdaOn) {
+            foreach (self::RDA_FIELDS as $key => $kind) {
+                if (!array_key_exists($key, $json) || $json[$key] === null || $json[$key] === '') {
+                    continue;
+                }
+                if (\App\Support\RdaTypes::normalize($kind, $json[$key]) === null) {
+                    return self::fail($key, __('Valore non valido.'));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Add the cataloguing keys the client sent to a create/update post. An
+     * absent key is not posted, so CataloguingExtras::save() keeps the
+     * stored value; null or '' posts the empty choice, which clears it.
+     *
+     * @param array<string, mixed> $post
+     * @param array<string, mixed> $json validated body
+     */
+    public static function applyCataloguing(array &$post, array $json, bool $suppliersOn, bool $rdaOn): void
+    {
+        if ($suppliersOn && array_key_exists('supplier_id', $json)) {
+            $id = self::intOrNull($json['supplier_id']);
+            $post['fornitore_id'] = $id !== null && $id > 0 ? (string) $id : '';
+        }
+        if ($rdaOn) {
+            foreach (self::RDA_FIELDS as $key => $kind) {
+                if (array_key_exists($key, $json)) {
+                    $post[$key] = (string) (\App\Support\RdaTypes::normalize($kind, $json[$key]) ?? '');
+                }
+            }
+        }
     }
 
     /**
