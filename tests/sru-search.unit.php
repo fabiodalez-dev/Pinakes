@@ -69,6 +69,10 @@ $check(SruClient::cqlFor(['quote_search_terms' => true], 'isbn', '88-452-9261-3'
 $check(SruClient::cqlFor(['indexes' => ['any' => ['index' => 'woe', 'relation' => 'all']]], 'any', 'Kafka Prozess') === 'woe all "Kafka Prozess"', '05f an index mapped with a relation (DNB woe all)');
 $check(SruClient::cqlFor(['indexes' => ['any' => ['index' => 'woe', 'relation' => 'drop table']]], 'any', 'x') === 'woe="x"', '05g an unknown relation falls back to =');
 $check(SruClient::cqlFor(['indexes' => ['title' => ['index' => 'tit']]], 'title', 'x') === 'tit="x"', '05h the array form without a relation is =');
+$dbcBare = ['syntax' => 'dbc-opensearch'];
+$check(SruClient::cqlFor($dbcBare, 'title', 'Kongens fald') === 'term.title="Kongens fald"' && SruClient::cqlFor($dbcBare, 'isbn', '978-87-02-27245-1') === 'term.isbn=9788702272451'
+    && SruClient::cqlFor($dbcBare, 'author', 'Jensen') === 'term.creator="Jensen"' && SruClient::cqlFor($dbcBare, 'any', 'x') === 'term.default="x"', '05i a DBC OpenSearch server without an index map gets the term.* indexes');
+$check(SruClient::cqlFor(['syntax' => 'dbc-opensearch', 'indexes' => ['title' => 'dc.title']], 'title', 'x') === 'dc.title="x"', '05j a DBC server\'s own index map still wins');
 foreach (["dell'arte", 'and', 'not', 'Eco'] as $word) {
     $parsed = true;
     try {
@@ -109,6 +113,11 @@ $unreadable = '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.lo
     . '</records></searchRetrieveResponse>';
 $unread = (new SearchFixtureClient([$server], $unreadable))->searchServer($server, 'q', 5);
 $check($unread['records'] === [] && $unread['total'] === 1 && is_string($unread['error']) && $unread['error'] !== '', '12d a hit no record of which can be read is reported with the reader\'s error, not as an empty result');
+$foreign = '<?xml version="1.0"?><searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><numberOfRecords>1</numberOfRecords><records>'
+    . '<record><recordSchema>mods</recordSchema><recordData><mods xmlns="http://www.loc.gov/mods/v3"><titleInfo><title>Not MARC</title></titleInfo></mods></recordData></record>'
+    . '</records></searchRetrieveResponse>';
+$foreignAnswer = (new SearchFixtureClient([$server], $foreign))->searchServer($server, 'q', 5);
+$check($foreignAnswer['records'] === [] && $foreignAnswer['total'] === 1 && is_string($foreignAnswer['error']) && str_contains($foreignAnswer['error'], '1 record'), '12e a positive count with no record in a readable format is reported, not shown as "0 of 1"');
 $ownError = '<?xml version="1.0" encoding="UTF-8"?><error><message>Invalid or missing API key</message></error>';
 $denied = (new SearchFixtureClient([$server], $ownError))->searchServer($server, 'q', 5);
 $check($denied['error'] === 'Invalid or missing API key' && $denied['records'] === [], '12c the <error> our own endpoint answers with is the server\'s error');
@@ -208,14 +217,32 @@ $unavailableAnswer = $unavailable->searchServer($server, 'bib.title=x', 3);
 $check($unavailable->calls === 2 && $unavailableAnswer['error'] === null, '18i an HTTP 5xx is transient and retried');
 $isbnTimeout = new $transportClass([['name' => 'Isbn', 'url' => 'https://isbn-timeout.example.org/sru', 'enabled' => true]], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_TIMEOUT]);
 $isbnTimeout->searchByIsbn('9788845292613');
-// queryServer() asks bath.isbn and then the bare isbn index: two requests,
-// each once, instead of 2 x (1 + 2 retries).
-$check($isbnTimeout->calls === 2, '18j the ISBN lookup does not retry a timeout either');
+// A timeout on bath.isbn is not followed by the bare isbn index either
+// (CodeRabbit on PR #505): one request, not two, nor 2 x (1 + 2 retries).
+$check($isbnTimeout->calls === 1, '18j the ISBN lookup does not retry a timeout, nor fall back to the bare index after one');
+$blocked = new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_BLOCKED]);
+$blockedAnswer = $blocked->searchServer($server, 'bib.title=x', 3);
+$check($blocked->calls === 1 && $blockedAnswer['error'] === 'Request blocked', '18o a request the SSRF guard blocked is attempted once, not retried (Pullfrog on PR #505)');
+$structured404 = new $transportClass([$server], $sru, ['ok' => true, 'status' => 404, 'body' => 'Not Found']);
+$structured404Answer = $structured404->searchServer($server, 'bib.title=x', 3);
+$check($structured404->calls === 1 && $structured404Answer['error'] === 'HTTP 404 error from server', '18p an HTTP 404 answer of the transport is reported and not retried');
+$isbnServer = [['name' => 'Isbn4xx', 'url' => 'https://isbn-4xx.example.org/sru', 'enabled' => true]];
+$isbnDenied = new $transportClass($isbnServer, $sru, ['ok' => true, 'status' => 401, 'body' => '']);
+$isbnDenied->searchByIsbn('9788845292613');
+$check($isbnDenied->calls === 1, '18q an HTTP 401 on bath.isbn is not repeated with the bare isbn index');
+$isbnRefused = new $transportClass($isbnServer, $sru, ['ok' => true, 'status' => 400, 'body' => ''], 1);
+$check(is_array($isbnRefused->searchByIsbn('9788845292613')) && $isbnRefused->calls === 2, '18r an HTTP 400 (bath.isbn refused) still falls back to the bare isbn index');
 // Slow transient failures: once the attempts have used one timeout, no retry
 // starts, whatever the kind of failure.
 $slow = (new $transportClass([$server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_CONNECT], 99, 1.05))->setOptions(['timeout' => 1]);
 $slow->searchServer($server, 'bib.title=x', 3);
 $check($slow->calls === 1, '18k no retry starts once the attempts have used one request timeout');
+// The backoff and the rate-limit wait count against the same budget: a
+// first attempt of 0.95 s leaves no room for a retry under a 1 s timeout.
+$waited = (new $transportClass([['url' => 'https://budget.example.org/sru'] + $server], $sru, ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_CONNECT], 99, 0.95))->setOptions(['timeout' => 1]);
+$waitedStart = microtime(true);
+$waited->searchServer(['url' => 'https://budget.example.org/sru'] + $server, 'bib.title=x', 3);
+$check($waited->calls === 1 && microtime(true) - $waitedStart < 2.0, '18s a retry whose backoff and rate-limit wait pass the timeout is not sent');
 // The real transport classifies the failures: a closed port is a connect
 // failure, a server that accepts the connection and never answers is a
 // timeout, an answer declaring more than max_bytes is too large.

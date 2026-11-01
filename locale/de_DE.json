@@ -8548,7 +8548,6 @@
   "Impossibile aprire il file caricato": "Die hochgeladene Datei kann nicht geöffnet werden",
   "Indica cosa cercare e almeno un catalogo": "Gib einen Suchbegriff ein und wähle mindestens einen Katalog",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Die in den Datensätzen angegebenen Cover werden lokal gespeichert. Das verlangsamt den Import.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Exemplardaten (Felder 852/949/952) werden nicht importiert: jedes Buch erhält ein Exemplar",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Bereits vorhandene Bücher (gleiche ISBN-13, ISBN-10 oder EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
@@ -8936,7 +8935,7 @@
   "Natale": "Weihnachten",
   "Nessuna chiusura configurata": "Keine Schließungen eingerichtet",
   "Ogni anno": "Jedes Jahr",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Jedes Kalenderereignis wird zu einem Schließtag oder -zeitraum; jährliche Ereignisse (RRULE FREQ=YEARLY) wiederholen sich jedes Jahr.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Jedes Kalenderereignis wird zu einem Schließtag oder -zeitraum. Nur eine einfache jährliche Wiederholung (RRULE FREQ=YEARLY ohne COUNT, UNTIL, EXDATE oder Wochentage, jedes Jahr am selben Datum) wiederholt sich jedes Jahr; bei jeder anderen Wiederholung wird nur das erste Vorkommen als einzelne Schließung importiert.",
   "Ognissanti": "Allerheiligen",
   "Pasqua": "Ostersonntag",
   "Ricorrenza": "Wiederholung",
@@ -9082,5 +9081,15 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d von %d Zeilen verarbeitet. Sie können ihn dort fortsetzen, wo er angehalten hat, oder ihn schließen: Die bereits angelegten Benutzer bleiben erhalten.",
   "Annulla import": "Import abbrechen",
   "Riprendi import": "Import fortsetzen",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Benutzer nicht gelöscht: Sein Foto kann nicht von der Festplatte entfernt werden. Versuchen Sie es erneut oder prüfen Sie die Berechtigungen des Ordners storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Benutzer nicht gelöscht: Sein Foto kann nicht von der Festplatte entfernt werden. Versuchen Sie es erneut oder prüfen Sie die Berechtigungen des Ordners storage.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d verworfen, weil sie zusammen mit den anderen jährlichen Schließungen die Bibliothek das ganze Jahr geschlossen halten würden.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "Der vorherige Import wurde geschlossen, aber der Importverlauf konnte nicht aktualisiert werden: Die bereits angelegten Benutzer bleiben erhalten.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "Die Importdatei ist nicht mehr verfügbar und der Importverlauf konnte nicht aktualisiert werden: Die bereits angelegten Benutzer bleiben erhalten. Lade die Datei erneut hoch, um den Import abzuschließen.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "Die Datei des unterbrochenen Imports «%s» war nicht mehr verfügbar: Der Import wurde nach %d von %d Zeilen geschlossen, aber der Importverlauf konnte nicht aktualisiert werden. Die bereits angelegten Benutzer bleiben erhalten; lade die Datei erneut hoch, um ihn abzuschließen.",
+  "Troppi utenti selezionati": "Zu viele Benutzer ausgewählt",
+  "Si possono stampare al massimo %d tessere alla volta: selezionane di meno.": "Es können höchstens %d Leserausweise auf einmal gedruckt werden: wähle weniger Benutzer aus.",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Exemplardaten (Felder 852/949/952) werden nicht importiert: jedes neu angelegte Buch erhält ein Exemplar, bereits vorhandene Bücher behalten ihre eigenen",
+  "Altri %d campi non mostrati": "%d weitere Felder nicht angezeigt",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Ungültige Auswahl für den Export: Versuche es erneut aus der Bücherliste.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Die Kennungen des Datensatzes (ISBN, EAN) gehören zu verschiedenen Büchern im Katalog: Datensatz nicht importiert."
 }

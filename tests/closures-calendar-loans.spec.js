@@ -62,11 +62,11 @@ function closeDay(from, to = from) {
 function clearClosures() {
   db(`DELETE FROM calendario_chiusure WHERE descrizione='${TAG}'`);
 }
-// The first open day from `day` on, as the application computes it for a loan
-// with no branch: this run's closures and any already stored, plus the weekly
+// Whether a day is closed for a loan with no branch, as the application
+// computes it: this run's closures and any already stored, plus the weekly
 // closed days. An existing closure next to a test date moves the expected
 // date with it instead of failing the assertion.
-function nextOpenInDb(day) {
+function closedInDb() {
   const weekly = db("SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'), '')")
     .split(',').filter((d) => /^[0-6]$/.test(d.trim())).map(Number);
   const closures = db('SELECT CONCAT(data_inizio,\'|\',data_fine,\'|\',ricorrente_annuale,\'|\',DATEDIFF(data_fine,data_inizio)) FROM calendario_chiusure WHERE sede_id IS NULL')
@@ -76,9 +76,25 @@ function nextOpenInDb(day) {
     const md = iso.slice(5), a = from.slice(5), b = to.slice(5);
     return b < a ? (md >= a || md <= b) : (md >= a && md <= b);
   });
+  return closed;
+}
+// The first open day from `day` on.
+function nextOpenInDb(day) {
+  const closed = closedInDb();
   let result = day;
   for (let i = 0; i < 1100 && closed(result); i++) result = addDays(result, 1);
   return result;
+}
+// The day `days` open days after `from` (LibraryCalendar::pickupDeadline's
+// rule), never past `capAt`.
+function addOpenDaysInDb(from, days, capAt) {
+  const closed = closedInDb();
+  let result = from;
+  for (let counted = 0, i = 0; counted < days && i < 1100; i++) {
+    result = addDays(result, 1);
+    if (!closed(result)) counted++;
+  }
+  return capAt && result > capAt ? capAt : result;
 }
 function setWeekdays(value) {
   db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${value}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
@@ -233,15 +249,19 @@ test.describe('Closures calendar — circulation', () => {
   });
 
   test('Admin 5: with no closures the due date and the pickup deadline are as before', async ({ page }) => {
+    // This run adds no closure here, but one already in the table (another
+    // run's, an operator's) still moves the dates: the expectations follow it.
+    const expectedDue = nextOpenInDb(addDays(today, loanDays));
+    const expectedPickup = addOpenDaysInDb(today, pickupDays, expectedDue);
     await loginAs(page, ADMIN_EMAIL, ADMIN_PASS);
     await page.goto(`${BASE}/admin/loans/create`);
-    await expect(page.locator('#data_scadenza')).toHaveValue(addDays(today, loanDays));
+    await expect(page.locator('#data_scadenza')).toHaveValue(expectedDue);
     await selectBorrower(page);
     await resolveCopy(page, books.zero);
     await page.uncheck('#consegna_immediata');
     await submitLoanForm(page);
     expect(db(`SELECT CONCAT(data_scadenza,'|',pickup_deadline) FROM prestiti WHERE libro_id=${books.zero.id} AND utente_id=${readerId}`))
-      .toBe(`${addDays(today, loanDays)}|${addDays(today, Math.min(pickupDays, loanDays))}`);
+      .toBe(`${expectedDue}|${expectedPickup}`);
   });
 
   test('Admin 6: closing the past pickup deadline day from the calendar page keeps the pickup collectable', async ({ page }) => {

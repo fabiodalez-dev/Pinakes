@@ -92,6 +92,9 @@ try {
     // the ledger read; copie.sede_id is the copy's branch for closed days).
     $db->query("CREATE TABLE utenti (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, email VARCHAR(255) NOT NULL) ENGINE=InnoDB");
     $db->query("CREATE TABLE copie (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, sede_id INT DEFAULT NULL) ENGINE=InnoDB");
+    // system_settings is in every 0.8.9 install: the debt block reads the
+    // legacy penalty backfill marker from it.
+    $db->query("CREATE TABLE system_settings (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, category VARCHAR(50) NOT NULL, setting_key VARCHAR(100) NOT NULL, setting_value TEXT, description TEXT, created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY unique_setting (category, setting_key)) ENGINE=InnoDB");
     $db->query("CREATE TABLE prestiti (
         id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, utente_id INT NOT NULL, copia_id INT DEFAULT NULL,
         stato ENUM('pendente','prenotato','da_ritirare','in_corso','restituito','in_ritardo','perso','danneggiato','annullato','scaduto') DEFAULT 'pendente',

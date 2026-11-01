@@ -706,8 +706,10 @@ class UsersController
             $lockUser->bind_param('i', $id);
             $lockUser->execute();
             $lockUser->close();
-            // Before the 0.9.0 migration there is no ledger to count.
-            $loanCheck = \App\Services\PatronLedger::schemaReady($db)
+            // Before the 0.9.0 migration there is no ledger to count. A failed
+            // probe throws (rollback below) instead of skipping the ledger
+            // rows and letting the cascade erase them.
+            $loanCheck = \App\Services\PatronLedger::schemaReadyOrFail($db)
                 ? $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count")
                 : $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + 0 * ? AS count");
             $loanCheck->bind_param("ii", $id, $id);
@@ -745,18 +747,31 @@ class UsersController
                 return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
             }
 
-            // No loans - safe to delete. The photo is personal data and goes
-            // first: once the row is gone nothing would point to a file whose
-            // removal failed, so a photo that cannot be removed stops the delete.
-            if (!\App\Support\PatronPhoto::delete($db, $id)) {
+            // No loans - safe to delete. The row and its photo (personal data)
+            // go together: the DELETE runs first and the file is removed before
+            // the commit. A DELETE that fails (a reservation still pointing to
+            // the reader) leaves the photo untouched, and a file that cannot be
+            // removed rolls the DELETE back instead of being orphaned. The row
+            // is already locked above.
+            $stmt = $db->prepare("SELECT foto_profilo_url FROM utenti WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $photo = $stmt->get_result()->fetch_assoc()['foto_profilo_url'] ?? null;
+            $stmt->close();
+
+            $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $success = $stmt->execute();
+            $error = $stmt->error;
+            $stmt->close();
+            if (!$success) {
+                throw new \RuntimeException($error);
+            }
+            if (!\App\Support\PatronPhoto::deleteFile(is_string($photo) ? $photo : null)) {
                 $db->rollback();
                 $_SESSION['error_message'] = __('Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.');
                 return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
             }
-            $stmt = $db->prepare("DELETE FROM utenti WHERE id = ?");
-            $stmt->bind_param("i", $id);
-            $stmt->execute();
-            $stmt->close();
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollback();
@@ -767,6 +782,8 @@ class UsersController
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
             return $response->withHeader('Location', url('/admin/users?error=db_error'))->withStatus(302);
         }
+        // Leftovers of earlier photos whose unlink failed go with the account.
+        \App\Support\PatronPhoto::sweepOrphans($id, null);
 
         // Audit logging for user deletion
         \App\Support\SecureLogger::info('User deleted', [

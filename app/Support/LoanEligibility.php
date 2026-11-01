@@ -171,17 +171,20 @@ class LoanEligibility
      * (first predefinita = 1 in display order, as CirculationPolicy::types()),
      * the global loans.debt_block_threshold when it is a well-formed amount.
      * A threshold of NULL or 0 never blocks. With no movimenti_lettore table
-     * (PatronLedger::schemaReady()) nobody has a balance: "1 = 1".
+     * (PatronLedger::schemaReadyOrFail()) nobody has a balance: "1 = 1"; a
+     * failed probe throws rather than dropping the predicate. While the
+     * legacy penalty backfill is pending the unconverted prestiti.sanzione
+     * amounts count too (PatronLedger::debtBalanceSql()).
      */
     public static function debtBlockSql(string $alias, \mysqli $db): string
     {
-        if (!\App\Services\PatronLedger::schemaReady($db)) {
+        if (!\App\Services\PatronLedger::schemaReadyOrFail($db)) {
             return '1 = 1';
         }
         $threshold = self::debtThresholdSql($alias, $db);
         return "(
                         COALESCE({$threshold}, 0) <= 0
-                        OR " . \App\Services\PatronLedger::balanceSql($alias . '.id') . " <= {$threshold}
+                        OR " . \App\Services\PatronLedger::debtBalanceSql($alias . '.id', $db) . " <= {$threshold}
                     )";
     }
 

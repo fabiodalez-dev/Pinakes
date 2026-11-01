@@ -135,6 +135,13 @@ final class MarcBookImporter
         }
         $parsed = $this->pipeline->normalizeImportRow(MarcBookData::toImportRow($data));
         $title = (string) ($parsed['titolo'] ?? '');
+        // Identifiers that belong to two different books (the ISBN of one,
+        // the EAN or other ISBN form of another) name no single book: fill
+        // would write one work's data into the other, overwrite would trip
+        // the unique keys. Skip mode only leaves the first match as it is.
+        if ($this->mode !== self::MODE_SKIP && count($this->identifierMatches($parsed, 2) ?? []) > 1) {
+            throw new \RuntimeException(__('Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.'));
+        }
         $existingId = $this->findExisting($parsed);
 
         if ($existingId !== null && $this->mode === self::MODE_SKIP) {
@@ -193,6 +200,23 @@ final class MarcBookImporter
      */
     public function findExisting(array $parsed): ?int
     {
+        $byIdentifier = $this->identifierMatches($parsed, 1);
+        if ($byIdentifier !== null) {
+            return $byIdentifier[0] ?? null;
+        }
+        return $this->findByTitleAndAuthor($parsed);
+    }
+
+    /**
+     * The books (not deleted, lowest id first, at most $limit) any form of
+     * the record's ISBN or its EAN matches; null when the record has no
+     * identifier at all.
+     *
+     * @param array<string, mixed> $parsed
+     * @return list<int>|null
+     */
+    private function identifierMatches(array $parsed, int $limit): ?array
+    {
         $thirteen = [];
         $ten = [];
         foreach (['isbn13', 'isbn10'] as $key) {
@@ -224,17 +248,30 @@ final class MarcBookImporter
                 $conditions[] = 'isbn10 IN (' . implode(',', array_fill(0, count($ten), '?')) . ')';
                 $params = array_merge($params, $ten);
             }
-            $stmt = $this->db->prepare('SELECT id FROM libri WHERE deleted_at IS NULL AND (' . implode(' OR ', $conditions) . ') ORDER BY id LIMIT 1');
+            $stmt = $this->db->prepare('SELECT id FROM libri WHERE deleted_at IS NULL AND (' . implode(' OR ', $conditions) . ') ORDER BY id LIMIT ' . max(1, $limit));
             if ($stmt === false) {
                 throw new \RuntimeException('Unable to prepare the duplicate lookup');
             }
             $stmt->bind_param(str_repeat('s', count($params)), ...$params);
             $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc();
+            $ids = [];
+            foreach ($stmt->get_result()->fetch_all(MYSQLI_NUM) as $row) {
+                $ids[] = (int) $row[0];
+            }
             $stmt->close();
-            return $row ? (int) $row['id'] : null;
+            return $ids;
         }
+        return null;
+    }
 
+    /**
+     * The book (not deleted) with the record's exact title whose principal
+     * author is the record's first author.
+     *
+     * @param array<string, mixed> $parsed
+     */
+    private function findByTitleAndAuthor(array $parsed): ?int
+    {
         $title = trim((string) ($parsed['titolo'] ?? ''));
         $authors = array_values(array_filter(array_map('trim', explode(';', (string) ($parsed['autori'] ?? '')))));
         if ($title === '' || $authors === []) {
@@ -246,7 +283,9 @@ final class MarcBookImporter
         // exact spelling wins when both are on file). Comparing names here with
         // another rule made a re-import create the same book again. The title
         // compares with accents distinct (#501), so a record never overwrites
-        // a different book whose title only differs by an accent.
+        // a different book whose title only differs by an accent. Only a
+        // principal author counts: the record's first author is one, and the
+        // translator of another book with the same title is not its author.
         $authorId = (new \App\Models\AuthorRepository($this->db))->findByCanonicalName($authors[0]);
         if ($authorId === null) {
             return null;
@@ -255,7 +294,10 @@ final class MarcBookImporter
         $stmt = $this->db->prepare(
             'SELECT l.id FROM libri l
                JOIN libri_autori la ON la.libro_id = l.id
-              WHERE l.deleted_at IS NULL AND la.autore_id = ? AND ' . $titleCond['sql'] . '
+              WHERE l.deleted_at IS NULL
+                AND la.autore_id = ?
+                AND la.ruolo = \'principale\'
+                AND ' . $titleCond['sql'] . '
               ORDER BY l.id LIMIT 1'
         );
         if ($stmt === false) {
@@ -314,6 +356,12 @@ final class MarcBookImporter
                 $families[$family] = (int) ($existing['_principal_authors'] ?? 0) === 0;
                 continue;
             }
+            // The colorist has no legacy column: the family is empty for it
+            // when the book has no colorist link.
+            if ($family === 'contributors' && ($data['colorista'] ?? []) !== [] && (int) ($existing['_colorist_links'] ?? 0) === 0) {
+                $families[$family] = true;
+                continue;
+            }
             $families[$family] = array_intersect_key(array_flip(self::FAMILY_COLUMNS[$family]), $empty) !== [];
         }
         // Never from a MARC record: the format and the price. The media type
@@ -366,6 +414,23 @@ final class MarcBookImporter
             }
             $families['isbn'] = $filled;
         }
+        // overwrite: a record that carries one form of the ISBN keeps the
+        // book's other form only when it is the same ISBN; another work's
+        // ISBN-10 next to the record's ISBN-13 is cleared, not kept.
+        if ($mode === self::MODE_OVERWRITE && $families['isbn']) {
+            foreach (['isbn10' => 'isbn13', 'isbn13' => 'isbn10'] as $column => $other) {
+                $recordValue = trim((string) ($data[$column] ?? ''));
+                $recordOther = trim((string) ($data[$other] ?? ''));
+                $kept = trim((string) ($parsed[$column] ?? ''));
+                if ($recordValue !== '' || $recordOther === '' || $kept === '') {
+                    continue;
+                }
+                $variant = \App\Support\IsbnFormatter::getAllVariants($recordOther)[$column] ?? null;
+                if ($variant === null || $variant !== \App\Support\IsbnFormatter::clean($kept)) {
+                    $parsed[$column] = '';
+                }
+            }
+        }
         return [$families, $parsed];
     }
 
@@ -389,6 +454,13 @@ final class MarcBookImporter
             $count->execute();
             $row['_principal_authors'] = (int) ($count->get_result()->fetch_row()[0] ?? 0);
             $count->close();
+        }
+        $colorists = $this->db->prepare("SELECT COUNT(*) FROM libri_autori WHERE libro_id = ? AND ruolo = 'colorista'");
+        if ($colorists !== false) {
+            $colorists->bind_param('i', $id);
+            $colorists->execute();
+            $row['_colorist_links'] = (int) ($colorists->get_result()->fetch_row()[0] ?? 0);
+            $colorists->close();
         }
         return $row;
     }
