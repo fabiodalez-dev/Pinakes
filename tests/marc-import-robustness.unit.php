@@ -148,8 +148,21 @@ $check($fill['tipo_media'] === false, 'fill: the media type of a book is left (a
 $check($over['isbn'] === true && $over['titolo'] === true && $row['isbn13'] === '9780140449136' && $row['titolo'] === 'New title' && $row['traduttore'] === 'New Translator', 'overwrite: the record\'s values replace the book\'s');
 $check($over['tipo_media'] === true && $row['tipo_media'] === 'dvd' && $over['formato'] === false && $over['prezzo'] === false, 'overwrite: a DVD record updates the media type of a printed book; the format and the price are not written');
 $partial = ['isbn13' => '9780140449136', 'titolo' => 'New title'] + \App\Support\Marc\MarcBookData::empty();
-[$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial)), ['isbn10' => '8845292614', 'traduttore' => 'Old Translator'] + $existing);
-$check($row['isbn10'] === '8845292614' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value');
+$partialParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($partial));
+[$over, $row] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $partialParsed, ['isbn10' => '0140449132', 'traduttore' => 'Old Translator'] + $existing);
+$check($row['isbn10'] === '0140449132' && $row['traduttore'] === 'Old Translator' && $over['contributors'] === false, 'overwrite: a column the record leaves empty keeps the book\'s value (the ISBN-10 of the same ISBN)');
+// CodeRabbit on PR #505: the ISBN-10 the book has is another work's (it is
+// the 10-digit form of 9788845292613, not of the record's 9780140449136).
+[, $rowPair] = MarcBookImporter::plan(MarcBookImporter::MODE_OVERWRITE, $partial, $partialParsed, ['isbn10' => '8845292614'] + $existing);
+$check($rowPair['isbn13'] === '9780140449136' && $rowPair['isbn10'] === '', 'overwrite: the book\'s ISBN-10 of another work is cleared, not kept next to the record\'s ISBN-13');
+// The colorist has no legacy column: a book whose translator, illustrator
+// and editor columns are all set still gets the record's colorist.
+$colorRecord = ['titolo' => 'Old title', 'colorista' => ['Col Orista']] + \App\Support\Marc\MarcBookData::empty();
+$colorParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($colorRecord));
+$fullLegacy = ['traduttore' => 'T', 'illustratore' => 'I', 'curatore' => 'C', '_colorist_links' => 0] + $existing;
+[$fillColor] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $colorRecord, $colorParsed, $fullLegacy);
+[$fillColorLinked] = MarcBookImporter::plan(MarcBookImporter::MODE_FILL, $colorRecord, $colorParsed, ['_colorist_links' => 1] + $fullLegacy);
+$check($fillColor['contributors'] === true && $fillColorLinked['contributors'] === false, 'fill: a record\'s colorist is added to a book without one, even when every legacy contributor column is set; a book with a colorist keeps it');
 $check($over['tipo_media'] === false, 'overwrite: a record without a media type leaves the book\'s');
 $numberOnly = ['titolo' => 'Old title', 'numero_serie' => '7'] + \App\Support\Marc\MarcBookData::empty();
 $numberParsed = $csv->normalizeImportRow(\App\Support\Marc\MarcBookData::toImportRow($numberOnly));
@@ -308,6 +321,54 @@ if (!is_file($envFile)) {
             $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$plainBook}, {$plainId}, 'principale')");
             $check($skip->findExisting($plainRecord) === $plainBook, 'dedup: once Haffner is on file too, the Haffner record matches his book, not Häffner\'s');
             $check($skip->findExisting(['titolo' => 'ZZMR' . $run . ' dedup Wérke', 'autori' => $plain]) === null, 'dedup: a title that differs by an accent is another book');
+            // Only a principal author counts (CodeRabbit on PR #505): the
+            // translator of a book with the same title is not its author.
+            $roleTitle = 'ZZMR' . $run . ' dedup ruolo';
+            $translatorName = 'ZZMR' . $run . ' Traduttrice';
+            $db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($translatorName) . "')");
+            $translatorId = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo) VALUES ('" . $db->real_escape_string($roleTitle) . "')");
+            $roleBook = (int) $db->insert_id;
+            $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$roleBook}, {$translatorId}, 'traduttore')");
+            $check($skip->findExisting(['titolo' => $roleTitle, 'autori' => $translatorName]) === null, 'dedup: a book where the record\'s first author is only the translator is not a duplicate');
+            // A new record without an ISBN, imported twice through the CSV
+            // pipeline from nothing: one book, one principal author link.
+            $freshTitle = 'ZZMR' . $run . ' nuovo senza isbn';
+            $freshRecord = ['titolo' => $freshTitle, 'autori' => ['ZZMR' . $run . ' Autrice Nuova']];
+            $firstFresh = $skip->import($freshRecord, $counters, $warnings);
+            $secondFresh = $skip->import($freshRecord, $counters, $warnings);
+            $freshStmt = $db->prepare("SELECT COUNT(DISTINCT l.id), COUNT(la.autore_id) FROM libri l LEFT JOIN libri_autori la ON la.libro_id = l.id AND la.ruolo = 'principale' WHERE l.titolo = ? AND l.deleted_at IS NULL");
+            $freshStmt->bind_param('s', $freshTitle);
+            $freshStmt->execute();
+            [$freshBooks, $freshLinks] = array_map('intval', $freshStmt->get_result()->fetch_row());
+            $freshStmt->close();
+            $check(($firstFresh['action'] ?? '') === 'created' && ($secondFresh['action'] ?? '') === 'skipped' && $freshBooks === 1 && $freshLinks === 1, 'dedup: a new record without an ISBN imported twice leaves one book with one principal author');
+            // Identifiers of two different books (CodeRabbit on PR #505): the
+            // ISBN-13 of one and the EAN of another name no single book.
+            $isbnOf = static function (): string {
+                $twelve = '979' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+                $sum = 0;
+                for ($i = 0; $i < 12; $i++) {
+                    $sum += (int) $twelve[$i] * ($i % 2 === 0 ? 1 : 3);
+                }
+                return $twelve . ((10 - $sum % 10) % 10);
+            };
+            [$isbnA, $eanB] = [$isbnOf(), $isbnOf()];
+            $db->query("INSERT INTO libri (titolo, isbn13) VALUES ('" . $db->real_escape_string('ZZMR' . $run . ' conflitto A') . "', '{$isbnA}')");
+            $bookA = (int) $db->insert_id;
+            $db->query("INSERT INTO libri (titolo, ean) VALUES ('" . $db->real_escape_string('ZZMR' . $run . ' conflitto B') . "', '{$eanB}')");
+            $conflictError = null;
+            try {
+                (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, false))->import(['titolo' => 'ZZMR' . $run . ' conflitto record', 'isbn13' => $isbnA, 'ean' => $eanB, 'anno_pubblicazione' => '1999', 'sottotitolo' => 'di B'], $counters, $warnings);
+            } catch (Throwable $e) {
+                $conflictError = $e->getMessage();
+            }
+            $aStmt = $db->prepare('SELECT sottotitolo, anno_pubblicazione FROM libri WHERE id = ?');
+            $aStmt->bind_param('i', $bookA);
+            $aStmt->execute();
+            $aRow = $aStmt->get_result()->fetch_assoc() ?: [];
+            $aStmt->close();
+            $check($conflictError !== null && str_contains($conflictError, 'ISBN') && (string) ($aRow['sottotitolo'] ?? '') === '' && ($aRow['anno_pubblicazione'] ?? null) === null, 'fill: a record whose ISBN and EAN belong to two different books is refused, neither book is written');
 
             // 6. Chunks belong to the preview that staged them; a lost last
             //    response is answered again; a failed history save is retried

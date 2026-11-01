@@ -8586,5 +8586,6 @@
   "Il catalogo SBN non permette la ricerca per ISSN.": "The SBN catalogue does not support searching by ISSN.",
   "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "This preview was replaced by another uploaded file: upload the file again to import it.",
   "Altri %d campi non mostrati": "%d more fields not shown",
-  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Invalid selection for the export: try again from the book list."
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Invalid selection for the export: try again from the book list.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "The record's identifiers (ISBN, EAN) belong to different books in the catalogue: record not imported."
 }

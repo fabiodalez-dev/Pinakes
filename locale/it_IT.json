@@ -8586,5 +8586,6 @@
   "Il catalogo SBN non permette la ricerca per ISSN.": "Il catalogo SBN non permette la ricerca per ISSN.",
   "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.",
   "Altri %d campi non mostrati": "Altri %d campi non mostrati",
-  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Selezione non valida per l'esportazione: riprova dalla lista dei libri."
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Selezione non valida per l'esportazione: riprova dalla lista dei libri.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato."
 }
