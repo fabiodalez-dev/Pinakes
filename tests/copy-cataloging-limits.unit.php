@@ -166,6 +166,48 @@ if (!is_file($envFile)) {
     $check(count($big['results']) === 6 && $storedSize <= CopyCataloging::MAX_STORED_BYTES, '12 the book data kept in the session stops at the size cap (6 records of 600 KiB under 4 MiB)');
     $check($queried === ['Server 1'] && ($big['servers'][0]['count'] ?? null) === 6 && ($big['servers'][1]['error'] ?? null) === __('Limite di dimensione dei risultati raggiunto: catalogo non interrogato.'), '13 the next server is reported as not queried because of the size cap');
 
+    echo "Local dispatch\n";
+    // fetchUrl() answers this installation's own /api/sru in-process: with a
+    // plugin id that has no settings the endpoint answers "disabled" (503,
+    // <error>), which only handleSRURequest() can write. Over HTTP the
+    // example host would fail as a connection error instead.
+    $savedCanonical = $_ENV['APP_CANONICAL_URL'] ?? null;
+    $_ENV['APP_CANONICAL_URL'] = 'https://catalogo-locale.example.org';
+    $localServer = ['name' => 'Local', 'url' => 'https://catalogo-locale.example.org/api/sru', 'syntax' => 'marcxml', 'enabled' => true];
+    $localAnswer = (new LocalSruClient([$localServer], $db, -1))->setOptions(['timeout' => 2, 'max_retries' => 0])->searchServer($localServer, 'dc.title="x"', 5);
+    $check(($localAnswer['error'] ?? null) === 'Server is currently disabled', '13d a search of the own SRU URL is answered by the in-process endpoint, not over HTTP');
+    if ($savedCanonical === null) {
+        unset($_ENV['APP_CANONICAL_URL']);
+    } else {
+        $_ENV['APP_CANONICAL_URL'] = $savedCanonical;
+    }
+
+    echo "Detail size\n";
+    // CodeRabbit on PR #505: the detail view copied every MARC field of every
+    // record, mapped or not, into the JSON answer, outside the size cap.
+    $marcFactory = static function (array $server): SruClient {
+        return new class ([$server]) extends SruClient {
+            public function searchServer(array $server, string $cql, int $max = 10): array
+            {
+                $fields = [];
+                for ($f = 0; $f < 400; $f++) {
+                    $fields[] = ['tag' => '590', 'ind1' => ' ', 'ind2' => ' ', 'subfields' => [['a', str_repeat('n', 5000)]]];
+                }
+                $records = [];
+                for ($i = 1; $i <= $max; $i++) {
+                    $records[] = ['data' => ['titolo' => "ZZCC detail {$i}"], 'flavour' => 'marc21', 'marc' => ['leader' => '00000nam a2200000 a 4500', 'fields' => $fields]];
+                }
+                return ['total' => $max, 'records' => $records, 'error' => null];
+            }
+        };
+    };
+    $ccMarc = new CopyCataloging($db, null, [$configured[0]], false, false, 15, $marcFactory);
+    $marcAnswer = $ccMarc->search(['cfg:0'], 'title', 'x', 25);
+    $firstDetail = $marcAnswer['results'][0]['detail'] ?? [];
+    $longest = max(array_map(static fn (array $l): int => mb_strlen($l['value']), $firstDetail ?: [['value' => '']]));
+    $check(count($firstDetail) === 301 && $longest <= 2001 && str_contains((string) end($firstDetail)['value'], '101'), '13b the detail of a record lists at most 300 fields, each cut, and says how many it left out (the leader + 400 fields: 101)');
+    $check(count($marcAnswer['results']) < 25 && strlen((string) json_encode(array_column($marcAnswer['results'], 'detail'))) <= CopyCataloging::MAX_STORED_BYTES, '13c the details count against the size cap, so the answer stays bounded');
+
     echo "SBN and ISSN\n";
     $ccSbn = new CopyCataloging($db, null, [], true, false, 15, $factory);
     $sbnIssn = $ccSbn->search(['sbn'], 'issn', '0391-6170', 5);

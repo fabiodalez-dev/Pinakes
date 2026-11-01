@@ -32,6 +32,15 @@ final class CopyCataloging
      */
     public const MAX_STORED_BYTES = 4 * 1024 * 1024;
 
+    /**
+     * The detail view of a result lists at most this many MARC fields, each
+     * cut to MAX_DETAIL_CHARS characters: it is only for reading (the import
+     * uses the book data in the session), and every field of every record,
+     * mapped or not, would otherwise travel whole in the JSON answer.
+     */
+    public const MAX_DETAIL_LINES = 300;
+    public const MAX_DETAIL_CHARS = 2000;
+
     /** National catalogues offered even when not configured. */
     private const PRESETS = [
         'loc' => [
@@ -178,11 +187,15 @@ final class CopyCataloging
                     break;
                 }
                 $encoded = (string) json_encode($record['data']);
-                if ($storedBytes + strlen($encoded) > self::MAX_STORED_BYTES) {
+                $detail = $this->detail((array) $record['data'], $record['marc'] ?? null);
+                // The detail travels in the answer too: it counts against the
+                // same cap, so the page's JSON stays bounded as well.
+                $size = strlen($encoded) + strlen((string) json_encode($detail));
+                if ($storedBytes + $size > self::MAX_STORED_BYTES) {
                     $sizeFull = true;
                     break;
                 }
-                $storedBytes += strlen($encoded);
+                $storedBytes += $size;
                 $added++;
                 $id = substr(hash('sha256', $key . '|' . $n . '|' . $encoded), 0, 16);
                 $data = (array) $record['data'];
@@ -205,7 +218,7 @@ final class CopyCataloging
                     'isbn' => (string) (($data['isbn13'] ?? '') !== '' ? $data['isbn13'] : ($data['isbn10'] ?? '')),
                     'copertina' => (string) ($data['copertina_url'] ?? ''),
                     'existing_id' => $existing,
-                    'detail' => $this->detail($data, $record['marc'] ?? null),
+                    'detail' => $detail,
                 ];
             }
             // The count is what the page lists for this server: the records the
@@ -341,6 +354,27 @@ final class CopyCataloging
      * @return list<array{tag: string, ind: string, value: string}>
      */
     private function detail(array $data, ?array $marc): array
+    {
+        $lines = $this->detailLines($data, $marc);
+        $more = count($lines) - self::MAX_DETAIL_LINES;
+        $lines = array_slice($lines, 0, self::MAX_DETAIL_LINES);
+        foreach ($lines as $i => $line) {
+            if (mb_strlen($line['value']) > self::MAX_DETAIL_CHARS) {
+                $lines[$i]['value'] = mb_substr($line['value'], 0, self::MAX_DETAIL_CHARS) . '…';
+            }
+        }
+        if ($more > 0) {
+            $lines[] = ['tag' => '…', 'ind' => '', 'value' => sprintf(__('Altri %d campi non mostrati'), $more)];
+        }
+        return $lines;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed>|null $marc
+     * @return list<array{tag: string, ind: string, value: string}>
+     */
+    private function detailLines(array $data, ?array $marc): array
     {
         $lines = [];
         if (is_array($marc)) {
