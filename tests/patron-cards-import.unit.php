@@ -353,14 +353,17 @@ try {
     $check(PatronPhoto::jpegOrientation((string) file_get_contents($src)) === 6 && PatronPhoto::jpegOrientation($jpeg) === null && PatronPhoto::jpegOrientation('not a jpeg') === null, 'the EXIF Orientation is read from the APP1 block directly');
     $check(PatronPhoto::orientationTransform(5) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 90] && PatronPhoto::orientationTransform(7) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => -90]
         && PatronPhoto::orientationTransform(2) === ['flip' => IMG_FLIP_HORIZONTAL, 'angle' => 0] && PatronPhoto::orientationTransform(4) === ['flip' => IMG_FLIP_VERTICAL, 'angle' => 0]
+        && PatronPhoto::orientationTransform(3) === ['flip' => null, 'angle' => 180] && PatronPhoto::orientationTransform(6) === ['flip' => null, 'angle' => -90] && PatronPhoto::orientationTransform(8) === ['flip' => null, 'angle' => 90]
         && PatronPhoto::orientationTransform(1) === ['flip' => null, 'angle' => 0] && PatronPhoto::orientationTransform(null) === ['flip' => null, 'angle' => 0], 'every EXIF orientation maps to a mirror and a rotation');
     $check(PatronPhoto::store($db, $userId, $src) === null, 'a JPEG with EXIF orientation is accepted');
     $rotatedPath = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
     $photoFiles[] = $rotatedPath;
     $rotatedInfo = $rotatedPath !== null ? getimagesize($rotatedPath) : false;
     $check($rotatedInfo !== false && $rotatedInfo[1] > $rotatedInfo[0], 'EXIF Orientation 6 is applied: the stored photo is upright (portrait)');
-    // Orientation 5 (transpose) and 7 (transverse) on a landscape image whose
-    // left half is red: transposed the red half is on top, transversed at the bottom.
+    // Orientation 5 (transpose), 6 (90° clockwise), 7 (transverse) and 8 (90°
+    // counter-clockwise) on a landscape image whose left half is red: the red
+    // half ends up on top for 5 and 6, at the bottom for 7 and 8, so the
+    // direction of the rotation is checked, not only the portrait shape.
     $halves = imagecreatetruecolor(400, 200);
     imagefill($halves, 0, 0, (int) imagecolorallocate($halves, 20, 20, 220));
     imagefilledrectangle($halves, 0, 0, 199, 199, (int) imagecolorallocate($halves, 220, 20, 20));
@@ -371,14 +374,49 @@ try {
         $c = imagecolorat($img, $x, $y);
         return (($c >> 16) & 0xFF) > 150 && ($c & 0xFF) < 100;
     };
-    foreach ([5 => true, 7 => false] as $orientation => $redOnTop) {
+    foreach ([5 => true, 6 => true, 7 => false, 8 => false] as $orientation => $redOnTop) {
         file_put_contents($src, $withOrientation($halvesJpeg, $orientation));
         $ok = PatronPhoto::store($db, $userId, $src) === null;
         $out = PatronPhoto::absolutePath(PatronPhoto::storedFor($db, $userId));
         $photoFiles[] = $out;
         $img = $out !== null ? imagecreatefromjpeg($out) : false;
-        $check($ok && $img !== false && imagesx($img) === 200 && imagesy($img) === 400 && $isRed($img, 100, 50) === $redOnTop && $isRed($img, 100, 350) === !$redOnTop, "EXIF Orientation {$orientation} is mirrored and rotated upright");
+        $check($ok && $img !== false && imagesx($img) === 200 && imagesy($img) === 400 && $isRed($img, 100, 50) === $redOnTop && $isRed($img, 100, 350) === !$redOnTop, "EXIF Orientation {$orientation} is turned upright in the right direction");
     }
+    // A short write (a full disk mid-file) fails and leaves no partial file.
+    if (!in_array('pcishort', stream_get_wrappers(), true)) {
+        stream_wrapper_register('pcishort', get_class(new class {
+            /** @var array<string, string> */
+            public static array $files = [];
+            /** @var resource|null */
+            public $context;
+            private string $key = '';
+            public function stream_open(string $path, string $mode, int $options, ?string &$opened): bool
+            {
+                $this->key = $path;
+                self::$files[$path] = '';
+                return true;
+            }
+            public function stream_write(string $data): int
+            {
+                $half = intdiv(strlen($data), 2);
+                self::$files[$this->key] .= substr($data, 0, $half);
+                return $half;
+            }
+            public function stream_close(): void
+            {
+            }
+            public function unlink(string $path): bool
+            {
+                unset(self::$files[$path]);
+                return true;
+            }
+            public function url_stat(string $path, int $flags): array|false
+            {
+                return isset(self::$files[$path]) ? ['size' => strlen(self::$files[$path])] : false;
+            }
+        }));
+    }
+    $check(PatronPhoto::writeFile('pcishort://photo.jpg', str_repeat('x', 100)) === false && !file_exists('pcishort://photo.jpg'), 'a short photo write fails and removes the partial file');
     file_put_contents($src, "<?php echo 'x';");
     $check(PatronPhoto::store($db, $userId, $src) === 'invalid_image', 'a non-image is refused');
     $check(PatronPhoto::absolutePath('patron_photos/../../.env') === null && PatronPhoto::absolutePath('/etc/passwd') === null, 'a tampered reference never resolves');
@@ -446,6 +484,19 @@ try {
         @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
     }
     unset($_SESSION['error_message']);
+    // A DELETE refused by a foreign key (a reservation still pointing to the
+    // reader, here a scratch child table) leaves the photo and its reference.
+    $holder = 'zz_pci_hold_' . $suffix;
+    $db->query("CREATE TABLE {$holder} (utente_id INT NOT NULL, FOREIGN KEY (utente_id) REFERENCES utenti (id)) ENGINE=InnoDB");
+    $db->query("INSERT INTO {$holder} (utente_id) VALUES ({$victimId})");
+    try {
+        $status = $deleteUser();
+    } catch (\Throwable $e) {
+        $status = 0;
+    }
+    $db->query("DROP TABLE IF EXISTS {$holder}");
+    $check($status === 302 && $victimExists() && $victimPhoto !== null && is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) !== null && isset($_SESSION['error_message']), 'a DELETE refused by the database keeps the reader\'s photo and its reference');
+    unset($_SESSION['error_message']);
     $check($deleteUser() === 302 && !$victimExists() && $victimPhoto !== null && !is_file($victimPhoto), 'deleting a reader without loans removes the account and its photo');
     $_SESSION = [];
 
@@ -491,7 +542,7 @@ try {
     $pid = bin2hex(random_bytes(12));
     $running = ['preview_id' => $pid, 'file' => $staged, 'name' => 't.csv', 'delimiter' => ';', 'total' => 1, 'columns' => 3, 'started' => true, 'next' => 0,
         'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0, 'failed' => 0,
-        'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []];
+        'invited' => 0, 'invite_failed' => 0, 'errors' => []];
     $_SESSION['user_import'] = $running;
     [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 10]);
     $check($status === 409 && ($json['processed'] ?? null) === 0 && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block out of sequence is refused with the position to resume from');
@@ -559,6 +610,33 @@ try {
     $importLogIds[] = $closedId;
     $logged = $closedId !== '' ? $db->query("SELECT total_rows, import_type FROM import_logs WHERE import_id = '" . $db->real_escape_string($closedId) . "'")->fetch_assoc() : null;
     $check($status === 200 && !isset($_SESSION['user_import']) && !is_file($staged) && is_array($logged) && (int) $logged['total_rows'] === 1 && $logged['import_type'] === 'users', 'an abandoned run is closed, its file released and its partial run logged');
+
+    // The history entry cannot be written (import_logs.user_id is a foreign
+    // key and this account does not exist): every path that closes a run
+    // says so instead of claiming it was recorded.
+    $_SESSION['user'] = ['id' => 2147483000, 'tipo_utente' => 'admin', 'stato' => 'attivo'];
+    $abandoned = ['active_at' => time() - \App\Controllers\UserImportController::IDLE_SECONDS - 5] + $live;
+    file_put_contents($staged, 'x');
+    $_SESSION['user_import'] = $abandoned;
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+    $check($status === 200 && ($json['import_id'] ?? null) === '' && is_string($json['history_warning'] ?? null) && $json['history_warning'] !== '' && !isset($_SESSION['user_import']), 'a cancel whose history entry cannot be written answers with a history warning');
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 1] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 1]);
+    $check($status === 409 && ($json['import_id'] ?? null) === '' && str_contains((string) ($json['error'] ?? ''), __('Il file dell\'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.')), 'a vanished file whose run cannot be logged does not claim it reached the history');
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 1] + $running;
+    $check(($importer->closeVanishedImport($db)['import_id'] ?? null) === '', 'an expired run that cannot be logged reaches the page with an empty import_id');
+    $replacement = tempnam(sys_get_temp_dir(), 'pcu');
+    file_put_contents($replacement, "nome;cognome;email\nZz;New;zz-new@example.invalid\n");
+    file_put_contents($staged, 'x');
+    $_SESSION['user_import'] = $abandoned;
+    $uploadRequest = $requests->createServerRequest('POST', '/admin/users/import/upload')
+        ->withUploadedFiles(['csv_file' => new \Slim\Psr7\UploadedFile($replacement, 'new.csv', 'text/csv', (int) filesize($replacement), UPLOAD_ERR_OK)]);
+    $uploadResponse = $importer->upload($uploadRequest, $responses->createResponse(), $db);
+    $uploadJson = json_decode((string) $uploadResponse->getBody(), true);
+    $newStaged = (string) ($_SESSION['user_import']['file'] ?? '');
+    $check($uploadResponse->getStatusCode() === 200 && is_string($uploadJson['history_warning'] ?? null) && $uploadJson['history_warning'] !== '' && ($uploadJson['notice'] ?? null) === null && !is_file($staged), 'an upload replacing a run that cannot be logged carries a history warning apart from the notice');
+    @unlink($newStaged);
+    @unlink($replacement);
     $_SESSION = [];
 
     // Two tabs: B still shows the preview of one file, A has since uploaded
@@ -575,7 +653,7 @@ try {
     [$status, $json] = $call('start', ['mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
     $check($status === 409 && ($json['stale'] ?? false) === true && ($_SESSION['user_import'] ?? null) === $previewA, 'a Start without a preview id is refused with 409 stale');
     $startedA = ['started' => true, 'next' => 0, 'active_at' => time(), 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => false, 'created' => 0, 'duplicates' => 0,
-        'failed' => 0, 'invited' => 0, 'invite_failed' => 0, 'errors' => [], 'seen_emails' => [], 'seen_codes' => []] + $previewA;
+        'failed' => 0, 'invited' => 0, 'invite_failed' => 0, 'errors' => []] + $previewA;
     $_SESSION['user_import'] = $startedA;
     [$status, $json] = $call('chunk', ['preview_id' => $tabB, 'start' => 0]);
     $check($status === 409 && ($json['stale'] ?? false) === true && !isset($json['processed']) && ($_SESSION['user_import']['next'] ?? null) === 0, 'a block from a replaced preview is refused without a position to "resume" from');
@@ -584,12 +662,72 @@ try {
     [$status, $json] = $call('cancel', ['preview_id' => $tabB]);
     $check($status === 200 && ($json['stale'] ?? false) === true && ($_SESSION['user_import'] ?? null) === $startedA && is_file($staged), 'a cancel from a replaced preview leaves the current import alone');
     $check($staleCount() === 0, 'no account was created from the stale requests');
-    $_SESSION['user_import'] = $previewA;
-    [$status, $json] = $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    // The file repeats its row with the email in upper case: the repeat is a
+    // duplicate found in the table, no per-row set is kept in the session.
+    file_put_contents($staged, "nome;cognome;email\nZz;Stale;{$staleEmail}\nZz;Again;" . strtoupper($staleEmail) . "\n");
+    $_SESSION['user_import'] = ['total' => 2] + $previewA;
+    [$status, $json] = $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email'], 'send_invites' => 'false']);
     $check($status === 200 && !empty($_SESSION['user_import']['started']), 'a Start naming the current preview proceeds');
+    $check(($_SESSION['user_import']['send_invites'] ?? null) === false, 'send_invites "false" (a string) sends no invitations');
+    $check(!array_key_exists('seen_emails', $_SESSION['user_import']) && !array_key_exists('seen_codes', $_SESSION['user_import']), 'the session keeps no set of the emails and codes already imported');
     [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => 0]);
     $importLogIds[] = (string) ($json['import_id'] ?? '');
-    $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1, 'its block, naming the same preview, imports the row');
+    $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 1, 'its block, naming the same preview, imports the row once and reports the repeat as a duplicate');
+    $_SESSION = [];
+
+    // Blocks resume at the byte offset where the previous one stopped: the
+    // rows already done are never parsed again. A blank line and a quoted
+    // cell spanning lines are split as at upload. After the first block the
+    // bytes already imported are overwritten with junk lines: counting rows
+    // from the top would now land on the wrong record, the offset does not.
+    $blockCsv = "nome;cognome;email\n";
+    for ($i = 1; $i <= UserImport::CHUNK_SIZE + 3; $i++) {
+        $blockCsv .= $i === 4 ? "Zz;\"Multi\nline\";zz-pci-blk-{$suffix}-{$i}@example.invalid\n\n" : "Zz;Block{$i};zz-pci-blk-{$suffix}-{$i}@example.invalid\n";
+    }
+    file_put_contents($staged, $blockCsv);
+    $blockTotal = count(\App\Support\Csv::readerFromPath($staged, ';')) - 1;
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo'], 'user_import' => ['total' => $blockTotal] + $previewA];
+    $call('start', ['preview_id' => $previewA['preview_id'], 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email']]);
+    [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => 0]);
+    $offset = (int) ($_SESSION['user_import']['offset'] ?? 0);
+    $check($status === 200 && ($json['processed'] ?? null) === UserImport::CHUNK_SIZE && $offset > 0, 'the first block keeps the byte offset of the next row');
+    file_put_contents($staged, str_repeat("x\n", intdiv($offset, 2)) . str_repeat('x', $offset % 2) . substr($blockCsv, $offset));
+    [$status, $json] = $call('chunk', ['preview_id' => $previewA['preview_id'], 'start' => UserImport::CHUNK_SIZE]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $blockCount = (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email LIKE 'zz-pci-blk-{$suffix}-%'")->fetch_row()[0];
+    $multiline = $db->query("SELECT cognome FROM utenti WHERE email = 'zz-pci-blk-{$suffix}-4@example.invalid'")->fetch_row()[0] ?? null;
+    $check($status === 200 && ($json['done'] ?? false) === true && ($json['created'] ?? null) === $blockTotal && $blockCount === $blockTotal && $multiline === "Multi\nline" && ($json['failed'] ?? null) === 0, 'the next block resumes at that offset and imports every remaining row once');
+    $_SESSION = [];
+
+    // The import page links the import history (a catalog.manage page) only
+    // for an account that may open it, the expired-import notice included.
+    $renderImportPage = static function (array $user, array $expiredImport): string {
+        $savedSession = $_SESSION;
+        $_SESSION = ['user' => $user];
+        $patronTypes = false;
+        $resumeImport = null;
+        ob_start();
+        try {
+            require dirname(__DIR__) . '/app/Views/utenti/import.php';
+        } finally {
+            $html = (string) ob_get_clean();
+            $_SESSION = $savedSession;
+        }
+        return $html;
+    };
+    $expiredNotice = ['name' => 'a.csv', 'processed' => 1, 'total' => 2, 'import_id' => 'x'];
+    $usersOnly = ['id' => $userId, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['users.manage']];
+    $check(substr_count($renderImportPage($usersOnly, $expiredNotice), 'imports-history') === 0, 'without catalog.manage the import page shows no link to the import history');
+    $check(substr_count($renderImportPage(['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo'], $expiredNotice), 'imports-history') === 2, 'an admin gets the history link in the expired-import notice and in the help box');
+    $unlogged = $renderImportPage($usersOnly, ['import_id' => ''] + $expiredNotice);
+    $check(str_contains($unlogged, 'storico import non è stato aggiornato') && !str_contains($unlogged, 'e registrato nello storico import'), 'an expired run that could not be logged is not announced as recorded in the history');
+
+    // A bulk print above MAX_BULK is refused, never cut to a shorter PDF.
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $bulkRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/admin/users/cards-pdf')
+        ->withQueryParams(['ids' => implode(',', range(1, \App\Controllers\PatronCardsController::MAX_BULK + 1))]);
+    $bulkResponse = (new \App\Controllers\PatronCardsController())->bulkPdf($bulkRequest, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(), $db);
+    $check($bulkResponse->getStatusCode() === 422 && str_contains((string) $bulkResponse->getBody(), (string) \App\Controllers\PatronCardsController::MAX_BULK), 'a bulk card print above MAX_BULK is refused with 422 and says the limit');
     $_SESSION = [];
 
     // The user import's error report is served under the users permission.
@@ -597,6 +735,7 @@ try {
 
     echo "SUCCESS {$checks} checks\n";
 } finally {
+    $db->query("DROP TABLE IF EXISTS zz_pci_hold_{$suffix}");
     $db->query("DROP TABLE IF EXISTS {$types}");
     $db->query("DROP TABLE IF EXISTS {$users}");
     if ($userId > 0) {
@@ -605,6 +744,7 @@ try {
     $db->query("DELETE FROM utenti WHERE email = '{$importEmail}'");
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-stale-{$suffix}@example.invalid'");
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
+    $db->query("DELETE FROM utenti WHERE email LIKE 'zz-pci-blk-{$suffix}-%'");
     foreach ($importLogIds as $logId) {
         $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
         $stmt->bind_param('s', $logId);
