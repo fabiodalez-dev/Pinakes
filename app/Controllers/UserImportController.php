@@ -183,7 +183,9 @@ class UserImportController
         }
 
         $fields = $this->targetFields($db);
-        $this->closeSessionImport($db);
+        // '' = the run this upload replaces was closed but its history entry
+        // could not be written: said apart from the conversion notice.
+        $closedId = $this->closeSessionImport($db);
         // Start, every block and "Annulla import" name the preview they come
         // from: an upload in another tab replaces this state, and a page
         // still showing the earlier preview must not apply its mapping to
@@ -209,6 +211,7 @@ class UserImportController
             'fields' => $fields,
             'mapping' => UserImport::guessMapping($headers, $fields),
             'notice' => $converted ? __('Il file non era in UTF-8 ed è stato convertito da Windows-1252: controlla le lettere accentate nell\'anteprima.') : null,
+            'history_warning' => $closedId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
         ]);
     }
 
@@ -308,7 +311,9 @@ class UserImportController
             $importId = $this->closeSessionImport($db);
             return $this->json($response, [
                 'success' => false,
-                'error' => __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
+                'error' => $importId === ''
+                    ? __('Il file dell\'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.')
+                    : __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
                 'import_id' => $importId,
             ], 409);
         }
@@ -456,7 +461,13 @@ class UserImportController
             ], 409);
         }
         $importId = $this->closeSessionImport($db);
-        return $this->json($response, ['success' => true, 'import_id' => $importId]);
+        // The run is closed either way; when its history entry could not be
+        // written the page says so instead of moving on as if it were.
+        return $this->json($response, [
+            'success' => true,
+            'import_id' => $importId,
+            'history_warning' => $importId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
+        ]);
     }
 
     /**
@@ -512,7 +523,8 @@ class UserImportController
     /**
      * Release the session's import: a started run is written to the import
      * history first (as far as it got), so the accounts it created are not
-     * left without a trace. Returns that run's import_id, or null.
+     * left without a trace. Returns that run's import_id, '' when its history
+     * entry could not be written, or null when no started run was closed.
      */
     private function closeSessionImport(mysqli $db): ?string
     {

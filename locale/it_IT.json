@@ -8831,5 +8831,8 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.",
   "Annulla import": "Annulla import",
   "Riprendi import": "Riprendi import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file."
 }

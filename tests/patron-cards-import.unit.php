@@ -526,6 +526,33 @@ try {
     $importLogIds[] = $closedId;
     $logged = $closedId !== '' ? $db->query("SELECT total_rows, import_type FROM import_logs WHERE import_id = '" . $db->real_escape_string($closedId) . "'")->fetch_assoc() : null;
     $check($status === 200 && !isset($_SESSION['user_import']) && !is_file($staged) && is_array($logged) && (int) $logged['total_rows'] === 1 && $logged['import_type'] === 'users', 'an abandoned run is closed, its file released and its partial run logged');
+
+    // The history entry cannot be written (import_logs.user_id is a foreign
+    // key and this account does not exist): every path that closes a run
+    // says so instead of claiming it was recorded.
+    $_SESSION['user'] = ['id' => 2147483000, 'tipo_utente' => 'admin', 'stato' => 'attivo'];
+    $abandoned = ['active_at' => time() - \App\Controllers\UserImportController::IDLE_SECONDS - 5] + $live;
+    file_put_contents($staged, 'x');
+    $_SESSION['user_import'] = $abandoned;
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+    $check($status === 200 && ($json['import_id'] ?? null) === '' && is_string($json['history_warning'] ?? null) && $json['history_warning'] !== '' && !isset($_SESSION['user_import']), 'a cancel whose history entry cannot be written answers with a history warning');
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 1] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 1]);
+    $check($status === 409 && ($json['import_id'] ?? null) === '' && str_contains((string) ($json['error'] ?? ''), __('Il file dell\'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.')), 'a vanished file whose run cannot be logged does not claim it reached the history');
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 1] + $running;
+    $check(($importer->closeVanishedImport($db)['import_id'] ?? null) === '', 'an expired run that cannot be logged reaches the page with an empty import_id');
+    $replacement = tempnam(sys_get_temp_dir(), 'pcu');
+    file_put_contents($replacement, "nome;cognome;email\nZz;New;zz-new@example.invalid\n");
+    file_put_contents($staged, 'x');
+    $_SESSION['user_import'] = $abandoned;
+    $uploadRequest = $requests->createServerRequest('POST', '/admin/users/import/upload')
+        ->withUploadedFiles(['csv_file' => new \Slim\Psr7\UploadedFile($replacement, 'new.csv', 'text/csv', (int) filesize($replacement), UPLOAD_ERR_OK)]);
+    $uploadResponse = $importer->upload($uploadRequest, $responses->createResponse(), $db);
+    $uploadJson = json_decode((string) $uploadResponse->getBody(), true);
+    $newStaged = (string) ($_SESSION['user_import']['file'] ?? '');
+    $check($uploadResponse->getStatusCode() === 200 && is_string($uploadJson['history_warning'] ?? null) && $uploadJson['history_warning'] !== '' && ($uploadJson['notice'] ?? null) === null && !is_file($staged), 'an upload replacing a run that cannot be logged carries a history warning apart from the notice');
+    @unlink($newStaged);
+    @unlink($replacement);
     $_SESSION = [];
 
     // Two tabs: B still shows the preview of one file, A has since uploaded
@@ -584,6 +611,8 @@ try {
     $usersOnly = ['id' => $userId, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['users.manage']];
     $check(substr_count($renderImportPage($usersOnly, $expiredNotice), 'imports-history') === 0, 'without catalog.manage the import page shows no link to the import history');
     $check(substr_count($renderImportPage(['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo'], $expiredNotice), 'imports-history') === 2, 'an admin gets the history link in the expired-import notice and in the help box');
+    $unlogged = $renderImportPage($usersOnly, ['import_id' => ''] + $expiredNotice);
+    $check(str_contains($unlogged, 'storico import non è stato aggiornato') && !str_contains($unlogged, 'e registrato nello storico import'), 'an expired run that could not be logged is not announced as recorded in the history');
 
     // The user import's error report is served under the users permission.
     $check(\App\Support\Permissions::permissionForPath('/admin/users/import/errors') === 'users.manage', 'the user import error report needs users.manage, not catalog.manage');

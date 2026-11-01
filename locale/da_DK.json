@@ -8831,5 +8831,8 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d af %d rækker behandlet. Du kan genoptage den, hvor den stoppede, eller lukke den: de brugere, der allerede er oprettet, bevares.",
   "Annulla import": "Annuller import",
   "Riprendi import": "Genoptag import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Brugeren blev ikke slettet: brugerens foto kan ikke fjernes fra disken. Prøv igen, eller kontrollér rettighederne til mappen storage."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "Brugeren blev ikke slettet: brugerens foto kan ikke fjernes fra disken. Prøv igen, eller kontrollér rettighederne til mappen storage.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "Den forrige import blev lukket, men importhistorikken kunne ikke opdateres: de allerede oprettede brugere bevares.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "Importfilen er ikke længere tilgængelig, og importhistorikken kunne ikke opdateres: de allerede oprettede brugere bevares. Upload filen igen for at fuldføre importen.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "Filen til den afbrudte import «%s» var ikke længere tilgængelig: importen blev lukket efter %d af %d rækker, men importhistorikken kunne ikke opdateres. De allerede oprettede brugere bevares; upload filen igen for at fuldføre den."
 }
