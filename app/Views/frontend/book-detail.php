@@ -1793,8 +1793,12 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   return acc;
                 }, {});
-                // Get the last date in the availability data to set maxDate
-                if (availData.availability.days.length > 0) {
+                // The last start day sets maxDate: the days run past it so a
+                // late start still has data for its whole loan window.
+                const startUntil = String(availData.availability.start_until || '');
+                if (/^\d{4}-\d{2}-\d{2}$/.test(startUntil)) {
+                  maxAvailableDate = startUntil;
+                } else if (availData.availability.days.length > 0) {
                   const lastDay = availData.availability.days[availData.availability.days.length - 1];
                   if (lastDay && lastDay.date) {
                     maxAvailableDate = lastDay.date;
