@@ -35,7 +35,7 @@ interface StaffArea
     public static function circulation(): bool;
 
     /**
-     * @return list<array{0: string, 1: string, 2: callable, limit?: array{0: int, 1: int, 2: string}, feature?: string, circulation?: bool}>
+     * @return list<array{0: string, 1: string, 2: callable, limit?: array{0: int, 1: int, 2: string}, feature?: string|null, circulation?: bool}>
      */
     public static function routes(): array;
 
