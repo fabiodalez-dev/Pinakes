@@ -308,6 +308,9 @@ test.describe.serial('0.9.0 with nothing configured behaves as 0.8.9', () => {
     expect(returned, 'loan_returned email in Mailpit').not.toBeNull();
     expect(returned.HTML).not.toContain('Multa');
     expect(returned.HTML).not.toContain('{{multa}}');
+    // Not even an amount without its label (a "0,00 €" left in the {{multa}}
+    // paragraph): FineParameters::format() writes "<n> €" or "<CODE> <n>".
+    expect(returned.HTML).not.toMatch(/\d[.,]\d{2}\s*(?:€|[A-Z]{3}\b)|(?:€|\b[A-Z]{3})\s*-?\d+[.,]\d{2}/);
     expect(await search(`to:${reader.email} subject:"Multa per ritardo"`)).toEqual([]);
   });
 
