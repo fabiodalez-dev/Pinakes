@@ -38,6 +38,8 @@ const PASS = 'Circ1234!';
 const TYPE_DAYS = 10;
 const DEBT_MESSAGE = 'Saldo a debito oltre la soglia consentita';
 const LOAN_SETTINGS = ['daily_fine', 'fine_grace_days', 'fine_max_per_loan', 'debt_block_threshold', 'closed_weekdays', 'auto_approve_requests', 'fine_charged_email'];
+// Columns of the default patron type that charge or block its readers.
+const DEFAULT_TYPE_FINES = ['multa_giornaliera', 'giorni_tolleranza', 'multa_massima_prestito', 'soglia_blocco_debito'];
 const NCIP_NS = 'http://www.niso.org/2008/ncip';
 
 const ncipXml = (service, userId, itemId) => `<?xml version="1.0" encoding="UTF-8"?>
@@ -119,6 +121,8 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
   const errors = [];
   let today = '';
   let deskLoan = 0;
+  /** Fine columns of the default type before the suite: [column, value or null] pairs. */
+  let savedDefaultFines = null;
 
   test.beforeAll(async ({ browser }) => {
     for (const k of LOAN_SETTINGS) saved[k] = F.readSettingState('loans', k);
@@ -128,6 +132,14 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
     savedRules = F.stashRows('regole_prestito');
     F.dbQuery('DELETE FROM calendario_chiusure');
     F.dbQuery('DELETE FROM regole_prestito');
+    // The plain reader belongs to the default type: a fine or threshold the
+    // installation set on it would charge or block that reader in test 9, so
+    // they are emptied for the run and put back in afterAll (NULL included).
+    savedDefaultFines = DEFAULT_TYPE_FINES.map((c) => {
+      const raw = F.dbQuery(`SELECT IF(\`${c}\` IS NULL, 'n', CONCAT('v', \`${c}\`)) FROM tipologie_lettore WHERE predefinita=1 ORDER BY id LIMIT 1`);
+      return [c, raw.startsWith('v') ? raw.slice(1) : null];
+    });
+    F.dbQuery(`UPDATE tipologie_lettore SET ${DEFAULT_TYPE_FINES.map((c) => `\`${c}\`=NULL`).join(', ')} WHERE predefinita=1`);
     // Global fines and threshold empty: only the patron type charges and blocks.
     for (const k of ['daily_fine', 'fine_max_per_loan', 'debt_block_threshold']) writeSetting(k, '');
     writeSetting('fine_grace_days', '0');
@@ -171,6 +183,11 @@ test.describe.serial('0.9.0 stack: patron type + closures + fines + debt block a
       () => clearConfigCache(),
       () => F.unstashRows(savedClosures),
       () => F.unstashRows(savedRules),
+      () => {
+        if (!savedDefaultFines) return;
+        const sets = savedDefaultFines.map(([c, v]) => `\`${c}\`=${v === null ? 'NULL' : F.sqlStr(v)}`).join(', ');
+        F.dbQuery(`UPDATE tipologie_lettore SET ${sets} WHERE predefinita=1`);
+      },
       () => {
         for (const p of [reader, plain]) {
           if (!p) continue;

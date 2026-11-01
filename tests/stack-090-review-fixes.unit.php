@@ -165,6 +165,10 @@ $files = [
 $allowed = [
     'app/Services/StocktakeService.php' => ['(l.collocazione <= ? OR l.collocazione LIKE ?)'],
 ];
+// A placeholder, or any function call (CONCAT(, LOWER(?), UPPER(:q)...)
+// right after LIKE: wrapping the typed value in a function bypasses the
+// quote rule just as well.
+$bareLike = '/[^\n]*\bLIKE\s+(?:\?|:\w+|\w+\s*\()[^\n]*/i';
 $offenders = [];
 foreach ($files as $rel) {
     $src = (string) @file_get_contents($root . '/' . $rel);
@@ -172,7 +176,7 @@ foreach ($files as $rel) {
         $offenders[] = "{$rel} (missing)";
         continue;
     }
-    if (preg_match_all('/[^\n]*\bLIKE\s+(?:\?|:\w+|CONCAT\s*\()[^\n]*/i', $src, $hits) > 0) {
+    if (preg_match_all($bareLike, $src, $hits) > 0) {
         foreach ($hits[0] as $line) {
             $ok = false;
             foreach ($allowed[$rel] ?? [] as $fragment) {
@@ -184,7 +188,10 @@ foreach ($files as $rel) {
         }
     }
 }
-$check($offenders === [], '18 no bare LIKE on typed input (?, :name or CONCAT) in the 0.9.0 search code' . ($offenders !== [] ? ' — ' . implode(' | ', $offenders) : ''));
+$probes = ["WHERE nome LIKE ?", "WHERE nome LIKE :q", "LIKE CONCAT('%', ?, '%')", "WHERE LOWER(nome) LIKE LOWER(?)", "AND cognome LIKE UPPER( :term )"];
+$check(array_filter($probes, static fn (string $sql): bool => preg_match($bareLike, $sql) !== 1) === [] && preg_match($bareLike, "WHERE nome = ? AND note NOT LIKE 'x%'") !== 1,
+    '18a the guard sees a placeholder after LIKE bare or wrapped in any function (LOWER(?), UPPER(:term)), not a literal pattern');
+$check($offenders === [], '18 no bare LIKE on typed input (?, :name or a function around them) in the 0.9.0 search code' . ($offenders !== [] ? ' — ' . implode(' | ', $offenders) : ''));
 $view = (string) file_get_contents($root . '/app/Views/fornitori/index.php');
 $check(!str_contains($view, ".includes(q)") && str_contains($view, 'QUOTES.includes(ch)') && str_contains($view, "normalize('NFD')") && str_contains($view, 'search_fornitore_hint'),
     '19 the suppliers box tokenises quoted groups, folds accents for plain words and shows the quote hint');

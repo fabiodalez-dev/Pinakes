@@ -42,23 +42,32 @@ final class UnimarcLibriMapper implements MarcLibriMapper
         $data['classificazione_dewey'] = (string) ($parsed['classificazione_dewey'] ?? '');
         // An unknown code stays empty, as in the MARC 21 mapper: the reader's
         // own fallback would store the raw code ("swa") as a language name.
-        $data['lingua'] = MarcLanguage::nameFor((string) $record->subfield('101', 'a'));
+        // Every 101 $a, one per language, as the MARC 21 mapper reads 041.
+        $languages = [];
+        foreach ($record->subfieldValues('101', 'a') as $code) {
+            $name = MarcLanguage::nameFor(trim($code));
+            if ($name !== '' && !in_array($name, $languages, true)) {
+                $languages[] = $name;
+            }
+        }
+        $data['lingua'] = implode(', ', $languages);
 
-        // 606 subjects are keywords, except the one the exporting catalogue
-        // marked as its own genre ($2 local, as BookMarcBuilder writes it).
+        // The genre: a 608 form / genre heading the exporting catalogue marked
+        // as its own term ($2 local, as BookMarcBuilder writes it), like the
+        // MARC 21 655. Every 606 is a topical subject, so a keyword, whatever
+        // its $2: another catalogue's local subjects are not taken as a genre.
+        foreach ($record->fieldsByTag('608') as $field) {
+            if (strtolower(trim((string) $field->subfield('2'))) === 'local') {
+                $data['genere'] = MarcBookData::clean($field->subfield('a'), ' /:;=,.');
+                if ($data['genere'] !== '') {
+                    break;
+                }
+            }
+        }
         $subjects = [];
         foreach ($record->fieldsByTag('606') as $field) {
             $term = MarcBookData::clean($field->subfield('a'), ' /:;=,.');
-            if ($term === '') {
-                continue;
-            }
-            if (strtolower(trim((string) $field->subfield('2'))) === 'local') {
-                if ($data['genere'] === '') {
-                    $data['genere'] = $term;
-                }
-                continue;
-            }
-            if (!in_array($term, $subjects, true)) {
+            if ($term !== '' && !in_array($term, $subjects, true)) {
                 $subjects[] = $term;
             }
         }

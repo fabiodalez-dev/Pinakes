@@ -423,9 +423,9 @@ test.describe.serial('D. MARC import and export review fixes', () => {
     expect(read.errors).toBe(0);
     expect(read.records).toHaveLength(1);
     expect(read.records[0].titolo).toBe(title);
-    // Reduced: at most 20 contributors, the first one kept.
-    expect(read.records[0].autori.length).toBeGreaterThan(0);
-    expect(read.records[0].autori.length).toBeLessThanOrEqual(20);
+    // Reduced: exactly 20 contributors (MarcExportController::REDUCED_AUTHORS)
+    // of the 450, the first one kept. Fewer would mean the export lost some.
+    expect(read.records[0].autori).toHaveLength(20);
     expect(read.records[0].autori[0]).toContain(`Autore ${MRUN} 001`);
   });
 });
@@ -501,6 +501,8 @@ test.describe.serial('E. quoted search (#501) on the new search boxes', () => {
     expect(await visibleSuppliers()).toEqual([]);
     await filterSuppliers('""');
     expect((await visibleSuppliers()).filter((n) => n.endsWith(ERUN))).toEqual(Object.values(suppliers).map((s) => s.name).sort());
+    // Every supplier, not only this run's: no row of the list is hidden.
+    expect(await page.locator('[data-supplier-row]:not(.hidden)').count()).toBe(await page.locator('[data-supplier-row]').count());
   });
 
   /** The next list response whose query string has every given value. */
@@ -510,18 +512,27 @@ test.describe.serial('E. quoted search (#501) on the new search boxes', () => {
     return Object.entries(params).every(([k, v]) => (q.get(k) || '') === String(v));
   }, { timeout: 15000 });
 
+  /** The table ends up drawing exactly the rows of these ids (the API answer alone does not prove it). */
+  const expectShownIds = async (table, ids) => {
+    const boxes = page.locator(`${table} tbody .row-select`);
+    await expect.poll(async () => (await boxes.evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-id'))))).sort((a, b) => a - b), { timeout: 15000 })
+      .toEqual([...ids].sort((a, b) => a - b));
+  };
+
   test('E4. users list: the patron type filter and a quoted surname combine', async () => {
     await page.goto(`${F.BASE}/admin/users`);
     let resp = listResponse('/api/utenti', { patron_type_filter: typeId });
     await page.locator('#patron_type_filter').selectOption(String(typeId));
     let json = await (await resp).json();
     const rowsOf = (j) => (j.data || []).map((r) => JSON.stringify(r)).join(' ');
+    await expectShownIds('#utenti-table', [patrons[0].id, patrons[1].id]);
     resp = listResponse('/api/utenti', { patron_type_filter: typeId, search_text: `"Häffner${ERUN}"` });
     await page.locator('#search_text').fill(`"Häffner${ERUN}"`);
     await page.locator('#search_text').dispatchEvent('keyup');
     json = await (await resp).json();
     expect(json.recordsFiltered).toBe(1);
     expect(rowsOf(json)).toContain(patrons[0].email);
+    await expectShownIds('#utenti-table', [patrons[0].id]);
     resp = listResponse('/api/utenti', { patron_type_filter: typeId, search_text: `haffner${ERUN}` });
     await page.locator('#search_text').fill(`haffner${ERUN}`);
     await page.locator('#search_text').dispatchEvent('keyup');
@@ -529,6 +540,7 @@ test.describe.serial('E. quoted search (#501) on the new search boxes', () => {
     // Unquoted: both spellings of this type, never the reader of the default type.
     expect(json.recordsFiltered).toBe(2);
     expect(rowsOf(json)).not.toContain(patrons[2].email);
+    await expectShownIds('#utenti-table', [patrons[0].id, patrons[1].id]);
   });
 
   test('E5. book list: the supplier filter and a quoted title combine', async () => {
@@ -539,6 +551,7 @@ test.describe.serial('E. quoted search (#501) on the new search boxes', () => {
     let json = await (await resp).json();
     const rowsOf = (j) => (j.data || []).map((r) => JSON.stringify(r)).join(' ');
     expect(json.recordsFiltered).toBe(2);
+    await expectShownIds('#libri-table', [books[0], books[1]]);
     resp = listResponse('/api/libri', { fornitore_filter: suppliers.umlaut.id, search_text: `"Brücke" ${ERUN}` });
     await page.locator('#search_text').fill(`"Brücke" ${ERUN}`);
     await page.locator('#search_text').dispatchEvent('keyup');
@@ -546,11 +559,13 @@ test.describe.serial('E. quoted search (#501) on the new search boxes', () => {
     expect(json.recordsFiltered).toBe(1);
     expect(rowsOf(json)).toContain(`Brücke ${ERUN}`);
     expect(rowsOf(json)).not.toContain('senza');
+    await expectShownIds('#libri-table', [books[0]]);
     resp = listResponse('/api/libri', { fornitore_filter: suppliers.umlaut.id, search_text: `brucke ${ERUN}` });
     await page.locator('#search_text').fill(`brucke ${ERUN}`);
     await page.locator('#search_text').dispatchEvent('keyup');
     json = await (await resp).json();
     expect(json.recordsFiltered).toBe(2);
     expect(rowsOf(json)).not.toContain('senza');
+    await expectShownIds('#libri-table', [books[0], books[1]]);
   });
 });

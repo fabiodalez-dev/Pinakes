@@ -64,7 +64,7 @@ try {
 }
 
 $run = bin2hex(random_bytes(4));
-$settingKeys = ['daily_fine', 'fine_grace_days', 'fine_max_per_loan', 'debt_block_threshold'];
+$settingKeys = ['daily_fine', 'fine_grace_days', 'fine_max_per_loan', 'debt_block_threshold', 'legacy_penalties_backfilled'];
 $savedSettings = [];
 foreach ($settingKeys as $k) {
     $r = $db->query("SELECT setting_value FROM system_settings WHERE category = 'loans' AND setting_key = '{$k}'")->fetch_row();
@@ -236,6 +236,42 @@ try {
     $ledger->recordPayment($u1, 200, 'contanti', null, null);
     $check(LoanEligibility::checkUser($db, $u1) === null && $sqlEligible($u1), 'after paying down to 5.00: eligible again');
     $check(str_contains(LoanEligibility::errorMessage('debt_block'), 'soglia') || LoanEligibility::errorMessage('debt_block') !== '', 'debt_block has its own message');
+
+    echo "D2. Legacy penalties not converted yet, and a failed schema probe\n";
+    // A prestiti.sanzione the upgrade's backfill did not reach (deferred or
+    // failed): no penalty:<loan> row, the marker unset.
+    $u5 = $newUser('lg');
+    $legacyLoan = $newLoan($u5, $daysAgo(40), $daysAgo(30));
+    $db->query("UPDATE prestiti SET sanzione = 8.00, stato = 'perso', attivo = 0 WHERE id = {$legacyLoan}");
+    $setSetting('debt_block_threshold', '5');
+    $setSetting('legacy_penalties_backfilled', null);
+    $check($ledger->balanceCents($u5) === 0 && $ledger->debtBalanceCents($u5) === 800, 'backfill pending: the debt balance counts the unconverted 8.00, the ledger balance does not');
+    $check(LoanEligibility::checkUser($db, $u5) === 'debt_block' && !$sqlEligible($u5), 'backfill pending, unconverted 8.00 over the threshold 5: blocked in PHP and SQL');
+    $setSetting('legacy_penalties_backfilled', '1');
+    $check(LoanEligibility::checkUser($db, $u5) === null && $sqlEligible($u5), 'marker set: the debt block reads the ledger alone, as before');
+    $setSetting('legacy_penalties_backfilled', null);
+    $db->query("INSERT INTO movimenti_lettore (utente_id, prestito_id, tipo, importo, descrizione, chiave_idempotenza) VALUES ({$u5}, {$legacyLoan}, 'addebito_perdita', 8.00, 'zz legacy', 'penalty:{$legacyLoan}')");
+    $check($ledger->balanceCents($u5) === 800 && $ledger->debtBalanceCents($u5) === 800, 'a converted penalty is counted once, never twice');
+    $db->query("DELETE FROM movimenti_lettore WHERE utente_id = {$u5}");
+    $setSetting('debt_block_threshold', null);
+
+    // A probe that errors is not "table absent": the debt block refuses
+    // instead of switching itself off; display paths still answer.
+    $dead = $socket !== '' && file_exists($socket)
+        ? new mysqli(null, $user, $pass, $name, 0, $socket)
+        : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), $user, $pass, $name, (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+    $dead->close();
+    $throwsAny = static function (callable $fn): bool {
+        try {
+            $fn();
+        } catch (Throwable) {
+            return true;
+        }
+        return false;
+    };
+    $check(PatronLedger::schemaReady($dead) === false, 'failed probe: schemaReady() answers false for the display paths');
+    $check($throwsAny(fn () => (new \App\Services\CirculationPolicy($dead))->debtBlockError($u1)), 'failed probe: debtBlockError() throws instead of admitting the patron');
+    $check($throwsAny(fn () => LoanEligibility::debtBlockSql('u', $dead)), 'failed probe: debtBlockSql() throws instead of returning 1 = 1');
 
     // EXPLAIN output differs (MySQL 9 tree format, MariaDB/MySQL 8 table):
     // look for the index name anywhere in the plan.

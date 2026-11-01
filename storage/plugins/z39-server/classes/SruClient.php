@@ -80,7 +80,8 @@ class SruClient
 
     /**
      * Exception code of a failure that would only happen again: a timeout
-     * (the server accepted the connection and hung) or an oversized answer.
+     * (the server accepted the connection and hung), an oversized answer or
+     * a request the SSRF guard blocked.
      * Neither is retried; a refused or reset connection, an empty body and
      * an HTTP 5xx are (transient), an HTTP 4xx is not.
      */
@@ -99,6 +100,18 @@ class SruClient
         'isbn' => 'bath.isbn',
         'issn' => 'bath.issn',
         'any' => 'cql.serverChoice',
+    ];
+
+    /**
+     * DBC OpenSearch's own index names, used when a dbc-opensearch server
+     * maps none: it does not resolve the dc / bath context sets. ISSN has no
+     * term.* index there, so it keeps the standard name.
+     */
+    private const DBC_CQL_INDEXES = [
+        'title' => 'term.title',
+        'author' => 'term.creator',
+        'isbn' => 'term.isbn',
+        'any' => 'term.default',
     ];
 
     /** CQL relations a server configuration may ask for on an index. */
@@ -127,7 +140,9 @@ class SruClient
         }
         [$cqlIndex, $relation] = self::indexSpec($server, $index);
         if ($cqlIndex === '') {
-            $cqlIndex = self::DEFAULT_CQL_INDEXES[$index];
+            $cqlIndex = strtolower((string) ($server['syntax'] ?? '')) === 'dbc-opensearch'
+                ? (self::DBC_CQL_INDEXES[$index] ?? self::DEFAULT_CQL_INDEXES[$index])
+                : self::DEFAULT_CQL_INDEXES[$index];
         }
         // Words are always quoted: a bare term with an apostrophe (dell'arte)
         // or equal to a CQL keyword (and, or, not) is not valid CQL. Only the
@@ -219,8 +234,9 @@ class SruClient
      * reset connection, HTTP 5xx, empty body) is tried again up to
      * maxRetries times with exponential backoff, each attempt under the
      * per-server rate limit. A timeout, an oversized answer and an HTTP 4xx
-     * are not retried (isRetryable()), and no retry starts once the attempts
-     * have used one request timeout, so a hung server costs one timeout, not
+     * are not retried (isRetryable()), and no retry starts once the search
+     * (requests, backoff and rate-limit waits) has used one request timeout,
+     * so a hung server costs one timeout, not
      * three, in a search that asks the servers one after another. The query
      * (any CQL, any number of records) is untouched; only the transport is
      * repeated, never a server's own diagnostic.
@@ -229,10 +245,19 @@ class SruClient
     {
         static $lastRequest = [];
         $attempts = 0;
-        $spent = 0.0;
+        $began = null;
+        $last = null;
         while (true) {
             $this->enforceRateLimit($serverUrl, $lastRequest);
-            $started = microtime(true);
+            // The budget runs from the first request and counts the backoff
+            // and the rate-limit waits too: a retry whose slot came after one
+            // timeout is not sent, so a queue of reserved slots cannot hold
+            // the page past the configured timeout.
+            if ($began === null) {
+                $began = microtime(true);
+            } elseif (microtime(true) - $began >= $this->timeout) {
+                throw $last;
+            }
             try {
                 $xml = $this->fetchUrl($requestUrl);
                 if ($xml === null) {
@@ -243,10 +268,10 @@ class SruClient
                 return $xml;
             } catch (\Throwable $e) {
                 $attempts++;
-                $spent += microtime(true) - $started;
-                if ($attempts > $this->maxRetries || !$this->isRetryable($e, $spent)) {
+                if ($attempts > $this->maxRetries || !$this->isRetryable($e, microtime(true) - $began)) {
                     throw $e;
                 }
+                $last = $e;
                 usleep(100000 * (int) pow(2, $attempts - 1));
             }
         }
@@ -339,6 +364,11 @@ class SruClient
         // server's error, not an empty result ("0 of 1" with no reason).
         // One unreadable hit among readable ones is skipped, as before.
         $error = $records === [] && $readError !== null ? $readError : null;
+        // A positive count whose records are none the reader knows (another
+        // record schema, a packing it cannot read) says so too.
+        if ($records === [] && $error === null && $total > 0) {
+            $error = 'The server found ' . $total . ' record(s) but returned none in a format this client can read';
+        }
         return ['total' => max($total, count($records)), 'records' => $records, 'error' => $error];
     }
 
@@ -357,20 +387,18 @@ class SruClient
 
         $lastException = null;
         $attempts = 0;
-        $spent = 0.0;
+        $began = microtime(true);
 
         while ($attempts <= $this->maxRetries) {
-            $started = microtime(true);
             try {
                 return $this->queryServer($server, $index, $term);
             } catch (\Throwable $e) {
                 $lastException = $e;
                 $attempts++;
-                $spent += microtime(true) - $started;
 
                 // No retry on a 4xx, a timeout, an oversized answer, or once
-                // one timeout has been spent (isRetryable())
-                if (!$this->isRetryable($e, $spent)) {
+                // one timeout has been spent, backoff included (isRetryable())
+                if (!$this->isRetryable($e, microtime(true) - $began)) {
                     break;
                 }
 
@@ -520,6 +548,14 @@ class SruClient
                 return $book;
             }
         } catch (\Throwable $e) {
+            // Only a refusal of the query itself (HTTP 400: the server does
+            // not know bath.isbn) is worth the bare name. A timeout, a blocked
+            // or oversized request, a 401/403/404/429 fails the same way for
+            // any index, so it ends here instead of costing a second request.
+            if ($e->getCode() === self::NOT_RETRYABLE
+                || (str_contains($e->getMessage(), 'HTTP 4') && !str_contains($e->getMessage(), 'HTTP 400'))) {
+                throw $e;
+            }
             $failure = $e;
         }
         static $lastRequest = [];
@@ -697,6 +733,11 @@ class SruClient
             }
             if ($kind === \App\Support\HttpClient::FAILURE_TOO_LARGE) {
                 throw new \RuntimeException('Response too large', self::NOT_RETRYABLE);
+            }
+            // A request the SSRF guard refused (private address, scheme) is
+            // refused again on every attempt.
+            if ($kind === \App\Support\HttpClient::FAILURE_BLOCKED) {
+                throw new \RuntimeException('Request blocked', self::NOT_RETRYABLE);
             }
             throw new \RuntimeException('Connection failed');
         }

@@ -166,6 +166,12 @@ class LibraryCalendarController
             return $this->back($response, null, $id);
         }
         $error = $this->commitChange($db, function () use ($db, $row, $id): ?string {
+            // Again under the lock: a closure another operator deleted since
+            // the check above would make the UPDATE touch no row and still
+            // report "updated".
+            if (!$this->closureExists($db, $id)) {
+                return __('Chiusura non trovata.');
+            }
             $sede = $row['sede'];
             $yearly = $row['yearly'] ? 1 : 0;
             $stmt = $db->prepare('UPDATE calendario_chiusure SET data_inizio = ?, data_fine = ?, descrizione = ?, ricorrente_annuale = ?, sede_id = ? WHERE id = ?');
@@ -426,8 +432,13 @@ class LibraryCalendarController
         $added = 0;
         $skipped = 0;
         $rejected = 0;
+        $coverageRejected = 0;
         $events = LibraryCalendar::parseIcs($ics);
-        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected): ?string {
+        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected, &$coverageRejected): ?string {
+            // The whole-year guard's state, carried from event to event: the
+            // yearly rows are read once and each check only looks again at
+            // the years whose first open day the new event closes.
+            $coverage = null;
             foreach ($events as $event) {
                 // The same limits as the form: a yearly event longer than a
                 // year would otherwise be stored as a closure of every day.
@@ -449,9 +460,9 @@ class LibraryCalendarController
                 $newId = $this->insertClosure($db, $row);
                 // Like the form: yearly rows that together close every day
                 // of the year are refused, the event is not kept.
-                if ($this->yearCoverageError($db, $row) !== null) {
+                if ($this->yearCoverageError($db, $row, null, $coverage) !== null) {
                     $this->deleteClosure($db, $newId);
-                    $rejected++;
+                    $coverageRejected++;
                     continue;
                 }
                 $added++;
@@ -462,9 +473,15 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $error;
             return $this->back($response);
         }
-        $_SESSION['success_message'] = $rejected > 0
+        $message = $rejected > 0
             ? __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', $added, $skipped, $rejected)
             : __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);
+        // A different cause, a different fix: the span is fine, the yearly
+        // rows together would leave no open day.
+        if ($coverageRejected > 0) {
+            $message .= ' ' . __('%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l\'anno.', $coverageRejected);
+        }
+        $_SESSION['success_message'] = $message;
         return $this->back($response);
     }
 
@@ -572,25 +589,49 @@ class LibraryCalendarController
      * Null when every calendar year keeps an open day: then two open days are
      * never more than two years apart, well inside the scan bound.
      *
+     * $state carries the check across the rows of one import. Null on the
+     * first call: the stored yearly rows are read once. On success it holds
+     * those rows, the weekly days and the first open day found per branch and
+     * year; the next call adds its $row (already written, not yet in the
+     * state) and looks again only at the years whose first open day that row
+     * closes, from that day on: closures only grow during an import, so an
+     * earlier day cannot reopen. A failed check leaves $state as it was (the
+     * caller deletes the row). Without it every event re-read and rebuilt
+     * every yearly row and re-scanned every year from Jan 1, and a large ICS
+     * import outlasted the calendar lock other writers wait for.
+     *
      * @param array{start: string, end: string, description: string, yearly: bool, sede: ?int} $row
      * @param list<int>|null $closedWeekdays
+     * @param array{rows: list<array<mixed>>, weekdays: list<int>, open: array<string, string>}|null $state
      */
-    private function yearCoverageError(\mysqli $db, array $row, ?array $closedWeekdays = null): ?string
+    private function yearCoverageError(\mysqli $db, array $row, ?array $closedWeekdays = null, ?array &$state = null): ?string
     {
         if (!$row['yearly']) {
             return null;
         }
-        // A closure switched off (attiva = 0) closes no day; the column
-        // exists from the 0.9.0 migration on.
-        $hasActive = $db->query("SHOW COLUMNS FROM calendario_chiusure LIKE 'attiva'");
-        $activeOnly = ($hasActive instanceof \mysqli_result && $hasActive->num_rows > 0) ? ' AND attiva = 1' : '';
-        $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE ricorrente_annuale = 1' . $activeOnly);
-        $rows = $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-        $closedWeekdays ??= LibraryCalendar::parseWeekdays((new SettingsRepository($db))->get('loans', 'closed_weekdays', ''));
-        $calendar = new LibraryCalendar($closedWeekdays, $rows);
+        $added = null;
+        if ($state === null) {
+            // A closure switched off (attiva = 0) closes no day; the column
+            // exists from the 0.9.0 migration on.
+            $hasActive = $db->query("SHOW COLUMNS FROM calendario_chiusure LIKE 'attiva'");
+            $activeOnly = ($hasActive instanceof \mysqli_result && $hasActive->num_rows > 0) ? ' AND attiva = 1' : '';
+            $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE ricorrente_annuale = 1' . $activeOnly);
+            $next = [
+                'rows' => $result instanceof \mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [],
+                'weekdays' => $closedWeekdays ?? LibraryCalendar::parseWeekdays((new SettingsRepository($db))->get('loans', 'closed_weekdays', '')),
+                'open' => [],
+            ];
+        } else {
+            $next = $state;
+            $stored = ['data_inizio' => $row['start'], 'data_fine' => $row['end'], 'ricorrente_annuale' => 1, 'sede_id' => $row['sede']];
+            $next['rows'][] = $stored;
+            // The new row alone: does it close a day found open before?
+            $added = new LibraryCalendar([], [$stored]);
+        }
+        $calendar = null;
         $branches = [$row['sede']];
         if ($row['sede'] === null) {
-            foreach ($rows as $stored) {
+            foreach ($next['rows'] as $stored) {
                 if ($stored['sede_id'] !== null) {
                     $branches[] = (int) $stored['sede_id'];
                 }
@@ -601,17 +642,29 @@ class LibraryCalendarController
             // with a common or leap year, so the weekly closed days meet each
             // possible year. A common year with only Feb 29 open fails here.
             for ($year = 2025; $year < 2053; $year++) {
+                $key = ($branch ?? 'library') . '|' . $year;
                 $day = $year . '-01-01';
-                $open = false;
-                while (!$open && str_starts_with($day, (string) $year)) {
-                    $open = $calendar->isOpen($day, $branch);
+                if (isset($next['open'][$key])) {
+                    if ($added !== null && $added->isOpen($next['open'][$key], $branch)) {
+                        continue;
+                    }
+                    $day = LibraryCalendar::shift($next['open'][$key], 1);
+                }
+                $calendar ??= new LibraryCalendar($next['weekdays'], $next['rows']);
+                $open = null;
+                while ($open === null && str_starts_with($day, (string) $year)) {
+                    if ($calendar->isOpen($day, $branch)) {
+                        $open = $day;
+                    }
                     $day = LibraryCalendar::shift($day, 1);
                 }
-                if (!$open) {
+                if ($open === null) {
                     return __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.');
                 }
+                $next['open'][$key] = $open;
             }
         }
+        $state = $next;
         return null;
     }
 

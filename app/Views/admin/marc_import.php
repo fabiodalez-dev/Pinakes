@@ -84,7 +84,7 @@ unset($workspaceHeader);
                                 <p class="text-green-700 text-sm" id="file-name-display"></p>
                             </div>
                         </div>
-                        <input type="file" name="marc_file" id="marc_file" accept=".mrc,.marc,.iso,.dat,.xml" style="display: none;">
+                        <input type="file" name="marc_file" id="marc_file" accept=".mrc,.marc,.iso,.dat,.xml,.marcxml" style="display: none;">
 
                         <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
@@ -281,7 +281,7 @@ unset($workspaceHeader);
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
-                            <span><?= __("Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia") ?></span>
+                            <span><?= __("Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie") ?></span>
                         </li>
                         <li class="flex items-start">
                             <i class="fas fa-check text-gray-400 mr-2 mt-0.5"></i>
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (typeof Uppy !== 'undefined') {
         try {
-            uppy = new Uppy({ restrictions: { maxFileSize: 20 * 1024 * 1024, maxNumberOfFiles: 1, allowedFileTypes: ['.mrc', '.marc', '.iso', '.dat', '.xml'] }, autoProceed: false });
+            uppy = new Uppy({ restrictions: { maxFileSize: 20 * 1024 * 1024, maxNumberOfFiles: 1, allowedFileTypes: ['.mrc', '.marc', '.iso', '.dat', '.xml', '.marcxml'] }, autoProceed: false });
             uppy.use(UppyDragDrop, { target: '#uppy-marc-upload', note: T.note, locale: { strings: { dropHereOr: T.drop, dropPasteFiles: T.drop, browse: T.browse } } });
             uppy.on('file-added', (file) => {
                 previewBtn.disabled = false;

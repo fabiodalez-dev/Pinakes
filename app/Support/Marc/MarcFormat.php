@@ -32,12 +32,30 @@ final class MarcFormat
         if ($head[0] === '<') {
             return self::CONTAINER_XML;
         }
-        // An ISO 2709 record opens with its 5-digit length and, at 10-11,
-        // the indicator and subfield-code counts ("22").
-        if (strlen($head) >= 24 && ctype_digit(substr($head, 0, 5)) && str_contains($head, Iso2709Writer::FIELD_TERMINATOR)) {
-            return self::CONTAINER_ISO2709;
+        // An ISO 2709 record opens with its 5-digit length and, at 12-16,
+        // the base address of its data: the directory ends with a field
+        // terminator just before it. When the head is shorter than the base
+        // address, any field terminator in it is taken as the sign.
+        if (strlen($head) >= 24 && ctype_digit(substr($head, 0, 5))) {
+            $base = self::baseAddress($head);
+            if ($base !== null && strlen($head) >= $base) {
+                return $head[$base - 1] === Iso2709Writer::FIELD_TERMINATOR ? self::CONTAINER_ISO2709 : null;
+            }
+            if (str_contains($head, Iso2709Writer::FIELD_TERMINATOR)) {
+                return self::CONTAINER_ISO2709;
+            }
         }
         return null;
+    }
+
+    /** The base address of data (leader 12-16) of an ISO 2709 head; null when it is not one. */
+    private static function baseAddress(string $head): ?int
+    {
+        $digits = substr($head, 12, 5);
+        if (strlen($digits) !== 5 || !ctype_digit($digits) || (int) $digits <= 24) {
+            return null;
+        }
+        return (int) $digits;
     }
 
     public static function containerOfFile(string $path): ?string
@@ -47,6 +65,14 @@ final class MarcFormat
             return null;
         }
         $head = (string) fread($handle, 4096);
+        // A record with some 340 fields or more has a directory longer than
+        // 4096 bytes: read up to its base address (at most 99999, the largest
+        // ISO 2709 record), so its terminator is found where it belongs.
+        $trimmed = ltrim((string) preg_replace('/^\xEF\xBB\xBF/', '', $head), " \t\r\n");
+        $base = strlen($trimmed) >= 24 && ctype_digit(substr($trimmed, 0, 5)) ? self::baseAddress($trimmed) : null;
+        if ($base !== null && $base > strlen($trimmed)) {
+            $head .= (string) fread($handle, $base - strlen($trimmed));
+        }
         fclose($handle);
         return self::detectContainer($head);
     }
