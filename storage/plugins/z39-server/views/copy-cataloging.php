@@ -212,6 +212,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const importBtn = document.getElementById('copyImportBtn');
     const rowsEl = document.getElementById('copy-result-rows');
 
+    // One token per import: kept until an import succeeds, so the same click
+    // sent again after a lost answer is recognised by the server as a retry.
+    const newImportToken = () => (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID()
+        : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    let importToken = newImportToken();
     const selectedIds = () => Array.from(rowsEl.querySelectorAll('input[data-result-id]:checked')).map((c) => c.dataset.resultId);
     const refreshSelection = () => {
         const count = selectedIds().length;
@@ -294,7 +300,8 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({
                 ids,
                 duplicates: (document.querySelector('input[name="copy_duplicates"]:checked') || {}).value || 'skip',
-                covers: document.getElementById('copy_covers').checked
+                covers: document.getElementById('copy_covers').checked,
+                import_token: importToken
             })
         })
             .then((r) => r.json())
@@ -302,6 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 importBtn.innerHTML = importBtn.dataset.label;
                 refreshSelection();
                 if (!data.success) { window.SwalApp.error(T.error, data.error || T.error); return; }
+                importToken = newImportToken();
                 let summary = fmt(T.summary, data.imported, data.updated, data.skipped, data.failed);
                 if (data.covers > 0) summary += ', ' + fmt(T.covers, data.covers);
                 document.getElementById('copy-import-summary').textContent = summary;

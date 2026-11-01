@@ -229,6 +229,25 @@ if (!is_file($envFile)) {
         $delStmt->close();
     }
     $check($imp['failed'] === 1 && $logged === 1, '15 the history counts an id sent three times once, as the import handles it');
+
+    echo "Import replay\n";
+    // The same import sent again after its answer was lost (same token, same
+    // ids) gets the first answer back: no second run, no second history row.
+    $_SESSION['copy_cataloging_results'] = [];
+    $token = 'zz-token-' . bin2hex(random_bytes(4));
+    $firstImport = $ccSbn->import(['zz-gone-a'], 'overwrite', false, $token);
+    $replayed = $ccSbn->import(['zz-gone-a'], 'overwrite', false, $token);
+    $otherIds = $ccSbn->import(['zz-gone-b'], 'overwrite', false, $token);
+    $fresh = $ccSbn->import(['zz-gone-a'], 'overwrite', false, $token . '-new');
+    $replayIds = array_values(array_filter([$firstImport['import_id'] ?? null, $replayed['import_id'] ?? null, $otherIds['import_id'] ?? null, $fresh['import_id'] ?? null]));
+    $check($firstImport['import_id'] !== null && $replayed === $firstImport, '16 a retry with the same import token returns the first answer instead of importing again');
+    $check(($otherIds['import_id'] ?? null) !== null && $otherIds['import_id'] !== $firstImport['import_id'] && ($fresh['import_id'] ?? null) !== $firstImport['import_id'], '17 other ids, or a new token (a deliberate re-import), run a new import');
+    foreach (array_unique($replayIds) as $replayId) {
+        $delStmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
+        $delStmt->bind_param('s', $replayId);
+        $delStmt->execute();
+        $delStmt->close();
+    }
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";
