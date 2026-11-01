@@ -627,6 +627,14 @@ try {
     $unlogged = $renderImportPage($usersOnly, ['import_id' => ''] + $expiredNotice);
     $check(str_contains($unlogged, 'storico import non è stato aggiornato') && !str_contains($unlogged, 'e registrato nello storico import'), 'an expired run that could not be logged is not announced as recorded in the history');
 
+    // A bulk print above MAX_BULK is refused, never cut to a shorter PDF.
+    $_SESSION = ['user' => ['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    $bulkRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/admin/users/cards-pdf')
+        ->withQueryParams(['ids' => implode(',', range(1, \App\Controllers\PatronCardsController::MAX_BULK + 1))]);
+    $bulkResponse = (new \App\Controllers\PatronCardsController())->bulkPdf($bulkRequest, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(), $db);
+    $check($bulkResponse->getStatusCode() === 422 && str_contains((string) $bulkResponse->getBody(), (string) \App\Controllers\PatronCardsController::MAX_BULK), 'a bulk card print above MAX_BULK is refused with 422 and says the limit');
+    $_SESSION = [];
+
     // The user import's error report is served under the users permission.
     $check(\App\Support\Permissions::permissionForPath('/admin/users/import/errors') === 'users.manage', 'the user import error report needs users.manage, not catalog.manage');
 
