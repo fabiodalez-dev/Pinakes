@@ -119,6 +119,39 @@ try {
 }
 $check($loadError instanceof \RuntimeException, 'a closures read that fails throws instead of returning a calendar with no closures');
 
+// A connection whose prepare() fails for one table: the closed weekdays read
+// and the copy branch lookup must throw like the closures read, not answer
+// "no weekly closure" / "no branch".
+$failingDb = new class ($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null)) extends mysqli {
+    public string $failOn = '';
+    public function prepare(string $query): mysqli_stmt|false
+    {
+        if ($this->failOn !== '' && str_contains($query, $this->failOn)) {
+            return false;
+        }
+        return parent::prepare($query);
+    }
+};
+$failingDb->failOn = 'system_settings';
+$weekdaysError = null;
+try {
+    LibraryCalendar::fromDatabase($failingDb);
+} catch (\Throwable $e) {
+    $weekdaysError = $e;
+}
+$check($weekdaysError instanceof \RuntimeException, 'a closed weekdays read that fails throws instead of returning a calendar with no weekly closure');
+$failingDb->failOn = 'FROM copie';
+LibraryCalendar::reset();
+$branchError = null;
+try {
+    LibraryCalendar::branchOfCopy($failingDb, 1);
+} catch (\Throwable $e) {
+    $branchError = $e;
+}
+$check($branchError instanceof \RuntimeException, 'a copy branch lookup that fails throws instead of answering "no branch"');
+$failingDb->close();
+LibraryCalendar::reset();
+
 // ── 14-day loan ending on Sunday → Monday ─────────────────────────────────
 $setWeekdays('0');
 $sunday = $shift($today, 20);

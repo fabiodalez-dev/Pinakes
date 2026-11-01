@@ -277,6 +277,16 @@ $eq([$exdate[0]['start'], $exdate[0]['yearly']], ['2026-08-15', false], 'EXDATE:
 $eq($exdate[1]['yearly'], false, 'EXDATE: a timed EXDATE with TZID disables the recurrence too');
 $eq($exdate[2]['yearly'], true, 'EXDATE: without one the yearly event still recurs');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
+// An EXDATE excludes the occurrence with DTSTART's date AND time: another
+// time the same day leaves DTSTART's occurrence in place (RFC 5545).
+$exTime = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261224T090000\nEXDATE:20261224T150000\nSUMMARY:other time\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T090000\nEXDATE:20261224T090000\nSUMMARY:same time\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;TZID=Europe/Rome:20261224T090000\nEXDATE:20261224T080000Z\nSUMMARY:same instant in UTC\nEND:VEVENT\nEND:VCALENDAR\n", 1000, 'Europe/Rome');
+$eq(array_column($exTime, 'description'), ['other time'], 'EXDATE: another time the same day keeps the DTSTART occurrence, the same local time (also written in UTC) excludes it');
+// Text after the date or time is not a date: the event has no DTSTART.
+$eq(LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261224garbage\nSUMMARY:junk\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T100000Zjunk\nSUMMARY:junk time\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T1000\nSUMMARY:short time\nEND:VEVENT\nEND:VCALENDAR\n"), [['start' => '2026-12-24', 'end' => '2026-12-24', 'description' => 'short time', 'yearly' => false]], 'ICS: a DTSTART with trailing text is refused, a valid short time is kept');
 
 // ── The request calendar's toOpenDayIso() (book-detail.php), run in node ──
 // A closure longer than any fixed step bound must still be crossed whole.

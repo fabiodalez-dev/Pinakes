@@ -507,7 +507,7 @@ final class LibraryCalendar
         foreach (explode("\n", $ics) as $line) {
             $line = rtrim($line);
             if (strcasecmp($line, 'BEGIN:VEVENT') === 0) {
-                $current = ['start' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => []];
+                $current = ['start' => null, 'startKey' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => []];
                 continue;
             }
             if ($current === null) {
@@ -515,7 +515,9 @@ final class LibraryCalendar
             }
             if (strcasecmp($line, 'END:VEVENT') === 0) {
                 // RRULE and EXDATE may come before DTSTART: judged at the end.
-                if ($current['start'] !== null && !isset($current['exdates'][$current['start']])) {
+                // An EXDATE removes the occurrence with DTSTART's date and
+                // time (RFC 5545): another time the same day leaves it.
+                if ($current['start'] !== null && !isset($current['exdates'][$current['startKey']])) {
                     $start = $current['start'];
                     $end = $current['end'];
                     if ($end === null) {
@@ -558,6 +560,7 @@ final class LibraryCalendar
                     || preg_match('/^\d{8}$/', trim($value)) === 1;
                 if ($name === 'DTSTART') {
                     $current['start'] = $date;
+                    $current['startKey'] = $parsed['key'];
                 } else {
                     $current['end'] = $date;
                     $current['endIsDate'] = $isDate;
@@ -572,7 +575,7 @@ final class LibraryCalendar
                 foreach (explode(',', $value) as $excluded) {
                     $parsed = self::icsDateTime($excluded, $timezone, $tzid);
                     if ($parsed !== null) {
-                        $current['exdates'][$parsed['date']] = true;
+                        $current['exdates'][$parsed['key']] = true;
                     }
                 }
             }
@@ -669,18 +672,20 @@ final class LibraryCalendar
     }
 
     /**
-     * The day of an iCalendar DATE or DATE-TIME, and whether that local time
-     * is midnight. A DATE and a floating DATE-TIME are taken as written; a UTC
-     * DATE-TIME (trailing Z) or one with a valid TZID is converted to
-     * $timezone first, so 20260410T230000Z in Europe/Rome is 2026-04-11. An
-     * unknown TZID is read as floating.
+     * The day of an iCalendar DATE or DATE-TIME, whether that local time is
+     * midnight, and the local date and time as one key (the date alone for a
+     * DATE) that matches an EXDATE to its DTSTART. A DATE and a floating
+     * DATE-TIME are taken as written; a UTC DATE-TIME (trailing Z) or one with
+     * a valid TZID is converted to $timezone first, so 20260410T230000Z in
+     * Europe/Rome is 2026-04-11. An unknown TZID is read as floating. Anything
+     * after the date or time makes the value invalid.
      *
-     * @return array{date: string, midnight: bool}|null
+     * @return array{date: string, midnight: bool, key: string}|null
      */
     private static function icsDateTime(string $value, string $timezone, ?string $tzid = null): ?array
     {
         $value = trim($value);
-        if (preg_match('/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z?))?/i', $value, $m) !== 1) {
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z?))?$/i', $value, $m) !== 1) {
             return null;
         }
         $date = "{$m[1]}-{$m[2]}-{$m[3]}";
@@ -688,7 +693,7 @@ final class LibraryCalendar
             return null;
         }
         if (($m[4] ?? '') === '') {
-            return ['date' => $date, 'midnight' => true];
+            return ['date' => $date, 'midnight' => true, 'key' => $date];
         }
         $time = sprintf('%s:%s:%s', $m[4], $m[5], ($m[6] ?? '') !== '' ? $m[6] : '00');
         $source = null;
@@ -701,12 +706,12 @@ final class LibraryCalendar
             try {
                 $local = (new \DateTimeImmutable($date . 'T' . $time, new \DateTimeZone($source)))
                     ->setTimezone(new \DateTimeZone($timezone));
-                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00'];
+                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00', 'key' => $local->format('Y-m-d\TH:i:s')];
             } catch (\Throwable $e) {
                 // An unknown TZID: the time as written.
             }
         }
-        return ['date' => $date, 'midnight' => $time === '00:00:00'];
+        return ['date' => $date, 'midnight' => $time === '00:00:00', 'key' => $date . 'T' . $time];
     }
 
     /** app.timezone, with the same fallback as DateHelper::today(). */
@@ -737,13 +742,20 @@ final class LibraryCalendar
         return array_values($days);
     }
 
-    /** @return list<int> */
+    /**
+     * Thrown like loadClosures(), never read as "no weekly closure": the
+     * calendar would be cached without it and a due date stored on a closed
+     * weekday.
+     *
+     * @return list<int>
+     */
     private static function loadClosedWeekdays(\mysqli $db): array
     {
         try {
             return self::parseWeekdays((new SettingsRepository($db))->get('loans', 'closed_weekdays', ''));
         } catch (\Throwable $e) {
-            return [];
+            SecureLogger::warning('LibraryCalendar: closed weekdays not readable: ' . $e->getMessage());
+            throw new \RuntimeException('LibraryCalendar: closed weekdays not readable', 0, $e);
         }
     }
 
@@ -777,9 +789,11 @@ final class LibraryCalendar
     }
 
     /**
-     * The branch (copie.sede_id) of a copy, null when unknown or none. One
-     * query per copy and connection: the answer is kept on the forDb()
-     * calendar, which reset() discards with it.
+     * The branch (copie.sede_id) of a copy, null when the copy has none or
+     * does not exist. A lookup that fails is thrown, not read as "no branch":
+     * the branch's closures would be skipped. One query per copy and
+     * connection: the answer is kept on the forDb() calendar, which reset()
+     * discards with it.
      */
     public static function branchOfCopy(\mysqli $db, ?int $copiaId): ?int
     {
@@ -798,15 +812,20 @@ final class LibraryCalendar
         try {
             $stmt = $db->prepare('SELECT sede_id FROM copie WHERE id = ?');
             if ($stmt === false) {
-                return null;
+                throw new \RuntimeException('copy branch query not prepared');
             }
             $stmt->bind_param('i', $copiaId);
             $stmt->execute();
-            $row = $stmt->get_result()->fetch_row();
+            $result = $stmt->get_result();
+            if ($result === false) {
+                throw new \RuntimeException('copy branch query failed');
+            }
+            $row = $result->fetch_row();
             $stmt->close();
             return ($row === null || $row[0] === null) ? null : (int) $row[0];
         } catch (\Throwable $e) {
-            return null;
+            SecureLogger::warning('LibraryCalendar: copy branch not readable: ' . $e->getMessage());
+            throw new \RuntimeException('LibraryCalendar: copy branch not readable', 0, $e);
         }
     }
 }
