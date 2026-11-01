@@ -175,7 +175,7 @@ final class StocktakeService
      * A .txt line is the code itself: only a tab (which no code can hold, see
      * normalizeCode()) separates it from trailing scanner columns, so a code
      * such as "INV,001" survives. A .csv is read record by record with a real
-     * CSV parser, using the delimiter of its first line, so a quoted "INV,001"
+     * CSV parser, using the delimiter of its first record, so a quoted "INV,001"
      * survives too, and so does a quoted cell that spans several lines. Only
      * its first column is the code: a row whose first cell is empty has none.
      *
@@ -192,7 +192,14 @@ final class StocktakeService
         $codes = [];
         $first = true;
         foreach ($csv ? self::csvFirstCells($text) : self::txtFirstCells($text) as $cell) {
-            $cell = self::normalizeCode(trim($cell, " \"'"));
+            $cell = trim($cell);
+            // fgetcsv() already removed the CSV quoting, so a quote left in a
+            // .csv cell is part of the code. A .txt line has no quoting rules:
+            // only one pair of quotes wrapping the whole line is dropped.
+            if (!$csv && preg_match('/^(["\'])(.*)\1$/su', $cell, $m) === 1) {
+                $cell = $m[2];
+            }
+            $cell = self::normalizeCode($cell);
             if ($cell === '') {
                 continue;
             }
@@ -207,7 +214,9 @@ final class StocktakeService
     }
 
     /**
-     * The first non-blank cell of every .txt line.
+     * The first cell of every .txt line: what comes before its first tab. A
+     * line that starts with a tab has no code, as a .csv row whose first cell
+     * is empty: the next cell is a scanner column (a title, a date), never a code.
      *
      * @return list<string>
      */
@@ -215,12 +224,7 @@ final class StocktakeService
     {
         $cells = [];
         foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $line) {
-            foreach (explode("\t", $line) as $candidate) {
-                if (trim($candidate, " \"'") !== '') {
-                    $cells[] = $candidate;
-                    break;
-                }
-            }
+            $cells[] = explode("\t", $line, 2)[0];
         }
         return $cells;
     }
@@ -254,37 +258,43 @@ final class StocktakeService
     }
 
     /**
-     * The delimiter of a CSV export: the most frequent of , ; and tab on its
-     * first non-blank line, counting only those outside quoted cells (comma
-     * when the line has none, a one-column file).
+     * The delimiter of a CSV export: the most frequent of , ; and tab in its
+     * first non-blank record, counting only those outside quoted cells (comma
+     * when the record has none, a one-column file). The record ends at the
+     * first line break outside quotes, so a quoted first cell that spans
+     * several lines does not hide the delimiter that follows it.
      */
     private static function csvDelimiter(string $text): string
     {
-        foreach (explode("\n", $text) as $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-            $counts = [',' => 0, ';' => 0, "\t" => 0];
-            $quoted = false;
-            for ($i = 0, $n = strlen($line); $i < $n; $i++) {
-                $char = $line[$i];
-                if ($char === '"') {
-                    $quoted = !$quoted; // an escaped "" flips twice
-                } elseif (!$quoted && isset($counts[$char])) {
-                    $counts[$char]++;
+        $counts = [',' => 0, ';' => 0, "\t" => 0];
+        $quoted = false;
+        $blank = true;
+        for ($i = 0, $n = strlen($text); $i < $n; $i++) {
+            $char = $text[$i];
+            if ($char === '"') {
+                $quoted = !$quoted; // an escaped "" flips twice
+                $blank = false;
+            } elseif (!$quoted && $char === "\n") {
+                if (!$blank) {
+                    break;
                 }
+                $counts = [',' => 0, ';' => 0, "\t" => 0]; // a blank line: keep looking
+            } elseif (!$quoted && isset($counts[$char])) {
+                $counts[$char]++;
+                $blank = false;
+            } elseif (!ctype_space($char)) {
+                $blank = false;
             }
-            $best = ',';
-            $bestCount = 0;
-            foreach ($counts as $candidate => $count) {
-                if ($count > $bestCount) {
-                    $best = (string) $candidate;
-                    $bestCount = $count;
-                }
-            }
-            return $best;
         }
-        return ',';
+        $best = ',';
+        $bestCount = 0;
+        foreach ($counts as $candidate => $count) {
+            if ($count > $bestCount) {
+                $best = (string) $candidate;
+                $bestCount = $count;
+            }
+        }
+        return $best;
     }
 
     /**
@@ -567,50 +577,6 @@ final class StocktakeService
      */
     private function record(int $sessionId, string $code, ?int $operatorId, ?int $scanShelf, bool $insideTransaction = false): array
     {
-        // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
-        $stmt = $this->db->prepare(
-            'SELECT c.id, c.libro_id, c.stato, l.titolo, l.collocazione FROM copie c '
-            . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
-            . 'WHERE c.numero_inventario = ? LIMIT 1'
-        );
-        if ($stmt === false) {
-            throw new \RuntimeException($this->db->error);
-        }
-        $stmt->bind_param('s', $code);
-        $stmt->execute();
-        $copy = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        $copyId = is_array($copy) ? (int) $copy['id'] : null;
-        $expected = null;
-        $alreadyScanned = false;
-        $onLoan = false;
-        if ($copyId !== null) {
-            $stmt = $this->db->prepare('SELECT scaffale_atteso FROM inventario_attese WHERE sessione_id = ? AND copia_id = ?');
-            if ($stmt === false) {
-                throw new \RuntimeException($this->db->error);
-            }
-            $stmt->bind_param('ii', $sessionId, $copyId);
-            $stmt->execute();
-            $expected = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            $stmt = $this->db->prepare('SELECT 1 FROM inventario_scansioni WHERE sessione_id = ? AND copia_id = ? LIMIT 1');
-            if ($stmt === false) {
-                throw new \RuntimeException($this->db->error);
-            }
-            $stmt->bind_param('ii', $sessionId, $copyId);
-            $stmt->execute();
-            $alreadyScanned = $stmt->get_result()->fetch_row() !== null;
-            $stmt->close();
-
-            $onLoan = in_array((string) ($copy['stato'] ?? ''), self::ON_LOAN_COPY_STATES, true) || $this->isOnLoan($copyId);
-        }
-
-        $expectedShelf = is_array($expected) && $expected['scaffale_atteso'] !== null ? (int) $expected['scaffale_atteso'] : null;
-        $outcome = self::classify($copyId !== null, $alreadyScanned, is_array($expected), $onLoan, $expectedShelf, $scanShelf);
-
-        $storedCopyId = in_array($outcome, ['sconosciuta', 'duplicata'], true) ? null : $copyId;
         // The scan is written under a shared lock on the session row. close()
         // and cancel() flip the state with an UPDATE that waits for that lock,
         // so a scan either lands before the session leaves 'aperta' (and close()
@@ -622,6 +588,56 @@ final class StocktakeService
             if (!$insideTransaction) {
                 $this->lockOpenSession($sessionId);
             }
+            // `copie` has no deleted_at: a copy of a book removed from the catalogue is unknown.
+            $stmt = $this->db->prepare(
+                'SELECT c.id, c.libro_id, c.stato, l.titolo, l.collocazione FROM copie c '
+                . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
+                . 'WHERE c.numero_inventario = ? LIMIT 1'
+            );
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('s', $code);
+            $stmt->execute();
+            $copy = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            $copyId = is_array($copy) ? (int) $copy['id'] : null;
+            $expected = null;
+            $alreadyScanned = false;
+            $onLoan = false;
+            if ($copyId !== null) {
+                $stmt = $this->db->prepare('SELECT scaffale_atteso FROM inventario_attese WHERE sessione_id = ? AND copia_id = ?');
+                if ($stmt === false) {
+                    throw new \RuntimeException($this->db->error);
+                }
+                $stmt->bind_param('ii', $sessionId, $copyId);
+                $stmt->execute();
+                $expected = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+
+                $stmt = $this->db->prepare('SELECT 1 FROM inventario_scansioni WHERE sessione_id = ? AND copia_id = ? LIMIT 1');
+                if ($stmt === false) {
+                    throw new \RuntimeException($this->db->error);
+                }
+                $stmt->bind_param('ii', $sessionId, $copyId);
+                $stmt->execute();
+                $alreadyScanned = $stmt->get_result()->fetch_row() !== null;
+                $stmt->close();
+
+                // The loan status is read inside the transaction with locking
+                // reads, in the order a return takes its locks (the loan, then
+                // the copy): a return in progress is waited for, so the scan
+                // never records 'in_prestito' for a copy already back on the shelf.
+                $onLoan = $this->isOnLoan($copyId, true);
+                $copy['stato'] = $this->lockedCopyState($copyId) ?? (string) ($copy['stato'] ?? '');
+                $onLoan = $onLoan || in_array($copy['stato'], self::ON_LOAN_COPY_STATES, true);
+            }
+
+            $expectedShelf = is_array($expected) && $expected['scaffale_atteso'] !== null ? (int) $expected['scaffale_atteso'] : null;
+            $outcome = self::classify($copyId !== null, $alreadyScanned, is_array($expected), $onLoan, $expectedShelf, $scanShelf);
+
+            $storedCopyId = in_array($outcome, ['sconosciuta', 'duplicata'], true) ? null : $copyId;
             try {
                 $this->insertScan($sessionId, $storedCopyId, $code, $outcome, $operatorId);
             } catch (\mysqli_sql_exception $e) {
@@ -725,10 +741,14 @@ final class StocktakeService
             . 'SELECT 1 FROM prestiti p WHERE p.copia_id = a.copia_id AND p.attivo = 1 AND p.stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ')))';
     }
 
-    /** Lent, or set aside on the pickup shelf: see ON_LOAN_LOAN_STATES. */
-    private function isOnLoan(int $copyId): bool
+    /**
+     * Lent, or set aside on the pickup shelf: see ON_LOAN_LOAN_STATES. With
+     * $lock the read is a locking one (inside a transaction), which waits for
+     * a return of the copy still in progress and reads what it committed.
+     */
+    private function isOnLoan(int $copyId, bool $lock = false): bool
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ') LIMIT 1');
+        $stmt = $this->db->prepare('SELECT 1 FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN (' . self::sqlList(self::ON_LOAN_LOAN_STATES) . ') LIMIT 1' . ($lock ? ' LOCK IN SHARE MODE' : ''));
         if ($stmt === false) {
             return false;
         }
@@ -737,6 +757,20 @@ final class StocktakeService
         $found = $stmt->get_result()->fetch_row() !== null;
         $stmt->close();
         return $found;
+    }
+
+    /** The copy's state, read under a shared lock (inside a transaction); null when it is gone. */
+    private function lockedCopyState(int $copyId): ?string
+    {
+        $stmt = $this->db->prepare('SELECT stato FROM copie WHERE id = ? LOCK IN SHARE MODE');
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return $row === null ? null : (string) $row[0];
     }
 
     /** @var array<int,string> */
@@ -878,6 +912,14 @@ final class StocktakeService
      */
     private function unscannedExpected(int $sessionId, bool $frozen = false): array
     {
+        /** @var list<array<string,mixed>> $rows */
+        $rows = $this->unscannedExpectedResult($sessionId, $frozen)->fetch_all(MYSQLI_ASSOC);
+        return $rows;
+    }
+
+    /** The unscanned expected copies as a buffered result, read one row at a time by the report. */
+    private function unscannedExpectedResult(int $sessionId, bool $frozen): \mysqli_result
+    {
         $stmt = $this->db->prepare(
             'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, '
             . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, c.updated_at AS copia_aggiornata_il, '
@@ -895,10 +937,12 @@ final class StocktakeService
         }
         $stmt->bind_param('i', $sessionId);
         $stmt->execute();
-        /** @var list<array<string,mixed>> $rows */
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $result = $stmt->get_result();
         $stmt->close();
-        return $rows;
+        if ($result === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        return $result;
     }
 
     /**
@@ -908,39 +952,69 @@ final class StocktakeService
      * close marked lost stays a `mancante` row, with `stato_copia` saying
      * 'perso'. `stato_copia` is always the copy's state today.
      *
+     * With $limit at most that many rows are read: the PDF export asks for one
+     * more than it can hold, to tell a report that grew past its limit.
+     *
      * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
      */
-    public function reportRows(int $sessionId): array
+    public function reportRows(int $sessionId, ?int $limit = null): array
     {
         $rows = [];
-        foreach ($this->unscannedExpected($sessionId, $this->isFrozen($sessionId)) as $row) {
-            $rows[] = [
-                'categoria' => (int) $row['in_prestito'] === 1 ? 'in_prestito' : 'mancante',
-                'codice' => (string) ($row['numero_inventario'] ?? ('#' . (int) $row['copia_id'])),
-                'titolo' => (string) ($row['titolo'] ?? ''),
-                'tipo_media' => (string) ($row['tipo_media'] ?? ''),
-                'collocazione' => (string) ($row['collocazione'] ?? ''),
-                'scaffale_atteso' => $row['scaffale_atteso'] !== null ? $this->shelfLabel((int) $row['scaffale_atteso']) : '',
-                'stato_copia' => (string) ($row['stato_attuale'] ?? ''),
-                'operatore' => '',
-                'quando' => '',
-            ];
-        }
-        // Every scan, not the latest N: the summary counts them all, so must the report.
-        foreach ($this->scans($sessionId, null, null) as $scan) {
-            $rows[] = [
-                'categoria' => (string) $scan['esito'],
-                'codice' => (string) $scan['codice_letto'],
-                'titolo' => (string) ($scan['titolo'] ?? ''),
-                'tipo_media' => (string) ($scan['tipo_media'] ?? ''),
-                'collocazione' => (string) ($scan['collocazione'] ?? ''),
-                'scaffale_atteso' => $scan['scaffale_atteso'] !== null ? $this->shelfLabel((int) $scan['scaffale_atteso']) : '',
-                'stato_copia' => (string) ($scan['stato_copia'] ?? ''),
-                'operatore' => (string) ($scan['operatore'] ?? ''),
-                'quando' => (string) ($scan['scansionato_il'] ?? ''),
-            ];
+        foreach ($this->eachReportRow($sessionId) as $row) {
+            if ($limit !== null && count($rows) >= $limit) {
+                break;
+            }
+            $rows[] = $row;
         }
         return $rows;
+    }
+
+    /**
+     * The rows of reportRows() one at a time, for an export that writes them
+     * as they come (the CSV) instead of holding the whole report: the database
+     * results are buffered by the driver, but never turned into one PHP array.
+     *
+     * @return \Generator<int,array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
+     */
+    public function eachReportRow(int $sessionId): \Generator
+    {
+        $result = $this->unscannedExpectedResult($sessionId, $this->isFrozen($sessionId));
+        try {
+            while (is_array($row = $result->fetch_assoc())) {
+                yield [
+                    'categoria' => (int) $row['in_prestito'] === 1 ? 'in_prestito' : 'mancante',
+                    'codice' => (string) ($row['numero_inventario'] ?? ('#' . (int) $row['copia_id'])),
+                    'titolo' => (string) ($row['titolo'] ?? ''),
+                    'tipo_media' => (string) ($row['tipo_media'] ?? ''),
+                    'collocazione' => (string) ($row['collocazione'] ?? ''),
+                    'scaffale_atteso' => $row['scaffale_atteso'] !== null ? $this->shelfLabel((int) $row['scaffale_atteso']) : '',
+                    'stato_copia' => (string) ($row['stato_attuale'] ?? ''),
+                    'operatore' => '',
+                    'quando' => '',
+                ];
+            }
+        } finally {
+            $result->free();
+        }
+        // Every scan, not the latest N: the summary counts them all, so must the report.
+        $result = $this->scansResult($sessionId, null, null);
+        try {
+            while (is_array($scan = $result->fetch_assoc())) {
+                yield [
+                    'categoria' => (string) $scan['esito'],
+                    'codice' => (string) $scan['codice_letto'],
+                    'titolo' => (string) ($scan['titolo'] ?? ''),
+                    'tipo_media' => (string) ($scan['tipo_media'] ?? ''),
+                    'collocazione' => (string) ($scan['collocazione'] ?? ''),
+                    'scaffale_atteso' => $scan['scaffale_atteso'] !== null ? $this->shelfLabel((int) $scan['scaffale_atteso']) : '',
+                    'stato_copia' => (string) ($scan['stato_copia'] ?? ''),
+                    'operatore' => (string) ($scan['operatore'] ?? ''),
+                    'quando' => (string) ($scan['scansionato_il'] ?? ''),
+                ];
+            }
+        } finally {
+            $result->free();
+        }
     }
 
     /** How many rows reportRows() returns, counted without loading them. */
@@ -970,6 +1044,13 @@ final class StocktakeService
      */
     public function scans(int $sessionId, ?int $operatorId = null, ?int $limit = 200): array
     {
+        /** @var list<array<string,mixed>> $rows */
+        $rows = $this->scansResult($sessionId, $operatorId, $limit)->fetch_all(MYSQLI_ASSOC);
+        return $rows;
+    }
+
+    private function scansResult(int $sessionId, ?int $operatorId, ?int $limit): \mysqli_result
+    {
         $limit = $limit === null ? null : max(1, min(100000, $limit));
         $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, s.scansionato_da, s.copia_id, '
             . 'COALESCE(c.numero_inventario, a.codice_atteso, s.codice_letto) AS codice, COALESCE(l.titolo, a.titolo_atteso) AS titolo, '
@@ -993,10 +1074,12 @@ final class StocktakeService
             $stmt->bind_param('i', $sessionId);
         }
         $stmt->execute();
-        /** @var list<array<string,mixed>> $rows */
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $result = $stmt->get_result();
         $stmt->close();
-        return $rows;
+        if ($result === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        return $result;
     }
 
     /**

@@ -31,9 +31,13 @@ class StocktakePdfGenerator
      * @param list<array<string,string>> $rows
      * @param list<string> $filterLabels
      * @param array<string,string> $labels
+     * @throws \LengthException with more than MAX_ROWS rows: the caller refuses those before
      */
     public function generate(array $session, array $summary, array $rows, array $filterLabels, array $labels): string
     {
+        if (count($rows) > self::MAX_ROWS) {
+            throw new \LengthException(sprintf('A stocktake PDF holds at most %d rows, %d given', self::MAX_ROWS, count($rows)));
+        }
         $appName = (string) ConfigStore::get('app.name', 'Biblioteca');
         $title = __('Revisione inventariale');
 

@@ -8548,7 +8548,7 @@
   "Impossibile aprire il file caricato": "Impossible d'ouvrir le fichier chargé",
   "Indica cosa cercare e almeno un catalogo": "Indiquez quoi rechercher et au moins un catalogue",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "Les couvertures indiquées dans les notices sont enregistrées localement. Cela ralentit l'import.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre reçoit un exemplaire",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Les exemplaires (champs 852/949/952) ne sont pas importés : chaque livre créé reçoit un exemplaire, ceux déjà au catalogue gardent les leurs",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Livres déjà présents (même ISBN-13, ISBN-10 ou EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
@@ -8701,5 +8701,8 @@
   "Import completato, ma la cronologia non è stata salvata. Riprova per salvarla.": "Import terminé, mais l’historique n’a pas été enregistré. Réessayez pour l’enregistrer.",
   "Limite di dimensione dei risultati raggiunto: catalogo non interrogato.": "Limite de taille des résultats atteinte : catalogue non interrogé.",
   "Il catalogo SBN non permette la ricerca per ISSN.": "Le catalogue SBN ne permet pas la recherche par ISSN.",
-  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer."
+  "Questa anteprima è stata sostituita da un altro file caricato: carica di nuovo il file per importarlo.": "Cet aperçu a été remplacé par un autre fichier téléversé : téléversez de nouveau le fichier pour l'importer.",
+  "Altri %d campi non mostrati": "%d autres champs non affichés",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Sélection non valide pour l'export : réessayez depuis la liste des livres.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "Les identifiants de la notice (ISBN, EAN) appartiennent à des livres différents du catalogue : notice non importée."
 }
