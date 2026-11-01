@@ -112,7 +112,7 @@ final class PatronPhoto
         }
         $name = self::DIR . '/' . $userId . '-' . bin2hex(random_bytes(8)) . '.jpg';
         $target = dirname(__DIR__, 2) . '/storage/' . $name;
-        if (@file_put_contents($target, $jpeg, LOCK_EX) === false) {
+        if (!self::writeFile($target, $jpeg)) {
             SecureLogger::error('[PatronPhoto] cannot write the photo file', ['user_id' => $userId]);
             return 'storage';
         }
@@ -230,6 +230,22 @@ final class PatronPhoto
             }
         }
         return $removed;
+    }
+
+    /**
+     * Write $bytes to $path in full. A failed or short write (the disk
+     * filling up mid-file) removes what reached the disk at once, instead of
+     * leaving a partial personal photo for sweepOrphans() to find later. No
+     * lock: the name is new and random, nothing reads it before store()
+     * records it.
+     */
+    public static function writeFile(string $path, string $bytes): bool
+    {
+        if (@file_put_contents($path, $bytes) === strlen($bytes)) {
+            return true;
+        }
+        @unlink($path);
+        return false;
     }
 
     /**

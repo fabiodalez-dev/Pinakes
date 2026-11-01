@@ -78,8 +78,11 @@ $row = static fn (string $category, string $code): array => [
     'categoria' => $category, 'codice' => $code, 'titolo' => 'Titolo ' . $code, 'tipo_media' => 'libro',
     'collocazione' => 'A.1', 'scaffale_atteso' => '[X] Scaffale', 'stato_copia' => 'disponibile', 'operatore' => '', 'quando' => '',
 ];
+// A code as long as the column allows (MAX_CODE_LENGTH): the cell must print it whole, never cut to fit.
+$longCode = 'PDF-LONG-' . str_repeat('L', 91);
 $rows = [
     $row('trovata', 'PDF-FOUND-1'),
+    ['titolo' => 'Titolo lungo'] + $row('trovata', $longCode),
     $row('mancante', 'PDF-MISSING-1'),
     $row('fuori_posto', 'PDF-MISPLACED-1'),
     $row('in_prestito', 'PDF-LENT-1'),
@@ -89,7 +92,7 @@ $rows = [
     $row('mancante', 'PDF-MISSING-2'),
 ];
 $session = ['nome' => 'Scaffale X', 'stato' => 'chiusa', 'aperta_il' => '2026-10-01 09:00:00', 'chiusa_il' => '2026-10-02 18:00:00', 'sede_nome' => ''];
-$summary = ['attese' => 5, 'trovate' => 1, 'fuori_posto' => 1, 'in_prestito' => 1, 'mancanti' => 2, 'sconosciute' => 1, 'fuori_ambito' => 1, 'duplicate' => 1, 'perse' => 0];
+$summary = ['attese' => 6, 'trovate' => 2, 'fuori_posto' => 1, 'in_prestito' => 1, 'mancanti' => 2, 'sconosciute' => 1, 'fuori_ambito' => 1, 'duplicate' => 1, 'perse' => 0];
 
 $generator = new RecordingStocktakePdfGenerator();
 $bytes = $generator->generate($session, $summary, $rows, [], $labels);
@@ -118,8 +121,9 @@ foreach ($rows as $r) {
     $positions = array_keys($texts, $r['codice'], true);
     $check(count($positions) === 1, "{$r['codice']} is written once");
     $check($sectionOf($positions[0]) === $r['categoria'], "{$r['codice']} is in the {$r['categoria']} section");
-    $check(in_array('Titolo ' . $r['codice'], $texts, true), "{$r['codice']} carries its title");
+    $check(in_array($r['titolo'], $texts, true), "{$r['codice']} carries its title");
 }
+$check(strlen($longCode) === 100 && in_array($longCode, $texts, true), 'a 100-character code is written whole');
 $check(array_keys($headingAt) === ['mancante', 'fuori_posto', 'in_prestito', 'sconosciuta', 'fuori_ambito', 'duplicata', 'trovata'], 'sections follow the reading order, missing copies first');
 
 // An empty section is left out instead of printing a bare heading.

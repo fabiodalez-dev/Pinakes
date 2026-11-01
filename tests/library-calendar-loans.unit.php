@@ -103,10 +103,27 @@ $shift = static fn (string $d, int $n): string => LibraryCalendar::shift($d, $n)
 // ── Zero config ───────────────────────────────────────────────────────────
 $setWeekdays('');
 $clearClosures();
-$plain = $shift($today, 30);
+// Closures this run did not add (another suite's, or the operator's) stay in
+// the table: the dates below are taken where none of them closes the library.
+$baseline = LibraryCalendar::forDb($db);
+$openFrom = static function (string $from, int $span = 0) use ($baseline, $shift): string {
+    for ($day = $from, $i = 0; $i < 1100; $day = $shift($day, 1), $i++) {
+        $allOpen = true;
+        for ($k = 0; $k <= $span && $allOpen; $k++) {
+            $allOpen = $baseline->isOpen($shift($day, $k));
+        }
+        if ($allOpen) {
+            return $day;
+        }
+    }
+    return $from;
+};
+$plain = $openFrom($shift($today, 30));
 $check(LibraryCalendar::dueDate($db, $plain) === $plain, 'zero config: dueDate is the computed date');
-$check(LibraryCalendar::pickupDeadline($db, $today, 3) === $shift($today, 3), 'zero config: pickupDeadline is today + N');
-$check(LibraryCalendar::pickupDeadline($db, $today, 3, $shift($today, 1)) === $shift($today, 1), 'pickupDeadline is capped at the due date');
+// From a day whose next three days are open: the deadline is plain + N.
+$pickFrom = $shift($openFrom($shift($today, 1), 2), -1);
+$check(LibraryCalendar::pickupDeadline($db, $pickFrom, 3) === $shift($pickFrom, 3), 'zero config: pickupDeadline is start + N');
+$check(LibraryCalendar::pickupDeadline($db, $pickFrom, 3, $shift($pickFrom, 1)) === $shift($pickFrom, 1), 'pickupDeadline is capped at the due date');
 
 // ── A closures read that fails is not an empty calendar ──────────────────
 $broken = new mysqli($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
@@ -119,10 +136,44 @@ try {
 }
 $check($loadError instanceof \RuntimeException, 'a closures read that fails throws instead of returning a calendar with no closures');
 
+// A connection whose prepare() fails for one table: the closed weekdays read
+// and the copy branch lookup must throw like the closures read, not answer
+// "no weekly closure" / "no branch".
+$failingDb = new class ($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null)) extends mysqli {
+    public string $failOn = '';
+    public function prepare(string $query): mysqli_stmt|false
+    {
+        if ($this->failOn !== '' && str_contains($query, $this->failOn)) {
+            return false;
+        }
+        return parent::prepare($query);
+    }
+};
+$failingDb->failOn = 'system_settings';
+$weekdaysError = null;
+try {
+    LibraryCalendar::fromDatabase($failingDb);
+} catch (\Throwable $e) {
+    $weekdaysError = $e;
+}
+$check($weekdaysError instanceof \RuntimeException, 'a closed weekdays read that fails throws instead of returning a calendar with no weekly closure');
+$failingDb->failOn = 'FROM copie';
+LibraryCalendar::reset();
+$branchError = null;
+try {
+    LibraryCalendar::branchOfCopy($failingDb, 1);
+} catch (\Throwable $e) {
+    $branchError = $e;
+}
+$check($branchError instanceof \RuntimeException, 'a copy branch lookup that fails throws instead of answering "no branch"');
+$failingDb->close();
+LibraryCalendar::reset();
+
 // ── 14-day loan ending on Sunday → Monday ─────────────────────────────────
 $setWeekdays('0');
+// A Sunday that, like the Monday after it, no pre-existing closure closes.
 $sunday = $shift($today, 20);
-while ((int) (new DateTimeImmutable($sunday))->format('w') !== 0) {
+while ((int) (new DateTimeImmutable($sunday))->format('w') !== 0 || !$baseline->isOpen($sunday) || !$baseline->isOpen($shift($sunday, 1))) {
     $sunday = $shift($sunday, 1);
 }
 $start = $shift($sunday, -14);
@@ -448,9 +499,13 @@ $controller->store($post(['data_inizio' => '2026-08-16', 'data_fine' => '2027-08
 $check($ok !== null && $taggedRows() === 1, 'yearly: a closure leaving only Aug 15 open is stored');
 $controller->importPreset($post(['year' => substr($today, 0, 4)]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
-$presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'")->fetch_row()[0];
+// Only rows the preset itself would write (the holiday names, library-wide):
+// a closure someone else stores meanwhile is neither counted nor deleted.
+$holidayNames = implode(',', array_map(static fn (array $h): string => "'" . $db->real_escape_string($h['description']) . "'", LibraryCalendar::italianHolidays((int) substr($today, 0, 4))));
+$presetWhere = "id > {$maxBefore} AND sede_id IS NULL AND descrizione IN ({$holidayNames})";
+$presetRows = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE {$presetWhere}")->fetch_row()[0];
 $check($err !== null && $ok === null && $presetRows === 0, 'preset: an import that would close the whole year is refused and rolled back (' . $presetRows . ' rows kept)');
-$db->query("DELETE FROM calendario_chiusure WHERE id > {$maxBefore} AND descrizione <> '{$tag}'");
+$db->query("DELETE FROM calendario_chiusure WHERE {$presetWhere}");
 $clearClosures();
 
 $icsFile = static function (string $body): \Slim\Psr7\UploadedFile {
@@ -466,6 +521,78 @@ $check($err === __('Sede non trovata.') && $taggedRows() === 0, 'ICS: an unknown
 $controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($halves)]), new \Slim\Psr7\Response(), $db);
 [$ok, $err] = $flash();
 $check($ok !== null && $taggedRows() === 1, 'ICS: the yearly event that would close the whole year is discarded, the other kept');
+$check(is_string($ok) && str_contains($ok, __('%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l\'anno.', 1))
+    && !str_contains($ok, __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', 1, 0, 1)), 'ICS: a whole-year discard is reported as such, not as a span over the limit');
+$clearClosures();
+
+// A whole year of one-day yearly events: only the last one (Dec 31, which
+// closes every common year) is discarded, and the whole-year guard reads the
+// yearly rows once for the import instead of once per event.
+$countingDb = new class ($env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null)) extends mysqli {
+    public int $yearlyReads = 0;
+    public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+    {
+        if (str_contains($query, 'WHERE ricorrente_annuale = 1')) {
+            $this->yearlyReads++;
+        }
+        return parent::query($query, $result_mode);
+    }
+};
+$countingDb->set_charset('utf8mb4');
+$wholeYear = "BEGIN:VCALENDAR\n";
+for ($d = '2026-01-01'; $d <= '2026-12-31'; $d = $shift($d, 1)) {
+    $wholeYear .= "BEGIN:VEVENT\nDTSTART;VALUE=DATE:" . str_replace('-', '', $d) . "\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\n";
+}
+$wholeYear .= "END:VCALENDAR\n";
+$controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($wholeYear)]), new \Slim\Psr7\Response(), $countingDb);
+[$ok, $err] = $flash();
+$stillOpen = (int) $db->query("SELECT COUNT(*) FROM calendario_chiusure WHERE descrizione = '{$tag}' AND DATE_FORMAT(data_inizio, '%m-%d') = '12-31'")->fetch_row()[0];
+$check($ok !== null && $taggedRows() === 364 && $stillOpen === 0, 'ICS: 365 one-day yearly events keep 364, the one that closes the whole year is discarded (' . $taggedRows() . ' kept)');
+$check($countingDb->yearlyReads === 1, "ICS: the whole-year guard reads the yearly rows once per import ({$countingDb->yearlyReads} reads)");
+$countingDb->close();
+$clearClosures();
+// Carried from event to event per branch too: with a branch closed Jan 1 -
+// Jun 30 every year, a library-wide import keeps Jul 1 - Dec 30 and drops the
+// Dec 31 that follows it, which would close that branch's whole year.
+$addClosure('2026-01-01', '2026-06-30', $sedeId, 1);
+$branchYear = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20260701\nDTEND;VALUE=DATE:20261231\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;VALUE=DATE:20261231\nRRULE:FREQ=YEARLY\nSUMMARY:{$tag}\nEND:VEVENT\nEND:VCALENDAR\n";
+$controller->importIcs($post(['sede_id' => ''])->withUploadedFiles(['ics_file' => $icsFile($branchYear)]), new \Slim\Psr7\Response(), $db);
+[$ok, $err] = $flash();
+$keptBranchYear = $db->query("SELECT DATE_FORMAT(data_inizio, '%m-%d') FROM calendario_chiusure WHERE descrizione = '{$tag}' AND sede_id IS NULL")->fetch_all();
+$check($ok !== null && array_column($keptBranchYear, 0) === ['07-01'], 'ICS: a library-wide event that would close a branch\'s last open day is discarded after an earlier event of the same import moved it');
+$clearClosures();
+
+// update() re-checks the closure under the calendar lock: another operator
+// holds the lock, deletes the closure meanwhile, and the update that was
+// waiting for the lock reports "not found" instead of "updated".
+$addClosure($shift($today, 60), $shift($today, 60));
+$raceId = (int) $db->query("SELECT MAX(id) FROM calendario_chiusure WHERE descrizione = '{$tag}'")->fetch_row()[0];
+$holderCode = <<<'PHP'
+    [$host, $user, $pass, $name, $port, $socket, $lock, $id] = json_decode($argv[1], true);
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+    $db = new mysqli($host, $user, $pass, $name, $port, $socket ?: null);
+    $stmt = $db->prepare('SELECT GET_LOCK(?, 5)');
+    $stmt->bind_param('s', $lock);
+    $stmt->execute();
+    echo ((int) $stmt->get_result()->fetch_row()[0] === 1 ? 'locked' : 'busy'), "\n";
+    $stmt->close();
+    usleep(1500000);
+    $db->query('DELETE FROM calendario_chiusure WHERE id = ' . (int) $id);
+    $db->query("SELECT RELEASE_LOCK('" . $db->real_escape_string($lock) . "')");
+    PHP;
+$holderArgs = json_encode([$env['DB_HOST'] ?? 'localhost', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? ''), 'pinakes-calendar:' . md5($env['DB_NAME']), $raceId]);
+$holder = proc_open([PHP_BINARY, '-r', $holderCode, '--', $holderArgs], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $holderPipes);
+$holderState = is_resource($holder) ? trim((string) fgets($holderPipes[1])) : 'no process';
+$check($holderState === 'locked', "race: a second connection holds the calendar lock ({$holderState})");
+$controller->update($post(['data_inizio' => $shift($today, 61), 'descrizione' => $tag]), new \Slim\Psr7\Response(), $db, $raceId);
+[$ok, $err] = $flash();
+if (is_resource($holder)) {
+    fclose($holderPipes[1]);
+    fclose($holderPipes[2]);
+    proc_close($holder);
+}
+$check($ok === null && $err === __('Chiusura non trovata.'), 'race: an update whose closure was deleted while it waited for the lock reports "not found", not "updated"');
 $clearClosures();
 $_SESSION = [];
 

@@ -8548,7 +8548,6 @@
   "Impossibile aprire il file caricato": "Unable to open the uploaded file",
   "Indica cosa cercare e almeno un catalogo": "Enter what to search for and choose at least one catalogue",
   "Le copertine indicate nei record vengono salvate in locale. Rallenta l'importazione.": "The covers the records point to are saved locally. It slows the import down.",
-  "Le copie (campi 852/949/952) non vengono importate: ogni libro riceve una copia": "Holdings (fields 852/949/952) are not imported: each book gets one copy",
   "Libri già presenti (stesso ISBN-13, ISBN-10 o EAN)": "Books already in the catalogue (same ISBN-13, ISBN-10 or EAN)",
   "MARC (ISO 2709 / MARCXML)": "MARC (ISO 2709 / MARCXML)",
   "MARC 21 (.mrc)": "MARC 21 (.mrc)",
@@ -8936,7 +8935,7 @@
   "Natale": "Christmas Day",
   "Nessuna chiusura configurata": "No closures configured",
   "Ogni anno": "Every year",
-  "Ogni evento del calendario diventa un giorno o un periodo di chiusura; gli eventi annuali (RRULE FREQ=YEARLY) si ripetono ogni anno.": "Each calendar event becomes a closed day or period; yearly events (RRULE FREQ=YEARLY) repeat every year.",
+  "Ogni evento del calendario diventa un giorno o un periodo di chiusura. Solo una ricorrenza annuale semplice (RRULE FREQ=YEARLY, senza COUNT, UNTIL, EXDATE né giorni della settimana, ogni anno nella stessa data) si ripete ogni anno; ogni altra ricorrenza importa solo la prima occorrenza come chiusura singola.": "Each calendar event becomes a closed day or period. Only a plain yearly recurrence (RRULE FREQ=YEARLY with no COUNT, UNTIL, EXDATE or weekdays, every year on the same date) repeats every year; any other recurrence imports only its first occurrence as a single closure.",
   "Ognissanti": "All Saints' Day",
   "Pasqua": "Easter Sunday",
   "Ricorrenza": "Recurrence",
@@ -9082,5 +9081,15 @@
   "%s: %d di %d righe elaborate. Puoi riprenderlo dal punto in cui si è fermato oppure chiuderlo: gli utenti già creati restano.": "%s: %d of %d rows processed. You can resume it from where it stopped or close it: the users already created are kept.",
   "Annulla import": "Cancel import",
   "Riprendi import": "Resume import",
-  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "User not deleted: their photo cannot be removed from disk. Try again or check the permissions of the storage folder."
+  "Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.": "User not deleted: their photo cannot be removed from disk. Try again or check the permissions of the storage folder.",
+  "%d scartate perché con le altre chiusure annuali lascerebbero la biblioteca chiusa tutto l'anno.": "%d discarded because, together with the other yearly closures, they would keep the library closed all year.",
+  "L'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.": "The previous import was closed, but the import history could not be updated: the users already created remain.",
+  "Il file dell'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.": "The import file is no longer available and the import history could not be updated: the users already created remain. Upload the file again to complete it.",
+  "Il file dell'import interrotto «%s» non era più disponibile: l'import è stato chiuso dopo %d di %d righe, ma lo storico import non è stato aggiornato. Gli utenti già creati restano; per completarlo carica di nuovo il file.": "The file of the interrupted import «%s» was no longer available: the import was closed after %d of %d rows, but the import history could not be updated. The users already created remain; to complete it, upload the file again.",
+  "Troppi utenti selezionati": "Too many users selected",
+  "Si possono stampare al massimo %d tessere alla volta: selezionane di meno.": "At most %d library cards can be printed at a time: select fewer users.",
+  "Le copie (campi 852/949/952) non vengono importate: ogni libro creato riceve una copia, quelli già in catalogo mantengono le proprie": "Holdings (fields 852/949/952) are not imported: each book created gets one copy, books already in the catalogue keep their own",
+  "Altri %d campi non mostrati": "%d more fields not shown",
+  "Selezione non valida per l'esportazione: riprova dalla lista dei libri.": "Invalid selection for the export: try again from the book list.",
+  "Gli identificativi del record (ISBN, EAN) appartengono a libri diversi del catalogo: record non importato.": "The record's identifiers (ISBN, EAN) belong to different books in the catalogue: record not imported."
 }

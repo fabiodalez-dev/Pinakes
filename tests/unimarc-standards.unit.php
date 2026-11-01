@@ -129,6 +129,32 @@ $check(
     'UNIMARC export → import round-trips every name unchanged (got ' . json_encode($names, JSON_UNESCAPED_UNICODE) . ')'
 );
 
+// Pinakes-to-Pinakes copy cataloguing: the SRU server's UNIMARC/XML record
+// of a book with a genre maps back to that genre, not to a keyword, because
+// the formatter writes it as BookMarcBuilder does (608 $2 local).
+$genreBook = $book + ['genere' => 'Narrativa storica', 'parole_chiave' => 'medioevo, abbazia'];
+$genreDoc = new DOMDocument('1.0', 'UTF-8');
+$genreDoc->appendChild((new \Z39Server\UNIMARCXMLFormatter($genreDoc))->format($genreBook));
+$genreXml = (string) $genreDoc->saveXML();
+$sruRecord = null;
+foreach (\App\Support\Marc\MarcXmlReader::fromString($genreXml) as $item) {
+    if ($item instanceof \App\Support\Marc\MarcRecord) {
+        $sruRecord = $item;
+        break;
+    }
+}
+$sruMapped = $sruRecord !== null ? (new \App\Support\Marc\UnimarcLibriMapper())->map($sruRecord) : [];
+$builderGenre = \App\Support\Marc\BookMarcBuilder::unimarc(['id' => 1, 'titolo' => 'T'], [], [], ['nome' => 'Narrativa storica']);
+$check(
+    $sruRecord !== null && $sruRecord->subfield('608', 'a') === 'Narrativa storica' && $sruRecord->subfield('608', '2') === 'local'
+    && $builderGenre->subfield('608', 'a') === 'Narrativa storica' && $builderGenre->subfield('608', '2') === 'local',
+    'the SRU UNIMARC formatter writes the genre as BookMarcBuilder does: 608 $a $2 local'
+);
+$check(
+    ($sruMapped['genere'] ?? null) === 'Narrativa storica' && ($sruMapped['parole_chiave'] ?? null) === ['medioevo', 'abbazia'],
+    'an SRU UNIMARC record of a book with a genre maps back to the genre, not to a keyword (got ' . json_encode([$sruMapped['genere'] ?? null, $sruMapped['parole_chiave'] ?? null], JSON_UNESCAPED_UNICODE) . ')'
+);
+
 echo "\n================================\n";
 echo "Passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);

@@ -277,6 +277,16 @@ $eq([$exdate[0]['start'], $exdate[0]['yearly']], ['2026-08-15', false], 'EXDATE:
 $eq($exdate[1]['yearly'], false, 'EXDATE: a timed EXDATE with TZID disables the recurrence too');
 $eq($exdate[2]['yearly'], true, 'EXDATE: without one the yearly event still recurs');
 $eq(count(LibraryCalendar::parseIcs(str_repeat("BEGIN:VEVENT\nDTSTART;VALUE=DATE:20260101\nEND:VEVENT\n", 50), 10)), 10, 'ICS: the event cap holds');
+// An EXDATE excludes the occurrence with DTSTART's date AND time: another
+// time the same day leaves DTSTART's occurrence in place (RFC 5545).
+$exTime = LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261224T090000\nEXDATE:20261224T150000\nSUMMARY:other time\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T090000\nEXDATE:20261224T090000\nSUMMARY:same time\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART;TZID=Europe/Rome:20261224T090000\nEXDATE:20261224T080000Z\nSUMMARY:same instant in UTC\nEND:VEVENT\nEND:VCALENDAR\n", 1000, 'Europe/Rome');
+$eq(array_column($exTime, 'description'), ['other time'], 'EXDATE: another time the same day keeps the DTSTART occurrence, the same local time (also written in UTC) excludes it');
+// Text after the date or time is not a date: the event has no DTSTART.
+$eq(LibraryCalendar::parseIcs("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261224garbage\nSUMMARY:junk\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T100000Zjunk\nSUMMARY:junk time\nEND:VEVENT\n"
+    . "BEGIN:VEVENT\nDTSTART:20261224T1000\nSUMMARY:short time\nEND:VEVENT\nEND:VCALENDAR\n"), [['start' => '2026-12-24', 'end' => '2026-12-24', 'description' => 'short time', 'yearly' => false]], 'ICS: a DTSTART with trailing text is refused, a valid short time is kept');
 
 // ── The request calendar's toOpenDayIso() (book-detail.php), run in node ──
 // A closure longer than any fixed step bound must still be crossed whole.
@@ -298,6 +308,36 @@ if ($node === '') {
     $out = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
     @unlink($script);
     $eq($out, ['2027-03-11', '2025-12-31', '2025-12-31', '2026-06-01'], 'toOpenDayIso crosses a 434-day closure both ways and leaves open days alone');
+}
+
+// ── loanWindowFrom() (book-detail.php) stops at the loaded availability ──
+// Moving the longest return date over closed days must not reach a day the
+// availability did not load (no occupancy data reads as free).
+if ($node === '') {
+    echo "SKIP loanWindowFrom: node not available\n";
+} else {
+    $fns = '';
+    foreach (['addDaysToIso', 'daysBetweenIso', 'toOpenDayIso', 'loanWindowFrom'] as $fn) {
+        if (preg_match('/function ' . $fn . '\(.*?\n    }\n/s', $viewSrc, $fnSrc) !== 1) {
+            $check(false, "{$fn} found in book-detail.php");
+            continue;
+        }
+        $fns .= $fnSrc[0];
+    }
+    $loaded = [];
+    for ($d = '2026-01-01'; $d <= '2026-06-29'; $d = LibraryCalendar::shift($d, 1)) {
+        $loaded[] = ['date' => $d, 'state' => 'free'];
+    }
+    $closedTail = ['2026-06-29', '2026-06-30', '2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04', '2026-07-05'];
+    $js = $fns . 'const avail = {}; for (const d of ' . json_encode($loaded) . ') avail[d.date] = d;'
+        . 'const w = loanWindowFrom("2026-01-01", avail, 30, 180, new Set(' . json_encode($closedTail) . '));'
+        . 'const plain = loanWindowFrom("2026-01-01", avail, 30, 60, new Set());'
+        . 'process.stdout.write(JSON.stringify([w.maxEndDate, w.endDate, w.capped, plain.maxEndDate]));';
+    $script = tempnam(sys_get_temp_dir(), 'loanwindow') . '.js';
+    file_put_contents($script, $js);
+    $out = json_decode((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($script)), true);
+    @unlink($script);
+    $eq($out, ['2026-06-28', '2026-01-31', false, '2026-03-02'], 'loanWindowFrom: a longest return date moved past the loaded days stops at the last open loaded day; inside them nothing changes');
 }
 
 echo ($failures === 0 ? 'SUCCESS' : 'FAILURE') . " {$checks} checks, {$failures} failed\n";

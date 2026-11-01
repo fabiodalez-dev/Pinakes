@@ -814,7 +814,7 @@ class Z39ServerPlugin
         return $this->jsonResponse($response, ['success' => true] + $result);
     }
 
-    /** POST /admin/books/copy-cataloging/import — JSON {ids, duplicates, covers} */
+    /** POST /admin/books/copy-cataloging/import — JSON {ids, duplicates, covers, import_token} */
     public function copyCatalogingImportAction(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         @ini_set('display_errors', '0');
@@ -828,7 +828,8 @@ class Z39ServerPlugin
         $result = $this->copyCataloging()->import(
             array_slice($ids, 0, 100),
             (string) ($payload['duplicates'] ?? 'skip'),
-            !empty($payload['covers'])
+            !empty($payload['covers']),
+            substr((string) preg_replace('/[^A-Za-z0-9-]/', '', (string) ($payload['import_token'] ?? '')), 0, 64)
         );
         return $this->jsonResponse($response, ['success' => true] + $result);
     }
