@@ -706,8 +706,10 @@ class UsersController
             $lockUser->bind_param('i', $id);
             $lockUser->execute();
             $lockUser->close();
-            // Before the 0.9.0 migration there is no ledger to count.
-            $loanCheck = \App\Services\PatronLedger::schemaReady($db)
+            // Before the 0.9.0 migration there is no ledger to count. A failed
+            // probe throws (rollback below) instead of skipping the ledger
+            // rows and letting the cascade erase them.
+            $loanCheck = \App\Services\PatronLedger::schemaReadyOrFail($db)
                 ? $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + (SELECT COUNT(*) FROM movimenti_lettore WHERE utente_id = ?) AS count")
                 : $db->prepare("SELECT (SELECT COUNT(*) FROM prestiti WHERE utente_id = ?) + 0 * ? AS count");
             $loanCheck->bind_param("ii", $id, $id);
