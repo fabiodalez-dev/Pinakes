@@ -75,7 +75,9 @@ unset($workspaceHeader);
         <!-- An interrupted run whose staged file expired: closed into the history -->
         <div class="p-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200 text-sm" id="user-import-expired" role="status">
           <i class="fas fa-info-circle mr-1"></i><?= htmlspecialchars(sprintf(__('Il file dell\'import interrotto «%s» non era più disponibile: l\'import è stato chiuso dopo %d di %d righe e registrato nello storico import. Gli utenti già creati restano; per completarlo carica di nuovo il file.'), $expiredImport['name'], $expiredImport['processed'], $expiredImport['total']), ENT_QUOTES, 'UTF-8') ?>
+          <?php if (\App\Support\Permissions::can('catalog.manage')): // the history page belongs to the catalogue permission ?>
           <a class="underline" href="<?= htmlspecialchars(url('/admin/imports-history'), ENT_QUOTES, 'UTF-8') ?>"><?= __("storico import") ?></a>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -472,6 +474,9 @@ unset($workspaceHeader);
       showError(err.message || T.networkError);
       return;
     }
+    // The run is over: an upload in another tab from now on starts a new
+    // import and does not make this summary stale.
+    previewId = null;
     $('user-import-progress').classList.add('hidden');
     $('user-import-summary').classList.remove('hidden');
     ['created', 'duplicates', 'failed', 'invited'].forEach((key) => {

@@ -559,6 +559,27 @@ try {
     $check($status === 200 && ($json['done'] ?? false) === true && $staleCount() === 1, 'its block, naming the same preview, imports the row');
     $_SESSION = [];
 
+    // The import page links the import history (a catalog.manage page) only
+    // for an account that may open it, the expired-import notice included.
+    $renderImportPage = static function (array $user, array $expiredImport): string {
+        $savedSession = $_SESSION;
+        $_SESSION = ['user' => $user];
+        $patronTypes = false;
+        $resumeImport = null;
+        ob_start();
+        try {
+            require dirname(__DIR__) . '/app/Views/utenti/import.php';
+        } finally {
+            $html = (string) ob_get_clean();
+            $_SESSION = $savedSession;
+        }
+        return $html;
+    };
+    $expiredNotice = ['name' => 'a.csv', 'processed' => 1, 'total' => 2, 'import_id' => 'x'];
+    $usersOnly = ['id' => $userId, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['users.manage']];
+    $check(substr_count($renderImportPage($usersOnly, $expiredNotice), 'imports-history') === 0, 'without catalog.manage the import page shows no link to the import history');
+    $check(substr_count($renderImportPage(['id' => $userId, 'tipo_utente' => 'admin', 'stato' => 'attivo'], $expiredNotice), 'imports-history') === 2, 'an admin gets the history link in the expired-import notice and in the help box');
+
     // The user import's error report is served under the users permission.
     $check(\App\Support\Permissions::permissionForPath('/admin/users/import/errors') === 'users.manage', 'the user import error report needs users.manage, not catalog.manage');
 
