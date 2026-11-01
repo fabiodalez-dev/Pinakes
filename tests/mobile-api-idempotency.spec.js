@@ -995,12 +995,8 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         const feedUrl = String((await cal.json()).data.feed_url || '');
         ctx.calendarToken = (feedUrl.match(/\/calendar\/feed\/([a-f0-9]{64})\.ics$/) || [])[1] || 'missing';
 
-        // ── Mobile API 1.10.0 library settings fixtures (admin-only rows) ──
-        const adminLogin = await call(request, 'POST', `${API}/auth/login`, {
-            body: { email: ADMIN_EMAIL, password: ADMIN_PASS, device_name: 'IdemAdmin090', device_id: 'idem-admin-090', platform: 'test' },
-        });
-        expect(adminLogin.status(), 'admin login must succeed').toBe(200);
-        ctx.adminToken = (await adminLogin.json()).data.token;
+        // ── Mobile API 1.10.0 library settings fixtures (admin-only rows; the
+        // admin token is the one the visitor log fixtures logged in above) ──
         const adminJson = async (method, route, body) => {
             const r = await call(request, method, `${API}${route}`, { token: ctx.adminToken, body });
             expect(r.status(), `fixture ${method} ${route}`).toBeLessThan(300);
