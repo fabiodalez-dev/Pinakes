@@ -628,6 +628,22 @@ try {
     $check($status === 500 && ($json['processed'] ?? null) === 0 && $ckAccountId('b') === 0 && ($after['next'] ?? null) === 0 && ($after['created'] ?? null) === 0 && ($after['failed'] ?? null) === 0 && !isset($after['pending']) && $after['errors'] === [],
         'a checkpoint that cannot be stored undoes the insert and stops on the row: not counted, not failed, not passed');
 
+    // The checkpoint taken before the invitation fails: the batch halts with
+    // the marker NOT flagged as invited, so the retry still sends it.
+    file_put_contents($staged, "nome;cognome;email\nCk;E;" . $ckEmail('inv') . "\n");
+    $_SESSION['user_import'] = ['send_invites' => true] + $running;
+    $calls = 0;
+    $secondFails = (new \App\Controllers\UserImportController())->onRowCheckpoint(static function (array $state) use (&$calls): void {
+        if (++$calls === 2) {
+            throw new \RuntimeException('job row gone before the invitation');
+        }
+    });
+    [$status, $json] = $callWith($secondFails, 'chunk', ['preview_id' => $pid, 'start' => 0]);
+    $after = $_SESSION['user_import'] ?? [];
+    $check($status === 500 && $calls === 2 && $ckAccountId('inv') > 0 && is_array($after['pending'] ?? null) && empty($after['pending']['invited'])
+        && ($db->query('SELECT token_reset_password FROM utenti WHERE id = ' . $ckAccountId('inv'))->fetch_row()[0] ?? null) === null,
+        'a failed checkpoint before the invitation leaves the marker unflagged and no token issued');
+
     // Resumed after the invitation step began: no new token voids the link.
     $resumedId = $ckAccount('c');
     file_put_contents($staged, "nome;cognome;email\nCk;C;" . $ckEmail('c') . "\n");

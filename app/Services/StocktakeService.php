@@ -484,60 +484,70 @@ final class StocktakeService
      * closed or cancelled later keeps its place among the open ones (whenever
      * its close commits), one opened later is left out (whatever its id: an
      * open session absent from `a` was not visible yet). The ranks are fixed,
-     * so no session is listed twice or skipped while the pages are read. A
-     * closed session absent from `a` belongs to the history only when its
-     * close is stamped before the snapshot's database time (`t`): one that
-     * became visible after the snapshot (a late commit with an id below `u`)
-     * and was closed meanwhile stays out too.
+     * so no session is listed twice or skipped while the pages are read. The
+     * ids at or below `u` that no committed row held at that moment (`g`, the
+     * gaps: a session still being written, a rolled-back or deleted one) stay
+     * out of every page, so a session that became visible after the snapshot
+     * is never listed, open or closed. Gaps are few, so the cursor stays small.
      *
-     * @return array{u:int,a:list<int>,t:string}
+     * @return array{u:int,a:list<int>,g:list<int>}
      */
     public function sessionSnapshot(): array
     {
-        $result = $this->db->query('SELECT COALESCE(MAX(id), 0), DATE_FORMAT(NOW(), \'%Y-%m-%d %H:%i:%s\') FROM inventario_sessioni');
-        $values = $result === false ? null : $result->fetch_row();
-        if (!is_array($values)) {
+        // One row per session, never GROUP_CONCAT (cut at group_concat_max_len).
+        $result = $this->db->query("SELECT id, stato = 'aperta' FROM inventario_sessioni ORDER BY id");
+        if ($result === false) {
             throw new \RuntimeException($this->db->error);
         }
-        // One row per open session (never GROUP_CONCAT: it is cut at
-        // group_concat_max_len, 1024 bytes by default).
-        $openResult = $this->db->query("SELECT id FROM inventario_sessioni WHERE stato = 'aperta' ORDER BY id");
-        if ($openResult === false) {
-            throw new \RuntimeException($this->db->error);
+        $open = [];
+        $gaps = [];
+        $expected = 1;
+        foreach ($result->fetch_all(MYSQLI_NUM) as [$id, $isOpen]) {
+            $id = (int) $id;
+            for (; $expected < $id; $expected++) {
+                $gaps[] = $expected;
+            }
+            $expected = $id + 1;
+            if ((int) $isOpen === 1) {
+                $open[] = $id;
+            }
         }
-        $open = array_map(static fn (array $row): int => (int) $row[0], $openResult->fetch_all(MYSQLI_NUM));
-        return ['u' => (int) $values[0], 'a' => $open, 't' => (string) $values[1]];
+        return ['u' => $expected - 1, 'a' => $open, 'g' => $gaps];
     }
 
     /**
      * A snapshot as a cursor carries it: the open ids comma-separated.
      *
-     * @param array{u:int,a:list<int>,t:string} $snapshot
-     * @return array{u:int,a:string,t:string}
+     * @param array{u:int,a:list<int>,g:list<int>} $snapshot
+     * @return array{u:int,a:string,g:string}
      */
     public static function snapshotToCursor(array $snapshot): array
     {
-        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a']), 't' => $snapshot['t']];
+        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a']), 'g' => implode(',', $snapshot['g'])];
     }
 
     /**
      * A snapshot back from snapshotToCursor(), or null when it is not one.
      *
-     * @return array{u:int,a:list<int>,t:string}|null
+     * @return array{u:int,a:list<int>,g:list<int>}|null
      */
-    public static function snapshotFrom(mixed $u, mixed $open, mixed $time = null): ?array
+    public static function snapshotFrom(mixed $u, mixed $open, mixed $gaps = null): ?array
     {
-        if (!is_int($u) || $u < 0 || !is_string($open) || preg_match('/^(\d{1,10}(,\d{1,10})*)?$/', $open) !== 1
-            || !is_string($time) || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $time) !== 1) {
+        $idList = '/^(\d{1,10}(,\d{1,10})*)?$/';
+        if (!is_int($u) || $u < 0 || !is_string($open) || !is_string($gaps)
+            || preg_match($idList, $open) !== 1 || preg_match($idList, $gaps) !== 1) {
             return null;
         }
-        $ids = $open === '' ? [] : array_map('intval', explode(',', $open));
-        foreach ($ids as $id) {
-            if ($id <= 0 || $id > $u) {
-                return null;
+        $lists = [];
+        foreach (['a' => $open, 'g' => $gaps] as $key => $text) {
+            $lists[$key] = $text === '' ? [] : array_map('intval', explode(',', $text));
+            foreach ($lists[$key] as $id) {
+                if ($id <= 0 || $id > $u) {
+                    return null;
+                }
             }
         }
-        return ['u' => $u, 'a' => $ids, 't' => $time];
+        return ['u' => $u, 'a' => $lists['a'], 'g' => $lists['g']];
     }
 
     /**
@@ -546,7 +556,7 @@ final class StocktakeService
      * the app pages through the whole history, which listSessions() trims.
      * With $snapshot (sessionSnapshot()) the list is the one of that moment.
      *
-     * @param array{u:int,a:list<int>,t:string}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<int>}|null $snapshot
      * @return list<int> session ids
      */
     public function sessionIds(?string $state, int $limit, int $offset = 0, ?array $snapshot = null): array
@@ -575,7 +585,7 @@ final class StocktakeService
     /**
      * How many sessions sessionIds() pages through.
      *
-     * @param array{u:int,a:list<int>,t:string}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<int>}|null $snapshot
      */
     public function sessionCount(?string $state, ?array $snapshot = null): int
     {
@@ -598,7 +608,7 @@ final class StocktakeService
      * for the sessions open in the snapshot, the stored state for the others,
      * and no open session the snapshot did not see.
      *
-     * @param array{u:int,a:list<int>,t:string}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<int>}|null $snapshot
      * @return array{0:string,1:string} [state expression, WHERE condition]
      */
     private static function sessionListSql(?array $snapshot): array
@@ -607,11 +617,10 @@ final class StocktakeService
             return ['s.stato', '1 = 1'];
         }
         $open = $snapshot['a'] === [] ? 'FALSE' : 's.id IN (' . implode(',', array_map('intval', $snapshot['a'])) . ')';
-        // `t` passed snapshotFrom()'s pattern (or came from NOW()), so it is a plain DATETIME literal.
-        $closedBefore = "(s.stato <> 'aperta' AND s.chiusa_il IS NOT NULL AND s.chiusa_il <= '" . $snapshot['t'] . "')";
+        $visible = $snapshot['g'] === [] ? '' : ' AND s.id NOT IN (' . implode(',', array_map('intval', $snapshot['g'])) . ')';
         return [
             "(CASE WHEN {$open} THEN 'aperta' ELSE s.stato END)",
-            's.id <= ' . (int) $snapshot['u'] . " AND ({$open} OR {$closedBefore})",
+            's.id <= ' . (int) $snapshot['u'] . $visible . " AND ({$open} OR s.stato <> 'aperta')",
         ];
     }
 

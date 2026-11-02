@@ -1030,8 +1030,13 @@ class UserImportController
             self::report($state, ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell\'utente.'), 'type' => 'email']);
         } elseif ($notifier !== null) {
             if (is_array($state['pending'] ?? null)) {
+                // The flag joins the state only once its checkpoint is stored:
+                // a failed checkpoint halts the batch with the marker unflagged,
+                // so the retry still sends the invitation nobody sent.
+                $flagged = $state;
+                $flagged['pending']['invited'] = true;
+                $this->checkpoint($flagged);
                 $state['pending']['invited'] = true;
-                $this->checkpoint($state);
             }
             try {
                 $token = PasswordSetupToken::issue($db, $userId);
