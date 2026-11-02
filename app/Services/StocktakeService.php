@@ -509,7 +509,10 @@ final class StocktakeService
      * `b` a session counts as open when it still is or was closed at `t` or
      * later. Closing and cancelling both stamp chiusa_il and nothing reopens a
      * session, so its rank is the same on every page and no row shifts (one
-     * closed in the very second of `t` counts as open, on every page). `b`
+     * closed in the very second of `t` counts as open, on every page). The
+     * read locks the rows in share mode: close() stamps chiusa_il before it
+     * commits, so a close still in flight is waited for and read closed, and
+     * every close committed after the snapshot carries a stamp from `t` on. `b`
      * and `t` are 0 when every open id is kept, the case of any library that
      * closes its stocktakes.
      *
@@ -523,7 +526,7 @@ final class StocktakeService
         }
         $moment = (int) ($clock->fetch_row()[0] ?? 0);
         // One row per session, never GROUP_CONCAT (cut at group_concat_max_len).
-        $result = $this->db->query("SELECT id, stato = 'aperta' FROM inventario_sessioni ORDER BY id");
+        $result = $this->db->query("SELECT id, stato = 'aperta' FROM inventario_sessioni ORDER BY id LOCK IN SHARE MODE");
         if ($result === false) {
             throw new \RuntimeException($this->db->error);
         }

@@ -435,6 +435,25 @@ try {
         'its cursor stays small and reads back as the same snapshot');
     $wideOpen = $service->sessionIds('aperta', 500, 0, $wide);
     $check($wideOpen === $service->sessionIds('aperta', 500) && $service->sessionCount('aperta', $wide) === count($openNow) && !in_array($bulk[1], $wideOpen, true), 'every session open at the snapshot is listed as open, those below the floor too, and none closed before it');
+    // A close still in flight on another connection (chiusa_il stamped, not
+    // committed): the snapshot waits for it rather than reading it open,
+    // since after the commit its stamp would rank it closed on later pages.
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->begin_transaction();
+    $other->query("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_il = NOW() - INTERVAL 1 MINUTE WHERE id = {$bulk[2]}");
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    $waited = false;
+    try {
+        $service->sessionSnapshot();
+    } catch (\Throwable $e) {
+        $waited = true;
+    }
+    $db->query('SET SESSION innodb_lock_wait_timeout = 50');
+    $other->rollback();
+    $other->close();
+    $other = null;
+    $check($waited, 'the snapshot waits for a close still in flight instead of reading the session open');
+
     // Paged by offset (newest first): the first page ends on a session below
     // the floor, then it and a pinned one close. The next page neither skips
     // nor repeats a row.
