@@ -26,6 +26,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const F = require('./helpers/mobile-api-fixtures');
+const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
 const FT = require('./helpers/feature-toggles');
 const { marcFile, cleanupRun } = require('./helpers/marc-e2e');
 
@@ -94,7 +95,7 @@ test.afterAll(async ({ browser }) => {
         for (const row of states) {
             try {
                 const file = JSON.parse(row.state).file_path;
-                if (typeof file === 'string' && /\/writable\/uploads\/marc_import_[^/]+\.jsonl$/.test(file) && fs.existsSync(file)) fs.unlinkSync(file);
+                if (typeof file === 'string' && /\/writable\/uploads\/marc_import_[^/]+\.jsonl$/.test(file) && serverFileExists(file)) removeServerFile(file);
             } catch { /* not JSON */ }
         }
         try { F.dbExec(`DELETE FROM mobile_import_jobs WHERE user_id IN (${users})`); } catch {}
@@ -387,7 +388,7 @@ test.describe('MARC import', () => {
         expect(F.dbScalar(`SELECT CONCAT(import_type,':',imported,':',user_id) FROM import_logs WHERE import_id=${F.sqlStr(importId)}`)).toBe(`marc:3:${ctx.staffId}`);
         // The staged records are gone with the finished import.
         const state = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${job.id}'`));
-        expect(fs.existsSync(state.file_path)).toBe(false);
+        expect(serverFileExists(state.file_path)).toBe(false);
         ctx.importedIds = bookIds().split(',').map(Number);
         expect(ctx.importedIds.length).toBe(3);
     });
@@ -424,7 +425,7 @@ test.describe('MARC import', () => {
         expect(up.status).toBe(201);
         const id = up.json.data.id;
         const staged = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`)).file_path;
-        expect(fs.existsSync(staged)).toBe(true);
+        expect(serverFileExists(staged)).toBe(true);
         for (const [method, path] of [['GET', `/staff/marc/imports/${id}`], ['POST', `/staff/marc/imports/${id}/chunk`], ['DELETE', `/staff/marc/imports/${id}`]]) {
             const r = await F.api(request, method, path, { token: ctx.other, body: method === 'POST' ? {} : undefined });
             expect([r.status, r.json.error.code], `${method} ${path}`).toEqual([404, 'not_found']);
@@ -439,7 +440,7 @@ test.describe('MARC import', () => {
         let r = await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff });
         expect(r.status).toBe(200);
         expect(r.json.data).toEqual({ id, cancelled: true });
-        expect(fs.existsSync(staged)).toBe(false);
+        expect(serverFileExists(staged)).toBe(false);
         r = await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff });
         expect(r.status).toBe(200); // idempotent
         r = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0 } });
@@ -457,8 +458,8 @@ test.describe('MARC import', () => {
         // The staged records end after the first: the second record of the
         // chunk cannot be read, as if the request had died there.
         const staged = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`)).file_path;
-        const original = fs.readFileSync(staged, 'utf8');
-        fs.writeFileSync(staged, original.split('\n')[0] + '\n');
+        const original = readServerFile(staged).toString('utf8');
+        writeServerFile(staged, original.split('\n')[0] + '\n');
         const r = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0, size: 3 } });
         expect([r.status, r.json.error.code], r.text).toEqual([500, 'internal_error']);
         // The first record is in and its position saved with the job.
@@ -469,7 +470,7 @@ test.describe('MARC import', () => {
         expect([out.status, out.json.meta.processed]).toEqual([409, 1]);
         // The records back in place, the job resumes from the saved position:
         // the first record is not imported again.
-        fs.writeFileSync(staged, original);
+        writeServerFile(staged, original);
         const resumed = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 1 } });
         expect(resumed.status, resumed.text).toBe(200);
         expect(resumed.json.data).toMatchObject({ status: 'completed', complete: true, processed: 3, imported: 3, skipped: 0, failed: 0 });

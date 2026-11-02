@@ -23,6 +23,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const F = require('./helpers/mobile-api-fixtures');
+const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
 const featureToggles = require('./helpers/feature-toggles');
 const { flushCache } = require('./helpers/flush-cache');
 
@@ -99,7 +100,7 @@ test.afterAll(async () => {
     for (const id of ctx.users) {
         const stored = F.dbScalar(`SELECT COALESCE(foto_profilo_url, '') FROM utenti WHERE id=${id}`);
         if (/^patron_photos\/\d+-[a-f0-9]{16}\.jpg$/.test(stored)) {
-            try { fs.unlinkSync(path.join(__dirname, '..', 'storage', stored)); } catch {}
+            try { removeServerFile(path.join(__dirname, '..', 'storage', stored)); } catch {}
         }
     }
     F.deleteBooks(ctx.books);
@@ -314,7 +315,7 @@ test.describe('Patron photo', () => {
         expect(up.json.data.photo_url).toMatch(new RegExp(`/api/v1/staff/users/${ctx.patronId}/photo\\?v=[a-f0-9]{10}$`));
         const stored = F.dbScalar(`SELECT foto_profilo_url FROM utenti WHERE id=${ctx.patronId}`);
         expect(stored).toMatch(new RegExp(`^patron_photos/${ctx.patronId}-[a-f0-9]{16}\\.jpg$`));
-        expect(fs.existsSync(path.join(__dirname, '..', 'storage', stored))).toBe(true);
+        expect(serverFileExists(path.join(__dirname, '..', 'storage', stored))).toBe(true);
 
         const detail = await F.api(request, 'GET', `/staff/users/${ctx.patronId}`, { token: ctx.staff });
         expect(detail.json.data.has_photo).toBe(true);
@@ -340,7 +341,7 @@ test.describe('Patron photo', () => {
         expect(del.status, del.text.slice(0, 200)).toBe(200);
         expect(del.json.data).toEqual({ user_id: ctx.patronId, has_photo: false, photo_url: null });
         expect(F.dbScalar(`SELECT COALESCE(foto_profilo_url, '') FROM utenti WHERE id=${ctx.patronId}`)).toBe('');
-        expect(fs.existsSync(path.join(__dirname, '..', 'storage', stored))).toBe(false);
+        expect(serverFileExists(path.join(__dirname, '..', 'storage', stored))).toBe(false);
         const again = await F.api(request, 'DELETE', route, { token: ctx.admin });
         expect(again.status).toBe(200);
         expect((await F.api(request, 'DELETE', '/staff/users/999999999/photo', { token: ctx.admin })).status).toBe(404);

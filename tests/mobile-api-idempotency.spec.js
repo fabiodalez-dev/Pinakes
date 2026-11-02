@@ -18,6 +18,7 @@
 // Run: /tmp/run-e2e.sh tests/mobile-api-idempotency.spec.js --config=tests/playwright.config.js --workers=1
 
 const { test, expect } = require('@playwright/test');
+const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
 
 // 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
 // fines, stocktake, the visitor log, the patron CSV import and the cataloguing
@@ -1169,7 +1170,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             try {
                 const staged = dbScalar(`SELECT GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(state, '$.core.file')) SEPARATOR '|') FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId} AND kind='users'`);
                 for (const f of (staged && staged !== 'NULL' ? staged.split('|') : [])) {
-                    if (/\/writable\/uploads\/user_import_[a-f0-9]+\.csv$/.test(f)) { try { fs.unlinkSync(f); } catch {} }
+                    if (/\/writable\/uploads\/user_import_[a-f0-9]+\.csv$/.test(f)) { try { removeServerFile(f); } catch {} }
                 }
             } catch {}
         }
@@ -1197,7 +1198,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                 const covers = dbScalar(`SELECT GROUP_CONCAT(copertina_url SEPARATOR '|') FROM libri WHERE id IN (${books})`);
                 for (const c of (covers && covers !== 'NULL' ? covers.split('|') : [])) {
                     if (/^\/uploads\/copertine\/libro_\d+_[a-f0-9]+\.(jpg|png)$/.test(c)) {
-                        try { fs.unlinkSync(path.join(__dirname, '..', 'public', c)); } catch {}
+                        try { removeServerFile(path.join(__dirname, '..', 'public', c)); } catch {}
                     }
                 }
                 try { dbExec(`DELETE FROM volumi WHERE opera_id IN (${books}) OR volume_id IN (${books})`); } catch {}
@@ -1264,7 +1265,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                 const files = dbScalar(`SELECT GROUP_CONCAT(file_path SEPARATOR '|') FROM archival_unit_files WHERE unit_id IN (${units})`);
                 const covers = dbScalar(`SELECT GROUP_CONCAT(cover_image_path SEPARATOR '|') FROM archival_units WHERE id IN (${units})`);
                 for (const p of [...(files && files !== 'NULL' ? files.split('|') : []), ...(covers && covers !== 'NULL' ? covers.split('|') : [])]) {
-                    if (/^\/uploads\/archives\/(covers|documents)\/[^/]+$/.test(p)) { try { fs.unlinkSync(path.join(__dirname, '..', 'public', p)); } catch {} }
+                    if (/^\/uploads\/archives\/(covers|documents)\/[^/]+$/.test(p)) { try { removeServerFile(path.join(__dirname, '..', 'public', p)); } catch {} }
                 }
                 dbExec(`DELETE FROM archival_unit_files WHERE unit_id IN (${units})`);
                 dbExec(`DELETE FROM archival_unit_authority WHERE archival_unit_id IN (${units})`);
@@ -1303,7 +1304,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             try {
                 const states = dbScalar(`SELECT GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(state, '$.file_path')) SEPARATOR '|') FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId} AND kind='marc'`);
                 for (const f of (states && states !== 'NULL' ? states.split('|') : [])) {
-                    if (/\/writable\/uploads\/marc_import_[^/]+\.jsonl$/.test(f)) { try { fs.unlinkSync(f); } catch {} }
+                    if (/\/writable\/uploads\/marc_import_[^/]+\.jsonl$/.test(f)) { try { removeServerFile(f); } catch {} }
                 }
             } catch {}
             try { dbExec(`DELETE FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId}`); } catch {}
@@ -1317,7 +1318,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         if (ctx.staffUserId) {
             try {
                 const photo = dbScalar(`SELECT COALESCE(foto_profilo_url, '') FROM utenti WHERE id=${ctx.staffUserId}`);
-                if (/^patron_photos\/\d+-[a-f0-9]{16}\.jpg$/.test(photo)) fs.unlinkSync(path.join(__dirname, '..', 'storage', photo));
+                if (/^patron_photos\/\d+-[a-f0-9]{16}\.jpg$/.test(photo)) removeServerFile(path.join(__dirname, '..', 'storage', photo));
             } catch {}
         }
         if (ctx.staffUserId) {

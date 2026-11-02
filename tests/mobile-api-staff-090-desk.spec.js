@@ -21,6 +21,7 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const F = require('./helpers/mobile-api-fixtures');
+const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
 const featureToggles = require('./helpers/feature-toggles');
 const { flushCache } = require('./helpers/flush-cache');
 
@@ -113,7 +114,7 @@ test.afterAll(async () => {
     const list = ctx.users.join(',');
     for (const id of ctx.jobs) {
         const file = stagedFile(id);
-        if (file && file.includes('/writable/uploads/user_import_')) { try { fs.unlinkSync(file); } catch {} }
+        if (file && file.includes('/writable/uploads/user_import_')) { try { removeServerFile(file); } catch {} }
     }
     const imported = F.dbScalar(`SELECT GROUP_CONCAT(id) FROM utenti WHERE email LIKE ${F.sqlStr(`%_${RUN}@example.test`)}`);
     const all = [...new Set([...ctx.users, ...(imported ? imported.split(',').map(Number) : [])])];
@@ -503,7 +504,7 @@ test.describe('Patron CSV import', () => {
         expect(storedState).not.toContain('Segreta456!');
         expect(job.fields.filter((f) => f.required).map((f) => f.key)).toEqual(['nome', 'email']);
         expect(job.fields.map((f) => f.key)).not.toContain('password');
-        expect(fs.existsSync(stagedFile(job.id))).toBe(true);
+        expect(serverFileExists(stagedFile(job.id))).toBe(true);
         // The list finds the job (resume from another device) and holds only patron imports.
         const listed = await F.api(request, 'GET', '/staff/user-imports', { token: ctx.staff });
         expect(listed.status, listed.text).toBe(200);
@@ -543,7 +544,7 @@ test.describe('Patron CSV import', () => {
         expect(done).toMatchObject({ status: 'completed', complete: true, processed: 6, created: 2, duplicates: 2, failed: 2, invited: 0, report_available: true });
         expect(done.import_id).toMatch(/^[0-9a-f-]{36}$/);
         expect(done.errors.map((e) => [e.line, e.type])).toEqual([[4, 'duplicate'], [5, 'duplicate'], [6, 'validation'], [7, 'validation']]);
-        expect(fs.existsSync(stagedFile(job.id))).toBe(false);
+        expect(serverFileExists(stagedFile(job.id))).toBe(false);
 
         const a = F.dbRows(`SELECT id, nome, cognome, codice_tessera, COALESCE(telefono, '') AS telefono, password, stato, tipo_utente FROM utenti WHERE email=${F.sqlStr(email('imp_a'))}`);
         expect(a).toHaveLength(1);
@@ -594,11 +595,11 @@ test.describe('Patron CSV import', () => {
         const id = up.json.data.id;
         expect(up.json.data.mapping).toEqual(['nome', 'email']);
         const file = stagedFile(id);
-        expect(fs.existsSync(file)).toBe(true);
+        expect(serverFileExists(file)).toBe(true);
         const r = await F.api(request, 'DELETE', `/staff/user-imports/${id}`, { token: ctx.staff });
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         expect(r.json.data).toMatchObject({ id, cancelled: true, status: 'cancelled', import_id: null });
-        expect(fs.existsSync(file)).toBe(false);
+        expect(serverFileExists(file)).toBe(false);
         expect((await F.api(request, 'DELETE', `/staff/user-imports/${id}`, { token: ctx.staff })).status).toBe(200);
         const start = await F.api(request, 'POST', `/staff/user-imports/${id}/start`, { token: ctx.staff, body: {} });
         expect(start.status).toBe(410);
@@ -623,7 +624,7 @@ test.describe('Patron CSV import', () => {
         const r = await F.api(request, 'DELETE', `/staff/user-imports/${id}`, { token: ctx.staff });
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         expect(r.json.data.import_id).toMatch(/^[0-9a-f-]{36}$/);
-        expect(fs.existsSync(file)).toBe(false);
+        expect(serverFileExists(file)).toBe(false);
         expect(F.dbScalar(`SELECT CONCAT(imported, '|', total_rows) FROM import_logs WHERE import_id=${F.sqlStr(r.json.data.import_id)}`)).toBe('10|10');
         expect(F.dbInt(`SELECT COUNT(*) FROM utenti WHERE email LIKE ${F.sqlStr(`desk_lot%_${RUN}@example.test`)}`)).toBe(10);
         const detail = (await F.api(request, 'GET', `/staff/user-imports/${id}`, { token: ctx.staff })).json.data;
@@ -673,7 +674,7 @@ test.describe('Patron CSV import', () => {
         const up = await upload(request, ctx.staff, csvFile('vanish.csv', ['nome;email', `Fede;${email('imp_f')}`]), ';');
         const id = up.json.data.id;
         expect((await F.api(request, 'POST', `/staff/user-imports/${id}/start`, { token: ctx.staff, body: {} })).status).toBe(200);
-        fs.unlinkSync(stagedFile(id));
+        removeServerFile(stagedFile(id));
         const r = await F.api(request, 'POST', `/staff/user-imports/${id}/chunk`, { token: ctx.staff, body: {} });
         expect(r.status, r.text.slice(0, 300)).toBe(409);
         expect(r.json.error.code).toBe('file_missing');
