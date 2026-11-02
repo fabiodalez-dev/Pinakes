@@ -61,6 +61,8 @@ class UserImportController
     private ?\Closure $rowCheckpoint = null;
     /** Accounts counted by the run closeSessionImport() closed last (null: none). */
     private ?int $closedCreated = null;
+    /** Rows passed by that run, a row settled at the close included (null: none). */
+    private ?int $closedProcessed = null;
 
     public function page(Request $request, Response $response, mysqli $db): Response
     {
@@ -349,6 +351,7 @@ class UserImportController
                     : __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
                 'import_id' => $importId,
                 'created' => $this->closedCreated,
+                'processed' => $this->closedProcessed,
             ], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
@@ -568,6 +571,7 @@ class UserImportController
             'success' => true,
             'import_id' => $importId,
             'created' => $this->closedCreated,
+            'processed' => $this->closedProcessed,
             'history_warning' => $importId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
         ]);
     }
@@ -635,6 +639,7 @@ class UserImportController
         if (is_array($state) && !empty($state['started']) && empty($state['finished'])) {
             $this->settlePending($db, $state);
             $this->closedCreated = (int) ($state['created'] ?? 0);
+            $this->closedProcessed = (int) ($state['next'] ?? 0);
             $importId = $this->finish($db, $state, (int) ($state['next'] ?? 0));
             SecureLogger::info('User import closed before its end', [
                 'processed' => (int) ($state['next'] ?? 0),
@@ -680,9 +685,19 @@ class UserImportController
         }
         $parsed = ['record' => ['data_scadenza_tessera' => $account['data_scadenza_tessera']], 'custom' => [], 'tipologia' => null];
         $file = (string) ($state['file'] ?? '');
-        $handle = is_int($state['offset'] ?? null) && is_file($file) ? @fopen($file, 'rb') : false;
+        $handle = is_file($file) ? @fopen($file, 'rb') : false;
         if ($handle !== false) {
-            fseek($handle, (int) $state['offset']);
+            if (is_int($state['offset'] ?? null)) {
+                fseek($handle, $state['offset']);
+            } else {
+                // No offset yet (the first row of the run): as chunk() does,
+                // skip the header and the rows already done by counting.
+                for ($skip = 1 + $next; $skip > 0; $skip--) {
+                    if (self::nextRecord($handle, (string) $state['delimiter']) === null) {
+                        break;
+                    }
+                }
+            }
             $row = self::nextRecord($handle, (string) $state['delimiter']);
             fclose($handle);
             if ($row !== null) {
@@ -702,6 +717,22 @@ class UserImportController
         $this->completeImportedUser($db, $state, $userId, $next + 2, $label, $parsed, new PatronTypeImport($db), !empty($state['send_invites']) ? new NotificationService($db) : null);
         unset($state['pending']);
         $state['next'] = $next + 1;
+    }
+
+    /** Whether the account holds a password-setup token (the invitation step issued one). */
+    private static function hasSetupToken(mysqli $db, int $userId): bool
+    {
+        $stmt = $db->prepare('SELECT token_reset_password FROM utenti WHERE id = ?');
+        if ($stmt === false) {
+            // Unknown: never risk voiding a link that may have been sent.
+            return true;
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+
+        return $row !== null && $row[0] !== null && $row[0] !== '';
     }
 
     /** Mark the staged file of the session's interrupted run as in use, so the sweep keeps it. */
@@ -1024,9 +1055,11 @@ class UserImportController
                 $warn(__('Utente importato, ma la scadenza della tessera non è stata calcolata.'), $e);
             }
         }
-        if ($notifier !== null && is_array($state['pending'] ?? null) && !empty($state['pending']['invited'])) {
-            // Resumed after the invitation step began: it may have gone out,
-            // and a new token would void the link already sent.
+        if ($notifier !== null && is_array($state['pending'] ?? null) && !empty($state['pending']['invited']) && self::hasSetupToken($db, $userId)) {
+            // Resumed after the invitation step issued its token: the email
+            // may have gone out, and a new token would void the link already
+            // sent. Whether it did cannot be known, so the operator is told.
+            // Without a token the step never got that far: it runs below.
             self::report($state, ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell\'utente.'), 'type' => 'email']);
         } elseif ($notifier !== null) {
             if (is_array($state['pending'] ?? null)) {

@@ -523,6 +523,10 @@ test.describe('Patron CSV import', () => {
         }
         expect((await F.api(request, 'POST', `/staff/user-imports/${job.id}/start`, { token: ctx.staff, body: { send_invites: 'maybe' } })).status).toBe(422);
 
+        // The path now: the finished job no longer names its file.
+        const stagedPath = stagedFile(job.id);
+        expect(stagedPath).not.toBe('');
+        expect(serverFileExists(stagedPath)).toBe(true);
         // The librarian changes the suggestion: the phone column is ignored.
         const mapping = { 0: 'nome', 1: 'cognome', 2: 'email', 4: 'codice_tessera' };
         const start = await F.api(request, 'POST', `/staff/user-imports/${job.id}/start`, { token: ctx.staff, body: { mapping, send_invites: false } });
@@ -544,7 +548,7 @@ test.describe('Patron CSV import', () => {
         expect(done).toMatchObject({ status: 'completed', complete: true, processed: 6, created: 2, duplicates: 2, failed: 2, invited: 0, report_available: true });
         expect(done.import_id).toMatch(/^[0-9a-f-]{36}$/);
         expect(done.errors.map((e) => [e.line, e.type])).toEqual([[4, 'duplicate'], [5, 'duplicate'], [6, 'validation'], [7, 'validation']]);
-        expect(serverFileExists(stagedFile(job.id))).toBe(false);
+        expect(serverFileExists(stagedPath)).toBe(false);
 
         const a = F.dbRows(`SELECT id, nome, cognome, codice_tessera, COALESCE(telefono, '') AS telefono, password, stato, tipo_utente FROM utenti WHERE email=${F.sqlStr(email('imp_a'))}`);
         expect(a).toHaveLength(1);
@@ -668,6 +672,18 @@ test.describe('Patron CSV import', () => {
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         expect(r.json.data).toMatchObject({ status: 'completed', created: 1, duplicates: 1 });
         expect(F.dbScalar(`SELECT IFNULL(tipologia_id, 'NULL') FROM utenti WHERE id=${other.account}`)).toBe('NULL');
+
+        // Cancelled instead of resumed: the web settles the row and the job
+        // keeps both the count and the position after it.
+        const closed = await interrupted('resume3.csv', 'imp_k', 'imp_l', (account) => account);
+        const cancel = await F.api(request, 'DELETE', `/staff/user-imports/${closed.id}`, { token: ctx.staff });
+        expect(cancel.status, cancel.text.slice(0, 300)).toBe(200);
+        const detail = (await F.api(request, 'GET', `/staff/user-imports/${closed.id}`, { token: ctx.staff })).json.data;
+        expect(detail).toMatchObject({ status: 'cancelled', created: 1, processed: 1 });
+        if (closed.withType) {
+            expect(F.dbInt(`SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id=${closed.account}`)).toBe(Number(type.id));
+        }
+        expect(F.dbInt(`SELECT COUNT(*) FROM utenti WHERE email=${F.sqlStr(email('imp_l'))}`)).toBe(0);
     });
 
     test('a staged file that vanished fails the job with file_missing', async ({ request }) => {

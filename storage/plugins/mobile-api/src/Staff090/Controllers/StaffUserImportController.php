@@ -347,7 +347,7 @@ final class StaffUserImportController
                     // import history as far as it got.
                     $importId = is_string($outcome->json['import_id']) ? $outcome->json['import_id'] : null;
 
-                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null);
+                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null, is_int($outcome->json['processed'] ?? null) ? $outcome->json['processed'] : null);
                 }
                 // Not completed: keep the job resumable from where the web
                 // state says it is.
@@ -390,6 +390,7 @@ final class StaffUserImportController
                 $warning = null;
                 $staged = null;
                 $closedCreated = null;
+                $closedProcessed = null;
                 if (!in_array($job['status'], ['completed', 'cancelled'], true)) {
                     $state = $job['state'];
                     $core = is_array($state['core'] ?? null) ? $state['core'] : [];
@@ -420,6 +421,7 @@ final class StaffUserImportController
                         $warning = is_string($outcome->json['history_warning'] ?? null) ? $outcome->json['history_warning'] : null;
                         // The count after the web settled a row left half-done.
                         $closedCreated = is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null;
+                        $closedProcessed = is_int($outcome->json['processed'] ?? null) ? $outcome->json['processed'] : null;
                         $state['core'] = ['cancelled' => true, 'preview_id' => (string) ($core['preview_id'] ?? '')];
                     } else {
                         // Never started: only the staged upload to release,
@@ -431,7 +433,7 @@ final class StaffUserImportController
                     if ($closedCreated !== null) {
                         $summary['created'] = $closedCreated;
                     }
-                    $this->save($job, $state, (int) $job['processed'], 'cancelled', $summary);
+                    $this->save($job, $state, $closedProcessed ?? (int) $job['processed'], 'cancelled', $summary);
                     if ($staged !== null) {
                         UserImportJob::unlinkUpload($staged);
                     }
@@ -552,7 +554,7 @@ final class StaffUserImportController
      *
      * @param array<string, mixed> $job
      */
-    private function fileMissing(ResponseInterface $response, array $job, ?string $importId, ?string $message, ?int $created = null): ResponseInterface
+    private function fileMissing(ResponseInterface $response, array $job, ?string $importId, ?string $message, ?int $created = null, ?int $processed = null): ResponseInterface
     {
         $state = $job['state'];
         $state['core'] = ['failed' => true, 'preview_id' => (string) ($state['core']['preview_id'] ?? '')];
@@ -561,14 +563,15 @@ final class StaffUserImportController
             // A row left half-done was settled when the web closed the run.
             $summary['created'] = $created;
         }
-        $this->save($job, $state, (int) $job['processed'], 'failed', $summary);
+        $position = $processed ?? (int) $job['processed'];
+        $this->save($job, $state, $position, 'failed', $summary);
 
         return ResponseEnvelope::error(
             $response,
             'file_missing',
             $message ?? __('Il file dell\'import non è più disponibile: carica di nuovo il file per completarlo.'),
             409,
-            ['processed' => (int) $job['processed'], 'import_id' => $importId !== '' ? $importId : null]
+            ['processed' => $position, 'import_id' => $importId !== '' ? $importId : null]
         );
     }
 

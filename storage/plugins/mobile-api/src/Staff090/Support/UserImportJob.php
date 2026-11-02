@@ -23,7 +23,7 @@ final class UserImportJob
      * `_`, `-` and digits as spaces) as whole words: user_password,
      * Passwort2, pass-word, mot de passe…
      */
-    private const SECRET_HEADER = '/(?<!\p{L})(pass(word|wort|wd)?|pwd|kennwort|mot\s*de\s*passe|contrase(ñ|n)a|senha|wachtwoord|adgangskode|l(ö|o)senord|has(ł|l)o|parola\s*(d\W?ordine|chiave)|secret)(?!\p{L})/u';
+    private const SECRET_HEADER = '/(?<!\p{L})(pass(word|wort|wd|phrase|code)?|pwd|kennwort|mot\s*de\s*passe|contrase(ñ|n)a|senha|wachtwoord|adgangskode|l(ö|o)senord|has(ł|l)o|parola\s*(d\W?ordine|chiave)|secret)(?!\p{L})/u';
 
     private function __construct()
     {

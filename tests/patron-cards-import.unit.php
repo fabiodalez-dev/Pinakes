@@ -681,6 +681,35 @@ try {
     $importLogIds[] = (string) ($json['import_id'] ?? '');
     $check($status === 200 && ($json['created'] ?? null) === 0, 'a marker for another row than the next one is not settled');
 
+    // The first row of a run has no offset yet: the cancel reads it again by
+    // counting, so its patron type is assigned too; the answer carries the
+    // position after the settled row.
+    $typeRow = $db->query('SELECT id, nome FROM tipologie_lettore ORDER BY id LIMIT 1');
+    $type = $typeRow instanceof \mysqli_result ? $typeRow->fetch_assoc() : null;
+    if (is_array($type)) {
+        $firstId = $ckAccount('f');
+        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$firstId}");
+        file_put_contents($staged, "nome;cognome;email;tipologia\nCk;F;" . $ckEmail('f') . ';' . $type['nome'] . "\nCk;F2;" . $ckEmail('f2') . ';' . $type['nome'] . "\n");
+        $_SESSION['user_import'] = ['total' => 2, 'columns' => 4, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia'], 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $firstId]] + $running;
+        [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+        $importLogIds[] = (string) ($json['import_id'] ?? '');
+        $assigned = (int) ($db->query("SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id = {$firstId}")->fetch_row()[0] ?? 0);
+        $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['processed'] ?? null) === 1 && $assigned === (int) $type['id'] && $ckAccountId('f2') === 0,
+            'a half-done first row (no offset yet) is read again by counting: its patron type is assigned, the answer says one row passed');
+    }
+
+    // The invitation flag without a token: the step stopped before issuing
+    // it, so the resume sends the invitation instead of only warning.
+    $noTokenId = $ckAccount('g');
+    file_put_contents($staged, "nome;cognome;email\nCk;G;" . $ckEmail('g') . "\n");
+    $_SESSION['user_import'] = ['send_invites' => true, 'pending' => ['next' => 0, 'user_id' => $noTokenId, 'invited' => true]] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $issued = $db->query("SELECT token_reset_password FROM utenti WHERE id = {$noTokenId}")->fetch_row()[0] ?? null;
+    $maybeSent = array_filter((array) ($json['errors'] ?? []), static fn (array $e): bool => str_contains((string) ($e['message'] ?? ''), __('Utente importato, ma l\'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell\'utente.')));
+    $check($status === 200 && ($json['created'] ?? null) === 1 && is_string($issued) && $issued !== '' && $maybeSent === [] && (($json['invited'] ?? 0) + ($json['invite_failed'] ?? 0)) === 1,
+        'a resumed row flagged as invited but holding no token gets its invitation now');
+
     // A run under way (another tab) is neither replaced nor closed; the page
     // learns its position and resumes it.
     file_put_contents($staged, "nome;cognome;email\nZz;Import;zz-never@example.invalid\nZz;Two;zz-never2@example.invalid\n");
