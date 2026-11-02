@@ -220,6 +220,38 @@ try {
     $check(str_contains($closedMeta, __('Chiusa il') . ': ') && !str_contains($closedMeta, __('Annullata il')), 'the PDF of a closed session says when it was closed');
     $check(str_starts_with($pdfGenerator->generate((array) $service->find($second), $service->summary($second), $service->reportRows($second), [], []), '%PDF'), 'the PDF of a cancelled session is still generated');
     $check($service->reportRowCount($sessionId) === count($service->reportRows($sessionId)) && $service->reportRowCount($second) === count($service->reportRows($second)), 'reportRowCount() counts exactly the report rows');
+    // The app reads the report a page at a time, paged in the database
+    // (review #518): the pages put together are the report, in its order,
+    // across the seam between the expected copies and the scans, and a
+    // category filter pages and counts only that category.
+    foreach ([$sessionId => 'closed', $second => 'cancelled'] as $sid => $what) {
+        $all = $service->reportRows($sid);
+        $paged = [];
+        for ($offset = 0; $offset < count($all) + 2; $offset += 2) {
+            $paged = array_merge($paged, $service->reportPage($sid, null, 2, $offset));
+        }
+        $check($paged === $all, "reportPage() pages of 2 put together are the whole report of the {$what} session");
+        foreach (array_unique(array_merge(array_column($all, 'categoria'), ['mancante', 'in_prestito', 'trovata'])) as $category) {
+            $only = array_values(array_filter($all, static fn (array $r): bool => $r['categoria'] === $category));
+            $check($service->reportPage($sid, $category, 200) === $only && $service->reportRowCount($sid, $category) === count($only), "reportPage() and reportRowCount() of the {$what} session keep only '{$category}' rows");
+        }
+    }
+    // The scan list is pinned to its first page: a scan recorded later stays out.
+    $latest = $service->latestScanId($second);
+    $check($latest === (int) $one("SELECT MAX(id) FROM inventario_scansioni WHERE sessione_id = {$second}"), 'latestScanId() is the newest scan of the session');
+    $check(!in_array($latest, array_map(static fn (array $r): int => (int) $r['id'], $service->scans($second, null, 200, 0, null, $latest - 1)), true) && $service->scanCount($second, null, null, $latest - 1) === $service->scanCount($second) - 1, 'scans() and scanCount() with $upToId leave out the scans after it');
+    // The app pages through every session, not the history listSessions() trims.
+    $sessionTotal = $service->sessionCount(null);
+    $check($sessionTotal === (int) $one('SELECT COUNT(*) FROM inventario_sessioni'), 'sessionCount() counts every session');
+    $everyId = $service->sessionIds(null, 500);
+    $pagedIds = array_merge($service->sessionIds(null, 2, 0), $service->sessionIds(null, 2, 2), $service->sessionIds(null, 500, 4));
+    $check($pagedIds === $everyId && count($everyId) === min(500, $sessionTotal), 'sessionIds() pages put together are the whole list, in one order');
+    $cancelledIds = $service->sessionIds('annullata', 500);
+    $check(in_array($second, $cancelledIds, true) && !in_array($sessionId, $cancelledIds, true) && count($cancelledIds) === min(500, $service->sessionCount('annullata')), 'sessionIds() and sessionCount() filter by state');
+    $ranks = array_map(static fn (int $id): int => ['aperta' => 0, 'chiusa' => 1, 'annullata' => 2][(string) $one("SELECT stato FROM inventario_sessioni WHERE id = {$id}")] ?? 3, $everyId);
+    $sortedRanks = $ranks;
+    sort($sortedRanks);
+    $check($ranks === $sortedRanks, 'open sessions come first, then closed, then cancelled, as on the admin list');
     // A report too large for one TCPDF request is refused (review #504),
     // pointing at the CSV export instead of exhausting memory.
     $big = $service->open('ZZST big ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
@@ -245,6 +277,7 @@ try {
     }
     $check($overLimit, 'the PDF generator refuses more rows than MAX_ROWS instead of building them');
     $check(count($service->reportRows($big, App\Support\StocktakePdfGenerator::MAX_ROWS + 1)) === App\Support\StocktakePdfGenerator::MAX_ROWS + 1 && count($service->reportRows($sessionId, 2)) === 2, 'reportRows() with a limit reads no more rows than asked');
+    $check($service->reportPage($big, null, 3, $bigRows - 2) === array_slice($service->reportRows($big), $bigRows - 2, 3) && count($service->reportPage($big, 'mancante', 50, 100)) === 50, 'a deep report page is read at its offset, with no more rows than asked');
     // The CSV export writes the report row by row into a temporary stream
     // (review #504), so a report too large for the PDF is still exported whole.
     memory_reset_peak_usage();

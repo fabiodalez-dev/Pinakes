@@ -34,7 +34,7 @@ const users = {
 let roleId = 0;
 const code = (c) => `${TAG}-${c}`;
 const S = (v) => fx.sqlStr(v);
-const data = { shelfX: 0, shelfY: 0, levelX: 0, books: {}, copies: {}, sessions: [] };
+const data = { shelfX: 0, shelfY: 0, levelX: 0, inactiveBranch: 0, books: {}, copies: {}, sessions: [] };
 let featureSnapshot;
 let gate;
 
@@ -60,6 +60,8 @@ test.beforeAll(async ({ browser, request }) => {
         data[key] = fx.dbInsert(`INSERT INTO scaffali (codice, nome, lettera) VALUES (${S(TAG + letter)}, ${S('Stocktake API ' + letter)}, ${S(letter)})`);
     }
     data.levelX = fx.dbInsert(`INSERT INTO mensole (scaffale_id, numero_livello) VALUES (${data.shelfX}, 1)`);
+    // A closed branch: /options does not list it, so a session cannot be opened on it.
+    data.inactiveBranch = fx.dbInsert(`INSERT INTO sedi (nome, is_active) VALUES (${S(`${TAG} closed branch`)}, 0)`);
     const book = (key, shelf, copies, extra = '') => {
         data.books[key] = fx.dbInsert(`INSERT INTO libri (titolo, scaffale_id, collocazione, copie_totali, copie_disponibili${extra ? ', deleted_at' : ''})
             VALUES (${S(`${TAG} ${key}`)}, ${shelf}, ${S(TAG + '.' + key)}, ${copies.length}, ${copies.length}${extra ? ', NOW()' : ''})`);
@@ -103,6 +105,7 @@ test.afterAll(async () => {
     fx.deleteBooks(Object.values(data.books));
     try { fx.dbExec(`DELETE FROM mensole WHERE scaffale_id IN (${data.shelfX || 0}, ${data.shelfY || 0})`); } catch { /* best effort */ }
     try { fx.dbExec(`DELETE FROM scaffali WHERE codice IN (${S(TAG + 'X')}, ${S(TAG + 'Y')})`); } catch { /* best effort */ }
+    if (data.inactiveBranch) { try { fx.dbExec(`DELETE FROM sedi WHERE id=${data.inactiveBranch}`); } catch { /* best effort */ } }
     fx.deleteUsers(ids);
     if (roleId) { try { fx.dbExec(`DELETE FROM ruoli WHERE id=${roleId}`); } catch { /* best effort */ } }
     fx.restoreGate(gate);
@@ -164,6 +167,7 @@ test('3. creating a session validates every field', async ({ request }) => {
         [{ name: `${TAG} bad`, shelf_id: 'abc' }, 'shelf_id'],
         [{ name: `${TAG} bad`, genre_id: -3 }, 'genre_id'],
         [{ name: `${TAG} bad`, branch_id: 999999999 }, 'branch_id'],
+        [{ name: `${TAG} bad`, branch_id: data.inactiveBranch }, 'branch_id'],
     ];
     for (const [body, field] of cases) {
         const r = await call(request, 'POST', `${P}/sessions`, 'staff', { body });
@@ -267,12 +271,27 @@ test('7. a retried scan with the same Idempotency-Key is recorded once; a second
     expect(replay.json.data.scan.outcome).toBe('found');
     expect(fx.dbInt(`SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id=${s1} AND codice_letto=${S(code('A3'))}`)).toBe(1);
 
-    const again = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'admin', { body: { code: code('A3') } });
+    const dupKey = `mst-dup-${RUN}`;
+    const again = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'admin', { body: { code: code('A3') }, extraHeaders: { 'Idempotency-Key': dupKey } });
     expect(again.status).toBe(201);
     // The repeat is stored without its copy, but the answer still names it.
     expect(again.json.data.scan).toMatchObject({ outcome: 'duplicate', copy_id: data.copies.A3, title: `${TAG} B1` });
     expect(again.json.data.summary).toMatchObject({ found: 2, duplicates: 1, mine: 1 });
     expect(fx.dbInt(`SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id=${s1} AND codice_letto=${S(code('A3'))}`)).toBe(2);
+
+    // The inventory number moves to another copy (B3's Y1) before the retry:
+    // the replay still names the copy the first scan recorded, not Y1.
+    fx.dbExec(`UPDATE copie SET numero_inventario=${S(code('A3') + '-OLD')} WHERE id=${data.copies.A3}`);
+    fx.dbExec(`UPDATE copie SET numero_inventario=${S(code('A3'))} WHERE id=${data.copies.Y1}`);
+    try {
+        const dupReplay = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'admin', { body: { code: code('A3') }, extraHeaders: { 'Idempotency-Key': dupKey } });
+        expect(dupReplay.status).toBe(200);
+        expect(dupReplay.json.meta.replayed).toBe(true);
+        expect(dupReplay.json.data.scan).toMatchObject({ id: again.json.data.scan.id, outcome: 'duplicate', copy_id: data.copies.A3, book_id: data.books.B1, title: `${TAG} B1` });
+    } finally {
+        fx.dbExec(`UPDATE copie SET numero_inventario=${S(code('Y1'))} WHERE id=${data.copies.Y1}`);
+        fx.dbExec(`UPDATE copie SET numero_inventario=${S(code('A3'))} WHERE id=${data.copies.A3}`);
+    }
 });
 
 test('8. scan validation, unknown session', async ({ request }) => {
@@ -284,6 +303,12 @@ test('8. scan validation, unknown session', async ({ request }) => {
     const shelf = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'staff', { body: { code: code('A1'), shelf_id: 'x' } });
     expect(shelf.status).toBe(422);
     expect(shelf.json.meta.fields.shelf_id).toBeTruthy();
+    // A whole number that is not a shelf would file the expected copy as misplaced.
+    const scansBefore = fx.dbInt(`SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id=${s1}`);
+    const noShelf = await call(request, 'POST', `${P}/sessions/${s1}/scans`, 'staff', { body: { code: code('A1'), shelf_id: 999999999 } });
+    expect(noShelf.status).toBe(422);
+    expect(noShelf.json.meta.fields.shelf_id).toBeTruthy();
+    expect(fx.dbInt(`SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id=${s1}`)).toBe(scansBefore);
     const missing = await call(request, 'POST', `${P}/sessions/999999999/scans`, 'staff', { body: { code: code('A1') } });
     expect(missing.status).toBe(404);
     expect(missing.json.error.code).toBe('not_found');
@@ -309,9 +334,24 @@ test('9. detail, state, the scan list (paged, by outcome, only mine) and the rep
     expect(page1.status).toBe(200);
     expect(page1.json.data.length).toBe(4);
     expect(page1.json.meta).toMatchObject({ has_more: true, total_count: 9 });
-    const page3 = await call(request, 'GET', `${P}/sessions/${s1}/scans?limit=4&cursor=${encodeURIComponent(page1.json.meta.next_cursor)}`, 'staff');
-    const page2Ids = page3.json.data.map((s) => s.id);
+    // A scan recorded between two pages does not shift the next page: the
+    // cursor pins the list to the newest scan of the first page.
+    const late = fx.dbInsert(`INSERT INTO inventario_scansioni (sessione_id, copia_id, codice_letto, esito, scansionato_da, scansionato_il) VALUES (${s1}, NULL, ${S(`${TAG}-LATE`)}, 'sconosciuta', ${users.staff.id}, NOW())`);
+    let page2;
+    try {
+        page2 = await call(request, 'GET', `${P}/sessions/${s1}/scans?limit=4&cursor=${encodeURIComponent(page1.json.meta.next_cursor)}`, 'staff');
+    } finally {
+        fx.dbExec(`DELETE FROM inventario_scansioni WHERE id=${late}`);
+    }
+    const page2Ids = page2.json.data.map((s) => s.id);
+    expect(page2.json.data.length).toBe(4);
+    expect(page2.json.meta).toMatchObject({ has_more: true, total_count: 9 });
     expect(page2Ids.some((id) => page1.json.data.map((s) => s.id).includes(id))).toBe(false);
+    expect(page2Ids.includes(late)).toBe(false);
+    const page3 = await call(request, 'GET', `${P}/sessions/${s1}/scans?limit=4&cursor=${encodeURIComponent(page2.json.meta.next_cursor)}`, 'staff');
+    expect(page3.json.data.length).toBe(1);
+    expect(page3.json.meta).toMatchObject({ has_more: false, next_cursor: null });
+    expect(new Set([...page1.json.data, ...page2.json.data, ...page3.json.data].map((s) => s.id)).size).toBe(9);
     const unknown = await call(request, 'GET', `${P}/sessions/${s1}/scans?outcome=unknown`, 'staff');
     expect(unknown.json.data.length).toBe(2);
     expect(unknown.json.data.every((s) => s.outcome === 'unknown')).toBe(true);
@@ -327,6 +367,7 @@ test('9. detail, state, the scan list (paged, by outcome, only mine) and the rep
     expect(report.json.data.find((r) => r.code === code('L1')).category).toBe('on_loan');
     const dup = await call(request, 'GET', `${P}/sessions/${s1}/report?category=duplicate`, 'staff');
     expect(dup.json.data.length).toBe(1);
+    expect(dup.json.meta.total_count).toBe(1);
     expect((await call(request, 'GET', `${P}/sessions/${s1}/report?category=bogus`, 'staff')).status).toBe(422);
 });
 
@@ -341,6 +382,10 @@ test('10. a list of codes uploads as one scan each; a wrong file type is refused
     expect(bad.json.meta.fields.file).toBeTruthy();
     const none = await call(request, 'POST', `${P}/sessions/${s2}/upload`, 'staff', { multipart: { shelf_id: String(data.shelfX) } });
     expect(none.status).toBe(422);
+    const noShelf = await call(request, 'POST', `${P}/sessions/${s2}/upload`, 'staff', { multipart: { file: { name: 'codes.txt', mimeType: 'text/plain', buffer: Buffer.from(code('A1')) }, shelf_id: '999999999' } });
+    expect(noShelf.status).toBe(422);
+    expect(noShelf.json.meta.fields.shelf_id).toBeTruthy();
+    expect(fx.dbInt(`SELECT COUNT(*) FROM inventario_scansioni WHERE sessione_id=${s2}`)).toBe(0);
 
     const list = ['codice', code('A1'), code('A1'), `${TAG}-GHOST`, code('Y1')].join('\n') + '\n';
     const up = await call(request, 'POST', `${P}/sessions/${s2}/upload`, 'staff', { multipart: { file: { name: 'codes.txt', mimeType: 'text/plain', buffer: Buffer.from(list) }, shelf_id: String(data.shelfX) } });
@@ -355,6 +400,29 @@ test('10. a list of codes uploads as one scan each; a wrong file type is refused
     expect(csv.status).toBe(200);
     expect(csv.json.data.total).toBe(1);
     expect(fx.dbScalar(`SELECT esito FROM inventario_scansioni WHERE sessione_id=${s2} AND codice_letto=${S(code('A2'))}`)).toBe('trovata');
+
+    // The report pages in the database: A3 (missing) and L1 (on loan) were
+    // not read, then the 5 scans. Pages of 3 put together are the full report.
+    const full = await call(request, 'GET', `${P}/sessions/${s2}/report?limit=200`, 'staff');
+    expect(full.json.meta.total_count).toBe(7);
+    expect(full.json.data.slice(0, 2).map((r) => r.category).sort()).toEqual(['missing', 'on_loan']);
+    const pages = [];
+    let cursor = null;
+    for (let i = 0; i < 5; i++) {
+        const page = await call(request, 'GET', `${P}/sessions/${s2}/report?limit=3${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, 'staff');
+        expect(page.status).toBe(200);
+        expect(page.json.meta.total_count).toBe(7);
+        pages.push(...page.json.data);
+        cursor = page.json.meta.next_cursor;
+        if (!cursor) break;
+    }
+    expect(pages).toEqual(full.json.data);
+    const missing = await call(request, 'GET', `${P}/sessions/${s2}/report?category=missing`, 'staff');
+    expect(missing.json.data.map((r) => r.code)).toEqual([code('A3')]);
+    expect(missing.json.meta.total_count).toBe(1);
+    const found = await call(request, 'GET', `${P}/sessions/${s2}/report?category=found&limit=1`, 'staff');
+    expect(found.json.data.length).toBe(1);
+    expect(found.json.meta).toMatchObject({ total_count: 2, has_more: true });
 });
 
 test('11. the CSV and PDF reports download with their file name', async ({ request }) => {

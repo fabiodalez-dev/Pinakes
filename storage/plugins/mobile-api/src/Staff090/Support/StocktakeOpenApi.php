@@ -99,7 +99,7 @@ final class StocktakeOpenApi
                 'post' => O::op($t, 'staffStocktakeCreate', 'Open a session: the copies matching the filter are frozen as the expected ones', [
                     '201' => $session, '200' => O::ok('Replay of an Idempotency-Key (meta.replayed=true).', O::ref('StocktakeSession')),
                 ] + $notFound + $validation, ['parameters' => [$idem], 'requestBody' => O::inlineBody([
-                    'name' => ['type' => 'string', 'maxLength' => 255], 'note' => O::nullable('string'), 'branch_id' => O::nullable('integer'),
+                    'name' => ['type' => 'string', 'maxLength' => 255], 'note' => O::nullable('string'), 'branch_id' => ['type' => ['integer', 'null'], 'description' => 'An active branch (the ones /options lists).'],
                 ] + $filterProps, ['name'])]),
             ],
             '/staff/stocktake/sessions/{id}' => ['get' => O::op($t, 'staffStocktakeSession', 'Session detail with counters, the 50 latest scans and the history', ['200' => $session] + $notFound, ['parameters' => [$sid, $mine]])],
@@ -108,18 +108,18 @@ final class StocktakeOpenApi
             ] + $notFound, ['parameters' => [$sid, $mine]])],
             '/staff/stocktake/sessions/{id}/scans' => [
                 'get' => O::op($t, 'staffStocktakeScans', 'Every scan of the session, newest first', [
-                    '200' => O::ok('Scans; meta has total_count.', O::listOf('StocktakeScan')),
+                    '200' => O::ok('Scans; meta has total_count. The cursor pins the first page\'s newest scan, so later pages never repeat or skip a scan.', O::listOf('StocktakeScan')),
                 ] + $notFound + $validation, ['parameters' => array_merge([$sid, $mine, O::query('outcome', 'string', implode(' | ', $scanOutcomes)), O::query('cursor', 'string', 'Opaque cursor from meta.next_cursor.'), O::query('limit', 'integer', '1..200, default 50.')])]),
                 'post' => O::op($t, 'staffStocktakeScan', 'Record one scanned code. The same code scanned again (without the same Idempotency-Key) is a new scan recorded as `duplicate`, as on the web. 600/min.', [
                     '201' => O::ok('The scan, its tone, the updated counters.', O::object(['scan' => O::ref('StocktakeScan'), 'tone' => $tone, 'summary' => O::ref('StocktakeSummary'), 'session_status' => $str])),
                     '200' => O::ok('Replay of an Idempotency-Key (meta.replayed=true): the first answer, with today\'s counters.'),
                 ] + $notFound + $closed + $validation, ['parameters' => [$sid, $idem], 'requestBody' => O::inlineBody([
                     'code' => ['type' => 'string', 'maxLength' => \App\Services\StocktakeService::MAX_CODE_LENGTH],
-                    'shelf_id' => ['type' => ['integer', 'null'], 'description' => 'Shelf the operator is working on: an expected copy of another shelf is `misplaced`.'],
+                    'shelf_id' => ['type' => ['integer', 'null'], 'description' => 'Shelf the operator is working on: an expected copy of another shelf is `misplaced`. An id that is not a shelf is a 422 on shelf_id.'],
                 ], ['code'])]),
             ],
             '/staff/stocktake/sessions/{id}/report' => ['get' => O::op($t, 'staffStocktakeReport', 'Report rows as the web final report and the CSV: every expected copy not scanned (on_loan or missing), then every scan', [
-                '200' => O::ok('Rows; meta.total_count without a category filter.', ['type' => 'array', 'items' => O::object([
+                '200' => O::ok('Rows, paged in the database; meta.total_count counts the rows of the category filter, or every row.', ['type' => 'array', 'items' => O::object([
                     'category' => ['type' => 'string', 'enum' => $outcomes], 'category_label' => $str, 'color' => $color, 'code' => $str, 'title' => $str,
                     'media_type' => O::nullable('string'), 'collocation' => O::nullable('string'), 'expected_shelf' => O::nullable('string'),
                     'copy_status' => O::nullable('string'), 'copy_status_label' => O::nullable('string'), 'operator_name' => O::nullable('string'), 'scanned_at' => O::nullable('string', 'date-time'),

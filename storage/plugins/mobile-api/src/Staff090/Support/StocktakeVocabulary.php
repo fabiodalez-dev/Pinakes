@@ -238,18 +238,30 @@ final class StocktakeVocabulary
     }
 
     /**
-     * A database DATETIME (library time zone, as the connection is set) as
-     * ISO 8601 with offset; null for an empty value.
+     * A database DATETIME as ISO 8601 with offset; null for an empty value.
+     * The stored wall time is the library's, so it is read in the library
+     * time zone (app.timezone, the clock of the whole loan pipeline), not in
+     * PHP's default zone, which on many hosts is UTC: the offset is that of
+     * the date itself, summer or winter. $zone overrides it (tests).
      */
-    public static function datetime(mixed $value): ?string
+    public static function datetime(mixed $value, ?\DateTimeZone $zone = null): ?string
     {
         if (!is_string($value) || trim($value) === '' || str_starts_with($value, '0000-00-00')) {
             return null;
         }
         try {
-            return (new \DateTimeImmutable($value))->format('Y-m-d\TH:i:sP');
+            return (new \DateTimeImmutable($value, $zone ?? self::libraryZone()))->format('Y-m-d\TH:i:sP');
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    private static function libraryZone(): \DateTimeZone
+    {
+        try {
+            return new \DateTimeZone((string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'));
+        } catch (\Throwable) {
+            return new \DateTimeZone('Europe/Rome');
         }
     }
 }

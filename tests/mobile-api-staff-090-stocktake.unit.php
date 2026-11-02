@@ -91,8 +91,15 @@ foreach (V::FILTER_KEYS as $api => $service) {
 }
 
 // Datetimes.
-$iso = V::datetime('2026-11-01 09:30:00');
-check(is_string($iso) && preg_match('/^2026-11-01T09:30:00[+-]\d{2}:\d{2}$/', $iso) === 1, 'a DATETIME becomes ISO 8601 with offset');
+// PHP's default zone differs from the library's on purpose: the offset must
+// come from the library zone, and from the date itself (winter, summer).
+date_default_timezone_set('UTC');
+$rome = new \DateTimeZone('Europe/Rome');
+check(V::datetime('2026-11-01 09:30:00', $rome) === '2026-11-01T09:30:00+01:00', 'a winter DATETIME carries the library offset (+01:00), not PHP\'s UTC');
+check(V::datetime('2026-07-01 09:30:00', $rome) === '2026-07-01T09:30:00+02:00', 'a summer DATETIME carries the summer offset (+02:00)');
+check(V::datetime('2026-07-01 09:30:00', new \DateTimeZone('America/New_York')) === '2026-07-01T09:30:00-04:00', 'the wall time is kept, only the offset follows the zone');
+$libraryZone = new \DateTimeZone((string) \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome'));
+check(V::datetime('2026-07-01 09:30:00') === (new \DateTimeImmutable('2026-07-01 09:30:00', $libraryZone))->format('Y-m-d\TH:i:sP'), 'without a zone the configured app.timezone is used');
 check(V::datetime(null) === null && V::datetime('') === null && V::datetime('0000-00-00 00:00:00') === null && V::datetime('not a date') === null, 'empty or broken datetimes are null');
 
 echo $fail === 0 ? "SUCCESS {$pass} stocktake vocabulary checks\n" : "FAILED {$fail} of " . ($pass + $fail) . " checks\n";

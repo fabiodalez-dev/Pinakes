@@ -7,6 +7,7 @@ namespace App\Plugins\MobileApi\Staff090\Controllers;
 use App\Controllers\InventoryController;
 use App\Plugins\MobileApi\Staff090\Support\StocktakeVocabulary as V;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
+use App\Plugins\MobileApi\Support\CursorCodec;
 use App\Plugins\MobileApi\Support\Delegation;
 use App\Plugins\MobileApi\Support\DelegationOutcome;
 use App\Plugins\MobileApi\Support\JsonBody;
@@ -135,16 +136,13 @@ final class StaffStocktakeController
         $limit = StaffPaging::limit($request);
         $offset = StaffPaging::offset($request);
         try {
-            // The web list (every open session plus the latest closed ones),
-            // filtered and paged here: the same order the admin page shows.
-            $rows = $this->service->listSessions(500);
-            if ($status !== null) {
-                $rows = array_values(array_filter($rows, static fn (array $r): bool => (string) $r['stato'] === $status));
-            }
-            $total = count($rows);
+            // The order of the admin list (open sessions first, then the
+            // history, newest first), filtered and paged in SQL: the web list
+            // trims the history, the app pages through all of it.
+            $total = $this->service->sessionCount($status);
             $items = [];
-            foreach (array_slice($rows, $offset, $limit) as $row) {
-                $session = $this->service->find((int) $row['id']);
+            foreach ($this->service->sessionIds($status, $limit, $offset) as $sessionId) {
+                $session = $this->service->find($sessionId);
                 if ($session !== null) {
                     $items[] = $this->sessionPayload($request, $session, false, false);
                 }
@@ -211,14 +209,21 @@ final class StaffStocktakeController
                 return $this->notFound($response);
             }
             $operator = $this->mine($request) ? $this->operatorId($request) : null;
-            $total = $this->service->scanCount($id, $operator, $outcome);
-            $rows = $this->service->scans($id, $operator, $limit, $offset, $outcome);
+            // The cursor pins the newest scan of the first page (`u`), as the
+            // ledger does: scans recorded while the operator pages (newest
+            // first) never shift the offsets of the following pages.
+            $rawCursor = $request->getQueryParams()['cursor'] ?? null;
+            $cursor = CursorCodec::decode(is_string($rawCursor) ? $rawCursor : null);
+            $upTo = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0
+                ? $cursor['u']
+                : $this->service->latestScanId($id);
+            $total = $this->service->scanCount($id, $operator, $outcome, $upTo);
+            $rows = $this->service->scans($id, $operator, $limit, $offset, $outcome, $upTo);
+            $hasMore = $offset + $limit < $total;
+            $meta = StaffPaging::meta(count($rows), $limit, $offset, $hasMore, $total);
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit, 'u' => $upTo]) : null;
 
-            return ResponseEnvelope::success(
-                $response,
-                array_map(fn (array $r): array => $this->scanItem($r), $rows),
-                StaffPaging::meta(count($rows), $limit, $offset, $offset + $limit < $total, $total)
-            );
+            return ResponseEnvelope::success($response, array_map(fn (array $r): array => $this->scanItem($r), $rows), $meta);
         } catch (\Throwable $e) {
             return $this->fail($response, 'scans', $e);
         }
@@ -246,20 +251,10 @@ final class StaffStocktakeController
                 return $this->notFound($response);
             }
             $labels = InventoryController::outcomeLabels();
+            // Paged in the database (LIMIT/OFFSET on both queries), counted apart.
+            $total = $this->service->reportRowCount($id, $category);
             $items = [];
-            $seen = 0;
-            $hasMore = false;
-            foreach ($this->service->eachReportRow($id) as $row) {
-                if ($category !== null && $row['categoria'] !== $category) {
-                    continue;
-                }
-                if ($seen++ < $offset) {
-                    continue;
-                }
-                if (count($items) >= $limit) {
-                    $hasMore = true;
-                    break;
-                }
+            foreach ($this->service->reportPage($id, $category, $limit, $offset) as $row) {
                 $items[] = [
                     'category'          => V::outcome($row['categoria']),
                     'category_label'    => $labels[$row['categoria']] ?? $row['categoria'],
@@ -275,12 +270,8 @@ final class StaffStocktakeController
                     'scanned_at'        => V::datetime($row['quando']),
                 ];
             }
-            $meta = StaffPaging::meta(count($items), $limit, $offset, $hasMore);
-            if ($category === null) {
-                $meta['total_count'] = $this->service->reportRowCount($id);
-            }
 
-            return ResponseEnvelope::success($response, $items, $meta);
+            return ResponseEnvelope::success($response, $items, StaffPaging::meta(count($items), $limit, $offset, $offset + $limit < $total, $total));
         } catch (\Throwable $e) {
             return $this->fail($response, 'report', $e);
         }
@@ -302,7 +293,8 @@ final class StaffStocktakeController
         $branchId = null;
         if ($branch !== null && $branch !== '' && $branch !== 0) {
             $branchId = StaffPaging::id($branch);
-            if ($branchId <= 0 || !$this->branchExists($branchId)) {
+            // Only an active branch, the ones /options lists.
+            if ($branchId <= 0 || !$this->exists('SELECT 1 FROM sedi WHERE id = ? AND is_active = 1', $branchId)) {
                 $fields['branch_id'] = __('Valore non valido.');
             }
         }
@@ -401,7 +393,7 @@ final class StaffStocktakeController
                 $staffId,
                 $id,
                 ['session_id' => $id, 'code' => $code, 'shelf_id' => $shelfId],
-                function () use ($db, $form, $id, $response): ResponseInterface|int {
+                function () use ($db, $form, $id, $shelfId, $response): ResponseInterface|int {
                     // Checked only for a key not stored yet: a scan recorded before
                     // the session closed still replays its result to a retry.
                     $current = $this->service->find($id);
@@ -410,6 +402,9 @@ final class StaffStocktakeController
                     }
                     if (($conflict = $this->notOpen($response, $current)) !== null) {
                         return $conflict;
+                    }
+                    if (($unknownShelf = $this->unknownShelf($response, $shelfId)) !== null) {
+                        return $unknownShelf;
                     }
                     $outcome = Delegation::run(static fn (): ResponseInterface => (new InventoryController())->scan(
                         Delegation::request('POST', '/admin/inventory/' . $id . '/scan', $form),
@@ -458,6 +453,9 @@ final class StaffStocktakeController
             }
             if (($conflict = $this->notOpen($response, $session)) !== null) {
                 return $conflict;
+            }
+            if (($unknownShelf = $this->unknownShelf($response, $shelfId)) !== null) {
+                return $unknownShelf;
             }
             $operator = $this->operatorId($request);
             try {
@@ -740,17 +738,25 @@ final class StaffStocktakeController
         $scan = $this->scanItem($row);
         if ($scan['copy_id'] === null && $row['esito'] === 'duplicata') {
             // A repeat is stored without its copy (the first scan holds it):
-            // name the copy all the same, as the web feedback does.
-            $copy = $this->service->copyByCode((string) $row['codice_letto']);
+            // name the copy all the same, as the web feedback does. The copy
+            // is the one the first scan recorded, so a replay keeps naming it
+            // even after its inventory number went to another copy; only a
+            // repeat whose first scan read another code looks the code up.
+            $first = $this->service->firstScanOfRepeat($sessionId, $scanId);
+            if ($first !== null) {
+                $copy = ['id' => $first['copia_id'], 'libro_id' => $first['libro_id'], 'titolo' => $first['titolo'], 'collocazione' => $first['collocazione'], 'stato' => $first['stato_copia']];
+            } else {
+                $copy = $this->service->copyByCode((string) $row['codice_letto']);
+            }
             if ($copy !== null) {
-                $status = (string) $copy['stato'];
+                $status = (string) ($copy['stato'] ?? '');
                 $scan['copy_id'] = (int) $copy['id'];
-                $scan['book_id'] = (int) $copy['libro_id'];
-                $scan['title'] = (string) $copy['titolo'];
+                $scan['book_id'] = $copy['libro_id'] !== null ? (int) $copy['libro_id'] : null;
+                $scan['title'] = ($copy['titolo'] ?? '') !== '' ? (string) $copy['titolo'] : null;
                 $scan['collocation'] = ($copy['collocazione'] ?? '') !== '' ? (string) $copy['collocazione'] : null;
-                $scan['copy_status'] = $status;
-                $scan['copy_status_label'] = StaffCopyReader::labels()[$status] ?? $status;
-                $scan['off_shelf'] = StocktakeService::isOffShelfState($status);
+                $scan['copy_status'] = $status !== '' ? $status : null;
+                $scan['copy_status_label'] = $status !== '' ? (StaffCopyReader::labels()[$status] ?? $status) : null;
+                $scan['off_shelf'] = $status !== '' && StocktakeService::isOffShelfState($status);
             }
         }
         $session = $this->service->find($sessionId);
@@ -788,11 +794,25 @@ final class StaffStocktakeController
         return in_array(StaffPaging::query($request, 'mine'), ['1', 'true'], true);
     }
 
-    private function branchExists(int $id): bool
+    /**
+     * The scan shelf must be a shelf: a made-up id would file every expected
+     * copy as misplaced. A 422 on `shelf_id` when it is not, null otherwise.
+     */
+    private function unknownShelf(ResponseInterface $response, ?int $shelfId): ?ResponseInterface
     {
-        $stmt = $this->db->prepare('SELECT 1 FROM sedi WHERE id = ?');
+        if ($shelfId === null || $this->exists('SELECT 1 FROM scaffali WHERE id = ?', $shelfId)) {
+            return null;
+        }
+
+        return $this->invalid($response, ['shelf_id' => __('Valore non valido.')]);
+    }
+
+    /** True when $sql (one `?` for the id) finds a row. */
+    private function exists(string $sql, int $id): bool
+    {
+        $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
-            throw new \RuntimeException('branch probe prepare failed');
+            throw new \RuntimeException('existence probe prepare failed');
         }
         $stmt->bind_param('i', $id);
         $stmt->execute();
