@@ -114,10 +114,11 @@ final class StaffPatronsController
             // account whose role the caller may no longer touch.
             $db = $this->db;
             $current = null;
+            $missing = false;
             $forbidden = false;
             $refused = false;
             $expiry = null;
-            DbAtomic::run($db, static function () use ($db, $id, $typeId, $recompute, &$current, &$forbidden, &$refused, &$expiry): void {
+            DbAtomic::run($db, static function () use ($db, $id, $typeId, $recompute, &$current, &$missing, &$forbidden, &$refused, &$expiry): void {
                 $lock = $db->prepare('SELECT id, tipo_utente, ruolo_id, accesso_digitale, tipologia_id FROM utenti WHERE id = ? FOR UPDATE');
                 if ($lock === false) {
                     throw new \RuntimeException('patron type lock prepare failed');
@@ -126,7 +127,12 @@ final class StaffPatronsController
                 $lock->execute();
                 $row = $lock->get_result()->fetch_assoc();
                 $lock->close();
-                if (!is_array($row) || !PatronPayload::canEdit($row)) {
+                // Deleted meanwhile: the same 404 as an id that never existed.
+                if (!is_array($row)) {
+                    $missing = true;
+                    return;
+                }
+                if (!PatronPayload::canEdit($row)) {
                     $forbidden = true;
                     return;
                 }
@@ -166,6 +172,9 @@ final class StaffPatronsController
                     $stmt->close();
                 }
             }, 'MobileApi patron type');
+            if ($missing) {
+                return $this->userNotFound($response);
+            }
             if ($forbidden) {
                 return $this->forbidden($response);
             }

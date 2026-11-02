@@ -13,6 +13,13 @@ declare(strict_types=1);
  *      being saved: the deactivation waits for the change (the type row is
  *      read under a shared lock), so no account is left on an inactive type.
  *   C. Without interference the type is saved.
+ *   D. recompute_card_expiry with a type that sets a card duration stores
+ *      the expiry the type gives.
+ *   E. The account stops being a reader account (standard/premium) right
+ *      before the row lock: the type is saved, the expiry is not recomputed
+ *      (the account kind is read under the lock, not before it).
+ *   F. The account is deleted right before the row lock: 404, as for an id
+ *      that never existed.
  *
  * The interference runs on a second connection, triggered just before the
  * controller's connection prepares the matching statement.
@@ -27,6 +34,8 @@ use App\Plugins\MobileApi\Staff090\Controllers\StaffPatronsController;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Services\CirculationPolicy;
 use App\Support\DateHelper;
+use App\Support\Features;
+use App\Support\PatronTypeAssignment;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Factory\StreamFactory;
 use Slim\Psr7\Response;
@@ -130,6 +139,7 @@ $created = new stdClass();
 $created->users = [];
 $created->types = [];
 register_shutdown_function(static function () use ($db, $created): void {
+    Features::resetOverrides();
     foreach ((array) $created->users as $id) {
         $db->query('DELETE FROM utenti WHERE id = ' . (int) $id);
     }
@@ -149,15 +159,15 @@ $reader = static function (string $tag) use ($exec, $run, $created): int {
     $created->users[] = $id;
     return $id;
 };
-$type = static function (string $tag) use ($exec, $run, $created): int {
-    $id = $exec("INSERT INTO tipologie_lettore (codice, nome, ordinamento, attiva) VALUES (?, ?, 9999, 1)", 'ss', ["{$run}-{$tag}", "Lock {$run} {$tag}"]);
+$type = static function (string $tag, ?int $cardDays = null) use ($exec, $run, $created): int {
+    $id = $exec("INSERT INTO tipologie_lettore (codice, nome, ordinamento, attiva, durata_tessera_giorni) VALUES (?, ?, 9999, 1, ?)", 'ssi', ["{$run}-{$tag}", "Lock {$run} {$tag}", $cardDays]);
     $created->types[] = $id;
     return $id;
 };
-$put = static function (int $userId, int $typeId) use ($db): array {
+$put = static function (int $userId, int $typeId, bool $recompute = false) use ($db): array {
     $request = (new ServerRequestFactory())->createServerRequest('PUT', "/api/v1/staff/users/{$userId}/patron-type")
         ->withHeader('Content-Type', 'application/json')
-        ->withBody((new StreamFactory())->createStream((string) json_encode(['patron_type_id' => $typeId])))
+        ->withBody((new StreamFactory())->createStream((string) json_encode(['patron_type_id' => $typeId, 'recompute_card_expiry' => $recompute])))
         ->withAttribute(AppAuthMiddleware::ATTR_USER, ['id' => 0]);
     $response = (new StaffPatronsController($db))->updatePatronType($request, new Response(), $userId);
     $response->getBody()->rewind();
@@ -204,6 +214,41 @@ $userC = $reader('c');
 $typeC = $type('c');
 $c = $put($userC, $typeC);
 $check($c['status'] === 200 && $typeOf($userC) === $typeC, 'the type is saved');
+
+$expiryOf = static function (int $userId) use ($db): ?string {
+    $value = $db->query("SELECT data_scadenza_tessera FROM utenti WHERE id = {$userId}")->fetch_row()[0];
+    return $value === null ? null : (string) $value;
+};
+Features::override('automatic_card_expiry', true);
+
+echo "D. Card expiry recomputed from the type\n";
+$userD = $reader('d');
+$typeD = $type('d', 200);
+$d = $put($userD, $typeD, true);
+$check($d['status'] === 200 && $typeOf($userD) === $typeD, 'the type is saved');
+$check(($d['meta']['card_expiry_recomputed'] ?? null) === true && $expiryOf($userD) === PatronTypeAssignment::todayPlus(200), 'and the card expires after the type\'s 200 days (' . var_export($expiryOf($userD), true) . ')');
+
+echo "E. The account kind changes before the row lock\n";
+// An administrator edits any account, so the change below decides only
+// whether the expiry is recomputed (reader accounts only), not access.
+$_SESSION['user'] = ['id' => 0, 'tipo_utente' => 'admin', 'stato' => 'attivo'];
+$userE = $reader('e');
+$typeE = $type('e', 200);
+$db->before('/FROM utenti WHERE id = \? FOR UPDATE/', static function () use ($other, $userE): void {
+    $other->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$userE}");
+});
+$e = $put($userE, $typeE, true);
+$check($e['status'] === 200 && $typeOf($userE) === $typeE, 'the type is saved');
+$check(($e['meta']['card_expiry_recomputed'] ?? null) === false && $expiryOf($userE) === null, 'the expiry is not recomputed for an account that is no longer a reader account');
+
+echo "F. The account is deleted before the row lock\n";
+$userF = $reader('f');
+$typeF = $type('f');
+$db->before('/FROM utenti WHERE id = \? FOR UPDATE/', static function () use ($other, $userF): void {
+    $other->query("DELETE FROM utenti WHERE id = {$userF}");
+});
+$f = $put($userF, $typeF);
+$check($f['status'] === 404 && ($f['error']['code'] ?? null) === 'not_found', 'an account deleted before the lock answers 404 not_found (got ' . $f['status'] . ')');
 
 echo PHP_EOL . ($failed === 0 ? "ALL {$passed} PASS" : "{$failed} FAIL, {$passed} PASS") . PHP_EOL;
 exit($failed === 0 ? 0 : 1);
