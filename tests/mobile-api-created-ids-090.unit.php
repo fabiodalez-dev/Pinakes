@@ -84,8 +84,19 @@ if ($pluginSchema['failed'] !== []) {
 if (session_status() !== PHP_SESSION_ACTIVE) {
     $_SESSION = [];
 }
+// The operator: an administrator of this run's own, since the stored keys
+// reference utenti(id) and a database built from schema.sql has no user 1.
+$operatorTag = 'zzcidop' . bin2hex(random_bytes(3));
+$opStmt = $db->prepare(
+    "INSERT INTO utenti (nome, cognome, email, password, codice_tessera, tipo_utente, stato, email_verificata) VALUES ('Op', 'Zz', ?, 'x', ?, 'admin', 'attivo', 1)"
+);
+$opEmail = $operatorTag . '@example.test';
+$opStmt->bind_param('ss', $opEmail, $operatorTag);
+$opStmt->execute();
+$operatorId = (int) $db->insert_id;
+$opStmt->close();
 // The core actions are reserved to Permissions::mayConfigure().
-$_SESSION['user'] = ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo'];
+$_SESSION['user'] = ['id' => $operatorId, 'tipo_utente' => 'admin', 'stato' => 'attivo'];
 Features::override('closures_calendar', true);
 Features::override('circulation_rules', true);
 
@@ -120,13 +131,13 @@ $apiRequest = static fn (string $path, array $json, string $key) => (new ServerR
     ->withHeader('Content-Type', 'application/json')
     ->withHeader('Idempotency-Key', $key)
     ->withBody((new StreamFactory())->createStream((string) json_encode($json)))
-    ->withAttribute(AppAuthMiddleware::ATTR_USER, ['id' => 1]);
+    ->withAttribute(AppAuthMiddleware::ATTR_USER, ['id' => $operatorId]);
 $payload = static function (\Psr\Http\Message\ResponseInterface $r): array {
     $r->getBody()->rewind();
     return (array) json_decode((string) $r->getBody(), true);
 };
 
-register_shutdown_function(static function () use ($db, $run): void {
+register_shutdown_function(static function () use ($db, $run, $operatorId): void {
     Features::resetOverrides();
     $like = "%{$run}%";
     foreach ([
@@ -143,6 +154,11 @@ register_shutdown_function(static function () use ($db, $run): void {
         } catch (Throwable) {
             // Best effort: a table missing on this install has nothing to clean.
         }
+    }
+    try {
+        $db->query('DELETE FROM utenti WHERE id = ' . $operatorId);
+    } catch (Throwable) {
+        // A row that still references the operator keeps it; it is tagged zzcidop.
     }
 });
 
