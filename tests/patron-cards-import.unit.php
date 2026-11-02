@@ -618,7 +618,7 @@ try {
     $importLogIds[] = (string) ($json['import_id'] ?? '');
     $check($status === 200 && ($json['created'] ?? null) === 1 && count($seen) === 2 && $seen[0]['account'] > 0 && $seen[0]['account'] === $ckAccountId('a')
         && $seen[0]['pending'] === ['next' => 0, 'user_id' => $seen[0]['account'], 'created_before' => 0], 'the checkpoint after the insert carries the row and the id of the account it just inserted');
-    $check($seen[1]['finished'] && $seen[1]['pending'] === null && $seen[1]['import_id'] === ($json['import_id'] ?? false),
+    $check($seen[1]['finished'] && $seen[1]['pending'] === null && is_string($seen[1]['import_id']) && $seen[1]['import_id'] !== '' && $seen[1]['import_id'] === ($json['import_id'] ?? false),
         'the last row stores the final answer with its history entry, so a retry replays it instead of closing the run again');
 
     // An expired run whose last account was inserted but not counted: the

@@ -231,7 +231,14 @@ final class MarcBookImporter
         // never the one of the snapshot taken before the first attempt. The
         // base import never writes copertina_url, so a first attempt sees the
         // book's previous cover, as before.
-        $current = $this->loadBook($bookId) ?? $existing;
+        // Read after the commit: a failed read is a warning, never a failed
+        // record (the book is already in the catalogue).
+        try {
+            $current = $this->loadBook($bookId) ?? $existing;
+        } catch (\Throwable $e) {
+            $current = $existing;
+            \App\Support\SecureLogger::warning('[MARC import] book read failed after commit', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+        }
 
         // The book is committed and counted at this point: what follows only
         // completes it, so a failure here is a warning on an imported record,
