@@ -372,7 +372,9 @@ final class ActivityLog
         $limit = max(1, min(200, $limit));
         try {
             $stmt = $db->prepare(
-                "SELECT lm.*, TRIM(CONCAT(u.nome, ' ', u.cognome)) AS operator_name "
+                // data_modifica_ts: the instant as epoch seconds, converted by
+                // MySQL in the zone CURRENT_TIMESTAMP wrote it in.
+                "SELECT lm.*, UNIX_TIMESTAMP(lm.data_modifica) AS data_modifica_ts, TRIM(CONCAT(u.nome, ' ', u.cognome)) AS operator_name "
                 . 'FROM log_modifiche lm '
                 . 'LEFT JOIN utenti u ON u.id = lm.utente_id '
                 . 'WHERE lm.tabella = ? AND lm.record_id = ? '

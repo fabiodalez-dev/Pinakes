@@ -138,17 +138,28 @@ final class StaffStocktakeController
         try {
             // The order of the admin list (open sessions first, then the
             // history, newest first), filtered and paged in SQL: the web list
-            // trims the history, the app pages through all of it.
-            $total = $this->service->sessionCount($status);
+            // trims the history, the app pages through all of it. The cursor
+            // carries the list as it was on the first page (`u`, `t`): a
+            // session opened, closed or cancelled while the operator pages is
+            // never listed twice nor skipped.
+            $cursor = $this->cursor($request);
+            $snapshot = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && StocktakeService::isSnapshotInstant($cursor['t'] ?? null)
+                ? ['u' => $cursor['u'], 't' => (string) $cursor['t']]
+                : $this->service->sessionSnapshot();
+            $total = $this->service->sessionCount($status, $snapshot);
             $items = [];
-            foreach ($this->service->sessionIds($status, $limit, $offset) as $sessionId) {
+            foreach ($this->service->sessionIds($status, $limit, $offset, $snapshot) as $sessionId) {
                 $session = $this->service->find($sessionId);
                 if ($session !== null) {
                     $items[] = $this->sessionPayload($request, $session, false, false);
                 }
             }
 
-            return ResponseEnvelope::success($response, $items, StaffPaging::meta(count($items), $limit, $offset, $offset + $limit < $total, $total));
+            $hasMore = $offset + $limit < $total;
+            $meta = StaffPaging::meta(count($items), $limit, $offset, $hasMore, $total);
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit] + $snapshot) : null;
+
+            return ResponseEnvelope::success($response, $items, $meta);
         } catch (\Throwable $e) {
             return $this->fail($response, 'sessions', $e);
         }
@@ -209,14 +220,7 @@ final class StaffStocktakeController
                 return $this->notFound($response);
             }
             $operator = $this->mine($request) ? $this->operatorId($request) : null;
-            // The cursor pins the newest scan of the first page (`u`), as the
-            // ledger does: scans recorded while the operator pages (newest
-            // first) never shift the offsets of the following pages.
-            $rawCursor = $request->getQueryParams()['cursor'] ?? null;
-            $cursor = CursorCodec::decode(is_string($rawCursor) ? $rawCursor : null);
-            $upTo = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0
-                ? $cursor['u']
-                : $this->service->latestScanId($id);
+            $upTo = $this->pinnedScanId($request, $id);
             $total = $this->service->scanCount($id, $operator, $outcome, $upTo);
             $rows = $this->service->scans($id, $operator, $limit, $offset, $outcome, $upTo);
             $hasMore = $offset + $limit < $total;
@@ -251,10 +255,14 @@ final class StaffStocktakeController
                 return $this->notFound($response);
             }
             $labels = InventoryController::outcomeLabels();
-            // Paged in the database (LIMIT/OFFSET on both queries), counted apart.
-            $total = $this->service->reportRowCount($id, $category);
+            // Paged in the database (LIMIT/OFFSET on both queries), counted
+            // apart, pinned like the scan list: on an open session a scan
+            // between two pages moves a copy from the expected rows to the
+            // scans, which would skip a row of the next page.
+            $upTo = $this->pinnedScanId($request, $id);
+            $total = $this->service->reportRowCount($id, $category, $upTo);
             $items = [];
-            foreach ($this->service->reportPage($id, $category, $limit, $offset) as $row) {
+            foreach ($this->service->reportPage($id, $category, $limit, $offset, $upTo) as $row) {
                 $items[] = [
                     'category'          => V::outcome($row['categoria']),
                     'category_label'    => $labels[$row['categoria']] ?? $row['categoria'],
@@ -267,11 +275,15 @@ final class StaffStocktakeController
                     'copy_status'       => $row['stato_copia'] !== '' ? $row['stato_copia'] : null,
                     'copy_status_label' => $row['stato_copia'] !== '' ? (StaffCopyReader::labels()[$row['stato_copia']] ?? $row['stato_copia']) : null,
                     'operator_name'     => $row['operatore'] !== '' ? $row['operatore'] : null,
-                    'scanned_at'        => V::datetime($row['quando']),
+                    'scanned_at'        => V::instant($row['quando_ts']),
                 ];
             }
 
-            return ResponseEnvelope::success($response, $items, StaffPaging::meta(count($items), $limit, $offset, $offset + $limit < $total, $total));
+            $hasMore = $offset + $limit < $total;
+            $meta = StaffPaging::meta(count($items), $limit, $offset, $hasMore, $total);
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit, 'u' => $upTo]) : null;
+
+            return ResponseEnvelope::success($response, $items, $meta);
         } catch (\Throwable $e) {
             return $this->fail($response, 'report', $e);
         }
@@ -654,9 +666,9 @@ final class StaffStocktakeController
             'filter_labels'  => (new InventoryController())->filterLabels($this->db, $this->service, $filter),
             'note'           => ($session['note'] ?? null) !== null && (string) $session['note'] !== '' ? (string) $session['note'] : null,
             'expected_total' => (int) ($session['totale_attese'] ?? 0),
-            'opened_at'      => V::datetime($session['aperta_il'] ?? null),
+            'opened_at'      => V::instant($session['aperta_il_ts'] ?? null),
             'opened_by'      => $session['aperta_da'] !== null ? ['id' => (int) $session['aperta_da'], 'name' => (string) ($session['aperta_da_nome'] ?? '')] : null,
-            'closed_at'      => V::datetime($session['chiusa_il'] ?? null),
+            'closed_at'      => V::instant($session['chiusa_il_ts'] ?? null),
             'closed_by'      => $session['chiusa_da'] !== null ? ['id' => (int) $session['chiusa_da'], 'name' => (string) ($session['chiusa_da_nome'] ?? '')] : null,
             'missing_action' => V::missingAction(isset($session['azione_mancanti']) ? (string) $session['azione_mancanti'] : null),
             'summary'        => V::summary($this->service->summary($id, $operator)),
@@ -681,7 +693,7 @@ final class StaffStocktakeController
                     'event'         => (string) ($event['event'] ?? ''),
                     'label'         => __(\App\Support\ActivityLog::eventLabel((string) ($event['event'] ?? ''), (string) ($event['azione'] ?? ''))),
                     'operator_name' => $who !== '' ? $who : null,
-                    'at'            => V::datetime($event['data_modifica'] ?? null),
+                    'at'            => V::instant($event['data_modifica_ts'] ?? null),
                 ];
             }, \App\Support\ActivityLog::forEntity($this->db, 'inventario_sessioni', $id));
         }
@@ -719,7 +731,7 @@ final class StaffStocktakeController
             'off_shelf'         => $copyStatus !== null && StocktakeService::isOffShelfState($copyStatus),
             'expected_shelf'    => isset($r['scaffale_atteso']) ? $this->service->shelfLabel((int) $r['scaffale_atteso']) : null,
             'operator'          => $r['scansionato_da'] !== null ? ['id' => (int) $r['scansionato_da'], 'name' => $operatorName] : null,
-            'scanned_at'        => V::datetime($r['scansionato_il'] ?? null),
+            'scanned_at'        => V::instant($r['scansionato_il_ts'] ?? null),
         ];
     }
 
@@ -737,20 +749,14 @@ final class StaffStocktakeController
         }
         $scan = $this->scanItem($row);
         if ($scan['copy_id'] === null && $row['esito'] === 'duplicata') {
-            // A repeat is stored without its copy (the first scan holds it):
-            // name the copy all the same, as the web feedback does. The copy
-            // is the one the first scan recorded, so a replay keeps naming it
-            // even after its inventory number went to another copy; only a
-            // repeat whose first scan read another code looks the code up.
-            $first = $this->service->firstScanOfRepeat($sessionId, $scanId);
-            if ($first !== null) {
-                $copy = ['id' => $first['copia_id'], 'libro_id' => $first['libro_id'], 'titolo' => $first['titolo'], 'collocazione' => $first['collocazione'], 'stato' => $first['stato_copia']];
-            } else {
-                $copy = $this->service->copyByCode((string) $row['codice_letto']);
-            }
+            // A repeat is stored without its copy (the scan that recorded it
+            // holds it): name the copy all the same, as the web feedback
+            // does, from that scan (StocktakeService::scanOfRepeatedCopy()),
+            // so a replay keeps naming it whatever the number names today.
+            $copy = $this->service->scanOfRepeatedCopy($sessionId, $scanId);
             if ($copy !== null) {
-                $status = (string) ($copy['stato'] ?? '');
-                $scan['copy_id'] = (int) $copy['id'];
+                $status = (string) ($copy['stato_copia'] ?? '');
+                $scan['copy_id'] = (int) $copy['copia_id'];
                 $scan['book_id'] = $copy['libro_id'] !== null ? (int) $copy['libro_id'] : null;
                 $scan['title'] = ($copy['titolo'] ?? '') !== '' ? (string) $copy['titolo'] : null;
                 $scan['collocation'] = ($copy['collocazione'] ?? '') !== '' ? (string) $copy['collocazione'] : null;
@@ -787,6 +793,28 @@ final class StaffStocktakeController
         $id = is_array($user) ? (int) ($user['id'] ?? 0) : 0;
 
         return $id > 0 ? $id : null;
+    }
+
+    /** @return array<string, mixed>|null the decoded `cursor` query parameter */
+    private function cursor(ServerRequestInterface $request): ?array
+    {
+        $raw = $request->getQueryParams()['cursor'] ?? null;
+
+        return CursorCodec::decode(is_string($raw) ? $raw : null);
+    }
+
+    /**
+     * The newest scan a paged list of session $id shows (`u` of the cursor,
+     * else the newest scan now), as the ledger pins its rows: scans recorded
+     * while the operator pages never shift the offsets of the next pages.
+     */
+    private function pinnedScanId(ServerRequestInterface $request, int $id): int
+    {
+        $cursor = $this->cursor($request);
+
+        return is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0
+            ? $cursor['u']
+            : $this->service->latestScanId($id);
     }
 
     private function mine(ServerRequestInterface $request): bool

@@ -94,7 +94,7 @@ final class StocktakeOpenApi
             ] + $notFound)],
             '/staff/stocktake/sessions' => [
                 'get' => O::op($t, 'staffStocktakeSessions', 'Sessions: every open one first, then closed and cancelled (newest first), each with its counters (no recent_scans/history). 30/min.', [
-                    '200' => O::ok('Sessions; meta has count, limit, next_cursor, has_more, total_count.', O::listOf('StocktakeSession')),
+                    '200' => O::ok('Sessions; meta has count, limit, next_cursor, has_more, total_count. The cursor pins the list of the first page: a session opened later is not listed, one closed or cancelled later keeps its place among the open ones.', O::listOf('StocktakeSession')),
                 ] + $notFound + $validation, ['parameters' => array_merge([O::query('status', 'string', 'open | closed | cancelled | all (default).')], O::paging())]),
                 'post' => O::op($t, 'staffStocktakeCreate', 'Open a session: the copies matching the filter are frozen as the expected ones', [
                     '201' => $session, '200' => O::ok('Replay of an Idempotency-Key (meta.replayed=true).', O::ref('StocktakeSession')),
@@ -119,7 +119,7 @@ final class StocktakeOpenApi
                 ], ['code'])]),
             ],
             '/staff/stocktake/sessions/{id}/report' => ['get' => O::op($t, 'staffStocktakeReport', 'Report rows as the web final report and the CSV: every expected copy not scanned (on_loan or missing), then every scan', [
-                '200' => O::ok('Rows, paged in the database; meta.total_count counts the rows of the category filter, or every row.', ['type' => 'array', 'items' => O::object([
+                '200' => O::ok('Rows, paged in the database; meta.total_count counts the rows of the category filter, or every row. The cursor pins the first page\'s newest scan, so a scan recorded meanwhile never shifts a page.', ['type' => 'array', 'items' => O::object([
                     'category' => ['type' => 'string', 'enum' => $outcomes], 'category_label' => $str, 'color' => $color, 'code' => $str, 'title' => $str,
                     'media_type' => O::nullable('string'), 'collocation' => O::nullable('string'), 'expected_shelf' => O::nullable('string'),
                     'copy_status' => O::nullable('string'), 'copy_status_label' => O::nullable('string'), 'operator_name' => O::nullable('string'), 'scanned_at' => O::nullable('string', 'date-time'),

@@ -240,6 +240,50 @@ try {
     $latest = $service->latestScanId($second);
     $check($latest === (int) $one("SELECT MAX(id) FROM inventario_scansioni WHERE sessione_id = {$second}"), 'latestScanId() is the newest scan of the session');
     $check(!in_array($latest, array_map(static fn (array $r): int => (int) $r['id'], $service->scans($second, null, 200, 0, null, $latest - 1)), true) && $service->scanCount($second, null, null, $latest - 1) === $service->scanCount($second) - 1, 'scans() and scanCount() with $upToId leave out the scans after it');
+    // An open session's report pages pinned to the scans of the first page
+    // (review #518): a scan between two pages moves a copy from the expected
+    // rows to the scans; unpinned, the next page would skip a row.
+    $pin = $service->open('ZZST pin ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $pin;
+    $pinFull = $service->reportRows($pin);
+    $pinUpTo = $service->latestScanId($pin);
+    $pinPage1 = $service->reportPage($pin, null, 2, 0, $pinUpTo);
+    // The instants are the database's own: a connection in another zone
+    // writes NOW() in it and UNIX_TIMESTAMP() reads it back in it.
+    $db->query("SET SESSION time_zone = '+05:00'");
+    try {
+        $before = time();
+        $pinScan = $service->scan($pin, "{$p}-C5", null, null);
+        $pinRow = (array) $service->scanRow($pin, (int) $pinScan['scansione_id']);
+        $check(abs((int) $pinRow['scansionato_il_ts'] - $before) <= 5, 'a scan instant is the real one whatever zone the connection writes and reads in');
+    } finally {
+        $db->query('SET SESSION time_zone = DEFAULT');
+    }
+    $pinPage2 = $service->reportPage($pin, null, 2, 2, $pinUpTo);
+    $check($service->reportRowCount($pin) === count($pinFull) && $service->reportRowCount($pin, 'mancante') + $service->reportRowCount($pin, 'in_prestito') === count($pinFull) - 1, 'the scan moved one copy from the expected rows to the scans (same total)');
+    $check(array_merge($pinPage1, $pinPage2) === $pinFull && $service->reportRowCount($pin, null, $pinUpTo) === count($pinFull), 'pinned pages put together are the report of the first page, with nothing skipped');
+    $check($service->reportPage($pin, null, 2, 2) !== $pinPage2, 'unpinned, the same page would have shifted (the pin is what keeps it)');
+
+    // The session list pinned to a snapshot (review #518): a session opened
+    // later is not listed, one cancelled later keeps its place among the open.
+    $snapshot = $service->sessionSnapshot();
+    $snapAll = $service->sessionIds(null, 500, 0, $snapshot);
+    $snapOpen = $service->sessionIds('aperta', 500, 0, $snapshot);
+    $snapCount = $service->sessionCount(null, $snapshot);
+    $later = $service->open('ZZST later ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
+    $sessionIds[] = $later;
+    $service->cancel($pin, null);
+    $check($service->sessionIds(null, 500, 0, $snapshot) === $snapAll && $service->sessionCount(null, $snapshot) === $snapCount && $service->sessionCount(null) === $snapCount + 1, 'the pinned list is the same after a session was opened and another cancelled');
+    $check(!in_array($later, $service->sessionIds(null, 500, 0, $snapshot), true) && in_array($later, $service->sessionIds(null, 500), true), 'the session opened after the snapshot is not in the pinned list, only in a fresh one');
+    $check(in_array($pin, $snapOpen, true) && $service->sessionIds('aperta', 500, 0, $snapshot) === $snapOpen && !in_array($pin, $service->sessionIds('aperta', 500), true), 'the session cancelled after the snapshot keeps its place among the open ones');
+    $refusedSnapshot = false;
+    try {
+        $service->sessionIds(null, 10, 0, ['u' => 1, 't' => "2026-01-01' OR 1=1 -- "]);
+    } catch (InvalidArgumentException) {
+        $refusedSnapshot = true;
+    }
+    $check($refusedSnapshot, 'a snapshot instant that is not a DATETIME is refused, never put in the SQL');
+
     // The app pages through every session, not the history listSessions() trims.
     $sessionTotal = $service->sessionCount(null);
     $check($sessionTotal === (int) $one('SELECT COUNT(*) FROM inventario_sessioni'), 'sessionCount() counts every session');
@@ -425,7 +469,11 @@ try {
 
     // The session is closed, so close() cannot be repeated: the copies the
     // mark-lost close did not reach are completed from the closed session.
-    $check($service->pendingLostCount($atomicSession) === 1, 'the copy the close failed to mark is pending');
+    // pendingLostCount() counts in SQL what missingToMark() lists (review #518): same answer at every step below.
+    $pendingMatches = static function (int $sid) use ($service): bool {
+        return $service->pendingLostCount($sid) === array_sum(array_map('count', (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $sid)));
+    };
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 1, 'the copy the close failed to mark is pending');
     $check($refused(static fn () => $service->resumeMarkLost($second, null)), 'a cancelled session cannot resume marking');
     $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $atomicSession . '/close')
@@ -433,18 +481,18 @@ try {
     (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $atomicSession);
     $check($one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'perso', 'posting "mark lost" again on the closed session marks the copy it missed');
     $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'persa' && $one("SELECT copie_disponibili FROM libri WHERE id = {$atomicBook}") === '0', 'the resumed marking freezes the bucket and recalculates availability');
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0], 'resuming again finds nothing left to mark');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0], 'resuming again finds nothing left to mark');
     // A copy is handled after the close: the resume must not undo it. The
     // close is moved an hour back so "changed after the close" does not hang
     // on both writes landing in the same second.
     $db->query("UPDATE inventario_sessioni SET chiusa_il = chiusa_il - INTERVAL 1 HOUR WHERE id = {$atomicSession}");
     $db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
     $db->query("UPDATE inventario_attese SET esito_chiusura = 'mancante' WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
     // The copy was last changed before the close: pending again.
     $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il - INTERVAL 1 MINUTE WHERE c.id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 1, 'a missing copy last changed before the close is pending');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 1, 'a missing copy last changed before the close is pending');
     // An operator edits it between the pending list and the book lock (review
     // #504): the marking re-checks the change under the lock and leaves it.
     $toMark = (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $atomicSession);
@@ -453,7 +501,7 @@ try {
     $check(isset($toMark[$atomicBook]) && $markedNow === [] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile' && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'mancante', 'a copy edited after the close while the marking runs is not marked lost');
     // Changed in the very second of the close: ambiguous, so it is left alone.
     $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il WHERE c.id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
 
     // A hold the reassignment cannot take off the copy (review #504): a
     // trigger puts the copy back on every release. Marking it lost must roll

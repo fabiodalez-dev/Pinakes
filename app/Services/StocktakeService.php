@@ -424,6 +424,9 @@ final class StocktakeService
     {
         $stmt = $this->db->prepare(
             'SELECT s.*, se.nome AS sede_nome, '
+            // The instants as epoch seconds, converted by MySQL in the time
+            // zone NOW() wrote them in (see epochSql()).
+            . self::epochSql('s.aperta_il') . ' AS aperta_il_ts, ' . self::epochSql('s.chiusa_il') . ' AS chiusa_il_ts, '
             . "TRIM(CONCAT(COALESCE(ua.nome, ''), ' ', COALESCE(ua.cognome, ''))) AS aperta_da_nome, "
             . "TRIM(CONCAT(COALESCE(uc.nome, ''), ' ', COALESCE(uc.cognome, ''))) AS chiusa_da_nome "
             . 'FROM inventario_sessioni s '
@@ -474,20 +477,50 @@ final class StocktakeService
     }
 
     /**
+     * The session list as it is now, to page through it unchanged: the newest
+     * session id and the database clock. sessionIds() and sessionCount() with
+     * it leave out the sessions opened later and keep a session closed or
+     * cancelled later in its place among the open ones, so no session is
+     * listed twice or skipped while the pages are read. A session only ever
+     * leaves 'aperta', stamping chiusa_il (claimTransition()), so its state
+     * at that instant is known.
+     *
+     * @return array{u:int,t:string}
+     */
+    public function sessionSnapshot(): array
+    {
+        $row = $this->db->query('SELECT COALESCE(MAX(id), 0), NOW() FROM inventario_sessioni');
+        $values = $row === false ? null : $row->fetch_row();
+        if (!is_array($values)) {
+            throw new \RuntimeException($this->db->error);
+        }
+        return ['u' => (int) $values[0], 't' => (string) $values[1]];
+    }
+
+    /** True for a sessionSnapshot() instant, a MySQL DATETIME. */
+    public static function isSnapshotInstant(mixed $value): bool
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value) === 1;
+    }
+
+    /**
      * One page of every session, in the order of listSessions() (open ones
      * first, then the history, newest first), optionally of one state only:
      * the app pages through the whole history, which listSessions() trims.
+     * With $snapshot (sessionSnapshot()) the list is the one of that instant.
      *
+     * @param array{u:int,t:string}|null $snapshot
      * @return list<int> session ids
      */
-    public function sessionIds(?string $state, int $limit, int $offset = 0): array
+    public function sessionIds(?string $state, int $limit, int $offset = 0, ?array $snapshot = null): array
     {
         $limit = max(1, min(500, $limit));
         $offset = max(0, $offset);
+        [$stateSql, $where] = self::sessionListSql($snapshot);
         $stmt = $this->db->prepare(
-            'SELECT s.id FROM inventario_sessioni s'
-            . ($state !== null ? ' WHERE s.stato = ?' : '')
-            . " ORDER BY FIELD(s.stato, 'aperta', 'chiusa', 'annullata'), s.aperta_il DESC, s.id DESC"
+            'SELECT s.id FROM inventario_sessioni s WHERE ' . $where
+            . ($state !== null ? ' AND ' . $stateSql . ' = ?' : '')
+            . ' ORDER BY FIELD(' . $stateSql . ", 'aperta', 'chiusa', 'annullata'), s.aperta_il DESC, s.id DESC"
             . ' LIMIT ' . $limit . ' OFFSET ' . $offset
         );
         if ($stmt === false) {
@@ -502,10 +535,15 @@ final class StocktakeService
         return $ids;
     }
 
-    /** How many sessions sessionIds() pages through. */
-    public function sessionCount(?string $state): int
+    /**
+     * How many sessions sessionIds() pages through.
+     *
+     * @param array{u:int,t:string}|null $snapshot
+     */
+    public function sessionCount(?string $state, ?array $snapshot = null): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM inventario_sessioni' . ($state !== null ? ' WHERE stato = ?' : ''));
+        [$stateSql, $where] = self::sessionListSql($snapshot);
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM inventario_sessioni s WHERE ' . $where . ($state !== null ? ' AND ' . $stateSql . ' = ?' : ''));
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
@@ -516,6 +554,28 @@ final class StocktakeService
         $row = $stmt->get_result()->fetch_row();
         $stmt->close();
         return (int) ($row[0] ?? 0);
+    }
+
+    /**
+     * The state of `s` and the rows of the list, now or at a snapshot. A
+     * session closed in the very second of the snapshot counts as still open
+     * (`>=`): whole seconds cannot tell whether the first page saw it open.
+     *
+     * @param array{u:int,t:string}|null $snapshot
+     * @return array{0:string,1:string} [state expression, WHERE condition]
+     */
+    private static function sessionListSql(?array $snapshot): array
+    {
+        if ($snapshot === null) {
+            return ['s.stato', '1 = 1'];
+        }
+        if (!self::isSnapshotInstant($snapshot['t'])) {
+            throw new \InvalidArgumentException('Not a snapshot instant');
+        }
+        return [
+            "(CASE WHEN s.stato <> 'aperta' AND s.chiusa_il >= '" . $snapshot['t'] . "' THEN 'aperta' ELSE s.stato END)",
+            's.id <= ' . (int) $snapshot['u'],
+        ];
     }
 
     private function expectedCount(int $sessionId): int
@@ -802,6 +862,19 @@ final class StocktakeService
         }
     }
 
+    /**
+     * SQL: the DATETIME column $column as epoch seconds. Every stocktake
+     * instant is written by the database clock (NOW(), CURRENT_TIMESTAMP),
+     * in the connection's time zone, which Pinakes leaves at the server
+     * default; MySQL converts it back with the same zone and its DST rules,
+     * so an instant read here is the instant written, whatever app.timezone
+     * or PHP's zone say. NULL stays NULL.
+     */
+    public static function epochSql(string $column): string
+    {
+        return 'UNIX_TIMESTAMP(' . $column . ')';
+    }
+
     /** @param list<string> $values */
     private static function sqlList(array $values): string
     {
@@ -997,9 +1070,10 @@ final class StocktakeService
     /**
      * The unscanned expected copies as a buffered result, read one row at a
      * time by the report. $bucket ('in_prestito' or 'mancante') keeps only
-     * that report bucket; $limit and $offset page it in SQL.
+     * that report bucket; $limit and $offset page it in SQL. With $upToId a
+     * copy counts as scanned only by a scan up to that id (reportPage()).
      */
-    private function unscannedExpectedResult(int $sessionId, bool $frozen, ?string $bucket = null, ?int $limit = null, int $offset = 0): \mysqli_result
+    private function unscannedExpectedResult(int $sessionId, bool $frozen, ?string $bucket = null, ?int $limit = null, int $offset = 0, ?int $upToId = null): \mysqli_result
     {
         // copia_id last: the order is total, so an OFFSET page is well defined.
         $stmt = $this->db->prepare(
@@ -1008,7 +1082,7 @@ final class StocktakeService
             . 'COALESCE(l.titolo, a.titolo_atteso) AS titolo, l.id AS libro_attivo, l.collocazione, l.tipo_media, '
             . self::onLoanBucketSql($frozen) . ' AS in_prestito '
             . 'FROM inventario_attese a '
-            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id' . ($upToId !== null ? ' AND s.id <= ?' : '') . ' '
             . 'LEFT JOIN copie c ON c.id = a.copia_id '
             . 'LEFT JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
             . 'WHERE a.sessione_id = ? AND s.id IS NULL' . self::bucketWhere($frozen, $bucket) . ' '
@@ -1018,7 +1092,11 @@ final class StocktakeService
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
-        $stmt->bind_param('i', $sessionId);
+        if ($upToId !== null) {
+            $stmt->bind_param('ii', $upToId, $sessionId);
+        } else {
+            $stmt->bind_param('i', $sessionId);
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $stmt->close();
@@ -1028,19 +1106,23 @@ final class StocktakeService
         return $result;
     }
 
-    /** How many rows unscannedExpectedResult() returns for $bucket. */
-    private function unscannedExpectedCount(int $sessionId, bool $frozen, ?string $bucket): int
+    /** How many rows unscannedExpectedResult() returns for $bucket (and $upToId). */
+    private function unscannedExpectedCount(int $sessionId, bool $frozen, ?string $bucket, ?int $upToId = null): int
     {
         $stmt = $this->db->prepare(
             'SELECT COUNT(*) FROM inventario_attese a '
-            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id' . ($upToId !== null ? ' AND s.id <= ?' : '') . ' '
             . 'LEFT JOIN copie c ON c.id = a.copia_id '
             . 'WHERE a.sessione_id = ? AND s.id IS NULL' . self::bucketWhere($frozen, $bucket)
         );
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
-        $stmt->bind_param('i', $sessionId);
+        if ($upToId !== null) {
+            $stmt->bind_param('ii', $upToId, $sessionId);
+        } else {
+            $stmt->bind_param('i', $sessionId);
+        }
         $stmt->execute();
         $row = $stmt->get_result()->fetch_row();
         $stmt->close();
@@ -1078,7 +1160,7 @@ final class StocktakeService
      * With $limit at most that many rows are read: the PDF export asks for one
      * more than it can hold, to tell a report that grew past its limit.
      *
-     * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
+     * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}>
      */
     public function reportRows(int $sessionId, ?int $limit = null): array
     {
@@ -1097,7 +1179,7 @@ final class StocktakeService
      * as they come (the CSV) instead of holding the whole report: the database
      * results are buffered by the driver, but never turned into one PHP array.
      *
-     * @return \Generator<int,array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
+     * @return \Generator<int,array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}>
      */
     public function eachReportRow(int $sessionId): \Generator
     {
@@ -1125,9 +1207,15 @@ final class StocktakeService
      * read with LIMIT/OFFSET in the database: the unscanned expected copies
      * first, then the scans, in the order of eachReportRow().
      *
-     * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}>
+     * $upToId (latestScanId() at the first page) pins an open session's
+     * report to the scans of that moment: a later scan would move a copy
+     * from the expected rows to the scans and shift every following offset,
+     * so it is left out of the rows, of the expected copies it would remove
+     * and of reportRowCount() with the same id.
+     *
+     * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}>
      */
-    public function reportPage(int $sessionId, ?string $category, int $limit, int $offset = 0): array
+    public function reportPage(int $sessionId, ?string $category, int $limit, int $offset = 0, ?int $upToId = null): array
     {
         $limit = max(1, $limit);
         $offset = max(0, $offset);
@@ -1135,9 +1223,9 @@ final class StocktakeService
         $expected = 0;
         if ($category === null || in_array($category, ['in_prestito', 'mancante'], true)) {
             $frozen = $this->isFrozen($sessionId);
-            $expected = $this->unscannedExpectedCount($sessionId, $frozen, $category);
+            $expected = $this->unscannedExpectedCount($sessionId, $frozen, $category, $upToId);
             if ($offset < $expected) {
-                $result = $this->unscannedExpectedResult($sessionId, $frozen, $category, $limit, $offset);
+                $result = $this->unscannedExpectedResult($sessionId, $frozen, $category, $limit, $offset, $upToId);
                 try {
                     while (is_array($row = $result->fetch_assoc())) {
                         $rows[] = $this->expectedReportRow($row);
@@ -1150,7 +1238,7 @@ final class StocktakeService
         if (count($rows) < $limit) {
             // The scans continue where the expected copies end: a page that
             // starts past them skips the expected rows it does not show.
-            $result = $this->scansResult($sessionId, null, $limit - count($rows), max(0, $offset - $expected), $category);
+            $result = $this->scansResult($sessionId, null, $limit - count($rows), max(0, $offset - $expected), $category, null, $upToId);
             try {
                 while (is_array($scan = $result->fetch_assoc())) {
                     $rows[] = $this->scanReportRow($scan);
@@ -1164,23 +1252,23 @@ final class StocktakeService
 
     /**
      * How many rows reportRows() returns, or with $category how many of that
-     * category, counted without loading them.
+     * category, counted without loading them; with $upToId as reportPage().
      */
-    public function reportRowCount(int $sessionId, ?string $category = null): int
+    public function reportRowCount(int $sessionId, ?string $category = null, ?int $upToId = null): int
     {
         $expected = 0;
         if ($category === null || in_array($category, ['in_prestito', 'mancante'], true)) {
             // The bucket of every row is needed only to count one bucket.
-            $expected = $this->unscannedExpectedCount($sessionId, $category !== null && $this->isFrozen($sessionId), $category);
+            $expected = $this->unscannedExpectedCount($sessionId, $category !== null && $this->isFrozen($sessionId), $category, $upToId);
         }
-        return $expected + $this->scanCount($sessionId, null, $category);
+        return $expected + $this->scanCount($sessionId, null, $category, $upToId);
     }
 
     /**
      * A report row for an unscanned expected copy (unscannedExpectedResult()).
      *
      * @param array<string,mixed> $row
-     * @return array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}
+     * @return array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}
      */
     private function expectedReportRow(array $row): array
     {
@@ -1194,6 +1282,7 @@ final class StocktakeService
             'stato_copia' => (string) ($row['stato_attuale'] ?? ''),
             'operatore' => '',
             'quando' => '',
+            'quando_ts' => '',
         ];
     }
 
@@ -1201,7 +1290,7 @@ final class StocktakeService
      * A report row for a scan (scansResult()).
      *
      * @param array<string,mixed> $scan
-     * @return array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string}
+     * @return array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}
      */
     private function scanReportRow(array $scan): array
     {
@@ -1215,6 +1304,7 @@ final class StocktakeService
             'stato_copia' => (string) ($scan['stato_copia'] ?? ''),
             'operatore' => (string) ($scan['operatore'] ?? ''),
             'quando' => (string) ($scan['scansionato_il'] ?? ''),
+            'quando_ts' => (string) ($scan['scansionato_il_ts'] ?? ''), // epoch seconds (epochSql()), '' for an expected copy
         ];
     }
 
@@ -1291,20 +1381,32 @@ final class StocktakeService
     }
 
     /**
-     * The scan that first recorded the copy a repeat ('duplicata') is about,
-     * with the columns of scans(). A repeat is stored without its copy (the
-     * UNIQUE (sessione_id, copia_id) belongs to the first scan): that earlier
-     * scan of the same code is where the copy it named was kept, whatever
-     * the inventory number names today. Null when there is none.
+     * The earlier scan that recorded the copy a repeat ('duplicata') is
+     * about, with the columns of scans(); null when none can be told.
+     *
+     * A repeat is stored without its copy: the UNIQUE (sessione_id, copia_id)
+     * belongs to the scan that recorded it, and a repeat exists only because
+     * that scan does, earlier in the same session. Among those scans the one
+     * meant is the most recent read of the same code: the copy that held the
+     * code when it was last recorded, even if the number moved from another
+     * copy during the session (the older reads of the code name that other
+     * copy) or moved on afterwards. When no earlier scan read that code (the
+     * copy was recorded under a former number), it is the recorded copy that
+     * holds the code now. Only a code moved back and forth between copies
+     * already recorded in the session can defeat this, and naming no copy is
+     * then better than looking the code up: its holder today may never have
+     * been scanned.
      *
      * @return array<string,mixed>|null
      */
-    public function firstScanOfRepeat(int $sessionId, int $repeatScanId): ?array
+    public function scanOfRepeatedCopy(int $sessionId, int $repeatScanId): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT f.id FROM inventario_scansioni r '
-            . 'JOIN inventario_scansioni f ON f.sessione_id = r.sessione_id AND f.codice_letto = r.codice_letto AND f.copia_id IS NOT NULL AND f.id < r.id '
-            . 'WHERE r.sessione_id = ? AND r.id = ? ORDER BY f.id LIMIT 1'
+            . 'JOIN inventario_scansioni f ON f.sessione_id = r.sessione_id AND f.copia_id IS NOT NULL AND f.id < r.id '
+            . 'LEFT JOIN copie c ON c.id = f.copia_id '
+            . 'WHERE r.sessione_id = ? AND r.id = ? AND (f.codice_letto = r.codice_letto OR c.numero_inventario = r.codice_letto) '
+            . 'ORDER BY f.codice_letto = r.codice_letto DESC, f.id DESC LIMIT 1'
         );
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
@@ -1320,7 +1422,7 @@ final class StocktakeService
     {
         $limit = $limit === null ? null : max(1, min(100000, $limit));
         $offset = max(0, $offset);
-        $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, s.scansionato_da, s.copia_id, c.libro_id, '
+        $sql = 'SELECT s.id, s.codice_letto, s.esito, s.scansionato_il, ' . self::epochSql('s.scansionato_il') . ' AS scansionato_il_ts, s.scansionato_da, s.copia_id, c.libro_id, '
             . 'COALESCE(c.numero_inventario, a.codice_atteso, s.codice_letto) AS codice, COALESCE(l.titolo, a.titolo_atteso) AS titolo, '
             . 'l.collocazione, l.tipo_media, c.stato AS stato_copia, a.scaffale_atteso, '
             . "TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS operatore "
@@ -1441,7 +1543,30 @@ final class StocktakeService
      */
     public function pendingLostCount(int $sessionId): int
     {
-        return array_sum(array_map('count', $this->missingToMark($sessionId)));
+        // missingToMark() counted in SQL, rule for rule, without loading the
+        // unscanned copies: the session list asks it of every closed session.
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM inventario_attese a '
+            . 'JOIN inventario_sessioni se ON se.id = a.sessione_id '
+            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id '
+            // The copy and its book are still in the catalogue.
+            . 'JOIN copie c ON c.id = a.copia_id '
+            . 'JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
+            // Frozen as missing (so neither on loan nor already marked lost)…
+            . "WHERE a.sessione_id = ? AND s.id IS NULL AND a.esito_chiusura = 'mancante' "
+            // …not changed at or after the close (changedSinceClose())…
+            . 'AND NOT (se.chiusa_il IS NOT NULL AND c.updated_at IS NOT NULL AND c.updated_at >= se.chiusa_il) '
+            // …and not in a state that already explains its absence.
+            . "AND COALESCE(c.stato, '') NOT IN (" . self::sqlList(self::AWAY_STATES) . ')'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $sessionId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return (int) ($row[0] ?? 0);
     }
 
     /**

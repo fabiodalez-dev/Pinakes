@@ -191,6 +191,8 @@ test('4. staff opens a session on a shelf; the Idempotency-Key replays it instea
     expect(d.expected_total).toBe(4); // A1 A2 A3 L1: the lost copy and the deleted book stay out
     expect(d.summary).toMatchObject({ expected: 4, found: 0, on_loan: 1, missing: 3, scans: 0 });
     expect(d.opened_by).toEqual({ id: users.staff.id, name: expect.any(String) });
+    // The instant the database clock wrote, whatever zone it is shown in.
+    expect(Date.parse(d.opened_at) / 1000).toBe(fx.dbInt(`SELECT UNIX_TIMESTAMP(aperta_il) FROM inventario_sessioni WHERE id=${d.id}`));
     expect(d).toMatchObject({ can_scan: true, can_upload: true, can_close: true, can_cancel: true, can_mark_lost: false });
     expect(Number(fx.dbScalar(`SELECT totale_attese FROM inventario_sessioni WHERE id=${s1}`))).toBe(4);
     expect(fx.dbScalar(`SELECT GROUP_CONCAT(copia_id ORDER BY copia_id) FROM inventario_attese WHERE sessione_id=${s1}`))
@@ -220,6 +222,28 @@ test('5. the session list pages by status with counters', async ({ request }) =>
     const bad = await call(request, 'GET', `${P}/sessions?status=bogus`, 'staff');
     expect(bad.status).toBe(422);
     expect(bad.json.meta.fields.status).toBeTruthy();
+
+    // The cursor pins the list of the first page: a session opened between
+    // two pages (it would come first) neither repeats a row nor shows up,
+    // and one cancelled meanwhile keeps its place among the open ones.
+    const a = await createSession(request, 'staff', `${TAG} list A`);
+    const p1 = await call(request, 'GET', `${P}/sessions?status=open&limit=1`, 'staff');
+    expect(p1.json.data.map((x) => x.id)).toEqual([a.json.data.id]);
+    expect(p1.json.meta.has_more).toBe(true);
+    const b = await createSession(request, 'staff', `${TAG} list B`);
+    const page2 = () => call(request, 'GET', `${P}/sessions?status=open&limit=1&cursor=${encodeURIComponent(p1.json.meta.next_cursor)}`, 'staff');
+    const p2 = await page2();
+    expect(p2.status).toBe(200);
+    expect(p2.json.meta.total_count).toBe(p1.json.meta.total_count);
+    expect(p2.json.data.length).toBe(1);
+    expect([a.json.data.id, b.json.data.id]).not.toContain(p2.json.data[0].id);
+    expect((await call(request, 'POST', `${P}/sessions/${a.json.data.id}/cancel`, 'staff')).status).toBe(200);
+    const p2Again = await page2();
+    expect(p2Again.json.data.map((x) => x.id)).toEqual(p2.json.data.map((x) => x.id));
+    expect(p2Again.json.meta.total_count).toBe(p1.json.meta.total_count);
+    const fresh = await call(request, 'GET', `${P}/sessions?status=open&limit=1`, 'staff');
+    expect(fresh.json.data[0].id).toBe(b.json.data.id);
+    expect((await call(request, 'POST', `${P}/sessions/${b.json.data.id}/cancel`, 'staff')).status).toBe(200);
 });
 
 test('6. scans answer the outcome, the copy and the updated counters', async ({ request }) => {
@@ -232,6 +256,7 @@ test('6. scans answer the outcome, the copy and the updated counters', async ({ 
     expect(found.json.data.tone).toEqual({ frequency_hz: 880, duration_ms: 120 });
     expect(found.json.data.summary).toMatchObject({ found: 1, missing: 2, scans: 1, mine: 1 });
     expect(found.json.data.session_status).toBe('open');
+    expect(Date.parse(found.json.data.scan.scanned_at) / 1000).toBe(fx.dbInt(`SELECT UNIX_TIMESTAMP(scansionato_il) FROM inventario_scansioni WHERE id=${found.json.data.scan.id}`));
 
     // Expected on shelf X, read while the operator says they are on shelf Y.
     const misplaced = await scan(code('A2'), data.shelfY);
@@ -292,6 +317,30 @@ test('7. a retried scan with the same Idempotency-Key is recorded once; a second
         fx.dbExec(`UPDATE copie SET numero_inventario=${S(code('Y1'))} WHERE id=${data.copies.Y1}`);
         fx.dbExec(`UPDATE copie SET numero_inventario=${S(code('A3'))} WHERE id=${data.copies.A3}`);
     }
+});
+
+test('7b. a number moved to another copy during the session: its repeat names that copy, not the first one read', async ({ request }) => {
+    const r = await createSession(request, 'staff', `${TAG} renumber`, { shelf_id: data.shelfY });
+    expect(r.status).toBe(201);
+    const id = r.json.data.id;
+    const moving = code('MV');
+    data.copies.M1 = fx.dbInsert(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${data.books.B3}, ${S(moving)}, 'disponibile')`);
+    const scan = (headers) => call(request, 'POST', `${P}/sessions/${id}/scans`, 'staff', { body: { code: moving }, extraHeaders: headers });
+    expect((await scan()).json.data.scan.copy_id).toBe(data.copies.M1);
+    // The number goes to a new copy M2, which is then read twice.
+    fx.dbExec(`UPDATE copie SET numero_inventario=${S(moving + '-OLD')} WHERE id=${data.copies.M1}`);
+    data.copies.M2 = fx.dbInsert(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${data.books.B3}, ${S(moving)}, 'disponibile')`);
+    const second = await scan();
+    expect(second.json.data.scan).toMatchObject({ copy_id: data.copies.M2 });
+    expect(second.json.data.scan.outcome).not.toBe('duplicate');
+    const key = `mst-mv-${RUN}`;
+    const repeat = await scan({ 'Idempotency-Key': key });
+    expect(repeat.status).toBe(201);
+    expect(repeat.json.data.scan).toMatchObject({ outcome: 'duplicate', copy_id: data.copies.M2 });
+    const replay = await scan({ 'Idempotency-Key': key });
+    expect(replay.json.meta.replayed).toBe(true);
+    expect(replay.json.data.scan).toMatchObject({ id: repeat.json.data.scan.id, outcome: 'duplicate', copy_id: data.copies.M2 });
+    expect((await call(request, 'POST', `${P}/sessions/${id}/cancel`, 'staff')).status).toBe(200);
 });
 
 test('8. scan validation, unknown session', async ({ request }) => {
@@ -417,6 +466,19 @@ test('10. a list of codes uploads as one scan each; a wrong file type is refused
         if (!cursor) break;
     }
     expect(pages).toEqual(full.json.data);
+    // A scan between two pages moves A3 from the expected rows to the scans:
+    // the cursor pins the report of the first page, so L1 is not skipped.
+    const r1 = await call(request, 'GET', `${P}/sessions/${s2}/report?limit=1`, 'staff');
+    expect(r1.json.data.map((r) => r.code)).toEqual([code('A3')]);
+    const lateScan = fx.dbInsert(`INSERT INTO inventario_scansioni (sessione_id, copia_id, codice_letto, esito, scansionato_da, scansionato_il) VALUES (${s2}, ${data.copies.A3}, ${S(code('A3'))}, 'trovata', ${users.staff.id}, NOW())`);
+    let r2;
+    try {
+        r2 = await call(request, 'GET', `${P}/sessions/${s2}/report?limit=1&cursor=${encodeURIComponent(r1.json.meta.next_cursor)}`, 'staff');
+    } finally {
+        fx.dbExec(`DELETE FROM inventario_scansioni WHERE id=${lateScan}`);
+    }
+    expect(r2.json.data.map((r) => [r.code, r.category])).toEqual([[code('L1'), 'on_loan']]);
+    expect(r2.json.meta).toMatchObject({ total_count: 7, has_more: true });
     const missing = await call(request, 'GET', `${P}/sessions/${s2}/report?category=missing`, 'staff');
     expect(missing.json.data.map((r) => r.code)).toEqual([code('A3')]);
     expect(missing.json.meta.total_count).toBe(1);

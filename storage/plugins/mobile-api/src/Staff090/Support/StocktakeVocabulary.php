@@ -238,22 +238,28 @@ final class StocktakeVocabulary
     }
 
     /**
-     * A database DATETIME as ISO 8601 with offset; null for an empty value.
-     * The stored wall time is the library's, so it is read in the library
-     * time zone (app.timezone, the clock of the whole loan pipeline), not in
-     * PHP's default zone, which on many hosts is UTC: the offset is that of
-     * the date itself, summer or winter. $zone overrides it (tests).
+     * An instant as ISO 8601 with offset; null for an empty value.
+     *
+     * $epoch is the epoch seconds MySQL computed from the stored DATETIME
+     * (StocktakeService::epochSql()): every stocktake time is written by the
+     * database clock in the connection's zone, which neither app.timezone nor
+     * PHP's zone is guaranteed to match, and only MySQL converts it back with
+     * the zone and DST rules it was written with. The rows already stored
+     * keep their instant this way, as no zone is assumed for them. The instant
+     * is then shown in the library time zone (app.timezone), with the offset
+     * of that date; $zone overrides it (tests).
      */
-    public static function datetime(mixed $value, ?\DateTimeZone $zone = null): ?string
+    public static function instant(mixed $epoch, ?\DateTimeZone $zone = null): ?string
     {
-        if (!is_string($value) || trim($value) === '' || str_starts_with($value, '0000-00-00')) {
+        if (is_string($epoch) && preg_match('/^\d+$/', $epoch) === 1) {
+            $epoch = (int) $epoch;
+        }
+        // UNIX_TIMESTAMP() is 0 for a zero date and NULL for NULL.
+        if (!is_int($epoch) || $epoch <= 0) {
             return null;
         }
-        try {
-            return (new \DateTimeImmutable($value, $zone ?? self::libraryZone()))->format('Y-m-d\TH:i:sP');
-        } catch (\Throwable) {
-            return null;
-        }
+
+        return (new \DateTimeImmutable('@' . $epoch))->setTimezone($zone ?? self::libraryZone())->format('Y-m-d\TH:i:sP');
     }
 
     private static function libraryZone(): \DateTimeZone
