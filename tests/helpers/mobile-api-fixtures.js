@@ -219,7 +219,9 @@ async function api(request, method, path, { token, body, multipart, extraHeaders
         // is safe to send twice. A reset can also cut a request the server
         // already ran, and a plain POST resent then would write twice.
         if (!/socket hang up|ECONNRESET/.test(String(error && error.message))) throw error;
-        if (!safeToResend(method, opts.headers, body)) throw error;
+        // A login sent twice only issues a second token, which the suites never
+        // count, so it is resent like a safe method.
+        if (!safeToResend(method, opts.headers, body) && !/\/auth\/login$/.test(url)) throw error;
         res = await request.fetch(url, opts);
     }
     const text = await res.text();
