@@ -644,15 +644,17 @@ try {
         && ($db->query('SELECT token_reset_password FROM utenti WHERE id = ' . $ckAccountId('inv'))->fetch_row()[0] ?? null) === null,
         'a failed checkpoint before the invitation leaves the marker unflagged and no token issued');
 
-    // Resumed after the invitation step began: no new token voids the link.
+    // Resumed after the invitation step issued its token: no new token
+    // voids the link that may have gone out.
     $resumedId = $ckAccount('c');
+    $db->query("UPDATE utenti SET token_reset_password = 'issued-before', data_token_reset = NOW() + INTERVAL 1 DAY WHERE id = {$resumedId}");
     file_put_contents($staged, "nome;cognome;email\nCk;C;" . $ckEmail('c') . "\n");
     $_SESSION['user_import'] = ['send_invites' => true, 'pending' => ['next' => 0, 'user_id' => $resumedId, 'invited' => true]] + $running;
     [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
     $importLogIds[] = (string) ($json['import_id'] ?? '');
     $token = $db->query("SELECT token_reset_password FROM utenti WHERE id = {$resumedId}")->fetch_row()[0] ?? null;
     $warned = array_filter((array) ($json['errors'] ?? []), static fn (array $e): bool => ($e['type'] ?? '') === 'email' && (int) ($e['line'] ?? 0) === 2);
-    $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 0 && ($json['invited'] ?? null) === 0 && $token === null && count($warned) === 1,
+    $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 0 && ($json['invited'] ?? null) === 0 && $token === 'issued-before' && count($warned) === 1,
         'a resumed row whose invitation may have gone out is completed without issuing another token, with a warning');
 
     // Closing instead of resuming settles the half-done row: cancel ...
