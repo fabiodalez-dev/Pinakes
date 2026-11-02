@@ -684,8 +684,11 @@ try {
     // ... and a staged file that vanished.
     $vanishId = $ckAccount('e');
     @unlink($staged);
-    $_SESSION['user_import'] = ['total' => 2, 'pending' => ['next' => 0, 'user_id' => $vanishId]] + $running;
+    // With a patron type column: the row is gone, so the report says the type was not assigned.
+    $_SESSION['user_import'] = ['total' => 2, 'columns' => 4, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia'], 'pending' => ['next' => 0, 'user_id' => $vanishId]] + $running;
     [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $closedWarnings = array_filter((array) ($json['closed']['errors'] ?? []), static fn ($e): bool => is_array($e) && ($e['type'] ?? '') === 'warning' && ($e['line'] ?? 0) === 2);
+    $check(count($closedWarnings) === 1, 'a settled account whose row is no longer readable gets a warning in the report');
     $vanishLog = (string) ($json['import_id'] ?? '');
     $importLogIds[] = $vanishLog;
     $logged = $vanishLog !== '' ? $db->query("SELECT imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($vanishLog) . "'")->fetch_assoc() : null;
@@ -700,8 +703,21 @@ try {
     // The first row of a run has no offset yet: the cancel reads it again by
     // counting, so its patron type is assigned too; the answer carries the
     // position after the settled row.
-    $typeRow = $db->query('SELECT id, nome FROM tipologie_lettore ORDER BY id LIMIT 1');
-    $type = $typeRow instanceof \mysqli_result ? $typeRow->fetch_assoc() : null;
+    // An active type its name resolves to, as PatronTypeImport reads it
+    // (codes first, trimmed and lowercased): no other active type's code or
+    // name may collide with it.
+    $typeKey = static fn (?string $v): string => mb_strtolower(trim((string) $v), 'UTF-8');
+    $typeRows = $db->query('SELECT id, codice, nome FROM tipologie_lettore WHERE attiva = 1 ORDER BY id');
+    $activeTypes = $typeRows instanceof \mysqli_result ? $typeRows->fetch_all(MYSQLI_ASSOC) : [];
+    $type = null;
+    foreach ($activeTypes as $candidate) {
+        $key = $typeKey($candidate['nome']);
+        $clash = array_filter($activeTypes, static fn (array $o): bool => (int) $o['id'] !== (int) $candidate['id'] && ($typeKey($o['codice']) === $key || $typeKey($o['nome']) === $key));
+        if ($key !== '' && $clash === []) {
+            $type = $candidate;
+            break;
+        }
+    }
     if (is_array($type)) {
         $firstId = $ckAccount('f');
         $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$firstId}");

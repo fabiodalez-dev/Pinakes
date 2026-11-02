@@ -699,6 +699,7 @@ class UserImportController
             return;
         }
         $parsed = ['record' => ['data_scadenza_tessera' => $account['data_scadenza_tessera']], 'custom' => [], 'tipologia' => null];
+        $rowRead = false;
         $file = (string) ($state['file'] ?? '');
         $handle = is_file($file) ? @fopen($file, 'rb') : false;
         if ($handle !== false) {
@@ -723,10 +724,18 @@ class UserImportController
                 // offset points to now.
                 if ($read['error'] === null && strcasecmp((string) ($read['record']['email'] ?? ''), (string) $account['email']) === 0) {
                     $parsed = $read;
+                    $rowRead = true;
                 }
             }
         }
         $label = $this->text(trim((string) $account['nome'] . ' ' . (string) $account['cognome'])) ?: (string) $account['email'];
+        // The row is gone (file swept) or changed: what only the row held
+        // (patron type, custom fields) cannot be assigned, and a new import
+        // would skip the e-mail as a duplicate. The report says so.
+        $rowOnly = array_filter((array) ($state['mapping'] ?? []), static fn ($field): bool => $field === 'tipologia' || (is_string($field) && str_starts_with($field, 'custom:')));
+        if (!$rowRead && $rowOnly !== []) {
+            self::report($state, ['line' => $next + 2, 'title' => $label, 'message' => __('Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.'), 'type' => 'warning']);
+        }
         $state['pending'] = $pending; // read by the invitation step
         $state['created'] = (int) ($state['created'] ?? 0) + 1;
         $this->completeImportedUser($db, $state, $userId, $next + 2, $label, $parsed, new PatronTypeImport($db), !empty($state['send_invites']) ? new NotificationService($db) : null);

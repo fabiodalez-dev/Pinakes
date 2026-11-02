@@ -266,6 +266,30 @@ try {
             $check($sorted($readReport($sid, $category, 1, $upTo)) === $sorted($only) && $service->reportRowCount($sid, $category, $upTo) === count($only), "reportPage() and reportRowCount() of the {$what} session keep only '{$category}' rows");
         }
     }
+    // An inventory number changed after the opening does not move its copy:
+    // the last unscanned copy, renamed to sort first, stays last.
+    $lastUnscanned = $db->query(
+        "SELECT a.copia_id, c.numero_inventario FROM inventario_attese a "
+        . "LEFT JOIN inventario_scansioni sc ON sc.sessione_id = a.sessione_id AND sc.copia_id = a.copia_id "
+        . "JOIN copie c ON c.id = a.copia_id "
+        . "WHERE a.sessione_id = {$sessionId} AND sc.id IS NULL ORDER BY COALESCE(a.codice_atteso, '') DESC, a.copia_id DESC LIMIT 1"
+    )->fetch_row();
+    if (is_array($lastUnscanned)) {
+        [$renamedCopy, $oldNumber] = [(int) $lastUnscanned[0], $lastUnscanned[1]];
+        $renamed = '!0-' . $renamedCopy;
+        $db->query("UPDATE copie SET numero_inventario = '{$renamed}' WHERE id = {$renamedCopy}");
+        try {
+            $unscanned = array_values(array_filter($readReport($sessionId, null, 2, $service->latestScanId($sessionId)), static fn (array $r): bool => $r['quando_ts'] === ''));
+            $codes = array_column($unscanned, 'codice');
+            $check(count($codes) >= 2 && end($codes) === $renamed && min($codes) === $renamed, 'an inventory number renamed after the opening keeps its copy at the place of the number frozen then');
+        } finally {
+            $stmt = $db->prepare('UPDATE copie SET numero_inventario = ? WHERE id = ?');
+            $stmt->bind_param('si', $oldNumber, $renamedCopy);
+            $stmt->execute();
+        }
+    }
+    $check(is_array($lastUnscanned), 'the closed session has an unscanned copy to rename');
+
     // The scan list is pinned to its first page: a scan recorded later stays out.
     $latest = $service->latestScanId($second);
     $check($latest === (int) $one("SELECT MAX(id) FROM inventario_scansioni WHERE sessione_id = {$second}"), 'latestScanId() is the newest scan of the session');

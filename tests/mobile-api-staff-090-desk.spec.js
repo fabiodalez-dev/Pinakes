@@ -638,8 +638,13 @@ test.describe('Patron CSV import', () => {
     });
 
     test('a row whose request died after inserting the account is completed on the retry, not reported as a duplicate', async ({ request }) => {
-        const type = F.dbRows('SELECT id, nome FROM tipologie_lettore ORDER BY id LIMIT 1')[0];
-        const rows = (a, b) => (type ? ['nome;email;tipologia', `Gino;${email(a)};${type.nome}`, `Hana;${email(b)};${type.nome}`] : ['nome;email', `Gino;${email(a)}`, `Hana;${email(b)}`]);
+        // An active type its name resolves to, as PatronTypeImport reads it
+        // (codes first, trimmed, lowercased): no other active type collides.
+        const key = (v) => String(v ?? '').trim().toLowerCase();
+        const active = F.dbRows('SELECT id, codice, nome FROM tipologie_lettore WHERE attiva = 1 ORDER BY id');
+        const type = active.find((t) => key(t.nome) !== '' && !active.some((o) => o.id !== t.id && (key(o.codice) === key(t.nome) || key(o.nome) === key(t.nome))));
+        const cell = type ? `"${String(type.nome).replace(/"/g, '""')}"` : '';
+        const rows = (a, b) => (type ? ['nome;email;tipologia', `Gino;${email(a)};${cell}`, `Hana;${email(b)};${cell}`] : ['nome;email', `Gino;${email(a)}`, `Hana;${email(b)}`]);
         /** Upload and start, then leave what a request that died after the insert of row 0 leaves. */
         const interrupted = async (name, a, b, accountFor) => {
             const up = await upload(request, ctx.staff, csvFile(name, rows(a, b)), ';');
@@ -660,7 +665,8 @@ test.describe('Patron CSV import', () => {
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         expect(r.json.data).toMatchObject({ status: 'completed', processed: 2, created: 2, duplicates: 0, failed: 0 });
         expect(F.dbInt(`SELECT COUNT(*) FROM utenti WHERE email=${F.sqlStr(email('imp_g'))}`)).toBe(1);
-        if (own.withType) {
+        if (type) {
+            expect(own.withType).toBe(true);
             expect(F.dbInt(`SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id=${own.account}`)).toBe(Number(type.id));
         }
 
@@ -680,7 +686,8 @@ test.describe('Patron CSV import', () => {
         expect(cancel.status, cancel.text.slice(0, 300)).toBe(200);
         const detail = (await F.api(request, 'GET', `/staff/user-imports/${closed.id}`, { token: ctx.staff })).json.data;
         expect(detail).toMatchObject({ status: 'cancelled', created: 1, processed: 1 });
-        if (closed.withType) {
+        if (type) {
+            expect(closed.withType).toBe(true);
             expect(F.dbInt(`SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id=${closed.account}`)).toBe(Number(type.id));
         }
         expect(F.dbInt(`SELECT COUNT(*) FROM utenti WHERE email=${F.sqlStr(email('imp_l'))}`)).toBe(0);
