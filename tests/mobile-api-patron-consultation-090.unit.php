@@ -199,6 +199,17 @@ $check(($back['data']['notes'] ?? null) === "nota {$run}", 'notes sent in the sa
 $held = $put($lent, ['consultation_only' => true]);
 $check($held['status'] === 409 && ($held['error']['code'] ?? null) === 'conflict' && $column($lent) === 0, 'a copy out on loan cannot become consultation only (409, nothing stored)');
 
+// One request, two writes: a status the copy refuses must not leave the
+// consultation flag changed (nor promote the queue) before the 409.
+$pickup = $insert("INSERT INTO copie (libro_id, numero_inventario, stato, solo_consultazione) VALUES (?, ?, 'prenotato', 1)", 'is', [$bookId, "ZZMAPC-P-{$run}"]);
+$mixed = $put($pickup, ['consultation_only' => false, 'status' => 'disponibile']);
+$check($mixed['status'] === 409 && ($mixed['error']['code'] ?? null) === 'copy_held', 'consultation_only with a refused status is a 409 copy_held');
+$check($column($pickup) === 1, 'and the consultation flag is left as it was');
+$mixedOn = $put($lent, ['consultation_only' => true, 'status' => 'manutenzione']);
+$check($mixedOn['status'] === 409 && $column($lent) === 0, 'a copy on loan refuses both halves of a combined request');
+$check((string) $db->query("SELECT stato FROM copie WHERE id = {$lent}")->fetch_row()[0] === 'prestato', 'its status is untouched too');
+$db->query("DELETE FROM copie WHERE id = {$pickup}");
+
 $bad = $put($free, ['consultation_only' => 'yes']);
 $check($bad['status'] === 422 && ($bad['error']['code'] ?? null) === 'validation_error', 'a non-boolean consultation_only is a 422');
 

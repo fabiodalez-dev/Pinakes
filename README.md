@@ -27,7 +27,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.9.0-rc.2
 
-**Release candidate. Everything the 0.9.0 admin does, now also from the Android app.** The Mobile API plugin (1.10.0) opens every new 0.9.0 tool to the staff app: stocktake with the phone as scanner, the patron ledger at the desk, library settings, patron types, the rules matrix and the closures calendar, suppliers, catalogue cards, MARC import and export, copy cataloguing, the visitor log, statistics and patron import from CSV. Each area follows its module switch and goes through the same controllers as the website. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Release candidate. Everything the 0.9.0 admin does, ready for the Android app.** The Mobile API plugin (1.10.0) opens every new 0.9.0 tool to the staff app: stocktake with the phone as scanner, the patron ledger at the desk, library settings, patron types, the rules matrix and the closures calendar, suppliers, catalogue cards, MARC import and export, copy cataloguing, the visitor log, statistics and patron import from CSV. Each area follows its module switch and goes through the same controllers as the website; the Android app gains the matching screens in its next release. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 

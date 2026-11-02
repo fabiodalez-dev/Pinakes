@@ -88,7 +88,8 @@ final class LibrarySettingsController
         }
         $json = JsonBody::parse($request);
         $errors = [];
-        $features = $json['features'] ?? [];
+        // A `features` sent as null is a malformed request, not "no change".
+        $features = array_key_exists('features', $json) ? $json['features'] : [];
         if (!is_array($features) || array_is_list($features) && $features !== []) {
             $errors['features'] = __('Valore non valido.');
             $features = [];
@@ -110,6 +111,25 @@ final class LibrarySettingsController
             $wanted = array_merge($stored, array_map(static fn ($v): bool => (bool) $v, $features));
             $db = $this->db;
 
+            // The Loans tab goes first: it is the one that can refuse (a
+            // stored fine above the maximum sends the tab back untouched), so
+            // a refusal leaves the Modules switches as they were too. The
+            // Modules tab refuses only a non-administrator, checked above.
+            if (array_intersect(array_keys($features), Features::LOANS_TAB) !== []) {
+                $form = $this->loansForm($repository, []);
+                foreach (Features::LOANS_TAB as $key) {
+                    $form['feature_' . $key] = $wanted[$key] ? '1' : '0';
+                }
+                $outcome = Delegation::run(static fn (): ResponseInterface => (new SettingsController())->updateLoansSettings(
+                    Delegation::request('POST', '/admin/settings/loans', $form),
+                    new SlimResponse(),
+                    $db
+                ));
+                if (($error = SettingsKit::errorOf($outcome)) !== null) {
+                    return SettingsKit::invalid($response, ['features' => $error]);
+                }
+            }
+
             $modulesTouched = array_key_exists('attendance_retention_days', $json)
                 || array_intersect(array_keys($features), Features::MODULES_TAB) !== [];
             if ($modulesTouched) {
@@ -128,21 +148,6 @@ final class LibrarySettingsController
                 ));
                 if (SettingsKit::errorOf($outcome) !== null) {
                     return SettingsKit::forbidden($response);
-                }
-            }
-
-            if (array_intersect(array_keys($features), Features::LOANS_TAB) !== []) {
-                $form = $this->loansForm($repository, []);
-                foreach (Features::LOANS_TAB as $key) {
-                    $form['feature_' . $key] = $wanted[$key] ? '1' : '0';
-                }
-                $outcome = Delegation::run(static fn (): ResponseInterface => (new SettingsController())->updateLoansSettings(
-                    Delegation::request('POST', '/admin/settings/loans', $form),
-                    new SlimResponse(),
-                    $db
-                ));
-                if (($error = SettingsKit::errorOf($outcome)) !== null) {
-                    return SettingsKit::invalid($response, ['features' => $error]);
                 }
             }
 

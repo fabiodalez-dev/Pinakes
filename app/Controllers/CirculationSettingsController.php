@@ -56,6 +56,21 @@ class CirculationSettingsController
 
     private const TAB_URL = '/admin/settings?tab=circulation';
 
+    /** Id of the patron type the last createType() call on this instance inserted. */
+    private ?int $createdTypeId = null;
+
+    /**
+     * The patron type the last successful createType() on this instance
+     * inserted, null when it inserted nothing. The redirect carries no id, so
+     * a caller that runs the action in-process (the Mobile API) reads it here
+     * instead of guessing it from the table, where a type another operator
+     * adds at the same moment would also appear.
+     */
+    public function createdTypeId(): ?int
+    {
+        return $this->createdTypeId;
+    }
+
     /**
      * Data for the circulation tab of the settings page.
      *
@@ -209,6 +224,7 @@ class CirculationSettingsController
                 $this->setDefaultTx($db, $id);
             }
             $db->commit();
+            $this->createdTypeId = $id;
             $_SESSION['success_message'] = __('Tipologia lettore creata.');
         } catch (\Throwable $e) {
             $db->rollback();

@@ -66,49 +66,58 @@ final class StaffCopiesController
             // Consultation only (Pinakes 0.9.0): the same toggle as the book
             // page, with its refusals (a copy held by a loan, a pickup or a
             // copy-bound request) and its queue promotion when it is lendable
-            // again. Status and notes, when sent too, are applied after it.
-            if (array_key_exists('consultation_only', $json)) {
-                if (!$reader->consultationActive()) {
-                    return ResponseEnvelope::error($response, 'feature_disabled', __('Funzione non disponibile su questa istanza.'), 404);
-                }
-                $refused = $this->setConsultation($id, $json['consultation_only'] === true);
-                if ($refused !== null) {
-                    return ResponseEnvelope::error($response, 'conflict', $refused, 409);
-                }
-                if (!array_key_exists('status', $json) && !array_key_exists('notes', $json)) {
-                    $copy = $reader->copy($id);
-                    return $copy === null ? $this->notFound($response) : ResponseEnvelope::success($response, $copy);
-                }
-                $row = $reader->row($id) ?? $row;
+            // again.
+            $toggle = array_key_exists('consultation_only', $json);
+            if ($toggle && !$reader->consultationActive()) {
+                return ResponseEnvelope::error($response, 'feature_disabled', __('Funzione non disponibile su questa istanza.'), 404);
             }
+            $editsCopy = array_key_exists('status', $json) || array_key_exists('notes', $json);
             $current = (string) $row['stato'];
             $target = is_string($json['status'] ?? null) ? (string) $json['status'] : $current;
             $notes = array_key_exists('notes', $json) ? (string) ($json['notes'] ?? '') : (string) ($row['note'] ?? '');
 
-            if ($current === 'prenotato' && $target === 'disponibile') {
-                return $this->refuse($response, 'copy_held', __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.'));
-            }
-            $physicallyOut = $this->scalar(
-                "SELECT COUNT(*) FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')",
-                $id
-            ) > 0;
-            // prestato → disponibile with an open loan is a return (the core
-            // hands it to processReturn); anything else on a copy that is out
-            // must go through the return workflow.
-            if ($physicallyOut && !($current === 'prestato' && $target === 'disponibile')) {
-                return $this->refuse($response, 'copy_on_loan', __('La copia è fisicamente in prestito: registra prima la restituzione o l’esito perso/danneggiato dal sistema Prestiti.'));
+            // Every refusal of the status change is decided before anything is
+            // written: the two core actions each commit on their own (and the
+            // toggle notifies the readers it promotes), so a 409 after the
+            // first one would leave half the request applied.
+            if ($editsCopy) {
+                if ($current === 'prenotato' && $target === 'disponibile') {
+                    return $this->refuse($response, 'copy_held', __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.'));
+                }
+                $physicallyOut = $this->scalar(
+                    "SELECT COUNT(*) FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')",
+                    $id
+                ) > 0;
+                // prestato → disponibile with an open loan is a return (the core
+                // hands it to processReturn); anything else on a copy that is out
+                // must go through the return workflow.
+                if ($physicallyOut && !($current === 'prestato' && $target === 'disponibile')) {
+                    return $this->refuse($response, 'copy_on_loan', __('La copia è fisicamente in prestito: registra prima la restituzione o l’esito perso/danneggiato dal sistema Prestiti.'));
+                }
             }
 
-            $db = $this->db;
-            $outcome = Delegation::run(static fn (): ResponseInterface => (new CopyController())->updateCopy(
-                Delegation::request('POST', '/admin/books/copies/' . $id . '/update', ['stato' => $target, 'note' => $notes]),
-                new SlimResponse(),
-                $db,
-                $id
-            ));
-            $error = $outcome->flash('error_message');
-            if ($error !== null || $outcome->errorCode() !== null) {
-                return ResponseEnvelope::error($response, 'conflict', $error ?? __('Operazione non consentita nello stato attuale.'), 409);
+            // Order of the two writes: reserving the copy for consultation goes
+            // first (its refusal must stop the status change); making it
+            // lendable again goes last, so the reservation it promotes reads
+            // the status this request sets and is not overwritten by it.
+            $consultation = $toggle && $json['consultation_only'] === true;
+            if ($consultation) {
+                $refused = $this->setConsultation($id, true);
+                if ($refused !== null) {
+                    return ResponseEnvelope::error($response, 'conflict', $refused, 409);
+                }
+            }
+            if ($editsCopy) {
+                $error = $this->applyStatus($id, $target, $notes);
+                if ($error !== null) {
+                    return ResponseEnvelope::error($response, 'conflict', $error, 409);
+                }
+            }
+            if ($toggle && !$consultation) {
+                $refused = $this->setConsultation($id, false);
+                if ($refused !== null) {
+                    return ResponseEnvelope::error($response, 'conflict', $refused, 409);
+                }
             }
             $copy = $reader->copy($id);
 
@@ -116,6 +125,26 @@ final class StaffCopiesController
         } catch (\Throwable $e) {
             return $this->fail($response, 'copy update', $e);
         }
+    }
+
+    /**
+     * Status and notes through CopyController::updateCopy(). Returns the
+     * refusal message, or null when the copy was updated.
+     */
+    private function applyStatus(int $id, string $target, string $notes): ?string
+    {
+        $db = $this->db;
+        $outcome = Delegation::run(static fn (): ResponseInterface => (new CopyController())->updateCopy(
+            Delegation::request('POST', '/admin/books/copies/' . $id . '/update', ['stato' => $target, 'note' => $notes]),
+            new SlimResponse(),
+            $db,
+            $id
+        ));
+        $error = $outcome->flash('error_message');
+        if ($error !== null || $outcome->errorCode() !== null) {
+            return $error ?? __('Operazione non consentita nello stato attuale.');
+        }
+        return null;
     }
 
     /**

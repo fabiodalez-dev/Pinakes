@@ -29,6 +29,30 @@ class LibraryCalendarController
 {
     private const MAX_ICS_BYTES = 1048576;
 
+    /** @var list<int> rows the last store() / storeCustom() / importIcs() call on this instance inserted */
+    private array $createdIds = [];
+
+    /**
+     * Ids of the rows the last successful store(), storeCustom() or
+     * importIcs() on this instance inserted (empty when it inserted nothing).
+     * The redirect carries no id, so a caller that runs the action in-process
+     * (the Mobile API) reads them here instead of guessing them by comparing
+     * the table before and after, which would also catch a row another
+     * operator added at the same moment.
+     *
+     * @return list<int>
+     */
+    public function createdIds(): array
+    {
+        return $this->createdIds;
+    }
+
+    /** The row the last successful store() or storeCustom() inserted, null when none. */
+    public function createdId(): ?int
+    {
+        return $this->createdIds[0] ?? null;
+    }
+
     public function index(Request $request, Response $response, \mysqli $db): Response
     {
         if ($guard = $this->guard($response, $db)) {
@@ -174,14 +198,16 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $row;
             return $this->back($response);
         }
-        $error = $this->commitChange($db, function () use ($db, $row): ?string {
-            $this->insertClosure($db, $row);
+        $insertedId = null;
+        $error = $this->commitChange($db, function () use ($db, $row, &$insertedId): ?string {
+            $insertedId = $this->insertClosure($db, $row);
             return $this->yearCoverageError($db, $row);
         });
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
             return $this->back($response);
         }
+        $this->createdIds = $insertedId !== null ? [$insertedId] : [];
         $_SESSION['success_message'] = __('Chiusura aggiunta.');
         return $this->back($response, substr($row['start'], 0, 7));
     }
@@ -317,7 +343,10 @@ class LibraryCalendarController
             $_SESSION['custom_holiday_draft'] = CustomHolidays::draft($data, $id ?? 0);
             return $this->backToCustom($response, $id);
         }
-        CustomHolidays::save($db, $row, $id);
+        $savedId = CustomHolidays::save($db, $row, $id);
+        if ($id === null) {
+            $this->createdIds = [$savedId];
+        }
         $this->calendarChanged($db);
         $_SESSION['success_message'] = $id === null ? __('Festività aggiunta.') : __('Festività aggiornata.');
         return $this->backToCustom($response);
@@ -472,8 +501,9 @@ class LibraryCalendarController
         $skipped = 0;
         $rejected = 0;
         $coverageRejected = 0;
+        $addedIds = [];
         $events = LibraryCalendar::parseIcs($ics);
-        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected, &$coverageRejected): ?string {
+        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$addedIds, &$skipped, &$rejected, &$coverageRejected): ?string {
             // The whole-year guard's state, carried from event to event: the
             // yearly rows are read once and each check only looks again at
             // the years whose first open day the new event closes.
@@ -505,6 +535,7 @@ class LibraryCalendarController
                     continue;
                 }
                 $added++;
+                $addedIds[] = $newId;
             }
             return null;
         });
@@ -512,6 +543,7 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $error;
             return $this->back($response);
         }
+        $this->createdIds = $addedIds;
         $message = $rejected > 0
             ? __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', $added, $skipped, $rejected)
             : __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);

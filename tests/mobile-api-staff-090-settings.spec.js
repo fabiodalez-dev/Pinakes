@@ -82,6 +82,9 @@ test.beforeAll(async ({ browser, request }) => {
     await page.close();
     ctx.settings = snapshotSettings();
     ctx.types = snapshotTable('tipologie_lettore');
+    // restoreTable() deletes the types first and fk_utenti_tipologia is ON
+    // DELETE SET NULL: the readers' assignments go with them unless kept here.
+    ctx.userTypes = F.dbRows('SELECT id, tipologia_id FROM utenti WHERE tipologia_id IS NOT NULL');
     ctx.rules = snapshotTable('regole_prestito');
     ctx.closures = snapshotTable('calendario_chiusure');
     ctx.customs = snapshotTable('festivita_personalizzate');
@@ -102,6 +105,17 @@ test.afterAll(async () => {
     try { if (ctx.types) { F.dbExec('UPDATE utenti SET tipologia_id = NULL WHERE tipologia_id NOT IN (SELECT id FROM (SELECT id FROM tipologie_lettore) t)'); } } catch {}
     try { if (ctx.rules) restoreTable('regole_prestito', ctx.rules); } catch (e) { console.error('restore rules', e); }
     try { if (ctx.types) restoreTable('tipologie_lettore', ctx.types); } catch (e) { console.error('restore types', e); }
+    try {
+        const byType = new Map();
+        for (const u of ctx.userTypes || []) {
+            const ids = byType.get(Number(u.tipologia_id)) || [];
+            ids.push(Number(u.id));
+            byType.set(Number(u.tipologia_id), ids);
+        }
+        for (const [typeId, ids] of byType) {
+            F.dbExec(`UPDATE utenti SET tipologia_id = ${typeId} WHERE id IN (${ids.join(',')}) AND EXISTS (SELECT 1 FROM tipologie_lettore WHERE id = ${typeId})`);
+        }
+    } catch (e) { console.error('restore user types', e); }
     try { if (ctx.closures) restoreTable('calendario_chiusure', ctx.closures); } catch (e) { console.error('restore closures', e); }
     try { if (ctx.customs) restoreTable('festivita_personalizzate', ctx.customs); } catch (e) { console.error('restore customs', e); }
     try { if (ctx.settings) restoreSettings(ctx.settings); } catch (e) { console.error('restore settings', e); }
@@ -179,6 +193,33 @@ test('modules: staff reads but may not save; admin saves a partial map and keeps
     expect(bad.status).toBe(422);
     expect(bad.json.error.code).toBe('validation');
     expect(Object.keys(bad.json.meta.fields).sort()).toEqual(['attendance_retention_days', 'features.marc', 'features.nonexistent']);
+
+    // `features: null` is malformed, not "nothing to change".
+    const nullFeatures = await api(request, 'PUT', '/staff/settings/modules', 'admin', { features: null });
+    expect(nullFeatures.status).toBe(422);
+    expect(Object.keys(nullFeatures.json.meta.fields)).toEqual(['features']);
+
+    // A Loans-tab refusal (a stored fine above the maximum) leaves the
+    // Modules-tab switches of the same request untouched: the Loans tab is
+    // saved first. The afterAll snapshot puts the fine back.
+    const stockNow = (await api(request, 'GET', '/staff/settings/modules', 'admin')).json.data.modules.find((m) => m.key === 'stocktake').stored;
+    const finesNow = (await api(request, 'GET', '/staff/settings/modules', 'admin')).json.data.modules.find((m) => m.key === 'fines').stored;
+    const fineBefore = F.dbScalar("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='daily_fine'");
+    F.dbExec("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans', 'daily_fine', '99999.99') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    await flushCache();
+    try {
+        const refused = await api(request, 'PUT', '/staff/settings/modules', 'admin', { features: { stocktake: !stockNow, fines: !finesNow } });
+        expect(refused.status, refused.text.slice(0, 300)).toBe(422);
+        expect(Object.keys(refused.json.meta.fields)).toEqual(['features']);
+        expect(F.dbScalar("SELECT setting_value FROM system_settings WHERE category='features' AND setting_key='stocktake'")).toBe(stockNow ? '1' : '0');
+    } finally {
+        if (fineBefore === null || fineBefore === undefined || fineBefore === '') {
+            F.dbExec("DELETE FROM system_settings WHERE category='loans' AND setting_key='daily_fine'");
+        } else {
+            F.dbExec(`UPDATE system_settings SET setting_value = ${F.sqlStr(fineBefore)} WHERE category='loans' AND setting_key='daily_fine'`);
+        }
+        await flushCache();
+    }
 });
 
 // ─── Loans ───────────────────────────────────────────────────────────────

@@ -886,6 +886,12 @@ final class StaffBooksController
     private function validateCataloguing(array $json): ?array
     {
         $suppliersOn = self::suppliersOn() && (new \App\Models\SupplierRepository($this->db))->isAvailable();
+        // Module on, migration not run yet: CataloguingExtras::save() would
+        // drop the supplier without a word and the app would read a 201.
+        $supplierSent = array_key_exists('supplier_id', $json) && $json['supplier_id'] !== null && $json['supplier_id'] !== '';
+        if ($supplierSent && self::suppliersOn() && !$suppliersOn) {
+            return ['field' => 'supplier_id', 'message' => __('Questa funzione sarà disponibile al termine dell\'aggiornamento del database.')];
+        }
         $invalid = StaffBookPayload::validateCataloguing($json, $suppliersOn, \App\Support\Features::enabled('rda_types'));
         if ($invalid !== null) {
             return $invalid;

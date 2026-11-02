@@ -64,7 +64,9 @@ final class PatronPayload
         return [
             'id'       => $id,
             'code'     => (string) ($types[$id]['codice'] ?? ''),
-            'name'     => (string) ($types[$id]['nome'] ?? ''),
+            // Decoded as /me decodes it: a name stored with HTML entities reads
+            // the same to the desk and to the reader.
+            'name'     => \App\Support\HtmlHelper::decode((string) ($types[$id]['nome'] ?? '')),
             'assigned' => $assigned,
         ];
     }

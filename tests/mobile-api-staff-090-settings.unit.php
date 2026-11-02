@@ -77,7 +77,17 @@ $start = strpos($source, 'public function updateLoansSettings(');
 $end = strpos($source, 'public function updateModules(');
 $body = substr($source, (int) $start, (int) $end - (int) $start);
 preg_match_all('/\$data\[\'([a-z_]+)\'\]/', $body, $m);
-$webFields = array_values(array_unique($m[1]));
+// Fields read through a loop variable ($data[$amountKey], $data[$key]) escape
+// the regex: the loops' own key lists are added, so a field joining one of
+// them without an API mapping still fails here.
+$loopFields = array_keys((new \ReflectionClassConstant(\App\Controllers\SettingsController::class, 'FINE_AMOUNT_FIELDS'))->getValue());
+preg_match_all('/foreach \(\[(.*?)\] as \$key => \$allowed\)/', $body, $loops);
+foreach ($loops[1] as $list) {
+    preg_match_all("/'([a-z_]+)' => \\[/", $list, $keys);
+    $loopFields = array_merge($loopFields, $keys[1]);
+}
+$check(in_array('fine_grace_mode', $loopFields, true) && in_array('card_renewal_base', $loopFields, true), 'loans: the keyed loops of the web form are read');
+$webFields = array_values(array_unique(array_merge($m[1], $loopFields)));
 $apiFields = array_keys(LibrarySettingsController::LOAN_FIELDS);
 foreach (LibrarySettingsController::LOAN_ADMIN_FIELDS as $field) {
     $apiFields[] = str_ends_with($field, '_cents') ? substr($field, 0, -6) : $field;

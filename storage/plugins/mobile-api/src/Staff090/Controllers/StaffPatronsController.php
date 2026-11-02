@@ -15,6 +15,7 @@ use App\Plugins\MobileApi\Support\StaffIdempotency;
 use App\Plugins\MobileApi\Support\StaffLoanReader;
 use App\Plugins\MobileApi\Support\StaffPaging;
 use App\Services\CirculationPolicy;
+use App\Support\DbAtomic;
 use App\Support\PatronCardSettings;
 use App\Support\PatronTypeAssignment;
 use App\Support\Permissions;
@@ -108,25 +109,29 @@ final class StaffPatronsController
             if ($typeId !== null && !isset(PatronTypeAssignment::choices($this->db, $current)[$typeId])) {
                 return $this->invalid($response, 'patron_type_id', __('Tipologia lettore non trovata.'));
             }
-            if ($typeId !== $current) {
-                PatronTypeAssignment::save($this->db, $id, $typeId);
-            }
             // The web form's "card_auto": expiry from the type's card duration,
             // only for reader accounts and only when the type sets one.
-            $recomputed = false;
-            if ($recompute && in_array((string) $target['tipo_utente'], ['standard', 'premium'], true)) {
-                $expiry = PatronTypeAssignment::automaticCardExpiry($this->db, $typeId);
+            $expiry = $recompute && in_array((string) $target['tipo_utente'], ['standard', 'premium'], true)
+                ? PatronTypeAssignment::automaticCardExpiry($this->db, $typeId)
+                : null;
+            // Type and expiry are one change: a failing expiry write must not
+            // leave the new type stored behind an error response.
+            $db = $this->db;
+            DbAtomic::run($db, static function () use ($db, $id, $typeId, $current, $expiry): void {
+                if ($typeId !== $current) {
+                    PatronTypeAssignment::save($db, $id, $typeId);
+                }
                 if ($expiry !== null) {
-                    $stmt = $this->db->prepare('UPDATE utenti SET data_scadenza_tessera = ? WHERE id = ?');
+                    $stmt = $db->prepare('UPDATE utenti SET data_scadenza_tessera = ? WHERE id = ?');
                     if ($stmt === false) {
                         throw new \RuntimeException('card expiry update prepare failed');
                     }
                     $stmt->bind_param('si', $expiry, $id);
                     $stmt->execute();
                     $stmt->close();
-                    $recomputed = true;
                 }
-            }
+            }, 'MobileApi patron type');
+            $recomputed = $expiry !== null;
             if ($typeId !== $current) {
                 SecureLogger::info('Patron type changed', ['user_id' => $id, 'from' => $current, 'to' => $typeId, 'by' => $_SESSION['user']['id'] ?? null, 'source' => 'mobile_api']);
             }

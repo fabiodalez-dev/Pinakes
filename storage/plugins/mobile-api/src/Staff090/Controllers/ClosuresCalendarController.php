@@ -159,17 +159,19 @@ final class ClosuresCalendarController
                 0,
                 $json,
                 function () use ($form, $response): ResponseInterface|int {
-                    $before = $this->closureIds();
-                    $outcome = $this->delegate('store', '/admin/calendar/closures', $form);
+                    // The id comes from the insert itself: a closure another
+                    // operator adds at the same moment is never answered.
+                    $controller = new LibraryCalendarController();
+                    $outcome = $this->delegate('store', '/admin/calendar/closures', $form, null, $controller);
                     if (($error = SettingsKit::errorOf($outcome)) !== null) {
                         return $this->calendarError($response, $error, 'start_date');
                     }
-                    $new = array_diff($this->closureIds(), $before);
-                    if ($new === []) {
+                    $id = $controller->createdId();
+                    if ($id === null) {
                         throw new \RuntimeException('closure not created');
                     }
 
-                    return (int) max($new);
+                    return $id;
                 },
                 fn (int $id): ?array => $this->loadClosure($id)
             );
@@ -348,17 +350,17 @@ final class ClosuresCalendarController
                 0,
                 $json,
                 function () use ($form, $response): ResponseInterface|int {
-                    $before = $this->customIds();
-                    $outcome = $this->delegate('storeCustom', '/admin/calendar/custom-holidays', $form);
+                    $controller = new LibraryCalendarController();
+                    $outcome = $this->delegate('storeCustom', '/admin/calendar/custom-holidays', $form, null, $controller);
                     if (($error = SettingsKit::errorOf($outcome)) !== null) {
                         return $this->customError($response, $error);
                     }
-                    $new = array_diff($this->customIds(), $before);
-                    if ($new === []) {
+                    $id = $controller->createdId();
+                    if ($id === null) {
                         throw new \RuntimeException('custom holiday not created');
                     }
 
-                    return (int) max($new);
+                    return $id;
                 },
                 fn (int $id): ?array => $this->loadCustom($id)
             );
@@ -452,9 +454,9 @@ final class ClosuresCalendarController
             return SettingsKit::invalid($response, ['branch_id' => __('Valore non valido.')]);
         }
         try {
-            $before = $this->closureIds();
             $db = $this->db;
-            $outcome = Delegation::run(static fn (): ResponseInterface => (new LibraryCalendarController())->importIcs(
+            $controller = new LibraryCalendarController();
+            $outcome = Delegation::run(static fn (): ResponseInterface => $controller->importIcs(
                 Delegation::request('POST', '/admin/calendar/import-ics', ['sede_id' => $branch])->withUploadedFiles(['ics_file' => $file]),
                 new SlimResponse(),
                 $db
@@ -462,7 +464,9 @@ final class ClosuresCalendarController
             if (($error = SettingsKit::errorOf($outcome)) !== null) {
                 return $this->calendarError($response, $error, 'ics_file');
             }
-            $added = array_values(array_diff($this->closureIds(), $before));
+            // The rows this import inserted, not every row that appeared
+            // meanwhile (another operator may be adding closures too).
+            $added = $controller->createdIds();
             sort($added);
 
             return ResponseEnvelope::success($response, [
@@ -676,18 +680,6 @@ final class ClosuresCalendarController
         }
 
         return null;
-    }
-
-    /** @return list<int> */
-    private function closureIds(): array
-    {
-        return array_map(static fn (array $row): int => (int) $row['id'], LibraryCalendarController::viewData($this->db, [])['closures']);
-    }
-
-    /** @return list<int> */
-    private function customIds(): array
-    {
-        return array_map(static fn (array $row): int => (int) $row['id'], CustomHolidays::all($this->db));
     }
 
     // ─── Forms, checks and errors ──────────────────────────────────────────
@@ -911,7 +903,13 @@ final class ClosuresCalendarController
         }
         // LibraryCalendarController::guard(): the closures table comes with
         // the 0.9.0 migration; until it ran every page and action refuses.
-        $res = $this->db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure'");
+        // The check runs before each endpoint's own try, so a failing query
+        // is answered here, in the JSON envelope.
+        try {
+            $res = $this->db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendario_chiusure'");
+        } catch (\Throwable $e) {
+            return SettingsKit::fail($response, 'calendar schema check', $e);
+        }
         if (!$res instanceof \mysqli_result || $res->num_rows === 0) {
             return ResponseEnvelope::error($response, 'schema_not_ready', __('Questa funzione sarà disponibile al termine dell\'aggiornamento del database.'), 409);
         }
@@ -919,13 +917,17 @@ final class ClosuresCalendarController
         return null;
     }
 
-    /** @param array<string, mixed> $form */
-    private function delegate(string $action, string $path, array $form, ?int $id = null): DelegationOutcome
+    /**
+     * @param array<string, mixed> $form
+     * @param LibraryCalendarController|null $controller the instance to run the action on, when the
+     *        caller reads it afterwards (createdId())
+     */
+    private function delegate(string $action, string $path, array $form, ?int $id = null, ?LibraryCalendarController $controller = null): DelegationOutcome
     {
         $db = $this->db;
+        $controller ??= new LibraryCalendarController();
 
-        return Delegation::run(static function () use ($action, $path, $form, $id, $db): ResponseInterface {
-            $controller = new LibraryCalendarController();
+        return Delegation::run(static function () use ($action, $path, $form, $id, $db, $controller): ResponseInterface {
             $request = Delegation::request('POST', $path, $form);
 
             return $id === null

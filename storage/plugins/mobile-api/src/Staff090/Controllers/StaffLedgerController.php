@@ -177,6 +177,12 @@ final class StaffLedgerController
             if (!$this->userInScope($userId)) {
                 return $this->userNotFound($response);
             }
+            // PatronLedgerController checks loans.manage, but a replayed key
+            // never reaches it: the stored answer would go to a role the
+            // same request made fresh refuses.
+            if (!Permissions::can('loans.manage')) {
+                return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
+            }
             $db = $this->db;
 
             return (new StaffIdempotency($db))->run(

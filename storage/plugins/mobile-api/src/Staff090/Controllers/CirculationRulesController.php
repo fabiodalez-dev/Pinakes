@@ -127,8 +127,10 @@ final class CirculationRulesController
                 0,
                 $json,
                 function () use ($db, $form, $response): ResponseInterface|int {
-                    $before = array_keys((new CirculationPolicy($db, configuration: true))->types());
-                    $outcome = Delegation::run(static fn (): ResponseInterface => (new CirculationSettingsController())->createType(
+                    // The id comes from the insert itself: a type another
+                    // operator adds at the same moment is never answered.
+                    $controller = new CirculationSettingsController();
+                    $outcome = Delegation::run(static fn (): ResponseInterface => $controller->createType(
                         Delegation::request('POST', '/admin/settings/circulation/types', $form),
                         new SlimResponse(),
                         $db
@@ -136,12 +138,12 @@ final class CirculationRulesController
                     if (($error = SettingsKit::errorOf($outcome)) !== null) {
                         return $this->typeError($response, $error);
                     }
-                    $new = array_values(array_diff(array_keys((new CirculationPolicy($db, configuration: true))->types()), $before));
-                    if ($new === []) {
+                    $id = $controller->createdTypeId();
+                    if ($id === null) {
                         throw new \RuntimeException('patron type not created');
                     }
 
-                    return (int) max($new);
+                    return $id;
                 },
                 fn (int $id): ?array => $this->loadType($id)
             );

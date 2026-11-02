@@ -78,8 +78,10 @@ final class LedgerArea implements StaffArea
         ]);
 
         $userId = O::path('id', 'User id');
-        $idem = ['name' => 'Idempotency-Key', 'in' => 'header', 'required' => true,
-            'description' => 'REQUIRED (1..128 of A-Z a-z 0-9 . _ : -), stable across retries of the same desk operation; also accepted as body `idempotency_key`. Same key + same body → 200 with the original movement (meta.replayed=true), nothing is recorded twice; same key + different body → 422 `idempotency_conflict`.',
+        // The key is mandatory, the header is not: the body `idempotency_key`
+        // carries it as well, so the header cannot be marked required.
+        $idem = ['name' => 'Idempotency-Key', 'in' => 'header', 'required' => false,
+            'description' => 'A key is REQUIRED (1..128 of A-Z a-z 0-9 . _ : -): send it in this header or as body `idempotency_key` (422 `validation` on idempotency_key when neither is there). Stable across retries of the same desk operation. Same key + same body → 200 with the original movement (meta.replayed=true), nothing is recorded twice; same key + different body → 422 `idempotency_conflict`.',
             'schema' => ['type' => 'string', 'maxLength' => 128]];
         $writeResponses = [
             '201' => O::ok('Recorded. The movement and the balance after it.', O::ref('StaffLedgerWriteResult')),

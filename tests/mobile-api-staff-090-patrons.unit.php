@@ -69,9 +69,19 @@ foreach ($codes as $code) {
 $check(LedgerOutcome::error('amount_exceeds_balance') === [409, 'amount_exceeds_balance', null], 'over the balance is a 409 state conflict');
 $check(LedgerOutcome::error('duplicate_request')[1] === 'idempotency_conflict', 'same key, other values → idempotency_conflict');
 $check(LedgerOutcome::error('something_new') === [500, 'internal_error', null], 'an unknown code is a 500');
+// The exact field of every 422: a wrong mapping (description_required on
+// amount_cents) would send the app's error to the wrong input.
+$expectedFields = [
+    'invalid_amount' => 'amount_cents',
+    'invalid_method' => 'method',
+    'reason_required' => 'reason',
+    'description_required' => 'description',
+    'duplicate_request' => 'idempotency_key',
+    'missing_request_key' => 'idempotency_key',
+];
 foreach (LedgerOutcome::ERRORS as $code => [$status, $api, $field]) {
     if ($status === 422) {
-        $check($field !== null, "422 {$code} names its field");
+        $check(($expectedFields[$code] ?? null) === $field, "422 {$code} maps to " . ($expectedFields[$code] ?? '(no expected field listed)'));
     }
 }
 
