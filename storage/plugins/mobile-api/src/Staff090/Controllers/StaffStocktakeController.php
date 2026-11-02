@@ -139,13 +139,13 @@ final class StaffStocktakeController
             // The order of the admin list (open sessions first, then the
             // history, newest first), filtered and paged in SQL: the web list
             // trims the history, the app pages through all of it. The cursor
-            // carries the list as it was on the first page (`u`, `t`): a
+            // carries the list as it was on the first page (`u`, and `a` the
+            // sessions then open, StocktakeService::sessionSnapshot()): a
             // session opened, closed or cancelled while the operator pages is
             // never listed twice nor skipped.
             $cursor = $this->cursor($request);
-            $snapshot = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && StocktakeService::isSnapshotInstant($cursor['t'] ?? null)
-                ? ['u' => $cursor['u'], 't' => (string) $cursor['t']]
-                : $this->service->sessionSnapshot();
+            $snapshot = (is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null) : null)
+                ?? $this->service->sessionSnapshot();
             $total = $this->service->sessionCount($status, $snapshot);
             $items = [];
             foreach ($this->service->sessionIds($status, $limit, $offset, $snapshot) as $sessionId) {
@@ -157,7 +157,7 @@ final class StaffStocktakeController
 
             $hasMore = $offset + $limit < $total;
             $meta = StaffPaging::meta(count($items), $limit, $offset, $hasMore, $total);
-            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit] + $snapshot) : null;
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit] + StocktakeService::snapshotToCursor($snapshot)) : null;
 
             return ResponseEnvelope::success($response, $items, $meta);
         } catch (\Throwable $e) {
@@ -214,18 +214,25 @@ final class StaffStocktakeController
             }
         }
         $limit = StaffPaging::limit($request, 50, 200);
-        $offset = StaffPaging::offset($request);
         try {
             if ($this->service->find($id) === null) {
                 return $this->notFound($response);
             }
             $operator = $this->mine($request) ? $this->operatorId($request) : null;
+            // Keyset paging, newest first: a page continues below the last id
+            // the previous one returned (`k`), so a scan whose id was taken
+            // before the first page but committed after it can never shift a
+            // page and repeat a row. `u` keeps total_count to the scans of
+            // the first page.
             $upTo = $this->pinnedScanId($request, $id);
+            $cursor = $this->cursor($request);
+            $below = is_array($cursor) && is_int($cursor['k'] ?? null) && $cursor['k'] > 0 ? min($upTo, $cursor['k'] - 1) : $upTo;
             $total = $this->service->scanCount($id, $operator, $outcome, $upTo);
-            $rows = $this->service->scans($id, $operator, $limit, $offset, $outcome, $upTo);
-            $hasMore = $offset + $limit < $total;
-            $meta = StaffPaging::meta(count($rows), $limit, $offset, $hasMore, $total);
-            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit, 'u' => $upTo]) : null;
+            $rows = $this->service->scans($id, $operator, $limit + 1, 0, $outcome, $below);
+            $hasMore = count($rows) > $limit;
+            $rows = array_slice($rows, 0, $limit);
+            $meta = StaffPaging::meta(count($rows), $limit, 0, $hasMore, $total);
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['u' => $upTo, 'k' => (int) $rows[count($rows) - 1]['id']]) : null;
 
             return ResponseEnvelope::success($response, array_map(fn (array $r): array => $this->scanItem($r), $rows), $meta);
         } catch (\Throwable $e) {
@@ -249,20 +256,24 @@ final class StaffStocktakeController
             }
         }
         $limit = StaffPaging::limit($request, 50, 200);
-        $offset = StaffPaging::offset($request);
         try {
             if ($this->service->find($id) === null) {
                 return $this->notFound($response);
             }
             $labels = InventoryController::outcomeLabels();
-            // Paged in the database (LIMIT/OFFSET on both queries), counted
-            // apart, pinned like the scan list: on an open session a scan
-            // between two pages moves a copy from the expected rows to the
-            // scans, which would skip a row of the next page.
+            // Keyset paging in the database (StocktakeService::reportPage()),
+            // counted apart, pinned like the scan list (`u`): a scan, a loan or
+            // a close between two pages never repeats nor skips a row. `p`, `c`,
+            // `i` are the key of the last row returned.
             $upTo = $this->pinnedScanId($request, $id);
+            $cursor = $this->cursor($request);
+            $after = is_array($cursor) && in_array($cursor['p'] ?? null, ['a', 's'], true) && is_string($cursor['c'] ?? null) && is_int($cursor['i'] ?? null) && $cursor['i'] >= 0
+                ? ['p' => (string) $cursor['p'], 'c' => (string) $cursor['c'], 'i' => (int) $cursor['i']]
+                : null;
             $total = $this->service->reportRowCount($id, $category, $upTo);
+            $page = $this->service->reportPage($id, $category, $limit, $upTo, $after);
             $items = [];
-            foreach ($this->service->reportPage($id, $category, $limit, $offset, $upTo) as $row) {
+            foreach ($page['rows'] as $row) {
                 $items[] = [
                     'category'          => V::outcome($row['categoria']),
                     'category_label'    => $labels[$row['categoria']] ?? $row['categoria'],
@@ -279,9 +290,8 @@ final class StaffStocktakeController
                 ];
             }
 
-            $hasMore = $offset + $limit < $total;
-            $meta = StaffPaging::meta(count($items), $limit, $offset, $hasMore, $total);
-            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit, 'u' => $upTo]) : null;
+            $meta = StaffPaging::meta(count($items), $limit, 0, $page['next'] !== null, $total);
+            $meta['next_cursor'] = $page['next'] !== null ? CursorCodec::encode(['u' => $upTo] + $page['next']) : null;
 
             return ResponseEnvelope::success($response, $items, $meta);
         } catch (\Throwable $e) {

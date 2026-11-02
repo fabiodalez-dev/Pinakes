@@ -478,38 +478,66 @@ final class StocktakeService
 
     /**
      * The session list as it is now, to page through it unchanged: the newest
-     * session id and the database clock. sessionIds() and sessionCount() with
-     * it leave out the sessions opened later and keep a session closed or
-     * cancelled later in its place among the open ones, so no session is
-     * listed twice or skipped while the pages are read. A session only ever
-     * leaves 'aperta', stamping chiusa_il (claimTransition()), so its state
-     * at that instant is known.
+     * session id (`u`) and the ids of the sessions open at that moment (`a`),
+     * read from the committed rows. sessionIds() and sessionCount() with it
+     * rank a session as open exactly when it was open in the snapshot: one
+     * closed or cancelled later keeps its place among the open ones (whenever
+     * its close commits), one opened later is left out (whatever its id: an
+     * open session absent from `a` was not visible yet). The ranks are fixed,
+     * so no session is listed twice or skipped while the pages are read. Only
+     * a session both opened and closed after the snapshot, with an id below
+     * `u`, can still turn up in the history.
      *
-     * @return array{u:int,t:string}
+     * @return array{u:int,a:list<int>}
      */
     public function sessionSnapshot(): array
     {
-        $row = $this->db->query('SELECT COALESCE(MAX(id), 0), NOW() FROM inventario_sessioni');
-        $values = $row === false ? null : $row->fetch_row();
+        $result = $this->db->query("SELECT COALESCE(MAX(id), 0), GROUP_CONCAT(CASE WHEN stato = 'aperta' THEN id END ORDER BY id) FROM inventario_sessioni");
+        $values = $result === false ? null : $result->fetch_row();
         if (!is_array($values)) {
             throw new \RuntimeException($this->db->error);
         }
-        return ['u' => (int) $values[0], 't' => (string) $values[1]];
+        $open = $values[1] === null || $values[1] === '' ? [] : array_map('intval', explode(',', (string) $values[1]));
+        return ['u' => (int) $values[0], 'a' => $open];
     }
 
-    /** True for a sessionSnapshot() instant, a MySQL DATETIME. */
-    public static function isSnapshotInstant(mixed $value): bool
+    /**
+     * A snapshot as a cursor carries it: the open ids comma-separated.
+     *
+     * @param array{u:int,a:list<int>} $snapshot
+     * @return array{u:int,a:string}
+     */
+    public static function snapshotToCursor(array $snapshot): array
     {
-        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value) === 1;
+        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a'])];
+    }
+
+    /**
+     * A snapshot back from snapshotToCursor(), or null when it is not one.
+     *
+     * @return array{u:int,a:list<int>}|null
+     */
+    public static function snapshotFrom(mixed $u, mixed $open): ?array
+    {
+        if (!is_int($u) || $u < 0 || !is_string($open) || preg_match('/^(\d{1,10}(,\d{1,10})*)?$/', $open) !== 1) {
+            return null;
+        }
+        $ids = $open === '' ? [] : array_map('intval', explode(',', $open));
+        foreach ($ids as $id) {
+            if ($id <= 0 || $id > $u) {
+                return null;
+            }
+        }
+        return ['u' => $u, 'a' => $ids];
     }
 
     /**
      * One page of every session, in the order of listSessions() (open ones
      * first, then the history, newest first), optionally of one state only:
      * the app pages through the whole history, which listSessions() trims.
-     * With $snapshot (sessionSnapshot()) the list is the one of that instant.
+     * With $snapshot (sessionSnapshot()) the list is the one of that moment.
      *
-     * @param array{u:int,t:string}|null $snapshot
+     * @param array{u:int,a:list<int>}|null $snapshot
      * @return list<int> session ids
      */
     public function sessionIds(?string $state, int $limit, int $offset = 0, ?array $snapshot = null): array
@@ -538,7 +566,7 @@ final class StocktakeService
     /**
      * How many sessions sessionIds() pages through.
      *
-     * @param array{u:int,t:string}|null $snapshot
+     * @param array{u:int,a:list<int>}|null $snapshot
      */
     public function sessionCount(?string $state, ?array $snapshot = null): int
     {
@@ -557,11 +585,11 @@ final class StocktakeService
     }
 
     /**
-     * The state of `s` and the rows of the list, now or at a snapshot. A
-     * session closed in the very second of the snapshot counts as still open
-     * (`>=`): whole seconds cannot tell whether the first page saw it open.
+     * The state of `s` and the rows of the list, now or at a snapshot: open
+     * for the sessions open in the snapshot, the stored state for the others,
+     * and no open session the snapshot did not see.
      *
-     * @param array{u:int,t:string}|null $snapshot
+     * @param array{u:int,a:list<int>}|null $snapshot
      * @return array{0:string,1:string} [state expression, WHERE condition]
      */
     private static function sessionListSql(?array $snapshot): array
@@ -569,12 +597,10 @@ final class StocktakeService
         if ($snapshot === null) {
             return ['s.stato', '1 = 1'];
         }
-        if (!self::isSnapshotInstant($snapshot['t'])) {
-            throw new \InvalidArgumentException('Not a snapshot instant');
-        }
+        $open = $snapshot['a'] === [] ? 'FALSE' : 's.id IN (' . implode(',', array_map('intval', $snapshot['a'])) . ')';
         return [
-            "(CASE WHEN s.stato <> 'aperta' AND s.chiusa_il >= '" . $snapshot['t'] . "' THEN 'aperta' ELSE s.stato END)",
-            's.id <= ' . (int) $snapshot['u'],
+            "(CASE WHEN {$open} THEN 'aperta' ELSE s.stato END)",
+            's.id <= ' . (int) $snapshot['u'] . " AND ({$open} OR s.stato <> 'aperta')",
         ];
     }
 
@@ -867,8 +893,16 @@ final class StocktakeService
      * instant is written by the database clock (NOW(), CURRENT_TIMESTAMP),
      * in the connection's time zone, which Pinakes leaves at the server
      * default; MySQL converts it back with the same zone and its DST rules,
-     * so an instant read here is the instant written, whatever app.timezone
-     * or PHP's zone say. NULL stays NULL.
+     * so the instant read is the instant written whatever app.timezone or
+     * PHP's zone say, with one exception: a DATETIME carries no offset, so in
+     * a zone with daylight saving time a value written during the hour that
+     * repeats when the clocks go back names two instants an hour apart, and
+     * UNIX_TIMESTAMP() returns one of them. Those values can be an hour off;
+     * nothing written outside that hour, or in a zone without DST, is. Only
+     * storing the instant itself at write time would remove it (a schema
+     * change); setting the connection to a fixed offset for these writes
+     * would not, since the web shows these columns as local wall time and
+     * the rows already stored are in the server zone. NULL stays NULL.
      */
     public static function epochSql(string $column): string
     {
@@ -1069,34 +1103,21 @@ final class StocktakeService
 
     /**
      * The unscanned expected copies as a buffered result, read one row at a
-     * time by the report. $bucket ('in_prestito' or 'mancante') keeps only
-     * that report bucket; $limit and $offset page it in SQL. With $upToId a
-     * copy counts as scanned only by a scan up to that id (reportPage()).
+     * time by the report, in shelf reading order (collocation, title, code).
+     * $bucket ('in_prestito' or 'mancante') keeps only that report bucket.
      */
-    private function unscannedExpectedResult(int $sessionId, bool $frozen, ?string $bucket = null, ?int $limit = null, int $offset = 0, ?int $upToId = null): \mysqli_result
+    private function unscannedExpectedResult(int $sessionId, bool $frozen, ?string $bucket = null): \mysqli_result
     {
-        // copia_id last: the order is total, so an OFFSET page is well defined.
+        // copia_id last: the order is total.
         $stmt = $this->db->prepare(
-            'SELECT a.copia_id, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, '
-            . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, c.updated_at AS copia_aggiornata_il, '
-            . 'COALESCE(l.titolo, a.titolo_atteso) AS titolo, l.id AS libro_attivo, l.collocazione, l.tipo_media, '
-            . self::onLoanBucketSql($frozen) . ' AS in_prestito '
-            . 'FROM inventario_attese a '
-            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id' . ($upToId !== null ? ' AND s.id <= ?' : '') . ' '
-            . 'LEFT JOIN copie c ON c.id = a.copia_id '
-            . 'LEFT JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL '
-            . 'WHERE a.sessione_id = ? AND s.id IS NULL' . self::bucketWhere($frozen, $bucket) . ' '
+            self::unscannedExpectedSelect($frozen)
+            . 'WHERE a.sessione_id = ? AND ' . self::unscannedSql(null) . self::bucketWhere($frozen, $bucket) . ' '
             . 'ORDER BY l.collocazione, l.titolo, c.numero_inventario, a.copia_id'
-            . ($limit !== null ? ' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset) : '')
         );
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
-        if ($upToId !== null) {
-            $stmt->bind_param('ii', $upToId, $sessionId);
-        } else {
-            $stmt->bind_param('i', $sessionId);
-        }
+        $stmt->bind_param('i', $sessionId);
         $stmt->execute();
         $result = $stmt->get_result();
         $stmt->close();
@@ -1106,23 +1127,75 @@ final class StocktakeService
         return $result;
     }
 
-    /** How many rows unscannedExpectedResult() returns for $bucket (and $upToId). */
-    private function unscannedExpectedCount(int $sessionId, bool $frozen, ?string $bucket, ?int $upToId = null): int
+    /**
+     * SELECT ... FROM of the unscanned expected copies; `sc` is the copy's
+     * scan in the session, if any (at most one: UNIQUE (sessione_id, copia_id)).
+     */
+    private static function unscannedExpectedSelect(bool $frozen): string
+    {
+        return 'SELECT a.copia_id, a.codice_atteso, a.scaffale_atteso, a.stato_all_apertura, a.esito_chiusura, '
+            . 'COALESCE(c.numero_inventario, a.codice_atteso) AS numero_inventario, c.stato AS stato_attuale, c.libro_id, c.updated_at AS copia_aggiornata_il, '
+            . 'COALESCE(l.titolo, a.titolo_atteso) AS titolo, l.id AS libro_attivo, l.collocazione, l.tipo_media, '
+            . self::onLoanBucketSql($frozen) . ' AS in_prestito '
+            . 'FROM inventario_attese a '
+            . 'LEFT JOIN inventario_scansioni sc ON sc.sessione_id = a.sessione_id AND sc.copia_id = a.copia_id '
+            . 'LEFT JOIN copie c ON c.id = a.copia_id '
+            . 'LEFT JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL ';
+    }
+
+    /**
+     * SQL condition: the expected copy was not scanned, or with $upToId not
+     * by a scan up to that id (a report pinned to its first page).
+     */
+    private static function unscannedSql(?int $upToId): string
+    {
+        return $upToId === null ? 'sc.id IS NULL' : '(sc.id IS NULL OR sc.id > ' . $upToId . ')';
+    }
+
+    /**
+     * One keyset page of the unscanned expected copies, in the stable order
+     * of the snapshot (the inventory number frozen at opening, then the copy
+     * id), after the key $after ([code, copy id]) when given.
+     *
+     * @param array{0:string,1:int}|null $after
+     * @return list<array<string,mixed>>
+     */
+    private function unscannedExpectedPage(int $sessionId, bool $frozen, ?string $bucket, int $limit, int $upToId, ?array $after): array
     {
         $stmt = $this->db->prepare(
-            'SELECT COUNT(*) FROM inventario_attese a '
-            . 'LEFT JOIN inventario_scansioni s ON s.sessione_id = a.sessione_id AND s.copia_id = a.copia_id' . ($upToId !== null ? ' AND s.id <= ?' : '') . ' '
-            . 'LEFT JOIN copie c ON c.id = a.copia_id '
-            . 'WHERE a.sessione_id = ? AND s.id IS NULL' . self::bucketWhere($frozen, $bucket)
+            self::unscannedExpectedSelect($frozen)
+            . 'WHERE a.sessione_id = ? AND ' . self::unscannedSql($upToId) . self::bucketWhere($frozen, $bucket)
+            . ($after !== null ? " AND (COALESCE(a.codice_atteso, ''), a.copia_id) > (?, ?)" : '') . ' '
+            . "ORDER BY COALESCE(a.codice_atteso, ''), a.copia_id LIMIT " . max(1, $limit)
         );
         if ($stmt === false) {
             throw new \RuntimeException($this->db->error);
         }
-        if ($upToId !== null) {
-            $stmt->bind_param('ii', $upToId, $sessionId);
+        if ($after !== null) {
+            $stmt->bind_param('isi', $sessionId, $after[0], $after[1]);
         } else {
             $stmt->bind_param('i', $sessionId);
         }
+        $stmt->execute();
+        /** @var list<array<string,mixed>> $rows */
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $rows;
+    }
+
+    /** How many unscanned expected copies of $bucket there are (with $upToId as unscannedSql()). */
+    private function unscannedExpectedCount(int $sessionId, bool $frozen, ?string $bucket, ?int $upToId = null): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM inventario_attese a '
+            . 'LEFT JOIN inventario_scansioni sc ON sc.sessione_id = a.sessione_id AND sc.copia_id = a.copia_id '
+            . 'LEFT JOIN copie c ON c.id = a.copia_id '
+            . 'WHERE a.sessione_id = ? AND ' . self::unscannedSql($upToId) . self::bucketWhere($frozen, $bucket)
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException($this->db->error);
+        }
+        $stmt->bind_param('i', $sessionId);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_row();
         $stmt->close();
@@ -1130,13 +1203,17 @@ final class StocktakeService
     }
 
     /**
-     * SQL value, 1 when the unscanned expected copy `a` (joined as `c`) is in
-     * the report's 'in_prestito' bucket, 0 or NULL for 'mancante': on a frozen
-     * session the bucket recorded at close, otherwise the live loan state.
+     * SQL value, 1 when the unscanned expected copy `a` (joined as `c`, its
+     * scan as `sc`) is in the report's 'in_prestito' bucket, 0 or NULL for
+     * 'mancante': on a frozen session the bucket recorded at close, otherwise
+     * the live loan state. A copy listed as unscanned only because the report
+     * is pinned before its scan (unscannedSql()) has the scan's outcome frozen,
+     * not a bucket: it keeps the live loan state, as on the pages read before
+     * the close.
      */
     private static function onLoanBucketSql(bool $frozen): string
     {
-        return $frozen ? "(a.esito_chiusura = 'in_prestito')" : self::onLoanSql();
+        return $frozen ? "IF(sc.id IS NULL, a.esito_chiusura = 'in_prestito', " . self::onLoanSql() . ')' : self::onLoanSql();
     }
 
     /** SQL condition keeping the unscanned expected copies of one report bucket ('' for every bucket). */
@@ -1203,51 +1280,54 @@ final class StocktakeService
     }
 
     /**
-     * One page of the rows of reportRows(), optionally of one category only,
-     * read with LIMIT/OFFSET in the database: the unscanned expected copies
-     * first, then the scans, in the order of eachReportRow().
+     * One page of the report rows, optionally of one category only, read
+     * with keyset paging in the database: the unscanned expected copies first,
+     * in the stable order of the snapshot (inventory number at opening, copy
+     * id), then the scans, newest first. Paging is anchored on keys, not
+     * offsets, so a copy edited, lent or returned, or a session closed, while
+     * the pages are read never repeats nor skips a row already placed.
      *
-     * $upToId (latestScanId() at the first page) pins an open session's
-     * report to the scans of that moment: a later scan would move a copy
-     * from the expected rows to the scans and shift every following offset,
-     * so it is left out of the rows, of the expected copies it would remove
-     * and of reportRowCount() with the same id.
+     * $upToId (latestScanId() at the first page) pins the report to the scans
+     * of that moment: a copy scanned later stays among the expected rows and
+     * its scan is left out, here and in reportRowCount() with the same id.
+     * On an open session the in_prestito/mancante buckets of the expected
+     * copies follow the loans of the moment, so with those category filters
+     * a copy lent or returned between two pages enters or leaves the rows
+     * still to come and the total can change; no row is repeated or skipped.
      *
-     * @return list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}>
+     * $after is the `next` key of the previous page.
+     *
+     * @param array{p:string,c:string,i:int}|null $after
+     * @return array{rows:list<array{categoria:string,codice:string,titolo:string,tipo_media:string,collocazione:string,scaffale_atteso:string,stato_copia:string,operatore:string,quando:string,quando_ts:string}>,next:array{p:string,c:string,i:int}|null}
      */
-    public function reportPage(int $sessionId, ?string $category, int $limit, int $offset = 0, ?int $upToId = null): array
+    public function reportPage(int $sessionId, ?string $category, int $limit, int $upToId, ?array $after = null): array
     {
         $limit = max(1, $limit);
-        $offset = max(0, $offset);
-        $rows = [];
-        $expected = 0;
-        if ($category === null || in_array($category, ['in_prestito', 'mancante'], true)) {
-            $frozen = $this->isFrozen($sessionId);
-            $expected = $this->unscannedExpectedCount($sessionId, $frozen, $category, $upToId);
-            if ($offset < $expected) {
-                $result = $this->unscannedExpectedResult($sessionId, $frozen, $category, $limit, $offset, $upToId);
-                try {
-                    while (is_array($row = $result->fetch_assoc())) {
-                        $rows[] = $this->expectedReportRow($row);
-                    }
-                } finally {
-                    $result->free();
-                }
+        $page = [];
+        if (($after === null || $after['p'] === 'a') && ($category === null || in_array($category, ['in_prestito', 'mancante'], true))) {
+            // One row more than asked tells whether another page follows.
+            $expectedRows = $this->unscannedExpectedPage($sessionId, $this->isFrozen($sessionId), $category, $limit + 1, $upToId, $after !== null ? [$after['c'], $after['i']] : null);
+            foreach ($expectedRows as $row) {
+                $page[] = ['row' => $this->expectedReportRow($row), 'key' => ['p' => 'a', 'c' => (string) ($row['codice_atteso'] ?? ''), 'i' => (int) $row['copia_id']]];
             }
         }
-        if (count($rows) < $limit) {
-            // The scans continue where the expected copies end: a page that
-            // starts past them skips the expected rows it does not show.
-            $result = $this->scansResult($sessionId, null, $limit - count($rows), max(0, $offset - $expected), $category, null, $upToId);
+        if (count($page) <= $limit) {
+            $below = $after !== null && $after['p'] === 's' ? $after['i'] - 1 : $upToId;
+            $result = $this->scansResult($sessionId, null, $limit + 1 - count($page), 0, $category, null, $below);
             try {
                 while (is_array($scan = $result->fetch_assoc())) {
-                    $rows[] = $this->scanReportRow($scan);
+                    $page[] = ['row' => $this->scanReportRow($scan), 'key' => ['p' => 's', 'c' => '', 'i' => (int) $scan['id']]];
                 }
             } finally {
                 $result->free();
             }
         }
-        return $rows;
+        $more = count($page) > $limit;
+        $page = array_slice($page, 0, $limit);
+        return [
+            'rows' => array_column($page, 'row'),
+            'next' => $more && $page !== [] ? $page[count($page) - 1]['key'] : null,
+        ];
     }
 
     /**

@@ -420,6 +420,32 @@ test('9. detail, state, the scan list (paged, by outcome, only mine) and the rep
     expect((await call(request, 'GET', `${P}/sessions/${s1}/report?category=bogus`, 'staff')).status).toBe(422);
 });
 
+test('9b. the scan list pages by key: a scan whose id was taken before the first page but committed after it repeats no row', async ({ request }) => {
+    const r = await createSession(request, 'staff', `${TAG} keyset`, { shelf_id: data.shelfY });
+    expect(r.status).toBe(201);
+    const id = r.json.data.id;
+    const scan = async (c) => (await call(request, 'POST', `${P}/sessions/${id}/scans`, 'staff', { body: { code: `${TAG}-K${c}` } })).json.data.scan.id;
+    const a = await scan('A');
+    const b = await scan('B');
+    const c = await scan('C');
+    // An id taken now and committed only after the first page: reserved by
+    // a row removed again, then written back with that id after page 1.
+    const gap = fx.dbInsert(`INSERT INTO inventario_scansioni (sessione_id, codice_letto, esito, scansionato_da, scansionato_il) VALUES (${id}, ${S(`${TAG}-KGAP`)}, 'sconosciuta', ${users.staff.id}, NOW())`);
+    const d = await scan('D');
+    fx.dbExec(`DELETE FROM inventario_scansioni WHERE id=${gap}`);
+    expect(gap).toBeGreaterThan(c);
+    expect(gap).toBeLessThan(d);
+
+    const page1 = await call(request, 'GET', `${P}/sessions/${id}/scans?limit=2`, 'staff');
+    expect(page1.json.data.map((x) => x.id)).toEqual([d, c]);
+    expect(page1.json.meta).toMatchObject({ has_more: true, total_count: 4 });
+    fx.dbExec(`INSERT INTO inventario_scansioni (id, sessione_id, codice_letto, esito, scansionato_da, scansionato_il) VALUES (${gap}, ${id}, ${S(`${TAG}-KLATE`)}, 'sconosciuta', ${users.staff.id}, NOW())`);
+    const page2 = await call(request, 'GET', `${P}/sessions/${id}/scans?limit=2&cursor=${encodeURIComponent(page1.json.meta.next_cursor)}`, 'staff');
+    expect(page2.json.data.map((x) => x.id)).toEqual([b, a]);
+    expect(page2.json.meta).toMatchObject({ has_more: false, next_cursor: null });
+    expect((await call(request, 'POST', `${P}/sessions/${id}/cancel`, 'staff')).status).toBe(200);
+});
+
 let s2 = 0;
 
 test('10. a list of codes uploads as one scan each; a wrong file type is refused', async ({ request }) => {
