@@ -91,7 +91,7 @@ class UserImportController
         // closes the run into the import history instead of offering a
         // resume that could only fail.
         $this->touchSessionFile();
-        UserImport::sweepStaleUploads(self::uploadDir());
+        UserImport::sweepStaleUploads(self::uploadDir(), db: $db);
         $expiredImport = $this->closeVanishedImport($db);
         $patronTypes = (new PatronTypeImport($db))->available();
         $resumeImport = self::resumable($_SESSION[self::SESSION_KEY] ?? null);
@@ -148,7 +148,7 @@ class UserImportController
         // The staged file of a run already in the session is replaced only
         // once the new upload proved valid (below): a refused upload leaves
         // the import in progress intact.
-        UserImport::sweepStaleUploads(self::uploadDir());
+        UserImport::sweepStaleUploads(self::uploadDir(), db: $db);
 
         $file = $request->getUploadedFiles()['csv_file'] ?? null;
         if (!$file instanceof \Psr\Http\Message\UploadedFileInterface || $file->getError() !== UPLOAD_ERR_OK) {
@@ -426,7 +426,7 @@ class UserImportController
                         // This very row created the account and its request
                         // died before completing it: finish it now, as a
                         // created row, instead of reporting it as a duplicate.
-                        $state['created']++;
+                        $this->countPendingCreated($state);
                         $this->completeImportedUser($db, $state, $resumed, $line, $label, $parsed, $patronTypes, $notifier);
                         continue;
                     }
@@ -744,10 +744,24 @@ class UserImportController
             self::report($state, ['line' => $next + 2, 'title' => $label, 'message' => $message, 'type' => 'warning']);
         }
         $state['pending'] = $pending; // read by the invitation step
-        $state['created'] = (int) ($state['created'] ?? 0) + 1;
+        $this->countPendingCreated($state);
         $this->completeImportedUser($db, $state, $userId, $next + 2, $label, $parsed, new PatronTypeImport($db), !empty($state['send_invites']) ? new NotificationService($db) : null);
         unset($state['pending']);
         $state['next'] = $next + 1;
+    }
+
+    /**
+     * Count a pending row once, whether resumed, cancelled or closed.
+     * @param array<string, mixed> $state
+     */
+    private function countPendingCreated(array &$state): void
+    {
+        $pending = (array) ($state['pending'] ?? []);
+        // Older jobs saved the pre-invitation checkpoint after incrementing
+        // created. The first checkpoint (no invited flag) had not counted it.
+        $before = $pending['created_before'] ?? max(0,
+            (int) ($state['created'] ?? 0) - (!empty($pending['invited']) ? 1 : 0));
+        $state['created'] = (int) $before + 1;
     }
 
     /** Whether the account holds a password-setup token (the invitation step issued one). */
@@ -904,7 +918,7 @@ class UserImportController
     {
         if ($this->rowCheckpoint === null) {
             $userId = $this->insertUser($db, $record);
-            $state['pending'] = ['next' => $row, 'user_id' => $userId];
+            $state['pending'] = ['next' => $row, 'user_id' => $userId, 'created_before' => (int) ($state['created'] ?? 0)];
             return $userId;
         }
         $result = $db->query('SELECT @@autocommit');
@@ -914,7 +928,7 @@ class UserImportController
         }
         try {
             $userId = $this->insertUser($db, $record);
-            $state['pending'] = ['next' => $row, 'user_id' => $userId];
+            $state['pending'] = ['next' => $row, 'user_id' => $userId, 'created_before' => (int) ($state['created'] ?? 0)];
             $this->checkpoint($state);
             if ($own) {
                 $db->commit();

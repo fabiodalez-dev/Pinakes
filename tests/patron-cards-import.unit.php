@@ -617,7 +617,7 @@ try {
     [$status, $json] = $callWith($listening, 'chunk', ['preview_id' => $pid, 'start' => 0]);
     $importLogIds[] = (string) ($json['import_id'] ?? '');
     $check($status === 200 && ($json['created'] ?? null) === 1 && count($seen) === 1 && $seen[0]['account'] > 0 && $seen[0]['account'] === $ckAccountId('a')
-        && $seen[0]['pending'] === ['next' => 0, 'user_id' => $seen[0]['account']], 'the checkpoint after the insert carries the row and the id of the account it just inserted');
+        && $seen[0]['pending'] === ['next' => 0, 'user_id' => $seen[0]['account'], 'created_before' => 0], 'the checkpoint after the insert carries the row and the id of the account it just inserted');
 
     // An expired run whose last account was inserted but not counted: the
     // close settles it, and the page shows the rows the history records.
@@ -664,13 +664,31 @@ try {
     $resumedId = $ckAccount('c');
     $db->query("UPDATE utenti SET token_reset_password = 'issued-before', data_token_reset = NOW() + INTERVAL 1 DAY WHERE id = {$resumedId}");
     file_put_contents($staged, "nome;cognome;email\nCk;C;" . $ckEmail('c') . "\n");
-    $_SESSION['user_import'] = ['send_invites' => true, 'pending' => ['next' => 0, 'user_id' => $resumedId, 'invited' => true]] + $running;
+    $_SESSION['user_import'] = ['created' => 1, 'send_invites' => true, 'pending' => ['next' => 0, 'user_id' => $resumedId, 'invited' => true]] + $running;
     [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
     $importLogIds[] = (string) ($json['import_id'] ?? '');
     $token = $db->query("SELECT token_reset_password FROM utenti WHERE id = {$resumedId}")->fetch_row()[0] ?? null;
     $warned = array_filter((array) ($json['errors'] ?? []), static fn (array $e): bool => ($e['type'] ?? '') === 'email' && (int) ($e['line'] ?? 0) === 2);
     $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 0 && ($json['invited'] ?? null) === 0 && $token === 'issued-before' && count($warned) === 1,
         'a resumed row whose invitation may have gone out is completed without issuing another token, with a warning');
+
+    // The marker of a new job remembers the counter BEFORE this row. A
+    // second interruption may save it after created was already incremented.
+    $countedId = $ckAccount('cnt');
+    file_put_contents($staged, "nome;cognome;email\nCk;Counted;" . $ckEmail('cnt') . "\n");
+    $_SESSION['user_import'] = ['created' => 1, 'pending' => ['next' => 0, 'user_id' => $countedId, 'created_before' => 0]] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 0,
+        'a counted pending row is resumed once even without an invitation flag');
+
+    $countedCancelId = $ckAccount('cc');
+    file_put_contents($staged, "nome;cognome;email\nCk;Counted;" . $ckEmail('cc') . "\n");
+    $_SESSION['user_import'] = ['created' => 1, 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $countedCancelId, 'created_before' => 0]] + $running;
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['created'] ?? null) === 1,
+        'cancel does not count an already-counted pending account twice');
 
     // Closing instead of resuming settles the half-done row: cancel ...
     $cancelId = $ckAccount('d');

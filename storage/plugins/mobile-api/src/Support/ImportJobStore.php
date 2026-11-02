@@ -190,10 +190,20 @@ final class ImportJobStore
             $stmt->bind_param('issis', $processed, $status, $summaryJson, $ttl, $id);
         }
         $stmt->execute();
-        // The status always changes (running → ready/completed), so a matched
-        // row is a changed row.
+        // Checkpoints can keep running and repeat the same state within a
+        // second: affected_rows = 0 then means a valid no-op, not cancellation.
         $saved = $stmt->affected_rows > 0;
         $stmt->close();
+        if (!$saved && $status === 'running') {
+            $probe = $this->db->prepare("SELECT 1 FROM mobile_import_jobs WHERE id = ? AND status = 'running'");
+            if ($probe === false) {
+                throw new \RuntimeException('import checkpoint probe prepare failed');
+            }
+            $probe->bind_param('s', $id);
+            $probe->execute();
+            $saved = $probe->get_result()->fetch_row() !== null;
+            $probe->close();
+        }
 
         return $saved;
     }
@@ -265,6 +275,11 @@ final class ImportJobStore
     public static function unlinkUpload(array $state): void
     {
         $path = is_string($state['file_path'] ?? null) ? $state['file_path'] : '';
+        // Patron imports keep the web state one level below the job state.
+        $patronFile = $state['core']['file'] ?? null;
+        if ($path === '' && is_string($patronFile) && str_starts_with(basename($patronFile), 'user_import_')) {
+            $path = $patronFile;
+        }
         if ($path === '' || !is_file($path)) {
             return;
         }

@@ -271,10 +271,17 @@ final class StaffMarcController
                 // without ISBN/EAN that the duplicate check cannot recognise.
                 for ($n = 0; $n < $size; $n++) {
                     $payload = ['staging_id' => (string) ($state['staging_id'] ?? ''), 'start' => $processed, 'size' => 1];
-                    $outcome = Delegation::run(static function () use ($db, $state, $payload): ResponseInterface {
+                    $store = $this->store;
+                    $jobId = (string) $job['id'];
+                    $persist = static function (array $saved) use ($store, $jobId, $summary): void {
+                        if (!$store->saveChunk($jobId, $saved, (int) ($saved['processed'] ?? 0), 'running', $summary)) {
+                            throw new \RuntimeException('MARC import job disappeared while the row ran');
+                        }
+                    };
+                    $outcome = Delegation::run(static function () use ($db, $state, $payload, $persist): ResponseInterface {
                         $_SESSION[self::SESSION_KEY] = $state;
 
-                        return (new MarcImportController())->chunk(
+                        return (new MarcImportController())->onRowCheckpoint($persist)->chunk(
                             Delegation::request('POST', '/admin/books/import/marc/chunk', [], [], (string) json_encode($payload)),
                             new SlimResponse(),
                             $db
@@ -300,6 +307,9 @@ final class StaffMarcController
                     $last = $complete || $n + 1 >= $size;
                     if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? $after : null, $processed, $complete ? 'completed' : ($last ? 'ready' : 'running'), $summary)) {
                         return $this->cancelledMeanwhile($response, $processed);
+                    }
+                    if ($complete) {
+                        ImportJobStore::unlinkUpload($state);
                     }
                     if ($last) {
                         break;

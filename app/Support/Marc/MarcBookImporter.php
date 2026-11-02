@@ -126,9 +126,10 @@ final class MarcBookImporter
      * @param array<string, string|list<string>> $data book data (MarcBookData shape)
      * @param array<string, mixed> $counters
      * @param list<string> $warnings
+     * @param (callable(array<string, mixed>, array<string, mixed>): void)|null $checkpoint durable base-book identity, before commit
      * @return array{action: string, id: int|null, title: string}
      */
-    public function import(array $data, array &$counters, array &$warnings = []): array
+    public function import(array $data, array &$counters, array &$warnings = [], ?callable $checkpoint = null): array
     {
         foreach (['imported', 'updated', 'skipped', 'authors_created', 'publishers_created', 'covers'] as $key) {
             $counters[$key] = (int) ($counters[$key] ?? 0);
@@ -167,9 +168,34 @@ final class MarcBookImporter
             $families,
             $counters,
             $existingId,
-            false
+            false,
+            $checkpoint === null ? null : static function (array $result, array $counted) use ($checkpoint, $existing, $title): void {
+                $checkpoint(['result' => $result + ['title' => $title], 'existing' => $existing], $counted);
+            }
         );
-        $bookId = $result['id'];
+        return $this->resume($data, ['result' => $result + ['title' => $title], 'existing' => $existing], $counters, $warnings);
+    }
+
+    /**
+     * Complete the book named by a durable checkpoint, without resolving or
+     * inserting it again. Metadata, cover and search-index writes are safe
+     * to repeat after an interrupted request.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $pending
+     * @param array<string, mixed> $counters
+     * @param list<string> $warnings
+     * @return array{action: string, id: int, title: string}
+     */
+    public function resume(array $data, array $pending, array &$counters, array &$warnings = []): array
+    {
+        $result = $pending['result'];
+        $bookId = (int) $result['id'];
+        $title = (string) $result['title'];
+        $existing = is_array($pending['existing'] ?? null) ? $pending['existing'] : null;
+        if ($this->loadBook($bookId) === null) {
+            throw new \RuntimeException(__('Libro non trovato.'));
+        }
 
         // The book is committed and counted at this point: what follows only
         // completes it, so a failure here is a warning on an imported record,
