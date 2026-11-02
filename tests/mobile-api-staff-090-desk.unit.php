@@ -18,8 +18,8 @@ declare(strict_types=1);
  *   E. Permissions: the app routes follow their web counterparts for custom
  *      roles (visitor log → loans.manage, patron import → users.manage,
  *      statistics unmapped = administrators and Staff only).
- *   F. UserImportJob::redactPreview(): the cells of a password column never
- *      reach the stored job.
+ *   F. UserImportJob::redactPreview(): only the cells of the columns mapped
+ *      to a field reach the stored job; password-like headers never.
  *
  * Run: php tests/mobile-api-staff-090-desk.unit.php
  */
@@ -157,14 +157,19 @@ $check(Permissions::allowsPath('/api/v1/staff/attendance/check-ins', $reader, 'P
 
 // ── F. Preview redaction ─────────────────────────────────────────────────────
 echo "F. UserImportJob::redactPreview\n";
-$redacted = UserImportJob::redactPreview(
-    ['nome', 'Password', 'email', 'Passaporto', 'Mot de passe', 'Kennwort', 'pwd'],
-    [['Anna', 'Segreta1!', 'a@x.test', 'AB123', 'mdp', 'kw', 'p'], ['Bruno', '', 'b@x.test', 'CD456', '', 'kw2', '']]
-);
-$check($redacted[0] === ['Anna', UserImportJob::REDACTED, 'a@x.test', 'AB123', UserImportJob::REDACTED, UserImportJob::REDACTED, UserImportJob::REDACTED], 'password columns (any language) are blanked out, the other cells kept');
-$check($redacted[1][1] === '' && $redacted[1][4] === '' && $redacted[1][6] === '', 'an empty password cell stays empty (no column looks filled that was not)');
-$check($redacted[1][3] === 'CD456', 'a header that only starts with "pass" (Passaporto) is not a password column');
-$check(UserImportJob::redactPreview(['nome'], [['Anna', 'extra']]) === [['Anna', 'extra']], 'cells beyond the headers are untouched');
+$R = UserImportJob::REDACTED;
+$headers = ['nome', 'Password', 'email', 'note interne', 'telefono', 'user_password', 'Passwort2', 'pass-word', 'password_1', 'Mot de passe'];
+$mapping = ['nome', '', 'email', '', 'telefono', '', '', '', '', ''];
+$redacted = UserImportJob::redactPreview($headers, [
+    ['Anna', 'Segreta1!', 'a@x.test', 'pin 1234', '+39 1', 'p1', 'p2', 'p3', 'p4', 'p5'],
+    ['Bruno', '', 'b@x.test', '', '', '', '', '', '', ''],
+], $mapping);
+$check($redacted[0] === ['Anna', $R, 'a@x.test', $R, '+39 1', $R, $R, $R, $R, $R], 'only the columns mapped to a field keep their cells');
+$check($redacted[1] === ['Bruno', '', 'b@x.test', '', '', '', '', '', '', ''], 'an empty cell stays empty (no column looks filled that was not)');
+// A field claiming a password-like header still does not expose it.
+$claimed = UserImportJob::redactPreview(['user_password', 'Passwort2', 'pass-word', 'password_1', 'PWD', 'Passaporto'], [['a', 'b', 'c', 'd', 'e', 'f']], ['note', 'note', 'note', 'note', 'note', 'note']);
+$check($claimed[0] === [$R, $R, $R, $R, $R, 'f'], 'password-like headers are recognised after normalising (user_password, Passwort2, pass-word, password_1, PWD), Passaporto is not');
+$check(UserImportJob::redactPreview(['nome'], [['Anna', 'extra']], ['nome']) === [['Anna', $R]], 'cells beyond the headers are not kept');
 
 echo "\n{$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

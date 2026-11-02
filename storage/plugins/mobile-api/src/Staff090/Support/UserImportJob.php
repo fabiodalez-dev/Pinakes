@@ -16,10 +16,14 @@ final class UserImportJob
     public const REQUIRED_FIELDS = ['nome', 'email'];
     /** Error entries returned with a job (the web page shows as many). */
     public const MAX_ERRORS = 50;
-    /** What a preview cell under a password-like column becomes. */
+    /** What a preview cell the job does not keep becomes. */
     public const REDACTED = '********';
-    /** Headers whose cells are never stored: a password column, in any of the app languages. */
-    private const SECRET_HEADER = '/\b(pass(word|wort|wd)?|pwd|kennwort|mot\s*de\s*passe|contrase(ñ|n)a|senha|wachtwoord|adgangskode|l(ö|o)senord|has(ł|l)o|parola\s*(d\W?ordine|chiave)|secret)\b/iu';
+    /**
+     * Password-like headers, matched on the normalised header (lowercase,
+     * `_`, `-` and digits as spaces) as whole words: user_password,
+     * Passwort2, pass-word, mot de passe…
+     */
+    private const SECRET_HEADER = '/(?<!\p{L})(pass(word|wort|wd)?|pwd|kennwort|mot\s*de\s*passe|contrase(ñ|n)a|senha|wachtwoord|adgangskode|l(ö|o)senord|has(ł|l)o|parola\s*(d\W?ordine|chiave)|secret)(?!\p{L})/u';
 
     private function __construct()
     {
@@ -95,28 +99,32 @@ final class UserImportJob
     }
 
     /**
-     * The upload preview as the job keeps it: the cells of a password column
-     * blanked out. Passwords are never imported (no target field), and the
-     * job state outlives the upload for 24 h, readable by every admin through
-     * GET /staff/user-imports/{id}; the header stays so the column still maps.
+     * The upload preview as the job keeps it: only the cells of the columns
+     * the suggested mapping assigns to an import field, every other cell
+     * blanked out. Passwords are never imported (no field, never suggested),
+     * and the job state outlives the upload for 24 h, readable by every
+     * admin through GET /staff/user-imports/{id}; an unrecognised column may
+     * hold anything. The headers stay, so every column can still be mapped.
+     * A password-like header is blanked even if a field claims it.
      *
      * @param list<string> $headers
      * @param array<mixed> $preview
+     * @param array<mixed> $mapping suggested field per column index ('' = none)
      * @return list<list<string>>
      */
-    public static function redactPreview(array $headers, array $preview): array
+    public static function redactPreview(array $headers, array $preview, array $mapping): array
     {
-        $secret = [];
+        $keep = [];
         foreach ($headers as $i => $header) {
-            if (preg_match(self::SECRET_HEADER, $header) === 1) {
-                $secret[$i] = true;
-            }
+            $field = $mapping[$i] ?? null;
+            $normalised = (string) preg_replace('/[\s_\-\d]+/u', ' ', mb_strtolower($header));
+            $keep[$i] = is_string($field) && $field !== '' && preg_match(self::SECRET_HEADER, $normalised) !== 1;
         }
         $rows = [];
         foreach ($preview as $row) {
             $cells = array_values(array_map('strval', (array) $row));
             foreach ($cells as $i => $cell) {
-                if (isset($secret[$i]) && $cell !== '') {
+                if (empty($keep[$i]) && $cell !== '') {
                     $cells[$i] = self::REDACTED;
                 }
             }

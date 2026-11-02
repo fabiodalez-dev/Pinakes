@@ -467,6 +467,8 @@ test.describe('MARC import', () => {
         const out = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0 } });
         expect([out.status, out.json.meta.processed]).toEqual([409, 1]);
         expect((await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff })).status).toBe(200);
+        // Out of the way of the title searches below.
+        F.deleteBooks([F.dbInt(`SELECT id FROM libri WHERE titolo='Libro MARC ${RUN} 07' AND deleted_at IS NULL`)]);
     });
 
     test('MARCXML upload', async ({ request }) => {

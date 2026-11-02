@@ -98,7 +98,7 @@ final class StaffUserImportController
             $state = [
                 'core'      => $core,
                 'headers'   => $headers,
-                'preview'   => UserImportJob::redactPreview($headers, (array) ($json['preview'] ?? [])),
+                'preview'   => UserImportJob::redactPreview($headers, (array) ($json['preview'] ?? []), (array) ($json['mapping'] ?? [])),
                 'fields'    => (array) ($json['fields'] ?? []),
                 'suggested' => (array) ($json['mapping'] ?? []),
                 'notice'    => is_string($json['notice'] ?? null) ? $json['notice'] : null,
