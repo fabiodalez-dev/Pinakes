@@ -144,7 +144,7 @@ class CopyController
         }
 
         // Recupera la copia per ottenere il libro_id
-        $stmt = $db->prepare("SELECT libro_id, numero_inventario, stato, note FROM copie WHERE id = ?");
+        $stmt = $db->prepare("SELECT libro_id, numero_inventario, stato, note, solo_consultazione FROM copie WHERE id = ?");
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -356,12 +356,12 @@ class CopyController
                     'numero_inventario' => $copy['numero_inventario'] ?? null,
                     'stato' => $copy['stato'] ?? null,
                     'note' => $copy['note'] ?? null,
-                ],
+                ] + ($consultation !== null ? ['solo_consultazione' => (int) $copy['solo_consultazione']] : []),
                 [
                     'numero_inventario' => $copy['numero_inventario'] ?? null,
                     'stato' => $stato,
                     'note' => $note,
-                ],
+                ] + ($consultation !== null ? ['solo_consultazione' => (int) $consultation] : []),
                 entityId: $copyId,
                 source: 'manual'
             );

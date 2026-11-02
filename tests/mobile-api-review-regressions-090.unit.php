@@ -167,6 +167,16 @@ try {
     $r = $copies->update($request('/copies', ['status' => 'manutenzione', 'consultation_only' => true]), new Response(), $copy);
     $row = $db->query("SELECT stato,solo_consultazione FROM copie WHERE id={$copy}")->fetch_assoc();
     $check($r->getStatusCode() === 200 && $row['stato'] === 'manutenzione' && (int) $row['solo_consultazione'] === 1, 'successful combined copy write saves both fields');
+    // The flag reaches the book history, as the web toggle records it.
+    $flagLog = static function () use ($db, $book): array {
+        // The latest entry that carries the flag: a return logs the loan too.
+        $entry = $db->query("SELECT dati_precedenti, dati_nuovi FROM log_modifiche WHERE tabella='libri' AND record_id={$book} AND dati_nuovi LIKE '%solo_consultazione%' ORDER BY id DESC LIMIT 1")->fetch_assoc() ?: [];
+        $before = json_decode((string) ($entry['dati_precedenti'] ?? ''), true);
+        $after = json_decode((string) ($entry['dati_nuovi'] ?? ''), true);
+        return [$before['solo_consultazione'] ?? null, $after['solo_consultazione'] ?? null];
+    };
+    $check($flagLog() === [0, 1], 'the combined write records the consultation flag in the book history');
+    $flagEntries = static fn (): int => (int) $db->query("SELECT COUNT(*) FROM log_modifiche WHERE tabella='libri' AND record_id={$book} AND dati_nuovi LIKE '%solo_consultazione%'")->fetch_row()[0];
     $r = $copies->update($request('/copies', ['status' => 'disponibile', 'consultation_only' => false]), new Response(), $copy);
     $check($r->getStatusCode() === 200 && (int) $db->query("SELECT solo_consultazione FROM copie WHERE id={$copy}")->fetch_row()[0] === 0, 'combined lendable transition succeeds');
 
@@ -174,10 +184,15 @@ try {
     // must roll back too if closing the loan fails.
     $loan = $insert("INSERT INTO prestiti(libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,attivo) VALUES({$book},{$copy},{$operator},CURDATE(),DATE_ADD(CURDATE(),INTERVAL 14 DAY),'in_corso',1)");
     $db->query("UPDATE copie SET stato='prestato',solo_consultazione=1 WHERE id={$copy}");
+    $entriesBefore = $flagEntries();
     $db->failPrefix = 'UPDATE prestiti SET stato = ?';
     $r = $copies->update($request('/copies', ['status' => 'disponibile', 'consultation_only' => false]), new Response(), $copy);
     $row = $db->query("SELECT stato,solo_consultazione FROM copie WHERE id={$copy}")->fetch_assoc();
     $check($r->getStatusCode() === 409 && $row['stato'] === 'prestato' && (int) $row['solo_consultazione'] === 1 && (int) $db->query("SELECT attivo FROM prestiti WHERE id={$loan}")->fetch_row()[0] === 1, 'failed return rolls back the flag and keeps the loan open');
+    $r = $copies->update($request('/copies', ['status' => 'disponibile', 'consultation_only' => false]), new Response(), $copy);
+    $row = $db->query("SELECT stato,solo_consultazione FROM copie WHERE id={$copy}")->fetch_assoc();
+    $check($r->getStatusCode() === 200 && (int) $row['solo_consultazione'] === 0 && (int) $db->query("SELECT attivo FROM prestiti WHERE id={$loan}")->fetch_row()[0] === 0 && $flagEntries() === $entriesBefore + 1 && $flagLog() === [1, 0],
+        'a return that clears the flag closes the loan and records the flag in the book history');
     $db->query("DELETE FROM prestiti WHERE id={$loan}");
     $db->query("UPDATE copie SET stato='disponibile',solo_consultazione=0 WHERE id={$copy}");
 

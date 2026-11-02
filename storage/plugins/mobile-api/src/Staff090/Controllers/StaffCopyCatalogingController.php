@@ -37,7 +37,6 @@ final class StaffCopyCatalogingController
     private const RESULTS_KEY = 'copy_cataloging_results';
     private const LAST_IMPORT_KEY = 'copy_cataloging_last_import';
     private const KEEP_SEARCHES = 5;
-    /** Imports of one search whose Idempotency-Key still replays (oldest dropped first). */
     private const MAX_IDS = 100;
 
     private ImportJobStore $store;
