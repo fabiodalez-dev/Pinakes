@@ -312,6 +312,9 @@ class UserImportController
         // resumes from it instead of replaying the rows already written.
         $state = &$_SESSION[self::SESSION_KEY];
         $start = max(0, (int) ($body['start'] ?? 0));
+        // The page sends no size (a full block); the Mobile API asks for one
+        // row at a time and stores the position after each.
+        $size = max(1, min((int) ($body['size'] ?? UserImport::CHUNK_SIZE), UserImport::CHUNK_SIZE));
         // Chunks are processed in order exactly once: a replayed request (a
         // retry after a timeout) must not insert the same rows again. The
         // answer carries the position to resume from.
@@ -370,7 +373,7 @@ class UserImportController
 
         $line = $start + 2; // header is line 1
         $processed = 0;
-        while ($processed < UserImport::CHUNK_SIZE && ($row = self::nextRecord($handle, $delimiter)) !== null) {
+        while ($processed < $size && ($row = self::nextRecord($handle, $delimiter)) !== null) {
             $offset = (int) ftell($handle);
             $processed++;
             $label = '';

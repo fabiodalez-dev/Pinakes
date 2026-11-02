@@ -18,6 +18,8 @@ declare(strict_types=1);
  *   E. Permissions: the app routes follow their web counterparts for custom
  *      roles (visitor log → loans.manage, patron import → users.manage,
  *      statistics unmapped = administrators and Staff only).
+ *   F. UserImportJob::redactPreview(): the cells of a password column never
+ *      reach the stored job.
  *
  * Run: php tests/mobile-api-staff-090-desk.unit.php
  */
@@ -152,6 +154,17 @@ $check(Permissions::permissionForPath('/api/v1/staff/user-imports/11111111-2222-
 $check(Permissions::permissionForPath('/api/v1/staff/statistics') === null && Permissions::permissionForPath('/admin/statistics') === null, 'statistics unmapped on both sides');
 $reader = ['id' => 1, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['backend.access', 'loans.manage']];
 $check(Permissions::allowsPath('/api/v1/staff/attendance/check-ins', $reader, 'POST') && !Permissions::allowsPath('/api/v1/staff/user-imports', $reader, 'POST') && !Permissions::allowsPath('/api/v1/staff/statistics', $reader), 'a loan-desk role reaches the visitor log only');
+
+// ── F. Preview redaction ─────────────────────────────────────────────────────
+echo "F. UserImportJob::redactPreview\n";
+$redacted = UserImportJob::redactPreview(
+    ['nome', 'Password', 'email', 'Passaporto', 'Mot de passe', 'Kennwort', 'pwd'],
+    [['Anna', 'Segreta1!', 'a@x.test', 'AB123', 'mdp', 'kw', 'p'], ['Bruno', '', 'b@x.test', 'CD456', '', 'kw2', '']]
+);
+$check($redacted[0] === ['Anna', UserImportJob::REDACTED, 'a@x.test', 'AB123', UserImportJob::REDACTED, UserImportJob::REDACTED, UserImportJob::REDACTED], 'password columns (any language) are blanked out, the other cells kept');
+$check($redacted[1][1] === '' && $redacted[1][4] === '' && $redacted[1][6] === '', 'an empty password cell stays empty (no column looks filled that was not)');
+$check($redacted[1][3] === 'CD456', 'a header that only starts with "pass" (Passaporto) is not a password column');
+$check(UserImportJob::redactPreview(['nome'], [['Anna', 'extra']]) === [['Anna', 'extra']], 'cells beyond the headers are untouched');
 
 echo "\n{$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

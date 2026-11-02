@@ -174,6 +174,8 @@ function isbn13FromRun() {
 //   etag       — GET with ETag: 1st 200+ETag, 2nd If-None-Match → 304.
 //   safeGet    — authed GET, no ETag: both 2xx (read is idempotent).
 //   write2xx   — write whose repeat is idempotent: both calls in 2xx.
+//   replay200  — keyed create: 1st 2xx, 2nd the stored replay (exactly 200,
+//                the same data.id when the answer carries one).
 //   conflict2  — write whose 2nd identical call is rejected (>=400).
 //   gone2      — delete: 1st 2xx-or-404, 2nd → 404.
 //   authGate   — call WITHOUT token then WITH token: 1st 401, 2nd 2xx.
@@ -334,11 +336,11 @@ const ENDPOINTS = [
     { name: 'GET /staff/users/{id}/photo',       method: 'GET',    path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'DELETE /staff/users/{id}/photo',    method: 'DELETE', path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* removing nothing is 200 too */ },
     { name: 'GET /staff/users/{id}/ledger',      method: 'GET',    path: '/staff/users/{userId}/ledger',  route: '/staff/users/{id}/ledger', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
-    { name: 'POST /staff/users/{id}/ledger/charges', method: 'POST', path: '/staff/users/{userId}/ledger/charges', route: '/staff/users/{id}/ledger/charges', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+    { name: 'POST /staff/users/{id}/ledger/charges', method: 'POST', path: '/staff/users/{userId}/ledger/charges', route: '/staff/users/{id}/ledger/charges', auth: true, tokenKey: 'staffToken', kind: 'replay200',
         body: () => ({ amount_cents: 300, description: `Idem charge ${RUN_ID}`, idempotency_key: `idem-charge-${RUN_ID}` }) /* 201, then the replay 200 */ },
-    { name: 'POST /staff/users/{id}/ledger/payments', method: 'POST', path: '/staff/users/{userId}/ledger/payments', route: '/staff/users/{id}/ledger/payments', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+    { name: 'POST /staff/users/{id}/ledger/payments', method: 'POST', path: '/staff/users/{userId}/ledger/payments', route: '/staff/users/{id}/ledger/payments', auth: true, tokenKey: 'staffToken', kind: 'replay200',
         body: () => ({ amount_cents: 100, method: 'contanti', note: `Idem payment ${RUN_ID}`, idempotency_key: `idem-payment-${RUN_ID}` }) },
-    { name: 'POST /staff/users/{id}/ledger/waivers', method: 'POST', path: '/staff/users/{userId}/ledger/waivers', route: '/staff/users/{id}/ledger/waivers', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+    { name: 'POST /staff/users/{id}/ledger/waivers', method: 'POST', path: '/staff/users/{userId}/ledger/waivers', route: '/staff/users/{id}/ledger/waivers', auth: true, tokenKey: 'staffToken', kind: 'replay200',
         body: () => ({ amount_cents: 100, reason: `Idem waiver ${RUN_ID}`, idempotency_key: `idem-waiver-${RUN_ID}` }) },
     { name: 'GET /staff/users/{id}/ledger/movements/{movement}/receipt.pdf', method: 'GET', path: '/staff/users/{userId}/ledger/movements/{ledgerPaymentId}/receipt.pdf', route: '/staff/users/{id}/ledger/movements/{movement}/receipt.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
 
@@ -466,9 +468,9 @@ const ENDPOINTS = [
     { name: 'DELETE /staff/marc/imports/{id}',   method: 'DELETE', path: '/staff/marc/imports/{marcCancelJobId}', route: '/staff/marc/imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* cancel is idempotent */ },
     { name: 'GET /staff/marc/export',            method: 'GET',    path: '/staff/marc/export?format=marcxml&ids={staffBookId}', route: '/staff/marc/export', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'GET /staff/copy-cataloging/servers', method: 'GET',   path: '/staff/copy-cataloging/servers', auth: true, tokenKey: 'staffToken', kind: 'safeGet', skipIf: (c) => !c.z39Active },
-    { name: 'POST /staff/copy-cataloging/search', method: 'POST',  path: '/staff/copy-cataloging/search', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.copySearchId,
+    { name: 'POST /staff/copy-cataloging/search', method: 'POST',  path: '/staff/copy-cataloging/search', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.z39Active,
         body: () => ({ servers: ['local'], index: 'title', term: `Idem staff fixture ${RUN_ID}` }) /* each search is a new search_id: both 201 */ },
-    { name: 'POST /staff/copy-cataloging/import', method: 'POST',  path: '/staff/copy-cataloging/import', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.copySearchId,
+    { name: 'POST /staff/copy-cataloging/import', method: 'POST',  path: '/staff/copy-cataloging/import', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.z39Active,
         body: (c) => ({ search_id: c.copySearchId, ids: [c.copyResultId], duplicates: 'skip' }) /* the fixture book (no ISBN) comes back as a new title each time: both 200; RUN_ID cleanup removes them */ },
 
     // ── Mobile API 1.7.0: staff work on plugin content (desiderata, archives) ──
@@ -609,9 +611,9 @@ const ENDPOINTS = [
 
     // ── Mobile API 1.10.0: visitor log (visitor_log), statistics, patron CSV import (user_import) ──
     { name: 'GET /staff/attendance', method: 'GET', path: '/staff/attendance', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
-    { name: 'POST /staff/attendance/check-ins', method: 'POST', path: '/staff/attendance/check-ins', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+    { name: 'POST /staff/attendance/check-ins', method: 'POST', path: '/staff/attendance/check-ins', auth: true, tokenKey: 'staffToken', kind: 'replay200',
         body: (c) => ({ card_code: c.attendanceCard, idempotency_key: `idem-checkin-${RUN_ID}` }) /* 1st 201, 2nd replays the same visit: 200 */ },
-    { name: 'POST /staff/attendance/guests', method: 'POST', path: '/staff/attendance/guests', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+    { name: 'POST /staff/attendance/guests', method: 'POST', path: '/staff/attendance/guests', auth: true, tokenKey: 'staffToken', kind: 'replay200',
         body: () => ({ name: `Idem guest ${RUN_ID}`, idempotency_key: `idem-guest-${RUN_ID}` }) /* 1st 201, 2nd replay 200 */ },
     { name: 'GET /staff/attendance/export.csv', method: 'GET', path: '/staff/attendance/export.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'PUT /staff/attendance/settings', method: 'PUT', path: '/staff/attendance/settings', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
@@ -687,6 +689,18 @@ async function runTwice(request, e, ctx) {
         const r2 = await call(request, e.method, url, { token, body, multipart });
         expect(ok2xx(r1.status()), `${e.name} #1 2xx (got ${r1.status()})`).toBe(true);
         expect(ok2xx(r2.status()), `${e.name} #2 idempotent 2xx (got ${r2.status()})`).toBe(true);
+        return;
+    }
+    if (e.kind === 'replay200') {
+        const r1 = await call(request, e.method, url, { token, body, multipart });
+        const r2 = await call(request, e.method, url, { token, body, multipart });
+        expect(ok2xx(r1.status()), `${e.name} #1 2xx (got ${r1.status()})`).toBe(true);
+        expect(r2.status(), `${e.name} #2 replay 200 (got ${r2.status()})`).toBe(200);
+        const id1 = (await r1.json().catch(() => null))?.data?.id;
+        const id2 = (await r2.json().catch(() => null))?.data?.id;
+        if (id1 !== undefined || id2 !== undefined) {
+            expect(id2, `${e.name} #2 replays the same record`).toEqual(id1);
+        }
         return;
     }
     if (e.kind === 'conflict2') {
@@ -970,11 +984,17 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         ctx.marcCancelJobId = await marcJob();
         ctx.z39Active = dbScalar("SELECT is_active FROM plugins WHERE name='z39-server'") === '1';
         if (ctx.z39Active) {
+            // The fixture book exists and the local catalogue is always a
+            // server: a search that fails or misses it is a failure, never a
+            // reason to skip the two copy-cataloguing rows.
             const search = await call(request, 'POST', `${API}/staff/copy-cataloging/search`, { token: ctx.staffToken, body: { servers: ['local'], index: 'title', term: `Idem staff fixture ${RUN_ID}` } });
-            const found = search.status() === 201 ? (await search.json()).data : null;
+            expect(search.status(), 'copy-cataloguing search fixture').toBe(201);
+            const found = (await search.json()).data;
             // No ISBN on the fixture: the result is found by title, not flagged as a duplicate.
-            const hit = found ? found.results.find((r) => r.title === `Idem staff fixture ${RUN_ID}`) : null;
-            if (hit) { ctx.copySearchId = found.search_id; ctx.copyResultId = hit.id; }
+            const hit = found.results.find((r) => r.title === `Idem staff fixture ${RUN_ID}`);
+            expect(hit, 'copy-cataloguing fixture found by title').toBeDefined();
+            ctx.copySearchId = found.search_id;
+            ctx.copyResultId = hit.id;
         }
         const enrich = await call(request, 'GET', `${API}/staff/enrich`, { token: ctx.staffToken });
         ctx.enrichCron = (await enrich.json()).data.cron_enabled;

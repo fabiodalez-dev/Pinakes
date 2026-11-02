@@ -340,6 +340,9 @@ test.describe('MARC import', () => {
         r = await marcUpload(request, ctx.staff, file, { flavour: 'marc99', duplicates: 'never', supplier_id: '999999999' });
         expect(r.status).toBe(422);
         expect(Object.keys(r.json.meta.fields).sort()).toEqual(['duplicates', 'flavour', 'supplier_id']);
+        // supplier_id[]: refused, not dropped (the batch would lose its supplier).
+        r = await marcUpload(request, ctx.staff, file, { 'supplier_id[]': String(ctx.supplierId) });
+        expect([r.status, r.json.meta.field], r.text).toEqual([422, 'supplier_id']);
     });
 
     test('upload → preview → chunks in order → done, with the supplier of the batch', async ({ request }) => {
@@ -364,6 +367,11 @@ test.describe('MARC import', () => {
         expect([r.status, r.json.error.code, r.json.meta.processed]).toEqual([409, 'out_of_order', 0]);
         r = await F.api(request, 'POST', `/staff/marc/imports/${job.id}/chunk`, { token: ctx.staff, body: { start: '0' } });
         expect([r.status, r.json.meta.field]).toEqual([422, 'start']);
+        // size is 1..chunk_size, an integer: refused, never clamped.
+        for (const size of [0, 11, '2', 1.5]) {
+            r = await F.api(request, 'POST', `/staff/marc/imports/${job.id}/chunk`, { token: ctx.staff, body: { start: 0, size } });
+            expect([r.status, r.json.meta.field], `size ${JSON.stringify(size)}`).toEqual([422, 'size']);
+        }
         r = await F.api(request, 'POST', `/staff/marc/imports/${job.id}/chunk`, { token: ctx.staff, body: { start: 0, size: 2 } });
         expect(r.status, r.text).toBe(200);
         expect(r.json.data).toMatchObject({ status: 'ready', processed: 2, imported: 2, complete: false });
@@ -438,6 +446,27 @@ test.describe('MARC import', () => {
         expect([r.status, r.json.meta.status]).toEqual([410, 'cancelled']);
         expect((await F.api(request, 'GET', `/staff/marc/imports/${id}`, { token: ctx.staff })).json.data.status).toBe('cancelled');
         expect((await F.api(request, 'GET', '/staff/marc/imports/00000000-0000-4000-8000-000000000000', { token: ctx.staff })).status).toBe(404);
+    });
+
+    test('a chunk that stops mid-way keeps every record done before it, resumable', async ({ request }) => {
+        const file = marcFile(RUN, 3, 'mrc', 7);
+        ctx.files.push(file);
+        const up = await marcUpload(request, ctx.staff, file);
+        expect(up.status, up.text).toBe(201);
+        const id = up.json.data.id;
+        // The staged records end after the first: the second record of the
+        // chunk cannot be read, as if the request had died there.
+        const staged = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`)).file_path;
+        fs.writeFileSync(staged, fs.readFileSync(staged, 'utf8').split('\n')[0] + '\n');
+        const r = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0, size: 3 } });
+        expect([r.status, r.json.error.code], r.text).toEqual([500, 'internal_error']);
+        // The first record is in and its position saved with the job.
+        expect(F.dbInt(`SELECT COUNT(*) FROM libri WHERE titolo='Libro MARC ${RUN} 07' AND deleted_at IS NULL`)).toBe(1);
+        const job = (await F.api(request, 'GET', `/staff/marc/imports/${id}`, { token: ctx.staff })).json.data;
+        expect(job).toMatchObject({ status: 'ready', processed: 1, imported: 1 });
+        const out = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0 } });
+        expect([out.status, out.json.meta.processed]).toEqual([409, 1]);
+        expect((await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff })).status).toBe(200);
     });
 
     test('MARCXML upload', async ({ request }) => {
@@ -535,6 +564,18 @@ test.describe('copy cataloguing', () => {
         expect(F.dbInt(`SELECT COUNT(*) FROM libri WHERE titolo='Libro MARC ${RUN} 01' AND deleted_at IS NULL`)).toBe(1);
         const conflict = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [first.id], duplicates: 'overwrite' }, extraHeaders: { 'Idempotency-Key': key } });
         expect([conflict.status, conflict.json.error.code]).toEqual([422, 'idempotency_conflict']);
+        // A later import of the same search does not forget the earlier key:
+        // its retry still replays instead of importing again.
+        const later = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [first.id], duplicates: 'skip', covers: false }, extraHeaders: { 'Idempotency-Key': `${key}-later` } });
+        expect(later.status, later.text).toBe(200);
+        expect(later.json.meta.replayed).toBeUndefined();
+        expect(later.json.data).toMatchObject({ imported: 0, skipped: 1 });
+        const again = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [first.id], duplicates: 'skip', covers: false }, extraHeaders: { 'Idempotency-Key': key } });
+        expect(again.status).toBe(200);
+        expect(again.json.meta.replayed).toBe(true);
+        expect(again.json.data).toMatchObject({ imported: 1, skipped: 0 });
+        expect(again.json.data.items[0].book_id).toBe(newId);
+        expect(F.dbInt(`SELECT COUNT(*) FROM libri WHERE titolo='Libro MARC ${RUN} 01' AND deleted_at IS NULL`)).toBe(1);
 
         // Validation, another operator's search, an unknown id.
         let bad = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [], duplicates: 'maybe' } });

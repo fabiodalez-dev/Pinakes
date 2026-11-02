@@ -16,6 +16,10 @@ final class UserImportJob
     public const REQUIRED_FIELDS = ['nome', 'email'];
     /** Error entries returned with a job (the web page shows as many). */
     public const MAX_ERRORS = 50;
+    /** What a preview cell under a password-like column becomes. */
+    public const REDACTED = '********';
+    /** Headers whose cells are never stored: a password column, in any of the app languages. */
+    private const SECRET_HEADER = '/\b(pass(word|wort|wd)?|pwd|kennwort|mot\s*de\s*passe|contrase(ñ|n)a|senha|wachtwoord|adgangskode|l(ö|o)senord|has(ł|l)o|parola\s*(d\W?ordine|chiave)|secret)\b/iu';
 
     private function __construct()
     {
@@ -88,6 +92,38 @@ final class UserImportJob
             'updated_at'       => (string) $job['updated_at'],
             'expires_at'       => (string) $job['expires_at'],
         ];
+    }
+
+    /**
+     * The upload preview as the job keeps it: the cells of a password column
+     * blanked out. Passwords are never imported (no target field), and the
+     * job state outlives the upload for 24 h, readable by every admin through
+     * GET /staff/user-imports/{id}; the header stays so the column still maps.
+     *
+     * @param list<string> $headers
+     * @param array<mixed> $preview
+     * @return list<list<string>>
+     */
+    public static function redactPreview(array $headers, array $preview): array
+    {
+        $secret = [];
+        foreach ($headers as $i => $header) {
+            if (preg_match(self::SECRET_HEADER, $header) === 1) {
+                $secret[$i] = true;
+            }
+        }
+        $rows = [];
+        foreach ($preview as $row) {
+            $cells = array_values(array_map('strval', (array) $row));
+            foreach ($cells as $i => $cell) {
+                if (isset($secret[$i]) && $cell !== '') {
+                    $cells[$i] = self::REDACTED;
+                }
+            }
+            $rows[] = $cells;
+        }
+
+        return $rows;
     }
 
     /**

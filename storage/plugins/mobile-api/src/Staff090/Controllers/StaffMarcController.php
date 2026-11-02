@@ -136,7 +136,11 @@ final class StaffMarcController
         $covers = filter_var($body['download_covers'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $supplierId = null;
         $rawSupplier = $body['supplier_id'] ?? null;
-        if (Features::enabled('suppliers') && is_scalar($rawSupplier) && trim((string) $rawSupplier) !== '') {
+        if (Features::enabled('suppliers') && $rawSupplier !== null && !is_scalar($rawSupplier)) {
+            // supplier_id[]=…: refused, not dropped (the books would come in
+            // without the supplier the operator chose).
+            $errors['supplier_id'] = __('Valore non valido.');
+        } elseif (Features::enabled('suppliers') && is_scalar($rawSupplier) && trim((string) $rawSupplier) !== '') {
             $supplierId = StaffPaging::id($rawSupplier);
             if ($supplierId <= 0) {
                 $errors['supplier_id'] = __('Valore non valido.');
@@ -251,36 +255,55 @@ final class StaffMarcController
                     return ResponseEnvelope::error($response, 'out_of_order', __('Blocco fuori sequenza: riprendi dalla riga indicata.'), 409, ['processed' => $processed]);
                 }
                 $chunkSize = (int) $job['chunk_size'];
-                $size = array_key_exists('size', $json) ? max(1, min($chunkSize, StaffPaging::id($json['size']))) : $chunkSize;
+                if (array_key_exists('size', $json) && (!is_int($json['size']) || $json['size'] < 1 || $json['size'] > $chunkSize)) {
+                    return $this->invalid($response, ['size' => __('Valore non valido.')]);
+                }
+                $size = array_key_exists('size', $json) ? (int) $json['size'] : $chunkSize;
 
                 $state = $job['state'];
-                $payload = ['staging_id' => (string) ($state['staging_id'] ?? ''), 'start' => $start, 'size' => $size];
+                $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];
                 $db = $this->db;
                 $this->store->setStatus((string) $job['id'], 'running');
-                $outcome = Delegation::run(static function () use ($db, $state, $payload): ResponseInterface {
-                    $_SESSION[self::SESSION_KEY] = $state;
+                // One record per web call, its position saved before the next:
+                // the web keeps a chunk's progress in the session only at its
+                // end, so a request that died mid-chunk would leave the job at
+                // the old position and a retry would import again the records
+                // without ISBN/EAN that the duplicate check cannot recognise.
+                for ($n = 0; $n < $size; $n++) {
+                    $payload = ['staging_id' => (string) ($state['staging_id'] ?? ''), 'start' => $processed, 'size' => 1];
+                    $outcome = Delegation::run(static function () use ($db, $state, $payload): ResponseInterface {
+                        $_SESSION[self::SESSION_KEY] = $state;
 
-                    return (new MarcImportController())->chunk(
-                        Delegation::request('POST', '/admin/books/import/marc/chunk', [], [], (string) json_encode($payload)),
-                        new SlimResponse(),
-                        $db
-                    );
-                });
-                $after = $outcome->session[self::SESSION_KEY] ?? null;
-                if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
-                    // The job stays resumable from where it was.
-                    if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? $after : null, $processed, 'ready', $job['summary'] ?? [])) {
+                        return (new MarcImportController())->chunk(
+                            Delegation::request('POST', '/admin/books/import/marc/chunk', [], [], (string) json_encode($payload)),
+                            new SlimResponse(),
+                            $db
+                        );
+                    });
+                    $after = $outcome->session[self::SESSION_KEY] ?? null;
+                    if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
+                        // The job stays resumable from the last record saved.
+                        if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? $after : null, $processed, 'ready', $summary)) {
+                            return $this->cancelledMeanwhile($response, $processed);
+                        }
+                        SecureLogger::warning('[MobileApi] staff MARC chunk failed with HTTP ' . $outcome->status);
+
+                        return ResponseEnvelope::error($response, 'internal_error', is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : __('Errore interno.'), 500);
+                    }
+                    // The MARC chunk answers the absolute position, not a delta.
+                    $processed = (int) ($outcome->json['processed'] ?? $processed);
+                    $complete = ($outcome->json['complete'] ?? false) === true;
+                    if (is_array($after)) {
+                        $state = $after;
+                    }
+                    $summary = $outcome->json;
+                    $last = $complete || $n + 1 >= $size;
+                    if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? $after : null, $processed, $complete ? 'completed' : ($last ? 'ready' : 'running'), $summary)) {
                         return $this->cancelledMeanwhile($response, $processed);
                     }
-                    SecureLogger::warning('[MobileApi] staff MARC chunk failed with HTTP ' . $outcome->status);
-
-                    return ResponseEnvelope::error($response, 'internal_error', is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : __('Errore interno.'), 500);
-                }
-                // The MARC chunk answers the absolute position, not a delta.
-                $done = (int) ($outcome->json['processed'] ?? $processed);
-                $complete = ($outcome->json['complete'] ?? false) === true;
-                if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? $after : null, $done, $complete ? 'completed' : 'ready', $outcome->json)) {
-                    return $this->cancelledMeanwhile($response, $done);
+                    if ($last) {
+                        break;
+                    }
                 }
 
                 return ResponseEnvelope::success($response, MarcJobMapper::map((array) $this->store->find((string) $job['id'], $userId, true)));

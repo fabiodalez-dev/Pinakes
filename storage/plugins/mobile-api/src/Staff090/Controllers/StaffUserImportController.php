@@ -94,10 +94,11 @@ final class StaffUserImportController
                 throw new \RuntimeException('user import state not captured');
             }
             $json = $outcome->json;
+            $headers = array_values(array_map('strval', (array) ($json['headers'] ?? [])));
             $state = [
                 'core'      => $core,
-                'headers'   => array_values(array_map('strval', (array) ($json['headers'] ?? []))),
-                'preview'   => array_values((array) ($json['preview'] ?? [])),
+                'headers'   => $headers,
+                'preview'   => UserImportJob::redactPreview($headers, (array) ($json['preview'] ?? [])),
                 'fields'    => (array) ($json['fields'] ?? []),
                 'suggested' => (array) ($json['mapping'] ?? []),
                 'notice'    => is_string($json['notice'] ?? null) ? $json['notice'] : null,
@@ -262,31 +263,48 @@ final class StaffUserImportController
                 if ($start !== $processed) {
                     return ResponseEnvelope::error($response, 'out_of_order', __('Blocco fuori sequenza: riprendi dalla riga indicata.'), 409, ['processed' => $processed]);
                 }
-                $payload = (string) json_encode(['preview_id' => (string) ($core['preview_id'] ?? ''), 'start' => $start]);
                 $db = $this->db;
                 $this->store->setStatus((string) $job['id'], 'running');
-                $outcome = Delegation::run(static function () use ($db, $core, $payload): ResponseInterface {
-                    $_SESSION['user_import'] = $core;
+                // One row per web call, its position saved before the next.
+                // The web keeps its position in the session row by row and
+                // PHP writes the session even when a request dies mid-block;
+                // here the job row is that session, and a block that died
+                // before its end would otherwise leave the job at the old
+                // position, so a retry would count the accounts it had just
+                // created as duplicates of themselves.
+                for ($n = 0; $n < UserImport::CHUNK_SIZE; $n++) {
+                    $payload = (string) json_encode(['preview_id' => (string) ($core['preview_id'] ?? ''), 'start' => $processed, 'size' => 1]);
+                    $outcome = Delegation::run(static function () use ($db, $core, $payload): ResponseInterface {
+                        $_SESSION['user_import'] = $core;
 
-                    return (new UserImportController())->chunk(
-                        Delegation::request('POST', '/admin/users/import/chunk', [], [], $payload),
-                        new SlimResponse(),
-                        $db
-                    );
-                });
-                $after = $outcome->session['user_import'] ?? null;
-                if ($outcome->status === 200 && ($outcome->json['success'] ?? false) === true && is_array($after)) {
+                        return (new UserImportController())->chunk(
+                            Delegation::request('POST', '/admin/users/import/chunk', [], [], $payload),
+                            new SlimResponse(),
+                            $db
+                        );
+                    });
+                    $after = $outcome->session['user_import'] ?? null;
+                    if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true || !is_array($after)) {
+                        break;
+                    }
+                    $core = $after;
                     $state['core'] = $after;
                     $done = ($outcome->json['done'] ?? false) === true;
-                    $now = (int) ($outcome->json['processed'] ?? $processed);
-                    if (!$this->store->saveChunk((string) $job['id'], $state, $now, $done ? 'completed' : 'ready', $outcome->json)) {
-                        return $this->cancelledMeanwhile($response, $now);
+                    $processed = (int) ($outcome->json['processed'] ?? $processed);
+                    $last = $done || $n + 1 >= UserImport::CHUNK_SIZE;
+                    if (!$this->store->saveChunk((string) $job['id'], $state, $processed, $done ? 'completed' : ($last ? 'ready' : 'running'), $outcome->json)) {
+                        return $this->cancelledMeanwhile($response, $processed);
                     }
-
-                    return ResponseEnvelope::success($response, UserImportJob::map((array) $this->find($request, $id)));
+                    $job = array_replace($job, ['state' => $state, 'processed' => $processed, 'summary' => $outcome->json]);
+                    if ($last) {
+                        return ResponseEnvelope::success($response, UserImportJob::map((array) $this->find($request, $id)));
+                    }
                 }
+                // A row the web did not complete: the rows before it stay
+                // saved, $job holds the job as the last of them left it.
+                $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];
                 if ($outcome->status === 403) {
-                    $this->store->saveChunk((string) $job['id'], null, $processed, 'ready', $job['summary'] ?? []);
+                    $this->store->saveChunk((string) $job['id'], null, $processed, 'ready', $summary);
 
                     return $this->forbidden($response);
                 }
@@ -298,12 +316,11 @@ final class StaffUserImportController
                     return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null);
                 }
                 // Not completed: keep the job resumable from where the web
-                // state says it is (a chunk that died mid-way still saved
-                // its position row by row).
+                // state says it is.
                 if (is_array($after)) {
                     $processed = (int) ($after['next'] ?? $processed);
                 }
-                if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? array_replace($state, ['core' => $after]) : null, $processed, 'ready', $job['summary'] ?? [])) {
+                if (!$this->store->saveChunk((string) $job['id'], is_array($after) ? array_replace($state, ['core' => $after]) : null, $processed, 'ready', $summary)) {
                     return $this->cancelledMeanwhile($response, $processed);
                 }
                 if ($outcome->status === 409 && isset($outcome->json['processed'])) {
@@ -337,6 +354,7 @@ final class StaffUserImportController
                 $job = (array) $this->find($request, $id);
                 $importId = UserImportJob::importId($job);
                 $warning = null;
+                $staged = null;
                 if (!in_array($job['status'], ['completed', 'cancelled'], true)) {
                     $state = $job['state'];
                     $core = is_array($state['core'] ?? null) ? $state['core'] : [];
@@ -367,11 +385,16 @@ final class StaffUserImportController
                         $warning = is_string($outcome->json['history_warning'] ?? null) ? $outcome->json['history_warning'] : null;
                         $state['core'] = ['cancelled' => true, 'preview_id' => (string) ($core['preview_id'] ?? '')];
                     } else {
-                        // Never started: only the staged upload to release.
-                        UserImportJob::unlinkUpload($core);
+                        // Never started: only the staged upload to release,
+                        // once the job is saved as cancelled (a failed save
+                        // leaves a job that can still start on its file).
+                        $staged = $core;
                     }
                     $summary = (is_array($job['summary'] ?? null) ? $job['summary'] : []) + ['import_id' => $importId !== '' ? $importId : null];
                     $this->save($job, $state, (int) $job['processed'], 'cancelled', $summary);
+                    if ($staged !== null) {
+                        UserImportJob::unlinkUpload($staged);
+                    }
                 }
 
                 return ResponseEnvelope::success($response, [

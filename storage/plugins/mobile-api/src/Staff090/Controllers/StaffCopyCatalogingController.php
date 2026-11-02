@@ -37,6 +37,8 @@ final class StaffCopyCatalogingController
     private const RESULTS_KEY = 'copy_cataloging_results';
     private const LAST_IMPORT_KEY = 'copy_cataloging_last_import';
     private const KEEP_SEARCHES = 5;
+    /** Imports of one search whose Idempotency-Key still replays (oldest dropped first). */
+    private const KEEP_IMPORTS = 20;
     private const MAX_IDS = 100;
 
     private ImportJobStore $store;
@@ -149,7 +151,7 @@ final class StaffCopyCatalogingController
                 is_array($stored) ? count($stored) : 0,
                 1,
                 false,
-                ['results' => is_array($stored) ? $stored : [], 'last_import' => null, 'search' => $payload]
+                ['results' => is_array($stored) ? $stored : [], 'imports' => [], 'search' => $payload]
             );
             $this->prune($userId);
             $job = (array) $this->store->find($id, $userId, true);
@@ -226,12 +228,20 @@ final class StaffCopyCatalogingController
                 return ResponseEnvelope::error($response, 'concurrent_retry', CirculationOutcome::message('concurrent_retry'), 409);
             }
             try {
-                $job = (array) $this->store->find($searchId, $userId, false);
+                $job = $this->store->find($searchId, $userId, false);
+                if ($job === null) {
+                    // Pruned or purged between the first read and the lock.
+                    return ResponseEnvelope::error($response, 'not_found', __('Ricerca non trovata: ripeti la ricerca.'), 404);
+                }
                 $state = $job['state'];
-                $last = is_array($state['last_import'] ?? null) ? $state['last_import'] : null;
                 // The plugin's own replay contract: the page's import token is
                 // the client's Idempotency-Key here (hashed to its alphabet).
+                // The web keeps only the last import of the page; every import
+                // of the search is kept here, so the retry of an earlier one
+                // whose answer was lost still replays after a later import.
                 $token = $key !== null ? hash('sha256', $key) : '';
+                $imports = self::imports($state);
+                $last = $token !== '' && is_array($imports[$token] ?? null) ? $imports[$token] : null;
                 $fingerprint = CopyCatalogingMapper::fingerprint($ids, (string) $mode, $covers);
                 $replayed = false;
                 if ($token !== '' && $last !== null && hash_equals((string) ($last['token'] ?? ''), $token)) {
@@ -259,12 +269,22 @@ final class StaffCopyCatalogingController
                 $result = CopyCatalogingMapper::importResult($outcome->json);
                 $newLast = $outcome->session[self::LAST_IMPORT_KEY] ?? null;
                 if (is_array($newLast) && !$replayed) {
-                    $state['last_import'] = $newLast;
+                    unset($imports[$token]);
+                    $imports[$token] = $newLast;
+                    $state['imports'] = array_slice($imports, -self::KEEP_IMPORTS, null, true);
+                    unset($state['last_import']);
                     $this->store->setStatus((string) $job['id'], 'running');
-                    $this->store->saveChunk((string) $job['id'], $state, (int) $job['processed'] + count($ids), 'ready', [
+                    $saved = $this->store->saveChunk((string) $job['id'], $state, (int) $job['processed'] + count($ids), 'ready', [
                         'imported' => $result['imported'], 'updated' => $result['updated'], 'skipped' => $result['skipped'],
                         'failed' => $result['failed'], 'covers' => $result['covers'], 'import_id' => $result['import_id'],
                     ]);
+                    if (!$saved) {
+                        // Only a search row gone meanwhile matches nothing
+                        // (the lock keeps prune() away, a DB error throws):
+                        // a retry then finds no search (404) and imports
+                        // nothing, so the books written are answered as such.
+                        SecureLogger::warning('[MobileApi] copy cataloging import: search ' . (string) $job['id'] . ' vanished, replay token not kept');
+                    }
                 }
 
                 return ResponseEnvelope::success($response, $result, $replayed ? ['replayed' => true] : []);
@@ -297,14 +317,49 @@ final class StaffCopyCatalogingController
             $old[] = (string) $row[0];
         }
         $stmt->close();
+        $locks = new StaffIdempotency($this->db);
         foreach ($old as $id) {
-            $delete = $this->db->prepare('DELETE FROM mobile_import_jobs WHERE id = ? AND kind = ?');
-            if ($delete !== false) {
-                $delete->bind_param('ss', $id, $kind);
-                $delete->execute();
-                $delete->close();
+            // An import of that search may be running: it holds the lock and
+            // must still find its row to store the replay token. Skipped
+            // now, the search goes with a later prune or its expiry.
+            $lock = $locks->lockName('copycat', $id);
+            if (!$locks->lock($lock, 0)) {
+                continue;
+            }
+            try {
+                $delete = $this->db->prepare('DELETE FROM mobile_import_jobs WHERE id = ? AND kind = ?');
+                if ($delete !== false) {
+                    $delete->bind_param('ss', $id, $kind);
+                    $delete->execute();
+                    $delete->close();
+                }
+            } finally {
+                $locks->unlock($lock);
             }
         }
+    }
+
+    /**
+     * The replayable imports of a search, by token (searches stored before
+     * the list kept a single `last_import`).
+     *
+     * @param array<string, mixed> $state
+     * @return array<string, array<string, mixed>>
+     */
+    private static function imports(array $state): array
+    {
+        $imports = [];
+        foreach ((array) ($state['imports'] ?? []) as $token => $entry) {
+            if (is_string($token) && is_array($entry)) {
+                $imports[$token] = $entry;
+            }
+        }
+        $legacy = $state['last_import'] ?? null;
+        if (is_array($legacy) && is_string($legacy['token'] ?? null) && $legacy['token'] !== '' && !isset($imports[$legacy['token']])) {
+            $imports = [$legacy['token'] => $legacy] + $imports;
+        }
+
+        return $imports;
     }
 
     private static function pluginActive(mysqli $db): bool

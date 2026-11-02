@@ -494,6 +494,13 @@ test.describe('Patron CSV import', () => {
         expect(job.headers).toEqual(['nome', 'cognome', 'email', 'password', 'codice_tessera', 'telefono']);
         expect(job.mapping).toEqual(['nome', 'cognome', 'email', '', 'codice_tessera', 'telefono']);
         expect(job.preview).toHaveLength(5);
+        // The password cells never reach the job (kept 24 h, every admin can
+        // read it); the header stays, the other cells are previewed as sent.
+        expect(job.preview.map((row) => row[3])).toEqual(Array(5).fill('********'));
+        expect(job.preview[0].slice(0, 3)).toEqual(['Anna', 'Import', email('imp_a')]);
+        const storedState = F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${job.id}'`);
+        expect(storedState).not.toContain('Segreta123!');
+        expect(storedState).not.toContain('Segreta456!');
         expect(job.fields.filter((f) => f.required).map((f) => f.key)).toEqual(['nome', 'email']);
         expect(job.fields.map((f) => f.key)).not.toContain('password');
         expect(fs.existsSync(stagedFile(job.id))).toBe(true);
