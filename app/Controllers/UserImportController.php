@@ -732,9 +732,16 @@ class UserImportController
         // The row is gone (file swept) or changed: what only the row held
         // (patron type, custom fields) cannot be assigned, and a new import
         // would skip the e-mail as a duplicate. The report says so.
-        $rowOnly = array_filter((array) ($state['mapping'] ?? []), static fn ($field): bool => $field === 'tipologia' || (is_string($field) && str_starts_with($field, 'custom:')));
-        if (!$rowRead && $rowOnly !== []) {
-            self::report($state, ['line' => $next + 2, 'title' => $label, 'message' => __('Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.'), 'type' => 'warning']);
+        $mapped = (array) ($state['mapping'] ?? []);
+        $hasType = in_array('tipologia', $mapped, true);
+        $hasCustom = array_filter($mapped, static fn ($field): bool => is_string($field) && str_starts_with($field, 'custom:')) !== [];
+        if (!$rowRead && ($hasType || $hasCustom)) {
+            $message = match (true) {
+                $hasType && $hasCustom => __('Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.'),
+                $hasType => __('Utente importato, ma la sua riga del file non era più leggibile: la tipologia lettore non è stata assegnata.'),
+                default => __('Utente importato, ma la sua riga del file non era più leggibile: i campi personalizzati non sono stati assegnati.'),
+            };
+            self::report($state, ['line' => $next + 2, 'title' => $label, 'message' => $message, 'type' => 'warning']);
         }
         $state['pending'] = $pending; // read by the invitation step
         $state['created'] = (int) ($state['created'] ?? 0) + 1;

@@ -8721,6 +8721,8 @@
   "Utente importato, ma l'invito non è stato inviato.": "Utilisateur importé, mais l'invitation n'a pas été envoyée.",
   "Utente importato, ma i campi personalizzati non sono stati salvati.": "Utilisateur importé, mais les champs personnalisés n'ont pas été enregistrés.",
   "Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.": "Utilisateur importé, mais sa ligne du fichier n'était plus lisible : le type de lecteur et les champs personnalisés n'ont pas été attribués.",
+  "Utente importato, ma la sua riga del file non era più leggibile: la tipologia lettore non è stata assegnata.": "Utilisateur importé, mais sa ligne du fichier n'était plus lisible : le type de lecteur n'a pas été attribué.",
+  "Utente importato, ma la sua riga del file non era più leggibile: i campi personalizzati non sono stati assegnati.": "Utilisateur importé, mais sa ligne du fichier n'était plus lisible : les champs personnalisés n'ont pas été attribués.",
   "Utente importato, ma la tipologia lettore non è stata assegnata.": "Utilisateur importé, mais le type de lecteur n'a pas été attribué.",
   "Tessere della biblioteca": "Cartes de la bibliothèque",
   "Tipologia lettore (codice o nome)": "Type de lecteur (code ou nom)",

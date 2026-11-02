@@ -688,7 +688,9 @@ try {
     $_SESSION['user_import'] = ['total' => 2, 'columns' => 4, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia'], 'pending' => ['next' => 0, 'user_id' => $vanishId]] + $running;
     [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
     $closedWarnings = array_filter((array) ($json['closed']['errors'] ?? []), static fn ($e): bool => is_array($e) && ($e['type'] ?? '') === 'warning' && ($e['line'] ?? 0) === 2);
-    $check(count($closedWarnings) === 1, 'a settled account whose row is no longer readable gets a warning in the report');
+    $typeOnly = __('Utente importato, ma la sua riga del file non era più leggibile: la tipologia lettore non è stata assegnata.');
+    $check(count($closedWarnings) === 1 && (string) (reset($closedWarnings)['message'] ?? '') === $typeOnly,
+        'a settled account whose row is no longer readable gets a warning naming only the patron type it mapped');
     $vanishLog = (string) ($json['import_id'] ?? '');
     $importLogIds[] = $vanishLog;
     $logged = $vanishLog !== '' ? $db->query("SELECT imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($vanishLog) . "'")->fetch_assoc() : null;

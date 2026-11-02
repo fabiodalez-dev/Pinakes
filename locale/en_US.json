@@ -8721,6 +8721,8 @@
   "Utente importato, ma l'invito non è stato inviato.": "User imported, but the invitation was not sent.",
   "Utente importato, ma i campi personalizzati non sono stati salvati.": "User imported, but the custom fields were not saved.",
   "Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.": "User imported, but their row of the file could no longer be read: the patron type and custom fields were not assigned.",
+  "Utente importato, ma la sua riga del file non era più leggibile: la tipologia lettore non è stata assegnata.": "User imported, but their row of the file could no longer be read: the patron type was not assigned.",
+  "Utente importato, ma la sua riga del file non era più leggibile: i campi personalizzati non sono stati assegnati.": "User imported, but their row of the file could no longer be read: the custom fields were not assigned.",
   "Utente importato, ma la tipologia lettore non è stata assegnata.": "User imported, but the patron type was not assigned.",
   "Tessere della biblioteca": "Library cards",
   "Tipologia lettore (codice o nome)": "Patron type (code or name)",
