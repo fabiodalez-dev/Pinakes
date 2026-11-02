@@ -696,6 +696,20 @@ try {
     $importLogIds[] = $vanishLog;
     $logged = $vanishLog !== '' ? $db->query("SELECT imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($vanishLog) . "'")->fetch_assoc() : null;
     $check($status === 409 && ($json['created'] ?? null) === 1 && is_array($logged) && (int) $logged['imported'] === 1, 'a vanished staged file closes the run with the half-done account counted');
+    // The other two wordings: custom fields only, then type and custom fields.
+    $customCases = [
+        'e2' => [[0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'custom:1'], __('Utente importato, ma la sua riga del file non era più leggibile: i campi personalizzati non sono stati assegnati.'), 'only the custom fields'],
+        'e3' => [[0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia', 4 => 'custom:1'], __('Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.'), 'the patron type and the custom fields'],
+    ];
+    foreach ($customCases as $key => [$caseMapping, $caseMessage, $caseLabel]) {
+        $caseId = $ckAccount($key);
+        $_SESSION['user_import'] = ['total' => 2, 'columns' => count($caseMapping), 'mapping' => $caseMapping, 'pending' => ['next' => 0, 'user_id' => $caseId]] + $running;
+        [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+        $importLogIds[] = (string) ($json['import_id'] ?? '');
+        $caseWarnings = array_filter((array) ($json['closed']['errors'] ?? []), static fn ($e): bool => is_array($e) && ($e['type'] ?? '') === 'warning' && ($e['line'] ?? 0) === 2);
+        $check($status === 409 && count($caseWarnings) === 1 && (string) (reset($caseWarnings)['message'] ?? '') === $caseMessage,
+            "a settled account whose row is no longer readable gets a warning naming {$caseLabel} it mapped");
+    }
     // A marker naming another row, or no account, settles nothing.
     file_put_contents($staged, 'x');
     $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 0, 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $vanishId]] + $running;

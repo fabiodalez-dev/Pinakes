@@ -145,7 +145,7 @@ final class StaffStocktakeController
             // never listed twice nor skipped (within the bounds the snapshot
             // documents, which keep the cursor short). `f` is the status filter the cursor was written for.
             $cursor = $this->cursor($request);
-            $snapshot = is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null, $cursor['b'] ?? null) : null;
+            $snapshot = is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null, $cursor['b'] ?? null, $cursor['t'] ?? null) : null;
             if ($this->hasCursor($request) && ($snapshot === null || !is_int($cursor['o'] ?? null) || $cursor['o'] < 1 || ($cursor['f'] ?? null) !== $statusCode)) {
                 // A cursor that does not carry its snapshot would page a new
                 // list at an offset of the old one: refused, never guessed.
