@@ -329,10 +329,18 @@ try {
     $db->query("INSERT INTO inventario_sessioni (id, nome, stato, aperta_il) VALUES ({$gap}, 'ZZST late {$run}', 'aperta', NOW())");
     $sessionIds[] = $gap;
     $check($gap < $gapSnapshot['u'] && $service->sessionIds(null, 500, 0, $gapSnapshot) === $gapList && !in_array($gap, $service->sessionIds('aperta', 500, 0, $gapSnapshot), true) && in_array($gap, $service->sessionIds('aperta', 500), true), 'a session committed after the snapshot with a lower id is not in the pinned list');
+    // ...and stays out once it is closed before the next page: it was not
+    // visible to the snapshot, so it never joins the pinned history either.
+    $db->query("UPDATE inventario_sessioni SET stato = 'annullata', chiusa_il = NOW() + INTERVAL 1 SECOND WHERE id = {$gap}");
+    $check($service->sessionIds(null, 500, 0, $gapSnapshot) === $gapList && $service->sessionCount(null, $gapSnapshot) === count($gapList) && !in_array($gap, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a late session closed between two pages does not join the pinned history');
+    // A session closed before the snapshot is still in the pinned history.
+    $check(in_array($second, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a session closed before the snapshot is in the pinned history');
     // The snapshot a cursor carries back is checked before it reaches the SQL.
-    $check(StocktakeService::snapshotFrom(5, '1,3') === ['u' => 5, 'a' => [1, 3]] && StocktakeService::snapshotFrom(5, '') === ['u' => 5, 'a' => []]
-        && StocktakeService::snapshotFrom(5, '1,x') === null && StocktakeService::snapshotFrom(5, "1) OR (1=1") === null && StocktakeService::snapshotFrom(5, '9') === null && StocktakeService::snapshotFrom('5', '1') === null
-        && StocktakeService::snapshotFrom(5, StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4]])['a']) === ['u' => 5, 'a' => [2, 4]], 'snapshotFrom() accepts only the ids snapshotToCursor() writes');
+    $t = '2026-11-02 10:00:00';
+    $check(StocktakeService::snapshotFrom(5, '1,3', $t) === ['u' => 5, 'a' => [1, 3], 't' => $t] && StocktakeService::snapshotFrom(5, '', $t) === ['u' => 5, 'a' => [], 't' => $t]
+        && StocktakeService::snapshotFrom(5, '1,x', $t) === null && StocktakeService::snapshotFrom(5, "1) OR (1=1", $t) === null && StocktakeService::snapshotFrom(5, '9', $t) === null && StocktakeService::snapshotFrom('5', '1', $t) === null
+        && StocktakeService::snapshotFrom(5, '1', null) === null && StocktakeService::snapshotFrom(5, '1', "2026-11-02 10:00:00' OR '1'='1") === null && StocktakeService::snapshotFrom(5, '1', '2026-11-02') === null
+        && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 't' => $t]), 1))) === ['u' => 5, 'a' => [2, 4], 't' => $t], 'snapshotFrom() accepts only the ids and the time snapshotToCursor() writes');
 
     // The app pages through every session, not the history listSessions() trims.
     $sessionTotal = $service->sessionCount(null);

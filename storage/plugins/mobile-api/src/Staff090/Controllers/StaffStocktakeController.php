@@ -144,7 +144,7 @@ final class StaffStocktakeController
             // session opened, closed or cancelled while the operator pages is
             // never listed twice nor skipped.
             $cursor = $this->cursor($request);
-            $snapshot = (is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null) : null)
+            $snapshot = (is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['t'] ?? null) : null)
                 ?? $this->service->sessionSnapshot();
             $total = $this->service->sessionCount($status, $snapshot);
             $items = [];
