@@ -9307,5 +9307,7 @@
   "Puoi importare al massimo %d record alla volta.": "Vous pouvez importer au maximum %d notices à la fois.",
   "Ricerca non trovata: ripeti la ricerca.": "Recherche introuvable : relancez la recherche.",
   "La colonna \"%s\" contiene password: non può essere importata.": "La colonne « %s » contient des mots de passe : elle ne peut pas être importée.",
-  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Le résultat de cette importation n'a pas été enregistré : vérifiez le catalogue avant d'importer à nouveau, avec une nouvelle clé."
+  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Le résultat de cette importation n'a pas été enregistré : vérifiez le catalogue avant d'importer à nouveau, avec une nouvelle clé.",
+  "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "La progression de l'importation n'a pas pu être enregistrée : la ligne n'a pas été comptée, réessayez.",
+  "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Utilisateur importé, mais l'invitation a peut-être déjà été envoyée : si elle n'est pas arrivée, renvoyez-la depuis la fiche de l'utilisateur."
 }

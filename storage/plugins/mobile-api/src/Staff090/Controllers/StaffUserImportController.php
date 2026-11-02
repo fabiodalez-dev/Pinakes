@@ -294,9 +294,10 @@ final class StaffUserImportController
                     $payload = (string) json_encode(['preview_id' => (string) ($core['preview_id'] ?? ''), 'start' => $processed, 'size' => 1]);
                     // The web marks the account a row inserts in its session,
                     // which dies with this request: the marker is stored with
-                    // the job in the transaction of the insert, so the retry
-                    // of a row whose account was inserted but not completed
-                    // finishes that account instead of counting a duplicate.
+                    // the job in the transaction of the insert (and again
+                    // before the invitation), so the retry of a row whose
+                    // account was inserted but not completed finishes that
+                    // account instead of counting a duplicate.
                     $store = $this->store;
                     $jobId = (string) $job['id'];
                     $base = $state;
@@ -310,7 +311,7 @@ final class StaffUserImportController
                     $outcome = Delegation::run(static function () use ($db, $core, $payload, $persist): ResponseInterface {
                         $_SESSION['user_import'] = $core;
 
-                        return (new UserImportController())->onRowInserted($persist)->chunk(
+                        return (new UserImportController())->onRowCheckpoint($persist)->chunk(
                             Delegation::request('POST', '/admin/users/import/chunk', [], [], $payload),
                             new SlimResponse(),
                             $db
@@ -346,7 +347,7 @@ final class StaffUserImportController
                     // import history as far as it got.
                     $importId = is_string($outcome->json['import_id']) ? $outcome->json['import_id'] : null;
 
-                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null);
+                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null);
                 }
                 // Not completed: keep the job resumable from where the web
                 // state says it is.
@@ -388,6 +389,7 @@ final class StaffUserImportController
                 $importId = UserImportJob::importId($job);
                 $warning = null;
                 $staged = null;
+                $closedCreated = null;
                 if (!in_array($job['status'], ['completed', 'cancelled'], true)) {
                     $state = $job['state'];
                     $core = is_array($state['core'] ?? null) ? $state['core'] : [];
@@ -416,6 +418,8 @@ final class StaffUserImportController
                         }
                         $importId = is_string($outcome->json['import_id'] ?? null) ? $outcome->json['import_id'] : null;
                         $warning = is_string($outcome->json['history_warning'] ?? null) ? $outcome->json['history_warning'] : null;
+                        // The count after the web settled a row left half-done.
+                        $closedCreated = is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null;
                         $state['core'] = ['cancelled' => true, 'preview_id' => (string) ($core['preview_id'] ?? '')];
                     } else {
                         // Never started: only the staged upload to release,
@@ -424,6 +428,9 @@ final class StaffUserImportController
                         $staged = $core;
                     }
                     $summary = (is_array($job['summary'] ?? null) ? $job['summary'] : []) + ['import_id' => $importId !== '' ? $importId : null];
+                    if ($closedCreated !== null) {
+                        $summary['created'] = $closedCreated;
+                    }
                     $this->save($job, $state, (int) $job['processed'], 'cancelled', $summary);
                     if ($staged !== null) {
                         UserImportJob::unlinkUpload($staged);
@@ -545,11 +552,15 @@ final class StaffUserImportController
      *
      * @param array<string, mixed> $job
      */
-    private function fileMissing(ResponseInterface $response, array $job, ?string $importId, ?string $message): ResponseInterface
+    private function fileMissing(ResponseInterface $response, array $job, ?string $importId, ?string $message, ?int $created = null): ResponseInterface
     {
         $state = $job['state'];
         $state['core'] = ['failed' => true, 'preview_id' => (string) ($state['core']['preview_id'] ?? '')];
         $summary = (is_array($job['summary'] ?? null) ? $job['summary'] : []) + ['import_id' => $importId !== '' ? $importId : null];
+        if ($created !== null) {
+            // A row left half-done was settled when the web closed the run.
+            $summary['created'] = $created;
+        }
         $this->save($job, $state, (int) $job['processed'], 'failed', $summary);
 
         return ResponseEnvelope::error(

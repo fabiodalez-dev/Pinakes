@@ -472,7 +472,7 @@ test.describe('MARC import', () => {
         fs.writeFileSync(staged, original);
         const resumed = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 1 } });
         expect(resumed.status, resumed.text).toBe(200);
-        expect(resumed.json.data).toMatchObject({ status: 'completed', complete: true, processed: 3, imported: 3, failed: 0 });
+        expect(resumed.json.data).toMatchObject({ status: 'completed', complete: true, processed: 3, imported: 3, skipped: 0, failed: 0 });
         expect(F.dbInt(`SELECT COUNT(*) FROM libri WHERE titolo IN ('Libro MARC ${RUN} 07', 'Libro MARC ${RUN} 08', 'Libro MARC ${RUN} 09') AND deleted_at IS NULL`)).toBe(3);
         const cancel = await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff });
         expect(cancel.status, cancel.text).toBe(200);
@@ -595,9 +595,11 @@ test.describe('copy cataloguing', () => {
         const jobState = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${search.search_id}'`));
         jobState.imports[sha(pendingKey)] = { token: sha(pendingKey), fingerprint: sha(JSON.stringify([[first.id], 'overwrite', false])), pending: true };
         F.dbExec(`UPDATE mobile_import_jobs SET state=${F.sqlStr(JSON.stringify(jobState))} WHERE id='${search.search_id}'`);
+        // A sentinel the overwrite would replace: still there after the 409.
+        F.dbExec(`UPDATE libri SET sottotitolo='cambiato-pending' WHERE id=${newId}`);
         const unknown = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [first.id], duplicates: 'overwrite', covers: false }, extraHeaders: { 'Idempotency-Key': pendingKey } });
         expect([unknown.status, unknown.json.error.code], unknown.text).toEqual([409, 'import_outcome_unknown']);
-        expect(F.dbScalar(`SELECT sottotitolo FROM libri WHERE id=${newId}`)).not.toBe('cambiato-pending');
+        expect(F.dbScalar(`SELECT sottotitolo FROM libri WHERE id=${newId}`)).toBe('cambiato-pending');
 
         // Validation, another operator's search, an unknown id.
         let bad = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [], duplicates: 'maybe' } });

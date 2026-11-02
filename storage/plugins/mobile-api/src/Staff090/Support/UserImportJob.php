@@ -135,11 +135,14 @@ final class UserImportJob
 
     /**
      * Whether a CSV header names a password (or another secret), on the
-     * normalised header: lowercase, `_`, `-` and digits as spaces.
+     * normalised header: camelCase split, lowercase, `_`, `-` and digits as
+     * spaces.
      */
     public static function isSecretHeader(string $header): bool
     {
-        $normalised = (string) preg_replace('/[\s_\-\d]+/u', ' ', mb_strtolower($header));
+        // passwordHash → password Hash: camelCase words apart before lowercasing.
+        $spaced = (string) preg_replace('/(?<=\p{Ll})(?=\p{Lu})/u', ' ', $header);
+        $normalised = (string) preg_replace('/[\s_\-\d]+/u', ' ', mb_strtolower($spaced));
 
         return preg_match(self::SECRET_HEADER, $normalised) === 1;
     }

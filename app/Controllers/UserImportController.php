@@ -54,8 +54,13 @@ class UserImportController
     /** Upload form values of the separator choice; anything else means "detect". */
     private const DELIMITERS = [';' => ';', ',' => ',', 'tab' => "\t"];
 
-    /** @var (\Closure(array<string, mixed>): void)|null see onRowInserted() */
-    private ?\Closure $rowInserted = null;
+    /** Code of the exception a failed row checkpoint raises (see onRowCheckpoint()). */
+    public const CHECKPOINT_FAILED = 7301;
+
+    /** @var (\Closure(array<string, mixed>): void)|null see onRowCheckpoint() */
+    private ?\Closure $rowCheckpoint = null;
+    /** Accounts counted by the run closeSessionImport() closed last (null: none). */
+    private ?int $closedCreated = null;
 
     public function page(Request $request, Response $response, mysqli $db): Response
     {
@@ -195,10 +200,16 @@ class UserImportController
             return $this->json($response, ['success' => false, 'error' => __('File CSV vuoto o formato non valido')], 400);
         }
 
-        $fields = $this->targetFields($db);
-        // '' = the run this upload replaces was closed but its history entry
-        // could not be written: said apart from the conversion notice.
-        $closedId = $this->closeSessionImport($db);
+        try {
+            $fields = $this->targetFields($db);
+            // '' = the run this upload replaces was closed but its history entry
+            // could not be written: said apart from the conversion notice.
+            $closedId = $this->closeSessionImport($db);
+        } catch (\Throwable $e) {
+            // No session state points to the copy yet (patrons' personal data).
+            @unlink($saved);
+            throw $e;
+        }
         // Start, every block and "Annulla import" name the preview they come
         // from: an upload in another tab replaces this state, and a page
         // still showing the earlier preview must not apply its mapping to
@@ -337,6 +348,7 @@ class UserImportController
                     ? __('Il file dell\'import non è più disponibile e lo storico import non è stato aggiornato: gli utenti già creati restano. Carica di nuovo il file per completarlo.')
                     : __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
                 'import_id' => $importId,
+                'created' => $this->closedCreated,
             ], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
@@ -376,10 +388,13 @@ class UserImportController
 
         $line = $start + 2; // header is line 1
         $processed = 0;
+        $halted = null;
         while ($processed < $size && ($row = self::nextRecord($handle, $delimiter)) !== null) {
             $offset = (int) ftell($handle);
             $processed++;
             $label = '';
+            // What the row may change, to put back when its checkpoint fails.
+            $rowStart = $state;
             try {
                 $parsed = UserImport::normalizeRow($row, $state['mapping'], $customDefinitions, $locales, $visible);
                 $record = $parsed['record'];
@@ -423,7 +438,10 @@ class UserImportController
                 $this->completeImportedUser($db, $state, $userId, $line, $label, $parsed, $patronTypes, $notifier);
             } catch (\Throwable $e) {
                 $field = $e instanceof \mysqli_sql_exception ? \App\Support\UniqueViolation::fieldFor($e) : 'other';
-                if ($field === 'email' || $field === 'codice_tessera' || $field === 'cod_fiscale') {
+                if ($e instanceof \RuntimeException && $e->getCode() === self::CHECKPOINT_FAILED) {
+                    // Not a failed row: its state could not be stored.
+                    $halted = $e;
+                } elseif ($field === 'email' || $field === 'codice_tessera' || $field === 'cod_fiscale') {
                     $this->duplicate($state, $line, $label, match ($field) {
                         'email' => __('Email già registrata'),
                         'codice_tessera' => __('Codice tessera già assegnato'),
@@ -435,14 +453,31 @@ class UserImportController
                 }
             } finally {
                 $line++;
-                unset($state['pending']);
-                // Position and byte offset move together, row by row.
-                $state['next'] = $start + $processed;
-                $state['offset'] = $offset;
-                $state['active_at'] = time();
+                if ($halted !== null) {
+                    // The row stays the next one, uncounted; an account it
+                    // inserted keeps its marker, for the resume.
+                    $pending = $state['pending'] ?? null;
+                    $state = $rowStart;
+                    if (is_array($pending)) {
+                        $state['pending'] = $pending;
+                    }
+                } else {
+                    unset($state['pending']);
+                    // Position and byte offset move together, row by row.
+                    $state['next'] = $start + $processed;
+                    $state['offset'] = $offset;
+                    $state['active_at'] = time();
+                }
+            }
+            if ($halted !== null) {
+                break;
             }
         }
         fclose($handle);
+        if ($halted !== null) {
+            SecureLogger::error('[UserImport] block stopped: ' . $halted->getMessage(), ['next' => (int) $state['next']]);
+            return $this->json($response, ['success' => false, 'error' => __('Impossibile salvare l\'avanzamento dell\'importazione: la riga non è stata contata, riprova.'), 'processed' => (int) $state['next']], 500);
+        }
 
         $state['next'] = $start + $processed;
         $done = $processed === 0 || $state['next'] >= $total;
@@ -532,6 +567,7 @@ class UserImportController
         return $this->json($response, [
             'success' => true,
             'import_id' => $importId,
+            'created' => $this->closedCreated,
             'history_warning' => $importId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
         ]);
     }
@@ -597,6 +633,8 @@ class UserImportController
         $state = $_SESSION[self::SESSION_KEY] ?? null;
         $importId = null;
         if (is_array($state) && !empty($state['started']) && empty($state['finished'])) {
+            $this->settlePending($db, $state);
+            $this->closedCreated = (int) ($state['created'] ?? 0);
             $importId = $this->finish($db, $state, (int) ($state['next'] ?? 0));
             SecureLogger::info('User import closed before its end', [
                 'processed' => (int) ($state['next'] ?? 0),
@@ -608,6 +646,62 @@ class UserImportController
         $this->discardSessionFile();
         unset($_SESSION[self::SESSION_KEY]);
         return $importId;
+    }
+
+    /**
+     * The account a request inserted before dying, when the run is closed
+     * instead of resumed (cancel, vanished file, a new upload): completed
+     * and counted as created, its row passed. The row itself (custom fields,
+     * patron type) is read again when the staged file is still there; the
+     * steps that need nothing from it (card expiry, invitation) run anyway.
+     * The account is never deleted: it may already be in use.
+     *
+     * @param array<string, mixed> $state
+     */
+    private function settlePending(mysqli $db, array &$state): void
+    {
+        $pending = $state['pending'] ?? null;
+        unset($state['pending']);
+        $next = (int) ($state['next'] ?? 0);
+        if (!is_array($pending) || ($pending['next'] ?? null) !== $next || !is_int($pending['user_id'] ?? null)) {
+            return;
+        }
+        $userId = $pending['user_id'];
+        $stmt = $db->prepare('SELECT nome, cognome, email, data_scadenza_tessera FROM utenti WHERE id = ?');
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $account = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!is_array($account)) {
+            return;
+        }
+        $parsed = ['record' => ['data_scadenza_tessera' => $account['data_scadenza_tessera']], 'custom' => [], 'tipologia' => null];
+        $file = (string) ($state['file'] ?? '');
+        $handle = is_int($state['offset'] ?? null) && is_file($file) ? @fopen($file, 'rb') : false;
+        if ($handle !== false) {
+            fseek($handle, (int) $state['offset']);
+            $row = self::nextRecord($handle, (string) $state['delimiter']);
+            fclose($handle);
+            if ($row !== null) {
+                $locales = array_map('strval', array_keys(\App\Support\I18n::getAvailableLocales()));
+                $visible = ['sesso' => RegistrationFields::isVisible('sesso'), 'cod_fiscale' => RegistrationFields::isVisible('cod_fiscale')];
+                $read = UserImport::normalizeRow($row, (array) $state['mapping'], RegistrationFields::definitions($db), $locales, $visible);
+                // Only the row that made this account, not whatever the
+                // offset points to now.
+                if ($read['error'] === null && strcasecmp((string) ($read['record']['email'] ?? ''), (string) $account['email']) === 0) {
+                    $parsed = $read;
+                }
+            }
+        }
+        $label = $this->text(trim((string) $account['nome'] . ' ' . (string) $account['cognome'])) ?: (string) $account['email'];
+        $state['pending'] = $pending; // read by the invitation step
+        $state['created'] = (int) ($state['created'] ?? 0) + 1;
+        $this->completeImportedUser($db, $state, $userId, $next + 2, $label, $parsed, new PatronTypeImport($db), !empty($state['send_invites']) ? new NotificationService($db) : null);
+        unset($state['pending']);
+        $state['next'] = $next + 1;
     }
 
     /** Mark the staged file of the session's interrupted run as in use, so the sweep keeps it. */
@@ -705,17 +799,33 @@ class UserImportController
     }
 
     /**
-     * Called with the import state right after an account is inserted, inside
-     * the transaction of the insert: a caller that keeps the state elsewhere
-     * than the session (the Mobile API job) stores the marker of the new
-     * account with it, atomically. A listener that throws undoes the insert.
+     * Called with the import state at each checkpoint of a row that inserts
+     * an account: right after the insert, inside its transaction, and before
+     * the invitation is sent. A caller that keeps the state elsewhere than
+     * the session (the Mobile API job) stores it there. A listener that
+     * throws stops the block on that row: the insert is undone (first
+     * checkpoint) or the account is left to the resume (second), and the row
+     * is neither counted nor passed.
      *
      * @param callable(array<string, mixed>): void $listener
      */
-    public function onRowInserted(callable $listener): self
+    public function onRowCheckpoint(callable $listener): self
     {
-        $this->rowInserted = \Closure::fromCallable($listener);
+        $this->rowCheckpoint = \Closure::fromCallable($listener);
         return $this;
+    }
+
+    /** @param array<string, mixed> $state */
+    private function checkpoint(array $state): void
+    {
+        if ($this->rowCheckpoint === null) {
+            return;
+        }
+        try {
+            ($this->rowCheckpoint)($state);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('user import row checkpoint failed: ' . $e->getMessage(), self::CHECKPOINT_FAILED, $e);
+        }
     }
 
     /**
@@ -729,7 +839,7 @@ class UserImportController
      */
     private function insertAccount(mysqli $db, array $record, array &$state, int $row): int
     {
-        if ($this->rowInserted === null) {
+        if ($this->rowCheckpoint === null) {
             $userId = $this->insertUser($db, $record);
             $state['pending'] = ['next' => $row, 'user_id' => $userId];
             return $userId;
@@ -742,7 +852,7 @@ class UserImportController
         try {
             $userId = $this->insertUser($db, $record);
             $state['pending'] = ['next' => $row, 'user_id' => $userId];
-            ($this->rowInserted)($state);
+            $this->checkpoint($state);
             if ($own) {
                 $db->commit();
             }
@@ -914,7 +1024,15 @@ class UserImportController
                 $warn(__('Utente importato, ma la scadenza della tessera non è stata calcolata.'), $e);
             }
         }
-        if ($notifier !== null) {
+        if ($notifier !== null && is_array($state['pending'] ?? null) && !empty($state['pending']['invited'])) {
+            // Resumed after the invitation step began: it may have gone out,
+            // and a new token would void the link already sent.
+            self::report($state, ['line' => $line, 'title' => $label, 'message' => __('Utente importato, ma l\'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell\'utente.'), 'type' => 'email']);
+        } elseif ($notifier !== null) {
+            if (is_array($state['pending'] ?? null)) {
+                $state['pending']['invited'] = true;
+                $this->checkpoint($state);
+            }
             try {
                 $token = PasswordSetupToken::issue($db, $userId);
                 $sent = $token !== null && $notifier->sendUserPasswordSetup($userId, $token);

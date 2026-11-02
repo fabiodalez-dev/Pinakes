@@ -9307,5 +9307,7 @@
   "Puoi importare al massimo %d record alla volta.": "You can import at most %d records at a time.",
   "Ricerca non trovata: ripeti la ricerca.": "Search not found: search again.",
   "La colonna \"%s\" contiene password: non può essere importata.": "The column \"%s\" holds passwords: it cannot be imported.",
-  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "The outcome of this import was not saved: check the catalogue before importing again, with a new key."
+  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "The outcome of this import was not saved: check the catalogue before importing again, with a new key.",
+  "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "The import progress could not be saved: the row was not counted, try again.",
+  "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "User imported, but the invitation may already have been sent: if it did not arrive, send it again from the user record."
 }
