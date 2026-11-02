@@ -44,6 +44,12 @@ final class StaffCopyCatalogingController
      * key is refused instead of dropping one: the job state stays bounded.
      */
     public const MAX_IMPORTS = 200;
+    /**
+     * Bytes of stored job state past which a new import is refused too: the
+     * replays keep titles and messages, and the state column is a MEDIUMTEXT
+     * (16 MB). The margin leaves room for the import being written.
+     */
+    public const MAX_STATE_BYTES = 12_000_000;
 
     private ImportJobStore $store;
 
@@ -264,7 +270,7 @@ final class StaffCopyCatalogingController
                     // without ISBN/EAN/author a second time.
                     return ResponseEnvelope::error($response, 'import_outcome_unknown', __('L\'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.'), 409);
                 }
-                if ($token !== '' && !$replayed && count($imports) >= self::MAX_IMPORTS) {
+                if ($token !== '' && !$replayed && (count($imports) >= self::MAX_IMPORTS || strlen((string) json_encode($state)) > self::MAX_STATE_BYTES)) {
                     return ResponseEnvelope::error($response, 'too_many_imports', __('Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.'), 409, ['max_imports' => self::MAX_IMPORTS]);
                 }
                 $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];

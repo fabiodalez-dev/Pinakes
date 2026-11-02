@@ -257,11 +257,16 @@ class CopyController
                 // A combined API edit is one transaction: a refused status
                 // change or failed write cannot leave only the flag changed.
                 if ($consultation !== null) {
-                    $lockCopy = $db->prepare('SELECT id FROM copie WHERE id = ? FOR UPDATE');
+                    $lockCopy = $db->prepare('SELECT id, solo_consultazione FROM copie WHERE id = ? FOR UPDATE');
                     $lockCopy->bind_param('i', $copyId);
                     $lockCopy->execute();
-                    $exists = (bool) $lockCopy->get_result()->fetch_row();
+                    $lockedCopy = $lockCopy->get_result()->fetch_assoc();
+                    $exists = (bool) $lockedCopy;
                     $lockCopy->close();
+                    if ($exists) {
+                        // The history records the flag as it was under the lock.
+                        $copy['solo_consultazione'] = $lockedCopy['solo_consultazione'];
+                    }
                     if (!$exists || ($consultation && $this->isCopyHeld($db, $copyId))) {
                         $db->rollback();
                         $_SESSION['error_message'] = !$exists ? __('Copia non trovata.') : __('La copia è impegnata da un prestito, un ritiro o una richiesta: chiudili prima di riservarla alla consultazione.');

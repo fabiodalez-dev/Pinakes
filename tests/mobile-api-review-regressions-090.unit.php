@@ -237,6 +237,14 @@ try {
     $check($r->getStatusCode() === 409 && ($body['error']['code'] ?? null) === 'too_many_imports' && count($kept) === StaffCopyCatalogingController::MAX_IMPORTS && isset($kept[array_key_first($full)]),
         'a search with MAX_IMPORTS imports refuses a new key and keeps every earlier replay');
     $db->query("DELETE FROM mobile_import_jobs WHERE id='" . $db->real_escape_string($fullJob) . "'");
+    // A few imports whose stored outcomes already fill the state are refused too.
+    $big = hash('sha256', "big-{$run}");
+    $bigJob = $store->create($operator, null, 'copy_cataloging', 'review regression big', 21, 1, false, ['results' => $stored, 'imports' => [$big => ['token' => $big, 'fingerprint' => 'x', 'messages' => str_repeat('x', StaffCopyCatalogingController::MAX_STATE_BYTES)]]]);
+    $r = $cataloguing->import($request('/copy-cataloging/import', ['search_id' => $bigJob, 'ids' => [str_pad(dechex(3), 16, '0', STR_PAD_LEFT)], 'duplicates' => 'skip', 'covers' => false], "review-{$run}-big"), new Response());
+    $body = json_decode((string) $r->getBody(), true);
+    $check($r->getStatusCode() === 409 && ($body['error']['code'] ?? null) === 'too_many_imports' && count($store->find($bigJob, $operator, true)['state']['imports'] ?? []) === 1,
+        'a search whose stored outcomes pass MAX_STATE_BYTES refuses a new key and keeps its replay');
+    $db->query("DELETE FROM mobile_import_jobs WHERE id='" . $db->real_escape_string($bigJob) . "'");
 
     // Batch payload parity and bounded statement count with fines and debt on.
     Features::override('fines', true);
