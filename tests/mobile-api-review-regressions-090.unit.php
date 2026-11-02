@@ -242,7 +242,9 @@ try {
     $bigJob = $store->create($operator, null, 'copy_cataloging', 'review regression big', 21, 1, false, ['results' => $stored, 'imports' => [$big => ['token' => $big, 'fingerprint' => 'x', 'messages' => str_repeat('x', StaffCopyCatalogingController::MAX_STATE_BYTES)]]]);
     $r = $cataloguing->import($request('/copy-cataloging/import', ['search_id' => $bigJob, 'ids' => [str_pad(dechex(3), 16, '0', STR_PAD_LEFT)], 'duplicates' => 'skip', 'covers' => false], "review-{$run}-big"), new Response());
     $body = json_decode((string) $r->getBody(), true);
-    $check($r->getStatusCode() === 409 && ($body['error']['code'] ?? null) === 'too_many_imports' && count($store->find($bigJob, $operator, true)['state']['imports'] ?? []) === 1,
+    $bigImports = $store->find($bigJob, $operator, true)['state']['imports'] ?? [];
+    $check($r->getStatusCode() === 409 && ($body['error']['code'] ?? null) === 'too_many_imports' && count($bigImports) === 1
+        && ($bigImports[$big]['token'] ?? null) === $big && ($bigImports[$big]['fingerprint'] ?? null) === 'x',
         'a search whose stored outcomes pass MAX_STATE_BYTES refuses a new key and keeps its replay');
     $db->query("DELETE FROM mobile_import_jobs WHERE id='" . $db->real_escape_string($bigJob) . "'");
 
