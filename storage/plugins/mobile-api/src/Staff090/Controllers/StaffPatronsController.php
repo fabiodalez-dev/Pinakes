@@ -106,18 +106,19 @@ final class StaffPatronsController
             if (!PatronPayload::canEdit($target)) {
                 return $this->forbidden($response);
             }
-            // Type and expiry are one change, decided on the type the account
-            // has once its row is locked: read before the transaction, another
+            // Type and expiry are one change, decided on the account as it is
+            // once its row is locked: read before the transaction, another
             // operator's change in between could skip the save ("already that
             // type") and leave this expiry next to a type it was not computed
-            // for, or admit an inactive type the account no longer has.
-            $readerAccount = in_array((string) $target['tipo_utente'], ['standard', 'premium'], true);
+            // for, admit an inactive type the account no longer has, or edit an
+            // account whose role the caller may no longer touch.
             $db = $this->db;
             $current = null;
+            $forbidden = false;
             $refused = false;
             $expiry = null;
-            DbAtomic::run($db, static function () use ($db, $id, $typeId, $recompute, $readerAccount, &$current, &$refused, &$expiry): void {
-                $lock = $db->prepare('SELECT tipologia_id FROM utenti WHERE id = ? FOR UPDATE');
+            DbAtomic::run($db, static function () use ($db, $id, $typeId, $recompute, &$current, &$forbidden, &$refused, &$expiry): void {
+                $lock = $db->prepare('SELECT id, tipo_utente, ruolo_id, accesso_digitale, tipologia_id FROM utenti WHERE id = ? FOR UPDATE');
                 if ($lock === false) {
                     throw new \RuntimeException('patron type lock prepare failed');
                 }
@@ -125,14 +126,32 @@ final class StaffPatronsController
                 $lock->execute();
                 $row = $lock->get_result()->fetch_assoc();
                 $lock->close();
-                $current = is_array($row) && $row['tipologia_id'] !== null ? (int) $row['tipologia_id'] : null;
-                // Active types plus the one the account already has (the web picker).
-                if ($typeId !== null && !isset(PatronTypeAssignment::choices($db, $current)[$typeId])) {
-                    $refused = true;
+                if (!is_array($row) || !PatronPayload::canEdit($row)) {
+                    $forbidden = true;
                     return;
+                }
+                $current = $row['tipologia_id'] !== null ? (int) $row['tipologia_id'] : null;
+                // Active types plus the one the account already has (the web
+                // picker). The type row is read under a shared lock: a
+                // deactivation committed after this check waits for this
+                // transaction instead of landing between the check and the save.
+                if ($typeId !== null && $typeId !== $current) {
+                    $typeLock = $db->prepare('SELECT attiva FROM tipologie_lettore WHERE id = ? LOCK IN SHARE MODE');
+                    if ($typeLock === false) {
+                        throw new \RuntimeException('patron type row lock prepare failed');
+                    }
+                    $typeLock->bind_param('i', $typeId);
+                    $typeLock->execute();
+                    $typeRow = $typeLock->get_result()->fetch_assoc();
+                    $typeLock->close();
+                    if (!is_array($typeRow) || (int) $typeRow['attiva'] !== 1) {
+                        $refused = true;
+                        return;
+                    }
                 }
                 // The web form's "card_auto": expiry from the type's card duration,
                 // only for reader accounts and only when the type sets one.
+                $readerAccount = in_array((string) $row['tipo_utente'], ['standard', 'premium'], true);
                 $expiry = $recompute && $readerAccount ? PatronTypeAssignment::automaticCardExpiry($db, $typeId) : null;
                 if ($typeId !== $current) {
                     PatronTypeAssignment::save($db, $id, $typeId);
@@ -147,6 +166,9 @@ final class StaffPatronsController
                     $stmt->close();
                 }
             }, 'MobileApi patron type');
+            if ($forbidden) {
+                return $this->forbidden($response);
+            }
             if ($refused) {
                 return $this->invalid($response, 'patron_type_id', __('Tipologia lettore non trovata.'));
             }

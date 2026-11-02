@@ -11,7 +11,11 @@ declare(strict_types=1);
  *      expose the rows they inserted (createdId() / createdIds()); a refused
  *      call exposes none.
  *   B. CirculationSettingsController::createType() exposes createdTypeId().
- *   C. The API create endpoints answer exactly those rows.
+ *   C. The API create endpoints answer exactly those rows, even when
+ *      another operator's row lands in the same table right after the
+ *      insert (so it is the newest row, MAX(id), and part of any
+ *      before/after difference): the connection the controllers get adds it
+ *      on the first statement that follows the watched INSERT.
  *
  * Runs against the REAL database of the checkout and only touches rows it
  * creates (descriptions / names / codes containing zzcid).
@@ -58,11 +62,68 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     [$key, $value] = explode('=', $line, 2);
     $env[trim($key)] = trim(trim($value), "\"'");
 }
+/**
+ * A connection that plays "another operator": once a statement starting with
+ * INSERT INTO <watched table> has been prepared, the next call on the
+ * connection (prepare, query or commit) first runs $competitor. The row it
+ * adds is newer than the one the action inserted, inside the same request.
+ */
+final class CompetingInsertDb extends mysqli
+{
+    private ?string $watch = null;
+    private ?string $competitor = null;
+    private bool $armed = false;
+
+    public function compete(string $table, string $competitorSql): void
+    {
+        $this->watch = $table;
+        $this->competitor = $competitorSql;
+        $this->armed = false;
+    }
+
+    private function before(?string $statement): void
+    {
+        if ($this->armed && $this->competitor !== null) {
+            $sql = $this->competitor;
+            $this->competitor = null;
+            $this->watch = null;
+            $this->armed = false;
+            parent::query($sql);
+        }
+        if ($statement !== null && $this->watch !== null
+            && preg_match('/^\s*INSERT\s+INTO\s+`?' . preg_quote($this->watch, '/') . '`?[\s(]/i', $statement) === 1) {
+            $this->armed = true;
+        }
+    }
+
+    public function prepare(string $query): mysqli_stmt|false
+    {
+        $this->before(null);
+        $stmt = parent::prepare($query);
+        $this->before($query);
+        return $stmt;
+    }
+
+    public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+    {
+        $this->before(null);
+        $result = parent::query($query, $result_mode);
+        $this->before($query);
+        return $result;
+    }
+
+    public function commit(int $flags = 0, ?string $name = null): bool
+    {
+        $this->before(null);
+        return parent::commit($flags, $name);
+    }
+}
+
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 try {
     $db = $socket !== '' && file_exists($socket)
-        ? new mysqli(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
-        : new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
+        ? new CompetingInsertDb(null, getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), 0, $socket)
+        : new CompetingInsertDb(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? ''), getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '')), getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? ''), (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)));
     $db->set_charset('utf8mb4');
     DateHelper::synchronizeDatabaseSession($db);
 } catch (Throwable $e) {
@@ -208,28 +269,38 @@ $check($dup->createdTypeId() === null, 'a refused createType() (code taken) expo
 
 // ── C. API create endpoints ───────────────────────────────────────────────────
 echo "C. API answers the row it inserted\n";
+$maxId = static fn (string $table): int => (int) $db->query("SELECT MAX(id) FROM {$table}")->fetch_row()[0];
+$db->compete('calendario_chiusure', "INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('2098-05-11', '2098-05-11', 'Rivale {$run}')");
 $closure = (new ClosuresCalendarController($db))->createClosure(
     $apiRequest('/api/v1/staff/calendar/closures', ['start_date' => '2098-05-04', 'description' => "Api {$run}"], "{$run}-closure"),
     new Response()
 );
 $body = $payload($closure);
 $apiClosure = $scalar('SELECT id FROM calendario_chiusure WHERE descrizione = ?', 's', ["Api {$run}"]);
+$rival = $scalar('SELECT id FROM calendario_chiusure WHERE descrizione = ?', 's', ["Rivale {$run}"]);
+$check($rival !== null && $rival > (int) $apiClosure && $maxId('calendario_chiusure') === $rival, "another operator's closure was added after the insert and is the newest row");
 $check($closure->getStatusCode() === 201 && ($body['data']['id'] ?? null) === $apiClosure && ($body['data']['description'] ?? null) === "Api {$run}", 'POST /staff/calendar/closures answers its own closure' . ($closure->getStatusCode() === 201 ? '' : ' (HTTP ' . $closure->getStatusCode() . ': ' . substr((string) $closure->getBody(), 0, 200) . ')'));
 
+$db->compete('festivita_personalizzate', "INSERT INTO festivita_personalizzate (nome, tipo, mese, giorno) VALUES ('Rivale patrono {$run}', 'fixed', 8, 2)");
 $holiday = (new ClosuresCalendarController($db))->createCustom(
     $apiRequest('/api/v1/staff/calendar/custom-holidays', ['name' => "Api patrono {$run}", 'kind' => 'fixed', 'month' => 7, 'day' => 1], "{$run}-custom"),
     new Response()
 );
 $body = $payload($holiday);
 $apiHoliday = $scalar('SELECT id FROM festivita_personalizzate WHERE nome = ?', 's', ["Api patrono {$run}"]);
+$rival = $scalar('SELECT id FROM festivita_personalizzate WHERE nome = ?', 's', ["Rivale patrono {$run}"]);
+$check($rival !== null && $rival > (int) $apiHoliday && $maxId('festivita_personalizzate') === $rival, "another operator's holiday was added after the insert and is the newest row");
 $check($holiday->getStatusCode() === 201 && ($body['data']['id'] ?? null) === $apiHoliday, 'POST /staff/calendar/custom-holidays answers its own holiday');
 
+$db->compete('tipologie_lettore', "INSERT INTO tipologie_lettore (codice, nome, ordinamento) VALUES ('{$run}-rival', 'Rivale {$run}', 9999)");
 $type = (new CirculationRulesController($db))->createType(
     $apiRequest('/api/v1/staff/circulation/types', ['name' => "Api tipo {$run}", 'code' => "{$run}-b"], "{$run}-type"),
     new Response()
 );
 $body = $payload($type);
 $apiType = $scalar('SELECT id FROM tipologie_lettore WHERE codice = ?', 's', ["{$run}-b"]);
+$rival = $scalar('SELECT id FROM tipologie_lettore WHERE codice = ?', 's', ["{$run}-rival"]);
+$check($rival !== null && $rival > (int) $apiType && $maxId('tipologie_lettore') === $rival, "another operator's type was added after the insert and is the newest row");
 $check($type->getStatusCode() === 201 && ($body['data']['id'] ?? null) === $apiType && ($body['data']['code'] ?? null) === "{$run}-b", 'POST /staff/circulation/types answers its own type');
 
 echo PHP_EOL . ($failed === 0 ? "ALL {$passed} PASS" : "{$failed} FAIL, {$passed} PASS") . PHP_EOL;
