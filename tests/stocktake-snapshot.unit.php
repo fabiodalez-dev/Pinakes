@@ -445,8 +445,8 @@ try {
     $waited = false;
     try {
         $service->sessionSnapshot();
-    } catch (\Throwable $e) {
-        $waited = true;
+    } catch (\mysqli_sql_exception $e) {
+        $waited = $e->getCode() === 1205;
     }
     $db->query('SET SESSION innodb_lock_wait_timeout = 50');
     $other->rollback();
