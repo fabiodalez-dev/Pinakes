@@ -243,11 +243,17 @@ test('5. the session list pages by status with counters', async ({ request }) =>
     expect(p2Again.json.meta.total_count).toBe(p1.json.meta.total_count);
     // A cursor the list did not write (an old offset-only one, or garbage) is refused.
     const cursorOf = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    for (const bad of [cursorOf({ o: 1 }), cursorOf({ o: 1, u: 1, a: 'x', g: '' }), 'not-a-cursor']) {
+    // A real cursor with its offset set to zero, or an open id inside a gap, is refused too.
+    const decoded = JSON.parse(Buffer.from(p1.json.meta.next_cursor.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+    for (const bad of [cursorOf({ o: 1 }), cursorOf({ o: 1, u: 1, a: 'x', g: '' }), 'not-a-cursor', cursorOf({ ...decoded, o: 0 }), cursorOf({ ...decoded, a: '2', g: '2', u: Math.max(2, decoded.u) })]) {
         const refused = await call(request, 'GET', `${P}/sessions?status=open&limit=1&cursor=${encodeURIComponent(bad)}`, 'staff');
         expect(refused.status, bad).toBe(422);
         expect(refused.json.meta.fields.cursor).toBeTruthy();
     }
+    // The cursor of the open sessions is not one of the whole list.
+    const otherFilter = await call(request, 'GET', `${P}/sessions?status=all&limit=1&cursor=${encodeURIComponent(p1.json.meta.next_cursor)}`, 'staff');
+    expect(otherFilter.status).toBe(422);
+    expect(otherFilter.json.meta.fields.cursor).toBeTruthy();
     const fresh = await call(request, 'GET', `${P}/sessions?status=open&limit=1`, 'staff');
     expect(fresh.json.data[0].id).toBe(b.json.data.id);
     expect((await call(request, 'POST', `${P}/sessions/${b.json.data.id}/cancel`, 'staff')).status).toBe(200);
@@ -414,6 +420,14 @@ test('9. detail, state, the scan list (paged, by outcome, only mine) and the rep
         expect(refused.status, path).toBe(422);
         expect(refused.json.meta.fields.cursor).toBeTruthy();
     }
+    // A cursor belongs to its list: another outcome filter, only my scans, or
+    // the report of the same session refuse it instead of paging it.
+    const scanCursor = encodeURIComponent(page2.json.meta.next_cursor);
+    for (const query of [`scans?outcome=unknown&cursor=${scanCursor}`, `scans?mine=1&cursor=${scanCursor}`, `report?cursor=${scanCursor}`]) {
+        const refused = await call(request, 'GET', `${P}/sessions/${s1}/${query}`, 'staff');
+        expect(refused.status, query).toBe(422);
+        expect(refused.json.meta.fields.cursor).toBeTruthy();
+    }
     const unknown = await call(request, 'GET', `${P}/sessions/${s1}/scans?outcome=unknown`, 'staff');
     expect(unknown.json.data.length).toBe(2);
     expect(unknown.json.data.every((s) => s.outcome === 'unknown')).toBe(true);
@@ -518,6 +532,14 @@ test('10. a list of codes uploads as one scan each; a wrong file type is refused
     }
     expect(r2.json.data.map((r) => [r.code, r.category])).toEqual([[code('L1'), 'on_loan']]);
     expect(r2.json.meta).toMatchObject({ total_count: 7, has_more: true });
+    // The report cursor of this session is refused by another session's
+    // report, and by this one under another category.
+    const reportCursor = encodeURIComponent(r1.json.meta.next_cursor);
+    for (const path of [`${P}/sessions/${s1}/report?limit=1&cursor=${reportCursor}`, `${P}/sessions/${s2}/report?category=found&limit=1&cursor=${reportCursor}`]) {
+        const refused = await call(request, 'GET', path, 'staff');
+        expect(refused.status, path).toBe(422);
+        expect(refused.json.meta.fields.cursor).toBeTruthy();
+    }
     const missing = await call(request, 'GET', `${P}/sessions/${s2}/report?category=missing`, 'staff');
     expect(missing.json.data.map((r) => r.code)).toEqual([code('A3')]);
     expect(missing.json.meta.total_count).toBe(1);

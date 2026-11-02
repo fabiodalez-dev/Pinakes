@@ -142,10 +142,11 @@ final class StaffStocktakeController
             // carries the list as it was on the first page (`u`, and `a` the
             // sessions then open, StocktakeService::sessionSnapshot()): a
             // session opened, closed or cancelled while the operator pages is
-            // never listed twice nor skipped.
+            // never listed twice nor skipped (within the bound the snapshot
+            // documents). `f` is the status filter the cursor was written for.
             $cursor = $this->cursor($request);
             $snapshot = is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null) : null;
-            if ($this->hasCursor($request) && ($snapshot === null || !is_int($cursor['o'] ?? null))) {
+            if ($this->hasCursor($request) && ($snapshot === null || !is_int($cursor['o'] ?? null) || $cursor['o'] < 1 || ($cursor['f'] ?? null) !== $statusCode)) {
                 // A cursor that does not carry its snapshot would page a new
                 // list at an offset of the old one: refused, never guessed.
                 return $this->invalidCursor($response);
@@ -162,7 +163,7 @@ final class StaffStocktakeController
 
             $hasMore = $offset + $limit < $total;
             $meta = StaffPaging::meta(count($items), $limit, $offset, $hasMore, $total);
-            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit] + StocktakeService::snapshotToCursor($snapshot)) : null;
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['o' => $offset + $limit, 'f' => $statusCode] + StocktakeService::snapshotToCursor($snapshot)) : null;
 
             return ResponseEnvelope::success($response, $items, $meta);
         } catch (\Throwable $e) {
@@ -228,9 +229,12 @@ final class StaffStocktakeController
             // the previous one returned (`k`), so a scan whose id was taken
             // before the first page but committed after it can never shift a
             // page and repeat a row. `u` keeps total_count to the scans of
-            // the first page.
+            // the first page. `s`, `x`, `m` are the session, outcome filter and
+            // operator the cursor was written for: another list's cursor is
+            // refused, never applied to this one.
             $cursor = $this->cursor($request);
-            $key = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && is_int($cursor['k'] ?? null) && $cursor['k'] > 0 ? $cursor['k'] : null;
+            $bound = is_array($cursor) && ($cursor['s'] ?? null) === $id && ($cursor['x'] ?? null) === $outcomeCode && ($cursor['m'] ?? null) === ($operator ?? 0);
+            $key = $bound && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && is_int($cursor['k'] ?? null) && $cursor['k'] > 0 && $cursor['k'] <= $cursor['u'] ? $cursor['k'] : null;
             if ($this->hasCursor($request) && $key === null) {
                 return $this->invalidCursor($response);
             }
@@ -241,7 +245,7 @@ final class StaffStocktakeController
             $hasMore = count($rows) > $limit;
             $rows = array_slice($rows, 0, $limit);
             $meta = StaffPaging::meta(count($rows), $limit, 0, $hasMore, $total);
-            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['u' => $upTo, 'k' => (int) $rows[count($rows) - 1]['id']]) : null;
+            $meta['next_cursor'] = $hasMore ? CursorCodec::encode(['u' => $upTo, 'k' => (int) $rows[count($rows) - 1]['id'], 's' => $id, 'x' => $outcomeCode, 'm' => $operator ?? 0]) : null;
 
             return ResponseEnvelope::success($response, array_map(fn (array $r): array => $this->scanItem($r), $rows), $meta);
         } catch (\Throwable $e) {
@@ -273,9 +277,13 @@ final class StaffStocktakeController
             // Keyset paging in the database (StocktakeService::reportPage()),
             // counted apart, pinned like the scan list (`u`): a scan, a loan or
             // a close between two pages never repeats nor skips a row. `p`, `c`,
-            // `i` are the key of the last row returned.
+            // `i` are the key of the last row returned (a copy id, or a scan id
+            // at most `u`); `s` and `x` the session and category it was
+            // written for.
             $cursor = $this->cursor($request);
-            $after = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && in_array($cursor['p'] ?? null, ['a', 's'], true) && is_string($cursor['c'] ?? null) && is_int($cursor['i'] ?? null) && $cursor['i'] >= 0
+            $after = is_array($cursor) && ($cursor['s'] ?? null) === $id && ($cursor['x'] ?? null) === $categoryCode
+                && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && in_array($cursor['p'] ?? null, ['a', 's'], true) && is_string($cursor['c'] ?? null)
+                && is_int($cursor['i'] ?? null) && $cursor['i'] >= 1 && ($cursor['p'] === 'a' || $cursor['i'] <= $cursor['u'])
                 ? ['p' => (string) $cursor['p'], 'c' => (string) $cursor['c'], 'i' => (int) $cursor['i']]
                 : null;
             if ($this->hasCursor($request) && $after === null) {
@@ -303,7 +311,7 @@ final class StaffStocktakeController
             }
 
             $meta = StaffPaging::meta(count($items), $limit, 0, $page['next'] !== null, $total);
-            $meta['next_cursor'] = $page['next'] !== null ? CursorCodec::encode(['u' => $upTo] + $page['next']) : null;
+            $meta['next_cursor'] = $page['next'] !== null ? CursorCodec::encode(['u' => $upTo, 's' => $id, 'x' => $categoryCode] + $page['next']) : null;
 
             return ResponseEnvelope::success($response, $items, $meta);
         } catch (\Throwable $e) {

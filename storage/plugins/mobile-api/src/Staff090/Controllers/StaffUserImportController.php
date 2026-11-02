@@ -347,7 +347,7 @@ final class StaffUserImportController
                     // import history as far as it got.
                     $importId = is_string($outcome->json['import_id']) ? $outcome->json['import_id'] : null;
 
-                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null, is_int($outcome->json['closed_processed'] ?? null) ? $outcome->json['closed_processed'] : null);
+                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, $outcome->json);
                 }
                 // Not completed: keep the job resumable from where the web
                 // state says it is.
@@ -389,7 +389,7 @@ final class StaffUserImportController
                 $importId = UserImportJob::importId($job);
                 $warning = null;
                 $staged = null;
-                $closedCreated = null;
+                $closed = [];
                 $closedProcessed = null;
                 if (!in_array($job['status'], ['completed', 'cancelled'], true)) {
                     $state = $job['state'];
@@ -419,8 +419,8 @@ final class StaffUserImportController
                         }
                         $importId = is_string($outcome->json['import_id'] ?? null) ? $outcome->json['import_id'] : null;
                         $warning = is_string($outcome->json['history_warning'] ?? null) ? $outcome->json['history_warning'] : null;
-                        // The count after the web settled a row left half-done.
-                        $closedCreated = is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null;
+                        // The counts after the web settled a row left half-done.
+                        $closed = $outcome->json;
                         $closedProcessed = is_int($outcome->json['closed_processed'] ?? null) ? $outcome->json['closed_processed'] : null;
                         $state['core'] = ['cancelled' => true, 'preview_id' => (string) ($core['preview_id'] ?? '')];
                     } else {
@@ -430,9 +430,7 @@ final class StaffUserImportController
                         $staged = $core;
                     }
                     $summary = (is_array($job['summary'] ?? null) ? $job['summary'] : []) + ['import_id' => $importId !== '' ? $importId : null];
-                    if ($closedCreated !== null) {
-                        $summary['created'] = $closedCreated;
-                    }
+                    $summary = self::closedSummary($summary, $closed);
                     $this->save($job, $state, $closedProcessed ?? (int) $job['processed'], 'cancelled', $summary);
                     if ($staged !== null) {
                         UserImportJob::unlinkUpload($staged);
@@ -554,15 +552,14 @@ final class StaffUserImportController
      *
      * @param array<string, mixed> $job
      */
-    private function fileMissing(ResponseInterface $response, array $job, ?string $importId, ?string $message, ?int $created = null, ?int $processed = null): ResponseInterface
+    private function fileMissing(ResponseInterface $response, array $job, ?string $importId, ?string $message, array $closed = []): ResponseInterface
     {
         $state = $job['state'];
         $state['core'] = ['failed' => true, 'preview_id' => (string) ($state['core']['preview_id'] ?? '')];
         $summary = (is_array($job['summary'] ?? null) ? $job['summary'] : []) + ['import_id' => $importId !== '' ? $importId : null];
-        if ($created !== null) {
-            // A row left half-done was settled when the web closed the run.
-            $summary['created'] = $created;
-        }
+        // A row left half-done was settled when the web closed the run.
+        $summary = self::closedSummary($summary, $closed);
+        $processed = is_int($closed['closed_processed'] ?? null) ? $closed['closed_processed'] : null;
         $position = $processed ?? (int) $job['processed'];
         $this->save($job, $state, $position, 'failed', $summary);
 
@@ -573,6 +570,35 @@ final class StaffUserImportController
             409,
             ['processed' => $position, 'import_id' => $importId !== '' ? $importId : null]
         );
+    }
+
+    /**
+     * The summary of a run the web closed (cancel, vanished file): settling a
+     * row left half-done there can add an account, an invitation, a failed
+     * invitation or a warning, so the counters and warnings the web closed
+     * the run with replace the ones of the last chunk, under the keys
+     * UserImportJob::map() reads.
+     *
+     * @param array<string, mixed> $summary
+     * @param array<mixed> $closed the web's close answer
+     * @return array<string, mixed>
+     */
+    private static function closedSummary(array $summary, array $closed): array
+    {
+        if (is_int($closed['created'] ?? null)) {
+            $summary['created'] = $closed['created'];
+        }
+        $totals = is_array($closed['closed'] ?? null) ? $closed['closed'] : [];
+        foreach (['invited', 'invite_failed'] as $key) {
+            if (is_int($totals[$key] ?? null)) {
+                $summary[$key] = $totals[$key];
+            }
+        }
+        if (is_array($totals['errors'] ?? null)) {
+            $summary['errors'] = array_values($totals['errors']);
+        }
+
+        return $summary;
     }
 
     private function cancelledMeanwhile(ResponseInterface $response, int $processed): ResponseInterface

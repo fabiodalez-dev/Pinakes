@@ -63,6 +63,13 @@ class UserImportController
     private ?int $closedCreated = null;
     /** Rows passed by that run, a row settled at the close included (null: none). */
     private ?int $closedProcessed = null;
+    /**
+     * That run's invitation counters and row warnings, as the import history
+     * records them: settling a half-done row at the close can add to them.
+     *
+     * @var array{invited:int, invite_failed:int, errors:list<array<string, mixed>>}|null
+     */
+    private ?array $closedTotals = null;
 
     public function page(Request $request, Response $response, mysqli $db): Response
     {
@@ -353,6 +360,7 @@ class UserImportController
                 'created' => $this->closedCreated,
                 // Not `processed`: on a 409 the page resumes from that key.
                 'closed_processed' => $this->closedProcessed,
+                'closed' => $this->closedTotals,
             ], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
@@ -573,6 +581,7 @@ class UserImportController
             'import_id' => $importId,
             'created' => $this->closedCreated,
             'closed_processed' => $this->closedProcessed,
+            'closed' => $this->closedTotals,
             'history_warning' => $importId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
         ]);
     }
@@ -641,6 +650,11 @@ class UserImportController
             $this->settlePending($db, $state);
             $this->closedCreated = (int) ($state['created'] ?? 0);
             $this->closedProcessed = (int) ($state['next'] ?? 0);
+            $this->closedTotals = [
+                'invited' => (int) ($state['invited'] ?? 0),
+                'invite_failed' => (int) ($state['invite_failed'] ?? 0),
+                'errors' => array_values((array) ($state['errors'] ?? [])),
+            ];
             $importId = $this->finish($db, $state, (int) ($state['next'] ?? 0));
             SecureLogger::info('User import closed before its end', [
                 'processed' => (int) ($state['next'] ?? 0),
@@ -763,7 +777,8 @@ class UserImportController
         $importId = $this->closeSessionImport($db);
         return [
             'name' => (string) ($state['name'] ?? ''),
-            'processed' => (int) ($state['next'] ?? 0),
+            // As the history records it: a row settled at the close counts.
+            'processed' => $this->closedProcessed ?? (int) ($state['next'] ?? 0),
             'total' => (int) ($state['total'] ?? 0),
             'import_id' => $importId,
         ];

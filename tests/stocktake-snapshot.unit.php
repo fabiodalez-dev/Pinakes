@@ -376,6 +376,7 @@ try {
         && StocktakeService::snapshotFrom(9, '1', '2-4,7') === ['u' => 9, 'a' => [1], 'g' => [[2, 4], [7, 7]]]
         && StocktakeService::snapshotFrom(5, '1,x', '') === null && StocktakeService::snapshotFrom(5, "1) OR (1=1", '') === null && StocktakeService::snapshotFrom(5, '9', '') === null && StocktakeService::snapshotFrom('5', '1', '') === null
         && StocktakeService::snapshotFrom(5, '1', null) === null && StocktakeService::snapshotFrom(5, '1', '2) OR (1=1') === null && StocktakeService::snapshotFrom(5, '1', '7') === null
+        && StocktakeService::snapshotFrom(2, '2', '2') === null && StocktakeService::snapshotFrom(9, '3', '2-4') === null
         && StocktakeService::snapshotFrom(9, '1', '4-2') === null && StocktakeService::snapshotFrom(9, '1', '5,3') === null && StocktakeService::snapshotFrom(9, '1', '2-4,4') === null && StocktakeService::snapshotFrom(9, '1', '2-12') === null
         && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]]]), 1))) === ['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]]], 'snapshotFrom() accepts only the id lists snapshotToCursor() writes');
     $manyRanges = implode(',', array_map(static fn (int $i): string => (string) (2 * $i), range(1, StocktakeService::MAX_GAP_RANGES + 1)));

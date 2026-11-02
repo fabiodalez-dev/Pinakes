@@ -618,6 +618,20 @@ try {
     $check($status === 200 && ($json['created'] ?? null) === 1 && count($seen) === 1 && $seen[0]['account'] > 0 && $seen[0]['account'] === $ckAccountId('a')
         && $seen[0]['pending'] === ['next' => 0, 'user_id' => $seen[0]['account']], 'the checkpoint after the insert carries the row and the id of the account it just inserted');
 
+    // An expired run whose last account was inserted but not counted: the
+    // close settles it, and the page shows the rows the history records.
+    $vanishedAccount = $ckAccount('v');
+    if (is_file($staged)) {
+        unlink($staged);
+    }
+    $_SESSION['user_import'] = ['total' => 3, 'next' => 1, 'created' => 1, 'pending' => ['next' => 1, 'user_id' => $vanishedAccount]] + $running;
+    $settled = (new \App\Controllers\UserImportController())->closeVanishedImport($db);
+    $settledId = (string) ($settled['import_id'] ?? '');
+    $importLogIds[] = $settledId;
+    $logged = $settledId !== '' ? $db->query("SELECT total_rows, imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($settledId) . "'")->fetch_assoc() : null;
+    $check(($settled['processed'] ?? null) === 2 && is_array($logged) && (int) $logged['total_rows'] === 2 && (int) $logged['imported'] === 2,
+        'an expired run closed with a settled row shows the count the import history records');
+
     file_put_contents($staged, "nome;cognome;email\nCk;B;" . $ckEmail('b') . "\n");
     $_SESSION['user_import'] = $running;
     $failing = (new \App\Controllers\UserImportController())->onRowCheckpoint(static function (array $state): void {
@@ -691,12 +705,15 @@ try {
     if (is_array($type)) {
         $firstId = $ckAccount('f');
         $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$firstId}");
-        file_put_contents($staged, "nome;cognome;email;tipologia\nCk;F;" . $ckEmail('f') . ';' . $type['nome'] . "\nCk;F2;" . $ckEmail('f2') . ';' . $type['nome'] . "\n");
+        // Quoted: a type name may hold the separator or a quote.
+        $typeCell = '"' . str_replace('"', '""', (string) $type['nome']) . '"';
+        file_put_contents($staged, "nome;cognome;email;tipologia\nCk;F;" . $ckEmail('f') . ';' . $typeCell . "\nCk;F2;" . $ckEmail('f2') . ';' . $typeCell . "\n");
         $_SESSION['user_import'] = ['total' => 2, 'columns' => 4, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia'], 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $firstId]] + $running;
         [$status, $json] = $call('cancel', ['preview_id' => $pid]);
         $importLogIds[] = (string) ($json['import_id'] ?? '');
         $assigned = (int) ($db->query("SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id = {$firstId}")->fetch_row()[0] ?? 0);
-        $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['closed_processed'] ?? null) === 1 && $assigned === (int) $type['id'] && $ckAccountId('f2') === 0,
+        $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['closed_processed'] ?? null) === 1 && $assigned === (int) $type['id'] && $ckAccountId('f2') === 0
+            && is_int($json['closed']['invited'] ?? null) && is_int($json['closed']['invite_failed'] ?? null) && is_array($json['closed']['errors'] ?? null),
             'a half-done first row (no offset yet) is read again by counting: its patron type is assigned, the answer says one row passed');
     }
 

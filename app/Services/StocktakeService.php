@@ -572,6 +572,14 @@ final class StocktakeService
         if (count($ranges) > self::MAX_GAP_RANGES) {
             return null;
         }
+        // A gap is an id no committed row held: an open session cannot be one.
+        foreach ($openIds as $id) {
+            foreach ($ranges as [$first, $last]) {
+                if ($id >= $first && $id <= $last) {
+                    return null;
+                }
+            }
+        }
         return ['u' => $u, 'a' => $openIds, 'g' => $ranges];
     }
 
