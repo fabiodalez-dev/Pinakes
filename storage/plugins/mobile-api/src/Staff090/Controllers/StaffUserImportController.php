@@ -291,27 +291,26 @@ final class StaffUserImportController
                 // position, so a retry would count the accounts it had just
                 // created as duplicates of themselves.
                 for ($n = 0; $n < UserImport::CHUNK_SIZE; $n++) {
-                    // The web marks the row it is about to insert in its
-                    // session, which dies with this request: the marker is
-                    // stored with the job first, so the retry of a row whose
-                    // account was inserted but not completed finishes it
-                    // instead of counting it as a duplicate. A marker already
-                    // there for this row is the interrupted attempt's: kept.
-                    $marked = $core;
-                    UserImportController::markPending($db, $marked, $processed);
-                    if ($marked !== $core) {
-                        $core = $marked;
-                        $state['core'] = $core;
-                        if (!$this->store->saveChunk((string) $job['id'], $state, $processed, 'running', is_array($job['summary'] ?? null) ? $job['summary'] : [])) {
-                            return $this->cancelledMeanwhile($response, $processed);
-                        }
-                        $job['state'] = $state;
-                    }
                     $payload = (string) json_encode(['preview_id' => (string) ($core['preview_id'] ?? ''), 'start' => $processed, 'size' => 1]);
-                    $outcome = Delegation::run(static function () use ($db, $core, $payload): ResponseInterface {
+                    // The web marks the account a row inserts in its session,
+                    // which dies with this request: the marker is stored with
+                    // the job in the transaction of the insert, so the retry
+                    // of a row whose account was inserted but not completed
+                    // finishes that account instead of counting a duplicate.
+                    $store = $this->store;
+                    $jobId = (string) $job['id'];
+                    $base = $state;
+                    $position = $processed;
+                    $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];
+                    $persist = static function (array $inserted) use ($store, $jobId, $base, $position, $summary): void {
+                        if (!$store->saveChunk($jobId, array_replace($base, ['core' => $inserted]), $position, 'running', $summary)) {
+                            throw new \RuntimeException('user import job cancelled while the row ran');
+                        }
+                    };
+                    $outcome = Delegation::run(static function () use ($db, $core, $payload, $persist): ResponseInterface {
                         $_SESSION['user_import'] = $core;
 
-                        return (new UserImportController())->chunk(
+                        return (new UserImportController())->onRowInserted($persist)->chunk(
                             Delegation::request('POST', '/admin/users/import/chunk', [], [], $payload),
                             new SlimResponse(),
                             $db

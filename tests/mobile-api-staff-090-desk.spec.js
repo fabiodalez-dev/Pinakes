@@ -634,34 +634,39 @@ test.describe('Patron CSV import', () => {
 
     test('a row whose request died after inserting the account is completed on the retry, not reported as a duplicate', async ({ request }) => {
         const type = F.dbRows('SELECT id, nome FROM tipologie_lettore ORDER BY id LIMIT 1')[0];
-        const lines = type ? ['nome;email;tipologia', `Gino;${email('imp_g')};${type.nome}`, `Hana;${email('imp_h')};${type.nome}`] : ['nome;email', `Gino;${email('imp_g')}`, `Hana;${email('imp_h')}`];
-        const up = await upload(request, ctx.staff, csvFile('resume.csv', lines), ';');
-        expect(up.status, up.text.slice(0, 300)).toBe(201);
-        const id = up.json.data.id;
-        const withType = type && up.json.data.mapping.includes('tipologia');
-        expect((await F.api(request, 'POST', `/staff/user-imports/${id}/start`, { token: ctx.staff, body: {} })).status).toBe(200);
-        // What a request that died between the insert of row 0 and the end
-        // of the row leaves: the marker saved before the row, then the bare
-        // account (no patron type, nothing after the insert).
-        const floor = F.dbInt('SELECT COALESCE(MAX(id), 0) FROM utenti');
-        const state = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`));
-        state.core.pending = { next: 0, floor, at: 1 };
-        F.dbExec(`UPDATE mobile_import_jobs SET state=${F.sqlStr(JSON.stringify(state))} WHERE id='${id}'`);
-        const ghost = F.createUser(email('imp_g'), 'Ghost1234!x', 'standard', 'GH');
-        F.dbExec(`UPDATE utenti SET tipologia_id=NULL WHERE id=${ghost}`);
-        const r = await F.api(request, 'POST', `/staff/user-imports/${id}/chunk`, { token: ctx.staff, body: { start: 0 } });
+        const rows = (a, b) => (type ? ['nome;email;tipologia', `Gino;${email(a)};${type.nome}`, `Hana;${email(b)};${type.nome}`] : ['nome;email', `Gino;${email(a)}`, `Hana;${email(b)}`]);
+        /** Upload and start, then leave what a request that died after the insert of row 0 leaves. */
+        const interrupted = async (name, a, b, accountFor) => {
+            const up = await upload(request, ctx.staff, csvFile(name, rows(a, b)), ';');
+            expect(up.status, up.text.slice(0, 300)).toBe(201);
+            const id = up.json.data.id;
+            expect((await F.api(request, 'POST', `/staff/user-imports/${id}/start`, { token: ctx.staff, body: {} })).status).toBe(200);
+            const account = F.createUser(email(a), 'Ghost1234!x', 'standard', 'GH');
+            F.dbExec(`UPDATE utenti SET tipologia_id=NULL WHERE id=${account}`);
+            const state = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`));
+            state.core.pending = { next: 0, user_id: accountFor(account) };
+            F.dbExec(`UPDATE mobile_import_jobs SET state=${F.sqlStr(JSON.stringify(state))} WHERE id='${id}'`);
+            return { id, account, withType: !!type && up.json.data.mapping.includes('tipologia') };
+        };
+
+        // The marker names the account: it is completed and counted as created.
+        const own = await interrupted('resume.csv', 'imp_g', 'imp_h', (account) => account);
+        let r = await F.api(request, 'POST', `/staff/user-imports/${own.id}/chunk`, { token: ctx.staff, body: { start: 0 } });
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         expect(r.json.data).toMatchObject({ status: 'completed', processed: 2, created: 2, duplicates: 0, failed: 0 });
         expect(F.dbInt(`SELECT COUNT(*) FROM utenti WHERE email=${F.sqlStr(email('imp_g'))}`)).toBe(1);
-        if (withType) {
-            expect(F.dbInt(`SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id=${ghost}`)).toBe(Number(type.id));
+        if (own.withType) {
+            expect(F.dbInt(`SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id=${own.account}`)).toBe(Number(type.id));
         }
-        // An account that existed before the marker stays a duplicate.
-        const up2 = await upload(request, ctx.staff, csvFile('resume2.csv', ['nome;email', `Hana;${email('imp_h')}`]), ';');
-        const id2 = up2.json.data.id;
-        expect((await F.api(request, 'POST', `/staff/user-imports/${id2}/start`, { token: ctx.staff, body: {} })).status).toBe(200);
-        const r2 = await F.api(request, 'POST', `/staff/user-imports/${id2}/chunk`, { token: ctx.staff, body: { start: 0 } });
-        expect(r2.json.data).toMatchObject({ status: 'completed', created: 0, duplicates: 1 });
+
+        // Another account with the row's email, created after the marker (an
+        // operator, a registration): the marker names a different account,
+        // so it stays a duplicate and is left untouched.
+        const other = await interrupted('resume2.csv', 'imp_i', 'imp_j', (account) => account + 100000000);
+        r = await F.api(request, 'POST', `/staff/user-imports/${other.id}/chunk`, { token: ctx.staff, body: { start: 0 } });
+        expect(r.status, r.text.slice(0, 300)).toBe(200);
+        expect(r.json.data).toMatchObject({ status: 'completed', created: 1, duplicates: 1 });
+        expect(F.dbScalar(`SELECT IFNULL(tipologia_id, 'NULL') FROM utenti WHERE id=${other.account}`)).toBe('NULL');
     });
 
     test('a staged file that vanished fails the job with file_missing', async ({ request }) => {

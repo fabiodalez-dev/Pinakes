@@ -54,6 +54,9 @@ class UserImportController
     /** Upload form values of the separator choice; anything else means "detect". */
     private const DELIMITERS = [';' => ';', ',' => ',', 'tab' => "\t"];
 
+    /** @var (\Closure(array<string, mixed>): void)|null see onRowInserted() */
+    private ?\Closure $rowInserted = null;
+
     public function page(Request $request, Response $response, mysqli $db): Response
     {
         if (($off = \App\Support\Features::requireOrRedirect('user_import', $response)) !== null) {
@@ -412,11 +415,7 @@ class UserImportController
                 }
                 $record['locale'] ??= $installLocale;
 
-                // Kept until the row is complete (cleared below): a request
-                // that dies between the insert and the end of the row leaves
-                // it in the saved state, and the retry recognises the account.
-                self::markPending($db, $state, $start + $processed - 1);
-                $userId = $this->insertUser($db, $record);
+                $userId = $this->insertAccount($db, $record, $state, $start + $processed - 1);
                 $state['created']++;
                 // The account exists from here on: what follows completes it, so
                 // a failure is a warning on a created row, never a failed row
@@ -706,42 +705,76 @@ class UserImportController
     }
 
     /**
-     * Record that row $row is about to insert an account: the highest user
-     * id before it. A caller that keeps the state elsewhere (the Mobile API
-     * job) sets the same marker before the request; one already set for this
-     * row is the trace of an interrupted attempt and is left as it is.
+     * Called with the import state right after an account is inserted, inside
+     * the transaction of the insert: a caller that keeps the state elsewhere
+     * than the session (the Mobile API job) stores the marker of the new
+     * account with it, atomically. A listener that throws undoes the insert.
      *
-     * @param array<string, mixed> $state
+     * @param callable(array<string, mixed>): void $listener
      */
-    public static function markPending(mysqli $db, array &$state, int $row): void
+    public function onRowInserted(callable $listener): self
     {
-        if (is_array($state['pending'] ?? null) && ($state['pending']['next'] ?? null) === $row) {
-            return;
-        }
-        $result = $db->query('SELECT COALESCE(MAX(id), 0) FROM utenti');
-        $floor = $result instanceof \mysqli_result ? (int) ($result->fetch_row()[0] ?? 0) : 0;
-        $state['pending'] = ['next' => $row, 'floor' => $floor, 'at' => microtime(true)];
+        $this->rowInserted = \Closure::fromCallable($listener);
+        return $this;
     }
 
     /**
-     * The account an interrupted attempt of row $row inserted: the email of
-     * the row on an account newer than the marker the attempt left. Null for
-     * an account that existed before (a real duplicate).
+     * Insert the account of row $row and mark it in the state as the row's
+     * own (`pending`, cleared when the row ends). A request that dies before
+     * the row is complete leaves the marker in the saved state, so the retry
+     * completes this very account instead of reporting it as a duplicate.
+     *
+     * @param array<string, mixed> $record
+     * @param array<string, mixed> $state
+     */
+    private function insertAccount(mysqli $db, array $record, array &$state, int $row): int
+    {
+        if ($this->rowInserted === null) {
+            $userId = $this->insertUser($db, $record);
+            $state['pending'] = ['next' => $row, 'user_id' => $userId];
+            return $userId;
+        }
+        $result = $db->query('SELECT @@autocommit');
+        $own = $result instanceof \mysqli_result && (int) ($result->fetch_row()[0] ?? 0) === 1;
+        if ($own) {
+            $db->begin_transaction();
+        }
+        try {
+            $userId = $this->insertUser($db, $record);
+            $state['pending'] = ['next' => $row, 'user_id' => $userId];
+            ($this->rowInserted)($state);
+            if ($own) {
+                $db->commit();
+            }
+            return $userId;
+        } catch (\Throwable $e) {
+            unset($state['pending']);
+            if ($own) {
+                $db->rollback();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * The account an interrupted attempt of row $row inserted: only the one
+     * its marker names, and only while it still carries the row's email. Any
+     * other account with that email is a real duplicate.
      *
      * @param array<string, mixed> $state
      */
     private function interruptedAccount(mysqli $db, array $state, int $row, string $email): ?int
     {
         $pending = $state['pending'] ?? null;
-        if (!is_array($pending) || ($pending['next'] ?? null) !== $row || !is_int($pending['floor'] ?? null)) {
+        if (!is_array($pending) || ($pending['next'] ?? null) !== $row || !is_int($pending['user_id'] ?? null)) {
             return null;
         }
-        $floor = $pending['floor'];
-        $stmt = $db->prepare('SELECT id FROM utenti WHERE LOWER(email) = LOWER(?) AND id > ? LIMIT 1');
+        $userId = $pending['user_id'];
+        $stmt = $db->prepare('SELECT id FROM utenti WHERE id = ? AND LOWER(email) = LOWER(?) LIMIT 1');
         if ($stmt === false) {
             return null;
         }
-        $stmt->bind_param('si', $email, $floor);
+        $stmt->bind_param('is', $userId, $email);
         $stmt->execute();
         $found = $stmt->get_result()->fetch_row();
         $stmt->close();
