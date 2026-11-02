@@ -414,14 +414,26 @@ final class StaffLoanReader
         if ($where === []) {
             return [];
         }
+        $ledgerActive = \App\Services\PatronLedger::active($this->db);
+        $balance = $ledgerActive ? \App\Services\PatronLedger::balanceSql('u.id') : 'NULL';
+        $debtAllowed = \App\Support\LoanEligibility::debtBlockSql('u', $this->db);
+        $select = str_replace('FROM utenti u', ", {$balance} AS ledger_balance, NOT ({$debtAllowed}) AS debt_blocked FROM utenti u", self::USER_SELECT);
         $rows = $this->all(
-            self::USER_SELECT . ' WHERE ' . implode(' AND ', $where)
+            $select . ' WHERE ' . implode(' AND ', $where)
                 . \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER) . " ORDER BY u.cognome, u.nome, u.id LIMIT ?",
             $types . 'i',
             [...$params, $limit]
         );
 
-        return array_map(fn (array $r): array => $this->mapUser($r), $rows);
+        $currency = \App\Services\FineParameters::currency();
+        return array_map(function (array $r) use ($ledgerActive, $currency): array {
+            $r['_ledger'] = $ledgerActive ? [
+                'balance_cents' => \App\Services\FineParameters::decimalToCents($r['ledger_balance']),
+                'currency' => $currency,
+                'debt_blocked' => (bool) $r['debt_blocked'],
+            ] : null;
+            return $this->mapUser($r);
+        }, $rows);
     }
 
     /** @return array<string, mixed>|null StaffUser */
@@ -579,7 +591,9 @@ final class StaffLoanReader
      */
     public function mapUser(array $r): array
     {
-        $reason = \App\Support\LoanEligibility::checkUser($this->db, (int) $r['id']);
+        $reason = array_key_exists('debt_blocked', $r)
+            ? (\App\Support\LoanEligibility::checkUserState($r) ?? (!empty($r['debt_blocked']) ? 'debt_block' : null))
+            : \App\Support\LoanEligibility::checkUser($this->db, (int) $r['id']);
 
         return [
             'id'                  => (int) $r['id'],

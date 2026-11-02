@@ -23,6 +23,7 @@ final class ConfigStore
      * keys) retry the connect and pay the full timeout N times.
      */
     private static bool $connectionFailed = false;
+    private static bool $scopedConnection = false;
 
     public static function all(): array
     {
@@ -265,6 +266,28 @@ final class ConfigStore
         self::$runtimeCache = null;
         self::$dbSettingsCache = null;
         QueryCache::delete(self::SETTINGS_CACHE_KEY);
+    }
+
+    /** Read the caller's uncommitted settings without publishing them to the
+     * shared cache. Always restore the ordinary connection after the scope.
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    public static function usingConnection(\mysqli $db, callable $work): mixed
+    {
+        $previous = self::$sharedConnection;
+        $scoped = self::$scopedConnection;
+        self::$sharedConnection = $db;
+        self::$scopedConnection = true;
+        self::clearCache();
+        try {
+            return $work();
+        } finally {
+            self::$sharedConnection = $previous;
+            self::$scopedConnection = $scoped;
+            self::clearCache();
+        }
     }
 
     /**
@@ -733,7 +756,7 @@ final class ConfigStore
      */
     private static function loadRawSettings(): array
     {
-        $cached = QueryCache::get(self::SETTINGS_CACHE_KEY);
+        $cached = self::$scopedConnection ? null : QueryCache::get(self::SETTINGS_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;
         }
@@ -757,7 +780,9 @@ final class ConfigStore
         }
         $result->free();
 
-        QueryCache::set(self::SETTINGS_CACHE_KEY, $raw, self::SETTINGS_CACHE_TTL);
+        if (!self::$scopedConnection) {
+            QueryCache::set(self::SETTINGS_CACHE_KEY, $raw, self::SETTINGS_CACHE_TTL);
+        }
 
         return $raw;
     }

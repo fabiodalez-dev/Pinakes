@@ -38,7 +38,6 @@ final class StaffCopyCatalogingController
     private const LAST_IMPORT_KEY = 'copy_cataloging_last_import';
     private const KEEP_SEARCHES = 5;
     /** Imports of one search whose Idempotency-Key still replays (oldest dropped first). */
-    private const KEEP_IMPORTS = 20;
     private const MAX_IDS = 100;
 
     private ImportJobStore $store;
@@ -267,7 +266,7 @@ final class StaffCopyCatalogingController
                     // a retry finds the key pending and refuses, instead of
                     // importing again.
                     $imports[$token] = ['token' => $token, 'fingerprint' => $fingerprint, 'pending' => true];
-                    $state['imports'] = array_slice($imports, -self::KEEP_IMPORTS, null, true);
+                    $state['imports'] = $imports;
                     unset($state['last_import']);
                     $this->store->setStatus((string) $job['id'], 'running');
                     if (!$this->store->saveChunk((string) $job['id'], $state, (int) $job['processed'], 'ready', $summary)) {
@@ -307,7 +306,7 @@ final class StaffCopyCatalogingController
                 if (is_array($newLast) && !$replayed) {
                     unset($imports[$token]);
                     $imports[$token] = $newLast;
-                    $state['imports'] = array_slice($imports, -self::KEEP_IMPORTS, null, true);
+                    $state['imports'] = $imports;
                     unset($state['last_import']);
                     $this->store->setStatus((string) $job['id'], 'running');
                     $saved = $this->store->saveChunk((string) $job['id'], $state, (int) $job['processed'] + count($ids), 'ready', [

@@ -118,7 +118,7 @@ class CopyController
     /**
      * Aggiorna lo stato di una singola copia
      */
-    public function updateCopy(Request $request, Response $response, mysqli $db, int $copyId): Response
+    public function updateCopy(Request $request, Response $response, mysqli $db, int $copyId, ?bool $consultation = null): Response
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
@@ -211,7 +211,7 @@ class CopyController
                 'redirect_to' => $this->adminBookPath($libroId),
                 'csrf_token' => $data['csrf_token'] ?? '',
             ]);
-            return (new PrestitiController())->processReturn($delegated, $response, $db, (int) $prestito['id']);
+            return (new PrestitiController())->processReturn($delegated, $response, $db, (int) $prestito['id'], $consultation);
         } else {
             // GESTIONE ALTRI STATI
             // A copy physically outside the library must go through the return
@@ -254,6 +254,26 @@ class CopyController
                     return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
                 }
 
+                // A combined API edit is one transaction: a refused status
+                // change or failed write cannot leave only the flag changed.
+                if ($consultation !== null) {
+                    $lockCopy = $db->prepare('SELECT id FROM copie WHERE id = ? FOR UPDATE');
+                    $lockCopy->bind_param('i', $copyId);
+                    $lockCopy->execute();
+                    $exists = (bool) $lockCopy->get_result()->fetch_row();
+                    $lockCopy->close();
+                    if (!$exists || ($consultation && $this->isCopyHeld($db, $copyId))) {
+                        $db->rollback();
+                        $_SESSION['error_message'] = !$exists ? __('Copia non trovata.') : __('La copia è impegnata da un prestito, un ritiro o una richiesta: chiudili prima di riservarla alla consultazione.');
+                        return $response->withHeader('Location', url($this->adminBookPath($libroId)))->withStatus(302);
+                    }
+                    $flag = (int) $consultation;
+                    $update = $db->prepare('UPDATE copie SET solo_consultazione = ? WHERE id = ?');
+                    $update->bind_param('ii', $flag, $copyId);
+                    $update->execute();
+                    $update->close();
+                }
+
                 $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
                 $stmt->bind_param('ssi', $stato, $note, $copyId);
                 $stmt->execute();
@@ -289,6 +309,14 @@ class CopyController
                     $reservationManager->setExternalTransaction(true);
                     for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($libroId); $guard++) {
                         // Promote every date-eligible reservation allowed by capacity.
+                    }
+                }
+
+                if ($consultation === false && $reservationManager === null) {
+                    $reservationManager = new \App\Controllers\ReservationManager($db);
+                    $reservationManager->setExternalTransaction(true);
+                    for ($guard = 0; $guard < 1000 && $reservationManager->processBookAvailability($libroId); $guard++) {
+                        // Same promotion as the standalone consultation toggle.
                     }
                 }
 

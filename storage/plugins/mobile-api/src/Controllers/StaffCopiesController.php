@@ -78,10 +78,8 @@ final class StaffCopiesController
             $target = is_string($json['status'] ?? null) ? (string) $json['status'] : $current;
             $notes = array_key_exists('notes', $json) ? (string) ($json['notes'] ?? '') : (string) ($row['note'] ?? '');
 
-            // Every refusal of the status change is decided before anything is
-            // written: the two core actions each commit on their own (and the
-            // toggle notifies the readers it promotes), so a 409 after the
-            // first one would leave half the request applied.
+            // Refuse known invalid transitions before entering the core action.
+            // Combined status/flag changes are committed by that action together.
             if ($editsCopy) {
                 if ($current === 'prenotato' && $target === 'disponibile') {
                     return $this->refuse($response, 'copy_held', __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.'));
@@ -104,23 +102,12 @@ final class StaffCopiesController
                 }
             }
 
-            // Order of the two writes: reserving the copy for consultation goes
-            // first (its refusal must stop the status change); making it
-            // lendable again goes last, so the reservation it promotes reads
-            // the status this request sets and is not overwritten by it.
-            $consultation = $toggle && $json['consultation_only'] === true;
-            if ($consultation) {
-                if ($refused = $this->setConsultation($id, true)) {
-                    return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
-                }
-            }
             if ($editsCopy) {
-                if ($refused = $this->applyStatus($id, $target, $notes)) {
+                if ($refused = $this->applyStatus($id, $target, $notes, $toggle ? $json['consultation_only'] : null)) {
                     return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
                 }
-            }
-            if ($toggle && !$consultation) {
-                if ($refused = $this->setConsultation($id, false)) {
+            } elseif ($toggle) {
+                if ($refused = $this->setConsultation($id, $json['consultation_only'])) {
                     return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
                 }
             }
@@ -138,7 +125,7 @@ final class StaffCopiesController
      *
      * @return array{status:int, code:string, message:string}|null
      */
-    private function applyStatus(int $id, string $target, string $notes): ?array
+    private function applyStatus(int $id, string $target, string $notes, ?bool $consultation = null): ?array
     {
         $db = $this->db;
 
@@ -146,7 +133,8 @@ final class StaffCopiesController
             Delegation::request('POST', '/admin/books/copies/' . $id . '/update', ['stato' => $target, 'note' => $notes]),
             new SlimResponse(),
             $db,
-            $id
+            $id,
+            $consultation
         )));
     }
 

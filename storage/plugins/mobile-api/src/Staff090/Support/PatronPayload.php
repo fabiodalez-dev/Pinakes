@@ -35,7 +35,7 @@ final class PatronPayload
             'patron_type' => self::patronType($row, $policy),
             'has_photo'   => self::photoUrl($id, $row['foto_profilo_url'] ?? null) !== null,
             'photo_url'   => self::photoUrl($id, $row['foto_profilo_url'] ?? null),
-            'ledger'      => self::ledger($db, $id),
+            'ledger'      => array_key_exists('_ledger', $row) ? $row['_ledger'] : self::ledger($db, $id),
             'can_edit'    => self::canEdit($row),
         ];
     }

@@ -109,7 +109,10 @@ final class StaffSuppliersController
             if ($checked['errors'] !== []) {
                 return $this->invalid($response, $checked['errors']);
             }
-            if (!$this->repo->update($id, $checked['data'])) {
+            // Keep concurrent edits to every field omitted from this request.
+            $columns = array_intersect_key(SupplierPayload::FIELDS, $json);
+            $patch = array_intersect_key($checked['data'], array_flip($columns));
+            if (!$this->repo->updateFields($id, $patch)) {
                 return $this->notFound($response);
             }
             $resource = $this->load($id, $this->canManage($request));

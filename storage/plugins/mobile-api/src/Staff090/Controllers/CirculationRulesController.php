@@ -23,8 +23,8 @@ use Slim\Psr7\Response as SlimResponse;
  * Settings → Circulation for the staff app (Mobile API 1.10.0): patron types
  * and the rules matrix patron type × material. Reads come from
  * CirculationSettingsController::viewData() (what the settings tab renders);
- * writes are the web actions, posted with the complete form so a partial
- * update keeps every value it does not name.
+ * patron-type writes use the web actions. Matrix updates patch only named
+ * columns, preserving concurrent edits to omitted cells and fields.
  *
  * Access mirrors the web routes: FeatureGateMiddleware('circulation_rules',
  * configuration: true), then the controller's mayConfigure() guard.
@@ -278,6 +278,9 @@ final class CirculationRulesController
         }
         try {
             $policy = new CirculationPolicy($this->db, configuration: true);
+            if (!$policy->schemaReady()) {
+                return SettingsKit::invalid($response, ['cells' => __('Le tabelle della circolazione non sono ancora state create: completa l\'aggiornamento del database.')]);
+            }
             $validTypes = array_merge([CirculationPolicy::ALL_TYPES], array_keys($policy->types()));
             $media = array_keys(CirculationSettingsController::mediaTypes());
             $errors = [];
@@ -316,30 +319,46 @@ final class CirculationRulesController
                 return SettingsKit::invalid($response, $errors);
             }
 
-            // The whole matrix, as the settings tab posts it: every stored
-            // cell, with the cells the app sent on top.
-            $stored = $policy->rules();
-            $form = [];
-            foreach ($validTypes as $typeId) {
-                foreach ($media as $m) {
-                    $cell = $this->cellValues($stored[$typeId . '|' . $m] ?? null);
-                    $cell = array_merge($cell, array_intersect_key($overrides[$typeId . '|' . $m] ?? [], $cell));
-                    $row = ['loanable' => $cell['loanable'] === null ? '' : ($cell['loanable'] ? '1' : '0')];
-                    foreach (self::RULE_INTS as $apiKey => $webKey) {
-                        $row[$webKey] = SettingsKit::formInt($cell[$apiKey]);
+            // Patch only named columns. Posting a complete matrix assembled
+            // from a prior read would overwrite other operators' edits.
+            \App\Support\DbAtomic::run($this->db, function () use ($overrides): void {
+                $allColumns = array_merge(['prestabile'], array_column(CirculationSettingsController::RULE_FIELDS, 0), array_values(CirculationSettingsController::RULE_MONEY_FIELDS));
+                $empty = implode(' AND ', array_map(static fn (string $c): string => "{$c} IS NULL", $allColumns));
+                foreach ($overrides as $cell) {
+                    $patch = [];
+                    if (array_key_exists('loanable', $cell)) {
+                        $patch['prestabile'] = $cell['loanable'] === null ? null : (int) $cell['loanable'];
                     }
-                    foreach (self::RULE_MONEY as $apiKey => $webKey) {
-                        $row[$webKey] = SettingsKit::decimal($cell[$apiKey]);
+                    foreach (self::RULE_INTS as $key => $webKey) {
+                        if (array_key_exists($key, $cell)) {
+                            $patch[CirculationSettingsController::RULE_FIELDS[$webKey][0]] = $cell[$key];
+                        }
                     }
-                    $form['rules'][(string) $typeId][$m] = $row;
+                    foreach (self::RULE_MONEY as $key => $webKey) {
+                        if (array_key_exists($key, $cell)) {
+                            $patch[CirculationSettingsController::RULE_MONEY_FIELDS[$webKey]] = $cell[$key] === null ? null : SettingsKit::decimal($cell[$key]);
+                        }
+                    }
+                    if ($patch === []) {
+                        continue;
+                    }
+                    $columns = array_keys($patch);
+                    $values = array_merge([$cell['type_id'], $cell['media']], array_values($patch));
+                    $sql = 'INSERT INTO regole_prestito (tipologia_id, tipo_media, ' . implode(', ', $columns) . ') VALUES ('
+                        . implode(', ', array_fill(0, count($values), '?')) . ') ON DUPLICATE KEY UPDATE '
+                        . implode(', ', array_map(static fn (string $c): string => "{$c} = VALUES({$c})", $columns));
+                    $stmt = $this->db->prepare($sql);
+                    $stmt->bind_param('is' . str_repeat('s', count($patch)), ...$values);
+                    $stmt->execute();
+                    $stmt->close();
+                    // An empty override inherits the default policy. This
+                    // conditional delete runs under the upsert's row lock.
+                    $stmt = $this->db->prepare("DELETE FROM regole_prestito WHERE tipologia_id = ? AND tipo_media = ? AND {$empty}");
+                    $stmt->bind_param('is', $cell['type_id'], $cell['media']);
+                    $stmt->execute();
+                    $stmt->close();
                 }
-            }
-            $outcome = $this->delegate('saveRules', '/admin/settings/circulation/rules', $form);
-            if (($error = SettingsKit::errorOf($outcome)) !== null) {
-                return str_starts_with($error, __('Impossibile salvare le regole di circolazione.'))
-                    ? ResponseEnvelope::error($response, 'internal_error', $error, 500)
-                    : SettingsKit::invalid($response, ['cells' => $error]);
-            }
+            }, 'MobileApi rules patch');
 
             return ResponseEnvelope::success($response, $this->rulesPayload());
         } catch (\Throwable $e) {

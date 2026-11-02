@@ -1739,13 +1739,15 @@ class SettingsController
         'debt_block_threshold' => 'soglia_blocco_debito',
     ];
 
-    public function updateLoansSettings(Request $request, Response $response, mysqli $db): Response
+    public function updateLoansSettings(Request $request, Response $response, mysqli $db, bool $ensureSchema = true): Response
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
-        $repository->ensureTables();
+        if ($ensureSchema) {
+            $repository->ensureTables();
+        }
 
         // Plan §7: a fine amount above FineParameters::MAX_SETTING_CENTS is a
         // typing error, not a policy: the tab is sent back untouched with the
@@ -1870,7 +1872,7 @@ class SettingsController
      * it is library policy: AdminAuthMiddleware admits staff, the check is
      * here, as for the other policy settings.
      */
-    public function updateModules(Request $request, Response $response, mysqli $db): Response
+    public function updateModules(Request $request, Response $response, mysqli $db, bool $ensureSchema = true): Response
     {
         if (!\App\Support\Permissions::mayConfigure()) {
             $_SESSION['error_message'] = __('Accesso negato. Permessi insufficienti.');
@@ -1880,7 +1882,9 @@ class SettingsController
         // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
-        $repository->ensureTables();
+        if ($ensureSchema) {
+            $repository->ensureTables();
+        }
         \App\Support\Features::preserveInherited($repository);
         $this->saveFeatureSwitches($repository, $data, \App\Support\Features::MODULES_TAB);
         $retention = filter_var($data['attendance_retention_days'] ?? null, FILTER_VALIDATE_INT);
@@ -1911,9 +1915,12 @@ class SettingsController
             }
             $integrity = new \App\Support\DataIntegrity($db);
             foreach ($result->fetch_all(MYSQLI_NUM) as [$bookId]) {
-                $integrity->recalculateBookAvailability((int) $bookId);
+                $integrity->recalculateBookAvailability((int) $bookId, insideTransaction: \App\Support\DbAtomic::inTransaction($db));
             }
         } catch (\Throwable $e) {
+            if (\App\Support\DbAtomic::inTransaction($db)) {
+                throw $e;
+            }
             \App\Support\SecureLogger::warning('Consultation availability not recalculated: ' . $e->getMessage());
         }
     }

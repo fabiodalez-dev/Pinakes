@@ -105,8 +105,24 @@ final class LibrarySettingsController
         if ($errors !== []) {
             return SettingsKit::invalid($response, $errors);
         }
+        return \App\Support\ConfigStore::usingConnection($this->db, fn (): ResponseInterface => $this->saveModules($response, $json, $features));
+    }
+
+    /** @param array<string, mixed> $json @param array<string, bool> $features */
+    private function saveModules(ResponseInterface $response, array $json, array $features): ResponseInterface
+    {
+        $transaction = false;
         try {
             $repository = new SettingsRepository($this->db);
+            // Schema creation must precede the transaction: DDL would commit
+            // the first tab before the second tab has succeeded.
+            $repository->ensureTables();
+            $this->db->begin_transaction();
+            $transaction = true;
+            // Serialize settings read/merge/write, including initially absent
+            // switches, before opening the consistent snapshot.
+            $lock = $this->db->query('SELECT category, setting_key FROM system_settings FOR UPDATE');
+            $lock->free();
             $stored = Features::snapshot();
             $wanted = array_merge($stored, array_map(static fn ($v): bool => (bool) $v, $features));
             $db = $this->db;
@@ -123,7 +139,8 @@ final class LibrarySettingsController
                 $outcome = Delegation::run(static fn (): ResponseInterface => (new SettingsController())->updateLoansSettings(
                     Delegation::request('POST', '/admin/settings/loans', $form),
                     new SlimResponse(),
-                    $db
+                    $db,
+                    ensureSchema: false
                 ));
                 if (($error = SettingsKit::errorOf($outcome)) !== null) {
                     return SettingsKit::invalid($response, ['features' => $error]);
@@ -144,16 +161,25 @@ final class LibrarySettingsController
                 $outcome = Delegation::run(static fn (): ResponseInterface => (new SettingsController())->updateModules(
                     Delegation::request('POST', '/admin/settings/modules', $form),
                     new SlimResponse(),
-                    $db
+                    $db,
+                    ensureSchema: false
                 ));
                 if (SettingsKit::errorOf($outcome) !== null) {
                     return SettingsKit::forbidden($response);
                 }
             }
 
+            $this->db->commit();
+            $transaction = false;
             return ResponseEnvelope::success($response, $this->modulesPayload());
         } catch (\Throwable $e) {
             return SettingsKit::fail($response, 'modules settings update', $e);
+        } finally {
+            if ($transaction) {
+                $this->db->rollback();
+                \App\Support\ConfigStore::clearCache();
+                \App\Support\LibraryCalendar::reset();
+            }
         }
     }
 
