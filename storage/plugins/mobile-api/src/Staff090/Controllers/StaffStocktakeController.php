@@ -142,10 +142,10 @@ final class StaffStocktakeController
             // carries the list as it was on the first page (`u`, and `a` the
             // sessions then open, StocktakeService::sessionSnapshot()): a
             // session opened, closed or cancelled while the operator pages is
-            // never listed twice nor skipped (within the bound the snapshot
-            // documents). `f` is the status filter the cursor was written for.
+            // never listed twice nor skipped (within the bounds the snapshot
+            // documents, which keep the cursor short). `f` is the status filter the cursor was written for.
             $cursor = $this->cursor($request);
-            $snapshot = is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null) : null;
+            $snapshot = is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null, $cursor['b'] ?? null) : null;
             if ($this->hasCursor($request) && ($snapshot === null || !is_int($cursor['o'] ?? null) || $cursor['o'] < 1 || ($cursor['f'] ?? null) !== $statusCode)) {
                 // A cursor that does not carry its snapshot would page a new
                 // list at an offset of the old one: refused, never guessed.

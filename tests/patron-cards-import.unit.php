@@ -261,6 +261,7 @@ $photoFiles = [];
 $importEmail = 'zz-import-' . $suffix . '@example.invalid';
 $importLogIds = [];
 $src = null; // the scratch image, removed in finally even when a check throws
+$ownTypeId = 0; // a patron type the test adds when none usable is there
 try {
     $db->query("CREATE TABLE {$users} (id INT NOT NULL PRIMARY KEY, nome VARCHAR(100)) ENGINE=InnoDB");
     $db->query("INSERT INTO {$users} (id, nome) VALUES (1, 'A')");
@@ -720,6 +721,14 @@ try {
             break;
         }
     }
+    if ($type === null) {
+        // None usable (a bare database): one of the test's own, so the check below always runs.
+        $db->query("INSERT INTO tipologie_lettore (codice, nome, attiva) VALUES ('zz-pci-{$suffix}', 'ZZ PCI {$suffix}', 1)");
+        $ownTypeId = (int) $db->insert_id;
+        $type = ['id' => $ownTypeId, 'codice' => 'zz-pci-' . $suffix, 'nome' => 'ZZ PCI ' . $suffix];
+    }
+    $typeActive = (int) ($db->query('SELECT COUNT(*) FROM tipologie_lettore WHERE attiva = 1 AND id = ' . (int) ($type['id'] ?? 0))->fetch_row()[0] ?? 0);
+    $check($typeActive === 1, 'an active patron type is there for the first pending row');
     if (is_array($type)) {
         $firstId = $ckAccount('f');
         $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$firstId}");
@@ -905,6 +914,9 @@ try {
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
     $db->query("DELETE FROM utenti WHERE email LIKE 'zz-pci-blk-{$suffix}-%'");
     $db->query("DELETE FROM utenti WHERE email LIKE 'zz-pci-ck-{$suffix}-%'");
+    if ($ownTypeId > 0) {
+        $db->query("DELETE FROM tipologie_lettore WHERE id = {$ownTypeId}");
+    }
     foreach ($importLogIds as $logId) {
         $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
         $stmt->bind_param('s', $logId);

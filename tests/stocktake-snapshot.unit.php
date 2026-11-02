@@ -314,6 +314,7 @@ try {
     }
     $other->commit();
     $other->close();
+    $other = null;
     $check($waited, 'latestScanId() waits for a scan still being written instead of returning the committed maximum');
     $check($service->latestScanId($second) === $inFlight, 'once that scan commits, latestScanId() returns its id');
     $db->query("DELETE FROM inventario_scansioni WHERE id = {$inFlight}");
@@ -396,15 +397,42 @@ try {
     // A session closed before the snapshot is still in the pinned history.
     $check(in_array($second, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a session closed before the snapshot is in the pinned history');
     // The snapshot a cursor carries back is checked before it reaches the SQL.
-    $check(StocktakeService::snapshotFrom(5, '1,3', '2') === ['u' => 5, 'a' => [1, 3], 'g' => [[2, 2]]] && StocktakeService::snapshotFrom(5, '', '') === ['u' => 5, 'a' => [], 'g' => []]
-        && StocktakeService::snapshotFrom(9, '1', '2-4,7') === ['u' => 9, 'a' => [1], 'g' => [[2, 4], [7, 7]]]
-        && StocktakeService::snapshotFrom(5, '1,x', '') === null && StocktakeService::snapshotFrom(5, "1) OR (1=1", '') === null && StocktakeService::snapshotFrom(5, '9', '') === null && StocktakeService::snapshotFrom('5', '1', '') === null
-        && StocktakeService::snapshotFrom(5, '1', null) === null && StocktakeService::snapshotFrom(5, '1', '2) OR (1=1') === null && StocktakeService::snapshotFrom(5, '1', '7') === null
-        && StocktakeService::snapshotFrom(2, '2', '2') === null && StocktakeService::snapshotFrom(9, '3', '2-4') === null
-        && StocktakeService::snapshotFrom(9, '1', '4-2') === null && StocktakeService::snapshotFrom(9, '1', '5,3') === null && StocktakeService::snapshotFrom(9, '1', '2-4,4') === null && StocktakeService::snapshotFrom(9, '1', '2-12') === null
-        && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]]]), 1))) === ['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]]], 'snapshotFrom() accepts only the id lists snapshotToCursor() writes');
+    $check(StocktakeService::snapshotFrom(5, '1,3', '2', 0) === ['u' => 5, 'a' => [1, 3], 'g' => [[2, 2]], 'b' => 0] && StocktakeService::snapshotFrom(5, '', '', 0) === ['u' => 5, 'a' => [], 'g' => [], 'b' => 0]
+        && StocktakeService::snapshotFrom(9, '1', '2-4,7', 0) === ['u' => 9, 'a' => [1], 'g' => [[2, 4], [7, 7]], 'b' => 0]
+        && StocktakeService::snapshotFrom(5, '1,x', '', 0) === null && StocktakeService::snapshotFrom(5, "1) OR (1=1", '', 0) === null && StocktakeService::snapshotFrom(5, '9', '', 0) === null && StocktakeService::snapshotFrom('5', '1', '', 0) === null
+        && StocktakeService::snapshotFrom(5, '1', null, 0) === null && StocktakeService::snapshotFrom(5, '1', '2) OR (1=1', 0) === null && StocktakeService::snapshotFrom(5, '1', '7', 0) === null
+        && StocktakeService::snapshotFrom(2, '2', '2', 0) === null && StocktakeService::snapshotFrom(9, '3', '2-4', 0) === null
+        && StocktakeService::snapshotFrom(9, '1', '4-2', 0) === null && StocktakeService::snapshotFrom(9, '1', '5,3', 0) === null && StocktakeService::snapshotFrom(9, '1', '2-4,4', 0) === null && StocktakeService::snapshotFrom(9, '1', '2-12', 0) === null
+        && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]], 'b' => 0]), 1))) === ['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]], 'b' => 0], 'snapshotFrom() accepts only the id lists snapshotToCursor() writes');
     $manyRanges = implode(',', array_map(static fn (int $i): string => (string) (2 * $i), range(1, StocktakeService::MAX_GAP_RANGES + 1)));
-    $check(StocktakeService::snapshotToCursor(['u' => 10, 'a' => [], 'g' => [[2, 4], [7, 7]]])['g'] === '2-4,7' && StocktakeService::snapshotFrom(1000, '', $manyRanges) === null, 'gaps travel as ranges, at most MAX_GAP_RANGES of them');
+    $check(StocktakeService::snapshotToCursor(['u' => 10, 'a' => [], 'g' => [[2, 4], [7, 7]], 'b' => 0])['g'] === '2-4,7' && StocktakeService::snapshotFrom(1000, '', $manyRanges, 0) === null, 'gaps travel as ranges, at most MAX_GAP_RANGES of them');
+    $manyOpen = implode(',', range(1, StocktakeService::MAX_OPEN_IDS + 1));
+    $check(StocktakeService::snapshotFrom(9, '4,6', '', 4) === ['u' => 9, 'a' => [4, 6], 'g' => [], 'b' => 4]
+        && StocktakeService::snapshotFrom(9, '3,6', '', 4) === null && StocktakeService::snapshotFrom(9, '', '', 10) === null && StocktakeService::snapshotFrom(9, '', '', -1) === null
+        && StocktakeService::snapshotFrom(9, '1', '') === null && StocktakeService::snapshotFrom(9, '1', '', '0') === null
+        && StocktakeService::snapshotFrom(1000, $manyOpen, '', 0) === null, 'open ids travel at most MAX_OPEN_IDS, none below the floor, and the floor is required');
+
+    // More sessions open than a cursor carries: the newest MAX_OPEN_IDS stay
+    // pinned, the older ones rank by their state at each page.
+    $bulk = [];
+    for ($i = 0; $i <= StocktakeService::MAX_OPEN_IDS; $i++) {
+        $db->query("INSERT INTO inventario_sessioni (nome, stato, aperta_il) VALUES ('ZZST bulk {$run} {$i}', 'aperta', NOW())");
+        $bulk[] = (int) $db->insert_id;
+    }
+    array_push($sessionIds, ...$bulk);
+    $wide = $service->sessionSnapshot();
+    $openNow = array_map('intval', array_column($db->query("SELECT id FROM inventario_sessioni WHERE stato = 'aperta' ORDER BY id")->fetch_all(MYSQLI_NUM), 0));
+    $check(count($wide['a']) === StocktakeService::MAX_OPEN_IDS && $wide['a'] === array_slice($openNow, -StocktakeService::MAX_OPEN_IDS) && $wide['b'] === $wide['a'][0] && $wide['b'] > $openNow[0],
+        'with more open sessions than MAX_OPEN_IDS the snapshot keeps the newest ones and names the lowest as its floor');
+    $check(strlen((string) json_encode(StocktakeService::snapshotToCursor($wide))) < 4096 && StocktakeService::snapshotFrom($wide['u'], ...array_values(array_slice(StocktakeService::snapshotToCursor($wide), 1))) === $wide,
+        'its cursor stays small and reads back as the same snapshot');
+    $wideOpen = $service->sessionIds('aperta', 500, 0, $wide);
+    $check($wideOpen === $service->sessionIds('aperta', 500) && $service->sessionCount('aperta', $wide) === count($openNow), 'every open session is listed as open, those below the floor too');
+    $pinnedOpen = end($bulk);
+    $db->query("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_il = NOW() WHERE id IN ({$bulk[0]}, {$pinnedOpen})");
+    $wideAfter = $service->sessionIds('aperta', 500, 0, $wide);
+    $check($bulk[0] < $wide['b'] && in_array($pinnedOpen, $wideAfter, true) && !in_array($bulk[0], $wideAfter, true) && in_array($bulk[0], $service->sessionIds('chiusa', 500, 0, $wide), true),
+        'a pinned session closed later stays open; one below the floor moves to the history');
 
     // The app pages through every session, not the history listSessions() trims.
     $sessionTotal = $service->sessionCount(null);

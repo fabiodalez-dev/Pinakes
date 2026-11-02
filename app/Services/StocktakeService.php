@@ -40,6 +40,8 @@ final class StocktakeService
     public const MAX_UPLOAD_CODES = 5000;
     /** sessionSnapshot(): the most gap ranges a session-list cursor carries. */
     public const MAX_GAP_RANGES = 100;
+    /** Open session ids a snapshot carries at most (see sessionSnapshot()). */
+    public const MAX_OPEN_IDS = 200;
 
     /**
      * Copy states that already explain why a copy is not on the shelf. A missing
@@ -501,7 +503,13 @@ final class StocktakeService
      * need as many rollbacks or deletions after it while its own open still
      * runs. The lower ranges are dropped, never the recent ones.
      *
-     * @return array{u:int,a:list<int>,g:list<array{0:int,1:int}>}
+     * The open ids travel too, so at most MAX_OPEN_IDS of them, the newest.
+     * When more sessions were open, `b` is the lowest id kept: a session below
+     * it ranks by its state at each page (it was open in the snapshot, so a
+     * close between two pages moves it to the history). `b` is 0 when every
+     * open id is kept, the case of any library that closes its stocktakes.
+     *
+     * @return array{u:int,a:list<int>,g:list<array{0:int,1:int}>,b:int}
      */
     public function sessionSnapshot(): array
     {
@@ -523,38 +531,43 @@ final class StocktakeService
                 $open[] = $id;
             }
         }
-        return ['u' => $expected - 1, 'a' => $open, 'g' => array_slice($gaps, -self::MAX_GAP_RANGES)];
+        $kept = array_slice($open, -self::MAX_OPEN_IDS);
+        return ['u' => $expected - 1, 'a' => $kept, 'g' => array_slice($gaps, -self::MAX_GAP_RANGES), 'b' => count($open) > count($kept) ? $kept[0] : 0];
     }
 
     /**
      * A snapshot as a cursor carries it: the open ids comma-separated, the
-     * gaps as `first-last` ranges (a single id alone).
+     * gaps as `first-last` ranges (a single id alone), the floor `b`.
      *
-     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>} $snapshot
-     * @return array{u:int,a:string,g:string}
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>,b:int} $snapshot
+     * @return array{u:int,a:string,g:string,b:int}
      */
     public static function snapshotToCursor(array $snapshot): array
     {
         $gaps = array_map(static fn (array $r): string => $r[0] === $r[1] ? (string) $r[0] : $r[0] . '-' . $r[1], $snapshot['g']);
-        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a']), 'g' => implode(',', $gaps)];
+        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a']), 'g' => implode(',', $gaps), 'b' => $snapshot['b']];
     }
 
     /**
      * A snapshot back from snapshotToCursor(), or null when it is not one:
-     * every id between 1 and `u`, ranges in order, at most MAX_GAP_RANGES.
+     * every id between 1 and `u`, ranges in order, at most MAX_GAP_RANGES,
+     * at most MAX_OPEN_IDS open ids, none below the floor `b`.
      *
-     * @return array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null
+     * @return array{u:int,a:list<int>,g:list<array{0:int,1:int}>,b:int}|null
      */
-    public static function snapshotFrom(mixed $u, mixed $open, mixed $gaps = null): ?array
+    public static function snapshotFrom(mixed $u, mixed $open, mixed $gaps = null, mixed $floor = null): ?array
     {
-        if (!is_int($u) || $u < 0 || !is_string($open) || !is_string($gaps)
+        if (!is_int($u) || $u < 0 || !is_string($open) || !is_string($gaps) || !is_int($floor) || $floor < 0 || $floor > $u
             || preg_match('/^(\d{1,10}(,\d{1,10})*)?$/', $open) !== 1
             || preg_match('/^(\d{1,10}(-\d{1,10})?(,\d{1,10}(-\d{1,10})?)*)?$/', $gaps) !== 1) {
             return null;
         }
         $openIds = $open === '' ? [] : array_map('intval', explode(',', $open));
+        if (count($openIds) > self::MAX_OPEN_IDS) {
+            return null;
+        }
         foreach ($openIds as $id) {
-            if ($id <= 0 || $id > $u) {
+            if ($id <= 0 || $id > $u || $id < $floor) {
                 return null;
             }
         }
@@ -580,7 +593,7 @@ final class StocktakeService
                 }
             }
         }
-        return ['u' => $u, 'a' => $openIds, 'g' => $ranges];
+        return ['u' => $u, 'a' => $openIds, 'g' => $ranges, 'b' => $floor];
     }
 
     /**
@@ -589,7 +602,7 @@ final class StocktakeService
      * the app pages through the whole history, which listSessions() trims.
      * With $snapshot (sessionSnapshot()) the list is the one of that moment.
      *
-     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>,b:int}|null $snapshot
      * @return list<int> session ids
      */
     public function sessionIds(?string $state, int $limit, int $offset = 0, ?array $snapshot = null): array
@@ -618,7 +631,7 @@ final class StocktakeService
     /**
      * How many sessions sessionIds() pages through.
      *
-     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>,b:int}|null $snapshot
      */
     public function sessionCount(?string $state, ?array $snapshot = null): int
     {
@@ -641,7 +654,7 @@ final class StocktakeService
      * for the sessions open in the snapshot, the stored state for the others,
      * and no open session the snapshot did not see.
      *
-     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>,b:int}|null $snapshot
      * @return array{0:string,1:string} [state expression, WHERE condition]
      */
     private static function sessionListSql(?array $snapshot): array
@@ -650,6 +663,10 @@ final class StocktakeService
             return ['s.stato', '1 = 1'];
         }
         $open = $snapshot['a'] === [] ? 'FALSE' : 's.id IN (' . implode(',', array_map('intval', $snapshot['a'])) . ')';
+        if ($snapshot['b'] > 0) {
+            // Below the floor the snapshot kept no open id: the state of now.
+            $open = "({$open} OR (s.id < " . (int) $snapshot['b'] . " AND s.stato = 'aperta'))";
+        }
         $visible = '';
         foreach ($snapshot['g'] as [$first, $last]) {
             $visible .= ' AND s.id NOT BETWEEN ' . (int) $first . ' AND ' . (int) $last;
