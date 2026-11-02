@@ -212,7 +212,7 @@ final class MarcArea implements StaffArea
                 '200' => O::ok('Outcome per record; meta.replayed=true when the Idempotency-Key answered a previous import.', O::ref('CopyCatalogingImport')),
                 '410' => O::err('`gone`: the search expired, search again.'),
                 '422' => O::err('`validation` (meta.fields) or `idempotency_conflict`: the key was used for another selection.'),
-                '409' => O::err('`concurrent_retry`: another import of this search is running, retry.'),
+                '409' => O::err('`concurrent_retry`: another import of this search is running, retry. `import_outcome_unknown`: an import under this Idempotency-Key started but its outcome was not stored; check the catalogue, then import with a new key.'),
                 '404' => O::err('`not_found` (unknown search_id) or `copy_cataloging_unavailable`.'),
             ], [
                 'parameters' => [['name' => 'Idempotency-Key', 'in' => 'header', 'required' => false, 'description' => 'Stable across retries of the same import: the same key with the same ids / duplicates / covers answers the first outcome again without importing twice.', 'schema' => ['type' => 'string', 'maxLength' => 128]]],

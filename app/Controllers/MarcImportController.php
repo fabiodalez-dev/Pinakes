@@ -172,7 +172,17 @@ class MarcImportController
         // Every chunk and discard request names the preview it belongs to: a
         // second upload (another tab) replaces the session state, and a page
         // still showing the first preview must not import the second file.
-        $stagingId = bin2hex(random_bytes(12));
+        try {
+            $stagingId = bin2hex(random_bytes(12));
+            // Validated once here; a supplier deleted during the import is
+            // not assigned, and each book left without it is listed.
+            $supplierId = CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null);
+        } catch (\Throwable $e) {
+            // No session state points to the staged file yet: nothing else
+            // would ever remove it.
+            @unlink($staging);
+            throw $e;
+        }
         // The previous preview is dropped only now: a file that cannot be
         // staged leaves it (its file and session state) importable.
         $this->discardStaging();
@@ -183,9 +193,7 @@ class MarcImportController
             'total_rows' => $total,
             'mode' => $mode,
             'covers' => !empty($data['download_covers']),
-            // Validated once here; a supplier deleted during the import is
-            // not assigned, and each book left without it is listed.
-            'fornitore_id' => CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
+            'fornitore_id' => $supplierId,
             'offset' => 0,
             'processed' => 0,
             'counters' => [],

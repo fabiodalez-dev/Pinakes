@@ -233,6 +233,10 @@ final class StaffCopyCatalogingController
                     // Pruned or purged between the first read and the lock.
                     return ResponseEnvelope::error($response, 'not_found', __('Ricerca non trovata: ripeti la ricerca.'), 404);
                 }
+                if ($job['expired'] === true) {
+                    // Expired while this request waited for the lock.
+                    return ResponseEnvelope::error($response, 'gone', __('Risultato non più disponibile: ripeti la ricerca'), 410, ['status' => 'expired']);
+                }
                 $state = $job['state'];
                 // The plugin's own replay contract: the page's import token is
                 // the client's Idempotency-Key here (hashed to its alphabet).
@@ -250,21 +254,53 @@ final class StaffCopyCatalogingController
                     }
                     $replayed = true;
                 }
+                if ($replayed && !empty($last['pending'])) {
+                    // The import under this key started and its outcome was
+                    // never stored: importing again could add the records
+                    // without ISBN/EAN/author a second time.
+                    return ResponseEnvelope::error($response, 'import_outcome_unknown', __('L\'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.'), 409);
+                }
+                $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];
+                if ($token !== '' && !$replayed) {
+                    // The key is stored before the books are written and its
+                    // outcome replaces it after: when that second save fails,
+                    // a retry finds the key pending and refuses, instead of
+                    // importing again.
+                    $imports[$token] = ['token' => $token, 'fingerprint' => $fingerprint, 'pending' => true];
+                    $state['imports'] = array_slice($imports, -self::KEEP_IMPORTS, null, true);
+                    unset($state['last_import']);
+                    $this->store->setStatus((string) $job['id'], 'running');
+                    if (!$this->store->saveChunk((string) $job['id'], $state, (int) $job['processed'], 'ready', $summary)) {
+                        return ResponseEnvelope::error($response, 'not_found', __('Ricerca non trovata: ripeti la ricerca.'), 404);
+                    }
+                }
                 $payload = ['ids' => $ids, 'duplicates' => $mode, 'covers' => $covers, 'import_token' => $token];
                 $results = is_array($state['results'] ?? null) ? $state['results'] : [];
-                $outcome = Delegation::run(static function () use ($plugin, $payload, $results, $last): ResponseInterface {
-                    $_SESSION[self::RESULTS_KEY] = $results;
-                    if ($last !== null) {
-                        $_SESSION[self::LAST_IMPORT_KEY] = $last;
-                    }
+                try {
+                    $outcome = Delegation::run(static function () use ($plugin, $payload, $results, $last): ResponseInterface {
+                        $_SESSION[self::RESULTS_KEY] = $results;
+                        if ($last !== null) {
+                            $_SESSION[self::LAST_IMPORT_KEY] = $last;
+                        }
 
-                    return $plugin->copyCatalogingImportAction(
-                        Delegation::request('POST', '/admin/books/copy-cataloging/import', [], [], (string) json_encode($payload)),
-                        new SlimResponse()
-                    );
-                });
-                if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
-                    throw new \RuntimeException('copy cataloging import answered HTTP ' . $outcome->status);
+                        return $plugin->copyCatalogingImportAction(
+                            Delegation::request('POST', '/admin/books/copy-cataloging/import', [], [], (string) json_encode($payload)),
+                            new SlimResponse()
+                        );
+                    });
+                    if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
+                        throw new \RuntimeException('copy cataloging import answered HTTP ' . $outcome->status);
+                    }
+                } catch (\Throwable $e) {
+                    // Refused before any record (the plugin catches every
+                    // record's own failure): the key is free again.
+                    if ($token !== '' && !$replayed) {
+                        unset($imports[$token]);
+                        $state['imports'] = $imports;
+                        $this->store->setStatus((string) $job['id'], 'running');
+                        $this->store->saveChunk((string) $job['id'], $state, (int) $job['processed'], 'ready', $summary);
+                    }
+                    throw $e;
                 }
                 $result = CopyCatalogingMapper::importResult($outcome->json);
                 $newLast = $outcome->session[self::LAST_IMPORT_KEY] ?? null;

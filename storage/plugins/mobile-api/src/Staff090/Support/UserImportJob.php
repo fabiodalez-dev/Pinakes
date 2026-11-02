@@ -117,8 +117,7 @@ final class UserImportJob
         $keep = [];
         foreach ($headers as $i => $header) {
             $field = $mapping[$i] ?? null;
-            $normalised = (string) preg_replace('/[\s_\-\d]+/u', ' ', mb_strtolower($header));
-            $keep[$i] = is_string($field) && $field !== '' && preg_match(self::SECRET_HEADER, $normalised) !== 1;
+            $keep[$i] = is_string($field) && $field !== '' && !self::isSecretHeader($header);
         }
         $rows = [];
         foreach ($preview as $row) {
@@ -132,6 +131,17 @@ final class UserImportJob
         }
 
         return $rows;
+    }
+
+    /**
+     * Whether a CSV header names a password (or another secret), on the
+     * normalised header: lowercase, `_`, `-` and digits as spaces.
+     */
+    public static function isSecretHeader(string $header): bool
+    {
+        $normalised = (string) preg_replace('/[\s_\-\d]+/u', ' ', mb_strtolower($header));
+
+        return preg_match(self::SECRET_HEADER, $normalised) === 1;
     }
 
     /**

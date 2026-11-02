@@ -514,7 +514,8 @@ test.describe('Patron CSV import', () => {
         const early = await F.api(request, 'POST', `/staff/user-imports/${job.id}/chunk`, { token: ctx.staff, body: {} });
         expect(early.status).toBe(409);
         expect(early.json.error.code).toBe('not_started');
-        for (const mapping of [['nome', 'cognome', '', '', '', ''], ['nome', 'nome', 'email', '', '', ''], ['nome', 'cognome', 'email', 'password', '', '']]) {
+        // The password column may not go to any field, the notes included.
+        for (const mapping of [['nome', 'cognome', '', '', '', ''], ['nome', 'nome', 'email', '', '', ''], ['nome', 'cognome', 'email', 'password', '', ''], ['nome', 'cognome', 'email', 'note_utente', '', '']]) {
             const bad = await F.api(request, 'POST', `/staff/user-imports/${job.id}/start`, { token: ctx.staff, body: { mapping } });
             expect(bad.status, JSON.stringify(mapping)).toBe(422);
             expect(bad.json.meta.fields.mapping).toBeTruthy();
@@ -629,6 +630,38 @@ test.describe('Patron CSV import', () => {
         expect(detail).toMatchObject({ status: 'cancelled', import_id: r.json.data.import_id, report_available: true, started: true });
         expect((await download(request, `/staff/user-imports/${id}/errors.csv`, ctx.staff)).status).toBe(200);
         expect((await F.api(request, 'POST', `/staff/user-imports/${id}/chunk`, { token: ctx.staff, body: { start: 10 } })).status).toBe(410);
+    });
+
+    test('a row whose request died after inserting the account is completed on the retry, not reported as a duplicate', async ({ request }) => {
+        const type = F.dbRows('SELECT id, nome FROM tipologie_lettore ORDER BY id LIMIT 1')[0];
+        const lines = type ? ['nome;email;tipologia', `Gino;${email('imp_g')};${type.nome}`, `Hana;${email('imp_h')};${type.nome}`] : ['nome;email', `Gino;${email('imp_g')}`, `Hana;${email('imp_h')}`];
+        const up = await upload(request, ctx.staff, csvFile('resume.csv', lines), ';');
+        expect(up.status, up.text.slice(0, 300)).toBe(201);
+        const id = up.json.data.id;
+        const withType = type && up.json.data.mapping.includes('tipologia');
+        expect((await F.api(request, 'POST', `/staff/user-imports/${id}/start`, { token: ctx.staff, body: {} })).status).toBe(200);
+        // What a request that died between the insert of row 0 and the end
+        // of the row leaves: the marker saved before the row, then the bare
+        // account (no patron type, nothing after the insert).
+        const floor = F.dbInt('SELECT COALESCE(MAX(id), 0) FROM utenti');
+        const state = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`));
+        state.core.pending = { next: 0, floor, at: 1 };
+        F.dbExec(`UPDATE mobile_import_jobs SET state=${F.sqlStr(JSON.stringify(state))} WHERE id='${id}'`);
+        const ghost = F.createUser(email('imp_g'), 'Ghost1234!x', 'standard', 'GH');
+        F.dbExec(`UPDATE utenti SET tipologia_id=NULL WHERE id=${ghost}`);
+        const r = await F.api(request, 'POST', `/staff/user-imports/${id}/chunk`, { token: ctx.staff, body: { start: 0 } });
+        expect(r.status, r.text.slice(0, 300)).toBe(200);
+        expect(r.json.data).toMatchObject({ status: 'completed', processed: 2, created: 2, duplicates: 0, failed: 0 });
+        expect(F.dbInt(`SELECT COUNT(*) FROM utenti WHERE email=${F.sqlStr(email('imp_g'))}`)).toBe(1);
+        if (withType) {
+            expect(F.dbInt(`SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id=${ghost}`)).toBe(Number(type.id));
+        }
+        // An account that existed before the marker stays a duplicate.
+        const up2 = await upload(request, ctx.staff, csvFile('resume2.csv', ['nome;email', `Hana;${email('imp_h')}`]), ';');
+        const id2 = up2.json.data.id;
+        expect((await F.api(request, 'POST', `/staff/user-imports/${id2}/start`, { token: ctx.staff, body: {} })).status).toBe(200);
+        const r2 = await F.api(request, 'POST', `/staff/user-imports/${id2}/chunk`, { token: ctx.staff, body: { start: 0 } });
+        expect(r2.json.data).toMatchObject({ status: 'completed', created: 0, duplicates: 1 });
     });
 
     test('a staged file that vanished fails the job with file_missing', async ({ request }) => {

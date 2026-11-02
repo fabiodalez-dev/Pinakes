@@ -9305,5 +9305,7 @@
   "Report degli errori non disponibile per questa importazione.": "Für diesen Import ist kein Fehlerbericht verfügbar.",
   "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Die Fremddatenübernahme erfordert das aktive Z39.50/SRU-Plugin.",
   "Puoi importare al massimo %d record alla volta.": "Sie können höchstens %d Datensätze auf einmal importieren.",
-  "Ricerca non trovata: ripeti la ricerca.": "Suche nicht gefunden: Bitte erneut suchen."
+  "Ricerca non trovata: ripeti la ricerca.": "Suche nicht gefunden: Bitte erneut suchen.",
+  "La colonna \"%s\" contiene password: non può essere importata.": "Die Spalte „%s“ enthält Passwörter: Sie kann nicht importiert werden.",
+  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Das Ergebnis dieses Imports wurde nicht gespeichert: Prüfe den Katalog, bevor du erneut importierst, mit einem neuen Schlüssel."
 }

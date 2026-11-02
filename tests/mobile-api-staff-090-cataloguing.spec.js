@@ -448,7 +448,7 @@ test.describe('MARC import', () => {
         expect((await F.api(request, 'GET', '/staff/marc/imports/00000000-0000-4000-8000-000000000000', { token: ctx.staff })).status).toBe(404);
     });
 
-    test('a chunk that stops mid-way keeps every record done before it, resumable', async ({ request }) => {
+    test('a chunk that stops mid-way keeps every record done before it, and the job resumes from there', async ({ request }) => {
         const file = marcFile(RUN, 3, 'mrc', 7);
         ctx.files.push(file);
         const up = await marcUpload(request, ctx.staff, file);
@@ -457,7 +457,8 @@ test.describe('MARC import', () => {
         // The staged records end after the first: the second record of the
         // chunk cannot be read, as if the request had died there.
         const staged = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${id}'`)).file_path;
-        fs.writeFileSync(staged, fs.readFileSync(staged, 'utf8').split('\n')[0] + '\n');
+        const original = fs.readFileSync(staged, 'utf8');
+        fs.writeFileSync(staged, original.split('\n')[0] + '\n');
         const r = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0, size: 3 } });
         expect([r.status, r.json.error.code], r.text).toEqual([500, 'internal_error']);
         // The first record is in and its position saved with the job.
@@ -466,9 +467,18 @@ test.describe('MARC import', () => {
         expect(job).toMatchObject({ status: 'ready', processed: 1, imported: 1 });
         const out = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 0 } });
         expect([out.status, out.json.meta.processed]).toEqual([409, 1]);
-        expect((await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff })).status).toBe(200);
+        // The records back in place, the job resumes from the saved position:
+        // the first record is not imported again.
+        fs.writeFileSync(staged, original);
+        const resumed = await F.api(request, 'POST', `/staff/marc/imports/${id}/chunk`, { token: ctx.staff, body: { start: 1 } });
+        expect(resumed.status, resumed.text).toBe(200);
+        expect(resumed.json.data).toMatchObject({ status: 'completed', complete: true, processed: 3, imported: 3, failed: 0 });
+        expect(F.dbInt(`SELECT COUNT(*) FROM libri WHERE titolo IN ('Libro MARC ${RUN} 07', 'Libro MARC ${RUN} 08', 'Libro MARC ${RUN} 09') AND deleted_at IS NULL`)).toBe(3);
+        const cancel = await F.api(request, 'DELETE', `/staff/marc/imports/${id}`, { token: ctx.staff });
+        expect(cancel.status, cancel.text).toBe(200);
         // Out of the way of the title searches below.
-        F.deleteBooks([F.dbInt(`SELECT id FROM libri WHERE titolo='Libro MARC ${RUN} 07' AND deleted_at IS NULL`)]);
+        const done = F.dbScalar(`SELECT GROUP_CONCAT(id) FROM libri WHERE titolo IN ('Libro MARC ${RUN} 07', 'Libro MARC ${RUN} 08', 'Libro MARC ${RUN} 09')`);
+        F.deleteBooks(String(done).split(',').map(Number));
     });
 
     test('MARCXML upload', async ({ request }) => {
@@ -578,6 +588,16 @@ test.describe('copy cataloguing', () => {
         expect(again.json.data).toMatchObject({ imported: 1, skipped: 0 });
         expect(again.json.data.items[0].book_id).toBe(newId);
         expect(F.dbInt(`SELECT COUNT(*) FROM libri WHERE titolo='Libro MARC ${RUN} 01' AND deleted_at IS NULL`)).toBe(1);
+        // A key whose import started but whose outcome was never stored (the
+        // save after the import failed): refused, never imported again.
+        const sha = (v) => require('crypto').createHash('sha256').update(v).digest('hex');
+        const pendingKey = `${key}-pending`;
+        const jobState = JSON.parse(F.dbScalar(`SELECT state FROM mobile_import_jobs WHERE id='${search.search_id}'`));
+        jobState.imports[sha(pendingKey)] = { token: sha(pendingKey), fingerprint: sha(JSON.stringify([[first.id], 'overwrite', false])), pending: true };
+        F.dbExec(`UPDATE mobile_import_jobs SET state=${F.sqlStr(JSON.stringify(jobState))} WHERE id='${search.search_id}'`);
+        const unknown = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [first.id], duplicates: 'overwrite', covers: false }, extraHeaders: { 'Idempotency-Key': pendingKey } });
+        expect([unknown.status, unknown.json.error.code], unknown.text).toEqual([409, 'import_outcome_unknown']);
+        expect(F.dbScalar(`SELECT sottotitolo FROM libri WHERE id=${newId}`)).not.toBe('cambiato-pending');
 
         // Validation, another operator's search, an unknown id.
         let bad = await F.api(request, 'POST', '/staff/copy-cataloging/import', { token: ctx.staff, body: { search_id: search.search_id, ids: [], duplicates: 'maybe' } });

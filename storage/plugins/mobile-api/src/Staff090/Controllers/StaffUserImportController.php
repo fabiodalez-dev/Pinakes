@@ -69,6 +69,8 @@ final class StaffUserImportController
         $name = basename((string) ($file->getClientFilename() ?? ''));
         $userId = (int) (StaffPaging::user($request)['id'] ?? 0);
         $tokenId = $request->getAttribute(AppAuthMiddleware::ATTR_TOKEN_ID);
+        // The core state once the upload staged its file, until a job row owns it.
+        $staged = null;
         try {
             $this->store->purgeExpired();
             $db = $this->db;
@@ -93,6 +95,7 @@ final class StaffUserImportController
             if (!is_array($core)) {
                 throw new \RuntimeException('user import state not captured');
             }
+            $staged = $core;
             $json = $outcome->json;
             $headers = array_values(array_map('strval', (array) ($json['headers'] ?? [])));
             $state = [
@@ -113,9 +116,15 @@ final class StaffUserImportController
                 false,
                 $state
             );
+            $staged = null;
 
             return ResponseEnvelope::success($response, UserImportJob::map((array) $this->store->find($id, $userId, true)), [], 201);
         } catch (\Throwable $e) {
+            // No job row: purgeExpired() would never find the staged file,
+            // which holds the patrons' personal data.
+            if (is_array($staged)) {
+                UserImportJob::unlinkUpload($staged);
+            }
             return $this->fail($response, 'user import upload', $e);
         }
     }
@@ -184,6 +193,15 @@ final class StaffUserImportController
                     return ResponseEnvelope::error($response, 'already_started', __('Import già avviato: attendi la fine o ricarica il file.'), 409, ['processed' => (int) $job['processed']]);
                 }
                 $mapping = array_key_exists('mapping', $json) ? $json['mapping'] : ($state['suggested'] ?? []);
+                // Passwords are never imported: a password column mapped to
+                // any field (the notes accept every column) is refused, the
+                // web's "never recognised" made a rule.
+                $headers = array_values(array_map('strval', (array) ($state['headers'] ?? [])));
+                foreach ((array) $mapping as $column => $field) {
+                    if (is_string($field) && $field !== '' && is_numeric($column) && UserImportJob::isSecretHeader($headers[(int) $column] ?? '')) {
+                        return $this->invalid($response, 'mapping', sprintf(__('La colonna "%s" contiene password: non può essere importata.'), $headers[(int) $column]));
+                    }
+                }
                 $payload = (string) json_encode([
                     'preview_id'   => (string) ($core['preview_id'] ?? ''),
                     'mapping'      => $mapping,
@@ -273,6 +291,22 @@ final class StaffUserImportController
                 // position, so a retry would count the accounts it had just
                 // created as duplicates of themselves.
                 for ($n = 0; $n < UserImport::CHUNK_SIZE; $n++) {
+                    // The web marks the row it is about to insert in its
+                    // session, which dies with this request: the marker is
+                    // stored with the job first, so the retry of a row whose
+                    // account was inserted but not completed finishes it
+                    // instead of counting it as a duplicate. A marker already
+                    // there for this row is the interrupted attempt's: kept.
+                    $marked = $core;
+                    UserImportController::markPending($db, $marked, $processed);
+                    if ($marked !== $core) {
+                        $core = $marked;
+                        $state['core'] = $core;
+                        if (!$this->store->saveChunk((string) $job['id'], $state, $processed, 'running', is_array($job['summary'] ?? null) ? $job['summary'] : [])) {
+                            return $this->cancelledMeanwhile($response, $processed);
+                        }
+                        $job['state'] = $state;
+                    }
                     $payload = (string) json_encode(['preview_id' => (string) ($core['preview_id'] ?? ''), 'start' => $processed, 'size' => 1]);
                     $outcome = Delegation::run(static function () use ($db, $core, $payload): ResponseInterface {
                         $_SESSION['user_import'] = $core;

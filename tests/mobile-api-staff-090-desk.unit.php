@@ -170,6 +170,7 @@ $check($redacted[1] === ['Bruno', '', 'b@x.test', '', '', '', '', '', '', ''], '
 $claimed = UserImportJob::redactPreview(['user_password', 'Passwort2', 'pass-word', 'password_1', 'PWD', 'Passaporto'], [['a', 'b', 'c', 'd', 'e', 'f']], ['note', 'note', 'note', 'note', 'note', 'note']);
 $check($claimed[0] === [$R, $R, $R, $R, $R, 'f'], 'password-like headers are recognised after normalising (user_password, Passwort2, pass-word, password_1, PWD), Passaporto is not');
 $check(UserImportJob::redactPreview(['nome'], [['Anna', 'extra']], ['nome']) === [['Anna', $R]], 'cells beyond the headers are not kept');
+$check(UserImportJob::isSecretHeader('User_Password') && UserImportJob::isSecretHeader('mot-de-passe 2') && !UserImportJob::isSecretHeader('note interne') && !UserImportJob::isSecretHeader('Passaporto'), 'isSecretHeader(): the test start() uses to refuse mapping a password column');
 
 echo "\n{$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

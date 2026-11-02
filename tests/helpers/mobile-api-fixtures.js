@@ -184,12 +184,15 @@ function headers(token, extra) {
 }
 
 /**
- * Whether a request may be sent again after a connection reset: an
- * idempotent method, or a write that carries an idempotency key (header or
- * `idempotency_key` in the JSON body), which the server replays.
+ * Whether a request may be sent again after a connection reset: a read or a
+ * PUT (same answer twice), or a write that carries an idempotency key
+ * (header or `idempotency_key` in the JSON body), which the server replays.
+ * Not a DELETE: when the reset hid a deletion that did happen, the resent
+ * one answers 404 and the test would fail on an outcome the server never
+ * gave to the first call.
  */
 function safeToResend(method, requestHeaders, body) {
-    if (['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE'].includes(String(method).toUpperCase())) return true;
+    if (['GET', 'HEAD', 'OPTIONS', 'PUT'].includes(String(method).toUpperCase())) return true;
     const key = Object.keys(requestHeaders || {}).find((h) => h.toLowerCase() === 'idempotency-key');
     if (key && requestHeaders[key]) return true;
     return !!(body && typeof body === 'object' && typeof body.idempotency_key === 'string' && body.idempotency_key !== '');

@@ -9305,5 +9305,7 @@
   "Report degli errori non disponibile per questa importazione.": "Aucun rapport d'erreurs n'est disponible pour cet import.",
   "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "La catalogation dérivée nécessite le plugin Z39.50/SRU actif.",
   "Puoi importare al massimo %d record alla volta.": "Vous pouvez importer au maximum %d notices à la fois.",
-  "Ricerca non trovata: ripeti la ricerca.": "Recherche introuvable : relancez la recherche."
+  "Ricerca non trovata: ripeti la ricerca.": "Recherche introuvable : relancez la recherche.",
+  "La colonna \"%s\" contiene password: non può essere importata.": "La colonne « %s » contient des mots de passe : elle ne peut pas être importée.",
+  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Le résultat de cette importation n'a pas été enregistré : vérifiez le catalogue avant d'importer à nouveau, avec une nouvelle clé."
 }

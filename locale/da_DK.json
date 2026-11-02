@@ -9305,5 +9305,7 @@
   "Report degli errori non disponibile per questa importazione.": "Der er ingen fejlrapport for denne import.",
   "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Kopikatalogisering kræver, at Z39.50/SRU-pluginnet er aktivt.",
   "Puoi importare al massimo %d record alla volta.": "Du kan højst importere %d poster ad gangen.",
-  "Ricerca non trovata: ripeti la ricerca.": "Søgningen blev ikke fundet: søg igen."
+  "Ricerca non trovata: ripeti la ricerca.": "Søgningen blev ikke fundet: søg igen.",
+  "La colonna \"%s\" contiene password: non può essere importata.": "Kolonnen \"%s\" indeholder adgangskoder: den kan ikke importeres.",
+  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Resultatet af denne import blev ikke gemt: kontroller kataloget, før du importerer igen, med en ny nøgle."
 }

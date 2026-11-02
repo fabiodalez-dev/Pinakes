@@ -9305,5 +9305,7 @@
   "Report degli errori non disponibile per questa importazione.": "No error report is available for this import.",
   "La catalogazione derivata richiede il plugin Z39.50/SRU attivo.": "Copy cataloguing requires the active Z39.50/SRU plugin.",
   "Puoi importare al massimo %d record alla volta.": "You can import at most %d records at a time.",
-  "Ricerca non trovata: ripeti la ricerca.": "Search not found: search again."
+  "Ricerca non trovata: ripeti la ricerca.": "Search not found: search again.",
+  "La colonna \"%s\" contiene password: non può essere importata.": "The column \"%s\" holds passwords: it cannot be imported.",
+  "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "The outcome of this import was not saved: check the catalogue before importing again, with a new key."
 }
