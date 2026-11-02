@@ -694,7 +694,7 @@ try {
         [$status, $json] = $call('cancel', ['preview_id' => $pid]);
         $importLogIds[] = (string) ($json['import_id'] ?? '');
         $assigned = (int) ($db->query("SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id = {$firstId}")->fetch_row()[0] ?? 0);
-        $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['processed'] ?? null) === 1 && $assigned === (int) $type['id'] && $ckAccountId('f2') === 0,
+        $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['closed_processed'] ?? null) === 1 && $assigned === (int) $type['id'] && $ckAccountId('f2') === 0,
             'a half-done first row (no offset yet) is read again by counting: its patron type is assigned, the answer says one row passed');
     }
 

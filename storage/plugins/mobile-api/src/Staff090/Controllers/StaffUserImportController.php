@@ -347,7 +347,7 @@ final class StaffUserImportController
                     // import history as far as it got.
                     $importId = is_string($outcome->json['import_id']) ? $outcome->json['import_id'] : null;
 
-                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null, is_int($outcome->json['processed'] ?? null) ? $outcome->json['processed'] : null);
+                    return $this->fileMissing($response, $job, $importId, is_string($outcome->json['error'] ?? null) ? (string) $outcome->json['error'] : null, is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null, is_int($outcome->json['closed_processed'] ?? null) ? $outcome->json['closed_processed'] : null);
                 }
                 // Not completed: keep the job resumable from where the web
                 // state says it is.
@@ -421,7 +421,7 @@ final class StaffUserImportController
                         $warning = is_string($outcome->json['history_warning'] ?? null) ? $outcome->json['history_warning'] : null;
                         // The count after the web settled a row left half-done.
                         $closedCreated = is_int($outcome->json['created'] ?? null) ? $outcome->json['created'] : null;
-                        $closedProcessed = is_int($outcome->json['processed'] ?? null) ? $outcome->json['processed'] : null;
+                        $closedProcessed = is_int($outcome->json['closed_processed'] ?? null) ? $outcome->json['closed_processed'] : null;
                         $state['core'] = ['cancelled' => true, 'preview_id' => (string) ($core['preview_id'] ?? '')];
                     } else {
                         // Never started: only the staged upload to release,

@@ -351,7 +351,8 @@ class UserImportController
                     : __('Il file dell\'import non è più disponibile: le righe già elaborate sono state registrate nello storico import. Carica di nuovo il file per completarlo.'),
                 'import_id' => $importId,
                 'created' => $this->closedCreated,
-                'processed' => $this->closedProcessed,
+                // Not `processed`: on a 409 the page resumes from that key.
+                'closed_processed' => $this->closedProcessed,
             ], 409);
         }
         @touch((string) $state['file']); // in use: not stale for sweepStaleUploads()
@@ -571,7 +572,7 @@ class UserImportController
             'success' => true,
             'import_id' => $importId,
             'created' => $this->closedCreated,
-            'processed' => $this->closedProcessed,
+            'closed_processed' => $this->closedProcessed,
             'history_warning' => $importId === '' ? __('L\'import precedente è stato chiuso, ma lo storico import non è stato aggiornato: gli utenti già creati restano.') : null,
         ]);
     }
