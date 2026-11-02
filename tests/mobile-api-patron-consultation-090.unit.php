@@ -210,6 +210,21 @@ $check($mixedOn['status'] === 409 && $column($lent) === 0, 'a copy on loan refus
 $check((string) $db->query("SELECT stato FROM copie WHERE id = {$lent}")->fetch_row()[0] === 'prestato', 'its status is untouched too');
 $db->query("DELETE FROM copie WHERE id = {$pickup}");
 
+// Returning a lent copy is processReturn(), a loan-desk action: a
+// catalogue-only role is refused with a 403, not told the copy was saved
+// (the delegated guard answers a bare 403 with no flash and no Location).
+$priorUser = $_SESSION['user'] ?? null;
+$_SESSION['user'] = ['id' => 0, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['backend.access', 'catalog.manage']];
+$catalogueOnly = $put($lent, ['status' => 'disponibile', 'consultation_only' => true]);
+$check($catalogueOnly['status'] === 403 && ($catalogueOnly['error']['code'] ?? null) === 'not_permitted', 'a catalogue-only role returning a lent copy gets 403 not_permitted');
+$check($column($lent) === 0 && (string) $db->query("SELECT stato FROM copie WHERE id = {$lent}")->fetch_row()[0] === 'prestato', 'and neither the flag nor the status changed');
+$check((int) $db->query("SELECT COUNT(*) FROM prestiti WHERE copia_id = {$lent} AND attivo = 1")->fetch_row()[0] === 1, 'the loan is still open');
+if ($priorUser === null) {
+    unset($_SESSION['user']);
+} else {
+    $_SESSION['user'] = $priorUser;
+}
+
 $bad = $put($free, ['consultation_only' => 'yes']);
 $check($bad['status'] === 422 && ($bad['error']['code'] ?? null) === 'validation_error', 'a non-boolean consultation_only is a 422');
 

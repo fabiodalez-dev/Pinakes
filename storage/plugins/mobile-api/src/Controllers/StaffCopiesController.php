@@ -6,9 +6,11 @@ namespace App\Plugins\MobileApi\Controllers;
 
 use App\Controllers\CopyController;
 use App\Plugins\MobileApi\Support\Delegation;
+use App\Plugins\MobileApi\Support\DelegationOutcome;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Plugins\MobileApi\Support\StaffCopyReader;
+use App\Support\Permissions;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -94,6 +96,12 @@ final class StaffCopiesController
                 if ($physicallyOut && !($current === 'prestato' && $target === 'disponibile')) {
                     return $this->refuse($response, 'copy_on_loan', __('La copia è fisicamente in prestito: registra prima la restituzione o l’esito perso/danneggiato dal sistema Prestiti.'));
                 }
+                // That return is PrestitiController::processReturn(), a loan-desk
+                // action: a catalogue-only role is refused before the
+                // consultation flag of the same request is written.
+                if ($physicallyOut && !Permissions::can('loans.manage')) {
+                    return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
+                }
             }
 
             // Order of the two writes: reserving the copy for consultation goes
@@ -102,21 +110,18 @@ final class StaffCopiesController
             // the status this request sets and is not overwritten by it.
             $consultation = $toggle && $json['consultation_only'] === true;
             if ($consultation) {
-                $refused = $this->setConsultation($id, true);
-                if ($refused !== null) {
-                    return ResponseEnvelope::error($response, 'conflict', $refused, 409);
+                if ($refused = $this->setConsultation($id, true)) {
+                    return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
                 }
             }
             if ($editsCopy) {
-                $error = $this->applyStatus($id, $target, $notes);
-                if ($error !== null) {
-                    return ResponseEnvelope::error($response, 'conflict', $error, 409);
+                if ($refused = $this->applyStatus($id, $target, $notes)) {
+                    return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
                 }
             }
             if ($toggle && !$consultation) {
-                $refused = $this->setConsultation($id, false);
-                if ($refused !== null) {
-                    return ResponseEnvelope::error($response, 'conflict', $refused, 409);
+                if ($refused = $this->setConsultation($id, false)) {
+                    return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
                 }
             }
             $copy = $reader->copy($id);
@@ -129,42 +134,58 @@ final class StaffCopiesController
 
     /**
      * Status and notes through CopyController::updateCopy(). Returns the
-     * refusal message, or null when the copy was updated.
+     * refusal, or null when the copy was updated.
+     *
+     * @return array{status:int, code:string, message:string}|null
      */
-    private function applyStatus(int $id, string $target, string $notes): ?string
+    private function applyStatus(int $id, string $target, string $notes): ?array
     {
         $db = $this->db;
-        $outcome = Delegation::run(static fn (): ResponseInterface => (new CopyController())->updateCopy(
+
+        return self::refusal(Delegation::run(static fn (): ResponseInterface => (new CopyController())->updateCopy(
             Delegation::request('POST', '/admin/books/copies/' . $id . '/update', ['stato' => $target, 'note' => $notes]),
             new SlimResponse(),
             $db,
             $id
-        ));
-        $error = $outcome->flash('error_message');
-        if ($error !== null || $outcome->errorCode() !== null) {
-            return $error ?? __('Operazione non consentita nello stato attuale.');
-        }
-        return null;
+        )));
     }
 
     /**
      * Mark the copy consultation only, or lendable again, through
-     * CopyController::toggleConsultation(). Returns the refusal message, or
-     * null when the copy now has the requested flag.
+     * CopyController::toggleConsultation(). Returns the refusal, or null
+     * when the copy now has the requested flag.
+     *
+     * @return array{status:int, code:string, message:string}|null
      */
-    private function setConsultation(int $id, bool $consultation): ?string
+    private function setConsultation(int $id, bool $consultation): ?array
     {
         $db = $this->db;
-        $outcome = Delegation::run(static fn (): ResponseInterface => (new CopyController())->toggleConsultation(
+
+        return self::refusal(Delegation::run(static fn (): ResponseInterface => (new CopyController())->toggleConsultation(
             Delegation::request('POST', '/admin/books/copies/' . $id . '/consultation', ['solo_consultazione' => $consultation ? '1' : '0']),
             new SlimResponse(),
             $db,
             $id
-        ));
-        $error = $outcome->flash('error_message');
-        if ($error !== null || $outcome->errorCode() !== null) {
-            return $error ?? __('Operazione non consentita nello stato attuale.');
+        )));
+    }
+
+    /**
+     * What a delegated copy action refused, null when it went through. A bare
+     * 403 (no flash, no Location: a guard such as processReturn's
+     * loans.manage check) is a refusal too, not a success.
+     *
+     * @return array{status:int, code:string, message:string}|null
+     */
+    private static function refusal(DelegationOutcome $outcome): ?array
+    {
+        if ($outcome->status === 403) {
+            return ['status' => 403, 'code' => 'not_permitted', 'message' => __('Accesso negato.')];
         }
+        $error = $outcome->flash('error_message');
+        if ($outcome->status >= 400 || $error !== null || $outcome->errorCode() !== null) {
+            return ['status' => 409, 'code' => 'conflict', 'message' => $error ?? __('Operazione non consentita nello stato attuale.')];
+        }
+
         return null;
     }
 

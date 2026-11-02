@@ -40,7 +40,22 @@ foreach (['/admin/books', '/admin/loans', '/admin/users', '/admin/inventory'] as
     $check(!P::allowsPath($path, $configurator), "settings.manage does not open {$path}");
 }
 
+// The app's settings areas are the same pages: SettingsKit admits
+// Permissions::mayConfigure(), so the middleware must not refuse the role first.
+foreach ([
+    ['GET', '/api/v1/staff/settings/modules'], ['PUT', '/api/v1/staff/settings/loans'], ['PUT', '/api/v1/staff/settings/cards'],
+    ['GET', '/api/v1/staff/calendar'], ['POST', '/api/v1/staff/calendar/closures'], ['PUT', '/api/v1/staff/calendar/closures/12'],
+    ['POST', '/api/v1/staff/calendar/custom-holidays'], ['POST', '/api/v1/staff/calendar/import-ics'],
+    ['GET', '/api/v1/staff/circulation/types'], ['POST', '/api/v1/staff/circulation/types'], ['PUT', '/api/v1/staff/circulation/rules'],
+] as [$method, $path]) {
+    $check(P::permissionForPath($path) === 'settings.manage', "{$path} needs settings.manage");
+    $check(P::allowsPath($path, $configurator, $method), "a custom role with settings.manage reaches {$method} {$path}");
+}
+$check(P::permissionForPath('/api/v1/staff/circulation/summary') === 'loans.manage', 'the desk counters stay with the loan desk');
+$check(P::permissionForPath('/api/v1/staff/settingsx') === null, 'a similarly named app path does not inherit it');
+
 $desk = ['tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => ['backend.access', 'loans.manage']];
+$check(!P::allowsPath('/api/v1/staff/settings/loans', $desk, 'PUT') && !P::allowsPath('/api/v1/staff/calendar', $desk), 'the loan desk permission alone does not open the app settings or calendar');
 $check(!P::allowsPath('/admin/calendar', $desk), 'the loan desk permission alone does not open the calendar');
 $check(!P::allowsPath('/admin/calendar/closures', $desk, 'POST'), 'nor its writes');
 $check(P::allowsPath('/admin/calendar', ['tipo_utente' => 'staff', 'stato' => 'attivo']), 'Staff passes the middleware (the controller guard decides)');

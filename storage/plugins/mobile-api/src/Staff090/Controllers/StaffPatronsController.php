@@ -56,7 +56,9 @@ final class StaffPatronsController
                 $items[] = [
                     'id'                 => (int) $id,
                     'code'               => (string) ($type['codice'] ?? ''),
-                    'name'               => (string) ($type['nome'] ?? ''),
+                    // Decoded like PatronPayload::patronType() and /me: the same
+                    // type reads the same in the picker and on the record.
+                    'name'               => \App\Support\HtmlHelper::decode((string) ($type['nome'] ?? '')),
                     'description'        => self::nullable($type['descrizione'] ?? null),
                     'is_default'         => $default !== null && (int) $id === $default,
                     'active'             => (int) ($type['attiva'] ?? 1) === 1,
@@ -104,20 +106,34 @@ final class StaffPatronsController
             if (!PatronPayload::canEdit($target)) {
                 return $this->forbidden($response);
             }
-            $current = isset($target['tipologia_id']) ? (int) $target['tipologia_id'] : null;
-            // Active types plus the one the account already has (the web picker).
-            if ($typeId !== null && !isset(PatronTypeAssignment::choices($this->db, $current)[$typeId])) {
-                return $this->invalid($response, 'patron_type_id', __('Tipologia lettore non trovata.'));
-            }
-            // The web form's "card_auto": expiry from the type's card duration,
-            // only for reader accounts and only when the type sets one.
-            $expiry = $recompute && in_array((string) $target['tipo_utente'], ['standard', 'premium'], true)
-                ? PatronTypeAssignment::automaticCardExpiry($this->db, $typeId)
-                : null;
-            // Type and expiry are one change: a failing expiry write must not
-            // leave the new type stored behind an error response.
+            // Type and expiry are one change, decided on the type the account
+            // has once its row is locked: read before the transaction, another
+            // operator's change in between could skip the save ("already that
+            // type") and leave this expiry next to a type it was not computed
+            // for, or admit an inactive type the account no longer has.
+            $readerAccount = in_array((string) $target['tipo_utente'], ['standard', 'premium'], true);
             $db = $this->db;
-            DbAtomic::run($db, static function () use ($db, $id, $typeId, $current, $expiry): void {
+            $current = null;
+            $refused = false;
+            $expiry = null;
+            DbAtomic::run($db, static function () use ($db, $id, $typeId, $recompute, $readerAccount, &$current, &$refused, &$expiry): void {
+                $lock = $db->prepare('SELECT tipologia_id FROM utenti WHERE id = ? FOR UPDATE');
+                if ($lock === false) {
+                    throw new \RuntimeException('patron type lock prepare failed');
+                }
+                $lock->bind_param('i', $id);
+                $lock->execute();
+                $row = $lock->get_result()->fetch_assoc();
+                $lock->close();
+                $current = is_array($row) && $row['tipologia_id'] !== null ? (int) $row['tipologia_id'] : null;
+                // Active types plus the one the account already has (the web picker).
+                if ($typeId !== null && !isset(PatronTypeAssignment::choices($db, $current)[$typeId])) {
+                    $refused = true;
+                    return;
+                }
+                // The web form's "card_auto": expiry from the type's card duration,
+                // only for reader accounts and only when the type sets one.
+                $expiry = $recompute && $readerAccount ? PatronTypeAssignment::automaticCardExpiry($db, $typeId) : null;
                 if ($typeId !== $current) {
                     PatronTypeAssignment::save($db, $id, $typeId);
                 }
@@ -131,6 +147,9 @@ final class StaffPatronsController
                     $stmt->close();
                 }
             }, 'MobileApi patron type');
+            if ($refused) {
+                return $this->invalid($response, 'patron_type_id', __('Tipologia lettore non trovata.'));
+            }
             $recomputed = $expiry !== null;
             if ($typeId !== $current) {
                 SecureLogger::info('Patron type changed', ['user_id' => $id, 'from' => $current, 'to' => $typeId, 'by' => $_SESSION['user']['id'] ?? null, 'source' => 'mobile_api']);
