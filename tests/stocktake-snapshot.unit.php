@@ -252,6 +252,15 @@ try {
         $upTo = $service->latestScanId($sid);
         $paged = $readReport($sid, null, 2, $upTo);
         $check(count($paged) === count($all) && $sorted($paged) === $sorted($all), "reportPage() pages of 2 put together are the whole report of the {$what} session");
+        // The order the API promises: the unscanned copies first, by the
+        // inventory number frozen at opening and then the copy id (review #518).
+        $expectedOrder = array_column($db->query(
+            "SELECT COALESCE(c.numero_inventario, a.codice_atteso) FROM inventario_attese a "
+            . "LEFT JOIN inventario_scansioni sc ON sc.sessione_id = a.sessione_id AND sc.copia_id = a.copia_id "
+            . "LEFT JOIN copie c ON c.id = a.copia_id "
+            . "WHERE a.sessione_id = {$sid} AND sc.id IS NULL ORDER BY COALESCE(a.codice_atteso, ''), a.copia_id"
+        )->fetch_all(), 0);
+        $check(($what !== 'closed' || count($expectedOrder) >= 2) && array_column(array_slice($paged, 0, count($expectedOrder)), 'codice') === $expectedOrder && array_column(array_slice($paged, 0, count($expectedOrder)), 'quando_ts') === array_fill(0, count($expectedOrder), ''), "the unscanned copies of the {$what} session come first, by inventory number at opening then copy id");
         foreach (array_unique(array_merge(array_column($all, 'categoria'), ['mancante', 'in_prestito', 'trovata'])) as $category) {
             $only = array_values(array_filter($all, static fn (array $r): bool => $r['categoria'] === $category));
             $check($sorted($readReport($sid, $category, 1, $upTo)) === $sorted($only) && $service->reportRowCount($sid, $category, $upTo) === count($only), "reportPage() and reportRowCount() of the {$what} session keep only '{$category}' rows");
@@ -260,6 +269,30 @@ try {
     // The scan list is pinned to its first page: a scan recorded later stays out.
     $latest = $service->latestScanId($second);
     $check($latest === (int) $one("SELECT MAX(id) FROM inventario_scansioni WHERE sessione_id = {$second}"), 'latestScanId() is the newest scan of the session');
+    // A scan in progress on another connection (the session row in share
+    // mode, its id taken, not committed yet): latestScanId() waits for it
+    // instead of pinning below it (review #518). The wait is cut to a second
+    // here, so it shows as a lock timeout; once committed, it is seen.
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->set_charset('utf8mb4');
+    $other->begin_transaction();
+    $other->query("SELECT stato FROM inventario_sessioni WHERE id = {$second} LOCK IN SHARE MODE")->fetch_all();
+    $other->query("INSERT INTO inventario_scansioni (sessione_id, codice_letto, esito, scansionato_il) VALUES ({$second}, '{$p}-INFLIGHT', 'sconosciuta', NOW())");
+    $inFlight = (int) $other->insert_id;
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    $waited = false;
+    try {
+        $service->latestScanId($second);
+    } catch (mysqli_sql_exception $e) {
+        $waited = $e->getCode() === 1205;
+    } finally {
+        $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+    }
+    $other->commit();
+    $other->close();
+    $check($waited, 'latestScanId() waits for a scan still being written instead of returning the committed maximum');
+    $check($service->latestScanId($second) === $inFlight, 'once that scan commits, latestScanId() returns its id');
+    $db->query("DELETE FROM inventario_scansioni WHERE id = {$inFlight}");
     $check(!in_array($latest, array_map(static fn (array $r): int => (int) $r['id'], $service->scans($second, null, 200, 0, null, $latest - 1)), true) && $service->scanCount($second, null, null, $latest - 1) === $service->scanCount($second) - 1, 'scans() and scanCount() with $upToId leave out the scans after it');
     // An open session's report pinned to the scans of the first page
     // (review #518): a scan between two pages leaves the copy among the
@@ -332,16 +365,21 @@ try {
     // ...and stays out once it is closed before the next page: it was not
     // visible to the snapshot, so it never joins the pinned history either.
     // Closed in the very second of the snapshot, the case a time bound cannot tell apart.
-    $check(in_array($gap, $gapSnapshot['g'], true), 'the late session id is a gap of the snapshot');
+    $check(array_filter($gapSnapshot['g'], static fn (array $r): bool => $r[0] <= $gap && $gap <= $r[1]) !== [], 'the late session id is in a gap range of the snapshot');
+    $check(count($gapSnapshot['g']) <= StocktakeService::MAX_GAP_RANGES && strlen(implode(',', StocktakeService::snapshotToCursor($gapSnapshot))) < 4096, 'the snapshot carries at most MAX_GAP_RANGES gap ranges, so its cursor stays small');
     $db->query("UPDATE inventario_sessioni SET stato = 'annullata', chiusa_il = NOW() WHERE id = {$gap}");
     $check($service->sessionIds(null, 500, 0, $gapSnapshot) === $gapList && $service->sessionCount(null, $gapSnapshot) === count($gapList) && !in_array($gap, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a late session closed between two pages does not join the pinned history');
     // A session closed before the snapshot is still in the pinned history.
     $check(in_array($second, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a session closed before the snapshot is in the pinned history');
     // The snapshot a cursor carries back is checked before it reaches the SQL.
-    $check(StocktakeService::snapshotFrom(5, '1,3', '2') === ['u' => 5, 'a' => [1, 3], 'g' => [2]] && StocktakeService::snapshotFrom(5, '', '') === ['u' => 5, 'a' => [], 'g' => []]
+    $check(StocktakeService::snapshotFrom(5, '1,3', '2') === ['u' => 5, 'a' => [1, 3], 'g' => [[2, 2]]] && StocktakeService::snapshotFrom(5, '', '') === ['u' => 5, 'a' => [], 'g' => []]
+        && StocktakeService::snapshotFrom(9, '1', '2-4,7') === ['u' => 9, 'a' => [1], 'g' => [[2, 4], [7, 7]]]
         && StocktakeService::snapshotFrom(5, '1,x', '') === null && StocktakeService::snapshotFrom(5, "1) OR (1=1", '') === null && StocktakeService::snapshotFrom(5, '9', '') === null && StocktakeService::snapshotFrom('5', '1', '') === null
         && StocktakeService::snapshotFrom(5, '1', null) === null && StocktakeService::snapshotFrom(5, '1', '2) OR (1=1') === null && StocktakeService::snapshotFrom(5, '1', '7') === null
-        && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 'g' => [3]]), 1))) === ['u' => 5, 'a' => [2, 4], 'g' => [3]], 'snapshotFrom() accepts only the id lists snapshotToCursor() writes');
+        && StocktakeService::snapshotFrom(9, '1', '4-2') === null && StocktakeService::snapshotFrom(9, '1', '5,3') === null && StocktakeService::snapshotFrom(9, '1', '2-4,4') === null && StocktakeService::snapshotFrom(9, '1', '2-12') === null
+        && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]]]), 1))) === ['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]]], 'snapshotFrom() accepts only the id lists snapshotToCursor() writes');
+    $manyRanges = implode(',', array_map(static fn (int $i): string => (string) (2 * $i), range(1, StocktakeService::MAX_GAP_RANGES + 1)));
+    $check(StocktakeService::snapshotToCursor(['u' => 10, 'a' => [], 'g' => [[2, 4], [7, 7]]])['g'] === '2-4,7' && StocktakeService::snapshotFrom(1000, '', $manyRanges) === null, 'gaps travel as ranges, at most MAX_GAP_RANGES of them');
 
     // The app pages through every session, not the history listSessions() trims.
     $sessionTotal = $service->sessionCount(null);

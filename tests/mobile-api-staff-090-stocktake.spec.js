@@ -241,6 +241,13 @@ test('5. the session list pages by status with counters', async ({ request }) =>
     const p2Again = await page2();
     expect(p2Again.json.data.map((x) => x.id)).toEqual(p2.json.data.map((x) => x.id));
     expect(p2Again.json.meta.total_count).toBe(p1.json.meta.total_count);
+    // A cursor the list did not write (an old offset-only one, or garbage) is refused.
+    const cursorOf = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    for (const bad of [cursorOf({ o: 1 }), cursorOf({ o: 1, u: 1, a: 'x', g: '' }), 'not-a-cursor']) {
+        const refused = await call(request, 'GET', `${P}/sessions?status=open&limit=1&cursor=${encodeURIComponent(bad)}`, 'staff');
+        expect(refused.status, bad).toBe(422);
+        expect(refused.json.meta.fields.cursor).toBeTruthy();
+    }
     const fresh = await call(request, 'GET', `${P}/sessions?status=open&limit=1`, 'staff');
     expect(fresh.json.data[0].id).toBe(b.json.data.id);
     expect((await call(request, 'POST', `${P}/sessions/${b.json.data.id}/cancel`, 'staff')).status).toBe(200);
@@ -401,6 +408,12 @@ test('9. detail, state, the scan list (paged, by outcome, only mine) and the rep
     expect(page3.json.data.length).toBe(1);
     expect(page3.json.meta).toMatchObject({ has_more: false, next_cursor: null });
     expect(new Set([...page1.json.data, ...page2.json.data, ...page3.json.data].map((s) => s.id)).size).toBe(9);
+    const badCursor = Buffer.from(JSON.stringify({ o: 4 })).toString('base64');
+    for (const path of [`${P}/sessions/${s1}/scans`, `${P}/sessions/${s1}/report`]) {
+        const refused = await call(request, 'GET', `${path}?limit=4&cursor=${encodeURIComponent(badCursor)}`, 'staff');
+        expect(refused.status, path).toBe(422);
+        expect(refused.json.meta.fields.cursor).toBeTruthy();
+    }
     const unknown = await call(request, 'GET', `${P}/sessions/${s1}/scans?outcome=unknown`, 'staff');
     expect(unknown.json.data.length).toBe(2);
     expect(unknown.json.data.every((s) => s.outcome === 'unknown')).toBe(true);

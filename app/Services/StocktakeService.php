@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Support\ActivityLog;
 use App\Support\DataIntegrity;
 use App\Support\DateHelper;
+use App\Support\DbAtomic;
 use App\Support\GenreTree;
 use App\Support\SecureLogger;
 use mysqli;
@@ -37,6 +38,8 @@ final class StocktakeService
     public const MEDIA_TYPES = ['libro', 'disco', 'audiolibro', 'dvd', 'altro'];
     public const MAX_CODE_LENGTH = 100;
     public const MAX_UPLOAD_CODES = 5000;
+    /** sessionSnapshot(): the most gap ranges a session-list cursor carries. */
+    public const MAX_GAP_RANGES = 100;
 
     /**
      * Copy states that already explain why a copy is not on the shelf. A missing
@@ -488,9 +491,17 @@ final class StocktakeService
      * ids at or below `u` that no committed row held at that moment (`g`, the
      * gaps: a session still being written, a rolled-back or deleted one) stay
      * out of every page, so a session that became visible after the snapshot
-     * is never listed, open or closed. Gaps are few, so the cursor stays small.
+     * is never listed, open or closed.
      *
-     * @return array{u:int,a:list<int>,g:list<int>}
+     * The gaps travel in the cursor, so they are kept as ranges ([first,
+     * last]: a run of deleted sessions is one range however long) and at most
+     * MAX_GAP_RANGES of them, the highest. Only a session still being written
+     * can become visible later, and its id is among the newest: AUTO_INCREMENT
+     * hands ids out in order, so a gap below MAX_GAP_RANGES newer ones would
+     * need as many rollbacks or deletions after it while its own open still
+     * runs. The lower ranges are dropped, never the recent ones.
+     *
+     * @return array{u:int,a:list<int>,g:list<array{0:int,1:int}>}
      */
     public function sessionSnapshot(): array
     {
@@ -504,50 +515,64 @@ final class StocktakeService
         $expected = 1;
         foreach ($result->fetch_all(MYSQLI_NUM) as [$id, $isOpen]) {
             $id = (int) $id;
-            for (; $expected < $id; $expected++) {
-                $gaps[] = $expected;
+            if ($id > $expected) {
+                $gaps[] = [$expected, $id - 1];
             }
             $expected = $id + 1;
             if ((int) $isOpen === 1) {
                 $open[] = $id;
             }
         }
-        return ['u' => $expected - 1, 'a' => $open, 'g' => $gaps];
+        return ['u' => $expected - 1, 'a' => $open, 'g' => array_slice($gaps, -self::MAX_GAP_RANGES)];
     }
 
     /**
-     * A snapshot as a cursor carries it: the open ids comma-separated.
+     * A snapshot as a cursor carries it: the open ids comma-separated, the
+     * gaps as `first-last` ranges (a single id alone).
      *
-     * @param array{u:int,a:list<int>,g:list<int>} $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>} $snapshot
      * @return array{u:int,a:string,g:string}
      */
     public static function snapshotToCursor(array $snapshot): array
     {
-        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a']), 'g' => implode(',', $snapshot['g'])];
+        $gaps = array_map(static fn (array $r): string => $r[0] === $r[1] ? (string) $r[0] : $r[0] . '-' . $r[1], $snapshot['g']);
+        return ['u' => $snapshot['u'], 'a' => implode(',', $snapshot['a']), 'g' => implode(',', $gaps)];
     }
 
     /**
-     * A snapshot back from snapshotToCursor(), or null when it is not one.
+     * A snapshot back from snapshotToCursor(), or null when it is not one:
+     * every id between 1 and `u`, ranges in order, at most MAX_GAP_RANGES.
      *
-     * @return array{u:int,a:list<int>,g:list<int>}|null
+     * @return array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null
      */
     public static function snapshotFrom(mixed $u, mixed $open, mixed $gaps = null): ?array
     {
-        $idList = '/^(\d{1,10}(,\d{1,10})*)?$/';
         if (!is_int($u) || $u < 0 || !is_string($open) || !is_string($gaps)
-            || preg_match($idList, $open) !== 1 || preg_match($idList, $gaps) !== 1) {
+            || preg_match('/^(\d{1,10}(,\d{1,10})*)?$/', $open) !== 1
+            || preg_match('/^(\d{1,10}(-\d{1,10})?(,\d{1,10}(-\d{1,10})?)*)?$/', $gaps) !== 1) {
             return null;
         }
-        $lists = [];
-        foreach (['a' => $open, 'g' => $gaps] as $key => $text) {
-            $lists[$key] = $text === '' ? [] : array_map('intval', explode(',', $text));
-            foreach ($lists[$key] as $id) {
-                if ($id <= 0 || $id > $u) {
-                    return null;
-                }
+        $openIds = $open === '' ? [] : array_map('intval', explode(',', $open));
+        foreach ($openIds as $id) {
+            if ($id <= 0 || $id > $u) {
+                return null;
             }
         }
-        return ['u' => $u, 'a' => $lists['a'], 'g' => $lists['g']];
+        $ranges = [];
+        $previous = 0;
+        foreach ($gaps === '' ? [] : explode(',', $gaps) as $item) {
+            $bounds = array_map('intval', explode('-', $item));
+            $range = [$bounds[0], $bounds[1] ?? $bounds[0]];
+            if ($range[0] <= $previous || $range[1] < $range[0] || $range[1] > $u) {
+                return null;
+            }
+            $previous = $range[1];
+            $ranges[] = $range;
+        }
+        if (count($ranges) > self::MAX_GAP_RANGES) {
+            return null;
+        }
+        return ['u' => $u, 'a' => $openIds, 'g' => $ranges];
     }
 
     /**
@@ -556,7 +581,7 @@ final class StocktakeService
      * the app pages through the whole history, which listSessions() trims.
      * With $snapshot (sessionSnapshot()) the list is the one of that moment.
      *
-     * @param array{u:int,a:list<int>,g:list<int>}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null $snapshot
      * @return list<int> session ids
      */
     public function sessionIds(?string $state, int $limit, int $offset = 0, ?array $snapshot = null): array
@@ -585,7 +610,7 @@ final class StocktakeService
     /**
      * How many sessions sessionIds() pages through.
      *
-     * @param array{u:int,a:list<int>,g:list<int>}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null $snapshot
      */
     public function sessionCount(?string $state, ?array $snapshot = null): int
     {
@@ -608,7 +633,7 @@ final class StocktakeService
      * for the sessions open in the snapshot, the stored state for the others,
      * and no open session the snapshot did not see.
      *
-     * @param array{u:int,a:list<int>,g:list<int>}|null $snapshot
+     * @param array{u:int,a:list<int>,g:list<array{0:int,1:int}>}|null $snapshot
      * @return array{0:string,1:string} [state expression, WHERE condition]
      */
     private static function sessionListSql(?array $snapshot): array
@@ -617,7 +642,10 @@ final class StocktakeService
             return ['s.stato', '1 = 1'];
         }
         $open = $snapshot['a'] === [] ? 'FALSE' : 's.id IN (' . implode(',', array_map('intval', $snapshot['a'])) . ')';
-        $visible = $snapshot['g'] === [] ? '' : ' AND s.id NOT IN (' . implode(',', array_map('intval', $snapshot['g'])) . ')';
+        $visible = '';
+        foreach ($snapshot['g'] as [$first, $last]) {
+            $visible .= ' AND s.id NOT BETWEEN ' . (int) $first . ' AND ' . (int) $last;
+        }
         return [
             "(CASE WHEN {$open} THEN 'aperta' ELSE s.stato END)",
             's.id <= ' . (int) $snapshot['u'] . $visible . " AND ({$open} OR s.stato <> 'aperta')",
@@ -1423,18 +1451,43 @@ final class StocktakeService
         return $rows;
     }
 
-    /** The newest scan id of the session (0 when it has none), to pin a paged listing. */
+    /**
+     * The newest scan id of the session (0 when it has none), to pin a paged
+     * listing, once every scan in progress has committed.
+     *
+     * A scan takes its id when it inserts, under the session row held in
+     * share mode until it commits (record(), lockOpenSession()), so MAX(id) of
+     * the committed rows alone could miss a lower id still being written: it
+     * would show up after the first page, among the scans of a later page and
+     * also as an unscanned copy of the first one. The session row is locked
+     * FOR UPDATE first, which waits for those shared holders; a scan arriving
+     * meanwhile waits in turn and takes a higher id. MAX(id) is then read with
+     * a consistent read whose snapshot starts after the lock (InnoDB creates
+     * it at the first plain read of the transaction, not at BEGIN).
+     */
     public function latestScanId(int $sessionId): int
     {
-        $stmt = $this->db->prepare('SELECT COALESCE(MAX(id), 0) FROM inventario_scansioni WHERE sessione_id = ?');
-        if ($stmt === false) {
-            throw new \RuntimeException($this->db->error);
-        }
-        $stmt->bind_param('i', $sessionId);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_row();
-        $stmt->close();
-        return (int) ($row[0] ?? 0);
+        $latest = 0;
+        DbAtomic::run($this->db, function () use ($sessionId, &$latest): void {
+            $stmt = $this->db->prepare('SELECT id FROM inventario_sessioni WHERE id = ? FOR UPDATE');
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('i', $sessionId);
+            $stmt->execute();
+            $stmt->get_result()->fetch_all();
+            $stmt->close();
+            $stmt = $this->db->prepare('SELECT COALESCE(MAX(id), 0) FROM inventario_scansioni WHERE sessione_id = ?');
+            if ($stmt === false) {
+                throw new \RuntimeException($this->db->error);
+            }
+            $stmt->bind_param('i', $sessionId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_row();
+            $stmt->close();
+            $latest = (int) ($row[0] ?? 0);
+        }, 'StocktakeService::latestScanId');
+        return $latest;
     }
 
     /** How many scans scans() can page through with the same filters. */

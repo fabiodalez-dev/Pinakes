@@ -144,8 +144,13 @@ final class StaffStocktakeController
             // session opened, closed or cancelled while the operator pages is
             // never listed twice nor skipped.
             $cursor = $this->cursor($request);
-            $snapshot = (is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null) : null)
-                ?? $this->service->sessionSnapshot();
+            $snapshot = is_array($cursor) ? StocktakeService::snapshotFrom($cursor['u'] ?? null, $cursor['a'] ?? null, $cursor['g'] ?? null) : null;
+            if ($this->hasCursor($request) && ($snapshot === null || !is_int($cursor['o'] ?? null))) {
+                // A cursor that does not carry its snapshot would page a new
+                // list at an offset of the old one: refused, never guessed.
+                return $this->invalidCursor($response);
+            }
+            $snapshot ??= $this->service->sessionSnapshot();
             $total = $this->service->sessionCount($status, $snapshot);
             $items = [];
             foreach ($this->service->sessionIds($status, $limit, $offset, $snapshot) as $sessionId) {
@@ -224,9 +229,13 @@ final class StaffStocktakeController
             // before the first page but committed after it can never shift a
             // page and repeat a row. `u` keeps total_count to the scans of
             // the first page.
-            $upTo = $this->pinnedScanId($request, $id);
             $cursor = $this->cursor($request);
-            $below = is_array($cursor) && is_int($cursor['k'] ?? null) && $cursor['k'] > 0 ? min($upTo, $cursor['k'] - 1) : $upTo;
+            $key = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && is_int($cursor['k'] ?? null) && $cursor['k'] > 0 ? $cursor['k'] : null;
+            if ($this->hasCursor($request) && $key === null) {
+                return $this->invalidCursor($response);
+            }
+            $upTo = $this->pinnedScanId($request, $id);
+            $below = $key !== null ? min($upTo, $key - 1) : $upTo;
             $total = $this->service->scanCount($id, $operator, $outcome, $upTo);
             $rows = $this->service->scans($id, $operator, $limit + 1, 0, $outcome, $below);
             $hasMore = count($rows) > $limit;
@@ -265,11 +274,14 @@ final class StaffStocktakeController
             // counted apart, pinned like the scan list (`u`): a scan, a loan or
             // a close between two pages never repeats nor skips a row. `p`, `c`,
             // `i` are the key of the last row returned.
-            $upTo = $this->pinnedScanId($request, $id);
             $cursor = $this->cursor($request);
-            $after = is_array($cursor) && in_array($cursor['p'] ?? null, ['a', 's'], true) && is_string($cursor['c'] ?? null) && is_int($cursor['i'] ?? null) && $cursor['i'] >= 0
+            $after = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0 && in_array($cursor['p'] ?? null, ['a', 's'], true) && is_string($cursor['c'] ?? null) && is_int($cursor['i'] ?? null) && $cursor['i'] >= 0
                 ? ['p' => (string) $cursor['p'], 'c' => (string) $cursor['c'], 'i' => (int) $cursor['i']]
                 : null;
+            if ($this->hasCursor($request) && $after === null) {
+                return $this->invalidCursor($response);
+            }
+            $upTo = $this->pinnedScanId($request, $id);
             $total = $this->service->reportRowCount($id, $category, $upTo);
             $page = $this->service->reportPage($id, $category, $limit, $upTo, $after);
             $items = [];
@@ -803,6 +815,24 @@ final class StaffStocktakeController
         $id = is_array($user) ? (int) ($user['id'] ?? 0) : 0;
 
         return $id > 0 ? $id : null;
+    }
+
+    /** True when the request names a cursor at all (the first page has none). */
+    private function hasCursor(ServerRequestInterface $request): bool
+    {
+        $raw = $request->getQueryParams()['cursor'] ?? null;
+
+        return $raw !== null && $raw !== '';
+    }
+
+    /**
+     * A cursor this list did not write (tampered, cut, or of another list):
+     * 422 on `cursor`, since paging on a guessed position would repeat or
+     * skip rows. The client starts again from the first page.
+     */
+    private function invalidCursor(ResponseInterface $response): ResponseInterface
+    {
+        return $this->invalid($response, ['cursor' => __('Valore non valido.')]);
     }
 
     /** @return array<string, mixed>|null the decoded `cursor` query parameter */

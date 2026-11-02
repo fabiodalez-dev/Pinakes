@@ -94,7 +94,7 @@ final class StocktakeOpenApi
             ] + $notFound)],
             '/staff/stocktake/sessions' => [
                 'get' => O::op($t, 'staffStocktakeSessions', 'Sessions: every open one first, then closed and cancelled (newest first), each with its counters (no recent_scans/history). 30/min.', [
-                    '200' => O::ok('Sessions; meta has count, limit, next_cursor, has_more, total_count. The cursor pins the list of the first page: a session opened later is not listed, one closed or cancelled later keeps its place among the open ones.', O::listOf('StocktakeSession')),
+                    '200' => O::ok('Sessions; meta has count, limit, next_cursor, has_more, total_count. The cursor pins the list of the first page: a session opened later is not listed, one closed or cancelled later keeps its place among the open ones. A cursor the list did not write is a 422 on cursor: start again from the first page.', O::listOf('StocktakeSession')),
                 ] + $notFound + $validation, ['parameters' => array_merge([O::query('status', 'string', 'open | closed | cancelled | all (default).')], O::paging())]),
                 'post' => O::op($t, 'staffStocktakeCreate', 'Open a session: the copies matching the filter are frozen as the expected ones', [
                     '201' => $session, '200' => O::ok('Replay of an Idempotency-Key (meta.replayed=true).', O::ref('StocktakeSession')),
@@ -108,7 +108,7 @@ final class StocktakeOpenApi
             ] + $notFound, ['parameters' => [$sid, $mine]])],
             '/staff/stocktake/sessions/{id}/scans' => [
                 'get' => O::op($t, 'staffStocktakeScans', 'Every scan of the session, newest first', [
-                    '200' => O::ok('Scans; meta has total_count. Keyset paging: the cursor continues below the last scan returned and keeps total_count to the scans of the first page, so later pages never repeat or skip a scan.', O::listOf('StocktakeScan')),
+                    '200' => O::ok('Scans; meta has total_count. Keyset paging: the cursor continues below the last scan returned and keeps total_count to the scans of the first page, so later pages never repeat or skip a scan. A cursor the list did not write is a 422 on cursor.', O::listOf('StocktakeScan')),
                 ] + $notFound + $validation, ['parameters' => array_merge([$sid, $mine, O::query('outcome', 'string', implode(' | ', $scanOutcomes)), O::query('cursor', 'string', 'Opaque cursor from meta.next_cursor.'), O::query('limit', 'integer', '1..200, default 50.')])]),
                 'post' => O::op($t, 'staffStocktakeScan', 'Record one scanned code. The same code scanned again (without the same Idempotency-Key) is a new scan recorded as `duplicate`, as on the web. 600/min.', [
                     '201' => O::ok('The scan, its tone, the updated counters.', O::object(['scan' => O::ref('StocktakeScan'), 'tone' => $tone, 'summary' => O::ref('StocktakeSummary'), 'session_status' => $str])),
@@ -119,7 +119,7 @@ final class StocktakeOpenApi
                 ], ['code'])]),
             ],
             '/staff/stocktake/sessions/{id}/report' => ['get' => O::op($t, 'staffStocktakeReport', 'Report rows as the web final report and the CSV: every expected copy not scanned (on_loan or missing), then every scan', [
-                '200' => O::ok('Rows: the unscanned expected copies (by inventory number at opening), then the scans (newest first), keyset-paged in the database; meta.total_count counts the rows of the category filter, or every row. The cursor pins the first page\'s newest scan, so a scan, a loan or a close between pages never repeats or skips a row; on an open session the on_loan/missing filters follow current loans, so their total can change while paging.', ['type' => 'array', 'items' => O::object([
+                '200' => O::ok('Rows: the unscanned expected copies (by inventory number at opening), then the scans (newest first), keyset-paged in the database; meta.total_count counts the rows of the category filter, or every row. The cursor pins the first page\'s newest scan, so a scan, a loan or a close between pages never repeats or skips a row; on an open session the on_loan/missing filters follow current loans, so their total can change while paging. A cursor the list did not write is a 422 on cursor.', ['type' => 'array', 'items' => O::object([
                     'category' => ['type' => 'string', 'enum' => $outcomes], 'category_label' => $str, 'color' => $color, 'code' => $str, 'title' => $str,
                     'media_type' => O::nullable('string'), 'collocation' => O::nullable('string'), 'expected_shelf' => O::nullable('string'),
                     'copy_status' => O::nullable('string'), 'copy_status_label' => O::nullable('string'), 'operator_name' => O::nullable('string'), 'scanned_at' => O::nullable('string', 'date-time'),
