@@ -496,6 +496,11 @@ final class UserImport
     /**
      * Delete user_import_*.csv files in $dir not modified for $maxAge seconds.
      *
+     * With $db, the files of patron import jobs of the Mobile API still valid
+     * are kept. When that lookup fails nothing is removed and the sweep runs
+     * again at the next visit: a job's expiry moves forward at every save, so
+     * no file age is old enough to be sure no valid job owns it.
+     *
      * @return int number of files removed
      */
     public static function sweepStaleUploads(string $dir, int $maxAge = self::STALE_UPLOAD_SECONDS, ?int $now = null, ?\mysqli $db = null): int
@@ -514,13 +519,13 @@ final class UserImport
                 $hasJobs = $table->num_rows > 0;
                 $table->free();
                 if ($hasJobs) {
-                    $jobs = $db->query("SELECT state FROM mobile_import_jobs WHERE kind = 'users' AND expires_at >= NOW() AND status IN ('ready', 'running')");
+                    // Only the staged path, not the whole state of each job.
+                    $jobs = $db->query("SELECT CASE WHEN JSON_VALID(state) THEN JSON_UNQUOTE(JSON_EXTRACT(state, '$.core.file')) END AS core_file FROM mobile_import_jobs WHERE kind = 'users' AND expires_at >= NOW() AND status IN ('ready', 'running')");
                     if ($jobs === false) {
                         return 0;
                     }
                     while ($row = $jobs->fetch_assoc()) {
-                        $state = json_decode((string) $row['state'], true);
-                        $file = $state['core']['file'] ?? null;
+                        $file = $row['core_file'];
                         if (is_string($file) && ($real = realpath($file)) !== false) {
                             $protected[$real] = true;
                         }

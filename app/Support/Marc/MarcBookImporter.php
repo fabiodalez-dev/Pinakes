@@ -173,7 +173,7 @@ final class MarcBookImporter
                 $checkpoint(['result' => $result + ['title' => $title], 'existing' => $existing], $counted);
             }
         );
-        return $this->resume($data, ['result' => $result + ['title' => $title], 'existing' => $existing], $counters, $warnings);
+        return $this->complete($data, ['result' => $result + ['title' => $title], 'existing' => $existing], $counters, $warnings);
     }
 
     /**
@@ -189,13 +189,49 @@ final class MarcBookImporter
      */
     public function resume(array $data, array $pending, array &$counters, array &$warnings = []): array
     {
+        $bookId = (int) $pending['result']['id'];
+        if ($this->loadBook($bookId) === null) {
+            throw new \RuntimeException(__('Libro non trovato.'));
+        }
+        // The interrupted request may have died before the base import's
+        // book.save.after: listeners also run on every edit of a book, so a
+        // second call is safe and the club reconciliation is not left to
+        // the next maintenance run.
+        $parsed = $this->pipeline->normalizeImportRow(MarcBookData::toImportRow($data));
+        $existing = is_array($pending['existing'] ?? null) ? $pending['existing'] : null;
+        if ($existing !== null) {
+            [, $parsed] = self::plan($this->mode, $data, $parsed, $existing);
+        }
+        try {
+            \App\Support\Hooks::do('book.save.after', [$bookId, $parsed]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[MARC import] book.save.after listener failed on resume', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+        }
+
+        return $this->complete($data, $pending, $counters, $warnings);
+    }
+
+    /**
+     * The writes after the base book: extra columns, cover, search index.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $pending
+     * @param array<string, mixed> $counters
+     * @param list<string> $warnings
+     * @return array{action: string, id: int, title: string}
+     */
+    private function complete(array $data, array $pending, array &$counters, array &$warnings): array
+    {
         $result = $pending['result'];
         $bookId = (int) $result['id'];
         $title = (string) $result['title'];
         $existing = is_array($pending['existing'] ?? null) ? $pending['existing'] : null;
-        if ($this->loadBook($bookId) === null) {
-            throw new \RuntimeException(__('Libro non trovato.'));
-        }
+        // The cover decision reads the row as it is now: a retry after an
+        // attached cover skips (fill) or replaces the file actually linked,
+        // never the one of the snapshot taken before the first attempt. The
+        // base import never writes copertina_url, so a first attempt sees the
+        // book's previous cover, as before.
+        $current = $this->loadBook($bookId) ?? $existing;
 
         // The book is committed and counted at this point: what follows only
         // completes it, so a failure here is a warning on an imported record,
@@ -207,7 +243,7 @@ final class MarcBookImporter
             $warnings[] = __('Campi MARC aggiuntivi non salvati') . ': ' . $e->getMessage();
             \App\Support\SecureLogger::warning('[MARC import] extra columns not written', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
         }
-        $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $existing, $counters, $warnings);
+        $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $current, $counters, $warnings);
         try {
             \App\Support\SearchIndexBuilder::rebuild($this->db, $bookId);
         } catch (\Throwable $e) {

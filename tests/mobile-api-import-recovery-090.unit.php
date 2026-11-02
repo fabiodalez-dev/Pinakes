@@ -16,6 +16,10 @@ spl_autoload_register(static function (string $class) use ($root): void {
 require_once $root . '/storage/plugins/mobile-api/src/Support/Delegation.php';
 
 use App\Plugins\MobileApi\Staff090\Controllers\StaffMarcController;
+use App\Plugins\MobileApi\Staff090\Controllers\StaffUserImportController;
+use App\Support\HookManager;
+use App\Support\Hooks;
+use App\Support\Marc\MarcBookImporter;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Plugins\MobileApi\Support\ImportJobStore;
 use App\Support\Features;
@@ -64,6 +68,16 @@ $priorSession = $_SESSION ?? null;
 $requests = new ServerRequestFactory();
 $streams = new StreamFactory();
 $store = new ImportJobStore($db);
+// book.save.after reaches a counting listener only, never the installed plugins.
+$hooksProperty = new ReflectionProperty(Hooks::class, 'instance');
+$hooksBefore = $hooksProperty->getValue();
+$hookCalls = [];
+$hooks = new HookManager($db);
+(new ReflectionProperty($hooks, 'loadedHooks'))->setValue($hooks, true);
+$hooks->addHook('book.save.after', static function ($bookId) use (&$hookCalls): void {
+    $hookCalls[] = (int) $bookId;
+});
+Hooks::init($hooks);
 try {
     // Missing schema is a failed mandatory gate, not a skipped test.
     $db->query('SELECT id FROM mobile_import_jobs LIMIT 0');
@@ -101,6 +115,7 @@ try {
         $count = (int) $db->query("SELECT COUNT(*) FROM libri WHERE titolo = '{$title}' AND deleted_at IS NULL")->fetch_row()[0];
         $check($count === ($failure === 1 ? 0 : 1), "checkpoint {$failure}: book and checkpoint commit together");
         $check(is_file($staged), "checkpoint {$failure}: source survives the failed request, including the final row");
+        $hookCalls = [];
         $response = $controller->chunk($request->withBody($streams->createStream('{}')), new Response(), $id);
         $result = json_decode((string) $response->getBody(), true);
         $check($response->getStatusCode() === 200 && ($result['data']['complete'] ?? false) === true, "checkpoint {$failure}: retry completes the job");
@@ -109,6 +124,72 @@ try {
         $check(count($rows) === 1 && $rows[0]['luogo_pubblicazione'] === 'Recovery City', "checkpoint {$failure}: one book with complete MARC metadata");
         $check((int) $db->query("SELECT COUNT(*) FROM import_logs WHERE user_id = {$userId} AND import_type = 'marc' AND file_name = 'recovery.xml'")->fetch_row()[0] === $failure, "checkpoint {$failure}: one history entry per job");
         $check(!is_file($staged), "checkpoint {$failure}: completed job removes its source");
+        // The retry that completes the book (a new insert, or the resume of
+        // the committed one) runs book.save.after; a retry past it does not.
+        $check(count($hookCalls) === ($failure <= 2 ? 1 : 0) && ($hookCalls === [] || $hookCalls[0] === (int) $rows[0]['id']), "checkpoint {$failure}: the retry runs book.save.after only when it completes the book");
+    }
+
+    // A resumed record whose cover the first attempt already attached: fill
+    // reads the book as it is now and skips, instead of fetching (and
+    // orphaning the first file) because of the snapshot taken before.
+    $coverTitle = "ZZ import recovery {$run} cover";
+    $db->query("INSERT INTO libri (titolo, copertina_url) VALUES ('{$coverTitle}', '/uploads/copertine/zz-recovery-{$run}.jpg')");
+    $coverBook = (int) $db->insert_id;
+    $snapshot = $db->query("SELECT * FROM libri WHERE id = {$coverBook}")->fetch_assoc();
+    $snapshot['copertina_url'] = '';
+    $coverCounters = ['covers' => 0];
+    $coverWarnings = [];
+    (new MarcBookImporter($db, MarcBookImporter::MODE_FILL, true))->resume(
+        ['titolo' => $coverTitle, 'copertina_url' => 'not-a-cover-url'],
+        ['result' => ['id' => $coverBook, 'action' => 'updated', 'title' => $coverTitle], 'existing' => $snapshot],
+        $coverCounters,
+        $coverWarnings
+    );
+    $check($coverWarnings === [] && $coverCounters['covers'] === 0 && $db->query("SELECT copertina_url FROM libri WHERE id = {$coverBook}")->fetch_row()[0] === "/uploads/copertine/zz-recovery-{$run}.jpg",
+        'a resumed fill keeps the cover the first attempt attached and fetches none');
+
+    // Patron import: every job save of a one-row run fails once in turn. The
+    // retry ends with one account, one history entry and no staged file.
+    Features::override('user_import', true);
+    $users = new StaffUserImportController($db);
+    $injected = 0;
+    for ($failure = 1; $failure <= 10; $failure++) {
+        $patronEmail = "zz-import-recovery-{$run}-p{$failure}@example.invalid";
+        $csv = "nome;cognome;email\nPatron;Recovery;{$patronEmail}\n";
+        $file = tempnam(sys_get_temp_dir(), 'patron_recovery_');
+        $files[] = $file;
+        file_put_contents($file, $csv);
+        $name = "patron-recovery-{$run}-{$failure}.csv";
+        $response = $users->create($base('/api/v1/staff/user-imports')->withParsedBody(['delimiter' => ';'])->withUploadedFiles([
+            'file' => new UploadedFile($file, $name, 'text/csv', strlen($csv), UPLOAD_ERR_OK),
+        ]), new Response());
+        $upload = json_decode((string) $response->getBody(), true);
+        $check($response->getStatusCode() === 201, "patron save {$failure}: upload accepted");
+        $id = (string) $upload['data']['id'];
+        $jobs[] = $id;
+        $json = static fn (array $body) => $base('/api/v1/staff/user-imports/' . $id)->withHeader('Content-Type', 'application/json')->withBody($streams->createStream((string) json_encode($body)));
+        $response = $users->start($json(['mapping' => ['nome', 'cognome', 'email'], 'send_invites' => false]), new Response(), $id);
+        $check($response->getStatusCode() === 200, "patron save {$failure}: run started");
+        $patronStaged = (string) ($store->find($id, $userId, true)['state']['core']['file'] ?? '');
+        $files[] = $patronStaged;
+        $db->failCheckpoint($failure);
+        $response = $users->chunk($json([]), new Response(), $id);
+        $first = json_decode((string) $response->getBody(), true);
+        if ($response->getStatusCode() === 200 && ($first['data']['complete'] ?? false) === true) {
+            // No save left to fail: the run went through at the first try.
+            $db->failCheckpoint(0);
+            $check($injected >= 3, 'patron save: the insert, the final history and the completed job each were a failure point');
+            break;
+        }
+        $injected++;
+        $db->failCheckpoint(0);
+        $check($response->getStatusCode() !== 200 && is_file($patronStaged), "patron save {$failure}: failed save is reported and the source is kept");
+        $response = $users->chunk($json([]), new Response(), $id);
+        $retry = json_decode((string) $response->getBody(), true);
+        $accounts = (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$patronEmail}'")->fetch_row()[0];
+        $logs = (int) $db->query("SELECT COUNT(*) FROM import_logs WHERE import_type = 'users' AND file_name = '{$name}'")->fetch_row()[0];
+        $check($response->getStatusCode() === 200 && ($retry['data']['complete'] ?? false) === true && ($retry['data']['created'] ?? null) === 1, "patron save {$failure}: retry completes the job with the account counted once");
+        $check($accounts === 1 && $logs === 1 && !is_file($patronStaged), "patron save {$failure}: one account, one history entry, source removed");
     }
 
     // A repeated, identical running checkpoint within one second is success.
@@ -163,6 +244,9 @@ try {
     if ($userId > 0) {
         $db->query("DELETE FROM utenti WHERE id = {$userId}");
     }
+    $db->query("DELETE FROM import_logs WHERE import_type = 'users' AND file_name LIKE 'patron-recovery-{$run}-%'");
+    $db->query("DELETE FROM utenti WHERE email LIKE 'zz-import-recovery-{$run}-p%'");
+    $hooksProperty->setValue(null, $hooksBefore);
     foreach ($files as $file) {
         if (is_file($file)) {
             unlink($file);

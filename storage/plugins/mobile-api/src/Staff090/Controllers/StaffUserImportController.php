@@ -329,6 +329,12 @@ final class StaffUserImportController
                     if (!$this->store->saveChunk((string) $job['id'], $state, $processed, $done ? 'completed' : ($last ? 'ready' : 'running'), $outcome->json)) {
                         return $this->cancelledMeanwhile($response, $processed);
                     }
+                    if ($done) {
+                        // The web keeps the file of a finished run until the
+                        // completed job is stored: a lost save replays the
+                        // final answer instead of closing the run again.
+                        UserImportJob::unlinkUpload($after);
+                    }
                     $job = array_replace($job, ['state' => $state, 'processed' => $processed, 'summary' => $outcome->json]);
                     if ($last) {
                         return ResponseEnvelope::success($response, UserImportJob::map((array) $this->find($request, $id)));

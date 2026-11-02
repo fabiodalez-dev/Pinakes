@@ -505,20 +505,46 @@ class UserImportController
         ];
 
         if ($done) {
-            $payload['import_id'] = $this->finish($db, $state);
-            if ($payload['import_id'] === '') {
-                // The accounts are created and counted either way; only the
-                // history entry (and the downloadable report) is missing.
-                $payload['log_error'] = __('Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.');
-            }
-            $payload['invite_failed'] = (int) $state['invite_failed'];
-            $payload['errors'] = array_slice($state['errors'], 0, 50);
-            $summary = ['created' => $state['created'], 'duplicates' => $state['duplicates'], 'failed' => $state['failed']];
-            $this->discardSessionFile();
-            unset($state);
             // Only the final answer is kept, for a retry of this request;
             // the next upload or a visit to the page replaces it.
-            $_SESSION[self::SESSION_KEY] = ['finished' => true, 'preview_id' => (string) ($_SESSION[self::SESSION_KEY]['preview_id'] ?? ''), 'result' => $payload];
+            $finished = [];
+            $close = function () use ($db, &$state, &$payload, &$finished): void {
+                $payload['import_id'] = $this->finish($db, $state);
+                if ($payload['import_id'] === '') {
+                    // The accounts are created and counted either way; only the
+                    // history entry (and the downloadable report) is missing.
+                    $payload['log_error'] = __('Import completato, ma lo storico non è stato salvato: il report degli errori non è scaricabile.');
+                }
+                $payload['invite_failed'] = (int) $state['invite_failed'];
+                $payload['errors'] = array_slice($state['errors'], 0, 50);
+                $finished = ['finished' => true, 'preview_id' => (string) ($state['preview_id'] ?? ''), 'result' => $payload];
+                if ($this->rowCheckpoint !== null) {
+                    // The caller removes the file once its completed job is
+                    // stored, so it travels with the final answer; `started`
+                    // keeps the stored run one a retry may resume (replaying
+                    // this answer).
+                    $finished['started'] = true;
+                    $finished['file'] = (string) $state['file'];
+                    $this->checkpoint($finished);
+                }
+            };
+            if ($this->rowCheckpoint === null) {
+                $close();
+                $this->discardSessionFile();
+            } else {
+                // The history entry and the final answer are stored together:
+                // a retry after a lost save replays the answer instead of
+                // closing the run (and writing its history) a second time.
+                try {
+                    \App\Support\DbAtomic::run($db, $close, 'user import history checkpoint');
+                } catch (\Throwable $e) {
+                    SecureLogger::error('[UserImport] final checkpoint failed: ' . $e->getMessage());
+                    return $this->json($response, ['success' => false, 'error' => __('Errore interno del database. Riprova più tardi.'), 'processed' => (int) $state['next']], 500);
+                }
+            }
+            $summary = ['created' => $state['created'], 'duplicates' => $state['duplicates'], 'failed' => $state['failed']];
+            unset($state);
+            $_SESSION[self::SESSION_KEY] = $finished;
             SecureLogger::info('Users imported from CSV', $summary + ['by' => $_SESSION['user']['id'] ?? null]);
         }
         return $this->json($response, $payload);
@@ -767,17 +793,26 @@ class UserImportController
     /** Whether the account holds a password-setup token (the invitation step issued one). */
     private static function hasSetupToken(mysqli $db, int $userId): bool
     {
-        $stmt = $db->prepare('SELECT token_reset_password FROM utenti WHERE id = ?');
-        if ($stmt === false) {
-            // Unknown: never risk voiding a link that may have been sent.
-            return true;
-        }
-        $stmt->bind_param('i', $userId);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_row();
-        $stmt->close();
+        $stmt = null;
+        try {
+            $stmt = $db->prepare('SELECT token_reset_password FROM utenti WHERE id = ?');
+            if ($stmt === false) {
+                // Unknown: never risk voiding a link that may have been sent.
+                return true;
+            }
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_row();
 
-        return $row !== null && $row[0] !== null && $row[0] !== '';
+            return $row !== null && $row[0] !== null && $row[0] !== '';
+        } catch (\Throwable $e) {
+            // Unknown (prepare() throws under MYSQLI_REPORT_STRICT): same answer.
+            return true;
+        } finally {
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
+        }
     }
 
     /** Mark the staged file of the session's interrupted run as in use, so the sweep keeps it. */
