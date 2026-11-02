@@ -73,6 +73,14 @@ if (!(new CirculationPolicy($db))->schemaReady() || !CustomHolidays::schemaReady
     fwrite(STDERR, "FAIL: the 0.9.0 circulation / calendar schema is missing on this database\n");
     exit(1);
 }
+// The API create endpoints store their Idempotency-Key in the plugin's own
+// table; a database where the plugin never ran (the CI schema jobs) lacks it.
+require_once $root . '/storage/plugins/mobile-api/MobileApiPlugin.php';
+$pluginSchema = (new \App\Plugins\MobileApi\MobileApiPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
+if ($pluginSchema['failed'] !== []) {
+    fwrite(STDERR, 'FAIL: Mobile API schema: ' . implode(', ', $pluginSchema['failed']) . "\n");
+    exit(1);
+}
 if (session_status() !== PHP_SESSION_ACTIVE) {
     $_SESSION = [];
 }
@@ -190,7 +198,7 @@ $closure = (new ClosuresCalendarController($db))->createClosure(
 );
 $body = $payload($closure);
 $apiClosure = $scalar('SELECT id FROM calendario_chiusure WHERE descrizione = ?', 's', ["Api {$run}"]);
-$check($closure->getStatusCode() === 201 && ($body['data']['id'] ?? null) === $apiClosure && ($body['data']['description'] ?? null) === "Api {$run}", 'POST /staff/calendar/closures answers its own closure');
+$check($closure->getStatusCode() === 201 && ($body['data']['id'] ?? null) === $apiClosure && ($body['data']['description'] ?? null) === "Api {$run}", 'POST /staff/calendar/closures answers its own closure' . ($closure->getStatusCode() === 201 ? '' : ' (HTTP ' . $closure->getStatusCode() . ': ' . substr((string) $closure->getBody(), 0, 200) . ')'));
 
 $holiday = (new ClosuresCalendarController($db))->createCustom(
     $apiRequest('/api/v1/staff/calendar/custom-holidays', ['name' => "Api patrono {$run}", 'kind' => 'fixed', 'month' => 7, 'day' => 1], "{$run}-custom"),
