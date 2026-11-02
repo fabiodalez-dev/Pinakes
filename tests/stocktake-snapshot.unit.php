@@ -220,6 +220,263 @@ try {
     $check(str_contains($closedMeta, __('Chiusa il') . ': ') && !str_contains($closedMeta, __('Annullata il')), 'the PDF of a closed session says when it was closed');
     $check(str_starts_with($pdfGenerator->generate((array) $service->find($second), $service->summary($second), $service->reportRows($second), [], []), '%PDF'), 'the PDF of a cancelled session is still generated');
     $check($service->reportRowCount($sessionId) === count($service->reportRows($sessionId)) && $service->reportRowCount($second) === count($service->reportRows($second)), 'reportRowCount() counts exactly the report rows');
+    // The app reads the report a page at a time, keyset-paged in the
+    // database (review #518): the pages put together are the report, across
+    // the seam between the expected copies and the scans, and a category
+    // filter pages and counts only that category.
+    $readReport = static function (int $sid, ?string $category, int $limit, int $upTo, ?callable $afterFirst = null) use ($service): array {
+        $rows = [];
+        $after = null;
+        $pages = 0;
+        do {
+            $page = $service->reportPage($sid, $category, $limit, $upTo, $after);
+            if (count($page['rows']) > $limit) {
+                throw new RuntimeException('FAIL a report page holds more rows than asked');
+            }
+            $rows = array_merge($rows, $page['rows']);
+            $after = $page['next'];
+            if (++$pages === 1 && $afterFirst !== null) {
+                $afterFirst();
+            }
+        } while ($after !== null && $pages < 100000);
+        return $rows;
+    };
+    // The API pages in its own stable order: compare the rows, not their order.
+    $sorted = static function (array $rows): array {
+        $keys = array_map(static fn (array $r): string => json_encode($r, JSON_THROW_ON_ERROR), $rows);
+        sort($keys);
+        return $keys;
+    };
+    foreach ([$sessionId => 'closed', $second => 'cancelled'] as $sid => $what) {
+        $all = $service->reportRows($sid);
+        $upTo = $service->latestScanId($sid);
+        $paged = $readReport($sid, null, 2, $upTo);
+        $check(count($paged) === count($all) && $sorted($paged) === $sorted($all), "reportPage() pages of 2 put together are the whole report of the {$what} session");
+        // The order the API promises: the unscanned copies first, by the
+        // inventory number frozen at opening and then the copy id (review #518).
+        $expectedOrder = array_column($db->query(
+            "SELECT COALESCE(c.numero_inventario, a.codice_atteso) FROM inventario_attese a "
+            . "LEFT JOIN inventario_scansioni sc ON sc.sessione_id = a.sessione_id AND sc.copia_id = a.copia_id "
+            . "LEFT JOIN copie c ON c.id = a.copia_id "
+            . "WHERE a.sessione_id = {$sid} AND sc.id IS NULL ORDER BY COALESCE(a.codice_atteso, ''), a.copia_id"
+        )->fetch_all(), 0);
+        $check(($what !== 'closed' || count($expectedOrder) >= 2) && array_column(array_slice($paged, 0, count($expectedOrder)), 'codice') === $expectedOrder && array_column(array_slice($paged, 0, count($expectedOrder)), 'quando_ts') === array_fill(0, count($expectedOrder), ''), "the unscanned copies of the {$what} session come first, by inventory number at opening then copy id");
+        foreach (array_unique(array_merge(array_column($all, 'categoria'), ['mancante', 'in_prestito', 'trovata'])) as $category) {
+            $only = array_values(array_filter($all, static fn (array $r): bool => $r['categoria'] === $category));
+            $check($sorted($readReport($sid, $category, 1, $upTo)) === $sorted($only) && $service->reportRowCount($sid, $category, $upTo) === count($only), "reportPage() and reportRowCount() of the {$what} session keep only '{$category}' rows");
+        }
+    }
+    // An inventory number changed after the opening does not move its copy:
+    // the last unscanned copy, renamed to sort first, stays last.
+    $lastUnscanned = $db->query(
+        "SELECT a.copia_id, c.numero_inventario FROM inventario_attese a "
+        . "LEFT JOIN inventario_scansioni sc ON sc.sessione_id = a.sessione_id AND sc.copia_id = a.copia_id "
+        . "JOIN copie c ON c.id = a.copia_id "
+        . "WHERE a.sessione_id = {$sessionId} AND sc.id IS NULL ORDER BY COALESCE(a.codice_atteso, '') DESC, a.copia_id DESC LIMIT 1"
+    )->fetch_row();
+    if (is_array($lastUnscanned)) {
+        [$renamedCopy, $oldNumber] = [(int) $lastUnscanned[0], $lastUnscanned[1]];
+        $renamed = '!0-' . $renamedCopy;
+        $db->query("UPDATE copie SET numero_inventario = '{$renamed}' WHERE id = {$renamedCopy}");
+        try {
+            $unscanned = array_values(array_filter($readReport($sessionId, null, 2, $service->latestScanId($sessionId)), static fn (array $r): bool => $r['quando_ts'] === ''));
+            $codes = array_column($unscanned, 'codice');
+            $check(count($codes) >= 2 && end($codes) === $renamed && min($codes) === $renamed, 'an inventory number renamed after the opening keeps its copy at the place of the number frozen then');
+        } finally {
+            $stmt = $db->prepare('UPDATE copie SET numero_inventario = ? WHERE id = ?');
+            $stmt->bind_param('si', $oldNumber, $renamedCopy);
+            $stmt->execute();
+        }
+    }
+    $check(is_array($lastUnscanned), 'the closed session has an unscanned copy to rename');
+
+    // The scan list is pinned to its first page: a scan recorded later stays out.
+    $latest = $service->latestScanId($second);
+    $check($latest === (int) $one("SELECT MAX(id) FROM inventario_scansioni WHERE sessione_id = {$second}"), 'latestScanId() is the newest scan of the session');
+    // A scan in progress on another connection (the session row in share
+    // mode, its id taken, not committed yet): latestScanId() waits for it
+    // instead of pinning below it (review #518). The wait is cut to a second
+    // here, so it shows as a lock timeout; once committed, it is seen.
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->set_charset('utf8mb4');
+    $other->begin_transaction();
+    $other->query("SELECT stato FROM inventario_sessioni WHERE id = {$second} LOCK IN SHARE MODE")->fetch_all();
+    $other->query("INSERT INTO inventario_scansioni (sessione_id, codice_letto, esito, scansionato_il) VALUES ({$second}, '{$p}-INFLIGHT', 'sconosciuta', NOW())");
+    $inFlight = (int) $other->insert_id;
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    $waited = false;
+    try {
+        $service->latestScanId($second);
+    } catch (mysqli_sql_exception $e) {
+        $waited = $e->getCode() === 1205;
+    } finally {
+        $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+    }
+    $other->commit();
+    $other->close();
+    $other = null;
+    $check($waited, 'latestScanId() waits for a scan still being written instead of returning the committed maximum');
+    $check($service->latestScanId($second) === $inFlight, 'once that scan commits, latestScanId() returns its id');
+    $db->query("DELETE FROM inventario_scansioni WHERE id = {$inFlight}");
+    $check(!in_array($latest, array_map(static fn (array $r): int => (int) $r['id'], $service->scans($second, null, 200, 0, null, $latest - 1)), true) && $service->scanCount($second, null, null, $latest - 1) === $service->scanCount($second) - 1, 'scans() and scanCount() with $upToId leave out the scans after it');
+    // An open session's report pinned to the scans of the first page
+    // (review #518): a scan between two pages leaves the copy among the
+    // expected rows of that report, so nothing is skipped or repeated.
+    $pin = $service->open('ZZST pin ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $pin;
+    $pinFull = $service->reportRows($pin);
+    $pinUpTo = $service->latestScanId($pin);
+    $pinScanId = 0;
+    $pinRead = $readReport($pin, null, 2, $pinUpTo, static function () use ($db, $service, $pin, $p, &$pinScanId, $check): void {
+        // The instants are the database's own: a connection in another zone
+        // writes NOW() in it and UNIX_TIMESTAMP() reads it back in it.
+        $db->query("SET SESSION time_zone = '+05:00'");
+        try {
+            $before = time();
+            $pinScanId = (int) $service->scan($pin, "{$p}-C5", null, null)['scansione_id'];
+            $pinRow = (array) $service->scanRow($pin, $pinScanId);
+            $check(abs((int) $pinRow['scansionato_il_ts'] - $before) <= 5, 'a scan instant is the real one whatever zone the connection writes and reads in');
+        } finally {
+            $db->query('SET SESSION time_zone = DEFAULT');
+        }
+    });
+    $check($service->reportRowCount($pin) === count($pinFull) && $service->reportRowCount($pin, 'mancante') + $service->reportRowCount($pin, 'in_prestito') === count($pinFull) - 1, 'the scan moved one copy from the expected rows to the scans (same total)');
+    $check($sorted($pinRead) === $sorted($pinFull) && $service->reportRowCount($pin, null, $pinUpTo) === count($pinFull), 'pinned pages put together are the report of the first page, with nothing skipped or repeated');
+    // A session closed between two pages: the pages read after the close
+    // continue the same report (the copy scanned after the first page keeps
+    // the bucket of a copy not scanned, not its frozen scan outcome).
+    $pc = $service->open('ZZST pinclose ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
+    $sessionIds[] = $pc;
+    $pcFull = $service->reportRows($pc);
+    $pcUpTo = $service->latestScanId($pc);
+    $pcRead = $readReport($pc, null, 1, $pcUpTo, static function () use ($service, $pc, $p): void {
+        $service->scan($pc, "{$p}-C5", null, null);
+        $service->close($pc, false, null);
+    });
+    $check($one("SELECT stato FROM inventario_sessioni WHERE id = {$pc}") === 'chiusa' && $sorted($pcRead) === $sorted($pcFull), 'a report paged across the close of its session is the report of the first page');
+    $check($service->reportRowCount($pc, 'mancante', $pcUpTo) === count(array_filter($pcFull, static fn (array $r): bool => $r['categoria'] === 'mancante')), 'and its category counts are those of the first page');
+
+    // The session list pinned to a snapshot (review #518): the sessions open
+    // in it stay open whatever happens later, one opened later is not listed.
+    $snapshot = $service->sessionSnapshot();
+    $snapAll = $service->sessionIds(null, 500, 0, $snapshot);
+    $snapOpen = $service->sessionIds('aperta', 500, 0, $snapshot);
+    $snapCount = $service->sessionCount(null, $snapshot);
+    $later = $service->open('ZZST later ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
+    $sessionIds[] = $later;
+    $service->cancel($pin, null);
+    $check($service->sessionIds(null, 500, 0, $snapshot) === $snapAll && $service->sessionCount(null, $snapshot) === $snapCount && $service->sessionCount(null) === $snapCount + 1, 'the pinned list is the same after a session was opened and another cancelled');
+    $check(!in_array($later, $service->sessionIds(null, 500, 0, $snapshot), true) && in_array($later, $service->sessionIds(null, 500), true), 'the session opened after the snapshot is not in the pinned list, only in a fresh one');
+    $check(in_array($pin, $snapOpen, true) && $service->sessionIds('aperta', 500, 0, $snapshot) === $snapOpen && !in_array($pin, $service->sessionIds('aperta', 500), true), 'the session cancelled after the snapshot keeps its place among the open ones');
+    // A close stamped before the snapshot but committed after it (its
+    // chiusa_il is earlier than the first page), or in the very same second:
+    // the session was open in the snapshot and stays open in every page.
+    foreach (['NOW()', 'NOW() - INTERVAL 1 HOUR'] as $stamp) {
+        $db->query("UPDATE inventario_sessioni SET chiusa_il = {$stamp} WHERE id = {$pin}");
+        $check($service->sessionIds('aperta', 500, 0, $snapshot) === $snapOpen && $service->sessionCount('aperta', $snapshot) === count($snapOpen), "a session closed at {$stamp} but open in the snapshot is still listed and counted as open");
+    }
+    // A session whose id was taken before the snapshot but whose row commits
+    // after it: not visible to the first page, so never listed in the pinned
+    // pages. Simulated with a free id below the snapshot's newest one.
+    $gap = $service->open('ZZST gap ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
+    $db->query("DELETE FROM inventario_sessioni WHERE id = {$gap}");
+    $afterGap = $service->open('ZZST aftergap ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
+    $sessionIds[] = $afterGap;
+    $gapSnapshot = $service->sessionSnapshot();
+    $gapList = $service->sessionIds(null, 500, 0, $gapSnapshot);
+    $db->query("INSERT INTO inventario_sessioni (id, nome, stato, aperta_il) VALUES ({$gap}, 'ZZST late {$run}', 'aperta', NOW())");
+    $sessionIds[] = $gap;
+    $check($gap < $gapSnapshot['u'] && $service->sessionIds(null, 500, 0, $gapSnapshot) === $gapList && !in_array($gap, $service->sessionIds('aperta', 500, 0, $gapSnapshot), true) && in_array($gap, $service->sessionIds('aperta', 500), true), 'a session committed after the snapshot with a lower id is not in the pinned list');
+    // ...and stays out once it is closed before the next page: it was not
+    // visible to the snapshot, so it never joins the pinned history either.
+    // Closed in the very second of the snapshot, the case a time bound cannot tell apart.
+    $check(array_filter($gapSnapshot['g'], static fn (array $r): bool => $r[0] <= $gap && $gap <= $r[1]) !== [], 'the late session id is in a gap range of the snapshot');
+    $check(count($gapSnapshot['g']) <= StocktakeService::MAX_GAP_RANGES && strlen(implode(',', StocktakeService::snapshotToCursor($gapSnapshot))) < 4096, 'the snapshot carries at most MAX_GAP_RANGES gap ranges, so its cursor stays small');
+    $db->query("UPDATE inventario_sessioni SET stato = 'annullata', chiusa_il = NOW() WHERE id = {$gap}");
+    $check($service->sessionIds(null, 500, 0, $gapSnapshot) === $gapList && $service->sessionCount(null, $gapSnapshot) === count($gapList) && !in_array($gap, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a late session closed between two pages does not join the pinned history');
+    // A session closed before the snapshot is still in the pinned history.
+    $check(in_array($second, $service->sessionIds('annullata', 500, 0, $gapSnapshot), true), 'a session closed before the snapshot is in the pinned history');
+    // The snapshot a cursor carries back is checked before it reaches the SQL.
+    $check(StocktakeService::snapshotFrom(5, '1,3', '2', 0, 0) === ['u' => 5, 'a' => [1, 3], 'g' => [[2, 2]], 'b' => 0, 't' => 0] && StocktakeService::snapshotFrom(5, '', '', 0, 0) === ['u' => 5, 'a' => [], 'g' => [], 'b' => 0, 't' => 0]
+        && StocktakeService::snapshotFrom(9, '1', '2-4,7', 0, 0) === ['u' => 9, 'a' => [1], 'g' => [[2, 4], [7, 7]], 'b' => 0, 't' => 0]
+        && StocktakeService::snapshotFrom(5, '1,x', '', 0, 0) === null && StocktakeService::snapshotFrom(5, "1) OR (1=1", '', 0, 0) === null && StocktakeService::snapshotFrom(5, '9', '', 0, 0) === null && StocktakeService::snapshotFrom('5', '1', '', 0, 0) === null
+        && StocktakeService::snapshotFrom(5, '1', null, 0, 0) === null && StocktakeService::snapshotFrom(5, '1', '2) OR (1=1', 0, 0) === null && StocktakeService::snapshotFrom(5, '1', '7', 0, 0) === null
+        && StocktakeService::snapshotFrom(2, '2', '2', 0, 0) === null && StocktakeService::snapshotFrom(9, '3', '2-4', 0, 0) === null
+        && StocktakeService::snapshotFrom(9, '1', '4-2', 0, 0) === null && StocktakeService::snapshotFrom(9, '1', '5,3', 0, 0) === null && StocktakeService::snapshotFrom(9, '1', '2-4,4', 0, 0) === null && StocktakeService::snapshotFrom(9, '1', '2-12', 0, 0) === null
+        && StocktakeService::snapshotFrom(5, ...array_values(array_slice(StocktakeService::snapshotToCursor(['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]], 'b' => 0, 't' => 0]), 1))) === ['u' => 5, 'a' => [2, 4], 'g' => [[3, 3]], 'b' => 0, 't' => 0], 'snapshotFrom() accepts only the id lists snapshotToCursor() writes');
+    $manyRanges = implode(',', array_map(static fn (int $i): string => (string) (2 * $i), range(1, StocktakeService::MAX_GAP_RANGES + 1)));
+    $check(StocktakeService::snapshotToCursor(['u' => 10, 'a' => [], 'g' => [[2, 4], [7, 7]], 'b' => 0, 't' => 0])['g'] === '2-4,7' && StocktakeService::snapshotFrom(1000, '', $manyRanges, 0, 0) === null, 'gaps travel as ranges, at most MAX_GAP_RANGES of them');
+    $manyOpen = implode(',', range(1, StocktakeService::MAX_OPEN_IDS + 1));
+    $check(StocktakeService::snapshotFrom(9, '4,6', '', 4, 1000) === ['u' => 9, 'a' => [4, 6], 'g' => [], 'b' => 4, 't' => 1000]
+        && StocktakeService::snapshotFrom(9, '3,6', '', 4, 1000) === null && StocktakeService::snapshotFrom(9, '5,6', '', 4, 1000) === null && StocktakeService::snapshotFrom(9, '', '', 4, 1000) === null
+        && StocktakeService::snapshotFrom(9, '', '', 10, 1000) === null && StocktakeService::snapshotFrom(9, '', '', -1, 1000) === null
+        && StocktakeService::snapshotFrom(9, '4,6', '', 4, 0) === null && StocktakeService::snapshotFrom(9, '4,6', '', 0, 1000) === null && StocktakeService::snapshotFrom(9, '4,6', '', 4, -1) === null
+        && StocktakeService::snapshotFrom(9, '1', '') === null && StocktakeService::snapshotFrom(9, '1', '', 0) === null && StocktakeService::snapshotFrom(9, '1', '', '0', 0) === null && StocktakeService::snapshotFrom(9, '1', '', 0, '0') === null
+        && StocktakeService::snapshotFrom(1000, $manyOpen, '', 0, 0) === null, 'open ids travel at most MAX_OPEN_IDS, the floor is the lowest of them and comes with its moment, both required');
+
+    // More sessions open than a cursor carries: the newest MAX_OPEN_IDS stay
+    // pinned, the older ones count as open when they were at the snapshot.
+    $bulk = [];
+    for ($i = 0; $i <= StocktakeService::MAX_OPEN_IDS + 1; $i++) {
+        $db->query("INSERT INTO inventario_sessioni (nome, stato, aperta_il) VALUES ('ZZST bulk {$run} {$i}', 'aperta', NOW())");
+        $bulk[] = (int) $db->insert_id;
+        $sessionIds[] = (int) $db->insert_id;
+    }
+    // Closed an hour before the snapshot: not open in it.
+    $db->query("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_il = NOW() - INTERVAL 1 HOUR WHERE id = {$bulk[1]}");
+    // The sessions closed above ran in this second, which the snapshot
+    // counts as open: the next second leaves only those still open.
+    sleep(1);
+    $wide = $service->sessionSnapshot();
+    $openNow = array_map('intval', array_column($db->query("SELECT id FROM inventario_sessioni WHERE stato = 'aperta' ORDER BY id")->fetch_all(MYSQLI_NUM), 0));
+    $check(count($wide['a']) === StocktakeService::MAX_OPEN_IDS && $wide['a'] === array_slice($openNow, -StocktakeService::MAX_OPEN_IDS) && $wide['b'] === $wide['a'][0] && $wide['b'] > $openNow[0] && $wide['t'] > 0,
+        'with more open sessions than MAX_OPEN_IDS the snapshot keeps the newest ones, names the lowest as its floor and stamps its moment');
+    $check(strlen((string) json_encode(StocktakeService::snapshotToCursor($wide))) < 4096 && StocktakeService::snapshotFrom($wide['u'], ...array_values(array_slice(StocktakeService::snapshotToCursor($wide), 1))) === $wide,
+        'its cursor stays small and reads back as the same snapshot');
+    $wideOpen = $service->sessionIds('aperta', 500, 0, $wide);
+    $check($wideOpen === $service->sessionIds('aperta', 500) && $service->sessionCount('aperta', $wide) === count($openNow) && !in_array($bulk[1], $wideOpen, true), 'every session open at the snapshot is listed as open, those below the floor too, and none closed before it');
+    // A close still in flight on another connection (chiusa_il stamped, not
+    // committed): the snapshot waits for it rather than reading it open,
+    // since after the commit its stamp would rank it closed on later pages.
+    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other->begin_transaction();
+    $other->query("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_il = NOW() - INTERVAL 1 MINUTE WHERE id = {$bulk[2]}");
+    $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+    $waited = false;
+    try {
+        $service->sessionSnapshot();
+    } catch (\mysqli_sql_exception $e) {
+        $waited = $e->getCode() === 1205;
+    }
+    $db->query('SET SESSION innodb_lock_wait_timeout = 50');
+    $other->rollback();
+    $other->close();
+    $other = null;
+    $check($waited, 'the snapshot waits for a close still in flight instead of reading the session open');
+
+    // Paged by offset (newest first): the first page ends on a session below
+    // the floor, then it and a pinned one close. The next page neither skips
+    // nor repeats a row.
+    $half = (int) array_search($bulk[0], $wideOpen, true) + 1;
+    $firstPage = $service->sessionIds('aperta', $half, 0, $wide);
+    $pinnedOpen = end($bulk);
+    $db->query("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_il = NOW() WHERE id IN ({$bulk[0]}, {$pinnedOpen})");
+    $check($bulk[0] < $wide['b'] && in_array($bulk[0], $firstPage, true) && array_merge($firstPage, $service->sessionIds('aperta', 500, $half, $wide)) === $wideOpen && $service->sessionCount('aperta', $wide) === count($wideOpen),
+        'a session closed between two pages keeps its place, below the floor as well as pinned');
+    $check(!in_array($bulk[0], $service->sessionIds('chiusa', 500, 0, $wide), true) && in_array($bulk[1], $service->sessionIds('chiusa', 500, 0, $wide), true), 'only the session closed before the snapshot is in the pinned history');
+
+    // The app pages through every session, not the history listSessions() trims.
+    $sessionTotal = $service->sessionCount(null);
+    $check($sessionTotal === (int) $one('SELECT COUNT(*) FROM inventario_sessioni'), 'sessionCount() counts every session');
+    $everyId = $service->sessionIds(null, 500);
+    $pagedIds = array_merge($service->sessionIds(null, 2, 0), $service->sessionIds(null, 2, 2), $service->sessionIds(null, 500, 4));
+    $check($pagedIds === $everyId && count($everyId) === min(500, $sessionTotal), 'sessionIds() pages put together are the whole list, in one order');
+    $cancelledIds = $service->sessionIds('annullata', 500);
+    $check(in_array($second, $cancelledIds, true) && !in_array($sessionId, $cancelledIds, true) && count($cancelledIds) === min(500, $service->sessionCount('annullata')), 'sessionIds() and sessionCount() filter by state');
+    $ranks = array_map(static fn (int $id): int => ['aperta' => 0, 'chiusa' => 1, 'annullata' => 2][(string) $one("SELECT stato FROM inventario_sessioni WHERE id = {$id}")] ?? 3, $everyId);
+    $sortedRanks = $ranks;
+    sort($sortedRanks);
+    $check($ranks === $sortedRanks, 'open sessions come first, then closed, then cancelled, as on the admin list');
     // A report too large for one TCPDF request is refused (review #504),
     // pointing at the CSV export instead of exhausting memory.
     $big = $service->open('ZZST big ' . $run, null, ['collocazione_da' => "{$p}.none", 'collocazione_a' => "{$p}.none"], null);
@@ -245,6 +502,9 @@ try {
     }
     $check($overLimit, 'the PDF generator refuses more rows than MAX_ROWS instead of building them');
     $check(count($service->reportRows($big, App\Support\StocktakePdfGenerator::MAX_ROWS + 1)) === App\Support\StocktakePdfGenerator::MAX_ROWS + 1 && count($service->reportRows($sessionId, 2)) === 2, 'reportRows() with a limit reads no more rows than asked');
+    $bigFirst = $service->reportPage($big, 'mancante', 50, 0);
+    $bigNext = $service->reportPage($big, 'mancante', 50, 0, $bigFirst['next']);
+    $check(count($bigFirst['rows']) === 50 && count($bigNext['rows']) === 50 && array_intersect(array_column($bigFirst['rows'], 'codice'), array_column($bigNext['rows'], 'codice')) === [] && count($readReport($big, null, 4000, 0)) === $bigRows, 'a large report pages by key, no more rows than asked, every row once');
     // The CSV export writes the report row by row into a temporary stream
     // (review #504), so a report too large for the PDF is still exported whole.
     memory_reset_peak_usage();
@@ -392,7 +652,11 @@ try {
 
     // The session is closed, so close() cannot be repeated: the copies the
     // mark-lost close did not reach are completed from the closed session.
-    $check($service->pendingLostCount($atomicSession) === 1, 'the copy the close failed to mark is pending');
+    // pendingLostCount() counts in SQL what missingToMark() lists (review #518): same answer at every step below.
+    $pendingMatches = static function (int $sid) use ($service): bool {
+        return $service->pendingLostCount($sid) === array_sum(array_map('count', (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $sid)));
+    };
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 1, 'the copy the close failed to mark is pending');
     $check($refused(static fn () => $service->resumeMarkLost($second, null)), 'a cancelled session cannot resume marking');
     $_SESSION = ['user' => ['id' => 0, 'tipo_utente' => 'admin']];
     $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/admin/inventory/' . $atomicSession . '/close')
@@ -400,18 +664,18 @@ try {
     (new App\Controllers\InventoryController())->close($request, new Slim\Psr7\Response(), $db, $atomicSession);
     $check($one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'perso', 'posting "mark lost" again on the closed session marks the copy it missed');
     $check($one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'persa' && $one("SELECT copie_disponibili FROM libri WHERE id = {$atomicBook}") === '0', 'the resumed marking freezes the bucket and recalculates availability');
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0], 'resuming again finds nothing left to mark');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0], 'resuming again finds nothing left to mark');
     // A copy is handled after the close: the resume must not undo it. The
     // close is moved an hour back so "changed after the close" does not hang
     // on both writes landing in the same second.
     $db->query("UPDATE inventario_sessioni SET chiusa_il = chiusa_il - INTERVAL 1 HOUR WHERE id = {$atomicSession}");
     $db->query("UPDATE copie SET stato = 'disponibile' WHERE id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a lost copy found and put back after the close is not marked lost again');
     $db->query("UPDATE inventario_attese SET esito_chiusura = 'mancante' WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a missing copy changed after the close (repaired, put back) is not pending');
     // The copy was last changed before the close: pending again.
     $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il - INTERVAL 1 MINUTE WHERE c.id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 1, 'a missing copy last changed before the close is pending');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 1, 'a missing copy last changed before the close is pending');
     // An operator edits it between the pending list and the book lock (review
     // #504): the marking re-checks the change under the lock and leaves it.
     $toMark = (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $atomicSession);
@@ -420,7 +684,16 @@ try {
     $check(isset($toMark[$atomicBook]) && $markedNow === [] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile' && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$atomicSession} AND copia_id = {$atomicCopy}") === 'mancante', 'a copy edited after the close while the marking runs is not marked lost');
     // Changed in the very second of the close: ambiguous, so it is left alone.
     $db->query("UPDATE copie c JOIN inventario_sessioni s ON s.id = {$atomicSession} SET c.updated_at = s.chiusa_il WHERE c.id = {$atomicCopy}");
-    $check($service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
+    $check($pendingMatches($atomicSession) && $service->pendingLostCount($atomicSession) === 0 && $service->resumeMarkLost($atomicSession, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$atomicCopy}") === 'disponibile', 'a copy changed in the same second as the close is not marked lost');
+    // Two missing copies of one book are two pending copies, not one book.
+    $twoBook = $addBook('PL', $shelves['X']);
+    $addCopy($twoBook, 'PL1');
+    $addCopy($twoBook, 'PL2');
+    $twoSession = $service->open('ZZST two ' . $run, null, ['collocazione_da' => "{$p}.PL", 'collocazione_a' => "{$p}.PL"], null);
+    $sessionIds[] = $twoSession;
+    $service->close($twoSession, false, null);
+    $twoToMark = (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $twoSession);
+    $check($service->pendingLostCount($twoSession) === 2 && array_sum(array_map('count', $twoToMark)) === 2 && array_keys($twoToMark) === [$twoBook], 'two missing copies of the same book count as two pending copies');
 
     // A hold the reassignment cannot take off the copy (review #504): a
     // trigger puts the copy back on every release. Marking it lost must roll

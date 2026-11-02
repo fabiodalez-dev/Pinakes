@@ -711,6 +711,7 @@ class CsvImportController
      * @param array<string, mixed> $importData
      * @param int|null $existingBookId the book to update when $resolveExisting is false
      * @param bool $resolveExisting true: match by ID/ISBN-13/EAN/title+author as the CSV import does
+     * @param (callable(array{id:int, action:string}, array<string, mixed>): void)|null $beforeCommit durable checkpoint, inside the row transaction
      * @return array{id: int, action: string, supplier_missing: bool} supplier_missing:
      *         the batch supplier ($importData['fornitore_id']) was deleted before
      *         this created book could be linked to it
@@ -721,7 +722,8 @@ class CsvImportController
         array $updateFields,
         array &$importData,
         ?int $existingBookId = null,
-        bool $resolveExisting = true
+        bool $resolveExisting = true,
+        ?callable $beforeCommit = null
     ): array {
         foreach (self::UPDATE_FIELD_FAMILIES as $family) {
             $updateFields[$family] = (bool) ($updateFields[$family] ?? true);
@@ -893,6 +895,11 @@ class CsvImportController
                 $supplierMissing = !\App\Support\CataloguingExtras::assignSupplier($db, (int) $bookId, $batchSupplierId);
             }
 
+            if ($beforeCommit !== null) {
+                $counted = $importData;
+                $counted[$action === 'created' ? 'imported' : 'updated']++;
+                $beforeCommit(['id' => (int) $bookId, 'action' => (string) $action], $counted);
+            }
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollback();

@@ -57,7 +57,7 @@ final class CirculationOutcome
     public const RETURN = [
         'invalid_status'   => [422, 'validation_error', 'outcome', false],
         'invalid_penalty'  => [422, 'validation_error', 'penalty', false],
-        'waiver_reason_required' => [422, 'validation_error', 'waiver_reason', false],
+        'waiver_reason_required' => [422, 'validation_error', 'waive_reason', false],
         'not_returnable'   => [409, 'not_returnable', null, false],
         'concurrent_retry' => [409, 'concurrent_retry', null, false],
         'update_failed'    => [500, 'internal_error', null, false],

@@ -19,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class CirculationSettingsController
 {
     /** Patron type fields edited by the form: column => [min, max] (NULL when empty). */
-    private const TYPE_INT_FIELDS = [
+    public const TYPE_INT_FIELDS = [
         'max_prestiti' => [0, 1000],
         'durata_prestito_giorni' => [1, 3650],
         'max_durata_richiesta_giorni' => [1, 3650],
@@ -37,7 +37,7 @@ class CirculationSettingsController
     private const TYPE_FIELDS_KEPT_WHEN_ABSENT = ['giorni_tolleranza', 'multa_giornaliera', 'multa_massima_prestito', 'soglia_blocco_debito'];
 
     /** Matrix cell fields: form key => [column, min, max]. */
-    private const RULE_FIELDS = [
+    public const RULE_FIELDS = [
         'max' => ['max_prestiti', 0, 1000],
         'duration' => ['durata_prestito_giorni', 1, 3650],
         'renewals' => ['max_rinnovi', 0, 100],
@@ -49,12 +49,27 @@ class CirculationSettingsController
     private const RULE_FIELDS_KEPT_WHEN_ABSENT = ['grace'];
 
     /** Matrix cell money fields: form key => column. */
-    private const RULE_MONEY_FIELDS = [
+    public const RULE_MONEY_FIELDS = [
         'fine' => 'multa_giornaliera',
         'fine_max' => 'multa_massima_prestito',
     ];
 
     private const TAB_URL = '/admin/settings?tab=circulation';
+
+    /** Id of the patron type the last createType() call on this instance inserted. */
+    private ?int $createdTypeId = null;
+
+    /**
+     * The patron type the last successful createType() on this instance
+     * inserted, null when it inserted nothing. The redirect carries no id, so
+     * a caller that runs the action in-process (the Mobile API) reads it here
+     * instead of guessing it from the table, where a type another operator
+     * adds at the same moment would also appear.
+     */
+    public function createdTypeId(): ?int
+    {
+        return $this->createdTypeId;
+    }
 
     /**
      * Data for the circulation tab of the settings page.
@@ -209,6 +224,7 @@ class CirculationSettingsController
                 $this->setDefaultTx($db, $id);
             }
             $db->commit();
+            $this->createdTypeId = $id;
             $_SESSION['success_message'] = __('Tipologia lettore creata.');
         } catch (\Throwable $e) {
             $db->rollback();

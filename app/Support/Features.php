@@ -85,7 +85,7 @@ final class Features
     ];
 
     /** Dependent automations require their parent module as well as their own switch. */
-    private const PARENTS = ['automatic_fines' => 'fines', 'debt_block' => 'fines', 'loss_penalties' => 'fines', 'automatic_card_expiry' => 'circulation_rules'];
+    public const PARENTS = ['automatic_fines' => 'fines', 'debt_block' => 'fines', 'loss_penalties' => 'fines', 'automatic_card_expiry' => 'circulation_rules'];
 
     /** @var array<string, bool> test seam: forced values, ahead of the stored setting */
     private static array $overrides = [];

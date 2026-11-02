@@ -1418,7 +1418,7 @@ class PrestitiController
         return $response;
     }
 
-    public function processReturn(Request $request, Response $response, mysqli $db, int $id): Response
+    public function processReturn(Request $request, Response $response, mysqli $db, int $id, ?bool $copyConsultation = null): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
@@ -1537,6 +1537,36 @@ class PrestitiController
             $activityBefore = \App\Support\ActivityLog::loadLoanSnapshot($db, $id);
 
             $copia_id = $loan['copia_id'];
+            if ($copyConsultation !== null) {
+                // Only the combined copy editor passes this optional argument.
+                // Keep the flag in the return's transaction and promotion flow.
+                if ($copyConsultation) {
+                    throw new \RuntimeException('A physically loaned copy cannot be reserved for consultation.');
+                }
+                $wasFlag = $db->prepare('SELECT numero_inventario, solo_consultazione FROM copie WHERE id = ? FOR UPDATE');
+                $wasFlag->bind_param('i', $copia_id);
+                $wasFlag->execute();
+                $flagRow = $wasFlag->get_result()->fetch_assoc() ?: [];
+                $wasFlag->close();
+                if ((int) ($flagRow['solo_consultazione'] ?? 0) === 1) {
+                    $flag = $db->prepare('UPDATE copie SET solo_consultazione = 0 WHERE id = ?');
+                    $flag->bind_param('i', $copia_id);
+                    $flag->execute();
+                    $flag->close();
+                    // The book history records the flag as the copy editor does.
+                    \App\Support\ActivityLog::recordBookEvent(
+                        $db,
+                        $libro_id,
+                        'aggiornamento',
+                        'copy',
+                        'copy.updated',
+                        ['numero_inventario' => $flagRow['numero_inventario'] ?? null, 'solo_consultazione' => 1],
+                        ['numero_inventario' => $flagRow['numero_inventario'] ?? null, 'solo_consultazione' => 0],
+                        entityId: (int) $copia_id,
+                        source: 'manual'
+                    );
+                }
+            }
 
             // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
             // Confronto lessicografico Y-m-d sicuro. Significativo solo per 'restituito'.

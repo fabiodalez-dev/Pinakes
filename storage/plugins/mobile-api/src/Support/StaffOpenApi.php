@@ -113,6 +113,7 @@ final class StaffOpenApi
                     $query('cursor', 'string', 'Opaque cursor from meta.next_cursor.'),
                     $query('limit', 'integer', '1..50, default 20.'),
                     $query('sort', 'string', 'relevance|newest|oldest|title_asc|title_desc|author_asc|author_desc'),
+                    $query('supplier_id', 'integer', 'Only titles acquired from this supplier (ignored while the suppliers module is off). Mobile API 1.10.0.'),
                 ], 'description' => 'Same filters and paging as /catalog/search.']),
                 'post' => $op('staff', 'staffCreateBook', 'Create a title (and its copies) through the admin book pipeline', [
                     '201' => $ok('Created.', $ref('StaffBook')),
@@ -298,6 +299,10 @@ final class StaffOpenApi
                 ]]],
                 'series_types'      => ['type' => 'array', 'items' => $option, 'description' => 'Present only when the series routes are served (features.staff_series).'],
                 'return_outcomes'   => ['type' => 'array', 'items' => $option, 'description' => 'Outcomes of POST /staff/loans/{id}/return. Present only when the circulation routes are mounted.'],
+                'suppliers'         => ['type' => 'array', 'items' => $idName, 'description' => 'Choices for StaffBookWrite.supplier_id. Present only while the suppliers module is on (Mobile API 1.10.0).'],
+                'rda_content_types' => ['type' => 'array', 'items' => $option, 'description' => 'RDA content type codes (LC vocabulary). Present only while the rda_types module is on (Mobile API 1.10.0).'],
+                'rda_media_types'   => ['type' => 'array', 'items' => $option, 'description' => 'RDA media type codes. Present only while the rda_types module is on.'],
+                'rda_carrier_types' => ['type' => 'array', 'items' => $option, 'description' => 'RDA carrier type codes. Present only while the rda_types module is on.'],
             ]],
             'IsbnLookup' => ['type' => 'object', 'properties' => [
                 'identifier' => ['type' => 'object', 'properties' => [
@@ -345,6 +350,13 @@ final class StaffOpenApi
                     'id' => ['type' => 'integer'], 'inventory_number' => ['type' => 'string'], 'status' => ['type' => 'string'], 'notes' => $s,
                 ]]],
                 'is_wanted' => ['type' => 'boolean'], 'created_at' => $s, 'updated_at' => $s,
+                'supplier_id' => ['type' => ['integer', 'null'], 'description' => 'Present only while the suppliers module is on (Mobile API 1.10.0).'],
+                'supplier' => ['oneOf' => [['type' => 'null'], $idName], 'description' => 'Present only while the suppliers module is on.'],
+                'rda_content_type' => ['type' => ['string', 'null'], 'description' => 'RDA override (null = derived from media_type). The four rda_* keys are present only while the rda_types module is on (Mobile API 1.10.0).'],
+                'rda_media_type' => $s, 'rda_carrier_type' => $s,
+                'rda_effective' => ['type' => 'object', 'description' => 'The codes in use: the override, or the value derived from media_type.', 'properties' => [
+                    'content_type' => ['type' => 'string'], 'media_type' => ['type' => 'string'], 'carrier_type' => ['type' => 'string'],
+                ]],
             ]],
             'StaffBookWrite' => ['type' => 'object', 'description' => 'title is required on POST. On PUT absent keys keep their value and null clears it; `copies` is create-only (use /copies afterwards).', 'properties' => [
                 'title' => ['type' => 'string', 'maxLength' => 255], 'subtitle' => $s, 'isbn10' => $s, 'isbn13' => $s, 'ean' => $s, 'issn' => $s,
@@ -365,6 +377,10 @@ final class StaffOpenApi
                 'cover_url' => ['type' => ['string', 'null'], 'description' => 'http(s) URL (downloaded) or a /uploads/copertine/ path.'],
                 'remove_cover' => ['type' => 'boolean'],
                 'scraped' => ['type' => 'object', 'properties' => ['author_bio' => $s]],
+                'supplier_id' => ['type' => ['integer', 'null'], 'description' => 'Suppliers module on: an existing supplier (422 otherwise), null clears it; ignored while the module is off (Mobile API 1.10.0).'],
+                'rda_content_type' => ['type' => ['string', 'null'], 'description' => 'rda_types module on: a code of /staff/lookups rda_content_types (422 otherwise), null = derived; ignored while the module is off.'],
+                'rda_media_type' => ['type' => ['string', 'null'], 'description' => 'As rda_content_type, codes of rda_media_types.'],
+                'rda_carrier_type' => ['type' => ['string', 'null'], 'description' => 'As rda_content_type, codes of rda_carrier_types.'],
             ]],
             'AddCopiesRequest' => ['type' => 'object', 'required' => ['quantity'], 'properties' => [
                 'quantity' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],

@@ -71,8 +71,12 @@ class InventoryController
         ];
     }
 
-    /** @return array{scaffali:list<array<string,mixed>>,mensole:list<array<string,mixed>>,generi:list<array{id:int,label:string}>,sedi:list<array<string,mixed>>} */
-    private function lookups(mysqli $db): array
+    /**
+     * The choices of the "open a session" form (also read by the mobile API).
+     *
+     * @return array{scaffali:list<array<string,mixed>>,mensole:list<array<string,mixed>>,generi:list<array{id:int,label:string}>,sedi:list<array<string,mixed>>}
+     */
+    public function lookups(mysqli $db): array
     {
         $repo = new \App\Models\CollocationRepository($db);
         $genres = [];
@@ -174,7 +178,7 @@ class InventoryController
      * @param array<string,mixed> $filter
      * @return list<string>
      */
-    private function filterLabels(mysqli $db, StocktakeService $service, array $filter): array
+    public function filterLabels(mysqli $db, StocktakeService $service, array $filter): array
     {
         $labels = [];
         if (isset($filter['scaffale_id'])) {

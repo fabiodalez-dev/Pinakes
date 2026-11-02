@@ -409,8 +409,12 @@ test.describe.serial('Books cluster SweetAlerts', () => {
     // The result rows call selectVolume on click; click the matching one.
     await page.evaluate((vid) => { window.selectVolume(vid, document.querySelector('#swal-volume-results > div')); }, volId);
     await page.fill('#swal-volume-num', '2');
+    // The success popup reloads the page when its timer ends: wait for it, or
+    // the next test's navigation races the reload (net::ERR_ABORTED).
+    const reloaded = page.waitForEvent('load', { timeout: 15000 });
     await page.locator('.swal2-confirm').click();
     await expect(page.locator('.swal2-popup')).toContainText(/Volume aggiunto/i, { timeout: 12000 });
+    await reloaded;
     await expect.poll(
       () => dbQuery(`SELECT COUNT(*) FROM volumi WHERE opera_id = ${operaId} AND volume_id = ${volId}`),
       { timeout: 8000 }
@@ -430,8 +434,11 @@ test.describe.serial('Books cluster SweetAlerts', () => {
     await page.evaluate(({ o, v }) => { window.removeVolume(o, v); }, { o: operaId, v: volId }); // fire, don't await the Swal promise
     await page.waitForSelector('.swal2-popup', { timeout: 8000 });
     await expect(page.locator('.swal2-popup')).toContainText(/Rimuovi volume/i);
+    // Same reload after the success popup as addVolumeModal.
+    const reloaded = page.waitForEvent('load', { timeout: 15000 });
     await page.locator('.swal2-confirm').click();
     await expect(page.locator('.swal2-popup')).toContainText(/Volume rimosso/i, { timeout: 12000 });
+    await reloaded;
     await expect.poll(
       () => dbQuery(`SELECT COUNT(*) FROM volumi WHERE opera_id = ${operaId} AND volume_id = ${volId}`),
       { timeout: 8000 }

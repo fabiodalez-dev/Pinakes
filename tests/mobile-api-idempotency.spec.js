@@ -18,12 +18,15 @@
 // Run: /tmp/run-e2e.sh tests/mobile-api-idempotency.spec.js --config=tests/playwright.config.js --workers=1
 
 const { test, expect } = require('@playwright/test');
+const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
 
 // 0.9.0 optional modules (Settings → Modules / Loans): this suite tests
-// fines, so it switches it on for its run and puts back what was there.
+// fines, stocktake, the visitor log, the patron CSV import and the cataloguing
+// modules (suppliers, MARC, catalogue cards), so it switches them on for its
+// run and puts back what was there.
 const featureToggles = require('./helpers/feature-toggles');
 let featureSnapshot;
-test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
+test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines', 'stocktake', 'visitor_log', 'user_import', 'suppliers', 'marc', 'catalogue_cards']); });
 test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
 const { execFileSync } = require('child_process');
 const { flushCache } = require('./helpers/flush-cache');
@@ -140,12 +143,19 @@ const STAFF_EMAIL = `idem_staff_${RUN_ID}@pinakes.test`;
 const STAFF_CARD  = `IDEMS${String(process.pid).padStart(6, '0')}`.slice(0, 20);
 // 1x1 PNG and a minimal PDF for the archive upload rows.
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+/** A 32x32 PNG (the patron photo refuses images under 16 px). */
+const PNG_32PX = Buffer.from(execFileSync('php', ['-r', '$i=imagecreatetruecolor(32,32);imagefill($i,0,0,imagecolorallocate($i,30,90,200));ob_start();imagepng($i);echo base64_encode(ob_get_clean());'], { encoding: 'utf-8' }).trim(), 'base64');
 const TINY_PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
 /** Multipart body of a one-row CSV import (Mobile API 1.7.0 rows). */
 function importCsv(title) {
     return { file: { name: 'idem.csv', mimeType: 'text/csv', buffer: Buffer.from(`titolo;autori\n${title};Idem Author Import ${RUN_ID}\n`) }, kind: 'csv' };
 }
 /** A valid, run-unique ISBN-13 (978 prefix + mod-10 check digit). */
+/** A one-row patron CSV (Mobile API 1.10.0 user import rows); the email carries RUN_ID. */
+function userImportCsv(label) {
+    return { file: { name: 'idem-users.csv', mimeType: 'text/csv', buffer: Buffer.from(`nome;email\nIdem ${label};idem-uimp-${label}-${RUN_ID}@example.test\n`) }, delimiter: ';' };
+}
+
 function isbn13FromRun() {
     const base = '978' + String(Date.now()).slice(-6) + String(process.pid).padStart(3, '0').slice(-3);
     let sum = 0;
@@ -165,6 +175,8 @@ function isbn13FromRun() {
 //   etag       — GET with ETag: 1st 200+ETag, 2nd If-None-Match → 304.
 //   safeGet    — authed GET, no ETag: both 2xx (read is idempotent).
 //   write2xx   — write whose repeat is idempotent: both calls in 2xx.
+//   replay200  — keyed create: 1st 2xx, 2nd the stored replay (exactly 200,
+//                the same data.id when the answer carries one).
 //   conflict2  — write whose 2nd identical call is rejected (>=400).
 //   gone2      — delete: 1st 2xx-or-404, 2nd → 404.
 //   authGate   — call WITHOUT token then WITH token: 1st 401, 2nd 2xx.
@@ -311,6 +323,28 @@ const ENDPOINTS = [
     { name: 'GET /staff/users/{id}',             method: 'GET',    path: '/staff/users/{userId}',         route: '/staff/users/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'GET /staff/copies/by-code',         method: 'GET',    path: '/staff/copies/by-code?code={circCopyCode}', route: '/staff/copies/by-code', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
 
+    // ── Mobile API 1.10.0: patron tools + staff ledger (Pinakes 0.9.0) ──
+    // The Staff token edits only its own record (web editor rule), so the
+    // patron-type and photo rows act on the staff account itself.
+    { name: 'GET /staff/patron-types',           method: 'GET',    path: '/staff/patron-types',           auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/users/{id}/patron-type', method: 'PUT',    path: '/staff/users/{staffUserId}/patron-type', route: '/staff/users/{id}/patron-type', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ patron_type_id: null }) /* same assignment twice: both 200 */ },
+    { name: 'POST /staff/users/{id}/renew-card', method: 'POST',   path: '/staff/users/{userId}/renew-card', route: '/staff/users/{id}/renew-card', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* no key: each call renews, both 201 */ },
+    { name: 'GET /staff/users/cards.pdf',        method: 'GET',    path: '/staff/users/cards.pdf?ids={userId},{staffUserId}', route: '/staff/users/cards.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/users/{id}/card.pdf',    method: 'GET',    path: '/staff/users/{userId}/card.pdf', route: '/staff/users/{id}/card.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/users/{id}/photo',      method: 'POST',   path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: () => ({ photo: { name: 'idem.png', mimeType: 'image/png', buffer: PNG_32PX } }) /* the second replaces the first */ },
+    { name: 'GET /staff/users/{id}/photo',       method: 'GET',    path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'DELETE /staff/users/{id}/photo',    method: 'DELETE', path: '/staff/users/{staffUserId}/photo', route: '/staff/users/{id}/photo', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* removing nothing is 200 too */ },
+    { name: 'GET /staff/users/{id}/ledger',      method: 'GET',    path: '/staff/users/{userId}/ledger',  route: '/staff/users/{id}/ledger', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/users/{id}/ledger/charges', method: 'POST', path: '/staff/users/{userId}/ledger/charges', route: '/staff/users/{id}/ledger/charges', auth: true, tokenKey: 'staffToken', kind: 'replay200',
+        body: () => ({ amount_cents: 300, description: `Idem charge ${RUN_ID}`, idempotency_key: `idem-charge-${RUN_ID}` }) /* 201, then the replay 200 */ },
+    { name: 'POST /staff/users/{id}/ledger/payments', method: 'POST', path: '/staff/users/{userId}/ledger/payments', route: '/staff/users/{id}/ledger/payments', auth: true, tokenKey: 'staffToken', kind: 'replay200',
+        body: () => ({ amount_cents: 100, method: 'contanti', note: `Idem payment ${RUN_ID}`, idempotency_key: `idem-payment-${RUN_ID}` }) },
+    { name: 'POST /staff/users/{id}/ledger/waivers', method: 'POST', path: '/staff/users/{userId}/ledger/waivers', route: '/staff/users/{id}/ledger/waivers', auth: true, tokenKey: 'staffToken', kind: 'replay200',
+        body: () => ({ amount_cents: 100, reason: `Idem waiver ${RUN_ID}`, idempotency_key: `idem-waiver-${RUN_ID}` }) },
+    { name: 'GET /staff/users/{id}/ledger/movements/{movement}/receipt.pdf', method: 'GET', path: '/staff/users/{userId}/ledger/movements/{ledgerPaymentId}/receipt.pdf', route: '/staff/users/{id}/ledger/movements/{movement}/receipt.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+
     // ── Mobile API 1.7.0: staff content tools (copies, series, merges, labels) ──
     { name: 'GET /staff/copies/{id}',            method: 'GET',    path: '/staff/copies/{staffCopyId}',   route: '/staff/copies/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
     { name: 'PUT /staff/copies/{id}',            method: 'PUT',    path: '/staff/copies/{staffCopyId}',   route: '/staff/copies/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
@@ -366,6 +400,79 @@ const ENDPOINTS = [
     { name: 'GET /staff/settings/labels',        method: 'GET',    path: '/staff/settings/labels',        auth: true, tokenKey: 'staffToken', kind: 'etag' },
     { name: 'PUT /staff/settings/labels',        method: 'PUT',    path: '/staff/settings/labels',        auth: true, tokenKey: 'staffToken', kind: 'write2xx',
         body: (c) => c.labelSettings /* the current values: a no-op both times */ },
+
+    // ── Mobile API 1.10.0: library settings of the 0.9.0 modules ──
+    // Admin-only rows use the administrator token (adminToken, from the E2E
+    // admin account); the fixtures carry RUN_ID and afterAll removes them and
+    // puts back the weekly closed days.
+    { name: 'GET /staff/settings/modules',       method: 'GET',    path: '/staff/settings/modules',       auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/settings/modules',       method: 'PUT',    path: '/staff/settings/modules',       auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: (c) => ({ attendance_retention_days: c.s090Retention }) /* the current value: a no-op both times */ },
+    { name: 'GET /staff/settings/loans',         method: 'GET',    path: '/staff/settings/loans',         auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/settings/loans',         method: 'PUT',    path: '/staff/settings/loans',         auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ loan_duration_days: c.s090LoanDuration }) /* the current value */ },
+    { name: 'GET /staff/settings/cards',         method: 'GET',    path: '/staff/settings/cards',         auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/settings/cards',         method: 'PUT',    path: '/staff/settings/cards',         auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ title: c.s090CardTitle }) /* the current value */ },
+    { name: 'GET /staff/circulation/types',      method: 'GET',    path: '/staff/circulation/types',      auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'POST /staff/circulation/types',     method: 'POST',   path: '/staff/circulation/types',      auth: true, tokenKey: 'adminToken', kind: 'conflict2',
+        body: () => ({ name: `Idem type new ${RUN_ID}`, code: `idem-new-${process.pid}` }) /* 2nd: same code → 422 */ },
+    { name: 'GET /staff/circulation/types/{id}', method: 'GET',    path: '/staff/circulation/types/{s090TypeId}', route: '/staff/circulation/types/{id}', auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'PUT /staff/circulation/types/{id}', method: 'PUT',    path: '/staff/circulation/types/{s090TypeId}', route: '/staff/circulation/types/{id}', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ description: 'Idempotent description' }) },
+    { name: 'POST /staff/circulation/types/{id}/default', method: 'POST', path: '/staff/circulation/types/{s090DefaultTypeId}/default', route: '/staff/circulation/types/{id}/default', auth: true, tokenKey: 'adminToken', kind: 'write2xx' /* the current default: a no-op */ },
+    { name: 'POST /staff/circulation/types/{id}/move', method: 'POST', path: '/staff/circulation/types/{s090TypeId}/move', route: '/staff/circulation/types/{id}/move', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ direction: 'down' }) /* the fixture is last: a no-op */ },
+    { name: 'DELETE /staff/circulation/types/{id}', method: 'DELETE', path: '/staff/circulation/types/{s090TypeDeleteId}', route: '/staff/circulation/types/{id}', auth: true, tokenKey: 'adminToken', kind: 'gone2' },
+    { name: 'GET /staff/circulation/rules',      method: 'GET',    path: '/staff/circulation/rules',      auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'PUT /staff/circulation/rules',      method: 'PUT',    path: '/staff/circulation/rules',      auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ cells: [] }) /* no cell named: the matrix is saved as stored */ },
+    { name: 'GET /staff/calendar',               method: 'GET',    path: '/staff/calendar',               auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'PUT /staff/calendar/weekdays',      method: 'PUT',    path: '/staff/calendar/weekdays',      auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: (c) => ({ closed_weekdays: c.s090ClosedWeekdays }) /* the current days (raw row restored in afterAll) */ },
+    { name: 'POST /staff/calendar/closures',     method: 'POST',   path: '/staff/calendar/closures',      auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ start_date: '2031-03-03', description: `Idem closure new ${RUN_ID}` }) /* without a key each call adds one */ },
+    { name: 'PUT /staff/calendar/closures/{id}', method: 'PUT',    path: '/staff/calendar/closures/{s090ClosureId}', route: '/staff/calendar/closures/{id}', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ end_date: '2031-03-05' }) },
+    { name: 'DELETE /staff/calendar/closures/{id}', method: 'DELETE', path: '/staff/calendar/closures/{s090ClosureDeleteId}', route: '/staff/calendar/closures/{id}', auth: true, tokenKey: 'adminToken', kind: 'gone2' },
+    { name: 'GET /staff/calendar/holidays/countries', method: 'GET', path: '/staff/calendar/holidays/countries?country=IT', route: '/staff/calendar/holidays/countries', auth: true, tokenKey: 'adminToken', kind: 'safeGet' },
+    { name: 'POST /staff/calendar/holidays/preset', method: 'POST', path: '/staff/calendar/holidays/preset', auth: true, tokenKey: 'adminToken', kind: 'conflict2', firstAny: true,
+        body: () => ({ country: 'ZZ', rules: [] }) /* unknown country → both 422, the selection is untouched */ },
+    { name: 'PUT /staff/calendar/holidays/yearly', method: 'PUT',  path: '/staff/calendar/holidays/yearly', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ closures: [] }) },
+    { name: 'POST /staff/calendar/custom-holidays', method: 'POST', path: '/staff/calendar/custom-holidays', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ name: `Idem holiday new ${RUN_ID}`, kind: 'fixed', month: 3, day: 3 }) /* no uniqueness: both 201 */ },
+    { name: 'PUT /staff/calendar/custom-holidays/{id}', method: 'PUT', path: '/staff/calendar/custom-holidays/{s090CustomId}', route: '/staff/calendar/custom-holidays/{id}', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: () => ({ duration_days: 2 }) },
+    { name: 'POST /staff/calendar/custom-holidays/{id}/toggle', method: 'POST', path: '/staff/calendar/custom-holidays/{s090CustomId}/toggle', route: '/staff/calendar/custom-holidays/{id}/toggle', auth: true, tokenKey: 'adminToken', kind: 'write2xx' /* off, then on again */ },
+    { name: 'DELETE /staff/calendar/custom-holidays/{id}', method: 'DELETE', path: '/staff/calendar/custom-holidays/{s090CustomDeleteId}', route: '/staff/calendar/custom-holidays/{id}', auth: true, tokenKey: 'adminToken', kind: 'gone2' },
+    { name: 'POST /staff/calendar/import-ics',   method: 'POST',   path: '/staff/calendar/import-ics',    auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        multipart: () => ({ ics_file: { name: 'idem.ics', mimeType: 'text/calendar', buffer: Buffer.from(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20310404\r\nSUMMARY:Idem ICS ${RUN_ID}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`) } }) /* 2nd: already present, added 0 */ },
+
+    // ── Mobile API 1.10.0: Pinakes 0.9.0 cataloguing (suppliers, catalogue cards, MARC, copy cataloguing) ──
+    { name: 'GET /staff/suppliers',              method: 'GET',    path: '/staff/suppliers',              auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/suppliers',             method: 'POST',   path: '/staff/suppliers',              auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ name: `Idem supplier new ${RUN_ID}` }) /* no Idempotency-Key, no uniqueness: both 201 */ },
+    { name: 'GET /staff/suppliers/{id}',         method: 'GET',    path: '/staff/suppliers/{supplierId}', route: '/staff/suppliers/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/suppliers/{id}',         method: 'PUT',    path: '/staff/suppliers/{supplierId}', route: '/staff/suppliers/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ notes: 'Idempotent note' }) },
+    { name: 'DELETE /staff/suppliers/{id}',      method: 'DELETE', path: '/staff/suppliers/{supplierDeleteId}', route: '/staff/suppliers/{id}', auth: true, tokenKey: 'staffToken', kind: 'gone2' },
+    { name: 'GET /staff/books/{id}/catalogue-card.pdf', method: 'GET', path: '/staff/books/{staffBookId}/catalogue-card.pdf', route: '/staff/books/{id}/catalogue-card.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/books/catalogue-cards.pdf', method: 'GET', path: '/staff/books/catalogue-cards.pdf?ids={staffBookId}', route: '/staff/books/catalogue-cards.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/marc/options',           method: 'GET',    path: '/staff/marc/options',           auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/marc/imports',          method: 'POST',   path: '/staff/marc/imports',           auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: (c) => ({ file: { name: 'idem.mrc', mimeType: 'application/octet-stream', buffer: c.marcBuffer } }) /* each upload is a new job: both 201 */ },
+    { name: 'GET /staff/marc/imports',          method: 'GET',    path: '/staff/marc/imports',           auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/marc/imports/{id}',      method: 'GET',    path: '/staff/marc/imports/{marcJobId}', route: '/staff/marc/imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/marc/imports/{id}/chunk', method: 'POST', path: '/staff/marc/imports/{marcJobId}/chunk', route: '/staff/marc/imports/{id}/chunk', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({ start: 0 }) /* 1st completes the 1-record job; 2nd: 410 gone */ },
+    { name: 'DELETE /staff/marc/imports/{id}',   method: 'DELETE', path: '/staff/marc/imports/{marcCancelJobId}', route: '/staff/marc/imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* cancel is idempotent */ },
+    { name: 'GET /staff/marc/export',            method: 'GET',    path: '/staff/marc/export?format=marcxml&ids={staffBookId}', route: '/staff/marc/export', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/copy-cataloging/servers', method: 'GET',   path: '/staff/copy-cataloging/servers', auth: true, tokenKey: 'staffToken', kind: 'safeGet', skipIf: (c) => !c.z39Active },
+    { name: 'POST /staff/copy-cataloging/search', method: 'POST',  path: '/staff/copy-cataloging/search', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.z39Active,
+        body: () => ({ servers: ['local'], index: 'title', term: `Idem staff fixture ${RUN_ID}` }) /* each search is a new search_id: both 201 */ },
+    { name: 'POST /staff/copy-cataloging/import', method: 'POST',  path: '/staff/copy-cataloging/import', auth: true, tokenKey: 'staffToken', kind: 'write2xx', skipIf: (c) => !c.z39Active,
+        body: (c) => ({ search_id: c.copySearchId, ids: [c.copyResultId], duplicates: 'skip' }) /* the fixture book (no ISBN) comes back as a new title each time: both 200; RUN_ID cleanup removes them */ },
 
     // ── Mobile API 1.7.0: staff work on plugin content (desiderata, archives) ──
     { name: 'GET /staff/desiderata/offers',     method: 'GET',    path: '/staff/desiderata/offers?status=all', route: '/staff/desiderata/offers', auth: true, tokenKey: 'staffToken', kind: 'safeGet', skipIf: (c) => !c.desiderataActive },
@@ -483,6 +590,49 @@ const ENDPOINTS = [
     { name: 'GET /periodicals/{periodicalId}',       method: 'GET', path: '/periodicals/{periodicalId}',             auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalId },
     { name: 'GET /periodicals/years/{yearId}/issues', method: 'GET', path: '/periodicals/years/{periodicalYearId}/issues', auth: true, kind: 'etag', skipIf: (c) => !c.periodicalsActive || !c.periodicalYearId },
     { name: 'GET /periodicals/issues/{issueId}',     method: 'GET', path: '/periodicals/issues/{periodicalIssueId}', auth: true, kind: 'etag',    skipIf: (c) => !c.periodicalsActive || !c.periodicalIssueId },
+
+    // ── Mobile API 1.10.0: inventory stocktake (module `stocktake`, sessions on the empty fixture shelf) ──
+    { name: 'GET /staff/stocktake/options', method: 'GET', path: '/staff/stocktake/options', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions', method: 'GET', path: '/staff/stocktake/sessions', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/stocktake/sessions', method: 'POST', path: '/staff/stocktake/sessions', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: (c) => ({ name: `Idem stocktake new ${RUN_ID}`, shelf_id: c.staffShelfId }) /* no Idempotency-Key: each call opens one session, both 201 */ },
+    { name: 'GET /staff/stocktake/sessions/{id}', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}', route: '/staff/stocktake/sessions/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions/{id}/state', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/state', route: '/staff/stocktake/sessions/{id}/state', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions/{id}/scans', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/scans', route: '/staff/stocktake/sessions/{id}/scans', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/stocktake/sessions/{id}/scans', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeId}/scans', route: '/staff/stocktake/sessions/{id}/scans', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        body: () => ({ code: `IDEM-UNKNOWN-${RUN_ID}` }) /* no key: each read is a scan (unknown code), both 201 */ },
+    { name: 'GET /staff/stocktake/sessions/{id}/report', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report', route: '/staff/stocktake/sessions/{id}/report', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/stocktake/sessions/{id}/upload', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeId}/upload', route: '/staff/stocktake/sessions/{id}/upload', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: () => ({ file: { name: 'idem.txt', mimeType: 'text/plain', buffer: Buffer.from(`IDEM-LIST-${RUN_ID}\n`) } }) /* each upload records its codes again, both 200 */ },
+    { name: 'POST /staff/stocktake/sessions/{id}/close', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeCloseId}/close', route: '/staff/stocktake/sessions/{id}/close', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({ missing_action: 'none' }) /* 2nd: session_closed */ },
+    { name: 'POST /staff/stocktake/sessions/{id}/cancel', method: 'POST', path: '/staff/stocktake/sessions/{stocktakeCancelId}/cancel', route: '/staff/stocktake/sessions/{id}/cancel', auth: true, tokenKey: 'staffToken', kind: 'conflict2' /* 2nd: session_cancelled */ },
+    { name: 'GET /staff/stocktake/sessions/{id}/report.csv', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report.csv', route: '/staff/stocktake/sessions/{id}/report.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/stocktake/sessions/{id}/report.pdf', method: 'GET', path: '/staff/stocktake/sessions/{stocktakeId}/report.pdf', route: '/staff/stocktake/sessions/{id}/report.pdf', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+
+    // ── Mobile API 1.10.0: visitor log (visitor_log), statistics, patron CSV import (user_import) ──
+    { name: 'GET /staff/attendance', method: 'GET', path: '/staff/attendance', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/attendance/check-ins', method: 'POST', path: '/staff/attendance/check-ins', auth: true, tokenKey: 'staffToken', kind: 'replay200',
+        body: (c) => ({ card_code: c.attendanceCard, idempotency_key: `idem-checkin-${RUN_ID}` }) /* 1st 201, 2nd replays the same visit: 200 */ },
+    { name: 'POST /staff/attendance/guests', method: 'POST', path: '/staff/attendance/guests', auth: true, tokenKey: 'staffToken', kind: 'replay200',
+        body: () => ({ name: `Idem guest ${RUN_ID}`, idempotency_key: `idem-guest-${RUN_ID}` }) /* 1st 201, 2nd replay 200 */ },
+    { name: 'GET /staff/attendance/export.csv', method: 'GET', path: '/staff/attendance/export.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'PUT /staff/attendance/settings', method: 'PUT', path: '/staff/attendance/settings', auth: true, tokenKey: 'adminToken', kind: 'write2xx',
+        body: (c) => ({ retention_days: c.attendanceRetention }) /* the current value again: both 200 */ },
+    { name: 'POST /staff/attendance/purge', method: 'POST', path: '/staff/attendance/purge', auth: true, tokenKey: 'adminToken', kind: 'write2xx' /* the 2nd finds nothing more to delete: 200 deleted=0 */ },
+    { name: 'GET /staff/statistics', method: 'GET', path: '/staff/statistics', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/statistics/fines.csv', method: 'GET', path: '/staff/statistics/fines.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/user-imports', method: 'POST', path: '/staff/user-imports', auth: true, tokenKey: 'staffToken', kind: 'write2xx',
+        multipart: () => userImportCsv('upload') /* each upload is a new job: both 201 */ },
+    { name: 'GET /staff/user-imports/example.csv', method: 'GET', path: '/staff/user-imports/example.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/user-imports', method: 'GET', path: '/staff/user-imports', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'GET /staff/user-imports/{id}', method: 'GET', path: '/staff/user-imports/{userImportJobId}', route: '/staff/user-imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
+    { name: 'POST /staff/user-imports/{id}/start', method: 'POST', path: '/staff/user-imports/{userImportJobId}/start', route: '/staff/user-imports/{id}/start', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({}) /* 2nd: 409 already_started */ },
+    { name: 'POST /staff/user-imports/{id}/chunk', method: 'POST', path: '/staff/user-imports/{userImportChunkJobId}/chunk', route: '/staff/user-imports/{id}/chunk', auth: true, tokenKey: 'staffToken', kind: 'conflict2',
+        body: () => ({ start: 0 }) /* 1st completes the 1-row job; 2nd: 410 gone */ },
+    { name: 'DELETE /staff/user-imports/{id}', method: 'DELETE', path: '/staff/user-imports/{userImportCancelJobId}', route: '/staff/user-imports/{id}', auth: true, tokenKey: 'staffToken', kind: 'write2xx' /* cancel is idempotent */ },
+    { name: 'GET /staff/user-imports/{id}/errors.csv', method: 'GET', path: '/staff/user-imports/{userImportDoneJobId}/errors.csv', route: '/staff/user-imports/{id}/errors.csv', auth: true, tokenKey: 'staffToken', kind: 'safeGet' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -540,6 +690,18 @@ async function runTwice(request, e, ctx) {
         const r2 = await call(request, e.method, url, { token, body, multipart });
         expect(ok2xx(r1.status()), `${e.name} #1 2xx (got ${r1.status()})`).toBe(true);
         expect(ok2xx(r2.status()), `${e.name} #2 idempotent 2xx (got ${r2.status()})`).toBe(true);
+        return;
+    }
+    if (e.kind === 'replay200') {
+        const r1 = await call(request, e.method, url, { token, body, multipart });
+        const r2 = await call(request, e.method, url, { token, body, multipart });
+        expect(ok2xx(r1.status()), `${e.name} #1 2xx (got ${r1.status()})`).toBe(true);
+        expect(r2.status(), `${e.name} #2 replay 200 (got ${r2.status()})`).toBe(200);
+        const id1 = (await r1.json().catch(() => null))?.data?.id;
+        const id2 = (await r2.json().catch(() => null))?.data?.id;
+        if (id1 !== undefined || id2 !== undefined) {
+            expect(id2, `${e.name} #2 replays the same record`).toEqual(id1);
+        }
         return;
     }
     if (e.kind === 'conflict2') {
@@ -678,6 +840,13 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         });
         expect(staffLogin.status(), 'staff login must succeed').toBe(200);
         ctx.staffToken = (await staffLogin.json()).data.token;
+        // Mobile API 1.10.0 ledger rows: a charge and a payment of the borrower
+        // (the receipt row needs a payment id; the payment/waiver rows a balance).
+        dbExec(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at)
+                VALUES (${ctx.userId}, 'addebito_manuale', 5.00, 'Idem fixture charge ${RUN_ID}', NOW())`);
+        dbExec(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, metodo_pagamento, created_at)
+                VALUES (${ctx.userId}, 'pagamento', -2.00, 'Idem fixture payment ${RUN_ID}', 'contanti', NOW())`);
+        ctx.ledgerPaymentId = parseInt(dbScalar(`SELECT MAX(id) FROM movimenti_lettore WHERE utente_id=${ctx.userId} AND tipo='pagamento'`) || '0', 10);
         const staffPost = async (route, body) => {
             const r = await call(request, 'POST', `${API}${route}`, { token: ctx.staffToken, body });
             expect(r.status(), `fixture POST ${route}`).toBe(201);
@@ -693,6 +862,43 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         ctx.staffShelfCode = shelf.code;
         ctx.staffShelfCode2 = `J${String(process.pid).slice(-4)}${String(Date.now()).slice(-6)}`;
         ctx.staffLevelId = (await staffPost(`/staff/shelves/${ctx.staffShelfId}/levels`, { number: 1 })).id;
+        // Mobile API 1.10.0 stocktake: sessions on the empty fixture shelf (nothing expected).
+        ctx.stocktakeId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
+        ctx.stocktakeCloseId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake close ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
+        ctx.stocktakeCancelId = (await staffPost('/staff/stocktake/sessions', { name: `Idem stocktake cancel ${RUN_ID}`, shelf_id: ctx.staffShelfId })).id;
+        // Mobile API 1.10.0 visitor log: the administrator-only rows (settings,
+        // purge) need an admin token; the settings row writes the current
+        // retention back. Patron import jobs: one ready, one started (chunk),
+        // one to cancel, one completed (error report).
+        const adminLogin = await call(request, 'POST', `${API}/auth/login`, {
+            body: { email: ADMIN_EMAIL, password: ADMIN_PASS, device_name: 'IdemAdminDesk', device_id: 'idem-admin-desk', platform: 'test' },
+        });
+        expect(adminLogin.status(), 'admin login must succeed').toBe(200);
+        ctx.adminToken = (await adminLogin.json()).data.token;
+        ctx.attendanceCard = dbScalar(`SELECT COALESCE(codice_tessera, '') FROM utenti WHERE id=${ctx.userId}`);
+        if (ctx.attendanceCard === '') {
+            dbExec(`UPDATE utenti SET codice_tessera='${USER_CARD}' WHERE id=${ctx.userId}`);
+            ctx.attendanceCard = USER_CARD;
+        }
+        ctx.oldAttendanceRetention = dbScalar("SELECT COALESCE(MAX(setting_value), '') FROM system_settings WHERE category='attendance' AND setting_key='retention_days'");
+        ctx.attendanceRetention = /^\d+$/.test(ctx.oldAttendanceRetention) ? Math.min(3650, parseInt(ctx.oldAttendanceRetention, 10)) : 365;
+        const userImportJob = async (label) => {
+            const r = await call(request, 'POST', `${API}/staff/user-imports`, { token: ctx.staffToken, multipart: userImportCsv(label) });
+            expect(r.status(), 'user import upload fixture').toBe(201);
+            return (await r.json()).data.id;
+        };
+        const userImportStart = async (id) => {
+            const r = await call(request, 'POST', `${API}/staff/user-imports/${id}/start`, { token: ctx.staffToken, body: {} });
+            expect(r.status(), 'user import start fixture').toBe(200);
+        };
+        ctx.userImportJobId = await userImportJob('ready');
+        ctx.userImportChunkJobId = await userImportJob('chunk');
+        await userImportStart(ctx.userImportChunkJobId);
+        ctx.userImportCancelJobId = await userImportJob('cancel');
+        ctx.userImportDoneJobId = await userImportJob('done');
+        await userImportStart(ctx.userImportDoneJobId);
+        const uiDone = await call(request, 'POST', `${API}/staff/user-imports/${ctx.userImportDoneJobId}/chunk`, { token: ctx.staffToken, body: {} });
+        expect(uiDone.status(), 'user import chunk fixture').toBe(200);
         try {
             const probe = await call(request, 'GET', `${API}/staff/isbn/9780140328721`, { token: ctx.staffToken });
             ctx.scraperStub = probe.status() === 200 && (await probe.json())?.data?.preview?.title === 'Fantastic Mr. Fox';
@@ -760,6 +966,37 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         const done = await call(request, 'POST', `${API}/staff/imports/${doneJob}/chunk`, { token: ctx.staffToken, body: {} });
         expect(done.status(), 'import chunk fixture').toBe(200);
         ctx.importLogId = dbScalar(`SELECT import_id FROM import_logs WHERE user_id=${ctx.staffUserId} ORDER BY started_at DESC LIMIT 1`) || 'missing';
+        // Mobile API 1.10.0 cataloguing fixtures.
+        ctx.supplierId = (await staffPost('/staff/suppliers', { name: `Idem supplier ${RUN_ID}` })).id;
+        ctx.supplierDeleteId = (await staffPost('/staff/suppliers', { name: `Idem supplier delete ${RUN_ID}` })).id;
+        {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'idem-marc-'));
+            const file = path.join(dir, 'idem.mrc');
+            execFileSync('php', [path.join(__dirname, 'helpers', 'marc-fixtures.php'), 'e2e', file, RUN_ID, '1', 'mrc']);
+            ctx.marcBuffer = fs.readFileSync(file);
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+        const marcJob = async () => {
+            const r = await call(request, 'POST', `${API}/staff/marc/imports`, { token: ctx.staffToken, multipart: { file: { name: 'idem.mrc', mimeType: 'application/octet-stream', buffer: ctx.marcBuffer } } });
+            expect(r.status(), 'MARC upload fixture').toBe(201);
+            return (await r.json()).data.id;
+        };
+        ctx.marcJobId = await marcJob();
+        ctx.marcCancelJobId = await marcJob();
+        ctx.z39Active = dbScalar("SELECT is_active FROM plugins WHERE name='z39-server'") === '1';
+        if (ctx.z39Active) {
+            // The fixture book exists and the local catalogue is always a
+            // server: a search that fails or misses it is a failure, never a
+            // reason to skip the two copy-cataloguing rows.
+            const search = await call(request, 'POST', `${API}/staff/copy-cataloging/search`, { token: ctx.staffToken, body: { servers: ['local'], index: 'title', term: `Idem staff fixture ${RUN_ID}` } });
+            expect(search.status(), 'copy-cataloguing search fixture').toBe(201);
+            const found = (await search.json()).data;
+            // No ISBN on the fixture: the result is found by title, not flagged as a duplicate.
+            const hit = found.results.find((r) => r.title === `Idem staff fixture ${RUN_ID}`);
+            expect(hit, 'copy-cataloguing fixture found by title').toBeDefined();
+            ctx.copySearchId = found.search_id;
+            ctx.copyResultId = hit.id;
+        }
         const enrich = await call(request, 'GET', `${API}/staff/enrich`, { token: ctx.staffToken });
         ctx.enrichCron = (await enrich.json()).data.cron_enabled;
         // Plugin content (only when the plugins are active).
@@ -832,6 +1069,28 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         const feedUrl = String((await cal.json()).data.feed_url || '');
         ctx.calendarToken = (feedUrl.match(/\/calendar\/feed\/([a-f0-9]{64})\.ics$/) || [])[1] || 'missing';
 
+        // ── Mobile API 1.10.0 library settings fixtures (admin-only rows; the
+        // admin token is the one the visitor log fixtures logged in above) ──
+        const adminJson = async (method, route, body) => {
+            const r = await call(request, method, `${API}${route}`, { token: ctx.adminToken, body });
+            expect(r.status(), `fixture ${method} ${route}`).toBeLessThan(300);
+            return (await r.json()).data;
+        };
+        ctx.s090Retention = (await adminJson('GET', '/staff/settings/modules')).attendance_retention_days;
+        ctx.s090LoanDuration = (await adminJson('GET', '/staff/settings/loans')).settings.loan_duration_days;
+        ctx.s090CardTitle = (await adminJson('GET', '/staff/settings/cards')).settings.title;
+        const s090Types = await adminJson('GET', '/staff/circulation/types');
+        ctx.s090DefaultTypeId = s090Types.default_type_id;
+        ctx.s090TypeId = (await adminJson('POST', '/staff/circulation/types', { name: `Idem type ${RUN_ID}`, code: `idem-${process.pid}` })).id;
+        ctx.s090TypeDeleteId = (await adminJson('POST', '/staff/circulation/types', { name: `Idem type delete ${RUN_ID}`, code: `idem-del-${process.pid}` })).id;
+        ctx.s090ClosedWeekdaysRaw = dbScalar("SELECT COUNT(*) FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'") === '1'
+            ? dbScalar("SELECT HEX(setting_value) FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'") : null;
+        ctx.s090ClosedWeekdays = (await adminJson('GET', '/staff/calendar')).closed_weekdays;
+        ctx.s090ClosureId = (await adminJson('POST', '/staff/calendar/closures', { start_date: '2031-02-03', description: `Idem closure ${RUN_ID}` })).id;
+        ctx.s090ClosureDeleteId = (await adminJson('POST', '/staff/calendar/closures', { start_date: '2031-02-10', description: `Idem closure delete ${RUN_ID}` })).id;
+        ctx.s090CustomId = (await adminJson('POST', '/staff/calendar/custom-holidays', { name: `Idem holiday ${RUN_ID}`, kind: 'fixed', month: 2, day: 2 })).id;
+        ctx.s090CustomDeleteId = (await adminJson('POST', '/staff/calendar/custom-holidays', { name: `Idem holiday delete ${RUN_ID}`, kind: 'fixed', month: 2, day: 4 })).id;
+
         // ── Book Club bridge probe (optional plugin) ────────────────────────
         // The bridge answers /bookclub/health only when both plugins are active.
         // When it does, opportunistically pick existing club data and make the
@@ -894,6 +1153,28 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
     });
 
     test.afterAll(async () => {
+        // Mobile API 1.10.0 desk rows: visits, the retention setting, the admin
+        // token, the patron import jobs (staged files) and the readers they created.
+        try { dbExec(`DELETE FROM presenze WHERE utente_id=${ctx.userId} OR nome_ospite LIKE '%${RUN_ID}%'`); } catch {}
+        if (ctx.oldAttendanceRetention !== undefined) {
+            try {
+                if (ctx.oldAttendanceRetention === '') {
+                    dbExec("DELETE FROM system_settings WHERE category='attendance' AND setting_key='retention_days'");
+                } else {
+                    dbExec(`UPDATE system_settings SET setting_value=${sqlStr(ctx.oldAttendanceRetention)} WHERE category='attendance' AND setting_key='retention_days'`);
+                }
+            } catch {}
+        }
+        try { dbExec("DELETE FROM mobile_app_tokens WHERE device_id='idem-admin-desk'"); } catch {}
+        if (ctx.staffUserId) {
+            try {
+                const staged = dbScalar(`SELECT GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(state, '$.core.file')) SEPARATOR '|') FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId} AND kind='users'`);
+                for (const f of (staged && staged !== 'NULL' ? staged.split('|') : [])) {
+                    if (/\/writable\/uploads\/user_import_[a-f0-9]+\.csv$/.test(f)) { try { removeServerFile(f); } catch {} }
+                }
+            } catch {}
+        }
+        try { dbExec(`DELETE FROM utenti WHERE email LIKE 'idem-uimp-%-${RUN_ID}@example.test'`); } catch {}
         try { dbExec(`DELETE FROM mobile_app_tokens WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM mobile_push_subscriptions WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM wishlist WHERE utente_id=${ctx.userId}`); } catch {}
@@ -908,7 +1189,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try {
             const books = dbScalar(`SELECT GROUP_CONCAT(id) FROM libri WHERE titolo LIKE '%${RUN_ID}%'`);
             if (books && books !== 'NULL') {
-                for (const t of ['prestiti', 'prenotazioni', 'copie', 'libri_autori', 'libri_editori', 'libri_collane']) {
+                for (const t of ['prestiti', 'prenotazioni', 'copie', 'libri_autori_import_sources', 'libri_autori', 'libri_editori', 'libri_collane']) {
                     try { dbExec(`DELETE FROM ${t} WHERE libro_id IN (${books})`); } catch {}
                 }
                 try { dbExec(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${books})`); } catch {}
@@ -917,11 +1198,18 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                 const covers = dbScalar(`SELECT GROUP_CONCAT(copertina_url SEPARATOR '|') FROM libri WHERE id IN (${books})`);
                 for (const c of (covers && covers !== 'NULL' ? covers.split('|') : [])) {
                     if (/^\/uploads\/copertine\/libro_\d+_[a-f0-9]+\.(jpg|png)$/.test(c)) {
-                        try { fs.unlinkSync(path.join(__dirname, '..', 'public', c)); } catch {}
+                        try { removeServerFile(path.join(__dirname, '..', 'public', c)); } catch {}
                     }
                 }
                 try { dbExec(`DELETE FROM volumi WHERE opera_id IN (${books}) OR volume_id IN (${books})`); } catch {}
                 dbExec(`DELETE FROM libri WHERE id IN (${books})`);
+            }
+        } catch {}
+        try {
+            const sessions = dbScalar(`SELECT GROUP_CONCAT(id) FROM inventario_sessioni WHERE nome LIKE '%${RUN_ID}%'`);
+            if (sessions && sessions !== 'NULL') {
+                dbExec(`DELETE FROM log_modifiche WHERE tabella='inventario_sessioni' AND record_id IN (${sessions})`);
+                dbExec(`DELETE FROM inventario_sessioni WHERE id IN (${sessions})`);
             }
         } catch {}
         try { dbExec(`DELETE FROM autori WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
@@ -946,6 +1234,28 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
             } catch {}
             await flushCache();
         }
+        // Mobile API 1.10.0 library settings fixtures.
+        try {
+            const types = dbScalar(`SELECT GROUP_CONCAT(id) FROM tipologie_lettore WHERE nome LIKE '%${RUN_ID}%' AND predefinita = 0`);
+            if (types && types !== 'NULL') {
+                dbExec(`UPDATE utenti SET tipologia_id = NULL WHERE tipologia_id IN (${types})`);
+                dbExec(`DELETE FROM regole_prestito WHERE tipologia_id IN (${types})`);
+                dbExec(`DELETE FROM tipologie_lettore WHERE id IN (${types})`);
+            }
+        } catch {}
+        try { dbExec(`DELETE FROM calendario_chiusure WHERE descrizione LIKE '%${RUN_ID}%'`); } catch {}
+        try { dbExec(`DELETE FROM festivita_personalizzate WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
+        if (ctx.s090ClosedWeekdaysRaw !== undefined) {
+            try {
+                if (ctx.s090ClosedWeekdaysRaw === null) {
+                    dbExec("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+                } else {
+                    dbExec(`UPDATE system_settings SET setting_value=CONVERT(UNHEX('${ctx.s090ClosedWeekdaysRaw}') USING utf8mb4) WHERE category='loans' AND setting_key='closed_weekdays'`);
+                }
+            } catch {}
+        }
+        try { dbExec("DELETE FROM mobile_app_tokens WHERE device_id='idem-admin-090'"); } catch {}
+        await flushCache();
         try { dbExec(`DELETE FROM admin_notifications WHERE message LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE v FROM volumi v LEFT JOIN libri l ON l.id = v.opera_id WHERE l.id IS NULL`); } catch {}
         try { dbExec(`DELETE FROM desiderata_offers WHERE title LIKE '%${RUN_ID}%'`); } catch {}
@@ -955,7 +1265,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                 const files = dbScalar(`SELECT GROUP_CONCAT(file_path SEPARATOR '|') FROM archival_unit_files WHERE unit_id IN (${units})`);
                 const covers = dbScalar(`SELECT GROUP_CONCAT(cover_image_path SEPARATOR '|') FROM archival_units WHERE id IN (${units})`);
                 for (const p of [...(files && files !== 'NULL' ? files.split('|') : []), ...(covers && covers !== 'NULL' ? covers.split('|') : [])]) {
-                    if (/^\/uploads\/archives\/(covers|documents)\/[^/]+$/.test(p)) { try { fs.unlinkSync(path.join(__dirname, '..', 'public', p)); } catch {} }
+                    if (/^\/uploads\/archives\/(covers|documents)\/[^/]+$/.test(p)) { try { removeServerFile(path.join(__dirname, '..', 'public', p)); } catch {} }
                 }
                 dbExec(`DELETE FROM archival_unit_files WHERE unit_id IN (${units})`);
                 dbExec(`DELETE FROM archival_unit_authority WHERE archival_unit_id IN (${units})`);
@@ -990,11 +1300,27 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         } catch {}
         if (ctx.staffUserId) {
             try { dbExec(`DELETE FROM import_logs WHERE user_id=${ctx.staffUserId}`); } catch {}
+            // Staged records of the MARC jobs never run (1.10.0 rows).
+            try {
+                const states = dbScalar(`SELECT GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(state, '$.file_path')) SEPARATOR '|') FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId} AND kind='marc'`);
+                for (const f of (states && states !== 'NULL' ? states.split('|') : [])) {
+                    if (/\/writable\/uploads\/marc_import_[^/]+\.jsonl$/.test(f)) { try { removeServerFile(f); } catch {} }
+                }
+            } catch {}
             try { dbExec(`DELETE FROM mobile_import_jobs WHERE user_id=${ctx.staffUserId}`); } catch {}
+            try { dbExec(`DELETE FROM mobile_idempotency_keys WHERE user_id=${ctx.staffUserId}`); } catch {}
         }
+        try { dbExec(`DELETE FROM fornitori WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE FROM collane WHERE nome LIKE '%${RUN_ID}%' AND parent_id IS NOT NULL`); } catch {}
         try { dbExec(`DELETE FROM collane WHERE nome LIKE '%${RUN_ID}%'`); } catch {}
         try { dbExec(`DELETE FROM mobile_calendar_tokens WHERE user_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM movimenti_lettore WHERE utente_id=${ctx.userId} AND descrizione LIKE '%${RUN_ID}%'`); } catch {}
+        if (ctx.staffUserId) {
+            try {
+                const photo = dbScalar(`SELECT COALESCE(foto_profilo_url, '') FROM utenti WHERE id=${ctx.staffUserId}`);
+                if (/^patron_photos\/\d+-[a-f0-9]{16}\.jpg$/.test(photo)) removeServerFile(path.join(__dirname, '..', 'storage', photo));
+            } catch {}
+        }
         if (ctx.staffUserId) {
             try { dbExec(`DELETE FROM mobile_app_tokens WHERE user_id=${ctx.staffUserId}`); } catch {}
             try { dbExec(`DELETE FROM log_modifiche WHERE utente_id=${ctx.staffUserId}`); } catch {}

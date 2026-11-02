@@ -174,22 +174,11 @@ final class ActionsController
                 : $ledger->latestMovementId($userId);
             $rows = $ledger->movements($userId, $limit + 1, $offset, $upTo);
             $hasMore = count($rows) > $limit;
-            $items = [];
-            foreach (array_slice($rows, 0, $limit) as $m) {
-                $cents = \App\Services\FineParameters::decimalToCents($m['importo']);
-                $items[] = [
-                    'id'           => (int) $m['id'],
-                    'type'         => (string) $m['tipo'],
-                    'type_label'   => \App\Services\PatronLedger::typeLabel((string) $m['tipo']),
-                    'amount_cents' => $cents,
-                    'amount'       => \App\Services\FineParameters::centsToDecimal($cents),
-                    'description'  => \App\Services\PatronLedger::describe($m),
-                    'payment_method' => $this->nullableString($m['metodo_pagamento'] ?? null),
-                    'loan_id'      => $m['prestito_id'] !== null ? (int) $m['prestito_id'] : null,
-                    'book_title'   => $this->nullableString($m['libro_titolo'] ?? null),
-                    'created_at'   => (string) $m['created_at'],
-                ];
-            }
+            // One item shape for the reader and the desk (GET /staff/users/{id}/ledger).
+            $items = array_map(
+                static fn (array $m): array => \App\Plugins\MobileApi\Staff090\Support\LedgerMovementPayload::item($m),
+                array_slice($rows, 0, $limit)
+            );
             $accrued = array_map(static fn (array $a): array => [
                 'loan_id'      => $a['loan_id'],
                 'title'        => $a['titolo'],
@@ -686,6 +675,7 @@ final class ActionsController
             ];
 
             $data += \App\Support\Permissions::describe(\App\Support\Permissions::viewer($userId, $this->db));
+            $data['patron_type'] = $this->patronTypeOf($userId);
 
             // Fields the administrator has hidden (Settings -> Registration) are
             // omitted from the payload and listed in hidden_fields, so the app
@@ -701,6 +691,34 @@ final class ActionsController
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] get profile failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Profilo non disponibile.'), 500);
+        }
+    }
+
+    /**
+     * The patron type that governs the reader's circulation rules (Pinakes
+     * 0.9.0): their own, else the library's default one. Null with the
+     * module off, before the migration, or when no type exists. A failure
+     * here never takes the profile down with it.
+     *
+     * @return array{id: int, code: string, name: string}|null
+     */
+    private function patronTypeOf(int $userId): ?array
+    {
+        try {
+            $policy = new \App\Services\CirculationPolicy($this->db);
+            $typeId = $policy->patronTypeOf($userId);
+            $type = $typeId !== null ? ($policy->types()[$typeId] ?? null) : null;
+            if (!is_array($type)) {
+                return null;
+            }
+            return [
+                'id'   => (int) $type['id'],
+                'code' => (string) ($type['codice'] ?? ''),
+                'name' => \App\Support\HtmlHelper::decode((string) ($type['nome'] ?? '')),
+            ];
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[MobileApi] patron type lookup failed: ' . $e->getMessage());
+            return null;
         }
     }
 

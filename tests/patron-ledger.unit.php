@@ -399,6 +399,12 @@ try {
     foreach (['Support/ResponseEnvelope.php', 'Support/CursorCodec.php', 'Support/StaffPaging.php', 'Support/AppAuthMiddleware.php', 'Support/CirculationOutcome.php', 'Support/Input.php', 'Support/JsonBody.php', 'Controllers/ActionsController.php'] as $file) {
         require_once $mobileSrc . '/' . $file;
     }
+    // The 0.9.0 staff areas share the movement payload with /me/movements;
+    // the plugin loads them at boot, the same way.
+    require_once $mobileSrc . '/Staff090/AreaRegistry.php';
+    foreach (\App\Plugins\MobileApi\Staff090\AreaRegistry::files() as $staff090File) {
+        require_once $staff090File;
+    }
     $pagedReader = $newUser('pg');
     for ($i = 1; $i <= 5; $i++) {
         (new PatronLedger($db))->manualCharge($pagedReader, 100 * $i, "zz page {$i}", null);

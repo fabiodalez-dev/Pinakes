@@ -26,6 +26,29 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 class MarcImportController
 {
+    public const CHECKPOINT_FAILED = 7302;
+    /** @var \Closure(array<string, mixed>):void|null */
+    private ?\Closure $rowCheckpoint = null;
+
+    /** Persist the durable mobile job; the web import keeps its session contract. */
+    public function onRowCheckpoint(callable $listener): self
+    {
+        $this->rowCheckpoint = \Closure::fromCallable($listener);
+        return $this;
+    }
+
+    /** @param array<string, mixed> $state */
+    private function checkpoint(array $state): void
+    {
+        if ($this->rowCheckpoint !== null) {
+            try {
+                ($this->rowCheckpoint)($state);
+            } catch (\Throwable $e) {
+                throw new \RuntimeException('MARC row checkpoint failed: ' . $e->getMessage(), self::CHECKPOINT_FAILED, $e);
+            }
+        }
+    }
+
     private const CHUNK_SIZE = 10;
     private const PREVIEW_SIZE = 10;
     private const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -172,7 +195,17 @@ class MarcImportController
         // Every chunk and discard request names the preview it belongs to: a
         // second upload (another tab) replaces the session state, and a page
         // still showing the first preview must not import the second file.
-        $stagingId = bin2hex(random_bytes(12));
+        try {
+            $stagingId = bin2hex(random_bytes(12));
+            // Validated once here; a supplier deleted during the import is
+            // not assigned, and each book left without it is listed.
+            $supplierId = CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null);
+        } catch (\Throwable $e) {
+            // No session state points to the staged file yet: nothing else
+            // would ever remove it.
+            @unlink($staging);
+            throw $e;
+        }
         // The previous preview is dropped only now: a file that cannot be
         // staged leaves it (its file and session state) importable.
         $this->discardStaging();
@@ -183,9 +216,7 @@ class MarcImportController
             'total_rows' => $total,
             'mode' => $mode,
             'covers' => !empty($data['download_covers']),
-            // Validated once here; a supplier deleted during the import is
-            // not assigned, and each book left without it is listed.
-            'fornitore_id' => CataloguingExtras::existingSupplierId($db, $data['fornitore_id'] ?? null),
+            'fornitore_id' => $supplierId,
             'offset' => 0,
             'processed' => 0,
             'counters' => [],
@@ -233,7 +264,7 @@ class MarcImportController
             return $this->json($response, ['success' => false, 'error' => __('Sessione import scaduta o dati non validi')], 400);
         }
         $start = max(0, (int) ($payload['start'] ?? 0));
-        $size = max(1, min((int) ($payload['size'] ?? self::CHUNK_SIZE), self::CHUNK_SIZE));
+        $size = $this->rowCheckpoint !== null ? 1 : max(1, min((int) ($payload['size'] ?? self::CHUNK_SIZE), self::CHUNK_SIZE));
         $processed = (int) $state['processed'];
 
         if ($start === $processed && $processed < (int) $state['total_rows']) {
@@ -270,7 +301,21 @@ class MarcImportController
                 $title = (string) ($bookData['titolo'] ?? '');
                 try {
                     $warnings = [];
-                    $result = $importer->import($bookData, $counters, $warnings);
+                    $pending = $state['pending'] ?? null;
+                    if (is_array($pending) && ($pending['row'] ?? null) === $processed) {
+                        $result = $importer->resume($bookData, $pending, $counters, $warnings);
+                    } else {
+                        $checkpoint = $this->rowCheckpoint === null ? null : function (array $pending, array $counted) use ($state, $processed): void {
+                            // Stored in the SAME transaction as the base book.
+                            // Keep the old byte offset: the retry reads this
+                            // record again, then completes its recorded book.
+                            $saved = $state;
+                            $saved['pending'] = $pending + ['row' => $processed];
+                            $saved['counters'] = $counted;
+                            $this->checkpoint($saved);
+                        };
+                        $result = $importer->import($bookData, $counters, $warnings, $checkpoint);
+                    }
                     if ($result['action'] === 'skipped') {
                         self::listSkippedDuplicate($state, $position, $title, (int) $result['id']);
                     }
@@ -290,6 +335,10 @@ class MarcImportController
                         self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => $warning, 'type' => 'cover']);
                     }
                 } catch (\Throwable $e) {
+                    if ($e instanceof \RuntimeException && $e->getCode() === self::CHECKPOINT_FAILED) {
+                        fclose($handle);
+                        throw $e;
+                    }
                     self::listIssue($state, ['line' => $position, 'title' => $title, 'message' => $e->getMessage(), 'type' => 'validation']);
                     \App\Support\SecureLogger::warning('[MARC import] record failed', ['position' => $position, 'error' => $e->getMessage()]);
                 }
@@ -303,9 +352,11 @@ class MarcImportController
                 \App\Support\SecureLogger::warning('[MARC import] staging file ended early', ['processed' => $processed, 'total' => (int) $state['total_rows']]);
                 return $this->json($response, ['success' => false, 'error' => __('Il file caricato è incompleto: import interrotto.')], 500);
             }
+            unset($state['pending']);
             $state['offset'] = $offset === false ? (int) $state['offset'] : $offset;
             $state['processed'] = $processed;
             $state['counters'] = $counters;
+            $this->checkpoint($state);
             $_SESSION[self::SESSION_KEY] = $state;
         }
 
@@ -315,7 +366,19 @@ class MarcImportController
         $failed = self::failedCount($state);
         $importId = null;
         if ($complete) {
-            $importId = $this->persistHistory($db, $state, $failed);
+            if ($this->rowCheckpoint === null) {
+                $importId = $this->persistHistory($db, $state, $failed);
+            } else {
+                // A final response lost after history was written must resume
+                // the same history row too, even when the API's final save fails.
+                \App\Support\DbAtomic::run($db, function () use ($db, &$state, $failed, &$importId): void {
+                    $importId = $this->persistHistory($db, $state, $failed);
+                    if ($importId === null) {
+                        throw new \RuntimeException('MARC import history could not be saved');
+                    }
+                    $this->checkpoint($state);
+                }, 'MARC import history checkpoint');
+            }
             // The history row (once created) is kept in the state, so a retry
             // completes that row instead of adding a second one.
             $_SESSION[self::SESSION_KEY] = $state;
@@ -347,7 +410,11 @@ class MarcImportController
         ];
         if ($complete) {
             $_SESSION[self::DONE_KEY] = ['staging_id' => (string) ($state['staging_id'] ?? ''), 'result' => $result];
-            $this->discardStaging();
+            if ($this->rowCheckpoint === null) {
+                $this->discardStaging();
+            }
+            // The mobile caller removes the file only AFTER its completed
+            // job is stored. A failed save must leave the final row resumable.
         }
         return $this->json($response, $result);
     }

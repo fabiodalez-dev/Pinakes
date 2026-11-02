@@ -42,6 +42,7 @@ final class OpenApiController
             $doc = \App\Plugins\MobileApi\Support\StaffContentOpenApi::extend($doc);
             $doc = \App\Plugins\MobileApi\Support\StaffPluginsOpenApi::extend($doc);
             $doc = \App\Plugins\MobileApi\Support\StaffTier2OpenApi::extend($doc);
+            $doc = \App\Plugins\MobileApi\Staff090\AreaRegistry::openApi($doc);
 
             // Cross-plugin extension point: active plugins that mount routes under
             // /api/v1 (book-club bridge) document them here, so the add-endpoint ⇒
@@ -1549,6 +1550,11 @@ final class OpenApiController
                     'type'        => 'array',
                     'description' => 'Built-in fields the admin has hidden (Settings -> Registration). They are omitted from this payload and ignored by PATCH /me, which keeps the stored value. Empty when every field is shown.',
                     'items'       => ['type' => 'string', 'enum' => ['sesso', 'cod_fiscale']],
+                ],
+                'patron_type'       => [
+                    'type'        => ['object', 'null'],
+                    'description' => 'Since 1.10.0 (Pinakes 0.9.0): the patron type whose circulation rules apply to the reader, their own or the library default. Null with circulation_rules off or when no type exists.',
+                    'properties'  => ['id' => ['type' => 'integer'], 'code' => ['type' => 'string'], 'name' => ['type' => 'string']],
                 ],
             ],
         ];

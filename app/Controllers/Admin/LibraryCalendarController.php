@@ -29,23 +29,44 @@ class LibraryCalendarController
 {
     private const MAX_ICS_BYTES = 1048576;
 
+    /** @var list<int> rows the last store() / storeCustom() / importIcs() call on this instance inserted */
+    private array $createdIds = [];
+
+    /**
+     * Ids of the rows the last successful store(), storeCustom() or
+     * importIcs() on this instance inserted (empty when it inserted nothing).
+     * The redirect carries no id, so a caller that runs the action in-process
+     * (the Mobile API) reads them here instead of guessing them by comparing
+     * the table before and after, which would also catch a row another
+     * operator added at the same moment.
+     *
+     * @return list<int>
+     */
+    public function createdIds(): array
+    {
+        return $this->createdIds;
+    }
+
+    /** The row the last successful store() or storeCustom() inserted, null when none. */
+    public function createdId(): ?int
+    {
+        return $this->createdIds[0] ?? null;
+    }
+
     public function index(Request $request, Response $response, \mysqli $db): Response
     {
         if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
         $query = $request->getQueryParams();
-        $today = DateHelper::today();
-
-        $month = is_string($query['month'] ?? null) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $query['month']) === 1
-            ? $query['month']
-            : substr($today, 0, 7);
-        $branches = $this->branches($db);
-        $previewSede = isset($query['sede']) && is_numeric($query['sede']) && isset($branches[(int) $query['sede']]) ? (int) $query['sede'] : null;
-
-        $calendar = LibraryCalendar::fromDatabase($db, configuration: true);
-        $closedWeekdays = $calendar->closedWeekdays();
-        $closures = $this->closures($db);
+        [
+            'today' => $today, 'month' => $month, 'branches' => $branches, 'previewSede' => $previewSede,
+            'calendar' => $calendar, 'closedWeekdays' => $closedWeekdays, 'closures' => $closures,
+            'yearlyClosures' => $yearlyClosures, 'monthStart' => $monthStart, 'monthEnd' => $monthEnd,
+            'monthClosed' => $monthClosed, 'prevMonth' => $prevMonth, 'nextMonth' => $nextMonth,
+            'currentYear' => $currentYear, 'holidays' => $holidays, 'customHolidays' => $customHolidays,
+            'customSchema' => $customSchema,
+        ] = self::viewData($db, $query);
 
         $editId = isset($query['edit']) && is_numeric($query['edit']) ? (int) $query['edit'] : 0;
         $editing = null;
@@ -55,19 +76,6 @@ class LibraryCalendarController
                 $editing = $row;
             }
         }
-        $yearlyClosures = array_values(array_filter(
-            $closures,
-            static fn (array $row): bool => (int) $row['ricorrente_annuale'] === 1 && ($row['regola_festivita'] ?? null) === null
-        ));
-
-        $monthStart = $month . '-01';
-        $monthEnd = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('last day of this month')->format('Y-m-d');
-        $monthClosed = array_flip($calendar->closedDatesBetween($monthStart, $monthEnd, $previewSede));
-        $prevMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('-1 month')->format('Y-m');
-        $nextMonth = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('+1 month')->format('Y-m');
-        $currentYear = (int) substr($today, 0, 4);
-        $holidays = $this->holidayPreview($db, $query, $currentYear);
-        $customHolidays = CustomHolidays::all($db);
         $customEditId = isset($query['custom_edit']) && is_numeric($query['custom_edit']) ? (int) $query['custom_edit'] : 0;
         $customEditing = $customEditId > 0 ? CustomHolidays::find($db, $customEditId) : null;
         $customDraft = $_SESSION['custom_holiday_draft'] ?? null;
@@ -75,7 +83,6 @@ class LibraryCalendarController
         if (is_array($customDraft) && (int) ($customDraft['id'] ?? 0) === ($customEditing !== null ? $customEditId : 0)) {
             $customEditing = $customDraft;
         }
-        $customSchema = CustomHolidays::schemaReady($db);
 
         ob_start();
         require __DIR__ . '/../../Views/admin/calendar.php';
@@ -85,6 +92,62 @@ class LibraryCalendarController
         $html = ob_get_clean();
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /**
+     * What the calendar page shows, for the page and for the Mobile API: the
+     * month asked for (`month` = YYYY-MM, this month otherwise) with its closed
+     * days for the branch in `sede` (every branch otherwise), the weekly closed
+     * days, every closure row, the yearly ones added by hand, the holiday
+     * preset card (`holiday_country`, `holiday_region`, `holiday_year`), the
+     * library's own holidays and the branches.
+     *
+     * @param array<mixed> $query
+     * @return array{today: string, month: string, branches: array<int, string>, previewSede: ?int, calendar: LibraryCalendar,
+     *               closedWeekdays: list<int>, closures: list<array<string, mixed>>, yearlyClosures: list<array<string, mixed>>,
+     *               monthStart: string, monthEnd: string, monthClosed: array<string, int>, prevMonth: string, nextMonth: string,
+     *               currentYear: int, holidays: array<string, mixed>, customHolidays: list<array<string, mixed>>, customSchema: bool}
+     */
+    public static function viewData(\mysqli $db, array $query): array
+    {
+        $self = new self();
+        $today = DateHelper::today();
+        $month = is_string($query['month'] ?? null) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $query['month']) === 1
+            ? $query['month']
+            : substr($today, 0, 7);
+        $branches = $self->branches($db);
+        $previewSede = isset($query['sede']) && is_numeric($query['sede']) && isset($branches[(int) $query['sede']]) ? (int) $query['sede'] : null;
+
+        $calendar = LibraryCalendar::fromDatabase($db, configuration: true);
+        $closures = $self->closures($db);
+        $yearlyClosures = array_values(array_filter(
+            $closures,
+            static fn (array $row): bool => (int) $row['ricorrente_annuale'] === 1 && ($row['regola_festivita'] ?? null) === null
+        ));
+
+        $monthStart = $month . '-01';
+        $monthEnd = (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('last day of this month')->format('Y-m-d');
+        $currentYear = (int) substr($today, 0, 4);
+
+        return [
+            'today' => $today,
+            'month' => $month,
+            'branches' => $branches,
+            'previewSede' => $previewSede,
+            'calendar' => $calendar,
+            'closedWeekdays' => $calendar->closedWeekdays(),
+            'closures' => $closures,
+            'yearlyClosures' => $yearlyClosures,
+            'monthStart' => $monthStart,
+            'monthEnd' => $monthEnd,
+            'monthClosed' => array_flip($calendar->closedDatesBetween($monthStart, $monthEnd, $previewSede)),
+            'prevMonth' => (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('-1 month')->format('Y-m'),
+            'nextMonth' => (new \DateTimeImmutable($monthStart, new \DateTimeZone('UTC')))->modify('+1 month')->format('Y-m'),
+            'currentYear' => $currentYear,
+            'holidays' => $self->holidayPreview($db, $query, $currentYear),
+            'customHolidays' => CustomHolidays::all($db),
+            'customSchema' => CustomHolidays::schemaReady($db),
+        ];
     }
 
     public function saveWeekdays(Request $request, Response $response, \mysqli $db): Response
@@ -135,14 +198,16 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $row;
             return $this->back($response);
         }
-        $error = $this->commitChange($db, function () use ($db, $row): ?string {
-            $this->insertClosure($db, $row);
+        $insertedId = null;
+        $error = $this->commitChange($db, function () use ($db, $row, &$insertedId): ?string {
+            $insertedId = $this->insertClosure($db, $row);
             return $this->yearCoverageError($db, $row);
         });
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
             return $this->back($response);
         }
+        $this->createdIds = $insertedId !== null ? [$insertedId] : [];
         $_SESSION['success_message'] = __('Chiusura aggiunta.');
         return $this->back($response, substr($row['start'], 0, 7));
     }
@@ -278,7 +343,10 @@ class LibraryCalendarController
             $_SESSION['custom_holiday_draft'] = CustomHolidays::draft($data, $id ?? 0);
             return $this->backToCustom($response, $id);
         }
-        CustomHolidays::save($db, $row, $id);
+        $savedId = CustomHolidays::save($db, $row, $id);
+        if ($id === null) {
+            $this->createdIds = [$savedId];
+        }
         $this->calendarChanged($db);
         $_SESSION['success_message'] = $id === null ? __('Festività aggiunta.') : __('Festività aggiornata.');
         return $this->backToCustom($response);
@@ -433,8 +501,9 @@ class LibraryCalendarController
         $skipped = 0;
         $rejected = 0;
         $coverageRejected = 0;
+        $addedIds = [];
         $events = LibraryCalendar::parseIcs($ics);
-        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$skipped, &$rejected, &$coverageRejected): ?string {
+        $error = $this->commitChange($db, function () use ($db, $events, $sede, &$added, &$addedIds, &$skipped, &$rejected, &$coverageRejected): ?string {
             // The whole-year guard's state, carried from event to event: the
             // yearly rows are read once and each check only looks again at
             // the years whose first open day the new event closes.
@@ -466,6 +535,7 @@ class LibraryCalendarController
                     continue;
                 }
                 $added++;
+                $addedIds[] = $newId;
             }
             return null;
         });
@@ -473,6 +543,7 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $error;
             return $this->back($response);
         }
+        $this->createdIds = $addedIds;
         $message = $rejected > 0
             ? __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti, %3$d scartate perché più lunghe del limite (un anno se annuali, dieci anni altrimenti).', $added, $skipped, $rejected)
             : __('File ICS importato: %1$d chiusure aggiunte, %2$d già presenti.', $added, $skipped);

@@ -126,9 +126,10 @@ final class MarcBookImporter
      * @param array<string, string|list<string>> $data book data (MarcBookData shape)
      * @param array<string, mixed> $counters
      * @param list<string> $warnings
+     * @param (callable(array<string, mixed>, array<string, mixed>): void)|null $checkpoint durable base-book identity, before commit
      * @return array{action: string, id: int|null, title: string}
      */
-    public function import(array $data, array &$counters, array &$warnings = []): array
+    public function import(array $data, array &$counters, array &$warnings = [], ?callable $checkpoint = null): array
     {
         foreach (['imported', 'updated', 'skipped', 'authors_created', 'publishers_created', 'covers'] as $key) {
             $counters[$key] = (int) ($counters[$key] ?? 0);
@@ -167,9 +168,82 @@ final class MarcBookImporter
             $families,
             $counters,
             $existingId,
-            false
+            false,
+            $checkpoint === null ? null : static function (array $result, array $counted) use ($checkpoint, $existing, $title): void {
+                $checkpoint(['result' => $result + ['title' => $title], 'existing' => $existing], $counted);
+            }
         );
-        $bookId = $result['id'];
+        return $this->complete($data, ['result' => $result + ['title' => $title], 'existing' => $existing], $counters, $warnings);
+    }
+
+    /**
+     * Complete the book named by a durable checkpoint, without resolving or
+     * inserting it again. Metadata, cover and search-index writes are safe
+     * to repeat after an interrupted request.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $pending
+     * @param array<string, mixed> $counters
+     * @param list<string> $warnings
+     * @return array{action: string, id: int, title: string}
+     */
+    public function resume(array $data, array $pending, array &$counters, array &$warnings = []): array
+    {
+        $bookId = (int) $pending['result']['id'];
+        if ($this->loadBook($bookId) === null) {
+            throw new \RuntimeException(__('Libro non trovato.'));
+        }
+        // The interrupted request may have died before the base import's
+        // book.save.after: listeners also run on every edit of a book, so a
+        // second call is safe and the club reconciliation is not left to
+        // the next maintenance run.
+        $parsed = $this->pipeline->normalizeImportRow(MarcBookData::toImportRow($data));
+        $existing = is_array($pending['existing'] ?? null) ? $pending['existing'] : null;
+        if ($existing !== null) {
+            [, $parsed] = self::plan($this->mode, $data, $parsed, $existing);
+        }
+        try {
+            \App\Support\Hooks::do('book.save.after', [$bookId, $parsed]);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[MARC import] book.save.after listener failed on resume', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+        }
+
+        return $this->complete($data, $pending, $counters, $warnings);
+    }
+
+    /**
+     * The writes after the base book: extra columns, cover, search index.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $pending
+     * @param array<string, mixed> $counters
+     * @param list<string> $warnings
+     * @return array{action: string, id: int, title: string}
+     */
+    private function complete(array $data, array $pending, array &$counters, array &$warnings): array
+    {
+        $result = $pending['result'];
+        $bookId = (int) $result['id'];
+        $title = (string) $result['title'];
+        $existing = is_array($pending['existing'] ?? null) ? $pending['existing'] : null;
+        // The cover decision reads the row as it is now: a retry after an
+        // attached cover skips (fill) or replaces the file actually linked,
+        // never the one of the snapshot taken before the first attempt. The
+        // base import never writes copertina_url, so a first attempt sees the
+        // book's previous cover, as before.
+        // Read after the commit: a failed read is a warning, never a failed
+        // record (the book is already in the catalogue).
+        // Unread, the cover the book now links is unknown: the cover step
+        // is skipped (a fetch could orphan a file a first attempt attached).
+        $current = null;
+        $readFailed = false;
+        try {
+            $current = $this->loadBook($bookId) ?? $existing;
+        } catch (\Throwable $e) {
+            $readFailed = true;
+            $warnings[] = __('Copertina non scaricata') . ': ' . $e->getMessage();
+            \App\Support\SecureLogger::warning('[MARC import] book read failed after commit', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+        }
 
         // The book is committed and counted at this point: what follows only
         // completes it, so a failure here is a warning on an imported record,
@@ -181,7 +255,9 @@ final class MarcBookImporter
             $warnings[] = __('Campi MARC aggiuntivi non salvati') . ': ' . $e->getMessage();
             \App\Support\SecureLogger::warning('[MARC import] extra columns not written', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
         }
-        $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $existing, $counters, $warnings);
+        if (!$readFailed) {
+            $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $current, $counters, $warnings);
+        }
         try {
             \App\Support\SearchIndexBuilder::rebuild($this->db, $bookId);
         } catch (\Throwable $e) {

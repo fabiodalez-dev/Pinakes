@@ -1694,9 +1694,9 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_mode: string, card_renewal_base: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string, fines_enabled: bool, closures_calendar_enabled: bool, circulation_rules_enabled: bool}
      */
-    private function resolveLoansSettings(SettingsRepository $repository): array
+    public function resolveLoansSettings(SettingsRepository $repository): array
     {
         return [
             'loan_duration_days'       => (int) ($repository->get('loans', 'loan_duration_days', '30') ?? 30),
@@ -1739,13 +1739,15 @@ class SettingsController
         'debt_block_threshold' => 'soglia_blocco_debito',
     ];
 
-    public function updateLoansSettings(Request $request, Response $response, mysqli $db): Response
+    public function updateLoansSettings(Request $request, Response $response, mysqli $db, bool $ensureSchema = true): Response
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
-        $repository->ensureTables();
+        if ($ensureSchema) {
+            $repository->ensureTables();
+        }
 
         // Plan §7: a fine amount above FineParameters::MAX_SETTING_CENTS is a
         // typing error, not a policy: the tab is sent back untouched with the
@@ -1870,7 +1872,7 @@ class SettingsController
      * it is library policy: AdminAuthMiddleware admits staff, the check is
      * here, as for the other policy settings.
      */
-    public function updateModules(Request $request, Response $response, mysqli $db): Response
+    public function updateModules(Request $request, Response $response, mysqli $db, bool $ensureSchema = true): Response
     {
         if (!\App\Support\Permissions::mayConfigure()) {
             $_SESSION['error_message'] = __('Accesso negato. Permessi insufficienti.');
@@ -1880,7 +1882,9 @@ class SettingsController
         // CSRF validated by CsrfMiddleware
 
         $repository = new SettingsRepository($db);
-        $repository->ensureTables();
+        if ($ensureSchema) {
+            $repository->ensureTables();
+        }
         \App\Support\Features::preserveInherited($repository);
         $this->saveFeatureSwitches($repository, $data, \App\Support\Features::MODULES_TAB);
         $retention = filter_var($data['attendance_retention_days'] ?? null, FILTER_VALIDATE_INT);
@@ -1911,9 +1915,12 @@ class SettingsController
             }
             $integrity = new \App\Support\DataIntegrity($db);
             foreach ($result->fetch_all(MYSQLI_NUM) as [$bookId]) {
-                $integrity->recalculateBookAvailability((int) $bookId);
+                $integrity->recalculateBookAvailability((int) $bookId, insideTransaction: \App\Support\DbAtomic::inTransaction($db));
             }
         } catch (\Throwable $e) {
+            if (\App\Support\DbAtomic::inTransaction($db)) {
+                throw $e;
+            }
             \App\Support\SecureLogger::warning('Consultation availability not recalculated: ' . $e->getMessage());
         }
     }

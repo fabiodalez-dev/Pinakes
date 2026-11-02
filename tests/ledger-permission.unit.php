@@ -52,6 +52,14 @@ $check(P::allowsPath('/admin/users/5/ledger/payment', ['tipo_utente' => 'staff',
 $check(!P::allowsPath('/admin/users/5/ledger/payment', ['tipo_utente' => 'staff', 'stato' => 'sospeso'], 'POST'), 'a suspended operator cannot');
 $check(!P::allowsPath('/admin/users/5/ledger/payment', ['tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => []], 'POST'), 'a reader without a role cannot');
 
+// The app's ledger follows the same split as the web.
+foreach (['/api/v1/staff/users/5/ledger/payments', '/api/v1/staff/users/5/ledger/charges', '/api/v1/staff/users/5/ledger/waivers', '/api/v1/staff/users/5/ledger/movements/12/receipt.pdf'] as $path) {
+    $check(P::permissionForPath($path) === 'loans.manage', "app {$path} follows the loan desk");
+}
+$check(P::permissionForPath('/api/v1/staff/users/5/ledger') === 'users.manage', 'reading the app ledger follows the reader record, as on the web');
+$check(P::allowsPath('/api/v1/staff/users/5/ledger/payments', $desk, 'POST'), 'a loans-only role records a payment from the app');
+$check(!P::allowsPath('/api/v1/staff/users/5/ledger/payments', $users, 'POST'), 'a users-only role does not move money from the app');
+
 $view = (string) file_get_contents(dirname(__DIR__) . '/app/Views/utenti/_movimenti.php');
 $check(str_contains($view, "Permissions::can('loans.manage')") && substr_count($view, '$ledgerCanManage') >= 4, 'the movements partial renders forms and receipt links only with loans.manage');
 $controller = (string) file_get_contents(dirname(__DIR__) . '/app/Controllers/PatronLedgerController.php');

@@ -132,7 +132,7 @@ final class StaffImportsController
                 $scraping,
                 $state
             );
-            $job = $this->store->find($id, $userId, true);
+            $job = $this->findJob($id, $userId, true);
 
             return ResponseEnvelope::success($response, self::map((array) $job), [], 201);
         } catch (\Throwable $e) {
@@ -148,7 +148,7 @@ final class StaffImportsController
         $isAdmin = StaffRoleMiddleware::isAdmin($request);
         $json = JsonBody::parse($request);
         try {
-            $job = $this->store->find($id, $userId, $isAdmin);
+            $job = $this->findJob($id, $userId, $isAdmin);
             if ($job === null) {
                 return $this->notFound($response);
             }
@@ -159,7 +159,7 @@ final class StaffImportsController
             }
             try {
                 // Re-read under the lock: another chunk may just have finished.
-                $job = (array) $this->store->find($id, $userId, $isAdmin);
+                $job = (array) $this->findJob($id, $userId, $isAdmin);
                 if ($job['expired'] === true || in_array($job['status'], ['completed', 'cancelled', 'failed'], true)) {
                     return ResponseEnvelope::error($response, 'gone', __('Importazione conclusa, annullata o scaduta.'), 410, ['status' => $job['expired'] ? 'expired' : $job['status']]);
                 }
@@ -217,7 +217,7 @@ final class StaffImportsController
                     ImportJobStore::unlinkUpload(is_array($after) ? $after : $state);
                 }
 
-                return ResponseEnvelope::success($response, self::map((array) $this->store->find((string) $job['id'], $userId, true)));
+                return ResponseEnvelope::success($response, self::map((array) $this->findJob((string) $job['id'], $userId, true)));
             } finally {
                 $locks->unlock($lock);
             }
@@ -241,7 +241,7 @@ final class StaffImportsController
     public function detail(ServerRequestInterface $request, ResponseInterface $response, string $id): ResponseInterface
     {
         try {
-            $job = $this->store->find($id, (int) (StaffPaging::user($request)['id'] ?? 0), StaffRoleMiddleware::isAdmin($request));
+            $job = $this->findJob($id, (int) (StaffPaging::user($request)['id'] ?? 0), StaffRoleMiddleware::isAdmin($request));
 
             return $job === null ? $this->notFound($response) : ResponseEnvelope::success($response, self::map($job));
         } catch (\Throwable $e) {
@@ -254,7 +254,7 @@ final class StaffImportsController
         $userId = (int) (StaffPaging::user($request)['id'] ?? 0);
         $isAdmin = StaffRoleMiddleware::isAdmin($request);
         try {
-            $job = $this->store->find($id, $userId, $isAdmin);
+            $job = $this->findJob($id, $userId, $isAdmin);
             if ($job === null) {
                 return $this->notFound($response);
             }
@@ -268,7 +268,7 @@ final class StaffImportsController
                 return ResponseEnvelope::error($response, 'job_busy', __('Un altro blocco di questa importazione è in corso.'), 409);
             }
             try {
-                $job = (array) $this->store->find($id, $userId, $isAdmin);
+                $job = (array) $this->findJob($id, $userId, $isAdmin);
                 if (!in_array($job['status'], ['completed', 'cancelled'], true)) {
                     $this->store->cancel($job);
                 }
@@ -290,7 +290,7 @@ final class StaffImportsController
         $offset = StaffPaging::offset($request);
         try {
             $this->store->purgeExpired();
-            $rows = $this->store->listFor($userId, $offset, $limit);
+            $rows = $this->store->listFor($userId, $offset, $limit, array_keys(ImportJobStore::SESSION_KEYS));
             $hasMore = count($rows) > $limit;
             $jobs = array_map(static fn (array $r): array => self::map($r), array_slice($rows, 0, $limit));
 
@@ -501,5 +501,19 @@ final class StaffImportsController
         SecureLogger::error('[MobileApi] staff ' . $what . ' failed: ' . $e->getMessage());
 
         return ResponseEnvelope::error($response, 'internal_error', __('Errore interno.'), 500);
+    }
+
+    /**
+     * A CSV or LibraryThing job, or null. The store also holds the 0.9.0 job
+     * kinds (MARC, patron CSV, copy cataloguing), which these endpoints must
+     * answer as not found rather than drive with the wrong importer.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findJob(string $id, int $userId, bool $isAdmin): ?array
+    {
+        $job = $this->store->find($id, $userId, $isAdmin);
+
+        return $job !== null && isset(ImportJobStore::SESSION_KEYS[(string) ($job['kind'] ?? '')]) ? $job : null;
     }
 }

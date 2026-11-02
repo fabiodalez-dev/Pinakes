@@ -496,13 +496,53 @@ final class UserImport
     /**
      * Delete user_import_*.csv files in $dir not modified for $maxAge seconds.
      *
+     * With $db, the files of patron import jobs of the Mobile API still valid
+     * are kept. When that lookup fails nothing is removed and the sweep runs
+     * again at the next visit: a job's expiry moves forward at every save, so
+     * no file age is old enough to be sure no valid job owns it.
+     *
      * @return int number of files removed
      */
-    public static function sweepStaleUploads(string $dir, int $maxAge = self::STALE_UPLOAD_SECONDS, ?int $now = null): int
+    public static function sweepStaleUploads(string $dir, int $maxAge = self::STALE_UPLOAD_SECONDS, ?int $now = null, ?\mysqli $db = null): int
     {
         $now ??= time();
+        $protected = [];
+        if ($db !== null) {
+            try {
+                // The optional Mobile API owns uploads for 24 hours, including
+                // jobs created before this fix. The web's one-hour sweep must
+                // not remove their source while they can still be resumed.
+                $table = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs'");
+                if ($table === false) {
+                    return 0;
+                }
+                $hasJobs = $table->num_rows > 0;
+                $table->free();
+                if ($hasJobs) {
+                    // Only the staged path, not the whole state of each job.
+                    $jobs = $db->query("SELECT CASE WHEN JSON_VALID(state) THEN JSON_UNQUOTE(JSON_EXTRACT(state, '$.core.file')) END AS core_file FROM mobile_import_jobs WHERE kind = 'users' AND expires_at >= NOW() AND status IN ('ready', 'running')");
+                    if ($jobs === false) {
+                        return 0;
+                    }
+                    while ($row = $jobs->fetch_assoc()) {
+                        $file = $row['core_file'];
+                        if (is_string($file) && ($real = realpath($file)) !== false) {
+                            $protected[$real] = true;
+                        }
+                    }
+                    $jobs->free();
+                }
+            } catch (\Throwable $e) {
+                // A failed ownership lookup must not destroy a resumable job.
+                \App\Support\SecureLogger::warning('[UserImport] upload retention lookup failed', ['error' => $e->getMessage()]);
+                return 0;
+            }
+        }
         $removed = 0;
         foreach (glob(rtrim($dir, '/') . '/user_import_*.csv') ?: [] as $file) {
+            if (isset($protected[realpath($file) ?: $file])) {
+                continue;
+            }
             $mtime = @filemtime($file);
             if ($mtime !== false && $now - $mtime > $maxAge && @unlink($file)) {
                 $removed++;

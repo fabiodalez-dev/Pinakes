@@ -53,6 +53,25 @@ class LoanEligibility
             return 'user_not_found';
         }
 
+        if (($reason = self::checkUserState($user)) !== null) {
+            return $reason;
+        }
+
+        // Debt block (plan §7): threshold of the patron type, else the global one.
+        $debt = (new \App\Services\CirculationPolicy($db))->debtBlockError($userId);
+        if ($debt !== null) {
+            return $debt;
+        }
+
+        return null;
+    }
+
+    /** State/card part shared with batch readers that already have the row.
+     * Debt eligibility must still be checked separately.
+     * @param array<string, mixed> $user
+     */
+    public static function checkUserState(array $user): ?string
+    {
         if ($user['stato'] !== 'attivo') {
             // 'scaduto' è l'equivalente lato stato della tessera scaduta:
             // stesso codice così il chiamante mostra un messaggio coerente.
@@ -65,12 +84,6 @@ class LoanEligibility
             && $user['data_scadenza_tessera'] < DateHelper::today()
         ) {
             return 'card_expired';
-        }
-
-        // Debt block (plan §7): threshold of the patron type, else the global one.
-        $debt = (new \App\Services\CirculationPolicy($db))->debtBlockError($userId);
-        if ($debt !== null) {
-            return $debt;
         }
 
         return null;

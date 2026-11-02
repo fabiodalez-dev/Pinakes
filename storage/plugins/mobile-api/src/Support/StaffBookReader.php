@@ -123,7 +123,44 @@ final class StaffBookReader
             'is_wanted'        => (int) ($row['is_desiderata'] ?? 0) === 1,
             'created_at'       => self::nullable($row['created_at'] ?? null),
             'updated_at'       => self::nullable($row['updated_at'] ?? null),
-        ];
+        ] + $this->cataloguing($row);
+    }
+
+    /**
+     * Pinakes 0.9.0 cataloguing fields, each group only while its module is
+     * on (Settings → Modules): the supplier, and the RDA content / media /
+     * carrier overrides with the effective triple (override, or derived
+     * from the media type).
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function cataloguing(array $row): array
+    {
+        $out = [];
+        if (\App\Support\Features::enabled('suppliers') && array_key_exists('fornitore_id', $row)) {
+            $supplierId = (int) ($row['fornitore_id'] ?? 0);
+            $supplier = null;
+            if ($supplierId > 0) {
+                $found = (new \App\Models\SupplierRepository($this->db))->getById($supplierId);
+                $supplier = $found !== null ? ['id' => $supplierId, 'name' => (string) $found['nome']] : null;
+            }
+            $out['supplier_id'] = $supplier !== null ? $supplierId : null;
+            $out['supplier'] = $supplier;
+        }
+        if (\App\Support\Features::enabled('rda_types')) {
+            foreach (StaffBookPayload::RDA_FIELDS as $key => $kind) {
+                $out[$key] = \App\Support\RdaTypes::normalize($kind, $row[$key] ?? null);
+            }
+            $effective = \App\Support\RdaTypes::effective($row);
+            $out['rda_effective'] = [
+                'content_type' => $effective['content'],
+                'media_type'   => $effective['media'],
+                'carrier_type' => $effective['carrier'],
+            ];
+        }
+
+        return $out;
     }
 
     /**

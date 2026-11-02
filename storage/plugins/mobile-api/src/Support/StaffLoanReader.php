@@ -373,7 +373,7 @@ final class StaffLoanReader
     // ─── Users ──────────────────────────────────────────────────────────────
 
     private const USER_SELECT = "SELECT u.id, u.nome, u.cognome, u.email, u.codice_tessera, u.stato,
-               u.data_scadenza_tessera, u.tipo_utente,
+               u.data_scadenza_tessera, u.tipo_utente, u.ruolo_id, u.accesso_digitale, u.tipologia_id, u.foto_profilo_url,
                (SELECT COUNT(*) FROM prestiti p WHERE p.utente_id = u.id AND p.attivo = 1
                    AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')) AS active_loans,
                (SELECT COUNT(*) FROM prenotazioni r WHERE r.utente_id = u.id AND r.stato = 'attiva') AS active_reservations
@@ -385,21 +385,55 @@ final class StaffLoanReader
      *
      * @return list<array<string, mixed>>
      */
-    public function users(string $q, int $limit): array
+    public function users(string $q, int $limit, ?int $patronTypeId = null): array
     {
-        // Quoted value = exact spelling, accents included (#501).
-        $search = \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.telefono', 'u.email', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)"], $q);
-        if ($search === null) {
+        $where = [];
+        $types = '';
+        $params = [];
+        if ($q !== '') {
+            // Quoted value = exact spelling, accents included (#501).
+            $search = \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.telefono', 'u.email', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)"], $q);
+            if ($search === null) {
+                return [];
+            }
+            $where[] = $search['sql'];
+            $types .= $search['types'];
+            $params = [...$params, ...$search['params']];
+        }
+        if ($patronTypeId !== null) {
+            // Same condition as the web users list filter (patron_type_filter):
+            // accounts without a type belong to the default one.
+            $filter = \App\Support\PatronTypeAssignment::filterCondition($this->db, (string) $patronTypeId, 'u.tipologia_id');
+            if ($filter === null) {
+                return [];
+            }
+            $where[] = $filter['sql'];
+            $types .= $filter['types'];
+            $params = [...$params, ...$filter['params']];
+        }
+        if ($where === []) {
             return [];
         }
+        $ledgerActive = \App\Services\PatronLedger::active($this->db);
+        $balance = $ledgerActive ? \App\Services\PatronLedger::balanceSql('u.id') : 'NULL';
+        $debtAllowed = \App\Support\LoanEligibility::debtBlockSql('u', $this->db);
+        $select = str_replace('FROM utenti u', ", {$balance} AS ledger_balance, NOT ({$debtAllowed}) AS debt_blocked FROM utenti u", self::USER_SELECT);
         $rows = $this->all(
-            self::USER_SELECT . ' WHERE ' . $search['sql']
+            $select . ' WHERE ' . implode(' AND ', $where)
                 . \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER) . " ORDER BY u.cognome, u.nome, u.id LIMIT ?",
-            $search['types'] . 'i',
-            [...$search['params'], $limit]
+            $types . 'i',
+            [...$params, $limit]
         );
 
-        return array_map(fn (array $r): array => $this->mapUser($r), $rows);
+        $currency = \App\Services\FineParameters::currency();
+        return array_map(function (array $r) use ($ledgerActive, $currency): array {
+            $r['_ledger'] = $ledgerActive ? [
+                'balance_cents' => \App\Services\FineParameters::decimalToCents($r['ledger_balance']),
+                'currency' => $currency,
+                'debt_blocked' => (bool) $r['debt_blocked'],
+            ] : null;
+            return $this->mapUser($r);
+        }, $rows);
     }
 
     /** @return array<string, mixed>|null StaffUser */
@@ -557,7 +591,9 @@ final class StaffLoanReader
      */
     public function mapUser(array $r): array
     {
-        $reason = \App\Support\LoanEligibility::checkUser($this->db, (int) $r['id']);
+        $reason = array_key_exists('debt_blocked', $r)
+            ? (\App\Support\LoanEligibility::checkUserState($r) ?? (!empty($r['debt_blocked']) ? 'debt_block' : null))
+            : \App\Support\LoanEligibility::checkUser($this->db, (int) $r['id']);
 
         return [
             'id'                  => (int) $r['id'],
@@ -571,7 +607,7 @@ final class StaffLoanReader
             'active_reservations' => (int) ($r['active_reservations'] ?? 0),
             'eligible'            => $reason === null,
             'eligibility_reason'  => $reason,
-        ];
+        ] + \App\Plugins\MobileApi\Staff090\Support\PatronPayload::extras($this->db, $r, $this->circulation());
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────

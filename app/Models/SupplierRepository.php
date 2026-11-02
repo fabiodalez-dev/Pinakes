@@ -133,6 +133,27 @@ class SupplierRepository
         return $changed || $this->getById($id) !== null;
     }
 
+    /** Update only the supplied, already validated columns; omitted values
+     * must never be written back from an earlier read of the supplier.
+     * @param array<string, ?string> $data
+     */
+    public function updateFields(int $id, array $data): bool
+    {
+        $data = array_intersect_key($data, array_flip(self::FIELDS));
+        if ($data === []) {
+            return $this->getById($id) !== null;
+        }
+        $set = implode(', ', array_map(static fn (string $c): string => "{$c} = ?", array_keys($data)));
+        $values = array_values($data);
+        $values[] = $id;
+        $stmt = $this->db->prepare("UPDATE fornitori SET {$set} WHERE id = ?");
+        $stmt->bind_param(str_repeat('s', count($data)) . 'i', ...$values);
+        $ok = $stmt->execute();
+        $changed = $stmt->affected_rows > 0;
+        $stmt->close();
+        return $ok && ($changed || $this->getById($id) !== null);
+    }
+
     /** Deleting a supplier unlinks its books (FK ON DELETE SET NULL). */
     public function delete(int $id): bool
     {

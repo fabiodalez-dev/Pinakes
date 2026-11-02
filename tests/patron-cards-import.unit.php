@@ -261,6 +261,7 @@ $photoFiles = [];
 $importEmail = 'zz-import-' . $suffix . '@example.invalid';
 $importLogIds = [];
 $src = null; // the scratch image, removed in finally even when a check throws
+$ownTypeId = 0; // a patron type the test adds when none usable is there
 try {
     $db->query("CREATE TABLE {$users} (id INT NOT NULL PRIMARY KEY, nome VARCHAR(100)) ENGINE=InnoDB");
     $db->query("INSERT INTO {$users} (id, nome) VALUES (1, 'A')");
@@ -588,6 +589,207 @@ try {
     $check($status === 200 && $replay === $first && (int) $db->query("SELECT COUNT(*) FROM utenti WHERE email = '{$importEmail}'")->fetch_row()[0] === 1, 'a retry of the last block replays the final answer and creates nothing');
     $check($call('start', ['preview_id' => $pid, 'mapping' => [0 => 'nome', 2 => 'email']])[0] === 400, 'a finished run cannot be started again');
 
+    // Row checkpoints: a caller that keeps the import state outside the
+    // session (the Mobile API job) gets it right after the insert, in the
+    // insert's transaction, and before the invitation.
+    $ckEmail = static fn (string $n): string => "zz-pci-ck-{$suffix}-{$n}@example.invalid";
+    $ckAccount = static function (string $n) use ($db, $ckEmail, $suffix): int {
+        $email = $ckEmail($n);
+        $card = 'CK' . $suffix . $n;
+        $db->query("INSERT INTO utenti (nome, cognome, email, password, telefono, indirizzo, tipo_utente, stato, email_verificata, codice_tessera, privacy_accettata, created_at)
+                    VALUES ('Ck', '{$n}', '{$email}', 'x', '000', 'x', 'standard', 'attivo', 1, '{$card}', 1, NOW())");
+        return (int) $db->insert_id;
+    };
+    $ckAccountId = static fn (string $n): int => (int) ($db->query("SELECT COALESCE(MAX(id), 0) FROM utenti WHERE email = '" . $ckEmail($n) . "'")->fetch_row()[0] ?? 0);
+    $callWith = static function (\App\Controllers\UserImportController $c, string $action, array $json) use ($requests, $responses, $streams, $db): array {
+        $request = $requests->createServerRequest('POST', '/admin/users/import/' . $action)->withBody($streams->createStream((string) json_encode($json)));
+        $response = $c->{$action}($request, $responses->createResponse(), $db);
+        return [$response->getStatusCode(), json_decode((string) $response->getBody(), true)];
+    };
+
+    file_put_contents($staged, "nome;cognome;email\nCk;A;" . $ckEmail('a') . "\n");
+    $_SESSION['user_import'] = $running;
+    $seen = [];
+    $listening = (new \App\Controllers\UserImportController())->onRowCheckpoint(static function (array $state) use (&$seen, $db, $ckEmail): void {
+        $id = (int) ($db->query("SELECT COALESCE(MAX(id), 0) FROM utenti WHERE email = '" . $ckEmail('a') . "'")->fetch_row()[0] ?? 0);
+        $seen[] = ['pending' => $state['pending'] ?? null, 'account' => $id, 'finished' => !empty($state['finished']), 'import_id' => $state['result']['import_id'] ?? null];
+    });
+    [$status, $json] = $callWith($listening, 'chunk', ['preview_id' => $pid, 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['created'] ?? null) === 1 && count($seen) === 2 && $seen[0]['account'] > 0 && $seen[0]['account'] === $ckAccountId('a')
+        && $seen[0]['pending'] === ['next' => 0, 'user_id' => $seen[0]['account'], 'created_before' => 0], 'the checkpoint after the insert carries the row and the id of the account it just inserted');
+    $check($seen[1]['finished'] && $seen[1]['pending'] === null && is_string($seen[1]['import_id']) && $seen[1]['import_id'] !== '' && $seen[1]['import_id'] === ($json['import_id'] ?? false),
+        'the last row stores the final answer with its history entry, so a retry replays it instead of closing the run again');
+
+    // An expired run whose last account was inserted but not counted: the
+    // close settles it, and the page shows the rows the history records.
+    $vanishedAccount = $ckAccount('v');
+    if (is_file($staged)) {
+        unlink($staged);
+    }
+    $_SESSION['user_import'] = ['total' => 3, 'next' => 1, 'created' => 1, 'pending' => ['next' => 1, 'user_id' => $vanishedAccount]] + $running;
+    $settled = (new \App\Controllers\UserImportController())->closeVanishedImport($db);
+    $settledId = (string) ($settled['import_id'] ?? '');
+    $importLogIds[] = $settledId;
+    $logged = $settledId !== '' ? $db->query("SELECT total_rows, imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($settledId) . "'")->fetch_assoc() : null;
+    $check(($settled['processed'] ?? null) === 2 && is_array($logged) && (int) $logged['total_rows'] === 2 && (int) $logged['imported'] === 2,
+        'an expired run closed with a settled row shows the count the import history records');
+
+    file_put_contents($staged, "nome;cognome;email\nCk;B;" . $ckEmail('b') . "\n");
+    $_SESSION['user_import'] = $running;
+    $failing = (new \App\Controllers\UserImportController())->onRowCheckpoint(static function (array $state): void {
+        throw new \RuntimeException('job row gone');
+    });
+    [$status, $json] = $callWith($failing, 'chunk', ['preview_id' => $pid, 'start' => 0]);
+    $after = $_SESSION['user_import'] ?? [];
+    $check($status === 500 && ($json['processed'] ?? null) === 0 && $ckAccountId('b') === 0 && ($after['next'] ?? null) === 0 && ($after['created'] ?? null) === 0 && ($after['failed'] ?? null) === 0 && !isset($after['pending']) && $after['errors'] === [],
+        'a checkpoint that cannot be stored undoes the insert and stops on the row: not counted, not failed, not passed');
+
+    // The checkpoint taken before the invitation fails: the batch halts with
+    // the marker NOT flagged as invited, so the retry still sends it.
+    file_put_contents($staged, "nome;cognome;email\nCk;E;" . $ckEmail('inv') . "\n");
+    $_SESSION['user_import'] = ['send_invites' => true] + $running;
+    $calls = 0;
+    $secondFails = (new \App\Controllers\UserImportController())->onRowCheckpoint(static function (array $state) use (&$calls): void {
+        if (++$calls === 2) {
+            throw new \RuntimeException('job row gone before the invitation');
+        }
+    });
+    [$status, $json] = $callWith($secondFails, 'chunk', ['preview_id' => $pid, 'start' => 0]);
+    $after = $_SESSION['user_import'] ?? [];
+    $check($status === 500 && $calls === 2 && $ckAccountId('inv') > 0 && is_array($after['pending'] ?? null) && empty($after['pending']['invited'])
+        && ($db->query('SELECT token_reset_password FROM utenti WHERE id = ' . $ckAccountId('inv'))->fetch_row()[0] ?? null) === null,
+        'a failed checkpoint before the invitation leaves the marker unflagged and no token issued');
+
+    // Resumed after the invitation step issued its token: no new token
+    // voids the link that may have gone out.
+    $resumedId = $ckAccount('c');
+    $db->query("UPDATE utenti SET token_reset_password = 'issued-before', data_token_reset = NOW() + INTERVAL 1 DAY WHERE id = {$resumedId}");
+    file_put_contents($staged, "nome;cognome;email\nCk;C;" . $ckEmail('c') . "\n");
+    $_SESSION['user_import'] = ['created' => 1, 'send_invites' => true, 'pending' => ['next' => 0, 'user_id' => $resumedId, 'invited' => true]] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $token = $db->query("SELECT token_reset_password FROM utenti WHERE id = {$resumedId}")->fetch_row()[0] ?? null;
+    $warned = array_filter((array) ($json['errors'] ?? []), static fn (array $e): bool => ($e['type'] ?? '') === 'email' && (int) ($e['line'] ?? 0) === 2);
+    $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 0 && ($json['invited'] ?? null) === 0 && $token === 'issued-before' && count($warned) === 1,
+        'a resumed row whose invitation may have gone out is completed without issuing another token, with a warning');
+
+    // The marker of a new job remembers the counter BEFORE this row. A
+    // second interruption may save it after created was already incremented.
+    $countedId = $ckAccount('cnt');
+    file_put_contents($staged, "nome;cognome;email\nCk;Counted;" . $ckEmail('cnt') . "\n");
+    $_SESSION['user_import'] = ['created' => 1, 'pending' => ['next' => 0, 'user_id' => $countedId, 'created_before' => 0]] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['duplicates'] ?? null) === 0,
+        'a counted pending row is resumed once even without an invitation flag');
+
+    $countedCancelId = $ckAccount('cc');
+    file_put_contents($staged, "nome;cognome;email\nCk;Counted;" . $ckEmail('cc') . "\n");
+    $_SESSION['user_import'] = ['created' => 1, 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $countedCancelId, 'created_before' => 0]] + $running;
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['created'] ?? null) === 1,
+        'cancel does not count an already-counted pending account twice');
+
+    // Closing instead of resuming settles the half-done row: cancel ...
+    $cancelId = $ckAccount('d');
+    file_put_contents($staged, "nome;cognome;email\nCk;D;" . $ckEmail('d') . "\nCk;D2;" . $ckEmail('d2') . "\n");
+    $_SESSION['user_import'] = ['total' => 2, 'offset' => strlen("nome;cognome;email\n"), 'active_at' => time() - \App\Controllers\UserImportController::IDLE_SECONDS - 5, 'pending' => ['next' => 0, 'user_id' => $cancelId]] + $running;
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+    $settledId = (string) ($json['import_id'] ?? '');
+    $importLogIds[] = $settledId;
+    $logged = $settledId !== '' ? $db->query("SELECT total_rows, imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($settledId) . "'")->fetch_assoc() : null;
+    $check($status === 200 && ($json['created'] ?? null) === 1 && is_array($logged) && (int) $logged['imported'] === 1 && (int) $logged['total_rows'] === 1 && $ckAccountId('d2') === 0,
+        'a cancel completes and counts the account a dead request left, and passes only its row');
+    // ... and a staged file that vanished.
+    $vanishId = $ckAccount('e');
+    @unlink($staged);
+    // With a patron type column: the row is gone, so the report says the type was not assigned.
+    $_SESSION['user_import'] = ['total' => 2, 'columns' => 4, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia'], 'pending' => ['next' => 0, 'user_id' => $vanishId]] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $closedWarnings = array_filter((array) ($json['closed']['errors'] ?? []), static fn ($e): bool => is_array($e) && ($e['type'] ?? '') === 'warning' && ($e['line'] ?? 0) === 2);
+    $typeOnly = __('Utente importato, ma la sua riga del file non era più leggibile: la tipologia lettore non è stata assegnata.');
+    $check(count($closedWarnings) === 1 && (string) (reset($closedWarnings)['message'] ?? '') === $typeOnly,
+        'a settled account whose row is no longer readable gets a warning naming only the patron type it mapped');
+    $vanishLog = (string) ($json['import_id'] ?? '');
+    $importLogIds[] = $vanishLog;
+    $logged = $vanishLog !== '' ? $db->query("SELECT imported FROM import_logs WHERE import_id = '" . $db->real_escape_string($vanishLog) . "'")->fetch_assoc() : null;
+    $check($status === 409 && ($json['created'] ?? null) === 1 && is_array($logged) && (int) $logged['imported'] === 1, 'a vanished staged file closes the run with the half-done account counted');
+    // The other two wordings: custom fields only, then type and custom fields.
+    $customCases = [
+        'e2' => [[0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'custom:1'], __('Utente importato, ma la sua riga del file non era più leggibile: i campi personalizzati non sono stati assegnati.'), 'only the custom fields'],
+        'e3' => [[0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia', 4 => 'custom:1'], __('Utente importato, ma la sua riga del file non era più leggibile: tipologia lettore e campi personalizzati non sono stati assegnati.'), 'the patron type and the custom fields'],
+    ];
+    foreach ($customCases as $key => [$caseMapping, $caseMessage, $caseLabel]) {
+        $caseId = $ckAccount($key);
+        $_SESSION['user_import'] = ['total' => 2, 'columns' => count($caseMapping), 'mapping' => $caseMapping, 'pending' => ['next' => 0, 'user_id' => $caseId]] + $running;
+        [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+        $importLogIds[] = (string) ($json['import_id'] ?? '');
+        $caseWarnings = array_filter((array) ($json['closed']['errors'] ?? []), static fn ($e): bool => is_array($e) && ($e['type'] ?? '') === 'warning' && ($e['line'] ?? 0) === 2);
+        $check($status === 409 && count($caseWarnings) === 1 && (string) (reset($caseWarnings)['message'] ?? '') === $caseMessage,
+            "a settled account whose row is no longer readable gets a warning naming {$caseLabel} it mapped");
+    }
+    // A marker naming another row, or no account, settles nothing.
+    file_put_contents($staged, 'x');
+    $_SESSION['user_import'] = ['total' => 2, 'next' => 1, 'created' => 0, 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $vanishId]] + $running;
+    [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $check($status === 200 && ($json['created'] ?? null) === 0, 'a marker for another row than the next one is not settled');
+
+    // The first row of a run has no offset yet: the cancel reads it again by
+    // counting, so its patron type is assigned too; the answer carries the
+    // position after the settled row.
+    // An active type its name resolves to, as PatronTypeImport reads it
+    // (codes first, trimmed and lowercased): no other active type's code or
+    // name may collide with it.
+    $typeKey = static fn (?string $v): string => mb_strtolower(trim((string) $v), 'UTF-8');
+    $typeRows = $db->query('SELECT id, codice, nome FROM tipologie_lettore WHERE attiva = 1 ORDER BY id');
+    $activeTypes = $typeRows instanceof \mysqli_result ? $typeRows->fetch_all(MYSQLI_ASSOC) : [];
+    $type = null;
+    foreach ($activeTypes as $candidate) {
+        $key = $typeKey($candidate['nome']);
+        $clash = array_filter($activeTypes, static fn (array $o): bool => (int) $o['id'] !== (int) $candidate['id'] && ($typeKey($o['codice']) === $key || $typeKey($o['nome']) === $key));
+        if ($key !== '' && $clash === []) {
+            $type = $candidate;
+            break;
+        }
+    }
+    if ($type === null) {
+        // None usable (a bare database): one of the test's own, so the check below always runs.
+        $db->query("INSERT INTO tipologie_lettore (codice, nome, attiva) VALUES ('zz-pci-{$suffix}', 'ZZ PCI {$suffix}', 1)");
+        $ownTypeId = (int) $db->insert_id;
+        $type = ['id' => $ownTypeId, 'codice' => 'zz-pci-' . $suffix, 'nome' => 'ZZ PCI ' . $suffix];
+    }
+    $typeActive = (int) ($db->query('SELECT COUNT(*) FROM tipologie_lettore WHERE attiva = 1 AND id = ' . (int) ($type['id'] ?? 0))->fetch_row()[0] ?? 0);
+    $check($typeActive === 1, 'an active patron type is there for the first pending row');
+    if (is_array($type)) {
+        $firstId = $ckAccount('f');
+        $db->query("UPDATE utenti SET tipologia_id = NULL WHERE id = {$firstId}");
+        // Quoted: a type name may hold the separator or a quote.
+        $typeCell = '"' . str_replace('"', '""', (string) $type['nome']) . '"';
+        file_put_contents($staged, "nome;cognome;email;tipologia\nCk;F;" . $ckEmail('f') . ';' . $typeCell . "\nCk;F2;" . $ckEmail('f2') . ';' . $typeCell . "\n");
+        $_SESSION['user_import'] = ['total' => 2, 'columns' => 4, 'mapping' => [0 => 'nome', 1 => 'cognome', 2 => 'email', 3 => 'tipologia'], 'active_at' => 0, 'pending' => ['next' => 0, 'user_id' => $firstId]] + $running;
+        [$status, $json] = $call('cancel', ['preview_id' => $pid]);
+        $importLogIds[] = (string) ($json['import_id'] ?? '');
+        $assigned = (int) ($db->query("SELECT IFNULL(tipologia_id, 0) FROM utenti WHERE id = {$firstId}")->fetch_row()[0] ?? 0);
+        $check($status === 200 && ($json['created'] ?? null) === 1 && ($json['closed_processed'] ?? null) === 1 && $assigned === (int) $type['id'] && $ckAccountId('f2') === 0
+            && is_int($json['closed']['invited'] ?? null) && is_int($json['closed']['invite_failed'] ?? null) && is_array($json['closed']['errors'] ?? null),
+            'a half-done first row (no offset yet) is read again by counting: its patron type is assigned, the answer says one row passed');
+    }
+
+    // The invitation flag without a token: the step stopped before issuing
+    // it, so the resume sends the invitation instead of only warning.
+    $noTokenId = $ckAccount('g');
+    file_put_contents($staged, "nome;cognome;email\nCk;G;" . $ckEmail('g') . "\n");
+    $_SESSION['user_import'] = ['send_invites' => true, 'pending' => ['next' => 0, 'user_id' => $noTokenId, 'invited' => true]] + $running;
+    [$status, $json] = $call('chunk', ['preview_id' => $pid, 'start' => 0]);
+    $importLogIds[] = (string) ($json['import_id'] ?? '');
+    $issued = $db->query("SELECT token_reset_password FROM utenti WHERE id = {$noTokenId}")->fetch_row()[0] ?? null;
+    $maybeSent = array_filter((array) ($json['errors'] ?? []), static fn (array $e): bool => str_contains((string) ($e['message'] ?? ''), __('Utente importato, ma l\'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell\'utente.')));
+    $check($status === 200 && ($json['created'] ?? null) === 1 && is_string($issued) && $issued !== '' && $maybeSent === [] && (($json['invited'] ?? 0) + ($json['invite_failed'] ?? 0)) === 1,
+        'a resumed row flagged as invited but holding no token gets its invitation now');
+
     // A run under way (another tab) is neither replaced nor closed; the page
     // learns its position and resumes it.
     file_put_contents($staged, "nome;cognome;email\nZz;Import;zz-never@example.invalid\nZz;Two;zz-never2@example.invalid\n");
@@ -745,6 +947,10 @@ try {
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-stale-{$suffix}@example.invalid'");
     $db->query("DELETE FROM utenti WHERE email = 'zz-pci-del-{$suffix}@example.invalid'");
     $db->query("DELETE FROM utenti WHERE email LIKE 'zz-pci-blk-{$suffix}-%'");
+    $db->query("DELETE FROM utenti WHERE email LIKE 'zz-pci-ck-{$suffix}-%'");
+    if ($ownTypeId > 0) {
+        $db->query("DELETE FROM tipologie_lettore WHERE id = {$ownTypeId}");
+    }
     foreach ($importLogIds as $logId) {
         $stmt = $db->prepare('DELETE FROM import_logs WHERE import_id = ?');
         $stmt->bind_param('s', $logId);
