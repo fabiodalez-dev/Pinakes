@@ -9312,5 +9312,6 @@
   "La colonna \"%s\" contiene password: non può essere importata.": "Kolonnen \"%s\" indeholder adgangskoder: den kan ikke importeres.",
   "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Resultatet af denne import blev ikke gemt: kontroller kataloget, før du importerer igen, med en ny nøgle.",
   "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "Importens fremskridt kunne ikke gemmes: rækken blev ikke talt med, prøv igen.",
-  "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Bruger importeret, men invitationen er muligvis allerede sendt: hvis den ikke er nået frem, så send den igen fra brugerens side."
+  "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Bruger importeret, men invitationen er muligvis allerede sendt: hvis den ikke er nået frem, så send den igen fra brugerens side.",
+  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Denne søgning har nået det maksimale antal importer: søg igen for at fortsætte."
 }

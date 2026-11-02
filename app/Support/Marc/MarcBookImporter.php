@@ -233,10 +233,15 @@ final class MarcBookImporter
         // book's previous cover, as before.
         // Read after the commit: a failed read is a warning, never a failed
         // record (the book is already in the catalogue).
+        // Unread, the cover the book now links is unknown: the cover step
+        // is skipped (a fetch could orphan a file a first attempt attached).
+        $current = null;
+        $readFailed = false;
         try {
             $current = $this->loadBook($bookId) ?? $existing;
         } catch (\Throwable $e) {
-            $current = $existing;
+            $readFailed = true;
+            $warnings[] = __('Copertina non scaricata') . ': ' . $e->getMessage();
             \App\Support\SecureLogger::warning('[MARC import] book read failed after commit', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
         }
 
@@ -250,7 +255,9 @@ final class MarcBookImporter
             $warnings[] = __('Campi MARC aggiuntivi non salvati') . ': ' . $e->getMessage();
             \App\Support\SecureLogger::warning('[MARC import] extra columns not written', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
         }
-        $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $current, $counters, $warnings);
+        if (!$readFailed) {
+            $this->writeCover($bookId, (string) ($data['copertina_url'] ?? ''), $current, $counters, $warnings);
+        }
         try {
             \App\Support\SearchIndexBuilder::rebuild($this->db, $bookId);
         } catch (\Throwable $e) {

@@ -224,14 +224,29 @@ try {
     $check($r->getStatusCode() === 200 && ($body['meta']['replayed'] ?? false) === true && $body['data'] === $first, 'first key still replays the original result after 21 imports');
     $check((int) $db->query("SELECT COUNT(*) FROM libri WHERE titolo='ZZ replay {$run} 1'")->fetch_row()[0] === 1, 'replay creates no duplicate book without ISBN/EAN/author');
     $check($call(1, 'overwrite')->getStatusCode() === 422, 'old key with changed payload still conflicts');
+    // Past MAX_IMPORTS a new key is refused, never an old replay dropped.
+    $full = [];
+    for ($n = 0; $n < StaffCopyCatalogingController::MAX_IMPORTS; $n++) {
+        $t = hash('sha256', "full-{$run}-{$n}");
+        $full[$t] = ['token' => $t, 'fingerprint' => 'x'];
+    }
+    $fullJob = $store->create($operator, null, 'copy_cataloging', 'review regression full', 21, 1, false, ['results' => $stored, 'imports' => $full]);
+    $r = $cataloguing->import($request('/copy-cataloging/import', ['search_id' => $fullJob, 'ids' => [str_pad(dechex(2), 16, '0', STR_PAD_LEFT)], 'duplicates' => 'skip', 'covers' => false], "review-{$run}-full"), new Response());
+    $body = json_decode((string) $r->getBody(), true);
+    $kept = $store->find($fullJob, $operator, true)['state']['imports'] ?? [];
+    $check($r->getStatusCode() === 409 && ($body['error']['code'] ?? null) === 'too_many_imports' && count($kept) === StaffCopyCatalogingController::MAX_IMPORTS && isset($kept[array_key_first($full)]),
+        'a search with MAX_IMPORTS imports refuses a new key and keeps every earlier replay');
+    $db->query("DELETE FROM mobile_import_jobs WHERE id='" . $db->real_escape_string($fullJob) . "'");
 
     // Batch payload parity and bounded statement count with fines and debt on.
     Features::override('fines', true);
     Features::override('debt_block', true);
     Features::override('loss_penalties', false);
     $db->query("UPDATE tipologie_lettore SET soglia_blocco_debito='2.00' WHERE id={$type}");
-    for ($n = 0; $n < 25; $n++) {
-        $uid = $insert("INSERT INTO utenti(nome,cognome,email,password,tipo_utente,stato,email_verificata,tipologia_id,codice_tessera) VALUES('Batch','ZZ{$run}','zzbatch-{$run}-{$n}@example.invalid','x','standard','attivo',1,{$type},'RB{$run}{$n}')");
+    // The last reader's card expired yesterday: batch and detail refuse it alike.
+    for ($n = 0; $n < 26; $n++) {
+        $expiry = $n === 25 ? 'DATE_SUB(CURDATE(), INTERVAL 1 DAY)' : 'NULL';
+        $uid = $insert("INSERT INTO utenti(nome,cognome,email,password,tipo_utente,stato,email_verificata,tipologia_id,codice_tessera,data_scadenza_tessera) VALUES('Batch','ZZ{$run}','zzbatch-{$run}-{$n}@example.invalid','x','standard','attivo',1,{$type},'RB{$run}{$n}',{$expiry})");
         $users[] = $uid;
         if ($n === 0) {
             $db->query("INSERT INTO movimenti_lettore(utente_id,tipo,importo,descrizione) VALUES({$uid},'addebito_manuale',3.00,'review')");
@@ -244,13 +259,15 @@ try {
     $start = $db->statements;
     $many = $reader->users("zzbatch-{$run}-", 50);
     $largeCount = $db->statements - $start;
-    $check(count($many) === 25 && $largeCount <= $smallCount + 3, '25 users do not add per-user ledger/eligibility queries');
+    $check(count($many) === 26 && $largeCount <= $smallCount + 3, '26 users do not add per-user ledger/eligibility queries');
+    $expired = array_values(array_filter($many, static fn (array $row): bool => ($row['email'] ?? '') === "zzbatch-{$run}-25@example.invalid"));
+    $check(count($expired) === 1 && $expired[0]['eligible'] === false && $expired[0]['eligibility_reason'] === 'card_expired', 'the batch refuses the reader whose card expired, with its reason');
     foreach ($many as $row) {
         $check($row === (new StaffLoanReader($db))->user($row['id']), 'batch ledger and eligibility match the authoritative single-user payload');
     }
     Features::override('fines', false);
     $withoutFines = (new StaffLoanReader($db))->users("zzbatch-{$run}-", 50);
-    $check(count($withoutFines) === 25 && $withoutFines[0]['ledger'] === null, 'batch ledger stays absent with fines disabled');
+    $check(count($withoutFines) === 26 && $withoutFines[0]['ledger'] === null, 'batch ledger stays absent with fines disabled');
 
     // A late failure in the second settings tab must undo the first one.
     Features::resetOverrides();

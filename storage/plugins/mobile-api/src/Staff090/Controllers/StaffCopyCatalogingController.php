@@ -38,6 +38,12 @@ final class StaffCopyCatalogingController
     private const LAST_IMPORT_KEY = 'copy_cataloging_last_import';
     private const KEEP_SEARCHES = 5;
     private const MAX_IDS = 100;
+    /**
+     * Imports one search keeps for replay. Every one is kept (an earlier
+     * retry must still replay after later imports), so past this bound a new
+     * key is refused instead of dropping one: the job state stays bounded.
+     */
+    public const MAX_IMPORTS = 200;
 
     private ImportJobStore $store;
 
@@ -257,6 +263,9 @@ final class StaffCopyCatalogingController
                     // never stored: importing again could add the records
                     // without ISBN/EAN/author a second time.
                     return ResponseEnvelope::error($response, 'import_outcome_unknown', __('L\'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.'), 409);
+                }
+                if ($token !== '' && !$replayed && count($imports) >= self::MAX_IMPORTS) {
+                    return ResponseEnvelope::error($response, 'too_many_imports', __('Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.'), 409, ['max_imports' => self::MAX_IMPORTS]);
                 }
                 $summary = is_array($job['summary'] ?? null) ? $job['summary'] : [];
                 if ($token !== '' && !$replayed) {

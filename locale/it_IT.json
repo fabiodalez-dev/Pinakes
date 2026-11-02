@@ -9312,5 +9312,6 @@
   "La colonna \"%s\" contiene password: non può essere importata.": "La colonna \"%s\" contiene password: non può essere importata.",
   "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.",
   "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.",
-  "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente."
+  "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.",
+  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare."
 }
