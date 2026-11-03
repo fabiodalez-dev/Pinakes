@@ -323,10 +323,14 @@ final class LibraryCalendar
                 if ($lockConflict && !$ownTransaction) {
                     throw $e;
                 }
-                // The overlap trigger refusing the move (SIGNAL, errno 1644):
-                // the next reservation of that copy starts on a day the new
-                // date reaches. Expected, not a failure: the loan keeps its date.
-                if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1644) {
+                // The overlap trigger refusing the move (SIGNAL, errno 1644,
+                // its overlap message): the next reservation of that copy
+                // starts on a day the new date reaches. Expected, not a
+                // failure: the loan keeps its date. Any other 1644 (a copy of
+                // another book, a start after the due date) is a row to fix
+                // and counts as not moved below.
+                if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1644
+                    && str_contains($e->getMessage(), 'sovrapposto')) {
                     continue;
                 }
                 // Any other failure, or a lock conflict in its own transaction:

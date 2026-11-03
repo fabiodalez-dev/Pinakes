@@ -46,6 +46,13 @@ class NotificationService {
      */
     private const OUTBOX_MAX_ATTEMPTS = 10;
 
+    /**
+     * Why the last claimAndSendRecall() sent nothing: 'busy' (a calendar change
+     * held the lock), 'not_due' (no longer as late as the recall needs),
+     * 'claimed' (another run took it), 'send_failed' (the e-mail did not go out).
+     */
+    private string $lastRecallOutcome = '';
+
     public function __construct(mysqli $db) {
         $this->db = $db;
         $this->emailService = new EmailService($db);
@@ -1283,6 +1290,15 @@ class NotificationService {
             if ($this->claimAndSendRecall($loan, $maxRetries, $retryDelayMs, $stillDue)) {
                 return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
             }
+            if ($this->lastRecallOutcome === 'busy') {
+                return ['success' => false, 'message' => __('Il calendario della biblioteca è in aggiornamento: riprova tra qualche istante.')];
+            }
+            if ($this->lastRecallOutcome === 'not_due') {
+                return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
+            }
+            if ($this->lastRecallOutcome === 'claimed') {
+                return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
+            }
             return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
 
         } catch (\Throwable $e) {
@@ -1359,10 +1375,12 @@ class NotificationService {
         // (same #252/M3 rationale as the overdue sender).
         $now = DateHelper::now();
         $expectedCount = (int) $loan['recall_count'];
+        $this->lastRecallOutcome = '';
         $claim = function () use ($stillDue, $now, &$loan, $expectedCount): bool {
             if ($stillDue !== null) {
                 $days = $stillDue();
                 if ($days === false) {
+                    $this->lastRecallOutcome = 'not_due';
                     return false;
                 }
                 $loan['giorni_ritardo'] = $days;
@@ -1374,7 +1392,15 @@ class NotificationService {
             $updateStmt->close();
             return $claimed;
         };
-        $claimed = $stillDue === null ? $claim() : (bool) $this->underCalendarLock($claim, false);
+        $claimed = $stillDue === null ? $claim() : $this->underCalendarLock($claim, null);
+        if ($claimed === null) {
+            $this->lastRecallOutcome = 'busy';
+            return false;
+        }
+        $claimed = (bool) $claimed;
+        if (!$claimed && $this->lastRecallOutcome === '') {
+            $this->lastRecallOutcome = 'claimed';
+        }
 
         if (!$claimed) {
             return false;

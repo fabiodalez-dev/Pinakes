@@ -584,11 +584,13 @@ final class PushDispatcher
     private function claimIfDueUnchanged(int $userId, string $eventKey, int $loanId, string $dueDate): bool
     {
         return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate): bool {
-            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ?");
+            // Same reader too: a loan reassigned since the sweep read it is
+            // not announced to the previous borrower.
+            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ?");
             if ($stmt === false) {
                 return false;
             }
-            $stmt->bind_param('is', $loanId, $dueDate);
+            $stmt->bind_param('iis', $loanId, $userId, $dueDate);
             $stmt->execute();
             $res = $stmt->get_result();
             $same = $res instanceof \mysqli_result && $res->num_rows === 1;
