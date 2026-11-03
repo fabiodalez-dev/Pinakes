@@ -1317,12 +1317,26 @@ class NotificationService {
             LibraryCalendar::reset();
             return $work();
         } finally {
+            $this->releaseCalendarLock($lockName);
+        }
+    }
+
+    /**
+     * RELEASE_LOCK with one retry. A release that fails while the session is
+     * alive would keep every calendar writer waiting until this batch ends, so
+     * a second attempt follows a failed one; only a lock still held after both
+     * is logged (it then dies with the session at the latest).
+     */
+    private function releaseCalendarLock(string $escapedName): void
+    {
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
             try {
-                $this->db->query("SELECT RELEASE_LOCK('{$lockName}')");
+                $this->db->query("SELECT RELEASE_LOCK('{$escapedName}')");
+                return;
             } catch (\Throwable $e) {
-                // The lock dies with the session at the latest; the calendar
-                // writers meanwhile get "another change is running".
-                SecureLogger::error('Calendar lock not released: ' . $e->getMessage());
+                if ($attempt === 2) {
+                    SecureLogger::error('Calendar lock not released: ' . $e->getMessage());
+                }
             }
         }
     }
