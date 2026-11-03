@@ -223,8 +223,10 @@ final class LibraryCalendar
      * added days are promised to a copyless reservation (CapacityService, as
      * a renewal checks). The late-day count already starts from the first
      * open day after a closed due date (FineCalculator::daysLate()), so the
-     * reader is not charged for it. A deadlock or lock timeout is thrown, so
-     * the calendar save that called this rolls back instead of committing.
+     * reader is not charged for it. A deadlock or lock timeout is thrown: at
+     * once inside a caller's transaction (the calendar save rolls back instead
+     * of committing), or after the other loans in its own per-loan
+     * transactions, as an incomplete run the caller retries.
      *
      * A loan already flipped to 'in_ritardo' whose due date is now a closed
      * day, with no open day after it gone by yet (isPastDue() false), goes
@@ -260,6 +262,7 @@ final class LibraryCalendar
 
         $capacity = new \App\Services\CapacityService($db);
         $moved = 0;
+        $lockConflicts = 0;
         foreach ($rows as $row) {
             $due = substr((string) $row['data_scadenza'], 0, 10);
             $next = $calendar->nextOpenDay($due, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
@@ -312,11 +315,18 @@ final class LibraryCalendar
                     } catch (\Throwable) {
                     }
                 }
+                $lockConflict = $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1205, 1213], true);
                 // Deadlock / lock wait timeout inside a caller's transaction:
                 // MySQL rolled it back (or will), and it must not commit as if
                 // the move had worked.
-                if (!$ownTransaction && $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1205, 1213], true)) {
+                if ($lockConflict && !$ownTransaction) {
                     throw $e;
+                }
+                // In its own transaction the loan is rolled back alone: the
+                // others are still moved, and the run reports itself incomplete
+                // at the end so the caller can retry it.
+                if ($lockConflict) {
+                    $lockConflicts++;
                 }
                 SecureLogger::warning('Calendar: due date of loan ' . $id . ' not moved: ' . $e->getMessage());
                 continue;
@@ -327,6 +337,11 @@ final class LibraryCalendar
         }
 
         self::reconcileOverdue($db, $today, $operatorId);
+        if ($lockConflicts > 0) {
+            // Loans already moved are not touched again by a retry (their due
+            // date is open now), so a second run only finishes these.
+            throw new \RuntimeException("Calendar: {$lockConflicts} due date(s) not moved after a lock conflict ({$moved} moved)");
+        }
         return $moved;
     }
 

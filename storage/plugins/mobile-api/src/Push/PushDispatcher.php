@@ -562,11 +562,6 @@ final class PushDispatcher
     // ─── Dedup log ────────────────────────────────────────────────────────────
 
     /**
-     * Atomically claim a (user, event-key) pair. Returns true exactly once per
-     * pair (UNIQUE index + INSERT IGNORE). A claimed-but-undelivered event simply
-     * shows up in the in-app feed, so a lost push is never a lost notification.
-     */
-    /**
      * claim() for an overdue push, only while the loan is late by the current
      * calendar (re-read under the lock every calendar write holds). False when
      * the loan is not late yet, the event was already claimed, or a calendar
@@ -600,6 +595,11 @@ final class PushDispatcher
         }
     }
 
+    /**
+     * Atomically claim a (user, event-key) pair. Returns true exactly once per
+     * pair (UNIQUE index + INSERT IGNORE). A claimed-but-undelivered event simply
+     * shows up in the in-app feed, so a lost push is never a lost notification.
+     */
     private function claim(int $userId, string $eventKey): bool
     {
         $stmt = $this->db->prepare(

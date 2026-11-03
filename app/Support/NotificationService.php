@@ -1283,13 +1283,6 @@ class NotificationService {
     }
 
     /**
-     * Shared claim-then-send for one recall (automatic and manual paths).
-     * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
-     * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
-     * the recall email actually went out; on failure the claim is reverted so a
-     * later run can retry.
-     */
-    /**
      * Run $work under the named lock every calendar write holds, with the
      * calendar read afresh: a claim decided there cannot use a calendar that a
      * closure saved a moment ago has changed. $busy is returned, without
@@ -1319,6 +1312,12 @@ class NotificationService {
     }
 
     /**
+     * Shared claim-then-send for one recall (automatic and manual paths).
+     * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
+     * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
+     * the recall email actually went out; on failure the claim is reverted so a
+     * later run can retry.
+     *
      * @param ?callable(): bool $stillDue re-checked under the calendar lock
      *        right before the claim (the loan is still as late as the recall
      *        needs, by the calendar as it is now); null = no calendar check.
