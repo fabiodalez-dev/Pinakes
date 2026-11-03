@@ -339,6 +339,34 @@ test.describe.serial('Closures added after the loan', () => {
     }
   });
 
+  test('Move 11: when the next booking of that copy starts the day after, the activation still happens and keeps the date', async () => {
+    const book = title('activate-booked');
+    const copy = book.copyIds[0];
+    const due = addDays(today, 12);
+    db(`INSERT INTO sedi (nome) VALUES ('${TAG} attivazione2')`);
+    const sede = F.dbInt(`SELECT id FROM sedi WHERE nome='${TAG} attivazione2'`);
+    try {
+      db(`UPDATE copie SET sede_id=${sede} WHERE id=${copy}`);
+      db(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id, attiva) VALUES ('${due}', '${due}', '${TAG} activate2', ${sede}, 1)`);
+      created.closures.add(F.dbInt(`SELECT id FROM calendario_chiusure WHERE descrizione='${TAG} activate2'`));
+      // Another reader holds that copy from the day after the due date.
+      db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, ${copy}, ${other.id}, '${addDays(due, 1)}', '${addDays(due, 15)}', 'prenotato', 'prenotazione', 1)`);
+      db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, NULL, ${patron.id}, '${today}', '${due}', 'prenotato', 'prenotazione', 1)`);
+      const loanId = F.dbInt(`SELECT id FROM prestiti WHERE libro_id=${book.id} AND utente_id=${patron.id} ORDER BY id DESC LIMIT 1`);
+      runMaintenance();
+      // Moving the date would overlap the next booking (the trigger would
+      // refuse the whole activation, on every pass): activated, date kept.
+      expect(loanRow(loanId).split('|').slice(0, 2)).toEqual(['da_ritirare', due]);
+      expect(F.dbInt(`SELECT copia_id FROM prestiti WHERE id=${loanId}`)).toBe(copy);
+    } finally {
+      db(`DELETE FROM prestiti WHERE libro_id=${book.id}`);
+      db(`UPDATE copie SET sede_id=NULL WHERE id=${copy}`);
+      db(`DELETE FROM calendario_chiusure WHERE id IN (${ids(created.closures)})`);
+      created.closures.clear();
+      db(`DELETE FROM sedi WHERE id=${sede}`);
+    }
+  });
+
   test('Move 7: switching the closures module on moves a due date that falls on a stored closure', async () => {
     const book = title('module');
     await ft.setModuleInUi(page, 'closures_calendar', false);
