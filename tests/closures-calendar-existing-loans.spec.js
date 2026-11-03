@@ -306,6 +306,39 @@ test.describe.serial('Closures added after the loan', () => {
     expect(db(`SELECT IFNULL(utente_id, 'system') FROM log_modifiche WHERE tabella='libri' AND record_id=${book.id} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event'))='loan.due_moved'`)).toBe('system');
   });
 
+  test('Move 10: a booking activated onto a copy whose branch is closed on its due date gets the next open day, before its pickup notice', async () => {
+    const book = title('activate');
+    const copy = book.copyIds[0];
+    const due = addDays(today, 12);
+    db(`INSERT INTO sedi (nome) VALUES ('${TAG} attivazione')`);
+    const sede = F.dbInt(`SELECT id FROM sedi WHERE nome='${TAG} attivazione'`);
+    try {
+      db(`UPDATE copie SET sede_id=${sede} WHERE id=${copy}`);
+      // That branch closes on the due date; the library as a whole does not.
+      db(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id, attiva) VALUES ('${due}', '${due}', '${TAG} activate', ${sede}, 1)`);
+      created.closures.add(F.dbInt(`SELECT id FROM calendario_chiusure WHERE descrizione='${TAG} activate'`));
+      // Booked on the title, no copy yet: the activation assigns the only
+      // copy, the one in the closed branch.
+      db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, NULL, ${patron.id}, '${today}', '${due}', 'prenotato', 'prenotazione', 1)`);
+      const loanId = F.dbInt(`SELECT id FROM prestiti WHERE libro_id=${book.id} AND utente_id=${patron.id} ORDER BY id DESC LIMIT 1`);
+      runMaintenance();
+      const [state, newDue, deadline] = loanRow(loanId).split('|');
+      expect(state).toBe('da_ritirare');
+      expect(F.dbInt(`SELECT copia_id FROM prestiti WHERE id=${loanId}`)).toBe(copy);
+      expect(newDue).toBe(addDays(due, 1));
+      expect(deadline <= newDue).toBe(true);
+      // Corrected by the activation itself, before its pickup-ready notice,
+      // not by a later move (which would leave the notice with the old date).
+      expect(dueMovedEvents(book.id)).toBe(0);
+    } finally {
+      db(`DELETE FROM prestiti WHERE libro_id=${book.id}`);
+      db(`UPDATE copie SET sede_id=NULL WHERE id=${copy}`);
+      db(`DELETE FROM calendario_chiusure WHERE id IN (${ids(created.closures)})`);
+      created.closures.clear();
+      db(`DELETE FROM sedi WHERE id=${sede}`);
+    }
+  });
+
   test('Move 7: switching the closures module on moves a due date that falls on a stored closure', async () => {
     const book = title('module');
     await ft.setModuleInUi(page, 'closures_calendar', false);

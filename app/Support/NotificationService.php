@@ -762,11 +762,14 @@ class NotificationService {
                 // A closure saved since the list was read can make this loan
                 // not late any more: check again under the lock the calendar
                 // writes hold, and claim it before letting the calendar change.
-                $claimed = (bool) $this->underCalendarLock(function () use ($loan, $today): bool {
+                $claimed = (bool) $this->underCalendarLock(function () use (&$loan, $today): bool {
                     $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
                     if (!LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
                         return false;
                     }
+                    // The e-mail and the in-app notice say the count of the
+                    // calendar as it is now, under the lock.
+                    $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
                     // ATOMIC: mark the notice sent BEFORE the e-mail; only an
                     // affected row proceeds. The state guard (M3) keeps a loan
                     // returned meanwhile out, and re-asserting data_scadenza
@@ -1201,7 +1204,10 @@ class NotificationService {
             foreach ($loans as $loan) {
                 $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
                 $needed = $intervalDays * ((int) $loan['recall_count'] + 1);
-                $stillDue = fn (): bool => LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today) >= $needed;
+                $stillDue = function () use ($loan, $copyId, $today, $needed): int|false {
+                    $days = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                    return $days >= $needed ? $days : false;
+                };
                 $sentCount += $this->claimAndSendRecall($loan, 3, 1000, $stillDue) ? 1 : 0;
             }
 
@@ -1270,7 +1276,10 @@ class NotificationService {
             }
 
             $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
-            $stillDue = fn (): bool => LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+            $stillDue = function () use ($loan, $copyId, $today): int|false {
+                $days = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                return $days >= 1 ? $days : false;
+            };
             if ($this->claimAndSendRecall($loan, $maxRetries, $retryDelayMs, $stillDue)) {
                 return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
             }
@@ -1291,12 +1300,16 @@ class NotificationService {
      */
     private function underCalendarLock(callable $work, mixed $busy): mixed
     {
-        $lockName = LibraryCalendar::lockName($this->db);
-        $lock = $this->db->prepare('SELECT GET_LOCK(?, 5)');
-        $lock->bind_param('s', $lockName);
-        $lock->execute();
-        $locked = (int) ($lock->get_result()->fetch_row()[0] ?? 0) === 1;
-        $lock->close();
+        // Plain queries, no prepared statement: a release must not depend on
+        // prepare() succeeding (strict mode throws, max_prepared_stmt_count).
+        $lockName = $this->db->real_escape_string(LibraryCalendar::lockName($this->db));
+        try {
+            $res = $this->db->query("SELECT GET_LOCK('{$lockName}', 5)");
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar lock not taken: ' . $e->getMessage());
+            return $busy;
+        }
+        $locked = $res instanceof \mysqli_result && (int) ($res->fetch_row()[0] ?? 0) === 1;
         if (!$locked) {
             return $busy;
         }
@@ -1304,10 +1317,13 @@ class NotificationService {
             LibraryCalendar::reset();
             return $work();
         } finally {
-            $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
-            $release->bind_param('s', $lockName);
-            $release->execute();
-            $release->close();
+            try {
+                $this->db->query("SELECT RELEASE_LOCK('{$lockName}')");
+            } catch (\Throwable $e) {
+                // The lock dies with the session at the latest; the calendar
+                // writers meanwhile get "another change is running".
+                SecureLogger::error('Calendar lock not released: ' . $e->getMessage());
+            }
         }
     }
 
@@ -1318,9 +1334,10 @@ class NotificationService {
      * the recall email actually went out; on failure the claim is reverted so a
      * later run can retry.
      *
-     * @param ?callable(): bool $stillDue re-checked under the calendar lock
-     *        right before the claim (the loan is still as late as the recall
-     *        needs, by the calendar as it is now); null = no calendar check.
+     * @param ?callable(): (int|false) $stillDue re-checked under the calendar
+     *        lock right before the claim: the days late by the calendar as it
+     *        is now when the loan is still as late as the recall needs (used
+     *        in the e-mail), false otherwise; null = no calendar check.
      */
     private function claimAndSendRecall(array $loan, int $maxRetries = 3, int $retryDelayMs = 1000, ?callable $stillDue = null): bool {
         // ATOMIC: bump the counter BEFORE sending. Re-assert data_scadenza and
@@ -1328,9 +1345,13 @@ class NotificationService {
         // (same #252/M3 rationale as the overdue sender).
         $now = DateHelper::now();
         $expectedCount = (int) $loan['recall_count'];
-        $claim = function () use ($stillDue, $now, $loan, $expectedCount): bool {
-            if ($stillDue !== null && !$stillDue()) {
-                return false;
+        $claim = function () use ($stillDue, $now, &$loan, $expectedCount): bool {
+            if ($stillDue !== null) {
+                $days = $stillDue();
+                if ($days === false) {
+                    return false;
+                }
+                $loan['giorni_ritardo'] = $days;
             }
             $updateStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
             $updateStmt->bind_param('sisi', $now, $loan['id'], $loan['data_scadenza'], $expectedCount);

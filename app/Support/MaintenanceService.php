@@ -1091,10 +1091,18 @@ class MaintenanceService
                 // data_scadenza (L1): senza il cap un prestito con finestra corta
                 // restava ritirabile (e la copia bloccata) oltre la fine del
                 // prestito stesso.
+                // The copy just assigned decides the branch calendar: a due date
+                // on a day that branch is closed moves to its next open day now,
+                // before the pickup deadline is capped at it and the reader is
+                // told both (the pickup-ready e-mail below).
+                $dueDate = (string) $loan['data_scadenza'];
+                if ($dueDate !== '') {
+                    $dueDate = LibraryCalendar::dueDate($this->db, substr($dueDate, 0, 10), $copiaId);
+                }
                 // Open days only (closures calendar); identical to +N days without closures.
                 $pickupDeadline = LibraryCalendar::pickupDeadline($this->db, $today, $pickupDays, null, $copiaId);
-                if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $pickupDeadline) {
-                    $pickupDeadline = $loan['data_scadenza'];
+                if ($dueDate !== '' && $dueDate < $pickupDeadline) {
+                    $pickupDeadline = $dueDate;
                 }
 
                 $beforeSnapshot = ActivityLog::loadLoanSnapshot($this->db, $loanId);
@@ -1103,10 +1111,12 @@ class MaintenanceService
                 // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
-                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?{$pickupColumnReset}
+                    SET stato = 'da_ritirare', pickup_deadline = ?, copia_id = ?,
+                        data_scadenza = COALESCE(?, data_scadenza){$pickupColumnReset}
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1 AND data_scadenza >= ?
                 ");
-                $updateStmt->bind_param('siis', $pickupDeadline, $copiaId, $loan['id'], $today);
+                $newDue = $dueDate !== '' ? $dueDate : null;
+                $updateStmt->bind_param('sisis', $pickupDeadline, $copiaId, $newDue, $loan['id'], $today);
                 $updateStmt->execute();
                 $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();

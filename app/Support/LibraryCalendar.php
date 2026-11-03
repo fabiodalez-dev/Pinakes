@@ -262,7 +262,7 @@ final class LibraryCalendar
 
         $capacity = new \App\Services\CapacityService($db);
         $moved = 0;
-        $lockConflicts = 0;
+        $notMoved = 0;
         foreach ($rows as $row) {
             $due = substr((string) $row['data_scadenza'], 0, 10);
             $next = $calendar->nextOpenDay($due, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
@@ -323,12 +323,17 @@ final class LibraryCalendar
                 if ($lockConflict && !$ownTransaction) {
                     throw $e;
                 }
-                // In its own transaction the loan is rolled back alone: the
-                // others are still moved, and the run reports itself incomplete
-                // at the end so the caller can retry it.
-                if ($lockConflict) {
-                    $lockConflicts++;
+                // The overlap trigger refusing the move (SIGNAL, errno 1644):
+                // the next reservation of that copy starts on a day the new
+                // date reaches. Expected, not a failure: the loan keeps its date.
+                if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1644) {
+                    continue;
                 }
+                // Any other failure, or a lock conflict in its own transaction:
+                // that loan is rolled back alone, the others are still moved,
+                // and the run reports itself incomplete at the end so the
+                // caller can retry it and tell the librarian.
+                $notMoved++;
                 SecureLogger::warning('Calendar: due date of loan ' . $id . ' not moved: ' . $e->getMessage());
                 continue;
             }
@@ -338,10 +343,10 @@ final class LibraryCalendar
         }
 
         self::reconcileOverdue($db, $today, $operatorId);
-        if ($lockConflicts > 0) {
+        if ($notMoved > 0) {
             // Loans already moved are not touched again by a retry (their due
             // date is open now), so a second run only finishes these.
-            throw new \RuntimeException("Calendar: {$lockConflicts} due date(s) not moved after a lock conflict ({$moved} moved)");
+            throw new \RuntimeException("Calendar: {$notMoved} due date(s) not moved ({$moved} moved)");
         }
         return $moved;
     }

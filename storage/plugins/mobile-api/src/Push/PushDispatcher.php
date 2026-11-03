@@ -124,7 +124,7 @@ final class PushDispatcher
                 $counters['skipped']++;
                 continue;
             }
-            if (!$this->claim($userId, $key)) {
+            if (!$this->claimIfDueUnchanged($userId, $key, (int) $r['id'], (string) $r['data_scadenza'])) {
                 continue;
             }
             $events++;
@@ -569,28 +569,60 @@ final class PushDispatcher
      */
     private function claimIfPastDue(int $userId, string $eventKey, string $dueDate, ?int $copyId, string $today): bool
     {
-        $lockName = LibraryCalendar::lockName($this->db);
-        $lock = $this->db->prepare('SELECT GET_LOCK(?, 5)');
-        if ($lock === false) {
-            return false;
+        return (bool) $this->underCalendarLock(
+            fn (): bool => LibraryCalendar::isPastDue($this->db, $dueDate, $copyId, $today) && $this->claim($userId, $eventKey),
+            false
+        );
+    }
+
+    /**
+     * claim() for a due-soon push, only while the loan still has the due date
+     * the sweep read (a calendar change moves it, re-read under the lock every
+     * calendar write holds): the push never quotes a date that was moved. The
+     * moved date gets its own event key on the next sweep.
+     */
+    private function claimIfDueUnchanged(int $userId, string $eventKey, int $loanId, string $dueDate): bool
+    {
+        return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate): bool {
+            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ?");
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('is', $loanId, $dueDate);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $same = $res instanceof \mysqli_result && $res->num_rows === 1;
+            $stmt->close();
+            return $same && $this->claim($userId, $eventKey);
+        }, false);
+    }
+
+    /**
+     * Run $work under the named lock every calendar write holds, with the
+     * calendar read afresh. $busy is returned, without running $work, while a
+     * calendar change holds the lock (the next sweep retries). Plain queries,
+     * no prepared statement: the release must not depend on prepare().
+     */
+    private function underCalendarLock(callable $work, mixed $busy): mixed
+    {
+        $lockName = $this->db->real_escape_string(LibraryCalendar::lockName($this->db));
+        try {
+            $res = $this->db->query("SELECT GET_LOCK('{$lockName}', 5)");
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Push: calendar lock not taken: ' . $e->getMessage());
+            return $busy;
         }
-        $lock->bind_param('s', $lockName);
-        $lock->execute();
-        $res = $lock->get_result();
-        $locked = $res instanceof \mysqli_result && (int) ($res->fetch_row()[0] ?? 0) === 1;
-        $lock->close();
-        if (!$locked) {
-            return false;
+        if (!($res instanceof \mysqli_result) || (int) ($res->fetch_row()[0] ?? 0) !== 1) {
+            return $busy;
         }
         try {
             LibraryCalendar::reset();
-            return LibraryCalendar::isPastDue($this->db, $dueDate, $copyId, $today) && $this->claim($userId, $eventKey);
+            return $work();
         } finally {
-            $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
-            if ($release !== false) {
-                $release->bind_param('s', $lockName);
-                $release->execute();
-                $release->close();
+            try {
+                $this->db->query("SELECT RELEASE_LOCK('{$lockName}')");
+            } catch (\Throwable $e) {
+                SecureLogger::error('Push: calendar lock not released: ' . $e->getMessage());
             }
         }
     }
