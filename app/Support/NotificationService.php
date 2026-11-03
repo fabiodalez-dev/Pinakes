@@ -751,8 +751,8 @@ class NotificationService {
             while ($loan = $result->fetch_assoc()) {
                 $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
                 if (LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
-                    // Days late as the fine counts them: open days only.
-                    $loan['giorni_ritardo'] = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                    // Days late as the fine counts them (open days), at least 1.
+                    $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
                     $loans[] = $loan;
                 }
             }
@@ -1266,7 +1266,9 @@ class NotificationService {
             if ((int) $loan['attivo'] !== 1 || !in_array((string) $loan['stato'], ['in_corso', 'in_ritardo'], true)) {
                 return ['success' => false, 'message' => __('Il sollecito è disponibile solo per prestiti attivi con libro in mano all\'utente.')];
             }
-            $loan['giorni_ritardo'] = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, $today);
+            // 0 only when the loan is not late yet (isPastDue()); a late loan
+            // counts at least 1 day even when today is closed.
+            $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, $today);
             if ((int) $loan['giorni_ritardo'] < 1) {
                 return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
             }

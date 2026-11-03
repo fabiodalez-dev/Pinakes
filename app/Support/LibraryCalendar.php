@@ -356,6 +356,20 @@ final class LibraryCalendar
     }
 
     /**
+     * Days late to tell the reader or the staff: 0 while the loan is not late
+     * (isPastDue() false), otherwise the open-day count but at least 1. A loan
+     * due on the last open day before a closed one is late on that closed day
+     * with no open day counted yet: it says "1 day", never "0 days late".
+     */
+    public static function lateDaysForNotice(\mysqli $db, string $dueDate, ?int $copiaId, string $today): int
+    {
+        if (!self::isPastDue($db, $dueDate, $copiaId, $today)) {
+            return 0;
+        }
+        return max(1, self::openDaysLate($db, $dueDate, $copiaId, $today));
+    }
+
+    /**
      * The named lock every calendar write holds (one per database), also taken
      * by readers that must not act on a calendar being changed.
      */

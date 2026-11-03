@@ -102,6 +102,27 @@ try {
     $check(LibraryCalendar::openDaysLate($db, $twoDaysAgo, $closedCopy, $today) === 1, 'a closed day inside the late period is not counted (1 day, not 2)');
     $check(LibraryCalendar::openDaysLate($db, $twoDaysAgo, $openCopy, $today) === 2, 'with every day open the count is the plain number of days (2)');
     $check(LibraryCalendar::openDaysLate($db, $yesterday, $closedCopy, $today) === 0, 'returned on the first open day after a closed due day: 0 days late');
+    $check(LibraryCalendar::lateDaysForNotice($db, $yesterday, $closedCopy, $today) === 0, 'a loan not late yet has no days late in a notice');
+
+    // Today closed for everyone, the loan due yesterday (open): late today,
+    // with no open day counted yet. A notice or a recall says 1 day, not 0.
+    $weekdaysRow = $db->query("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    $weekdaysBefore = ($weekdaysRow instanceof mysqli_result && ($w = $weekdaysRow->fetch_row()) !== null) ? (string) $w[0] : null;
+    $todayWeekday = (int) (new DateTimeImmutable($today))->format('w');
+    $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','{$todayWeekday}') ON DUPLICATE KEY UPDATE setting_value='{$todayWeekday}'");
+    LibraryCalendar::reset();
+    try {
+        $check(LibraryCalendar::isPastDue($db, $yesterday, $openCopy, $today), 'due on the last open day, late on the closed day after it');
+        $check(LibraryCalendar::openDaysLate($db, $yesterday, $openCopy, $today) === 0, 'no open day late counted yet');
+        $check(LibraryCalendar::lateDaysForNotice($db, $yesterday, $openCopy, $today) === 1, 'the notice says 1 day late, never 0');
+    } finally {
+        if ($weekdaysBefore === null) {
+            $db->query("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+        } else {
+            $db->query("UPDATE system_settings SET setting_value='" . $db->real_escape_string($weekdaysBefore) . "' WHERE category='loans' AND setting_key='closed_weekdays'");
+        }
+        LibraryCalendar::reset();
+    }
 } finally {
     if ($ids['user'] > 0) {
         $db->query("DELETE FROM mobile_push_log WHERE user_id={$ids['user']}");
