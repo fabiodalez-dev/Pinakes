@@ -3778,6 +3778,7 @@
   "Prestito già processato da un altro utente": "Lån allerede behandlet af en anden bruger",
   "Prestito in ritardo": "Forsinket lån",
   "Scadenza spostata: la biblioteca è chiusa quel giorno": "Afleveringsdato flyttet: biblioteket er lukket den dag",
+  "Il calendario è salvato, ma alcune scadenze dei prestiti non sono state ancora spostate: lo farà la prossima manutenzione automatica.": "Kalenderen er gemt, men nogle afleveringsdatoer er endnu ikke flyttet: den næste automatiske vedligeholdelse gør det.",
   "Prestito non trovato": "Lån ikke fundet",
   "Prestito non trovato o già processato": "Lån ikke fundet eller allerede behandlet",
   "Prestito non trovato o non cancellabile": "Lån ikke fundet eller kan ikke annulleres",

@@ -3,8 +3,11 @@
 // closes (LibraryCalendar::extendDueDates()), not only the ones a suite made.
 // snapshotLoans() keeps the active loans as they were before the suite;
 // restoreLoans() puts back the ones a calendar change moved during the run
-// (history entries with source "calendar") and removes those entries. Loans
-// the suite created are deleted by the suite itself.
+// and removes those history entries, but only the entries this suite's own
+// saves wrote: source "calendar" and the operator the suite logs in as. A
+// move by the maintenance pass (recorded as the system) or by another
+// operator on a shared database is left as it is. Loans the suite created
+// are deleted by the suite itself.
 
 /**
  * @param {(sql: string) => string} db
@@ -19,10 +22,12 @@ function snapshotLoans(db, table) {
 /**
  * @param {(sql: string) => string} db
  * @param {{table: string, maxLog: number} | null} snap
+ * @param {string} operatorEmail the account the suite's calendar saves run as
  */
-function restoreLoans(db, snap) {
+function restoreLoans(db, snap, operatorEmail) {
   if (!snap) return;
-  const calendarEvents = `FROM log_modifiche WHERE id > ${snap.maxLog} AND tabella = 'libri'
+  const operator = parseInt(db(`SELECT COALESCE((SELECT id FROM utenti WHERE email = '${operatorEmail.replace(/'/g, "''")}' LIMIT 1), 0)`) || '0', 10);
+  const calendarEvents = `FROM log_modifiche WHERE id > ${snap.maxLog} AND tabella = 'libri' AND utente_id = ${operator}
       AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.source')) = 'calendar'
       AND CAST(JSON_EXTRACT(dati_nuovi, '$._activity.entity_id') AS UNSIGNED) IN (SELECT id FROM ${snap.table})`;
   const ids = db(`SELECT DISTINCT CAST(JSON_EXTRACT(dati_nuovi, '$._activity.entity_id') AS UNSIGNED) ${calendarEvents}`)

@@ -3778,6 +3778,7 @@
   "Prestito già processato da un altro utente": "Emprunt déjà traité par un autre utilisateur",
   "Prestito in ritardo": "Emprunt en retard",
   "Scadenza spostata: la biblioteca è chiusa quel giorno": "Échéance déplacée : la bibliothèque est fermée ce jour-là",
+  "Il calendario è salvato, ma alcune scadenze dei prestiti non sono state ancora spostate: lo farà la prossima manutenzione automatica.": "Le calendrier est enregistré, mais certaines échéances de prêts n'ont pas encore été déplacées : la prochaine maintenance automatique s'en chargera.",
   "Prestito non trovato": "Emprunt introuvable",
   "Prestito non trovato o già processato": "Emprunt introuvable ou déjà traité",
   "Prestito non trovato o non cancellabile": "Emprunt introuvable ou ne peut pas être annulé",

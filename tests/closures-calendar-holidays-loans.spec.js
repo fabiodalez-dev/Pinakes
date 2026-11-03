@@ -275,7 +275,7 @@ test.describe('Holidays in circulation', () => {
       else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays',UNHEX('${prev.weekdays}')) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
       await ft.writeFeatures(prev.features);
     }
-    restoreLoans(db, loanSnap);
+    restoreLoans(db, loanSnap, ADMIN_EMAIL);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
     const ids = Object.values(books).map((b) => b.id).join(',') || '0';
     db(`DELETE FROM admin_notifications WHERE (type IN ('new_loan_request','overdue_loan') OR (type='general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids}))`);

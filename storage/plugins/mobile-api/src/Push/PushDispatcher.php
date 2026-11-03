@@ -152,7 +152,7 @@ final class PushDispatcher
     {
         $events = 0;
 
-        $sql = "SELECT pr.id, pr.utente_id, pr.libro_id, pr.data_scadenza, pr.stato, pr.copia_id, l.titolo
+        $sql = "SELECT pr.id, pr.utente_id, pr.libro_id, pr.data_scadenza, pr.copia_id, l.titolo
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                 WHERE pr.attivo = 1
@@ -168,13 +168,6 @@ final class PushDispatcher
         $stmt->close();
 
         foreach ($rows as $r) {
-            // A due day marked closed after the loan was made is not late until
-            // the first open day after it has gone by: same rule as the overdue
-            // sweep and the overdue e-mail (LibraryCalendar::isPastDue()).
-            if ((string) $r['stato'] === 'in_corso'
-                && !LibraryCalendar::isPastDue($this->db, (string) $r['data_scadenza'], $r['copia_id'] !== null ? (int) $r['copia_id'] : null, $today)) {
-                continue;
-            }
             $userId = (int) $r['utente_id'];
             // One overdue push per loop per loan (keyed on due date), not per day.
             $key    = 'loan_overdue:' . (int) $r['id'] . ':' . (string) $r['data_scadenza'];
@@ -182,7 +175,14 @@ final class PushDispatcher
                 $counters['skipped']++;
                 continue;
             }
-            if (!$this->claim($userId, $key)) {
+            // A due day marked closed after the loan was made is not late until
+            // the first open day after it has gone by: same rule as the overdue
+            // sweep and the overdue e-mail (LibraryCalendar::isPastDue()), for an
+            // 'in_ritardo' row too (a closure saved after the flip). Decided
+            // under the calendar writes' lock with the calendar read afresh, and
+            // claimed there, so a closure saved during this sweep is seen.
+            $copyId = $r['copia_id'] !== null ? (int) $r['copia_id'] : null;
+            if (!$this->claimIfPastDue($userId, $key, (string) $r['data_scadenza'], $copyId, $today)) {
                 continue;
             }
             $events++;
@@ -566,6 +566,40 @@ final class PushDispatcher
      * pair (UNIQUE index + INSERT IGNORE). A claimed-but-undelivered event simply
      * shows up in the in-app feed, so a lost push is never a lost notification.
      */
+    /**
+     * claim() for an overdue push, only while the loan is late by the current
+     * calendar (re-read under the lock every calendar write holds). False when
+     * the loan is not late yet, the event was already claimed, or a calendar
+     * change holds the lock (the next sweep retries).
+     */
+    private function claimIfPastDue(int $userId, string $eventKey, string $dueDate, ?int $copyId, string $today): bool
+    {
+        $lockName = LibraryCalendar::lockName($this->db);
+        $lock = $this->db->prepare('SELECT GET_LOCK(?, 5)');
+        if ($lock === false) {
+            return false;
+        }
+        $lock->bind_param('s', $lockName);
+        $lock->execute();
+        $res = $lock->get_result();
+        $locked = $res instanceof \mysqli_result && (int) ($res->fetch_row()[0] ?? 0) === 1;
+        $lock->close();
+        if (!$locked) {
+            return false;
+        }
+        try {
+            LibraryCalendar::reset();
+            return LibraryCalendar::isPastDue($this->db, $dueDate, $copyId, $today) && $this->claim($userId, $eventKey);
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+            if ($release !== false) {
+                $release->bind_param('s', $lockName);
+                $release->execute();
+                $release->close();
+            }
+        }
+    }
+
     private function claim(int $userId, string $eventKey): bool
     {
         $stmt = $this->db->prepare(

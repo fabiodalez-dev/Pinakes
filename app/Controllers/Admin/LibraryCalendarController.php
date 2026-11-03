@@ -567,10 +567,8 @@ class LibraryCalendarController
     {
         LibraryCalendar::reset();
         // Two independent moves: a failure of one must not skip the other.
-        try {
-            LibraryCalendar::extendDueDates($db);
-        } catch (\Throwable $e) {
-            SecureLogger::warning('Calendar: due dates not extended: ' . $e->getMessage());
+        if (!LibraryCalendar::extendDueDatesAfterSave($db)) {
+            $_SESSION['error_message'] = __('Il calendario è salvato, ma alcune scadenze dei prestiti non sono state ancora spostate: lo farà la prossima manutenzione automatica.');
         }
         try {
             LibraryCalendar::extendPickupDeadlines($db);

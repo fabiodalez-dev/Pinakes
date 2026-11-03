@@ -187,7 +187,7 @@ test.describe.serial('Closures added after the loan', () => {
       for (const [category, key] of SETTINGS) F.restoreSettingState(category, key, prev.settings[key]);
       await ft.writeFeatures(prev.features);
     }
-    restoreLoans(db, loanSnap);
+    restoreLoans(db, loanSnap, F.ADMIN_EMAIL);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
     for (const p of [patron, other]) {
       if (!p) continue;

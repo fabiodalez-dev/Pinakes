@@ -288,6 +288,13 @@ class MaintenanceService
             } catch (\Throwable $e) {
                 $results['errors'][] = 'extendDueDates: ' . $e->getMessage();
             }
+            // The pickup deadline of a just-activated loan is capped at its due
+            // date: once that date moved, the deadline may follow it.
+            try {
+                LibraryCalendar::extendPickupDeadlines($this->db);
+            } catch (\Throwable $e) {
+                $results['errors'][] = 'extendPickupDeadlines: ' . $e->getMessage();
+            }
         }
 
         try {

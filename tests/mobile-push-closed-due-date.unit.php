@@ -69,13 +69,14 @@ try {
 
     // Two loans due yesterday: one on a copy of the branch closed yesterday
     // (marked after the loan was made), one on a copy of no branch.
-    foreach (['closed' => $ids['sede'], 'open' => null] as $kind => $sede) {
+    // A third one, already flipped to 'in_ritardo' before the closure was saved.
+    foreach (['closed' => $ids['sede'], 'open' => null, 'late' => $ids['sede']] as $kind => $sede) {
         $db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato, created_at, updated_at) VALUES ('Push {$kind} {$run}', 1, 0, 'prestato', NOW(), NOW())");
         $bookId = (int) $db->insert_id;
         $ids['books'][] = $bookId;
         $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id, created_at) VALUES ({$bookId}, 'PCD-{$kind}-{$run}', 'prestato', " . ($sede === null ? 'NULL' : (int) $sede) . ', NOW())');
         $copyId = (int) $db->insert_id;
-        $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$bookId}, {$copyId}, {$ids['user']}, DATE_SUB('{$yesterday}', INTERVAL 14 DAY), '{$yesterday}', 'in_corso', 'diretto', 1)");
+        $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$bookId}, {$copyId}, {$ids['user']}, DATE_SUB('{$yesterday}', INTERVAL 14 DAY), '{$yesterday}', '" . ($kind === 'late' ? 'in_ritardo' : 'in_corso') . "', 'diretto', 1)");
         $ids['loans'][$kind] = (int) $db->insert_id;
     }
     $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id, attiva) VALUES ('{$yesterday}', '{$yesterday}', 'Push closed {$run}', {$ids['sede']}, 1)");
@@ -93,6 +94,7 @@ try {
     $check(LibraryCalendar::isPastDue($db, $yesterday, null, $today), 'a due date of yesterday on an open day is past due');
     $check(!$claimed($ids['loans']['closed']), 'no overdue push for a loan whose due day its branch marked closed afterwards');
     $check($claimed($ids['loans']['open']), 'the same loan on an open branch gets the overdue push');
+    $check(!$claimed($ids['loans']['late']), 'no overdue push either for a loan already marked late before its due day was closed');
 
     // Notices and recalls say how late the item is in open days, as the fine
     // counts them: due two days ago with yesterday closed is one day late.

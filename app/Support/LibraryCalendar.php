@@ -267,39 +267,85 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
+            $bookId = (int) $row['libro_id'];
+            // The capacity check and the move run with the book row locked, as
+            // a reservation's own check does (ReservationsController), so a
+            // copyless booking cannot be confirmed for the added days in
+            // between. A caller's transaction keeps the lock until it commits;
+            // without one (maintenance, autocommit) each loan gets its own.
+            // DbAtomic::inTransaction(): @@autocommit alone stays 1 inside begin_transaction().
+            $ownTransaction = !DbAtomic::inTransaction($db);
+            $changed = false;
+            $before = [];
             try {
-                if (!$capacity->hasFreeCapacity((int) $row['libro_id'], self::shift($due, 1), $next, excludePrestitoId: $id)) {
-                    continue;
+                if ($ownTransaction) {
+                    $db->begin_transaction();
                 }
-                $before = ActivityLog::loadLoanSnapshot($db, $id);
-                $update = $db->prepare(
-                    "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0
-                     WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
-                );
-                $update->bind_param('sis', $next, $id, $due);
-                $update->execute();
-                $changed = $update->affected_rows > 0;
-                $update->close();
-            } catch (\mysqli_sql_exception $e) {
-                // Deadlock / lock wait timeout: MySQL rolled back (or will) the
-                // caller's transaction, which must not commit as if it worked.
-                if (in_array($e->getCode(), [1205, 1213], true)) {
+                $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+                $lockBook->bind_param('i', $bookId);
+                $lockBook->execute();
+                $lockBook->get_result();
+                $lockBook->close();
+                if ($capacity->hasFreeCapacity($bookId, self::shift($due, 1), $next, excludePrestitoId: $id)) {
+                    $before = ActivityLog::loadLoanSnapshot($db, $id);
+                    $update = $db->prepare(
+                        "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0
+                         WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
+                    );
+                    $update->bind_param('sis', $next, $id, $due);
+                    $update->execute();
+                    $changed = $update->affected_rows > 0;
+                    $update->close();
+                    if ($changed) {
+                        ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar', $operatorId);
+                    }
+                }
+                if ($ownTransaction) {
+                    $db->commit();
+                }
+            } catch (\Throwable $e) {
+                if ($ownTransaction) {
+                    try {
+                        $db->rollback();
+                    } catch (\Throwable) {
+                    }
+                }
+                // Deadlock / lock wait timeout inside a caller's transaction:
+                // MySQL rolled it back (or will), and it must not commit as if
+                // the move had worked.
+                if (!$ownTransaction && $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1205, 1213], true)) {
                     throw $e;
                 }
-                SecureLogger::warning('Calendar: due date of loan ' . $id . ' not moved: ' . $e->getMessage());
-                continue;
-            } catch (\Throwable $e) {
                 SecureLogger::warning('Calendar: due date of loan ' . $id . ' not moved: ' . $e->getMessage());
                 continue;
             }
             if ($changed) {
                 $moved++;
-                ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar', $operatorId);
             }
         }
 
         self::reconcileOverdue($db, $today, $operatorId);
         return $moved;
+    }
+
+    /**
+     * extendDueDates() after a calendar change already committed (a page save,
+     * the module switched on): a deadlock or lock timeout is retried once.
+     * False when the moves are still incomplete, so the page can say so: the
+     * next maintenance pass moves what is left.
+     */
+    public static function extendDueDatesAfterSave(\mysqli $db): bool
+    {
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                self::reset();
+                self::extendDueDates($db);
+                return true;
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Calendar: due dates not extended (attempt ' . $attempt . '): ' . $e->getMessage());
+            }
+        }
+        return false;
     }
 
     /**
