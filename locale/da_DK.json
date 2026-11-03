@@ -5399,7 +5399,7 @@
   "Limite prestiti attivi per utente": "Grænse for aktive udlån pr. bruger",
   "Numero massimo di prestiti contemporaneamente attivi per ogni utente. Impostare 0 per nessun limite.": "Maksimalt antal samtidige aktive udlån pr. bruger. Sæt til 0 for ingen grænse.",
   "Prestiti conteggiati:": "Medregnede udlån:",
-  "prenotato, da_ritirare, in_corso, in_ritardo.": "reserveret, til_afhentning, i_gang, overskredet.",
+  "prenotato, da_ritirare, in_corso, in_ritardo.": "reserveret, til afhentning, i gang, overskredet.",
   "Numero massimo di prestiti attivi per utente": "Maksimalt antal aktive udlån pr. bruger",
   "prestiti (0 = nessun limite)": "udlån (0 = ingen grænse)",
   "Predefinito: 0 (nessun limite)": "Standard: 0 (ingen grænse)",

@@ -5399,7 +5399,7 @@
   "Limite prestiti attivi per utente": "Limite prestiti attivi per utente",
   "Numero massimo di prestiti contemporaneamente attivi per ogni utente. Impostare 0 per nessun limite.": "Numero massimo di prestiti contemporaneamente attivi per ogni utente. Impostare 0 per nessun limite.",
   "Prestiti conteggiati:": "Prestiti conteggiati:",
-  "prenotato, da_ritirare, in_corso, in_ritardo.": "prenotato, da_ritirare, in_corso, in_ritardo.",
+  "prenotato, da_ritirare, in_corso, in_ritardo.": "prenotati, da ritirare, in corso e in ritardo.",
   "Numero massimo di prestiti attivi per utente": "Numero massimo di prestiti attivi per utente",
   "prestiti (0 = nessun limite)": "prestiti (0 = nessun limite)",
   "Predefinito: 0 (nessun limite)": "Predefinito: 0 (nessun limite)",

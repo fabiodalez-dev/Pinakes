@@ -104,7 +104,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-sm:block max-sm:p-0"><span class="sm:hidden"><?= __("Lettori") ?>: </span><?= (int) ($circulationData['userCounts'][$cTypeId] ?? 0) ?></td>
               <td class="px-6 py-4 whitespace-nowrap text-sm max-sm:block max-sm:p-0 max-sm:pt-3 max-sm:border-t max-sm:border-gray-100">
                 <div class="flex items-center gap-2 max-sm:gap-5 max-sm:text-base">
-                  <a href="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-600 hover:text-gray-900" title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" data-testid="edit-type"><i class="fas fa-edit"></i></a>
+                  <a href="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-600 hover:text-gray-900 max-sm:inline-flex max-sm:items-center max-sm:gap-2 max-sm:px-3 max-sm:py-2 max-sm:rounded-xl max-sm:border max-sm:border-gray-300 max-sm:text-sm max-sm:font-semibold" title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" data-testid="edit-type"><i class="fas fa-edit"></i><span class="sm:hidden" aria-hidden="true"><?= __("Modifica") ?></span></a>
                   <?php foreach (['up' => ['fa-arrow-up', __('Sposta su'), $cIndex > 0], 'down' => ['fa-arrow-down', __('Sposta giù'), $cIndex < $cLast]] as $cDir => [$cIcon, $cLabel, $cEnabled]): if (!$cEnabled) { continue; } ?>
                   <form action="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId . '/move'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
@@ -175,13 +175,13 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                       <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']], 'renewal_days' => [__('Gg/rinnovo'), 'giorni_rinnovo', (string) $cInh['renewal_days']], 'grace' => [__('Tolleranza'), 'giorni_tolleranza', (string) $cInh['grace']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
                       <label class="flex items-center gap-1 text-xs text-gray-500 max-sm:flex-col max-sm:items-stretch" for="<?= $cId . '-' . $cField ?>">
                         <span class="w-20 shrink-0 max-sm:w-auto"><?= htmlspecialchars((string) ($cLabel), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" aria-label="<?= htmlspecialchars($cMediaLabel . ' — ' . $cLabel, ENT_QUOTES, 'UTF-8') ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400 max-sm:w-full max-sm:text-sm max-sm:py-2">
+                        <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" aria-label="<?= htmlspecialchars($cMediaLabel . ' — ' . $cLabel, ENT_QUOTES, 'UTF-8') ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-500 max-sm:w-full max-sm:text-sm max-sm:py-2">
                       </label>
                       <?php endforeach; ?>
                       <?php foreach (['fine' => [__('Multa/giorno'), 'multa_giornaliera'], 'fine_max' => [__('Multa max'), 'multa_massima_prestito']] as $cField => [$cLabel, $cColumn]): ?>
                       <label class="flex items-center gap-1 text-xs text-gray-500 max-sm:flex-col max-sm:items-stretch" for="<?= $cId . '-' . $cField ?>">
                         <span class="w-20 shrink-0 max-sm:w-auto"><?= htmlspecialchars($cLabel, ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $cId . '-' . $cField ?>" aria-label="<?= htmlspecialchars($cMediaLabel . ' — ' . $cLabel, ENT_QUOTES, 'UTF-8') ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cMoneyOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cMoneyPlaceholder($cInh[$cField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400 max-sm:w-full max-sm:text-sm max-sm:py-2">
+                        <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $cId . '-' . $cField ?>" aria-label="<?= htmlspecialchars($cMediaLabel . ' — ' . $cLabel, ENT_QUOTES, 'UTF-8') ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cMoneyOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cMoneyPlaceholder($cInh[$cField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-500 max-sm:w-full max-sm:text-sm max-sm:py-2">
                       </label>
                       <?php endforeach; ?>
                     </div>
@@ -193,7 +193,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
             </table>
           </div>
         </div>
-        <div class="flex justify-end">
+        <div class="flex justify-end pk-sticky-save">
           <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
             <i class="fas fa-save"></i>
             <?= __("Salva regole") ?>

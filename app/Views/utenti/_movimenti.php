@@ -86,7 +86,7 @@ $ledgerCanManage = $ledgerCanManage && App\Support\Permissions::can('loans.manag
     </div>
 
     <div class="overflow-x-auto">
-        <table class="min-w-full text-sm" id="ledger-movements">
+        <table class="min-w-full text-sm pk-stack-table" id="ledger-movements">
             <thead class="bg-slate-50 text-slate-600">
                 <tr>
                     <th scope="col" class="px-6 py-3 text-left font-medium"><?= __("Data") ?></th>

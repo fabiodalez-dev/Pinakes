@@ -620,7 +620,7 @@ unset($workspaceHeader);
           <i class="fas fa-calendar-alt text-gray-600"></i>
           <span id="calendar-preview-title"><?= $e(mb_convert_case($fmt('LLLL y', $month . '-01'), MB_CASE_TITLE, 'UTF-8')) ?></span>
         </h2>
-        <div class="flex items-center gap-2 pk-stack-mobile">
+        <div class="flex flex-wrap items-center gap-2 pk-month-nav">
           <?php $sedeQuery = $previewSede !== null ? '&sede=' . $previewSede : ''; ?>
           <a href="<?= htmlspecialchars(url('/admin/calendar') . '?month=' . $prevMonth . $sedeQuery, ENT_QUOTES, 'UTF-8') ?>" id="calendar-prev" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200" aria-label="<?= htmlspecialchars(__('Mese precedente'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-left"></i></a>
           <a href="<?= htmlspecialchars(url('/admin/calendar') . '?month=' . $nextMonth . $sedeQuery, ENT_QUOTES, 'UTF-8') ?>" id="calendar-next" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200" aria-label="<?= htmlspecialchars(__('Mese successivo'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right"></i></a>

@@ -152,7 +152,7 @@ unset($workspaceHeader);
   </div>
 
   <!-- Period selector -->
-  <div class="flex flex-wrap items-center gap-2 mb-4" role="group" aria-label="<?= htmlspecialchars(__('Periodo'), ENT_QUOTES, 'UTF-8') ?>">
+  <div class="flex flex-wrap items-center gap-2 mb-4 pk-period-group" role="group" aria-label="<?= htmlspecialchars(__('Periodo'), ENT_QUOTES, 'UTF-8') ?>">
     <span class="text-sm text-gray-600"><?= __("Periodo") ?>:</span>
     <?php foreach ($data['periods'] as $p): ?>
       <a href="<?= htmlspecialchars(url('/admin/attendance?days=' . (int) $p), ENT_QUOTES, 'UTF-8') ?>" class="<?= (int) $p === $days ? 'btn-primary' : 'btn-secondary' ?>" <?= (int) $p === $days ? 'aria-current="true"' : '' ?>>
