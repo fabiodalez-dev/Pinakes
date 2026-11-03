@@ -104,9 +104,23 @@ test.describe.serial('0.9.0 admin pages on a phone', () => {
     await page.goto('/admin/suppliers');
     const row = page.locator('#fornitori-table tbody tr', { hasText: `${TAG} Libreria` });
     await expect(row.locator('td').nth(1)).toHaveAttribute('data-label', /Referente/i);
+    // The column name is real text in the cell (read by screen readers once
+    // the header row is hidden), not only CSS-generated content.
+    await expect(row.locator('td').nth(1).locator('.pk-stack-label')).toBeVisible();
+    await expect(row.locator('td').nth(1).locator('.pk-stack-label')).toHaveText(/Referente/i);
     const cells = await row.locator('td').evaluateAll((tds) => tds.slice(0, 2).map((td) => Math.round(td.getBoundingClientRect().top)));
     expect(cells[1]).toBeGreaterThan(cells[0]); // one under the other, not side by side
     await expect(page.locator('#fornitori-table thead')).toBeHidden();
+  });
+
+  test('a search on a phone hides the suppliers that do not match', async ({ page }) => {
+    await F.loginAsAdmin(page);
+    await page.goto('/admin/suppliers');
+    const row = page.locator('#fornitori-table tbody tr[data-supplier-row]', { hasText: `${TAG} Libreria` });
+    await expect(row).toBeVisible();
+    const search = page.locator('#search_fornitore');
+    await search.fill(`zz-nessun-fornitore-${TAG}`);
+    await expect(row).toBeHidden();
   });
 
   test('a three-digit notification count shows as 99+ inside the badge', async ({ page }) => {
@@ -115,6 +129,7 @@ test.describe.serial('0.9.0 admin pages on a phone', () => {
     await page.goto('/admin/dashboard');
     const badge = page.locator('#notifications-badge');
     await expect(badge).toHaveText('99+');
+    await expect(badge).toHaveAttribute('aria-label', '812');
     const fits = await badge.evaluate((b) => b.scrollWidth <= b.clientWidth + 1);
     expect(fits).toBe(true);
   });

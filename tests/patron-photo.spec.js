@@ -219,6 +219,45 @@ test.describe.serial('Patron photo (phase 7)', () => {
     }
   });
 
+  test('a phone shot with EXIF orientation 6 is turned upright before the 4:5 crop', async ({ browser }) => {
+    const { devices } = require('@playwright/test');
+    const context = await browser.newContext({ ...devices['iPhone 13'] });
+    const page = await context.newPage();
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/users/edit/${userId}`);
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#patron-photo-widget').getByRole('button', { name: 'Scatta foto' }).tap()]);
+      // Stored 1600×900 with Orientation 6 (turn 90° clockwise): shown upright
+      // it is 900×1600, the stored top band (blue) on its right edge and the
+      // stored left band (red) on top, outside the centred 4:5 crop, and a
+      // yellow band (stored columns 1250-1300) across the lower part of the
+      // card. Read as stored, the crop would show blue at the top instead;
+      // turned upside down, the yellow band would sit near the top.
+      await chooser.setFiles(path.join(__dirname, 'fixtures', 'photo-exif-orientation-6.jpg'));
+      await expect(page.locator('#photo-status')).toHaveText('Foto salvata.', { timeout: 15000 });
+      const px = await page.locator('#photo-preview').evaluate(async (img) => {
+        const i = /** @type {HTMLImageElement} */ (img); await i.decode();
+        const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight;
+        const x = c.getContext('2d'); x.drawImage(i, 0, 0);
+        const at = (px, py) => Array.from(x.getImageData(px, py, 1, 1).data.slice(0, 3));
+        return { size: [i.naturalWidth, i.naturalHeight], top: at(240, 4), right: at(475, 300), left: at(4, 300), middle: at(240, 300), lower: at(240, 553), upper: at(240, 46) };
+      });
+      expect(px.size).toEqual([480, 600]);
+      const isBlue = ([r, g, b]) => b > 150 && r < 90 && g < 110;
+      const isGreen = ([r, g, b]) => g > 150 && r < 90 && b < 110;
+      expect(isBlue(px.right), `right edge ${px.right}`).toBe(true);
+      expect(isGreen(px.top), `top edge ${px.top}`).toBe(true);
+      expect(isGreen(px.left), `left edge ${px.left}`).toBe(true);
+      expect(isGreen(px.middle), `middle ${px.middle}`).toBe(true);
+      const isYellow = ([r, g, b]) => r > 170 && g > 150 && b < 100;
+      expect(isYellow(px.lower), `lower band ${px.lower}`).toBe(true);
+      expect(isGreen(px.upper), `upper area ${px.upper}`).toBe(true);
+      files.push(photoFile(storedPhoto(userId)));
+    } finally {
+      await context.close();
+    }
+  });
+
   test('a touch laptop with a desktop browser keeps the inline webcam', async ({ browser }) => {
     const context = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();

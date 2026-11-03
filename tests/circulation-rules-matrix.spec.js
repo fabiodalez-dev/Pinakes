@@ -76,7 +76,7 @@ test.describe.serial('Rules matrix: total and per-material limits, due date per 
       expect(box && box.x >= 0 && box.x + box.width <= widths[1]).toBe(true);
       expect(box && box.width).toBeGreaterThan(100);
       // The column header is hidden on a phone: the field names its material.
-      await expect(field).toHaveAccessibleName('Altro — Tolleranza');
+      await expect(field).toHaveAccessibleName(`Studente ${RUN} — Altro — Tolleranza`);
       await field.fill('2');
       // The page is already on tab=circulation: wait for the save itself.
       await Promise.all([

@@ -216,16 +216,29 @@ final class LibraryCalendar
      * now falls on a closed day of the copy's branch is due on the next open
      * day instead, as if it had been lent after the change: the reader never
      * had that day to bring it back. Covers loans out, waiting for pickup and
-     * booked ahead. Each move is recorded in the loan history. A move the
-     * copy cannot take (the next reservation of that copy starts on a day
-     * the new date reaches, refused by the overlap trigger) leaves the loan
-     * as it was: the late-day count already starts from the first open day
-     * after a closed due date (FineCalculator::daysLate()), so the reader is
-     * not charged for it. Past due dates are not moved: that loan is already
-     * late or returned. Call before extendPickupDeadlines(), whose cap is the
-     * due date. Returns the number of loans moved.
+     * booked ahead. Each move is recorded in the loan history and re-arms the
+     * due-soon reminder for the new date. A move the book cannot take is left
+     * out, the loan keeping its date: the next reservation of that copy starts
+     * on a day the new date reaches (refused by the overlap trigger), or the
+     * added days are promised to a copyless reservation (CapacityService, as
+     * a renewal checks). The late-day count already starts from the first
+     * open day after a closed due date (FineCalculator::daysLate()), so the
+     * reader is not charged for it. A deadlock or lock timeout is thrown: at
+     * once inside a caller's transaction (the calendar save rolls back instead
+     * of committing), or after the other loans in its own per-loan
+     * transactions, as an incomplete run the caller retries.
+     *
+     * A loan already flipped to 'in_ritardo' whose due date is now a closed
+     * day, with no open day after it gone by yet (isPastDue() false), goes
+     * back to 'in_corso'; its reminder flags are kept.
+     *
+     * Past due dates are not moved: that loan is late or returned. Call before
+     * extendPickupDeadlines(), whose cap is the due date. $operatorId is the
+     * history operator (ActivityLog::SYSTEM_OPERATOR from maintenance; null =
+     * the session user, for a save from the calendar pages). Returns the
+     * number of loans moved.
      */
-    public static function extendDueDates(\mysqli $db): int
+    public static function extendDueDates(\mysqli $db, ?int $operatorId = null): int
     {
         $calendar = self::forDb($db);
         if (!$calendar->hasRules()) {
@@ -233,7 +246,7 @@ final class LibraryCalendar
         }
         $today = DateHelper::today();
         $stmt = $db->prepare(
-            "SELECT p.id, p.data_scadenza, c.sede_id
+            "SELECT p.id, p.libro_id, p.data_scadenza, c.sede_id
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
@@ -247,7 +260,9 @@ final class LibraryCalendar
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
+        $capacity = new \App\Services\CapacityService($db);
         $moved = 0;
+        $notMoved = 0;
         foreach ($rows as $row) {
             $due = substr((string) $row['data_scadenza'], 0, 10);
             $next = $calendar->nextOpenDay($due, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
@@ -255,26 +270,190 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
-            $before = ActivityLog::loadLoanSnapshot($db, $id);
+            $bookId = (int) $row['libro_id'];
+            // The capacity check and the move run with the book row locked, as
+            // a reservation's own check does (ReservationsController), so a
+            // copyless booking cannot be confirmed for the added days in
+            // between. A caller's transaction keeps the lock until it commits;
+            // without one (maintenance, autocommit) each loan gets its own.
+            // DbAtomic::inTransaction(): @@autocommit alone stays 1 inside begin_transaction().
+            $ownTransaction = !DbAtomic::inTransaction($db);
+            $changed = false;
+            $before = [];
             try {
-                $update = $db->prepare(
-                    "UPDATE prestiti SET data_scadenza = ?
-                     WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
-                );
-                $update->bind_param('sis', $next, $id, $due);
-                $update->execute();
-                $changed = $update->affected_rows > 0;
-                $update->close();
+                if ($ownTransaction) {
+                    $db->begin_transaction();
+                }
+                // CI-SOFT-DELETE-EXEMPT: a lock, not a read for display; an active
+                // loan may belong to an archived book and its row is locked all the same.
+                // @include-soft-deleted (tests/code-quality.spec.js, check 5).
+                $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+                $lockBook->bind_param('i', $bookId);
+                $lockBook->execute();
+                $lockBook->get_result();
+                $lockBook->close();
+                if ($capacity->hasFreeCapacity($bookId, self::shift($due, 1), $next, excludePrestitoId: $id)) {
+                    $before = ActivityLog::loadLoanSnapshot($db, $id);
+                    $update = $db->prepare(
+                        "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0
+                         WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
+                    );
+                    $update->bind_param('sis', $next, $id, $due);
+                    $update->execute();
+                    $changed = $update->affected_rows > 0;
+                    $update->close();
+                    if ($changed) {
+                        ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar', $operatorId);
+                    }
+                }
+                if ($ownTransaction) {
+                    $db->commit();
+                }
             } catch (\Throwable $e) {
+                if ($ownTransaction) {
+                    try {
+                        $db->rollback();
+                    } catch (\Throwable) {
+                    }
+                }
+                $lockConflict = $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1205, 1213], true);
+                // Deadlock / lock wait timeout inside a caller's transaction:
+                // MySQL rolled it back (or will), and it must not commit as if
+                // the move had worked.
+                if ($lockConflict && !$ownTransaction) {
+                    throw $e;
+                }
+                // The overlap trigger refusing the move (SIGNAL, errno 1644):
+                // the next reservation of that copy starts on a day the new
+                // date reaches. Expected, not a failure: the loan keeps its date.
+                if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1644) {
+                    continue;
+                }
+                // Any other failure, or a lock conflict in its own transaction:
+                // that loan is rolled back alone, the others are still moved,
+                // and the run reports itself incomplete at the end so the
+                // caller can retry it and tell the librarian.
+                $notMoved++;
                 SecureLogger::warning('Calendar: due date of loan ' . $id . ' not moved: ' . $e->getMessage());
                 continue;
             }
             if ($changed) {
                 $moved++;
-                ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar');
             }
         }
+
+        self::reconcileOverdue($db, $today, $operatorId);
+        if ($notMoved > 0) {
+            // Loans already moved are not touched again by a retry (their due
+            // date is open now), so a second run only finishes these.
+            throw new \RuntimeException("Calendar: {$notMoved} due date(s) not moved ({$moved} moved)");
+        }
         return $moved;
+    }
+
+    /**
+     * extendDueDates() after a calendar change already committed (a page save,
+     * the module switched on): a deadlock or lock timeout is retried once.
+     * False when the moves are still incomplete, so the page can say so: the
+     * next maintenance pass moves what is left.
+     */
+    public static function extendDueDatesAfterSave(\mysqli $db): bool
+    {
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                self::reset();
+                self::extendDueDates($db);
+                return true;
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Calendar: due dates not extended (attempt ' . $attempt . '): ' . $e->getMessage());
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 'in_ritardo' loans that a calendar change made not late yet (their due
+     * day is now closed and no open day after it has gone by) go back to
+     * 'in_corso', so the record, the lists and the reader's page agree with
+     * the overdue sweep, which will flip them again after that open day.
+     */
+    private static function reconcileOverdue(\mysqli $db, string $today, ?int $operatorId): void
+    {
+        $stmt = $db->prepare(
+            "SELECT id, data_scadenza, copia_id FROM prestiti
+             WHERE attivo = 1 AND stato = 'in_ritardo' AND data_scadenza IS NOT NULL AND data_scadenza < ?"
+        );
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        foreach ($rows as $row) {
+            $copyId = $row['copia_id'] !== null ? (int) $row['copia_id'] : null;
+            if (self::isPastDue($db, (string) $row['data_scadenza'], $copyId, $today)) {
+                continue;
+            }
+            $id = (int) $row['id'];
+            $before = ActivityLog::loadLoanSnapshot($db, $id);
+            $update = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo' AND data_scadenza = ?");
+            $due = (string) $row['data_scadenza'];
+            $update->bind_param('is', $id, $due);
+            $update->execute();
+            $changed = $update->affected_rows > 0;
+            $update->close();
+            if ($changed) {
+                ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $before, 'aggiornamento', 'calendar', $operatorId);
+            }
+        }
+    }
+
+    /**
+     * Days a loan due on $dueDate is late on $today, counting open days only
+     * and starting from the first open day on or after a closed due date:
+     * the same count as the late fine (FineCalculator::daysLate()), for the
+     * notices and recalls that tell the reader how late the item is.
+     */
+    public static function openDaysLate(\mysqli $db, string $dueDate, ?int $copiaId, string $today): int
+    {
+        $calendar = self::forDb($db);
+        $calculator = $calendar->hasRules()
+            ? new \App\Services\FineCalculator(static fn (string $ymd, ?int $branchId = null): bool => $calendar->isOpen($ymd, $branchId))
+            : new \App\Services\FineCalculator();
+        return $calculator->daysLate(substr($dueDate, 0, 10), $today, self::branchOfCopy($db, $copiaId));
+    }
+
+    /**
+     * Days late to tell the reader or the staff: 0 while the loan is not late
+     * (isPastDue() false), otherwise the open-day count but at least 1. A loan
+     * due on the last open day before a closed one is late on that closed day
+     * with no open day counted yet: it says "1 day", never "0 days late".
+     */
+    public static function lateDaysForNotice(\mysqli $db, string $dueDate, ?int $copiaId, string $today): int
+    {
+        if (!self::isPastDue($db, $dueDate, $copiaId, $today)) {
+            return 0;
+        }
+        return max(1, self::openDaysLate($db, $dueDate, $copiaId, $today));
+    }
+
+    /**
+     * The named lock every calendar write holds (one per database), also taken
+     * by readers that must not act on a calendar being changed.
+     */
+    public static function lockName(\mysqli $db): string
+    {
+        $dbName = '';
+        try {
+            $res = $db->query('SELECT DATABASE()');
+            if ($res instanceof \mysqli_result) {
+                $dbName = (string) ($res->fetch_row()[0] ?? '');
+                $res->free();
+            }
+        } catch (\Throwable) {
+        }
+        return 'pinakes-calendar:' . md5($dbName);
     }
 
     /**

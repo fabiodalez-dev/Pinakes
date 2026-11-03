@@ -2107,8 +2107,8 @@ $htmlLang = substr($currentLocale, 0, 2);
 </div>
 
 <script>
-// .pk-stack-table (workspace-ui.css): each cell carries its column name, shown
-// above the value when the table stacks as cards on a phone. Rows added later
+// .pk-stack-table (workspace-ui.css): each cell carries its column name as
+// text, shown above the value when the table stacks as cards on a phone. Rows added later
 // by the page (live scans, paged lists) are labelled as they arrive.
 (function () {
   function label(table) {
@@ -2117,6 +2117,10 @@ $htmlLang = substr($currentLocale, 0, 2);
       Array.prototype.forEach.call(tr.children, function (td, i) {
         if (td.hasAttribute('colspan') || !heads[i] || td.hasAttribute('data-label')) { return; }
         td.setAttribute('data-label', heads[i]);
+        var name = document.createElement('span');
+        name.className = 'pk-stack-label';
+        name.textContent = heads[i];
+        td.insertBefore(name, td.firstChild);
       });
     });
   }

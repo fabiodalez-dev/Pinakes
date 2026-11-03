@@ -305,8 +305,17 @@ class LibraryCalendarController
         if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
-        $deleted = CustomHolidays::schemaReady($db) && CustomHolidays::delete($db, $id);
-        $this->calendarChanged($db);
+        // Under the calendar lock and in one transaction with the due-date
+        // and pickup moves, as every other calendar write (commitChange()).
+        $deleted = false;
+        $error = $this->commitChange($db, static function () use ($db, $id, &$deleted): ?string {
+            $deleted = CustomHolidays::schemaReady($db) && CustomHolidays::delete($db, $id);
+            return null;
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->backToCustom($response);
+        }
         $_SESSION[$deleted ? 'success_message' : 'error_message'] = $deleted ? __('Festività eliminata.') : __('Festività non trovata.');
         return $this->backToCustom($response);
     }
@@ -323,8 +332,14 @@ class LibraryCalendarController
             return $this->backToCustom($response);
         }
         $active = (int) $row['attiva'] !== 1;
-        CustomHolidays::setActive($db, $id, $active);
-        $this->calendarChanged($db);
+        $error = $this->commitChange($db, static function () use ($db, $id, $active): ?string {
+            CustomHolidays::setActive($db, $id, $active);
+            return null;
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            return $this->backToCustom($response);
+        }
         $_SESSION['success_message'] = $active ? __('Festività riattivata.') : __('Festività sospesa.');
         return $this->backToCustom($response);
     }
@@ -343,11 +358,19 @@ class LibraryCalendarController
             $_SESSION['custom_holiday_draft'] = CustomHolidays::draft($data, $id ?? 0);
             return $this->backToCustom($response, $id);
         }
-        $savedId = CustomHolidays::save($db, $row, $id);
+        $savedId = 0;
+        $error = $this->commitChange($db, static function () use ($db, $row, $id, &$savedId): ?string {
+            $savedId = CustomHolidays::save($db, $row, $id);
+            return null;
+        });
+        if ($error !== null) {
+            $_SESSION['error_message'] = $error;
+            $_SESSION['custom_holiday_draft'] = CustomHolidays::draft($data, $id ?? 0);
+            return $this->backToCustom($response, $id);
+        }
         if ($id === null) {
             $this->createdIds = [$savedId];
         }
-        $this->calendarChanged($db);
         $_SESSION['success_message'] = $id === null ? __('Festività aggiunta.') : __('Festività aggiornata.');
         return $this->backToCustom($response);
     }
@@ -558,21 +581,6 @@ class LibraryCalendarController
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    /**
-     * After a write that runs in its own transaction (holiday presets, yearly
-     * switches, the library's own holidays): drop the cached calendar and move
-     * the pickup deadlines that now fall on a closed day.
-     */
-    private function calendarChanged(\mysqli $db): void
-    {
-        LibraryCalendar::reset();
-        try {
-            LibraryCalendar::extendDueDates($db);
-            LibraryCalendar::extendPickupDeadlines($db);
-        } catch (\Throwable $e) {
-            SecureLogger::warning('Calendar: due dates or pickup deadlines not extended: ' . $e->getMessage());
-        }
-    }
 
     /**
      * Every write goes through here, under one named lock (two operators
@@ -639,16 +647,7 @@ class LibraryCalendarController
     /** Schema-scoped and under GET_LOCK()'s 64 characters (see CopyRepository). */
     private function lockName(\mysqli $db): string
     {
-        $dbName = '';
-        try {
-            $res = $db->query('SELECT DATABASE()');
-            if ($res instanceof \mysqli_result) {
-                $dbName = (string) ($res->fetch_row()[0] ?? '');
-                $res->free();
-            }
-        } catch (\Throwable) {
-        }
-        return 'pinakes-calendar:' . md5($dbName);
+        return LibraryCalendar::lockName($db);
     }
 
     /**

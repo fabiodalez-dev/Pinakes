@@ -1844,11 +1844,13 @@ class SettingsController
             // next open day, as when the calendar itself is saved.
             if (\App\Support\Features::enabled('closures_calendar') !== $calendarWasOn) {
                 \App\Support\LibraryCalendar::reset();
+                if (!\App\Support\LibraryCalendar::extendDueDatesAfterSave($db)) {
+                    $_SESSION['error_message'] = __('Il calendario è salvato, ma alcune scadenze dei prestiti non sono state ancora spostate: lo farà la prossima manutenzione automatica.');
+                }
                 try {
-                    \App\Support\LibraryCalendar::extendDueDates($db);
                     \App\Support\LibraryCalendar::extendPickupDeadlines($db);
                 } catch (\Throwable $e) {
-                    \App\Support\SecureLogger::warning('Calendar: due dates or pickup deadlines not extended: ' . $e->getMessage());
+                    \App\Support\SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
                 }
             }
         }

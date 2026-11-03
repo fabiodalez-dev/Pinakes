@@ -3779,6 +3779,7 @@
   "Prestito già processato da un altro utente": "Loan already processed by another user",
   "Prestito in ritardo": "Overdue Loan",
   "Scadenza spostata: la biblioteca è chiusa quel giorno": "Due date moved: the library is closed that day",
+  "Il calendario è salvato, ma alcune scadenze dei prestiti non sono state ancora spostate: lo farà la prossima manutenzione automatica.": "The calendar is saved, but some loan due dates have not been moved yet: the next automatic maintenance will do it.",
   "Prestito non trovato": "Loan not found",
   "Prestito non trovato o già processato": "Loan not found or already processed",
   "Prestito non trovato o non cancellabile": "Loan not found or cannot be cancelled",
