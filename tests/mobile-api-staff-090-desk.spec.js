@@ -24,6 +24,7 @@ const F = require('./helpers/mobile-api-fixtures');
 const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
 const featureToggles = require('./helpers/feature-toggles');
 const { flushCache } = require('./helpers/flush-cache');
+const { appTodayISO } = require('./helpers/app-date');
 
 test.describe.configure({ mode: 'serial' });
 test.skip(!F.ENV_READY, 'Missing E2E env: DB_* and ADMIN_EMAIL/ADMIN_PASS');
@@ -107,7 +108,9 @@ test.beforeAll(async ({ browser, request }) => {
     ctx.staff = await F.login(request, email('staff'), PASS, 'dk-staff');
     ctx.staff2 = await F.login(request, email('staff2'), PASS, 'dk-staff2');
     ctx.reader = await F.login(request, email('reader'), PASS, 'dk-reader');
-    ctx.today = F.dbScalar('SELECT CURDATE()');
+    // The application's day (its timezone), not MySQL's: on CI the session
+    // runs in UTC and is a day behind the app between 23:00 and 24:00 UTC.
+    ctx.today = appTodayISO();
 });
 
 test.afterAll(async () => {
@@ -296,8 +299,8 @@ test.describe('Visitor log', () => {
     test('the dashboard counts today\'s visits and lists them among the recent ones', async ({ request }) => {
         const r = await F.api(request, 'GET', '/staff/attendance?days=7', { token: ctx.staff });
         const d = r.json.data;
-        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=CURDATE()`);
-        const guests = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='ospite' AND DATE(created_at)=CURDATE()`);
+        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=${F.sqlStr(ctx.today)}`);
+        const guests = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='ospite' AND DATE(created_at)=${F.sqlStr(ctx.today)}`);
         expect(d.today).toEqual({ members, guests, total: members + guests });
         expect(d.daily[6]).toEqual({ date: ctx.today, members, guests, total: members + guests });
         expect(d.hourly.reduce((s, h) => s + h.total, 0)).toBe(d.totals.total);
@@ -312,7 +315,7 @@ test.describe('Visitor log', () => {
         expect(r.headers['content-disposition']).toContain('attachment; filename="presenze_7g.csv"');
         const lines = r.text.replace(/^﻿/, '').trim().split(/\r?\n/);
         expect(lines).toHaveLength(8);
-        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=CURDATE()`);
+        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=${F.sqlStr(ctx.today)}`);
         expect(lines[7].split(';').slice(0, 2)).toEqual([ctx.today, String(members)]);
         expect((await F.api(request, 'GET', '/staff/attendance/export.csv?days=5', { token: ctx.staff })).status).toBe(422);
     });
@@ -391,7 +394,7 @@ test.describe('Statistics', () => {
         }
         expect(d.top_books.length).toBeLessThanOrEqual(10);
         expect(d.top_books.every((b) => F.dbInt(`SELECT COUNT(*) FROM libri WHERE id=${b.id} AND deleted_at IS NULL`) === 1)).toBe(true);
-        expect(d.visitors.members).toBe(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND created_at >= CURDATE() - INTERVAL 29 DAY`));
+        expect(d.visitors.members).toBe(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND created_at >= ${F.sqlStr(ctx.today)} - INTERVAL 29 DAY`));
         expect(d.sections.map((s) => s.id)).toContain('patron-types');
         expect(r.json.meta.modules).toMatchObject({ visitor_log: true, circulation_rules: true, fines: true });
     });
