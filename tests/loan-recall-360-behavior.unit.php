@@ -384,6 +384,10 @@ $db->query("UPDATE prestiti SET recall_count = 1, last_recall_at = '" . $db->rea
 $sent = $claimRecall->invoke($service, $staleRow, 1, 0, $late);
 $check($sent === false && $outcomeOf() === 'claimed' && $recallCountOf($raced)['count'] === 1, 'C2 another recall went out today after the read → "claimed" (another recall in flight), counter untouched');
 
+$noLongerDue = $makeLoan(daysOverdue: 12);
+$sent = $claimRecall->invoke($service, $rowOf($noLongerDue), 1, 0, static fn (): int|false => false);
+$check($sent === false && $outcomeOf() === 'not_due' && $recallCountOf($noLongerDue)['count'] === 0, 'C3 loan no longer late by the calendar at claim time → "not_due", no UPDATE, counter untouched');
+
 // ── E. sendLoanReceiptEmail() guards ────────────────────────────────────────
 $e = $service->sendLoanReceiptEmail(2000000001);
 $check($e['success'] === false, 'E1 receipt email for an unknown loan → failure');
