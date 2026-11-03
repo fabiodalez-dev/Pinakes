@@ -154,6 +154,35 @@ test.describe.serial('Patron photo (phase 7)', () => {
     expect(direct.status()).not.toBe(200);
   });
 
+  test('on a phone "Scatta foto" opens the camera app and stores the shot as a 4:5 card photo', async ({ browser }) => {
+    const { devices } = require('@playwright/test');
+    const context = await browser.newContext({ ...devices['iPhone 13'] });
+    const page = await context.newPage();
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/users/edit/${userId}`);
+      // A tap must not start the inline webcam: the phone's own camera opens.
+      await page.evaluate(() => { /** @type {any} */ (window).__gum = 0; if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia = async () => { /** @type {any} */ (window).__gum++; throw new Error('inline webcam'); }; });
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#patron-photo-widget').getByRole('button', { name: 'Scatta foto' }).tap()]);
+      expect(await chooser.element().getAttribute('capture')).toBe('environment');
+      await expect(page.locator('#photo-video')).toBeHidden();
+      // A portrait shot, larger than the card: cropped and scaled to 480×600.
+      const shot = path.join(os.tmpdir(), `phone-shot-${RUN}.png`);
+      writePng(shot, 900, 1600);
+      await chooser.setFiles(shot);
+      fs.unlinkSync(shot);
+      await expect(page.locator('#photo-status')).toHaveText('Foto salvata.', { timeout: 15000 });
+      const size = await page.locator('#photo-preview').evaluate(async (img) => { const i = /** @type {HTMLImageElement} */ (img); await i.decode(); return [i.naturalWidth, i.naturalHeight]; });
+      expect(size).toEqual([480, 600]);
+      expect(await page.evaluate(() => /** @type {any} */ (window).__gum)).toBe(0);
+      const stored = storedPhoto(userId);
+      expect(stored).toMatch(new RegExp(`^patron_photos/${userId}-[a-f0-9]{16}\\.jpg$`));
+      files.push(photoFile(stored));
+    } finally {
+      await context.close();
+    }
+  });
+
   test('the reader page shows the photo through the protected route, and the camera permission is same-origin only', async ({ page }) => {
     await login(page);
     const resp = await page.goto(`${BASE}/admin/users/details/${userId}`);

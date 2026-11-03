@@ -58,8 +58,8 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
 
     <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
       <div class="overflow-x-auto">
-        <table class="w-full" id="circulation-types-table">
-          <thead class="bg-gray-50 border-b border-gray-200">
+        <table class="w-full max-sm:block" id="circulation-types-table">
+          <thead class="bg-gray-50 border-b border-gray-200 max-sm:hidden">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Tipologia") ?></th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Regole effettive") ?></th>
@@ -67,19 +67,19 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
+          <tbody class="bg-white divide-y divide-gray-200 max-sm:block max-sm:space-y-3 max-sm:bg-transparent max-sm:divide-y-0">
             <?php if ($cTypes === []): ?>
-            <tr>
-              <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+            <tr class="max-sm:block">
+              <td colspan="4" class="px-6 py-12 text-center text-gray-500 max-sm:block">
                 <i class="fas fa-id-badge text-4xl mb-3 text-gray-300"></i>
                 <p><?= __("Nessuna tipologia di lettore") ?></p>
               </td>
             </tr>
             <?php endif; ?>
             <?php $cIndex = 0; $cLast = count($cTypes) - 1; foreach ($cTypes as $cTypeId => $cType): $cEff = $circulationData['effective'][$cTypeId]; ?>
-            <tr class="hover:bg-gray-50" data-type-code="<?= htmlspecialchars((string) $cType['codice'], ENT_QUOTES, 'UTF-8') ?>">
-              <td class="px-6 py-4">
-                <div class="text-sm font-medium text-gray-900">
+            <tr class="hover:bg-gray-50 max-sm:block max-sm:rounded-2xl max-sm:border max-sm:border-gray-200 max-sm:bg-white max-sm:p-4 max-sm:space-y-2" data-type-code="<?= htmlspecialchars((string) $cType['codice'], ENT_QUOTES, 'UTF-8') ?>">
+              <td class="px-6 py-4 max-sm:block max-sm:p-0">
+                <div class="text-sm font-medium text-gray-900 max-sm:text-base">
                   <?= htmlspecialchars((string) ((string) $cType['nome']), ENT_QUOTES, 'UTF-8') ?>
                   <?php if ((int) $cType['predefinita'] === 1): ?>
                   <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800" data-testid="default-type-badge"><?= __("Predefinita") ?></span>
@@ -90,7 +90,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                 </div>
                 <div class="text-sm text-gray-500"><?= htmlspecialchars((string) ((string) $cType['codice']), ENT_QUOTES, 'UTF-8') ?></div>
               </td>
-              <td class="px-6 py-4 text-sm text-gray-700">
+              <td class="px-6 py-4 text-sm text-gray-700 max-sm:block max-sm:p-0">
                 <?= sprintf(__('%s prestiti · %d giorni · %d rinnovi'), $cEff->maxActiveLoans > 0 ? (string) $cEff->maxActiveLoans : '∞', $cEff->durationDays, $cEff->maxRenewals) ?>
                 <div class="text-xs text-gray-500">
                   <?= $cEff->user->reservationsEnabled
@@ -101,9 +101,9 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                   <?php if ($cFine->debtBlockEnabled()): ?> · <span data-testid="type-debt-summary"><?= htmlspecialchars(sprintf(__('Blocco oltre %s'), \App\Services\FineParameters::format((int) $cFine->debtBlockThresholdCents)), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= (int) ($circulationData['userCounts'][$cTypeId] ?? 0) ?></td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">
-                <div class="flex items-center gap-2">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-sm:block max-sm:p-0"><span class="sm:hidden"><?= __("Lettori") ?>: </span><?= (int) ($circulationData['userCounts'][$cTypeId] ?? 0) ?></td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm max-sm:block max-sm:p-0 max-sm:pt-3 max-sm:border-t max-sm:border-gray-100">
+                <div class="flex items-center gap-2 max-sm:gap-5 max-sm:text-base">
                   <a href="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-600 hover:text-gray-900" title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>" data-testid="edit-type"><i class="fas fa-edit"></i></a>
                   <?php foreach (['up' => ['fa-arrow-up', __('Sposta su'), $cIndex > 0], 'down' => ['fa-arrow-down', __('Sposta giù'), $cIndex < $cLast]] as $cDir => [$cIcon, $cLabel, $cEnabled]): if (!$cEnabled) { continue; } ?>
                   <form action="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId . '/move'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline">
@@ -142,8 +142,8 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
           <div class="overflow-x-auto">
-            <table class="w-full">
-              <thead class="bg-gray-50 border-b border-gray-200">
+            <table class="w-full max-sm:block">
+              <thead class="bg-gray-50 border-b border-gray-200 max-sm:hidden">
                 <tr>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Tipologia") ?></th>
                   <?php foreach ($cMedia as $cMediaLabel): ?>
@@ -151,10 +151,10 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                   <?php endforeach; ?>
                 </tr>
               </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
+              <tbody class="bg-white divide-y divide-gray-200 max-sm:block max-sm:space-y-4 max-sm:bg-transparent max-sm:divide-y-0">
                 <?php foreach ([0 => ['nome' => __('Tutte le tipologie')]] + $cTypes as $cTypeId => $cType): ?>
-                <tr data-matrix-row="<?= (int) $cTypeId ?>">
-                  <td class="px-6 py-4 text-sm font-medium text-gray-900 align-top whitespace-nowrap"><?= htmlspecialchars((string) ((string) $cType['nome']), ENT_QUOTES, 'UTF-8') ?></td>
+                <tr data-matrix-row="<?= (int) $cTypeId ?>" class="max-sm:block max-sm:rounded-2xl max-sm:border max-sm:border-gray-200 max-sm:bg-white max-sm:px-4 max-sm:pb-2">
+                  <td class="px-6 py-4 text-sm font-medium text-gray-900 align-top whitespace-nowrap max-sm:block max-sm:px-0 max-sm:pt-4 max-sm:pb-2 max-sm:text-base max-sm:font-semibold max-sm:whitespace-normal"><?= htmlspecialchars((string) ((string) $cType['nome']), ENT_QUOTES, 'UTF-8') ?></td>
                   <?php foreach ($cMedia as $cM => $cMediaLabel):
                       $cKey = (int) $cTypeId . '|' . $cM;
                       $cRule = $cRules[$cKey] ?? [];
@@ -163,24 +163,25 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                       $cId = 'rule-' . (int) $cTypeId . '-' . $cM;
                       $cLoanable = isset($cRule['prestabile']) ? (string) (int) $cRule['prestabile'] : '';
                   ?>
-                  <td class="px-3 py-2 align-top" data-matrix-cell="<?= htmlspecialchars($cKey, ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="space-y-1">
+                  <td class="px-3 py-2 align-top max-sm:block max-sm:px-0 max-sm:py-3 max-sm:border-t max-sm:border-gray-100" data-matrix-cell="<?= htmlspecialchars($cKey, ENT_QUOTES, 'UTF-8') ?>">
+                    <p class="sm:hidden mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider" aria-hidden="true"><?= htmlspecialchars((string) $cMediaLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    <div class="space-y-1 max-sm:space-y-0 max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:gap-y-2">
                       <label for="<?= $cId ?>-loanable" class="sr-only"><?= htmlspecialchars((string) ($cMediaLabel . ' — ' . __('Prestabile')), ENT_QUOTES, 'UTF-8') ?></label>
-                      <select id="<?= $cId ?>-loanable" name="<?= $cName ?>[loanable]" class="block w-28 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2">
+                      <select id="<?= $cId ?>-loanable" name="<?= $cName ?>[loanable]" class="block w-28 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 max-sm:col-span-2 max-sm:w-full max-sm:text-sm max-sm:py-2">
                         <option value=""><?= htmlspecialchars((string) (sprintf(__('Eredita (%s)'), $cInh['loanable'] ? __('prestabile') : __('consultazione'))), ENT_QUOTES, 'UTF-8') ?></option>
                         <option value="1" <?= $cLoanable === '1' ? 'selected' : '' ?>><?= __("Prestabile") ?></option>
                         <option value="0" <?= $cLoanable === '0' ? 'selected' : '' ?>><?= __("Solo consultazione") ?></option>
                       </select>
                       <?php foreach (['max' => [__('Max prestiti'), 'max_prestiti', $cInh['max'] > 0 ? (string) $cInh['max'] : '∞'], 'duration' => [__('Giorni'), 'durata_prestito_giorni', (string) $cInh['duration']], 'renewals' => [__('Rinnovi'), 'max_rinnovi', (string) $cInh['renewals']], 'renewal_days' => [__('Gg/rinnovo'), 'giorni_rinnovo', (string) $cInh['renewal_days']], 'grace' => [__('Tolleranza'), 'giorni_tolleranza', (string) $cInh['grace']]] as $cField => [$cLabel, $cColumn, $cPlaceholder]): ?>
-                      <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
-                        <span class="w-16"><?= htmlspecialchars((string) ($cLabel), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
+                      <label class="flex items-center gap-1 text-xs text-gray-500 max-sm:flex-col max-sm:items-stretch" for="<?= $cId . '-' . $cField ?>">
+                        <span class="w-20 shrink-0 max-sm:w-auto"><?= htmlspecialchars((string) ($cLabel), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="number" min="0" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cIntOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cPlaceholder, ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400 max-sm:w-full max-sm:text-sm max-sm:py-2">
                       </label>
                       <?php endforeach; ?>
                       <?php foreach (['fine' => [__('Multa/giorno'), 'multa_giornaliera'], 'fine_max' => [__('Multa max'), 'multa_massima_prestito']] as $cField => [$cLabel, $cColumn]): ?>
-                      <label class="flex items-center gap-1 text-xs text-gray-500" for="<?= $cId . '-' . $cField ?>">
-                        <span class="w-16"><?= htmlspecialchars($cLabel, ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cMoneyOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cMoneyPlaceholder($cInh[$cField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400">
+                      <label class="flex items-center gap-1 text-xs text-gray-500 max-sm:flex-col max-sm:items-stretch" for="<?= $cId . '-' . $cField ?>">
+                        <span class="w-20 shrink-0 max-sm:w-auto"><?= htmlspecialchars($cLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" inputmode="decimal" pattern="[0-9]{1,8}([.,][0-9]{1,2})?" id="<?= $cId . '-' . $cField ?>" name="<?= $cName ?>[<?= $cField ?>]" value="<?= htmlspecialchars($cMoneyOrEmpty($cRule[$cColumn] ?? null), ENT_QUOTES, 'UTF-8') ?>" placeholder="<?= htmlspecialchars($cMoneyPlaceholder($cInh[$cField]), ENT_QUOTES, 'UTF-8') ?>" class="block w-16 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-xs py-1 px-2 placeholder:text-gray-400 max-sm:w-full max-sm:text-sm max-sm:py-2">
                       </label>
                       <?php endforeach; ?>
                     </div>

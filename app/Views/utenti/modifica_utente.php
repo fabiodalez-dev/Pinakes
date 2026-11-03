@@ -184,6 +184,7 @@ unset($workspaceHeader);
               <button type="button" id="photo-camera-start" class="btn-secondary"><i class="fas fa-camera mr-2"></i><?= __("Scatta foto") ?></button>
               <label for="photo-file" class="btn-secondary cursor-pointer"><i class="fas fa-upload mr-2"></i><?= __("Carica foto") ?></label>
               <input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp" class="sr-only">
+              <input type="file" id="photo-camera-file" accept="image/*" capture="environment" class="sr-only" tabindex="-1" aria-hidden="true">
               <button type="button" id="photo-delete" class="btn-danger-outline px-4 py-2 rounded-lg inline-flex items-center <?= $photoUrl === null ? 'hidden' : '' ?>"><i class="fas fa-trash mr-2"></i><?= __("Elimina foto") ?></button>
             </div>
             <div class="flex flex-wrap items-center gap-3 hidden" id="photo-camera-actions">
@@ -279,6 +280,10 @@ unset($workspaceHeader);
   // Patron cards module off: no photo widget on the page.
   if (!preview || !status) { return; }
   let stream = null;
+  // Phones and tablets open the device camera app (full screen, front and
+  // back lens) through the capture input; desktops keep the inline webcam.
+  const cameraFile = document.getElementById('photo-camera-file');
+  const useNativeCamera = () => window.matchMedia('(pointer: coarse)').matches;
 
   const say = (text, isError) => {
     status.textContent = text;
@@ -317,7 +322,18 @@ unset($workspaceHeader);
     }
   }
 
+  // Portrait 4:5 crop from the centre of the frame, as on the card.
+  const cardBlob = (source, w, h, done) => {
+    const cropW = Math.min(w, Math.round(h * 0.8));
+    const cropH = Math.min(h, Math.round(cropW / 0.8));
+    const canvas = document.createElement('canvas');
+    canvas.width = 480; canvas.height = 600;
+    canvas.getContext('2d').drawImage(source, (w - cropW) / 2, (h - cropH) / 2, cropW, cropH, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(done, 'image/jpeg', 0.9);
+  };
+
   document.getElementById('photo-camera-start').addEventListener('click', async () => {
+    if (cameraFile && useNativeCamera()) { cameraFile.click(); return; }
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') { say(T.noCamera, true); return; }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
@@ -337,16 +353,29 @@ unset($workspaceHeader);
   document.getElementById('photo-capture').addEventListener('click', () => {
     const w = video.videoWidth, h = video.videoHeight;
     if (!w || !h) { return; }
-    // Portrait 4:5 crop from the centre of the frame, as on the card.
-    const cropH = h, cropW = Math.min(w, Math.round(h * 0.8));
-    const canvas = document.createElement('canvas');
-    canvas.width = 480; canvas.height = 600;
-    canvas.getContext('2d').drawImage(video, (w - cropW) / 2, 0, cropW, cropH, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
+    cardBlob(video, w, h, (blob) => {
       stopCamera();
       if (blob) { upload(blob, 'webcam.jpg'); }
-    }, 'image/jpeg', 0.9);
+    });
   });
+  if (cameraFile) {
+    cameraFile.addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = '';
+      if (!file) { return; }
+      // A phone shot is several MB: crop and shrink it like a webcam frame,
+      // honouring the EXIF orientation of portrait shots.
+      try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        cardBlob(bitmap, bitmap.width, bitmap.height, (blob) => {
+          bitmap.close();
+          upload(blob || file, blob ? 'camera.jpg' : file.name);
+        });
+      } catch (e) {
+        upload(file, file.name);
+      }
+    });
+  }
   document.getElementById('photo-file').addEventListener('change', (event) => {
     const file = event.target.files && event.target.files[0];
     if (file) { upload(file, file.name); }
