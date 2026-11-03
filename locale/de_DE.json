@@ -7020,6 +7020,7 @@
   "Numero progressivo del sollecito inviato": "Laufende Nummer der versendeten Mahnung",
   "Il sollecito è disponibile solo per prestiti attivi con libro in mano all'utente.": "Mahnungen sind nur für aktive Ausleihen möglich, bei denen der Benutzer das Buch hat.",
   "Il prestito non è scaduto: nessun sollecito da inviare.": "Die Ausleihe ist nicht überfällig: keine Mahnung zu senden.",
+  "Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.": "Die Ausleihe wurde inzwischen geändert: Seite neu laden und erneut versuchen.",
   "L'utente non ha un indirizzo email.": "Der Benutzer hat keine E-Mail-Adresse.",
   "Sollecito inviato con successo.": "Mahnung erfolgreich gesendet.",
   "Invio del sollecito non riuscito. Controlla la configurazione email e riprova.": "Mahnung konnte nicht gesendet werden. Prüfe die E-Mail-Konfiguration und versuche es erneut.",

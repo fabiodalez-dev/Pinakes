@@ -7020,6 +7020,7 @@
   "Numero progressivo del sollecito inviato": "Numéro séquentiel du rappel envoyé",
   "Il sollecito è disponibile solo per prestiti attivi con libro in mano all'utente.": "Le rappel n'est disponible que pour les prêts actifs dont le livre est chez l'utilisateur.",
   "Il prestito non è scaduto: nessun sollecito da inviare.": "Le prêt n'est pas en retard : aucun rappel à envoyer.",
+  "Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.": "Le prêt a été modifié entre-temps : rechargez la page et réessayez.",
   "L'utente non ha un indirizzo email.": "L'utilisateur n'a pas d'adresse e-mail.",
   "Sollecito inviato con successo.": "Rappel envoyé avec succès.",
   "Invio del sollecito non riuscito. Controlla la configurazione email e riprova.": "Échec de l'envoi du rappel. Vérifiez la configuration e-mail et réessayez.",

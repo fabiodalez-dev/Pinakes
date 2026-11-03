@@ -1296,6 +1296,9 @@ class NotificationService {
             if ($this->lastRecallOutcome === 'not_due') {
                 return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
             }
+            if ($this->lastRecallOutcome === 'changed') {
+                return ['success' => false, 'message' => __('Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.')];
+            }
             if ($this->lastRecallOutcome === 'claimed') {
                 return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
             }
@@ -1358,6 +1361,26 @@ class NotificationService {
     }
 
     /**
+     * True when the loan is still the one read (same due date, still out) and
+     * a recall already went out on it today: the claim lost to that recall.
+     */
+    private function recalledTodayUnchanged(array $loan): bool
+    {
+        $stmt = $this->db->prepare("SELECT last_recall_at FROM prestiti WHERE id = ? AND data_scadenza = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+        if ($stmt === false) {
+            return false;
+        }
+        $id = (int) $loan['id'];
+        $due = (string) $loan['data_scadenza'];
+        $stmt->bind_param('is', $id, $due);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return is_array($row) && $row['last_recall_at'] !== null
+            && substr((string) $row['last_recall_at'], 0, 10) === DateHelper::today();
+    }
+
+    /**
      * Shared claim-then-send for one recall (automatic and manual paths).
      * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
      * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
@@ -1390,6 +1413,11 @@ class NotificationService {
             $updateStmt->execute();
             $claimed = $updateStmt->affected_rows === 1;
             $updateStmt->close();
+            if (!$claimed) {
+                // Nothing claimed: another recall went out today on the same
+                // loan, or the loan changed (renewed, returned) since it was read.
+                $this->lastRecallOutcome = $this->recalledTodayUnchanged($loan) ? 'claimed' : 'changed';
+            }
             return $claimed;
         };
         $claimed = $stillDue === null ? $claim() : $this->underCalendarLock($claim, null);
@@ -1398,9 +1426,6 @@ class NotificationService {
             return false;
         }
         $claimed = (bool) $claimed;
-        if (!$claimed && $this->lastRecallOutcome === '') {
-            $this->lastRecallOutcome = 'claimed';
-        }
 
         if (!$claimed) {
             return false;

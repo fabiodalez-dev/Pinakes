@@ -7020,6 +7020,7 @@
   "Numero progressivo del sollecito inviato": "Numero progressivo del sollecito inviato",
   "Il sollecito è disponibile solo per prestiti attivi con libro in mano all'utente.": "Il sollecito è disponibile solo per prestiti attivi con libro in mano all'utente.",
   "Il prestito non è scaduto: nessun sollecito da inviare.": "Il prestito non è scaduto: nessun sollecito da inviare.",
+  "Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.": "Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.",
   "L'utente non ha un indirizzo email.": "L'utente non ha un indirizzo email.",
   "Sollecito inviato con successo.": "Sollecito inviato con successo.",
   "Invio del sollecito non riuscito. Controlla la configurazione email e riprova.": "Invio del sollecito non riuscito. Controlla la configurazione email e riprova.",

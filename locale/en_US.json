@@ -7020,6 +7020,7 @@
   "Numero progressivo del sollecito inviato": "Sequential number of the reminder sent",
   "Il sollecito è disponibile solo per prestiti attivi con libro in mano all'utente.": "Reminders are only available for active loans with the book out with the user.",
   "Il prestito non è scaduto: nessun sollecito da inviare.": "The loan is not overdue: no reminder to send.",
+  "Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.": "The loan was changed in the meantime: reload the page and try again.",
   "L'utente non ha un indirizzo email.": "The user has no email address.",
   "Sollecito inviato con successo.": "Reminder sent successfully.",
   "Invio del sollecito non riuscito. Controlla la configurazione email e riprova.": "Failed to send the reminder. Check the email configuration and try again.",

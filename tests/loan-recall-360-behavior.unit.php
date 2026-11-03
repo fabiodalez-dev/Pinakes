@@ -362,6 +362,28 @@ $check($r['success'] === false, 'R1a forced-unreachable send fails, so the rever
 $check($after['count'] === $before['count'] && $after['last'] === $before['last'],
     'R1b failed recall reverts the claim — recall_count and last_recall_at unchanged');
 
+// ── C. A claim that finds nothing to update says why ───────────────────────
+// The recall read the loan, then the claim's UPDATE matched no row: a recall
+// that went out today in between is "already sent"; a loan renewed since is
+// "changed" (reload), never reported as already sent.
+$claimRecall = new ReflectionMethod($service, 'claimAndSendRecall');
+$outcomeOf = static fn (): string => (string) (new ReflectionProperty($service, 'lastRecallOutcome'))->getValue($service);
+$rowOf = static function (int $loanId) use ($db): array {
+    $r = $db->query("SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at, l.titolo AS libro_titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email AS utente_email, 12 AS giorni_ritardo FROM prestiti p JOIN libri l ON l.id = p.libro_id JOIN utenti u ON u.id = p.utente_id WHERE p.id = " . $loanId);
+    return $r->fetch_assoc();
+};
+$late = static fn (): int => 12;
+$renewed = $makeLoan(daysOverdue: 12);
+$staleRow = $rowOf($renewed);
+$db->query("UPDATE prestiti SET data_scadenza = DATE_ADD(data_scadenza, INTERVAL 30 DAY) WHERE id = " . (int) $renewed);
+$sent = $claimRecall->invoke($service, $staleRow, 1, 0, $late);
+$check($sent === false && $outcomeOf() === 'changed' && $recallCountOf($renewed)['count'] === 0, 'C1 loan renewed after it was read → "changed", not "already sent", counter untouched');
+$raced = $makeLoan(daysOverdue: 12);
+$staleRow = $rowOf($raced);
+$db->query("UPDATE prestiti SET recall_count = 1, last_recall_at = '" . $db->real_escape_string(\App\Support\DateHelper::now()) . "' WHERE id = " . (int) $raced);
+$sent = $claimRecall->invoke($service, $staleRow, 1, 0, $late);
+$check($sent === false && $outcomeOf() === 'claimed' && $recallCountOf($raced)['count'] === 1, 'C2 another recall went out today after the read → "already sent", counter untouched');
+
 // ── E. sendLoanReceiptEmail() guards ────────────────────────────────────────
 $e = $service->sendLoanReceiptEmail(2000000001);
 $check($e['success'] === false, 'E1 receipt email for an unknown loan → failure');
