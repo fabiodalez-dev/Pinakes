@@ -835,33 +835,6 @@ class MaintenanceService
      * @return int Number of loans activated (moved to da_ritirare)
      * @throws \RuntimeException If query preparation fails
      */
-    /**
-     * Whether a loan's due date can grow from $oldDue to $newDue at activation:
-     * no other active commitment of $copiaId overlaps the added days (the
-     * per-copy overlap trigger would refuse the UPDATE), and the title has a
-     * free copy for them besides this loan (copyless bookings, CapacityService).
-     */
-    private function addedDaysFree(int $loanId, int $bookId, int $copiaId, string $oldDue, string $newDue): bool
-    {
-        $from = LibraryCalendar::shift($oldDue, 1);
-        $stmt = $this->db->prepare("
-            SELECT 1 FROM prestiti
-            WHERE copia_id = ? AND id <> ?
-              AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                   OR (attivo = 0 AND stato = 'pendente'))
-              AND data_prestito <= ? AND data_scadenza >= ?
-            LIMIT 1
-        ");
-        $stmt->bind_param('iiss', $copiaId, $loanId, $newDue, $from);
-        $stmt->execute();
-        $taken = $stmt->get_result()->num_rows > 0;
-        $stmt->close();
-        if ($taken) {
-            return false;
-        }
-        return (new \App\Services\CapacityService($this->db))->hasFreeCapacity($bookId, $from, $newDue, excludePrestitoId: $loanId);
-    }
-
     public function activateScheduledLoans(): int
     {
         $pickupColumnReset = $this->ensurePickupNotificationColumn()
@@ -1212,6 +1185,33 @@ class MaintenanceService
         }
 
         return $activatedCount;
+    }
+
+    /**
+     * Whether a loan's due date can grow from $oldDue to $newDue at activation:
+     * no other active commitment of $copiaId overlaps the added days (the
+     * per-copy overlap trigger would refuse the UPDATE), and the title has a
+     * free copy for them besides this loan (copyless bookings, CapacityService).
+     */
+    private function addedDaysFree(int $loanId, int $bookId, int $copiaId, string $oldDue, string $newDue): bool
+    {
+        $from = LibraryCalendar::shift($oldDue, 1);
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM prestiti
+            WHERE copia_id = ? AND id <> ?
+              AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                   OR (attivo = 0 AND stato = 'pendente'))
+              AND data_prestito <= ? AND data_scadenza >= ?
+            LIMIT 1
+        ");
+        $stmt->bind_param('iiss', $copiaId, $loanId, $newDue, $from);
+        $stmt->execute();
+        $taken = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+        if ($taken) {
+            return false;
+        }
+        return (new \App\Services\CapacityService($this->db))->hasFreeCapacity($bookId, $from, $newDue, excludePrestitoId: $loanId);
     }
 
     /**
