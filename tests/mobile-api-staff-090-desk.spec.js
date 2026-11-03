@@ -26,6 +26,24 @@ const featureToggles = require('./helpers/feature-toggles');
 const { flushCache } = require('./helpers/flush-cache');
 const { appTodayISO } = require('./helpers/app-date');
 
+/**
+ * Runs a test body against the application's day (its timezone, not MySQL's:
+ * on CI the session runs in UTC, a day behind the app between 23:00 and 24:00
+ * UTC). When the app's midnight passes while the body runs, the API may have
+ * answered for either day, so the body runs once more on the new day.
+ */
+async function onOneAppDay(body) {
+    for (let attempt = 1; ; attempt++) {
+        const day = appTodayISO();
+        try {
+            const result = await body(day);
+            if (attempt === 2 || appTodayISO() === day) return result;
+        } catch (e) {
+            if (attempt === 2 || appTodayISO() === day) throw e;
+        }
+    }
+}
+
 test.describe.configure({ mode: 'serial' });
 test.skip(!F.ENV_READY, 'Missing E2E env: DB_* and ADMIN_EMAIL/ADMIN_PASS');
 
@@ -108,9 +126,6 @@ test.beforeAll(async ({ browser, request }) => {
     ctx.staff = await F.login(request, email('staff'), PASS, 'dk-staff');
     ctx.staff2 = await F.login(request, email('staff2'), PASS, 'dk-staff2');
     ctx.reader = await F.login(request, email('reader'), PASS, 'dk-reader');
-    // The application's day (its timezone), not MySQL's: on CI the session
-    // runs in UTC and is a day behind the app between 23:00 and 24:00 UTC.
-    ctx.today = appTodayISO();
 });
 
 test.afterAll(async () => {
@@ -193,14 +208,14 @@ test.describe('Guards and discovery', () => {
 });
 
 test.describe('Visitor log', () => {
-    test('dashboard: periods, 24 hour slots, branches, retention; invalid period → 422', async ({ request }) => {
+    test('dashboard: periods, 24 hour slots, branches, retention; invalid period → 422', async ({ request }) => onOneAppDay(async (today) => {
         const r = await F.api(request, 'GET', '/staff/attendance?days=7', { token: ctx.staff });
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         const d = r.json.data;
         expect(d.days).toBe(7);
         expect(d.periods).toEqual([7, 30, 90, 365]);
         expect(d.daily).toHaveLength(7);
-        expect(d.daily[6].date).toBe(ctx.today);
+        expect(d.daily[6].date).toBe(today);
         expect(d.hourly).toHaveLength(24);
         expect(d.branches.map((b) => b.id)).toContain(ctx.branchId);
         expect(d.branches.map((b) => b.id)).not.toContain(ctx.inactiveBranchId);
@@ -211,7 +226,7 @@ test.describe('Visitor log', () => {
         expect(bad.status).toBe(422);
         expect(bad.json.error.code).toBe('validation');
         expect(bad.json.meta.fields.days).toBeTruthy();
-    });
+    }));
 
     test('check-in with a valid card records the member; the same key replays it', async ({ request }) => {
         const body = { card_code: ` ${ctx.active.card} `, branch_id: ctx.branchId };
@@ -296,29 +311,29 @@ test.describe('Visitor log', () => {
         expect(bad.json.meta.fields.name).toBeTruthy();
     });
 
-    test('the dashboard counts today\'s visits and lists them among the recent ones', async ({ request }) => {
+    test('the dashboard counts today\'s visits and lists them among the recent ones', async ({ request }) => onOneAppDay(async (today) => {
         const r = await F.api(request, 'GET', '/staff/attendance?days=7', { token: ctx.staff });
         const d = r.json.data;
-        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=${F.sqlStr(ctx.today)}`);
-        const guests = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='ospite' AND DATE(created_at)=${F.sqlStr(ctx.today)}`);
+        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=${F.sqlStr(today)}`);
+        const guests = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='ospite' AND DATE(created_at)=${F.sqlStr(today)}`);
         expect(d.today).toEqual({ members, guests, total: members + guests });
-        expect(d.daily[6]).toEqual({ date: ctx.today, members, guests, total: members + guests });
+        expect(d.daily[6]).toEqual({ date: today, members, guests, total: members + guests });
         expect(d.hourly.reduce((s, h) => s + h.total, 0)).toBe(d.totals.total);
         expect(d.recent.map((x) => x.label)).toContain(`Ospite ${RUN}`);
         expect(d.recent.find((x) => x.type === 'member')?.label).toBe('Mario R.');
-    });
+    }));
 
-    test('export.csv: the daily counts of the period as a CSV download', async ({ request }) => {
+    test('export.csv: the daily counts of the period as a CSV download', async ({ request }) => onOneAppDay(async (today) => {
         const r = await download(request, '/staff/attendance/export.csv?days=7', ctx.staff);
         expect(r.status).toBe(200);
         expect(r.headers['content-type']).toContain('text/csv');
         expect(r.headers['content-disposition']).toContain('attachment; filename="presenze_7g.csv"');
         const lines = r.text.replace(/^﻿/, '').trim().split(/\r?\n/);
         expect(lines).toHaveLength(8);
-        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=${F.sqlStr(ctx.today)}`);
-        expect(lines[7].split(';').slice(0, 2)).toEqual([ctx.today, String(members)]);
+        const members = F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND DATE(created_at)=${F.sqlStr(today)}`);
+        expect(lines[7].split(';').slice(0, 2)).toEqual([today, String(members)]);
         expect((await F.api(request, 'GET', '/staff/attendance/export.csv?days=5', { token: ctx.staff })).status).toBe(422);
-    });
+    }));
 
     test('retention settings: Staff 403, administrator saves, invalid → 422', async ({ request }) => {
         const denied = await F.api(request, 'PUT', '/staff/attendance/settings', { token: ctx.staff, body: { retention_days: 30 } });
@@ -368,7 +383,7 @@ test.describe('Visitor log', () => {
 });
 
 test.describe('Statistics', () => {
-    test('the API reports the numbers the web statistics page shows', async ({ request, browser }) => {
+    test('the API reports the numbers the web statistics page shows', async ({ request, browser }) => onOneAppDay(async (today) => {
         const r = await F.api(request, 'GET', '/staff/statistics', { token: ctx.staff });
         expect(r.status, r.text.slice(0, 300)).toBe(200);
         const d = r.json.data;
@@ -394,17 +409,17 @@ test.describe('Statistics', () => {
         }
         expect(d.top_books.length).toBeLessThanOrEqual(10);
         expect(d.top_books.every((b) => F.dbInt(`SELECT COUNT(*) FROM libri WHERE id=${b.id} AND deleted_at IS NULL`) === 1)).toBe(true);
-        expect(d.visitors.members).toBe(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND created_at >= ${F.sqlStr(ctx.today)} - INTERVAL 29 DAY`));
+        expect(d.visitors.members).toBe(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE tipo='socio' AND created_at >= ${F.sqlStr(today)} - INTERVAL 29 DAY`));
         expect(d.sections.map((s) => s.id)).toContain('patron-types');
         expect(r.json.meta.modules).toMatchObject({ visitor_log: true, circulation_rules: true, fines: true });
-    });
+    }));
 
-    test('fines: report and CSV carry the ledger movements; the section follows the module', async ({ request }) => {
+    test('fines: report and CSV carry the ledger movements; the section follows the module', async ({ request }) => onOneAppDay(async (today) => {
         F.dbExec(`INSERT INTO movimenti_lettore (utente_id, tipo, importo, descrizione, created_at) VALUES (${ctx.active.id}, 'addebito_manuale', 2.50, ${F.sqlStr(`E2E ${RUN}`)}, NOW())`);
-        const month = ctx.today.slice(0, 7);
+        const month = today.slice(0, 7);
         const r = await F.api(request, 'GET', '/staff/statistics', { token: ctx.staff });
         const report = r.json.data.fines_report;
-        expect(report.to).toBe(ctx.today);
+        expect(report.to).toBe(today);
         expect(report.currency).toMatch(/^[A-Z]{3}$/);
         const row = report.months.find((m) => m.month === month);
         const charged = Math.round(parseFloat(F.dbScalar(`SELECT SUM(importo) FROM movimenti_lettore WHERE tipo IN ('multa_ritardo','addebito_perdita','addebito_danno','addebito_manuale') AND DATE_FORMAT(created_at, '%Y-%m')='${month}'`)) * 100);
@@ -412,24 +427,24 @@ test.describe('Statistics', () => {
         expect(report.totals.charged_cents).toBeGreaterThanOrEqual(250);
         expect(r.json.data.sections.map((s) => s.id)).toContain('fines');
 
-        const csv = await download(request, `/staff/statistics/fines.csv?fines_from=${month}-01&fines_to=${ctx.today}`, ctx.staff);
+        const csv = await download(request, `/staff/statistics/fines.csv?fines_from=${month}-01&fines_to=${today}`, ctx.staff);
         expect(csv.status).toBe(200);
         expect(csv.headers['content-type']).toContain('text/csv');
-        expect(csv.headers['content-disposition']).toContain(`attachment; filename="multe_${month}-01_${ctx.today}.csv"`);
+        expect(csv.headers['content-disposition']).toContain(`attachment; filename="multe_${month}-01_${today}.csv"`);
         const line = csv.text.split(/\r?\n/).find((l) => l.startsWith(`${month},`));
         expect(line, csv.text).toBeTruthy();
         expect(Math.round(parseFloat(line.split(',')[1]) * 100)).toBe(charged);
 
         // Swapped range and validation.
-        const swapped = await F.api(request, 'GET', `/staff/statistics?fines_from=${ctx.today}&fines_to=2020-01-01`, { token: ctx.staff });
-        expect(swapped.json.data.fines_report).toMatchObject({ from: '2020-01-01', to: ctx.today });
+        const swapped = await F.api(request, 'GET', `/staff/statistics?fines_from=${today}&fines_to=2020-01-01`, { token: ctx.staff });
+        expect(swapped.json.data.fines_report).toMatchObject({ from: '2020-01-01', to: today });
         for (const q of ['fines_from=2026-13-01', 'fines_to=yesterday']) {
             const bad = await F.api(request, 'GET', `/staff/statistics?${q}`, { token: ctx.staff });
             expect(bad.status, q).toBe(422);
             expect(bad.json.error.code).toBe('validation');
             expect((await F.api(request, 'GET', `/staff/statistics/fines.csv?${q}`, { token: ctx.staff })).status).toBe(422);
         }
-    });
+    }));
 
     test('each section disappears with its module; fines.csv answers 404 feature_disabled', async ({ request }) => {
         await setFeatures({ visitor_log: '0', fines: '0', circulation_rules: '0', stocktake: '0' });
