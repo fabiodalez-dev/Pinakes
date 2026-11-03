@@ -875,8 +875,9 @@ body.admin-shell main .pk-books-mobile-actions .export-btn-mobile { height: 100%
   }
   .pk-stack-table > tbody > tr > td:first-child { font-weight: 600; color: var(--pk-ink); }
   .pk-stack-table > tbody > tr > td[colspan] { text-align: center !important; }
-  /* Icon actions in a card keep their square size instead of stretching across it. */
-  body.admin-shell main .pk-stack-table .btn-icon { flex: 0 0 44px; width: 44px; }
+  /* Icon actions in a card keep their square size instead of stretching across it
+     (admin-ui.css stretches every button of a phone button group, !important). */
+  body.admin-shell main .pk-stack-table .btn-icon { flex: 0 0 44px !important; width: 44px !important; }
 }
 
 /* Period choice (attendance statistics): one row of four on a phone, not the

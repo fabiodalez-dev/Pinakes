@@ -173,12 +173,17 @@ test.describe.serial('book pages on a phone', () => {
     const free = page.locator('table tbody tr', { hasText: F.copyCodeOf(book.copyIds[1]) }).first();
     await expectOnScreen(free.getByRole('button', { name: 'Modifica stato' }), 'edit copy action');
     await expect(free.locator('td').nth(3)).toHaveAttribute('data-label', /Utente/i);
+    // Icon actions keep their square touch size inside the card, not stretched across it.
+    for (const action of [free.getByRole('link', { name: 'Stampa etichetta' }), free.getByRole('button', { name: 'Modifica stato' })]) {
+      const box = await action.boundingBox();
+      expect(box && box.width >= 40 && box.width <= 48 && Math.abs(box.width - box.height) <= 2, `copy action is square (${JSON.stringify(box)})`).toBe(true);
+    }
 
     const history = page.locator('.card', { has: page.getByRole('heading', { name: /Storico Prestiti/ }) });
     const loan = history.locator('tbody tr', { hasText: `Circ ${TAG}` }).first();
     const due = loan.locator('td').nth(2);
     await expect(due).toHaveAttribute('data-label', /Scadenza/i);
-    await expectOnScreen(due.locator('span'), 'loan due date');
+    await expectOnScreen(due.locator('span:not(.pk-stack-label)').first(), 'loan due date');
 
     const change = page.locator('#activity-feed .pk-activity-change__value', { hasText: MISSING_COVER }).first();
     await expectOnScreen(change, 'long change-log value');
