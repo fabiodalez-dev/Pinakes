@@ -1300,7 +1300,10 @@ class NotificationService {
                 return ['success' => false, 'message' => __('Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.')];
             }
             if ($this->lastRecallOutcome === 'claimed') {
-                return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
+                // Another recall claimed the loan between the read and this
+                // claim: its e-mail may still be on its way, or fail and be
+                // reverted, so this does not say it was sent.
+                return ['success' => false, 'message' => __('Un altro sollecito per questo prestito è appena partito: ricarica la pagina tra qualche istante per vederne l\'esito.')];
             }
             return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
 
@@ -1362,7 +1365,8 @@ class NotificationService {
 
     /**
      * True when the loan is still the one read (same due date, still out) and
-     * a recall already went out on it today: the claim lost to that recall.
+     * another recall claimed it today: the claim lost to that recall, whose
+     * e-mail may still be in flight (last_recall_at is written before SMTP).
      */
     private function recalledTodayUnchanged(array $loan): bool
     {

@@ -7021,6 +7021,7 @@
   "Il sollecito è disponibile solo per prestiti attivi con libro in mano all'utente.": "Rykkere er kun tilgængelige for aktive lån, hvor brugeren har bogen.",
   "Il prestito non è scaduto: nessun sollecito da inviare.": "Lånet er ikke udløbet: ingen rykker at sende.",
   "Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.": "Lånet er blevet ændret i mellemtiden: genindlæs siden og prøv igen.",
+  "Un altro sollecito per questo prestito è appena partito: ricarica la pagina tra qualche istante per vederne l'esito.": "En anden rykker for dette lån er netop sendt af sted: genindlæs siden om et øjeblik for at se resultatet.",
   "L'utente non ha un indirizzo email.": "Brugeren har ingen e-mailadresse.",
   "Sollecito inviato con successo.": "Rykker sendt.",
   "Invio del sollecito non riuscito. Controlla la configurazione email e riprova.": "Rykkeren kunne ikke sendes. Tjek e-mailkonfigurationen, og prøv igen.",

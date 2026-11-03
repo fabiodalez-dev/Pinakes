@@ -382,7 +382,7 @@ $raced = $makeLoan(daysOverdue: 12);
 $staleRow = $rowOf($raced);
 $db->query("UPDATE prestiti SET recall_count = 1, last_recall_at = '" . $db->real_escape_string(\App\Support\DateHelper::now()) . "' WHERE id = " . (int) $raced);
 $sent = $claimRecall->invoke($service, $staleRow, 1, 0, $late);
-$check($sent === false && $outcomeOf() === 'claimed' && $recallCountOf($raced)['count'] === 1, 'C2 another recall went out today after the read → "already sent", counter untouched');
+$check($sent === false && $outcomeOf() === 'claimed' && $recallCountOf($raced)['count'] === 1, 'C2 another recall went out today after the read → "claimed" (another recall in flight), counter untouched');
 
 // ── E. sendLoanReceiptEmail() guards ────────────────────────────────────────
 $e = $service->sendLoanReceiptEmail(2000000001);
