@@ -281,6 +281,8 @@ final class LibraryCalendar
                 if ($ownTransaction) {
                     $db->begin_transaction();
                 }
+                // CI-SOFT-DELETE-EXEMPT: a lock, not a read for display; an active
+                // loan may belong to an archived book and its row is locked all the same.
                 $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
                 $lockBook->bind_param('i', $bookId);
                 $lockBook->execute();
