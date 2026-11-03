@@ -1921,12 +1921,16 @@ table#libri-table { border: 1px solid #e5e7eb; width: 100% !important; }
   #libri-table th:nth-child(6), #libri-table td:nth-child(6),
   #libri-table th:nth-child(7), #libri-table td:nth-child(7),
   #libri-table th:nth-child(8), #libri-table td:nth-child(8) { display: none; }
-  #libri-table col:first-child, #libri-table th:first-child, #libri-table td:first-child { width:10% !important; padding:.55rem .2rem !important; }
-  #libri-table col:nth-child(2), #libri-table th:nth-child(2), #libri-table td:nth-child(2) { width:16% !important; padding:.55rem .2rem !important; }
-  #libri-table col:nth-child(5), #libri-table th:nth-child(5), #libri-table td:nth-child(5) { width:46% !important; min-width:0; padding:.55rem .35rem !important; }
-  #libri-table col:last-child, #libri-table th:last-child, #libri-table td:last-child { width:28% !important; padding:.55rem .1rem !important; }
-  #libri-table td:last-child > div { gap:0; }
-  #libri-table td:last-child :is(a, button) { width:1.65rem; height:1.85rem; flex:0 0 1.65rem; }
+  #libri-table col:first-child, #libri-table th:first-child, #libri-table td:first-child { width:2.5rem !important; padding:.55rem .2rem !important; }
+  #libri-table col:nth-child(2), #libri-table th:nth-child(2), #libri-table td:nth-child(2) { width:2.75rem !important; padding:.55rem .2rem !important; }
+  #libri-table col:nth-child(5), #libri-table th:nth-child(5), #libri-table td:nth-child(5) { width:auto !important; min-width:0; padding:.55rem .35rem !important; }
+  #libri-table col:last-child, #libri-table th:last-child, #libri-table td:last-child { width:3.25rem !important; padding:.55rem .2rem !important; }
+  /* The three row actions keep the size of every admin list (admin-ui.css),
+     one under the other: side by side they took a third of the row and stuck
+     out of the table. */
+  #libri-table td:last-child > div { flex-direction:column; gap:.3rem; }
+  /* With the room the actions gave back, a title and subtitle read in full. */
+  #libri-table td:nth-child(5) :is(.line-clamp-1, .line-clamp-2) { display:block; -webkit-line-clamp:unset; overflow:visible; }
 
   .dataTables_wrapper .dataTables_length,
   .dataTables_wrapper .dataTables_info,

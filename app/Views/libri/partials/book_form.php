@@ -728,9 +728,10 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <!-- Cover preview area -->
             <div id="cover-preview-container" class="mt-4">
               <?php if (!empty($currentCover)): ?>
-                <div class="inline-flex flex-col items-start space-y-2">
+                <?php // A cover whose file is gone shows nothing: no caption, no "Rimuovi" for an empty frame. ?>
+                <div class="inline-flex flex-col items-start space-y-2" data-current-cover>
                   <div class="relative group">
-                    <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none';" />
+                    <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; this.closest('[data-current-cover]').style.display = 'none';" />
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500"><?= __("Copertina attuale") ?></span>
@@ -2028,7 +2029,8 @@ function stackChoicesInput(wrapper) {
         input.style.setProperty('flex', '1 0 100%', 'important');
         input.style.setProperty('min-width', '100%', 'important');
         input.style.setProperty('width', '100%', 'important');
-        input.style.setProperty('margin', '6px 8px 2px', 'important');
+        // No side margin: at width 100% it pushed the field out of its box.
+        input.style.setProperty('margin', '6px 0 2px', 'important');
     };
     apply();
     // Re-apply identical values when Choices rewrites the style attribute; setting
@@ -4539,6 +4541,11 @@ function initBookTinyMCE() {
         menubar: false,
         toolbar_mode: 'wrap',
         toolbar_sticky: true,
+        // On a phone TinyMCE switches to its mobile settings, where the
+        // default toolbar scrolls sideways and hid everything after B/I.
+        mobile: {
+            toolbar_mode: 'wrap'
+        },
         plugins: [
             'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
         ],
