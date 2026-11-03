@@ -18,6 +18,7 @@ test.use({ ...devices['iPhone 13'], defaultBrowserType: 'chromium' });
 
 const TAG = `MOBBK${String(Date.now()).slice(-6)}`;
 const LONG_TITLE_TAIL = 'un titolo abbastanza lungo da occupare più di due righe nella colonna informazioni del telefono';
+const UNBREAKABLE = 'EDIZIONESPECIALEILLUSTRATA9788804668237RISTAMPA';
 // No hyphen or space to break at, as a real upload name: copertina_<uniqid>.jpg
 const MISSING_COVER = `/uploads/copertine/copertina_${TAG.toLowerCase()}a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8.45883099.jpg`;
 
@@ -56,6 +57,28 @@ async function pastTheEdge(page) {
   });
 }
 
+/** Contrast between a chip's remove cross (its icon's opaque pixels, at its opacity) and the chip. */
+async function crossContrast(cross) {
+  return cross.evaluate(async (btn) => {
+    const lum = ([r, g, b]) => { const c = [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const rgb = (s) => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    let bgEl = btn.parentElement; let bg = getComputedStyle(bgEl).backgroundColor;
+    while (bgEl && /rgba\(0, 0, 0, 0\)|transparent/.test(bg)) { bgEl = bgEl.parentElement; bg = bgEl ? getComputedStyle(bgEl).backgroundColor : 'rgb(255,255,255)'; }
+    const url = (getComputedStyle(btn).backgroundImage.match(/url\("?(.*?)"?\)$/) || [])[1];
+    if (!url) return 0;
+    const img = new Image(); img.src = url; await img.decode();
+    const canvas = document.createElement('canvas'); canvas.width = 21; canvas.height = 21;
+    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, 21, 21);
+    const px = ctx.getImageData(0, 0, 21, 21).data; let n = 0; const sum = [0, 0, 0];
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 200) { n++; sum[0] += px[i]; sum[1] += px[i + 1]; sum[2] += px[i + 2]; }
+    if (!n) return 0;
+    const op = parseFloat(getComputedStyle(btn).opacity); const back = rgb(bg);
+    const ink = sum.map((v, i) => (v / n) * op + back[i] * (1 - op));
+    const [a, b] = [lum(ink), lum(back)].sort((x, y) => y - x);
+    return (a + 0.05) / (b + 0.05);
+  });
+}
+
 /** The element's box lies inside the viewport (left and right edge) and is shown. */
 async function expectOnScreen(locator, what) {
   await expect(locator, what).toBeVisible();
@@ -75,7 +98,7 @@ test.describe.serial('book pages on a phone', () => {
 
   test.beforeAll(async () => {
     book = F.createTitle(TAG, 'libro', 2);
-    book.title = `${book.title} ${LONG_TITLE_TAIL}`;
+    book.title = `${book.title} ${LONG_TITLE_TAIL} ${UNBREAKABLE}`;
     F.dbQuery(`UPDATE libri SET titolo=${F.sqlStr(book.title)}, search_index=${F.sqlStr(book.title)} WHERE id=${book.id} AND deleted_at IS NULL`);
     bareBook = F.createTitle(`${TAG}B`, 'libro', 1);
     patron = F.createPatron(TAG);
@@ -132,6 +155,9 @@ test.describe.serial('book pages on a phone', () => {
       const title = row.locator('td:nth-child(5) a').first();
       const cut = await title.evaluate((a) => a.scrollHeight > a.clientHeight + 1);
       expect(cut, 'the title is cut off').toBe(false);
+      // A token with no break point wraps inside its cell instead of running under the actions.
+      const spill = await title.evaluate((a) => { const td = a.closest('td').getBoundingClientRect(); return [a.scrollWidth - a.clientWidth, Math.round(a.getBoundingClientRect().right - td.right)]; });
+      expect(spill[0] <= 1 && spill[1] <= 1, `the title spills out of its cell (${spill})`).toBe(true);
     });
   }
 
@@ -182,26 +208,8 @@ test.describe.serial('book pages on a phone', () => {
       await expect(chip, `${name} chip`).toBeVisible();
       const cross = chip.locator('.choices__button');
       await expectOnScreen(cross, `${name} remove cross`);
-      // Contrast between the cross (its icon's opaque pixels, at its opacity) and the chip.
-      const ratio = await cross.evaluate(async (btn) => {
-        const lum = ([r, g, b]) => { const c = [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
-        const rgb = (s) => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
-        let bgEl = btn.parentElement; let bg = getComputedStyle(bgEl).backgroundColor;
-        while (bgEl && /rgba\(0, 0, 0, 0\)|transparent/.test(bg)) { bgEl = bgEl.parentElement; bg = bgEl ? getComputedStyle(bgEl).backgroundColor : 'rgb(255,255,255)'; }
-        const url = (getComputedStyle(btn).backgroundImage.match(/url\("?(.*?)"?\)$/) || [])[1];
-        if (!url) return 0;
-        const img = new Image(); img.src = url; await img.decode();
-        const canvas = document.createElement('canvas'); canvas.width = 21; canvas.height = 21;
-        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, 21, 21);
-        const px = ctx.getImageData(0, 0, 21, 21).data; let n = 0; const sum = [0, 0, 0];
-        for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 200) { n++; sum[0] += px[i]; sum[1] += px[i + 1]; sum[2] += px[i + 2]; }
-        if (!n) return 0;
-        const op = parseFloat(getComputedStyle(btn).opacity); const back = rgb(bg);
-        const ink = sum.map((v, i) => (v / n) * op + back[i] * (1 - op));
-        const [a, b] = [lum(ink), lum(back)].sort((x, y) => y - x);
-        return (a + 0.05) / (b + 0.05);
-      });
-      expect(ratio, `${name} cross contrast`).toBeGreaterThanOrEqual(3);
+      // Contrast between the cross (its icon's opaque pixels, at its opacity) and the chip, light theme.
+      expect(await crossContrast(cross), `${name} cross contrast`).toBeGreaterThanOrEqual(3);
     }
 
     for (const input of await page.locator('.choices__inner .choices__input--cloned').all()) {
@@ -217,9 +225,27 @@ test.describe.serial('book pages on a phone', () => {
       expect(inside, 'chip search field inside its box').toBe(true);
     }
 
-    // The cover file is gone: no "current cover" card and no "Rimuovi" for an empty frame.
+    // The cover file is gone: no "current cover" card and no empty frame, but
+    // "Rimuovi" stays, with a caption saying why: it clears the dead path.
     await expect(page.getByText('Copertina Attuale', { exact: true })).toBeHidden();
-    await expect(page.locator('#cover-preview-container').getByRole('button', { name: 'Rimuovi' })).toBeHidden();
+    const preview = page.locator('#cover-preview-container');
+    await expect(preview.locator('img')).toBeHidden();
+    await expect(preview.getByText('File della copertina non trovato')).toBeVisible();
+    await expect(preview.getByText('Copertina attuale', { exact: true })).toBeHidden();
+    await expectOnScreen(preview.getByRole('button', { name: 'Rimuovi' }), 'remove the dead cover');
+  });
+
+  test('book form in the dark theme: the chip cross stays readable', async ({ page }) => {
+    await F.loginAsAdmin(page);
+    await page.goto(`/admin/books/edit/${book.id}`, { waitUntil: 'networkidle' });
+    // The theme is the `dark` class on <html>, which the layout's initializeDarkMode() adds for a saved dark theme.
+    await page.evaluate(() => document.documentElement.classList.add('dark'));
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    for (const name of [`${TAG} Autrice Mobile`, `${TAG} Editore Mobile`]) {
+      const cross = page.locator('.choices__list--multiple .choices__item', { hasText: name }).first().locator('.choices__button');
+      await expectOnScreen(cross, `${name} remove cross`);
+      expect(await crossContrast(cross), `${name} cross contrast, dark theme`).toBeGreaterThanOrEqual(3);
+    }
   });
 
   test('book form of a book with no cover: no empty "current cover" card', async ({ page }) => {

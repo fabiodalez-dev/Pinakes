@@ -1930,7 +1930,7 @@ table#libri-table { border: 1px solid #e5e7eb; width: 100% !important; }
      out of the table. */
   #libri-table td:last-child > div { flex-direction:column; gap:.3rem; }
   /* With the room the actions gave back, a title and subtitle read in full. */
-  #libri-table td:nth-child(5) :is(.line-clamp-1, .line-clamp-2) { display:block; -webkit-line-clamp:unset; overflow:visible; }
+  #libri-table td:nth-child(5) :is(.line-clamp-1, .line-clamp-2) { display:block; -webkit-line-clamp:unset; overflow:visible; overflow-wrap:anywhere; }
 
   .dataTables_wrapper .dataTables_length,
   .dataTables_wrapper .dataTables_info,
