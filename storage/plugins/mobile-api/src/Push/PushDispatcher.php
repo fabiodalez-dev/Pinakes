@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Plugins\MobileApi\Push;
 
 use App\Support\DateHelper;
+use App\Support\LibraryCalendar;
 use App\Support\SecureLogger;
 use mysqli;
 
@@ -151,7 +152,7 @@ final class PushDispatcher
     {
         $events = 0;
 
-        $sql = "SELECT pr.id, pr.utente_id, pr.libro_id, pr.data_scadenza, l.titolo
+        $sql = "SELECT pr.id, pr.utente_id, pr.libro_id, pr.data_scadenza, pr.stato, pr.copia_id, l.titolo
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                 WHERE pr.attivo = 1
@@ -167,6 +168,13 @@ final class PushDispatcher
         $stmt->close();
 
         foreach ($rows as $r) {
+            // A due day marked closed after the loan was made is not late until
+            // the first open day after it has gone by: same rule as the overdue
+            // sweep and the overdue e-mail (LibraryCalendar::isPastDue()).
+            if ((string) $r['stato'] === 'in_corso'
+                && !LibraryCalendar::isPastDue($this->db, (string) $r['data_scadenza'], $r['copia_id'] !== null ? (int) $r['copia_id'] : null, $today)) {
+                continue;
+            }
             $userId = (int) $r['utente_id'];
             // One overdue push per loop per loan (keyed on due date), not per day.
             $key    = 'loan_overdue:' . (int) $r['id'] . ':' . (string) $r['data_scadenza'];
