@@ -316,16 +316,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const card = document.getElementById('codice_tessera');
   if (card) { card.focus(); }
   // A card read by the camera registers the entry at once, as a desk reader
-  // does with Enter. The scanner only fills the field: this listener submits
-  // the change it dispatches after a scan, never one from typing.
-  const scan = document.getElementById('attendance-card-scan');
-  if (!card || !scan) { return; }
-  let fromCamera = false;
-  scan.addEventListener('click', function () { fromCamera = true; });
-  card.addEventListener('keydown', function () { fromCamera = false; });
-  card.addEventListener('change', function () {
-    if (!fromCamera || card.value.trim() === '') { return; }
-    fromCamera = false;
+  // does with Enter. The scanner fills the field with a synthetic change
+  // event (isTrusted false); typing, pasting or autofill fire trusted ones
+  // and still wait for "Registra ingresso".
+  if (!card) { return; }
+  card.addEventListener('change', function (event) {
+    if (event.isTrusted || card.value.trim() === '') { return; }
     card.form.requestSubmit();
   });
 });

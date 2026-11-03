@@ -81,12 +81,19 @@ test.describe.serial('Visitor log: card scanned with the camera', () => {
     expect(parseInt(h.dbQuery(`SELECT COUNT(*) FROM presenze WHERE utente_id = ${userId} AND tipo = 'socio'`), 10)).toBe(1);
   });
 
-  test('typing a code is not sent on its own: the librarian still confirms it', async ({ page }) => {
+  test('a typed or pasted code is not sent on its own, also after a cancelled scan', async ({ page }) => {
     await h.loginAsAdmin(page);
     await page.goto(`${h.BASE}/admin/attendance`);
     const before = parseInt(h.dbQuery(`SELECT COUNT(*) FROM presenze WHERE utente_id = ${userId}`), 10);
     let posted = false;
     page.on('request', (r) => { if (r.url().endsWith('/admin/attendance/scan') && r.method() === 'POST') posted = true; });
+    // A scan opened and cancelled first (camera refused here, so it cannot
+    // decode before the cancel): the next code must still wait.
+    await page.evaluate(() => { navigator.mediaDevices.getUserMedia = async () => { const e = new Error('denied'); e.name = 'NotAllowedError'; throw e; }; });
+    await page.locator('#attendance-card-scan').tap();
+    await page.locator('[role="dialog"][aria-label="Scansiona codice a barre"] button', { hasText: 'Annulla' }).tap();
+    await expect(page.locator('[role="dialog"][aria-label="Scansiona codice a barre"]')).toHaveCount(0);
+    // fill() inserts the text without key presses, like paste or autofill.
     await page.locator('#codice_tessera').fill(CARD);
     // Leaving the field fires "change" like a scan does: it must not submit.
     await page.locator('#motivo').focus();
