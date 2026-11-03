@@ -199,6 +199,26 @@ test.describe.serial('Patron photo (phase 7)', () => {
     }
   });
 
+  test('an Android tablet (no Mobile token in its user agent) opens the camera app', async ({ browser }) => {
+    const { devices } = require('@playwright/test');
+    const context = await browser.newContext({ ...devices['Galaxy Tab S4'] });
+    // Chrome on an Android tablet reports userAgentData.mobile === false.
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'userAgentData', { configurable: true, get: () => ({ mobile: false, platform: 'Android', brands: [] }) });
+    });
+    const page = await context.newPage();
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/users/edit/${userId}`);
+      expect(await page.evaluate(() => [/Mobile/.test(navigator.userAgent), navigator.userAgentData.mobile])).toEqual([false, false]);
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#patron-photo-widget').getByRole('button', { name: 'Scatta foto' }).tap()]);
+      expect(await chooser.element().getAttribute('capture')).toBe('environment');
+      await expect(page.locator('#photo-video')).toBeHidden();
+    } finally {
+      await context.close();
+    }
+  });
+
   test('a touch laptop with a desktop browser keeps the inline webcam', async ({ browser }) => {
     const context = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();

@@ -288,9 +288,10 @@ unset($workspaceHeader);
   const useNativeCamera = () => {
     if (!window.matchMedia('(pointer: coarse)').matches) { return false; }
     const ua = navigator.userAgent || '';
-    if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') { return navigator.userAgentData.mobile; }
-    // iPadOS Safari reports a Mac user agent but supports capture.
-    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    // Android tablets have no "Mobile" token (userAgentData.mobile is false
+    // there) but honour capture; iPadOS Safari reports a Mac user agent.
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) { return true; }
+    return !!(navigator.userAgentData && navigator.userAgentData.mobile === true);
   };
 
   const say = (text, isError) => {

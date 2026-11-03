@@ -283,6 +283,10 @@ test.describe('Holidays in circulation', () => {
 
   // Each test starts from an empty calendar: its own holidays only.
   test.beforeEach(() => {
+    // A preset apply may adopt a pre-existing row (switched off in beforeAll)
+    // and turn it back on: switch the pre-existing rows off again, so every
+    // test starts from an empty calendar. afterAll restores them.
+    db(`UPDATE calendario_chiusure SET attiva=0 WHERE attiva=1 AND id IN (SELECT id FROM ${prev.closureBackup})`);
     dropCreatedHolidays();
     // Every expected date starts from the day the page computes it on, even
     // when the suite runs across midnight.
