@@ -283,7 +283,15 @@ unset($workspaceHeader);
   // Phones and tablets open the device camera app (full screen, front and
   // back lens) through the capture input; desktops keep the inline webcam.
   const cameraFile = document.getElementById('photo-camera-file');
-  const useNativeCamera = () => window.matchMedia('(pointer: coarse)').matches;
+  // Only mobile browsers honour capture: a touch laptop or a tablet running
+  // a desktop browser would get a plain file picker, so it keeps the webcam.
+  const useNativeCamera = () => {
+    if (!window.matchMedia('(pointer: coarse)').matches) { return false; }
+    const ua = navigator.userAgent || '';
+    if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') { return navigator.userAgentData.mobile; }
+    // iPadOS Safari reports a Mac user agent but supports capture.
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  };
 
   const say = (text, isError) => {
     status.textContent = text;

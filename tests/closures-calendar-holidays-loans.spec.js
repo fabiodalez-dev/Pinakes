@@ -64,8 +64,36 @@ let requestDays = 30;
 let pickupDays = 3;
 /** @type {Record<string, {id: number, inv: string}>} */
 const books = {};
-/** Snapshot of what the tests change, restored in afterAll. */
-const prev = { weekdays: '', holidaySettings: '', maxClosureId: 0, maxCustomId: 0, features: /** @type {Record<string,string>} */ ({}) };
+/**
+ * What the tests change, restored in afterAll. `ready` is set only once the
+ * whole snapshot is taken: a setup that failed half-way restores nothing and
+ * deletes nothing it did not create.
+ */
+const prev = {
+  ready: false,
+  weekdays: /** @type {string|null} */ (null),
+  /** holiday_* settings as [hex key, hex value]: no GROUP_CONCAT truncation. */
+  holidaySettings: /** @type {string[][]} */ ([]),
+  /** closure rows saved in a backup table: a preset apply may adopt or remove them. */
+  closureBackup: `e2e_holloan_closures_${RUN}`,
+  closureColumns: /** @type {string[]} */ ([]),
+  /** library holidays that were active: switched off for the run, then back on. */
+  activeCustomIds: /** @type {number[]} */ ([]),
+  features: /** @type {Record<string,string>} */ ({}),
+};
+/** Rows this run created, the only ones its cleanup deletes. */
+const created = { closureIds: /** @type {Set<number>} */ (new Set()), customIds: /** @type {Set<number>} */ (new Set()) };
+const idList = (set) => [...set].join(',') || '0';
+function appToday() {
+  const tz = db("SELECT setting_value FROM system_settings WHERE category='app' AND setting_key='timezone' LIMIT 1") || 'Europe/Rome';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function dropCreatedHolidays() {
+  db(`DELETE FROM calendario_chiusure WHERE id IN (${idList(created.closureIds)})`);
+  db(`DELETE FROM festivita_personalizzate WHERE id IN (${idList(created.customIds)})`);
+  created.closureIds.clear();
+  created.customIds.clear();
+}
 /** Days the test made closed, besides the weekly closed days below. */
 let closedDays = new Set();
 let closedWeekdays = new Set();
@@ -104,11 +132,16 @@ async function submitAndLand(page, button) {
 }
 // Admin → Calendar → national holidays: tick exactly `ids` for Italy, apply.
 async function applyItalianPreset(page, ids) {
+  const before = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
   await page.goto(`${BASE}/admin/calendar?holiday_country=IT#calendar-preset`);
   await page.locator('[data-holiday-select="none"]').click();
   for (const id of ids) await page.locator(`[data-holiday-row="IT:${id}"] input[data-holiday-rule]`).check();
   await submitAndLand(page, '#import-preset');
   await expect(page.locator('body')).toContainText(/Festività applicate/);
+  // The rows the apply wrote for the ticked holidays, so cleanup takes only those.
+  for (const id of db(`SELECT id FROM calendario_chiusure WHERE id > ${before} AND regola_festivita LIKE 'IT:%'`).split('\n').filter(Boolean)) {
+    created.closureIds.add(parseInt(id, 10));
+  }
 }
 // Admin → Calendar → the library's holidays: a fixed day every year.
 async function addLibraryHoliday(page, iso, days = 1) {
@@ -120,6 +153,7 @@ async function addLibraryHoliday(page, iso, days = 1) {
   await page.fill('#custom_days', String(days));
   await submitAndLand(page, '#save-custom-holiday');
   await expect(page.locator('#custom-holidays')).toContainText(`${TAG} ${iso}`);
+  created.customIds.add(parseInt(db(`SELECT id FROM festivita_personalizzate WHERE nome='${TAG} ${iso}' ORDER BY id DESC LIMIT 1`), 10));
   for (let i = 0; i < days; i++) closedDays.add(addDays(iso, i));
 }
 async function setWeekdaysInUi(page, days) {
@@ -179,20 +213,26 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('Holidays in circulation', () => {
   test.beforeAll(async () => {
-    prev.weekdays = db("SELECT IFNULL((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'), '')");
-    prev.holidaySettings = db("SELECT IFNULL(GROUP_CONCAT(CONCAT_WS('|', setting_key, setting_value) SEPARATOR ';'), '') FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
-    prev.maxClosureId = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM calendario_chiusure') || '0', 10);
-    prev.maxCustomId = parseInt(db('SELECT COALESCE(MAX(id), 0) FROM festivita_personalizzate') || '0', 10);
+    // Snapshot first, every piece, before changing anything.
+    const weekdays = db("SELECT HEX(setting_value) FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    const holidaySettings = db("SELECT CONCAT(HEX(setting_key), ' ', HEX(setting_value)) FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'")
+      .split('\n').filter(Boolean).map((line) => line.split(' '));
+    const activeCustomIds = db('SELECT id FROM festivita_personalizzate WHERE attiva=1').split('\n').filter(Boolean).map(Number);
+    const closureColumns = db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='calendario_chiusure' ORDER BY ORDINAL_POSITION").split('\n').filter(Boolean);
+    db(`CREATE TABLE ${prev.closureBackup} AS SELECT * FROM calendario_chiusure`);
     prev.features = ft.readFeatures(['closures_calendar']);
-    await ft.writeFeatures({ closures_calendar: '1' });
-    // Expectations below know only the holidays this run configures: any
-    // other closure would move a date for a reason the test cannot see.
-    test.skip(db('SELECT COUNT(*) FROM calendario_chiusure WHERE attiva=1') !== '0'
-      || db('SELECT COUNT(*) FROM festivita_personalizzate WHERE attiva=1') !== '0', 'the calendar already has closures');
-    db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    Object.assign(prev, { weekdays, holidaySettings, activeCustomIds, closureColumns, ready: true });
 
-    const tz = db("SELECT setting_value FROM system_settings WHERE category='app' AND setting_key='timezone' LIMIT 1") || 'Europe/Rome';
-    today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    // Expectations below know only the holidays this run configures: the
+    // library's own closures and holidays are switched off for the run and
+    // put back afterwards, instead of skipping the suite.
+    await ft.writeFeatures({ closures_calendar: '1' });
+    db('UPDATE calendario_chiusure SET attiva=0 WHERE attiva=1');
+    db(`UPDATE festivita_personalizzate SET attiva=0 WHERE id IN (${activeCustomIds.join(',') || '0'})`);
+    db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
+
+    today = appToday();
     const setting = (key, def) => parseInt(db(`SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='${key}'), '${def}')`), 10) || def;
     loanDays = setting('loan_duration_days', 30);
     requestDays = Math.min(loanDays, setting('max_loan_duration_days', 90));
@@ -213,16 +253,25 @@ test.describe('Holidays in circulation', () => {
   });
 
   test.afterAll(async () => {
-    db(`DELETE FROM calendario_chiusure WHERE id > ${prev.maxClosureId}`);
-    db(`DELETE FROM festivita_personalizzate WHERE id > ${prev.maxCustomId}`);
-    db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
-    for (const row of prev.holidaySettings ? prev.holidaySettings.split(';') : []) {
-      const [key, value] = row.split('|');
-      db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar','${key}','${value.replace(/'/g, "''")}')`);
+    dropCreatedHolidays();
+    if (prev.ready) {
+      // Rows that existed before the run: put back as they were (a preset
+      // apply may have adopted or removed one); rows written meanwhile by
+      // someone else are left alone.
+      const cols = prev.closureColumns.map((c) => `\`${c}\``);
+      const set = cols.filter((c) => c !== '`id`').map((c) => `c.${c}=b.${c}`).join(', ');
+      db(`UPDATE calendario_chiusure c JOIN ${prev.closureBackup} b ON b.id=c.id SET ${set}`);
+      db(`INSERT INTO calendario_chiusure (${cols.join(', ')}) SELECT ${cols.map((c) => `b.${c}`).join(', ')} FROM ${prev.closureBackup} b LEFT JOIN calendario_chiusure c ON c.id=b.id WHERE c.id IS NULL`);
+      db(`UPDATE festivita_personalizzate SET attiva=1 WHERE id IN (${prev.activeCustomIds.join(',') || '0'})`);
+      db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
+      for (const [key, value] of prev.holidaySettings) {
+        db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
+      }
+      if (prev.weekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+      else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays',UNHEX('${prev.weekdays}')) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+      await ft.writeFeatures(prev.features);
     }
-    if (prev.weekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
-    else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','${prev.weekdays.replace(/'/g, "''")}') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
-    await ft.writeFeatures(prev.features);
+    db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
     const ids = Object.values(books).map((b) => b.id).join(',') || '0';
     db(`DELETE FROM admin_notifications WHERE (type IN ('new_loan_request','overdue_loan') OR (type='general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids}))`);
     db(`DELETE FROM prestiti WHERE libro_id IN (${ids})`);
@@ -234,8 +283,10 @@ test.describe('Holidays in circulation', () => {
 
   // Each test starts from an empty calendar: its own holidays only.
   test.beforeEach(() => {
-    db(`DELETE FROM calendario_chiusure WHERE id > ${prev.maxClosureId}`);
-    db(`DELETE FROM festivita_personalizzate WHERE id > ${prev.maxCustomId}`);
+    dropCreatedHolidays();
+    // Every expected date starts from the day the page computes it on, even
+    // when the suite runs across midnight.
+    today = appToday();
     db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
     db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
     closedDays = new Set();
@@ -341,7 +392,9 @@ test.describe('Holidays in circulation', () => {
     await addLibraryHoliday(page, holiday);
     const loan = await deskLoan(page, books.pickup, { immediate: false });
     expect(loan.pickup).toBe(addOpenDays(today, pickupDays, loan.due));
-    expect(loan.pickup).toBe(addDays(today, pickupDays + 1));
+    // One day more than without the holiday, never past the loan's due date.
+    const uncapped = addDays(today, pickupDays + 1);
+    expect(loan.pickup).toBe(uncapped < loan.due ? uncapped : loan.due);
   });
 
   test('Library 6: a reader\'s request whose return date is a holiday is saved with the next day', async ({ page }) => {

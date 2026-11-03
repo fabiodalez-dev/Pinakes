@@ -71,8 +71,11 @@ async function uploadPhoto(page, id, name) {
   return stored;
 }
 
-/** A small valid PNG written with a raw zlib stream (no image library needed). */
-function writePng(file, w = 64, h = 80) {
+/**
+ * A small valid PNG written with a raw zlib stream (no image library needed).
+ * `paint(x, y)` may return the [r, g, b] of a pixel; the default is a gradient.
+ */
+function writePng(file, w = 64, h = 80, paint = null) {
   const zlib = require('zlib');
   const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
   const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
@@ -87,7 +90,11 @@ function writePng(file, w = 64, h = 80) {
   const raw = Buffer.alloc((w * 3 + 1) * h);
   for (let y = 0; y < h; y++) {
     raw[y * (w * 3 + 1)] = 0;
-    for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = 20; raw[o + 1] = 120 + (y % 100); raw[o + 2] = 200; }
+    for (let x = 0; x < w; x++) {
+      const o = y * (w * 3 + 1) + 1 + x * 3;
+      const [r, g, b] = paint ? paint(x, y) : [20, 120 + (y % 100), 200];
+      raw[o] = r; raw[o + 1] = g; raw[o + 2] = b;
+    }
   }
   const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
   fs.writeFileSync(file, png);
@@ -166,18 +173,45 @@ test.describe.serial('Patron photo (phase 7)', () => {
       const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#patron-photo-widget').getByRole('button', { name: 'Scatta foto' }).tap()]);
       expect(await chooser.element().getAttribute('capture')).toBe('environment');
       await expect(page.locator('#photo-video')).toBeHidden();
-      // A portrait shot, larger than the card: cropped and scaled to 480×600.
+      // A portrait shot, larger than the card: the 4:5 crop keeps the centre
+      // 900×1125 (rows 238–1362), painted green; the bands above and below,
+      // painted red, must not reach the card. A whole picture squeezed to
+      // 480×600 would show red at its top and bottom edges.
       const shot = path.join(os.tmpdir(), `phone-shot-${RUN}.png`);
-      writePng(shot, 900, 1600);
+      writePng(shot, 900, 1600, (x, y) => (y < 238 || y >= 1362 ? [220, 20, 20] : [20, 200, 40]));
       await chooser.setFiles(shot);
       fs.unlinkSync(shot);
       await expect(page.locator('#photo-status')).toHaveText('Foto salvata.', { timeout: 15000 });
       const size = await page.locator('#photo-preview').evaluate(async (img) => { const i = /** @type {HTMLImageElement} */ (img); await i.decode(); return [i.naturalWidth, i.naturalHeight]; });
       expect(size).toEqual([480, 600]);
+      const edges = await page.locator('#photo-preview').evaluate((img) => {
+        const c = document.createElement('canvas'); c.width = 480; c.height = 600;
+        const x = c.getContext('2d'); x.drawImage(/** @type {HTMLImageElement} */ (img), 0, 0);
+        return [x.getImageData(240, 3, 1, 1).data, x.getImageData(240, 596, 1, 1).data].map((d) => [d[0], d[1]]);
+      });
+      for (const [r, g] of edges) { expect(g).toBeGreaterThan(150); expect(r).toBeLessThan(90); }
       expect(await page.evaluate(() => /** @type {any} */ (window).__gum)).toBe(0);
       const stored = storedPhoto(userId);
       expect(stored).toMatch(new RegExp(`^patron_photos/${userId}-[a-f0-9]{16}\\.jpg$`));
       files.push(photoFile(stored));
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('a touch laptop with a desktop browser keeps the inline webcam', async ({ browser }) => {
+    const context = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    try {
+      await login(page);
+      await page.goto(`${BASE}/admin/users/edit/${userId}`);
+      expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      let chooser = false;
+      page.on('filechooser', () => { chooser = true; });
+      await page.locator('#patron-photo-widget').getByRole('button', { name: 'Scatta foto' }).tap();
+      await expect(page.locator('#photo-video')).toBeVisible();
+      expect(chooser).toBe(false);
+      await page.locator('#photo-camera-cancel').click();
     } finally {
       await context.close();
     }
