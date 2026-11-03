@@ -217,6 +217,21 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore festività'), ['error' => $e->getMessage()]);
         }
 
+        // Due dates that a calendar change made fall on a closed day (an
+        // operator's closure, a holiday rule reaching a new year): moved to
+        // the next open day before the overdue flip reads them. The calendar
+        // pages already do it on save; this pass also catches what no save
+        // announced.
+        try {
+            if (Features::enabled('closures_calendar')) {
+                LibraryCalendar::reset();
+                $results['due_dates_moved'] = LibraryCalendar::extendDueDates($this->db);
+            }
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'extendDueDates: ' . $e->getMessage();
+            SecureLogger::error('MaintenanceService: due dates not moved', ['error' => $e->getMessage()]);
+        }
+
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
         // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
         // in this same pass that special-cases 'in_ritardo' (capacity clamps,
@@ -491,6 +506,7 @@ class MaintenanceService
         $added = \App\Support\Holidays\HolidayPresets::ensureYears($this->db);
         if ($added > 0) {
             LibraryCalendar::reset();
+            LibraryCalendar::extendDueDates($this->db);
             LibraryCalendar::extendPickupDeadlines($this->db);
         }
         return $added;
@@ -1741,7 +1757,7 @@ class MaintenanceService
 
         try {
             $select = $this->db->prepare("
-                SELECT id FROM prestiti
+                SELECT id, data_scadenza, copia_id FROM prestiti
                 WHERE stato = 'in_corso'
                 AND data_scadenza < ?
                 AND attivo = 1
@@ -1753,11 +1769,18 @@ class MaintenanceService
             $select->bind_param('s', $today);
             $select->execute();
             $result = $select->get_result();
-            $overdueIds = [];
-            while ($row = $result->fetch_assoc()) {
-                $overdueIds[] = (int) $row['id'];
-            }
+            $candidates = $result->fetch_all(MYSQLI_ASSOC);
             $select->close();
+            // A due date marked closed after the loan was made (and not moved,
+            // being already past) is late only once its first open day has
+            // gone by: until then the reader could not bring the item back.
+            $overdueIds = [];
+            foreach ($candidates as $row) {
+                $copyId = $row['copia_id'] !== null ? (int) $row['copia_id'] : null;
+                if (LibraryCalendar::isPastDue($this->db, (string) $row['data_scadenza'], $copyId, $today)) {
+                    $overdueIds[] = (int) $row['id'];
+                }
+            }
 
             if ($overdueIds === []) {
                 if (!$insideTransaction) {

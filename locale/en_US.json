@@ -3777,6 +3777,7 @@
   "Prestito già modificato da altra richiesta": "Loan already modified by another request",
   "Prestito già processato da un altro utente": "Loan already processed by another user",
   "Prestito in ritardo": "Overdue Loan",
+  "Scadenza spostata: la biblioteca è chiusa quel giorno": "Due date moved: the library is closed that day",
   "Prestito non trovato": "Loan not found",
   "Prestito non trovato o già processato": "Loan not found or already processed",
   "Prestito non trovato o non cancellabile": "Loan not found or cannot be cancelled",

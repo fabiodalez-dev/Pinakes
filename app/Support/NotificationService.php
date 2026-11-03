@@ -729,7 +729,7 @@ class NotificationService {
             // Get overdue loans
             // CI-SOFT-DELETE-EXEMPT: the first overdue notice must keep firing for active loans whose book was archived — soft-deleting the book silenced this notice AND, since sendLoanRecalls() requires overdue_notification_sent=1, every automatic recall after it.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
+                SELECT p.id, p.data_scadenza, p.copia_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
@@ -744,10 +744,15 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
-            // Collect all loans first to avoid result set issues
+            // Collect all loans first to avoid result set issues. A due day
+            // marked closed later is not late until the first open day after
+            // it has gone by (same rule as the overdue sweep): no notice yet.
             $loans = [];
             while ($loan = $result->fetch_assoc()) {
-                $loans[] = $loan;
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                if (LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
+                    $loans[] = $loan;
+                }
             }
             $stmt->close();
 

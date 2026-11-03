@@ -567,9 +567,10 @@ class LibraryCalendarController
     {
         LibraryCalendar::reset();
         try {
+            LibraryCalendar::extendDueDates($db);
             LibraryCalendar::extendPickupDeadlines($db);
         } catch (\Throwable $e) {
-            SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
+            SecureLogger::warning('Calendar: due dates or pickup deadlines not extended: ' . $e->getMessage());
         }
     }
 
@@ -605,8 +606,9 @@ class LibraryCalendarController
             try {
                 $error = $write();
                 if ($error === null) {
-                    // The deadline move reads the new calendar.
+                    // The due date and deadline moves read the new calendar.
                     LibraryCalendar::reset();
+                    LibraryCalendar::extendDueDates($db);
                     LibraryCalendar::extendPickupDeadlines($db);
                     $db->commit();
                     return null;

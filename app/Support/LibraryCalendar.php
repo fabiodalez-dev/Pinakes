@@ -192,6 +192,92 @@ final class LibraryCalendar
     }
 
     /**
+     * Whether a loan due on $dueDate is late on $today: its due date has gone
+     * by and so has the first open day on or after it (of the copy's branch).
+     * A due day marked closed after the loan was made is not one the reader
+     * could use, so the loan turns late only once the next open day has gone
+     * by too. Every place that flips a loan to 'in_ritardo' asks this.
+     */
+    public static function isPastDue(\mysqli $db, string $dueDate, ?int $copiaId, string $today): bool
+    {
+        $due = substr($dueDate, 0, 10);
+        if (!DateHelper::isISODateFormat($due) || $due >= $today) {
+            return false;
+        }
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return true;
+        }
+        return $calendar->nextOpenDay($due, self::branchOfCopy($db, $copiaId)) < $today;
+    }
+
+    /**
+     * After a calendar change: an active loan whose due date (today or later)
+     * now falls on a closed day of the copy's branch is due on the next open
+     * day instead, as if it had been lent after the change: the reader never
+     * had that day to bring it back. Covers loans out, waiting for pickup and
+     * booked ahead. Each move is recorded in the loan history. A move the
+     * copy cannot take (the next reservation of that copy starts on a day
+     * the new date reaches, refused by the overlap trigger) leaves the loan
+     * as it was: the late-day count already starts from the first open day
+     * after a closed due date (FineCalculator::daysLate()), so the reader is
+     * not charged for it. Past due dates are not moved: that loan is already
+     * late or returned. Call before extendPickupDeadlines(), whose cap is the
+     * due date. Returns the number of loans moved.
+     */
+    public static function extendDueDates(\mysqli $db): int
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return 0;
+        }
+        $today = DateHelper::today();
+        $stmt = $db->prepare(
+            "SELECT p.id, p.data_scadenza, c.sede_id
+             FROM prestiti p
+             LEFT JOIN copie c ON c.id = p.copia_id
+             WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
+               AND p.data_scadenza IS NOT NULL AND p.data_scadenza >= ?"
+        );
+        if ($stmt === false) {
+            return 0;
+        }
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $moved = 0;
+        foreach ($rows as $row) {
+            $due = substr((string) $row['data_scadenza'], 0, 10);
+            $next = $calendar->nextOpenDay($due, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
+            if (!DateHelper::isISODateFormat($due) || $next <= $due) {
+                continue;
+            }
+            $id = (int) $row['id'];
+            $before = ActivityLog::loadLoanSnapshot($db, $id);
+            try {
+                $update = $db->prepare(
+                    "UPDATE prestiti SET data_scadenza = ?
+                     WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
+                );
+                $update->bind_param('sis', $next, $id, $due);
+                $update->execute();
+                $changed = $update->affected_rows > 0;
+                $update->close();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Calendar: due date of loan ' . $id . ' not moved: ' . $e->getMessage());
+                continue;
+            }
+            if ($changed) {
+                $moved++;
+                ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar');
+            }
+        }
+        return $moved;
+    }
+
+    /**
      * After a calendar change: a pickup still waiting whose deadline now falls
      * on a closed day (of the copy's branch) lasts until the next open day,
      * because the reader never had that day to come in. The new deadline is
