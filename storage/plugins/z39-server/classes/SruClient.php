@@ -79,6 +79,300 @@ class SruClient
     }
 
     /**
+     * Exception code of a failure that would only happen again: a timeout
+     * (the server accepted the connection and hung), an oversized answer or
+     * a request the SSRF guard blocked.
+     * Neither is retried; a refused or reset connection, an empty body and
+     * an HTTP 5xx are (transient), an HTTP 4xx is not.
+     */
+    public const NOT_RETRYABLE = 1001;
+
+    /** Largest SRU response body read, in bytes (16 MiB). */
+    public const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+
+    /** Search indexes the copy cataloguing page offers. */
+    public const SEARCH_INDEXES = ['title', 'author', 'isbn', 'issn', 'any'];
+
+    /** Default CQL index names (SRU context sets dc, bath, cql). */
+    private const DEFAULT_CQL_INDEXES = [
+        'title' => 'dc.title',
+        'author' => 'dc.creator',
+        'isbn' => 'bath.isbn',
+        'issn' => 'bath.issn',
+        'any' => 'cql.serverChoice',
+    ];
+
+    /**
+     * DBC OpenSearch's own index names, used when a dbc-opensearch server
+     * maps none: it does not resolve the dc / bath context sets. ISSN has no
+     * term.* index there, so it keeps the standard name.
+     */
+    private const DBC_CQL_INDEXES = [
+        'title' => 'term.title',
+        'author' => 'term.creator',
+        'isbn' => 'term.isbn',
+        'any' => 'term.default',
+    ];
+
+    /** CQL relations a server configuration may ask for on an index. */
+    private const CQL_RELATIONS = ['=', '==', 'all', 'any', 'adj', 'exact'];
+
+    /**
+     * The CQL query for one search on one server: the server's own index name
+     * when its configuration maps one (`indexes`), else the standard one.
+     * Text terms are always quoted, backslash-escaping embedded quotes per the
+     * CQL specification; an ISBN or ISSN is reduced to its digits and sent
+     * bare unless the server wants it quoted (`quote_search_terms`).
+     *
+     * An index is mapped as a name (`'any' => 'woe'`, searched with `=`) or
+     * with the relation the server needs (`'any' => ['index' => 'woe',
+     * 'relation' => 'all']`): the DNB's `woe="Kafka Prozess"` finds nothing,
+     * `woe all "Kafka Prozess"` finds every record with both words.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function cqlFor(array $server, string $index, string $term): string
+    {
+        $index = in_array($index, self::SEARCH_INDEXES, true) ? $index : 'any';
+        $term = trim((string) preg_replace('/\s+/u', ' ', $term));
+        if ($index === 'isbn' || $index === 'issn') {
+            $term = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $term));
+        }
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        if ($cqlIndex === '') {
+            $cqlIndex = strtolower((string) ($server['syntax'] ?? '')) === 'dbc-opensearch'
+                ? (self::DBC_CQL_INDEXES[$index] ?? self::DEFAULT_CQL_INDEXES[$index])
+                : self::DEFAULT_CQL_INDEXES[$index];
+        }
+        // Words are always quoted: a bare term with an apostrophe (dell'arte)
+        // or equal to a CQL keyword (and, or, not) is not valid CQL. Only the
+        // digits of an ISBN or ISSN go bare, unless the server asks otherwise.
+        $quote = !in_array($index, ['isbn', 'issn'], true) || !empty($server['quote_search_terms']);
+        $value = $quote ? '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $term) . '"' : $term;
+        return $cqlIndex . ($relation === '=' ? '=' : ' ' . $relation . ' ') . $value;
+    }
+
+    /**
+     * The CQL index name and relation a server configuration maps one of
+     * SEARCH_INDEXES to: '' and '=' when it maps none.
+     *
+     * @param array<string, mixed> $server
+     * @return array{0: string, 1: string}
+     */
+    public static function indexSpec(array $server, string $index): array
+    {
+        $indexes = is_array($server['indexes'] ?? null) ? $server['indexes'] : [];
+        $spec = $indexes[$index] ?? '';
+        if (is_array($spec)) {
+            $relation = strtolower(trim((string) ($spec['relation'] ?? '=')));
+            return [
+                trim((string) ($spec['index'] ?? '')),
+                in_array($relation, self::CQL_RELATIONS, true) ? $relation : '=',
+            ];
+        }
+        return [trim((string) $spec), '='];
+    }
+
+    /**
+     * Copy cataloguing: run one CQL query on every enabled server and return
+     * up to $max records from each, read with the shared MARC library.
+     *
+     * @return list<array{server: string, total: int, records: list<array<string, mixed>>, error: ?string}>
+     */
+    public function search(string $cql, int $max = 10): array
+    {
+        $out = [];
+        foreach ($this->servers as $server) {
+            if (empty($server['enabled']) || empty($server['url'])) {
+                continue;
+            }
+            $out[] = ['server' => (string) ($server['name'] ?? $server['url'])] + $this->searchServer($server, $cql, $max);
+        }
+        return $out;
+    }
+
+    /**
+     * One CQL query on one server. Each record comes back as its book data
+     * (MarcBookData shape), the MARC flavour it was read as and, for a MARC
+     * record, the record itself (MarcRecord::toArray()) for the detail view.
+     * A failing server answers with `error` instead of throwing.
+     *
+     * @param array<string, mixed> $server
+     * @return array{total: int, records: list<array<string, mixed>>, error: ?string}
+     */
+    public function searchServer(array $server, string $cql, int $max = 10): array
+    {
+        $max = max(1, min(50, $max));
+        $url = (string) ($server['url'] ?? '');
+        try {
+            if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+                throw new \RuntimeException('Invalid server URL');
+            }
+            $syntax = strtolower((string) ($server['syntax'] ?? 'marcxml'));
+            if ($syntax === 'dbc-opensearch') {
+                $params = ['action' => 'search', 'query' => $cql, 'outputType' => 'xml', 'objectFormat' => 'marcxchange', 'start' => 1, 'stepValue' => $max];
+            } else {
+                $params = [
+                    'operation' => 'searchRetrieve',
+                    'version' => (string) ($server['version'] ?? '1.1'),
+                    'query' => $cql,
+                    'recordSchema' => $syntax === 'danmarc2' ? 'marcxchange' : (string) ($server['syntax'] ?? 'marcxml'),
+                    'maximumRecords' => $max,
+                ];
+            }
+            $xml = $this->fetchSearchWithRetry($url, $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($params));
+            return $this->readSearchResponse($xml, $syntax, $max);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[SruClient] search failed', ['server' => $server['name'] ?? $url, 'error' => $e->getMessage()]);
+            return ['total' => 0, 'records' => [], 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * The body of one search request, with the same bounded retry the ISBN
+     * lookup has (queryServerWithRetry()): a transient failure (refused or
+     * reset connection, HTTP 5xx, empty body) is tried again up to
+     * maxRetries times with exponential backoff, each attempt under the
+     * per-server rate limit. A timeout, an oversized answer and an HTTP 4xx
+     * are not retried (isRetryable()), and no retry starts once the search
+     * (requests, backoff and rate-limit waits) has used one request timeout,
+     * so a hung server costs one timeout, not
+     * three, in a search that asks the servers one after another. The query
+     * (any CQL, any number of records) is untouched; only the transport is
+     * repeated, never a server's own diagnostic.
+     */
+    private function fetchSearchWithRetry(string $serverUrl, string $requestUrl): string
+    {
+        static $lastRequest = [];
+        $attempts = 0;
+        $began = null;
+        $last = null;
+        while (true) {
+            $this->enforceRateLimit($serverUrl, $lastRequest);
+            // The budget runs from the first request and counts the backoff
+            // and the rate-limit waits too: a retry whose slot came after one
+            // timeout is not sent, so a queue of reserved slots cannot hold
+            // the page past the configured timeout.
+            if ($began === null) {
+                $began = microtime(true);
+            } elseif (microtime(true) - $began >= $this->timeout) {
+                throw $last;
+            }
+            try {
+                $xml = $this->fetchUrl($requestUrl);
+                if ($xml === null) {
+                    // HTTP 200 with no body is not "no records": an SRU answer
+                    // always carries a searchRetrieveResponse, even for zero hits.
+                    throw new \RuntimeException('Empty response from server');
+                }
+                return $xml;
+            } catch (\Throwable $e) {
+                $attempts++;
+                if ($attempts > $this->maxRetries || !$this->isRetryable($e, microtime(true) - $began)) {
+                    throw $e;
+                }
+                $last = $e;
+                usleep(100000 * (int) pow(2, $attempts - 1));
+            }
+        }
+    }
+
+    /**
+     * Whether a failed request is worth another attempt: not a failure that
+     * would happen again (NOT_RETRYABLE: timeout, oversized answer), not an
+     * HTTP 4xx, and not once the attempts so far have used one timeout.
+     */
+    private function isRetryable(\Throwable $e, float $spentSeconds): bool
+    {
+        return $e->getCode() !== self::NOT_RETRYABLE
+            && !str_contains($e->getMessage(), 'HTTP 4')
+            && $spentSeconds < $this->timeout;
+    }
+
+    /**
+     * @return array{total: int, records: list<array<string, mixed>>, error: ?string}
+     */
+    private function readSearchResponse(string $xml, string $syntax, int $max): array
+    {
+        $dom = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $dom->loadXML($xml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            throw new \RuntimeException('Invalid XML response');
+        }
+        $xpath = new DOMXPath($dom);
+        // Only a diagnostic of the response itself ends the search: the
+        // <diagnostics> element directly under the root, or the <error>
+        // our own endpoint and some servers answer with. A diagnostic inside
+        // a record's <recordData> (a surrogate: the BnF answers "erreur de
+        // traitement" for one hit of many) only means that record cannot be
+        // read; the MARC reader below skips it, the others are returned.
+        $diagnostic = $xpath->query(
+            "/*/*[local-name()='diagnostics']/*[local-name()='diagnostic']/*[local-name()='message']"
+            . " | /*[local-name()='error']/*[local-name()='message']"
+            . " | /*[local-name()='searchResponse']/*[local-name()='error']"
+        )->item(0);
+        if ($diagnostic !== null) {
+            throw new \RuntimeException(trim((string) $diagnostic->nodeValue));
+        }
+        $totalNode = $xpath->query("//*[local-name()='numberOfRecords'] | //*[local-name()='hitCount']")->item(0);
+        $records = [];
+        $readError = null;
+
+        if ($syntax === 'dc' || $syntax === 'oai_dc') {
+            foreach ($xpath->query("//*[local-name()='recordData']") ?: [] as $recordData) {
+                if (count($records) >= $max) {
+                    break;
+                }
+                $single = new DOMDocument();
+                $single->appendChild($single->importNode($recordData, true));
+                $singleXpath = new DOMXPath($single);
+                $singleXpath->registerNamespace('dc', 'http://purl.org/dc/elements/1.1/');
+                $singleXpath->registerNamespace('oai_dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
+                $book = $this->parseDublinCore($singleXpath);
+                if ($book !== null) {
+                    unset($book['_isbns']);
+                    $records[] = ['flavour' => 'dc', 'marc' => null, 'data' => \App\Support\Marc\MarcBookData::fromScrape($book)];
+                }
+            }
+        } else {
+            foreach (\App\Support\Marc\MarcXmlReader::fromString($xml) as $item) {
+                if (count($records) >= $max) {
+                    break;
+                }
+                if (!$item instanceof \App\Support\Marc\MarcRecord) {
+                    $readError ??= $item->message;
+                    continue;
+                }
+                $flavour = \App\Support\Marc\MarcFormat::detectFlavour($item);
+                if (in_array($syntax, ['danmarc2', 'dbc-opensearch'], true)) {
+                    $flavour = \App\Support\Marc\MarcFormat::DANMARC2;
+                } elseif (in_array($syntax, ['unimarc', 'unimarcxchange', 'unimarcxml'], true) && $flavour !== \App\Support\Marc\MarcFormat::DANMARC2) {
+                    $flavour = \App\Support\Marc\MarcFormat::UNIMARC;
+                }
+                $records[] = [
+                    'flavour' => $flavour,
+                    'marc' => $item->toArray(),
+                    'data' => \App\Support\Marc\MarcFormat::mapperFor($flavour)->map($item),
+                ];
+            }
+        }
+        $total = $totalNode !== null ? (int) $totalNode->nodeValue : count($records);
+        // Hits the reader could not turn into a single record are the
+        // server's error, not an empty result ("0 of 1" with no reason).
+        // One unreadable hit among readable ones is skipped, as before.
+        $error = $records === [] && $readError !== null ? $readError : null;
+        // A positive count whose records are none the reader knows (another
+        // record schema, a packing it cannot read) says so too.
+        if ($records === [] && $error === null && $total > 0) {
+            $error = 'The server found ' . $total . ' record(s) but returned none in a format this client can read';
+        }
+        return ['total' => max($total, count($records)), 'records' => $records, 'error' => $error];
+    }
+
+    /**
      * Query server with retry logic
      */
     private function queryServerWithRetry(array $server, string $index, string $term): ?array
@@ -93,6 +387,7 @@ class SruClient
 
         $lastException = null;
         $attempts = 0;
+        $began = microtime(true);
 
         while ($attempts <= $this->maxRetries) {
             try {
@@ -101,8 +396,9 @@ class SruClient
                 $lastException = $e;
                 $attempts++;
 
-                // Don't retry on 4xx errors (client errors)
-                if (str_contains($e->getMessage(), 'HTTP 4')) {
+                // No retry on a 4xx, a timeout, an oversized answer, or once
+                // one timeout has been spent, backoff included (isRetryable())
+                if (!$this->isRetryable($e, microtime(true) - $began)) {
                     break;
                 }
 
@@ -124,8 +420,8 @@ class SruClient
      * Enforce a max-1-request-per-second rate limit per server.
      *
      * Strategy (FIX F088):
-     *  1. APCu (when available): use apcu_cas / apcu_store with a TTL key so all workers on the
-     *     box see the same "last request" timestamp.
+     *  1. APCu (when available): every request reserves its own slot with apcu_add / apcu_cas
+     *     (reserveApcuSlot()), so all workers on the box share one schedule per server.
      *  2. File-lock fallback: a tiny per-server lock file in sys_get_temp_dir() is opened with
      *     flock(LOCK_EX), the previous timestamp is read, we sleep if needed, then write the
      *     fresh timestamp before releasing the lock.
@@ -134,25 +430,56 @@ class SruClient
      * @param string                $serverKey   stable per-server identifier (URL)
      * @param array<string, float>  $lastRequest in-process fallback state, passed by reference
      */
+    /**
+     * Reserve the next request slot of one server in APCu: the time, in
+     * microseconds, at which this request may go — now, or one interval
+     * after the slot last reserved, whichever is later. The slot is taken
+     * with apcu_add() / apcu_cas(), so concurrent workers each get their
+     * own. Null when APCu does not cooperate (the caller falls back).
+     */
+    public static function reserveApcuSlot(string $key, int $intervalMicros, ?int $now = null): ?int
+    {
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $at = $now ?? (int) (microtime(true) * 1_000_000);
+            $found = false;
+            $previous = apcu_fetch($key, $found);
+            if (!$found) {
+                // No TTL: one integer per server, and an old value only means
+                // the next slot is now.
+                if (apcu_add($key, $at)) {
+                    return $at;
+                }
+                continue;
+            }
+            if (!is_int($previous)) {
+                apcu_delete($key);
+                continue;
+            }
+            $slot = max($at, $previous + $intervalMicros);
+            if (apcu_cas($key, $previous, $slot)) {
+                return $slot;
+            }
+        }
+        return null;
+    }
+
     private function enforceRateLimit(string $serverKey, array &$lastRequest): void
     {
         $minIntervalSeconds = 1.0;
         $now = microtime(true);
 
-        // Tier 1: APCu shared across workers on the same machine
-        if (function_exists('apcu_fetch') && function_exists('apcu_store')) {
-            $apcuKey = 'sru_rate_' . md5($serverKey);
-            $success = false;
-            $previous = apcu_fetch($apcuKey, $success);
-            if ($success && is_numeric($previous)) {
-                $elapsed = $now - (float)$previous;
-                if ($elapsed < $minIntervalSeconds) {
-                    usleep((int)(($minIntervalSeconds - $elapsed) * 1_000_000));
+        // Tier 1: APCu shared across workers on the same machine. Each request
+        // reserves its own slot atomically, so two workers that look at the
+        // same moment never both go.
+        if (function_exists('apcu_enabled') && apcu_enabled() && function_exists('apcu_cas')) {
+            $slot = self::reserveApcuSlot('sru_rate_' . md5($serverKey), (int) ($minIntervalSeconds * 1_000_000));
+            if ($slot !== null) {
+                $wait = $slot - (int) (microtime(true) * 1_000_000);
+                if ($wait > 0) {
+                    usleep($wait);
                 }
+                return;
             }
-            // TTL of 2s is enough to enforce a 1s window without leaking entries
-            apcu_store($apcuKey, microtime(true), 2);
-            return;
         }
 
         // Tier 2: file lock shared across workers on the same machine
@@ -200,6 +527,54 @@ class SruClient
      */
     private function queryServer(array $server, string $index, string $term): ?array
     {
+        [$cqlIndex, $relation] = self::indexSpec($server, $index);
+        if ($cqlIndex !== '') {
+            return $this->queryServerIndex($server, $index, $cqlIndex, $relation, $cqlIndex, $term);
+        }
+        // An unconfigured server gets the standard index (bath.isbn), as the
+        // copy cataloguing search does: a bare "isbn" is not a CQL index every
+        // SRU server resolves. A server set up for the bare name (what this
+        // client sent before) may know only that one, so when the standard
+        // index finds nothing, or is refused, the bare name is tried once.
+        // DBC OpenSearch has its own index names: it keeps the bare one.
+        $standard = self::DEFAULT_CQL_INDEXES[$index] ?? $index;
+        if ($standard === $index || strtolower((string) ($server['syntax'] ?? '')) === 'dbc-opensearch') {
+            return $this->queryServerIndex($server, $index, $standard, $relation, $index, $term);
+        }
+        $failure = null;
+        try {
+            $book = $this->queryServerIndex($server, $index, $standard, $relation, $index, $term);
+            if ($book !== null) {
+                return $book;
+            }
+        } catch (\Throwable $e) {
+            // Only a refusal of the query itself (HTTP 400: the server does
+            // not know bath.isbn) is worth the bare name. A timeout, a blocked
+            // or oversized request, a 401/403/404/429 fails the same way for
+            // any index, so it ends here instead of costing a second request.
+            if ($e->getCode() === self::NOT_RETRYABLE
+                || (str_contains($e->getMessage(), 'HTTP 4') && !str_contains($e->getMessage(), 'HTTP 400'))) {
+                throw $e;
+            }
+            $failure = $e;
+        }
+        static $lastRequest = [];
+        $this->enforceRateLimit((string) ($server['url'] ?? 'unknown'), $lastRequest);
+        try {
+            return $this->queryServerIndex($server, $index, $index, $relation, $index, $term);
+        } catch (\Throwable $e) {
+            throw $failure ?? $e;
+        }
+    }
+
+    /**
+     * One searchRetrieve for one record with an explicit CQL index.
+     *
+     * @param array<string, mixed> $server
+     * @return array<string, mixed>|null
+     */
+    private function queryServerIndex(array $server, string $index, string $cqlIndex, string $relation, string $dbcIndex, string $term): ?array
+    {
         $url = $server['url'];
 
         // Validate URL
@@ -215,13 +590,7 @@ class SruClient
         $version = $server['version'] ?? '1.1';
         $recordSchema = strtolower($server['syntax'] ?? 'marcxml');
 
-        // Build CQL query with custom index mapping
-        $cqlIndex = $index;
-        if (isset($server['indexes'][$index])) {
-            $cqlIndex = $server['indexes'][$index];
-        } elseif ($index === 'isbn') {
-            $cqlIndex = 'isbn';
-        }
+        $relation = $relation === '=' ? '=' : ' ' . $relation . ' ';
 
         // Build query parameters
         // quote_search_terms: some servers (e.g. BNF) require the term wrapped in CQL quotes.
@@ -232,7 +601,7 @@ class SruClient
         $params = [
             'operation' => 'searchRetrieve',
             'version' => $version,
-            'query' => $cqlIndex . '=' . $quotedTerm,
+            'query' => $cqlIndex . $relation . $quotedTerm,
             'recordSchema' => $recordSchema,
             'maximumRecords' => 1
         ];
@@ -247,7 +616,7 @@ class SruClient
         if ($recordSchema === 'dbc-opensearch') {
             $params = [
                 'action' => 'search',
-                'query' => ($cqlIndex === 'isbn' ? 'term.isbn' : $cqlIndex) . '=' . $quotedTerm,
+                'query' => ($dbcIndex === 'isbn' ? 'term.isbn' : $dbcIndex) . $relation . $quotedTerm,
                 'outputType' => 'xml',
                 'objectFormat' => 'marcxchange',
                 'start' => 1,
@@ -341,18 +710,36 @@ class SruClient
      */
     protected function fetchUrl(string $url): ?string
     {
-        $res = \App\Support\HttpClient::get($url, [], [
+        $res = $this->httpGet($url, [
             'timeout'         => $this->timeout,
             'connect_timeout' => 5,
             'max_redirects'   => 3,
             'user_agent'      => 'Pinakes/1.0 (Z39.50/SRU Client)',
             'verify'          => $this->verifySsl,
             'ssrf_guard'      => true,
+            // A searchRetrieve answer of up to 50 MARC records stays far below
+            // this; a remote catalogue cannot exhaust memory (or the session
+            // the copy cataloguing results are kept in) with an oversized one.
+            'max_bytes'       => self::MAX_RESPONSE_BYTES,
         ]);
 
         if (!$res['ok']) {
-            \App\Support\SecureLogger::error('[SruClient] HTTP request failed', ['url' => $url]);
-            throw new \Exception('Connection failed');
+            $kind = $res['error'] ?? \App\Support\HttpClient::FAILURE_CONNECT;
+            \App\Support\SecureLogger::error('[SruClient] HTTP request failed', ['url' => $url, 'kind' => $kind]);
+            // A hung server or an oversized answer would fail the same way
+            // again: those are marked so the retry loops give up at once.
+            if ($kind === \App\Support\HttpClient::FAILURE_TIMEOUT) {
+                throw new \RuntimeException('Request timed out', self::NOT_RETRYABLE);
+            }
+            if ($kind === \App\Support\HttpClient::FAILURE_TOO_LARGE) {
+                throw new \RuntimeException('Response too large', self::NOT_RETRYABLE);
+            }
+            // A request the SSRF guard refused (private address, scheme) is
+            // refused again on every attempt.
+            if ($kind === \App\Support\HttpClient::FAILURE_BLOCKED) {
+                throw new \RuntimeException('Request blocked', self::NOT_RETRYABLE);
+            }
+            throw new \RuntimeException('Connection failed');
         }
 
         if ($res['status'] >= 400) {
@@ -360,6 +747,18 @@ class SruClient
         }
 
         return $res['body'] !== '' ? $res['body'] : null;
+    }
+
+    /**
+     * The HTTP GET under fetchUrl(), separate so a test can stand in for the
+     * transport and check how each kind of failure is handled.
+     *
+     * @param array<string, mixed> $options
+     * @return array{ok:bool,status:int,body:string,error?:string}
+     */
+    protected function httpGet(string $url, array $options): array
+    {
+        return \App\Support\HttpClient::get($url, [], $options);
     }
 
     /**
@@ -890,13 +1289,7 @@ class SruClient
      */
     public static function pagesOf(string $extent, bool $anyNumber = true): string
     {
-        if (preg_match('/(\d+)\s*(?:p|pp|pages?|pagine|pag|s|sider|sidor|seiten|sivua|str|stron)(?![\p{L}])/iu', $extent, $m) === 1) {
-            return $m[1];
-        }
-        if ($anyNumber && preg_match('/(\d+)/', $extent, $m) === 1) {
-            return $m[1];
-        }
-        return '';
+        return \App\Support\Marc\ContributorSorter::pagesOf($extent, $anyNumber);
     }
 
     /**
@@ -909,13 +1302,7 @@ class SruClient
      */
     public static function sortContributor(array &$book, array &$contributors, string $name, string $role): void
     {
-        if ($role === 'author') {
-            if (!in_array($name, $book['authors'], true)) {
-                $book['authors'][] = $name;
-            }
-        } elseif (isset($contributors[$role]) && !in_array($name, $contributors[$role], true)) {
-            $contributors[$role][] = $name;
-        }
+        \App\Support\Marc\ContributorSorter::sortContributor($book, $contributors, $name, $role);
     }
 
     /**
@@ -927,14 +1314,7 @@ class SruClient
      */
     public static function applyContributors(array &$book, array $contributors): void
     {
-        if ($contributors['editor'] !== []) {
-            $book['editor'] = $contributors['editor'];
-        }
-        foreach (['translator', 'illustrator', 'colorist'] as $role) {
-            if ($contributors[$role] !== []) {
-                $book[$role] = $contributors[$role][0];
-            }
-        }
+        \App\Support\Marc\ContributorSorter::applyContributors($book, $contributors);
     }
 
     /**

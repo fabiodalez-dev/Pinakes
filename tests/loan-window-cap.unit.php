@@ -224,6 +224,19 @@ $check(($byDate[$expectedMaxEnd]['state'] ?? null) === 'free'
     '4 availability payload: free the day before the scheduled loan, borrowed from its first day',
     json_encode([$byDate[$expectedMaxEnd] ?? null, $byDate[$conflictStart] ?? null]));
 
+// A start on the last offered day still has occupancy data for its whole loan
+// window: the public route asks for it, the default call is unchanged.
+$plain = (new ReservationsController($db))->getBookAvailabilityData($singleBook, $today, 180, $requester);
+$covered = (new ReservationsController($db))->getBookAvailabilityData($singleBook, $today, 180, $requester, true);
+$lastPlain = is_array($plain) ? (string) (end($plain['days'])['date'] ?? '') : '';
+$lastCovered = is_array($covered) ? (string) (end($covered['days'])['date'] ?? '') : '';
+$startUntil = $addDays($today, 179);
+$check(($plain['start_until'] ?? null) === $startUntil && $lastPlain === $startUntil
+    && ($covered['start_until'] ?? null) === $startUntil
+    && $lastCovered >= $addDays($startUntil, (int) ($covered['max_loan_duration_days'] ?? 0) + 31),
+    '4b the availability covering the loan window runs past the last start day by the longest loan plus the closed-day margin',
+    json_encode([$plain['start_until'] ?? null, $lastPlain, $lastCovered, $covered['max_loan_duration_days'] ?? null]));
+
 // ═════════ 5-7: the public calendar endpoint explains the cap ════════════════
 $r = $requestCalendar($singleBook, ['start_date' => $today]);
 $check($r['status'] === 400
@@ -327,6 +340,10 @@ $check(str_contains($viewSrc, 'function loanWindowFrom(')
     && str_contains($viewSrc, 'Durata massima del prestito: %1$d giorni')
     && str_contains($viewSrc, 'LoanWindow::explainFromParams($_GET)'),
     '20 book-detail.php caps the return picker, explains it with the shared message and renders the redirect explanation');
+$routes = (string) file_get_contents($root . '/app/Routes/web.php');
+$check(str_contains($viewSrc, 'availData.availability.start_until')
+    && str_contains($routes, "getBookAvailabilityData(\$bookId, \\App\\Support\\DateHelper::today(), 180, \$excludeUserId, true)"),
+    '21 the book page starts no later than start_until, and its route loads the days past it');
 
 $cleanup();
 $db->close();

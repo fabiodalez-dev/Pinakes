@@ -52,6 +52,22 @@ if [[ -f "installer/database/migrations/migrate_${RELEASE_VERSION}.sql" \
   echo "✗ migrate_${RELEASE_VERSION}.sql ships without tests/migration-${RELEASE_VERSION}.unit.php"
   exit 1
 fi
+# A stable X.Y.Z whose migration first shipped in a prerelease keeps the file
+# name migrate_X.Y.Z-rc.N.sql (CLAUDE.md rule 6: a prerelease sorts before its
+# final). That migration still runs on the upgrade to the stable release, so
+# its behavioural test runs here too, and a missing test fails the gate.
+if [[ -n "$RELEASE_VERSION" && "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  for rc_sql in installer/database/migrations/migrate_"${RELEASE_VERSION}"-*.sql; do
+    [[ -f "$rc_sql" ]] || continue
+    rc_version="$(basename "$rc_sql" .sql)"
+    rc_version="${rc_version#migrate_}"
+    if [[ ! -f "tests/migration-${rc_version}.unit.php" ]]; then
+      echo "✗ ${rc_sql} ships without tests/migration-${rc_version}.unit.php"
+      exit 1
+    fi
+    TESTS+=("tests/migration-${rc_version}.unit.php")
+  done
+fi
 
 echo "════════════════════════════════════════════════════════════"
 echo " Schema / migration verification gate"

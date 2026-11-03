@@ -85,7 +85,10 @@ class ImportHistoryController
     /**
      * Download error report as CSV
      */
-    public function downloadErrors(Request $request, Response $response, \mysqli $db): Response
+    /**
+     * @param string|null $requiredType only serve imports of this import_type (404 otherwise)
+     */
+    public function downloadErrors(Request $request, Response $response, \mysqli $db, ?string $requiredType = null): Response
     {
         $importId = $request->getQueryParams()['import_id'] ?? null;
 
@@ -109,7 +112,7 @@ class ImportHistoryController
         $stmt->execute();
         $result = $stmt->get_result();
 
-        if (!($row = $result->fetch_assoc())) {
+        if (!($row = $result->fetch_assoc()) || ($requiredType !== null && ($row['import_type'] ?? '') !== $requiredType)) {
             $stmt->close();
             $response->getBody()->write('Import non trovato');
             return $response->withStatus(404);

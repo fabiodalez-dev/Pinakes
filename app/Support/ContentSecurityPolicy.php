@@ -28,6 +28,24 @@ final class ContentSecurityPolicy
         return implode('-', str_split(bin2hex(random_bytes(16)), 8));
     }
 
+    /**
+     * The Permissions-Policy header sent with every response.
+     *
+     * camera=(self): two same-origin features call getUserMedia — the copy
+     * barcode scanner (zxing-wasm) on the loan/return pages and the patron
+     * photo taken from the webcam in the user form. Denying it (camera=())
+     * blocks both; no other origin (no embedded frame) gets the camera.
+     * geolocation and microphone stay denied: nothing in the app uses them.
+     * The CSP needs nothing for the photo: the live MediaStream is not a URL
+     * that media-src governs, the captured frame is drawn on a canvas and sent
+     * to the same origin (connect-src 'self'), and the stored photo is an
+     * ordinary same-origin image (img-src 'self').
+     */
+    public static function permissionsPolicy(): string
+    {
+        return 'geolocation=(), microphone=(), camera=(self)';
+    }
+
     public static function header(string $nonce, bool $upgradeInsecureRequests = false): string
     {
         if (!preg_match(self::NONCE_PATTERN, $nonce)) {

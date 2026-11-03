@@ -560,9 +560,9 @@ class UserActionsController
         }
 
         $uid = (int) $user['id'];
+        // A closed start day moves to the next open day (see reserve()).
+        $date = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay($date);
         $startDate = $date;
-        $loanDays = (new \App\Models\SettingsRepository($db))->requestLoanDurationDays();
-        $endDate = (new \DateTimeImmutable($date))->modify("+{$loanDays} days")->format('Y-m-d');
 
         $db->begin_transaction();
 
@@ -582,6 +582,8 @@ class UserActionsController
             }
 
             $libroId = (int) $reservation['libro_id'];
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
+            $endDate = \App\Services\CirculationPolicy::dueDateFor($date, $loanDays, $db);
 
             // Lock book row first to serialize every capacity decision.
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
@@ -710,21 +712,24 @@ class UserActionsController
         // User eligibility gate (M7): stato/tessera are only verified at login,
         // so a user suspended (or with an expired card) mid-session could
         // otherwise keep submitting loan requests.
-        if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
-            return $this->back($response, ['loan_error' => 'not_eligible']);
+        if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
+            // debt_block keeps its own message; any other refusal is not_eligible.
+            return $this->back($response, ['loan_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
         }
 
         // "Today" via DateHelper (M9): PHP process tz is often UTC while the
         // library runs in a local zone, so a raw date('Y-m-d') near midnight
         // would date the request to the wrong day.
-        $data_prestito = \App\Support\DateHelper::today();
-        $loanDays = (new \App\Models\SettingsRepository($db))->requestLoanDurationDays();
-        $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
+        // A day the library is closed starts on the next open day instead.
+        $data_prestito = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay(\App\Support\DateHelper::today());
+        $circulation = new \App\Services\CirculationPolicy($db);
+        $loanPolicy = $circulation->forLoan($utenteId, $libroId);
+        $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_prestito, $loanPolicy->requestDurationDays(), $db);
         // Optional return date (Mobile API 1.8.2): the app proposes the day
         // before a scheduled loan or reservation when the default would cross
         // it, exactly as the website calendar does. Bounded like the public
         // endpoint: a real day, not before the start, within the maximum.
-        $endOverride = $this->requestedEndDate($db, $data, $data_prestito);
+        $endOverride = $this->requestedEndDate($loanPolicy->maxRequestDays, $data, $data_prestito, $db);
         if ($endOverride === false) {
             return $this->back($response, ['loan_error' => 'invalid_date']);
         }
@@ -732,7 +737,8 @@ class UserActionsController
             return $this->back($response, ['loan_error' => 'max_duration_exceeded']);
         }
         if ($endOverride !== null) {
-            $data_scadenza = $endOverride;
+            // A chosen return date on a closed day moves to the next open day.
+            $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($endOverride, 0, $db);
         }
 
         // Use transaction + lock to prevent race conditions
@@ -799,9 +805,10 @@ class UserActionsController
             $userLockStmt->execute();
             $userLockStmt->get_result();
             $userLockStmt->close();
-            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+            if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
                 $db->rollback();
-                return $this->back($response, ['loan_error' => 'not_eligible']);
+                // debt_block keeps its own message; any other refusal is not_eligible.
+                return $this->back($response, ['loan_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
             }
 
             // #384 coherence: the reservation-vs-loan decision is the SAME
@@ -819,9 +826,24 @@ class UserActionsController
             // Checked BEFORE the max-active-loans cap, mirroring
             // createReservation: a waitlist reservation does not consume an
             // active-loan slot until promotion.
+            // Circulation rules of the patron type, under the user lock
+            // (same order as createReservation): consultation-only material,
+            // then the reservation limit (queue + requests awaiting approval).
+            $policyError = !$loanPolicy->loanable
+                ? 'not_loanable'
+                : $circulation->reservationLimitError($loanPolicy->user, $utenteId, queue: false);
+            if ($policyError !== null) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => $policyError]);
+            }
+
             $routing = (new \App\Services\LoanRequestGate($db))
                 ->route($libroId, $utenteId, $data_prestito, $data_scadenza, inCallerTransaction: true);
             if ($routing->isReservation()) {
+                if (!$loanPolicy->user->reservationsEnabled) {
+                    $db->rollback();
+                    return $this->back($response, ['loan_error' => 'reservations_disabled']);
+                }
                 $db->commit();
                 // Reuse the reserve() success contract: the frontend already
                 // renders reserve_success as "queued in the waitlist".
@@ -831,19 +853,12 @@ class UserActionsController
                 ]);
             }
 
-            // Enforce max active loans per user (admin setting; 0 = no limit)
-            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
-            if ($maxLoans > 0) {
-                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
-                $cntStmt->bind_param('i', $utenteId);
-                $cntStmt->execute();
-                $cntResult = $cntStmt->get_result();
-                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
-                $cntStmt->close();
-                if ($activeCount >= $maxLoans) {
-                    $db->rollback();
-                    return $this->back($response, ['loan_error' => 'max_loans_reached']);
-                }
+            // Circulation limits of this patron and title (CirculationPolicy;
+            // 0 = no limit), counted under the user lock.
+            $limitError = $circulation->loanLimitError($loanPolicy, $utenteId);
+            if ($limitError !== null) {
+                $db->rollback();
+                return $this->back($response, ['loan_error' => $limitError]);
             }
 
             // Capture the setting while the canonical book/copy locks are still
@@ -968,16 +983,19 @@ class UserActionsController
         // User eligibility gate (M7): stato/tessera are only verified at login,
         // so a user suspended (or with an expired card) mid-session could
         // otherwise keep queueing reservations.
-        if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
-            return $this->back($response, ['reserve_error' => 'not_eligible']);
+        if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
+            // debt_block keeps its own message; any other refusal is not_eligible.
+            return $this->back($response, ['reserve_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
         }
 
-        // Calculate date range for availability check
-        $start = ($desired !== '') ? $desired : $today;
-        $loanDays = (new \App\Models\SettingsRepository($db))->requestLoanDurationDays();
-        $end = (new \DateTimeImmutable($start))->modify("+{$loanDays} days")->format('Y-m-d');
+        // Calculate date range for availability check. A start day the library
+        // is closed moves to the next open day, as the request calendar
+        // proposes it; identical without closures.
+        $start = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay(($desired !== '') ? $desired : $today);
+        $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
+        $end = \App\Services\CirculationPolicy::dueDateFor($start, $reservePolicy->requestDurationDays(), $db);
         // Optional return date (Mobile API 1.8.2), bounded as in loan().
-        $endOverride = $this->requestedEndDate($db, $data, $start);
+        $endOverride = $this->requestedEndDate($reservePolicy->maxRequestDays, $data, $start, $db);
         if ($endOverride === false) {
             return $this->back($response, ['reserve_error' => 'invalid_date']);
         }
@@ -985,7 +1003,8 @@ class UserActionsController
             return $this->back($response, ['reserve_error' => 'max_duration_exceeded']);
         }
         if ($endOverride !== null) {
-            $end = $endOverride;
+            // A chosen end date on a closed day moves to the next open day.
+            $end = \App\Services\CirculationPolicy::dueDateFor($endOverride, 0, $db);
         }
 
         // Start transaction for concurrency control
@@ -1030,9 +1049,19 @@ class UserActionsController
             $userLockStmt->execute();
             $userLockStmt->get_result();
             $userLockStmt->close();
-            if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+            if (($eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId)) !== null) {
                 $db->rollback();
-                return $this->back($response, ['reserve_error' => 'not_eligible']);
+                // debt_block keeps its own message; any other refusal is not_eligible.
+                return $this->back($response, ['reserve_error' => $eligibilityError === 'debt_block' ? 'debt_block' : 'not_eligible']);
+            }
+
+            // Circulation rules of the patron type, under the user lock.
+            $policyError = !$reservePolicy->loanable
+                ? 'not_loanable'
+                : (new \App\Services\CirculationPolicy($db))->reservationLimitError($reservePolicy->user, $utenteId, queue: true);
+            if ($policyError !== null) {
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => $policyError]);
             }
 
             // Canonical peak-capacity decision (same service as admin create,
@@ -1095,7 +1124,8 @@ class UserActionsController
                 $db->commit();
                 $params = ['reserve_success' => 1];
                 if ($desired !== '') {
-                    $params['reserve_date'] = $desired;
+                    // The stored start: a closed desired day moved to the next open one.
+                    $params['reserve_date'] = $start;
                 }
                 return $this->back($response, $params);
             }
@@ -1118,7 +1148,7 @@ class UserActionsController
      * @param array<mixed> $data
      * @return string|false|null
      */
-    private function requestedEndDate(mysqli $db, array $data, string $startDate): string|false|null
+    private function requestedEndDate(int $maxDays, array $data, string $startDate, ?\mysqli $db = null): string|false|null
     {
         $raw = $data['end_date'] ?? null;
         if (!is_scalar($raw)) {
@@ -1131,9 +1161,10 @@ class UserActionsController
         if (!\App\Support\DateHelper::isISODateFormat($end) || $end < $startDate) {
             return false;
         }
-        $maxDays = (new \App\Models\SettingsRepository($db))->maxLoanDurationDays();
-        $days = (int) (new \DateTimeImmutable($startDate))->diff(new \DateTimeImmutable($end))->days;
-        return $days > $maxDays ? 'max_duration_exceeded' : $end;
+        // The longest loan ends on the maximum day, moved forward like every
+        // due date when it falls on a closed day (closed days are not loan
+        // days); without closures this is start + maximum, as before.
+        return $end > \App\Services\CirculationPolicy::dueDateFor($startDate, $maxDays, $db) ? 'max_duration_exceeded' : $end;
     }
 
     private function back(Response $response, array $params): Response

@@ -147,7 +147,10 @@ foreach (['desiderata', 'mobile-api'] as $plugin) {
 }
 $usesHelper = str_contains((string) file_get_contents("{$root}/storage/plugins/desiderata/DesiderataPlugin.php"), 'inventoryBase(')
     && str_contains((string) file_get_contents("{$root}/storage/plugins/mobile-api/src/Controllers/StaffBooksController.php"), 'inventoryBase(');
-$check($usesHelper && $manifests === ['desiderata' => '0.8.7', 'mobile-api' => '0.8.7'] && version_compare('0.8.7', $version, '<='),
+// mobile-api 1.9.0 moved to 0.9.0 (patron ledger): still at least 0.8.7, never above the app.
+$check($usesHelper && $manifests['desiderata'] === '0.8.7'
+    && version_compare($manifests['mobile-api'], '0.8.7', '>=') && version_compare($manifests['mobile-api'], $version, '<=')
+    && version_compare('0.8.7', $version, '<='),
     '23 the two plugins that call inventoryBase() require the core that has it, and no later one', json_encode($manifests) . " app={$version}");
 
 $changelog = (string) file_get_contents("{$root}/CHANGELOG.md");

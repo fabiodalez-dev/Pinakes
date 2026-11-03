@@ -22,6 +22,11 @@ final class ImportJobStore
 {
     public const TTL_HOURS = 24;
     public const SESSION_KEYS = ['csv' => 'csv_import_data', 'librarything' => 'librarything_import'];
+    /** The kinds the pre-1.10.0 ENUM column accepts. */
+    private const LEGACY_KINDS = ['csv', 'librarything'];
+
+    /** Set once `kind` is known to be wide, so create() checks it once per process at most. */
+    private static bool $kindWide = false;
 
     public function __construct(private mysqli $db)
     {
@@ -32,6 +37,13 @@ final class ImportJobStore
      */
     public function create(int $userId, ?int $tokenId, string $kind, string $fileName, int $totalRows, int $chunkSize, bool $scraping, array $state): string
     {
+        // An admin-UI upgrade runs the plugin's OLD onActivate() (the class is
+        // already in memory), and the boot self-heal only probes tables, so an
+        // upgraded install can still carry the two-value ENUM. Widen it here,
+        // before the first job of a newer kind, instead of failing its INSERT.
+        if (!in_array($kind, self::LEGACY_KINDS, true) && !self::$kindWide && !self::widenKind($this->db)) {
+            throw new \RuntimeException('import job kind column could not be widened: ' . $this->db->error);
+        }
         $id = self::uuid();
         $json = self::encode($state);
         $ttl = self::TTL_HOURS;
@@ -48,6 +60,34 @@ final class ImportJobStore
         $stmt->close();
 
         return $id;
+    }
+
+    /**
+     * Turns the pre-1.10.0 ENUM `kind` into VARCHAR(32); a no-op afterwards.
+     * Called by the plugin's ensureSchema() and, lazily, before the first job
+     * of a kind the ENUM does not know.
+     */
+    public static function widenKind(mysqli $db): bool
+    {
+        $result = $db->query(
+            "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs' AND COLUMN_NAME = 'kind'"
+        );
+        if (!$result instanceof \mysqli_result) {
+            \App\Support\SecureLogger::error('[MobileApi] reading mobile_import_jobs.kind failed: ' . $db->error);
+            return false;
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        if (is_array($row) && strtolower((string) ($row['DATA_TYPE'] ?? '')) === 'enum'
+            && $db->query('ALTER TABLE mobile_import_jobs MODIFY kind VARCHAR(32) NOT NULL') !== true) {
+            \App\Support\SecureLogger::error('[MobileApi] widening mobile_import_jobs.kind failed: ' . $db->error);
+            return false;
+        }
+        // A missing table is ensureSchema()'s job; only a confirmed column is cached.
+        self::$kindWide = is_array($row);
+
+        return true;
     }
 
     /**
@@ -79,19 +119,35 @@ final class ImportJobStore
     /**
      * Unexpired jobs of this operator, newest first.
      *
+     * @param list<string>|null $kinds only these job kinds (null: every kind)
      * @return list<array<string, mixed>>
      */
-    public function listFor(int $userId, int $offset, int $limit): array
+    public function listFor(int $userId, int $offset, int $limit, ?array $kinds = null): array
     {
+        // Mobile API 1.10.0: the store also holds MARC, patron CSV and copy
+        // cataloguing jobs; each endpoint lists only the kinds it drives.
+        $kindFilter = '';
+        $types = 'i';
+        $params = [$userId];
+        if ($kinds !== null) {
+            if ($kinds === []) {
+                return [];
+            }
+            $kindFilter = ' AND j.kind IN (' . implode(',', array_fill(0, count($kinds), '?')) . ')';
+            $types .= str_repeat('s', count($kinds));
+            array_push($params, ...array_map('strval', $kinds));
+        }
         $stmt = $this->db->prepare(
-            'SELECT j.*, 0 AS expired FROM mobile_import_jobs j WHERE j.user_id = ? AND j.expires_at >= NOW()
+            'SELECT j.*, 0 AS expired FROM mobile_import_jobs j WHERE j.user_id = ? AND j.expires_at >= NOW()' . $kindFilter . '
               ORDER BY j.created_at DESC, j.id LIMIT ? OFFSET ?'
         );
         if ($stmt === false) {
             throw new \RuntimeException('import job list prepare failed');
         }
         $fetch = $limit + 1;
-        $stmt->bind_param('iii', $userId, $fetch, $offset);
+        $types .= 'ii';
+        array_push($params, $fetch, $offset);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         $rows = [];
@@ -134,10 +190,20 @@ final class ImportJobStore
             $stmt->bind_param('issis', $processed, $status, $summaryJson, $ttl, $id);
         }
         $stmt->execute();
-        // The status always changes (running → ready/completed), so a matched
-        // row is a changed row.
+        // Checkpoints can keep running and repeat the same state within a
+        // second: affected_rows = 0 then means a valid no-op, not cancellation.
         $saved = $stmt->affected_rows > 0;
         $stmt->close();
+        if (!$saved && $status === 'running') {
+            $probe = $this->db->prepare("SELECT 1 FROM mobile_import_jobs WHERE id = ? AND status = 'running'");
+            if ($probe === false) {
+                throw new \RuntimeException('import checkpoint probe prepare failed');
+            }
+            $probe->bind_param('s', $id);
+            $probe->execute();
+            $saved = $probe->get_result()->fetch_row() !== null;
+            $probe->close();
+        }
 
         return $saved;
     }
@@ -209,6 +275,11 @@ final class ImportJobStore
     public static function unlinkUpload(array $state): void
     {
         $path = is_string($state['file_path'] ?? null) ? $state['file_path'] : '';
+        // Patron imports keep the web state one level below the job state.
+        $patronFile = $state['core']['file'] ?? null;
+        if ($path === '' && is_string($patronFile) && str_starts_with(basename($patronFile), 'user_import_')) {
+            $path = $patronFile;
+        }
         if ($path === '' || !is_file($path)) {
             return;
         }

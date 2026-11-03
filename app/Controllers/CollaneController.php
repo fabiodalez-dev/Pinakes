@@ -483,9 +483,17 @@ class CollaneController
         // SEC2-1 + SEC1-5 (review): require min 2 chars and escape LIKE
         // wildcards so callers can't broaden the match with `%`/`_` or
         // probe single-char prefixes for enumeration.
-        if (mb_strlen($q) >= 2) {
-            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
-            $search = '%' . $escaped . '%';
+        // Each word keeps its own rule (`Mont "Häffner"`): with a quoted word
+        // filterCondition() builds one condition per word, so the minimum
+        // applies to every word (`"a" b` must not probe single characters).
+        // Unquoted input is still one phrase pattern (`%I Meridiani%`), so it
+        // is measured as a whole and a one-letter article does not block it.
+        $tokens = \App\Support\ExactSearch::tokenize($q);
+        $words = in_array(true, array_column($tokens, 'exact'), true)
+            ? array_column($tokens, 'term')
+            : [\App\Support\ExactSearch::parseFilter($q)['term']];
+        $longEnough = $words !== [] && min(array_map('mb_strlen', $words)) >= 2;
+        if ($longEnough) {
 
             $hasCollane = $this->hasCollaneTable($db);
             $sqlParts = [];
@@ -497,9 +505,13 @@ class CollaneController
                     continue; // no collane table — skip its sources
                 }
                 $col = $src['c'];
-                $where = "`{$col}` LIKE ? AND `{$col}` IS NOT NULL AND `{$col}` != ''";
-                $types .= 's';
-                $binds[] = $search;
+                $condition = \App\Support\ExactSearch::filterCondition(["`{$col}`"], $q);
+                if ($condition === null) {
+                    continue;
+                }
+                $where = $condition['sql'] . " AND `{$col}` IS NOT NULL AND `{$col}` != ''";
+                $types .= $condition['types'];
+                array_push($binds, ...$condition['params']);
                 if ($src['t'] === 'libri') {
                     $where .= ' AND deleted_at IS NULL';
                 }
@@ -515,8 +527,15 @@ class CollaneController
             }
 
             if (!empty($sqlParts)) {
-                $sql = 'SELECT DISTINCT nome FROM (' . implode(' UNION ', $sqlParts)
-                     . ') AS combined ORDER BY nome LIMIT 10';
+                // One suggestion per spelling: accents keep "Brücke" and
+                // "Brucke" apart (#501), case does not ("Serie" = "serie", as
+                // UNION used to merge them). MIN(nome) keeps the column's
+                // tolerant collation, so the list sorts like the rest of the UI;
+                // that collation ties "Haffner" with "Häffner", so the binary
+                // spelling breaks the tie and the order is the same on every
+                // server.
+                $sql = 'SELECT MIN(nome) AS nome FROM (' . implode(' UNION ALL ', $sqlParts)
+                     . ') AS combined GROUP BY LOWER(nome) COLLATE utf8mb4_bin ORDER BY nome, MIN(nome) COLLATE utf8mb4_bin LIMIT 10';
                 $stmt = $db->prepare($sql);
                 if ($stmt) {
                     $stmt->bind_param($types, ...$binds);

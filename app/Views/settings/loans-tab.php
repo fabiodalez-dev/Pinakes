@@ -6,6 +6,7 @@
 <section data-settings-panel="loans" class="settings-panel <?php echo $activeTab === 'loans' ? 'block' : 'hidden'; ?>">
   <form action="<?= htmlspecialchars(url('/admin/settings/loans'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php $modulesLocked = !\App\Support\Permissions::mayConfigure(); // optional modules: administrators only ?>
 
     <!-- Automatic approval -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -83,6 +84,93 @@
             <?= __("Valore compreso tra 1 e 365 giorni. Predefinito: 30 giorni") ?>
           </p>
         </div>
+      </div>
+    </div>
+
+    <!-- Patron types and rules matrix (optional module, Settings → Circulation) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="loans-circulation-rules">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-id-badge text-gray-500"></i>
+          <?= __("Regole per tipologia di lettore") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Tipologie di lettore con regole proprie per tipo di materiale. Le regole si configurano nella sezione Circolazione delle impostazioni.") ?></p>
+        <?php if ($modulesLocked): ?>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4" data-testid="modules-admin-only">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-lock text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700"><?= __("Solo gli amministratori possono attivare o disattivare i moduli.") ?></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="feature_circulation_rules_label" class="text-sm font-semibold text-gray-900"><?= htmlspecialchars(\App\Support\Features::label('circulation_rules'), ENT_QUOTES, 'UTF-8') ?></span>
+            <p id="feature_circulation_rules_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help('circulation_rules'), ENT_QUOTES, 'UTF-8') ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="feature_circulation_rules"
+                   name="feature_circulation_rules"
+                   <?= $modulesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="feature_circulation_rules_label"
+                   aria-describedby="feature_circulation_rules_desc"
+                   <?php echo !empty($loansSettings['circulation_rules_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <?php $featureLocked = $modulesLocked; foreach (['consultation_only', 'automatic_card_expiry'] as $featureKey) { include __DIR__ . '/partials/feature-switch.php'; } ?>
+        <?php if (!$modulesLocked): ?><a class="text-sm underline" href="<?= htmlspecialchars(url('/admin/settings?tab=circulation'), ENT_QUOTES, 'UTF-8') ?>"><?= __('Configura le regole anche a modulo spento') ?></a><?php endif; ?>
+        <div class="border-t border-gray-100 pt-4">
+          <label for="card_renewal_base" class="block text-sm font-medium text-gray-700 mb-2"><?= __('Calcola il rinnovo della tessera da') ?></label>
+          <select name="card_renewal_base" id="card_renewal_base" class="form-input" <?= $modulesLocked ? 'disabled' : '' ?>>
+            <option value="today" <?= ($loansSettings['card_renewal_base'] ?? 'today') === 'today' ? 'selected' : '' ?>><?= __('Oggi') ?></option>
+            <option value="expiry" <?= ($loansSettings['card_renewal_base'] ?? 'today') === 'expiry' ? 'selected' : '' ?>><?= __('Scadenza esistente, se futura; altrimenti oggi') ?></option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Closures calendar (own page: /admin/calendar) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="loans-closures-calendar">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-calendar-times text-gray-500"></i>
+          <?= __("Calendario chiusure") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Giorni in cui la biblioteca è chiusa: le scadenze che vi cadono passano al primo giorno di apertura e i giorni per il ritiro contano solo i giorni di apertura.") ?></p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="feature_closures_calendar_label" class="text-sm font-semibold text-gray-900"><?= htmlspecialchars(\App\Support\Features::label('closures_calendar'), ENT_QUOTES, 'UTF-8') ?></span>
+            <p id="feature_closures_calendar_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help('closures_calendar'), ENT_QUOTES, 'UTF-8') ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="feature_closures_calendar"
+                   name="feature_closures_calendar"
+                   <?= $modulesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="feature_closures_calendar_label"
+                   aria-describedby="feature_closures_calendar_desc"
+                   <?php echo !empty($loansSettings['closures_calendar_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <?php if (\App\Support\Permissions::mayConfigure()): ?>
+        <a href="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="open-closures-calendar" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
+          <i class="fas fa-calendar-alt"></i>
+          <?= __("Gestisci il calendario chiusure") ?>
+        </a>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -194,6 +282,38 @@
           <p class="text-xs text-gray-500 mt-3">
             <i class="fas fa-info-circle mr-1"></i>
             <?= __("Se il libro non è ancora stato ritirato, l'utente riceve un promemoria questo numero di giorni prima della scadenza del ritiro (template «Promemoria ritiro»). 0 disattiva il promemoria. Predefinito: 2 giorni") ?>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card expiry warning (circulation policy) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-id-card text-gray-500"></i>
+          <?= __("Avviso scadenza tessera") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Il lettore riceve un'email quando la sua tessera sta per scadere, così può rinnovarla prima di non poter più chiedere prestiti.") ?></p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div>
+          <label for="card_expiry_warning_days" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Avviso scadenza tessera: giorni prima della scadenza") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="number"
+                   id="card_expiry_warning_days"
+                   name="card_expiry_warning_days"
+                   min="0"
+                   max="365"
+                   value="<?php echo (int) ($loansSettings['card_expiry_warning_days'] ?? 0); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= __("giorni") ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Inviato una sola volta per scadenza dal processo pianificato delle notifiche (template «Tessera in scadenza»). 0 disattiva l'avviso. Predefinito: 0") ?>
           </p>
         </div>
       </div>
@@ -383,6 +503,169 @@
             <i class="fas fa-info-circle mr-1"></i>
             <?= __("I solleciti manuali aggiornano il conteggio e possono ridurre il numero di invii automatici. Predefinito: 3") ?>
           </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plan §7: late fines, patron ledger, debt block -->
+    <?php $finesLocked = !\App\Support\Permissions::mayConfigure(); // money policy: administrators only ?>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-coins text-gray-500"></i>
+          <?= __("Multe e blocco per debito") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Addebita automaticamente una multa per ogni giorno di ritardo quando un prestito viene restituito dopo la scadenza. Le multe richiedono registro, interruttore dedicato e tariffa positiva.") ?></p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700">
+              <?= __("La modalità di tolleranza determina quali giorni vengono addebitati. Saldo, pagamenti e condoni si gestiscono dalla scheda del lettore, sezione Movimenti.") ?>
+            </div>
+          </div>
+        </div>
+        <?php if ($finesLocked): ?>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4" data-testid="fines-admin-only">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-lock text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700"><?= __("Solo gli amministratori possono modificare multe e soglia di blocco.") ?></div>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="feature_fines_label" class="text-sm font-semibold text-gray-900"><?= htmlspecialchars(\App\Support\Features::label('fines'), ENT_QUOTES, 'UTF-8') ?></span>
+            <p id="feature_fines_desc" class="text-xs text-gray-600 mt-1"><?= htmlspecialchars(\App\Support\Features::help('fines'), ENT_QUOTES, 'UTF-8') ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="feature_fines"
+                   name="feature_fines"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="feature_fines_label"
+                   aria-describedby="feature_fines_desc"
+                   <?php echo !empty($loansSettings['fines_enabled']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <?php $featureLocked = $finesLocked; foreach (['automatic_fines', 'debt_block', 'loss_penalties'] as $featureKey) { include __DIR__ . '/partials/feature-switch.php'; } ?>
+        <?php if (isset($legacyPenaltyImpact) && $legacyPenaltyImpact['count'] > 0): ?>
+        <p class="text-sm text-gray-600" data-testid="legacy-penalty-impact"><?= htmlspecialchars(sprintf(__('Attivando il riporto delle penalità, saranno registrati %s importi precedenti, per un totale di %s. Le multe per ritardo restano una scelta separata.'), (string) $legacyPenaltyImpact['count'], \App\Services\FineParameters::format($legacyPenaltyImpact['cents'])), ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+        <p class="text-sm text-gray-600"><?= __('Il registro può restare attivo con tutti gli automatismi spenti. Le tariffe per tipologia e materiale rispettano questi interruttori.') ?></p>
+        <div>
+          <label for="fine_grace_mode" class="block text-sm font-medium text-gray-700 mb-2"><?= __('Modalità di tolleranza della multa') ?></label>
+          <select name="fine_grace_mode" id="fine_grace_mode" class="form-input" <?= $finesLocked ? 'disabled' : '' ?>>
+            <option value="threshold" <?= ($loansSettings['fine_grace_mode'] ?? 'threshold') === 'threshold' ? 'selected' : '' ?>><?= __('Soglia: superata la tolleranza, conta dal primo giorno') ?></option>
+            <option value="deduct" <?= ($loansSettings['fine_grace_mode'] ?? 'threshold') === 'deduct' ? 'selected' : '' ?>><?= __('Abbuono: sottrai sempre i giorni di tolleranza') ?></option>
+          </select>
+        </div>
+        <div class="border-t border-gray-100 pt-4">
+          <label for="daily_fine" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Multa giornaliera") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="text"
+                   inputmode="decimal"
+                   id="daily_fine"
+                   name="daily_fine"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
+                   placeholder="0"
+                   value="<?php echo htmlspecialchars((string) ($loansSettings['daily_fine'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= htmlspecialchars((string) ($loansSettings['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Tariffa globale per giorno. Vuoto o 0 = nessuna tariffa globale; le tipologie possono definirne una propria. Per sospendere tutte le multe usa l’interruttore dedicato.") ?>
+          </p>
+        </div>
+        <div>
+          <label for="fine_grace_days" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Giorni di tolleranza") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="number"
+                   id="fine_grace_days"
+                   name="fine_grace_days"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   min="0"
+                   max="365"
+                   value="<?php echo (int) ($loansSettings['fine_grace_days'] ?? 0); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= __("giorni") ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Un ritardo fino a questo numero di giorni non viene multato. Predefinito: 0") ?>
+          </p>
+        </div>
+        <div>
+          <label for="fine_max_per_loan" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Multa massima per prestito") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="text"
+                   inputmode="decimal"
+                   id="fine_max_per_loan"
+                   name="fine_max_per_loan"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
+                   placeholder="0"
+                   value="<?php echo htmlspecialchars((string) ($loansSettings['fine_max_per_loan'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= htmlspecialchars((string) ($loansSettings['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Tetto della multa di un singolo prestito. Vuoto o 0 = nessun tetto.") ?>
+          </p>
+        </div>
+        <div>
+          <label for="debt_block_threshold" class="block text-sm font-medium text-gray-700 mb-2">
+            <?= __("Soglia di blocco per debito") ?>
+          </label>
+          <div class="flex items-center gap-4">
+            <input type="text"
+                   inputmode="decimal"
+                   id="debt_block_threshold"
+                   name="debt_block_threshold"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   pattern="[0-9]{1,8}([.,][0-9]{1,2})?"
+                   placeholder="0"
+                   value="<?php echo htmlspecialchars((string) ($loansSettings['debt_block_threshold'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                   class="block w-32 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 text-center font-semibold text-lg">
+            <span class="text-sm text-gray-600"><?= htmlspecialchars((string) ($loansSettings['currency'] ?? 'EUR'), ENT_QUOTES, 'UTF-8') ?></span>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            <?= __("Soglia globale del debito. Vuoto o 0 = nessun blocco globale; le tipologie possono definire una soglia propria. Per sospendere tutti i blocchi usa l’interruttore dedicato.") ?>
+          </p>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="fine_charged_email_label" class="text-sm font-semibold text-gray-900"><?= __("Avvisa il lettore via email quando viene addebitata una multa") ?></span>
+            <p id="fine_charged_email_desc" class="text-xs text-gray-600 mt-1"><?= __("Usa il modello email «Multa per ritardo addebitata». Disattivato per impostazione predefinita.") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="fine_charged_email"
+                   name="fine_charged_email"
+                   <?= $finesLocked ? 'disabled' : '' ?>
+                   value="1"
+                   aria-labelledby="fine_charged_email_label"
+                   aria-describedby="fine_charged_email_desc"
+                   <?php echo !empty($loansSettings['fine_charged_email']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
         </div>
       </div>
     </div>

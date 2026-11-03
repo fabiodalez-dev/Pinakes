@@ -2695,29 +2695,36 @@ class EmerotecaPlugin
      * is a product decision about what a search is expected to find, and it
      * should be made deliberately rather than inside a performance fix.
      */
-    public static function testataSearchWhere(bool $withArticles): string
+    public static function testataSearchWhere(bool $withArticles, bool $exact = false): string
     {
-        $where = "t.titolo LIKE ? ESCAPE '\\\\'
-                  OR t.sottotitolo LIKE ? ESCAPE '\\\\'
-                  OR t.issn LIKE ? ESCAPE '\\\\'";
+        $match = static fn(string $column): string => \App\Support\ExactSearch::likeSql($column, $exact);
+        $where = $match('t.titolo') . ' OR ' . $match('t.sottotitolo') . ' OR ' . $match('t.issn');
         if ($withArticles) {
-            $where .= "
-                  OR EXISTS (
-                        SELECT 1
-                          FROM emeroteca_articoli ar
-                          JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
-                          JOIN emeroteca_annate ea ON ea.id = ef.annata_id
-                         WHERE ea.testata_id = t.id AND ef.stato <> 'scartato'
-                           AND (
-                                MATCH(ar.titolo, ar.autori, ar.keywords)
-                                    AGAINST (? IN NATURAL LANGUAGE MODE)
-                                OR ar.titolo LIKE ? ESCAPE '\\\\'
-                                OR ar.autori LIKE ? ESCAPE '\\\\'
-                                OR ar.keywords LIKE ? ESCAPE '\\\\'
-                           )
-                  )";
+            // An accent-insensitive MATCH must never bypass an exact search.
+            // Keep the seven-placeholder contract used by the listing/hints.
+            $articleMatch = $exact
+                ? 'LOWER(ar.titolo) COLLATE utf8mb4_bin = LOWER(?)'
+                : 'MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)';
+            $where .= " OR EXISTS (SELECT 1 FROM emeroteca_articoli ar
+                JOIN emeroteca_fascicoli ef ON ef.id = ar.fascicolo_id
+                JOIN emeroteca_annate ea ON ea.id = ef.annata_id
+                WHERE ea.testata_id = t.id AND ef.stato <> 'scartato' AND (" . $articleMatch
+                . ' OR ' . $match('ar.titolo') . ' OR ' . $match('ar.autori') . ' OR ' . $match('ar.keywords') . '))';
         }
         return '(' . $where . ')';
+    }
+
+    /** @return array{sql:string,params:list<string>,types:string}|null */
+    public static function testataSearchCondition(string $query, bool $withArticles): ?array
+    {
+        $parts = []; $params = [];
+        foreach (array_slice(\App\Support\ExactSearch::tokenize(mb_substr($query, 0, 200)), 0, 20) as ['term' => $term, 'exact' => $exact]) {
+            $parts[] = self::testataSearchWhere($withArticles, $exact);
+            $pattern = \App\Support\ExactSearch::likePattern($term);
+            array_push($params, $pattern, $pattern, $pattern);
+            if ($withArticles) { array_push($params, $term, $pattern, $pattern, $pattern); }
+        }
+        return $parts === [] ? null : ['sql' => '(' . implode(' AND ', $parts) . ')', 'params' => $params, 'types' => str_repeat('s', count($params))];
     }
 
     /**
@@ -2737,25 +2744,12 @@ class EmerotecaPlugin
         if (!$this->emerotecaTableExists('emeroteca_contributi')) {
             return $empty;
         }
-        $pattern = $this->likePattern($term);
-        // These columns must stay the same set ContributionService::search()
-        // uses, in the same order: this counter labels a link, and the number
-        // beside a link has to be the number of results that link opens. When
-        // sottotitolo became searchable on the article page (#412) and not
-        // here, a term living only in a subtitle produced no suggestion at all
-        // while the linked page listed the article.
+        require_once __DIR__ . '/src/Services/ContributionService.php';
         $authors = new \App\Services\ArticleAuthorService($this->db);
-        $extraAuthors = $authors->available()
-            ? " OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND (a.nome LIKE ? ESCAPE '\\\\' OR a.pseudonimo LIKE ? ESCAPE '\\\\'))" : '';
-        $where = ($includeUnpublished ? '1=1' : 'c.pubblico = 1') . "
-                  AND (c.titolo LIKE ? ESCAPE '\\\\'
-                       OR c.sottotitolo LIKE ? ESCAPE '\\\\'
-                       OR c.autori LIKE ? ESCAPE '\\\\'
-                       OR c.contenitore_titolo LIKE ? ESCAPE '\\\\'
-                       OR c.keywords LIKE ? ESCAPE '\\\\'
-                       OR c.issn = ?$extraAuthors)";
-        $params = [$pattern, $pattern, $pattern, $pattern, $pattern, $term];
-        if ($extraAuthors !== '') { array_push($params,$pattern,$pattern); }
+        $search = \App\Plugins\Emeroteca\Services\ContributionService::searchCondition($term, $authors->available());
+        if ($search === null) { return $empty; }
+        $where = ($includeUnpublished ? '1=1' : 'c.pubblico = 1') . ' AND ' . $search['sql'];
+        $params = $search['params'];
 
         // Fetch first, count only when the page comes back saturated: a term
         // with five or fewer matches already knows its own total, and this
@@ -2885,15 +2879,14 @@ class EmerotecaPlugin
         if (!$this->emerotecaTableExists('emeroteca_testate')) {
             return $empty;
         }
-        $pattern = $this->likePattern($term);
         $withArticles = $this->emerotecaTableExists('emeroteca_articoli')
             && $this->emerotecaTableExists('emeroteca_fascicoli')
             && $this->emerotecaTableExists('emeroteca_annate');
-        $where = self::testataSearchWhere($withArticles);
-        $params = $withArticles
-            ? [$pattern, $pattern, $pattern, $term, $pattern, $pattern, $pattern]
-            : [$pattern, $pattern, $pattern];
-        $types = str_repeat('s', count($params));
+        $search = self::testataSearchCondition($term, $withArticles);
+        if ($search === null) { return $empty; }
+        $where = $search['sql'];
+        $params = $search['params'];
+        $types = $search['types'];
 
         // Fetch first, count only when saturated — see emerotecaArticleHits().
         $rows = $this->emerotecaRows(
@@ -2945,18 +2938,24 @@ class EmerotecaPlugin
             || !$this->emerotecaTableExists('emeroteca_fascicoli')) {
             return false;
         }
-        $pattern = $this->likePattern($term);
+        // One arm per word, as the destination's testataSearchCondition():
+        // a mixed query (`"häffner" rolf`) keeps each word's own rule.
+        $arms = [];
+        $params = [];
+        foreach (array_slice(\App\Support\ExactSearch::tokenize(mb_substr($term, 0, 200)), 0, 20) as ['term' => $needle, 'exact' => $exact]) {
+            $pattern = $this->likePattern($needle);
+            $match = static fn(string $column): string => \App\Support\ExactSearch::likeSql($column, $exact);
+            $indexed = $exact
+                ? 'LOWER(ar.titolo) COLLATE utf8mb4_bin = LOWER(?)'
+                : 'MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)';
+            $arms[] = '(' . $indexed . ' OR ' . $match('ar.titolo') . ' OR ' . $match('ar.autori') . ' OR ' . $match('ar.keywords') . ')';
+            array_push($params, $needle, $pattern, $pattern, $pattern);
+        }
+        if ($arms === []) { return false; }
         return $this->emerotecaRows(
-            "SELECT 1 FROM emeroteca_articoli ar
-             JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
-             WHERE f.stato <> 'scartato'
-               AND (MATCH(ar.titolo, ar.autori, ar.keywords) AGAINST (? IN NATURAL LANGUAGE MODE)
-                    OR ar.titolo LIKE ? ESCAPE '\\\\'
-                    OR ar.autori LIKE ? ESCAPE '\\\\'
-                    OR ar.keywords LIKE ? ESCAPE '\\\\')
-             LIMIT 1",
-            'ssss',
-            [$term, $pattern, $pattern, $pattern]
+            "SELECT 1 FROM emeroteca_articoli ar JOIN emeroteca_fascicoli f ON f.id = ar.fascicolo_id
+             WHERE f.stato <> 'scartato' AND " . implode(' AND ', $arms) . ' LIMIT 1',
+            str_repeat('s', count($params)), $params
         ) !== [];
     }
 

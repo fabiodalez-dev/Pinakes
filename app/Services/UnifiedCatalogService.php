@@ -180,13 +180,39 @@ final class UnifiedCatalogService
         if ($term !== '') {
             // Same word-wise semantics as the book index; punctuation in an
             // inverted personal name must not prevent a natural-order search.
-            $words = preg_split('/[^\p{L}\p{N}_%]+/u', mb_substr($term, 0, 200), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            foreach (array_slice($words, 0, 20) as $word) {
-                $textMatch = "CONCAT_WS(' ', c.titolo, c.sottotitolo, c.autori, c.contenitore_titolo, c.keywords, c.abstract, c.issn) LIKE ? ESCAPE '='";
-                $pattern = '%' . strtr($word, ['=' => '==', '%' => '=%', '_' => '=_']) . '%';
+            // A quoted group is one exact term (#501), like in the book search,
+            // so articles by "Häffner" do not answer "haffner" in quotes.
+            $terms = [];
+            $tokens = \App\Support\ExactSearch::tokenize(mb_substr($term, 0, 200));
+            foreach ($tokens as $token) {
+                if ($token['exact']) {
+                    $terms[] = $token;
+                    continue;
+                }
+                foreach (preg_split('/[^\p{L}\p{N}_%]+/u', $token['term'], -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+                    $terms[] = ['term' => $word, 'exact' => false];
+                }
+            }
+            if ($tokens !== [] && $terms === []) {
+                // Only punctuation was typed ("!!!", a garbled "??"): the book
+                // search looks for it literally and finds nothing, so the
+                // articles must not answer with the whole collection.
+                $where[] = '1=0';
+            }
+            $articleText = "CONCAT_WS(' ', c.titolo, c.sottotitolo, c.autori, c.contenitore_titolo, c.keywords, c.abstract, c.issn)";
+            foreach (array_slice($terms, 0, 20) as ['term' => $word, 'exact' => $exact]) {
+                if ($exact) {
+                    $textMatch = \App\Support\ExactSearch::likeSql($articleText, true);
+                    $authorMatch = \App\Support\ExactSearch::likeSql("CONCAT_WS(' ',a.nome,a.pseudonimo)", true);
+                    $pattern = \App\Support\ExactSearch::likePattern($word);
+                } else {
+                    $textMatch = "$articleText LIKE ? ESCAPE '='";
+                    $authorMatch = "CONCAT_WS(' ',a.nome,a.pseudonimo) LIKE ? ESCAPE '='";
+                    $pattern = '%' . strtr($word, ['=' => '==', '%' => '=%', '_' => '=_']) . '%';
+                }
                 $params[] = $pattern;
                 if ($linkedAuthors) {
-                    $textMatch = "($textMatch OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND CONCAT_WS(' ',a.nome,a.pseudonimo) LIKE ? ESCAPE '='))";
+                    $textMatch = "($textMatch OR EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca JOIN autori a ON a.id=ca.autore_id WHERE ca.contributo_id=c.id AND $authorMatch))";
                     $params[] = $pattern;
                 }
                 $where[] = $textMatch;

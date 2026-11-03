@@ -68,8 +68,11 @@ $check(
     'automatic approval sends the patron approval email'
 );
 $check(
-    str_contains($mobileActions, "'auto_approved' => \$autoApproved")
-        && str_contains($mobileActions, "'status' => \$autoApproved ? 'da_ritirare' : 'pendente'")
+    // The state the request was stored with (CirculationOutcome::requestState():
+    // pendente, da_ritirare, or prenotato when a closed day moved the start).
+    str_contains($mobileActions, 'CirculationOutcome::requestState($outcome)')
+        && str_contains($mobileActions, "'auto_approved' => \$status !== 'pendente'")
+        && str_contains($mobileActions, "'status' => \$status,")
         && str_contains($mobileHealth, "'loan_approval_required' => \$loanApprovalRequired")
         && str_contains($mobileDocs, 'data.auto_approved'),
     'Mobile API advertises the setting and returns the actual request outcome'

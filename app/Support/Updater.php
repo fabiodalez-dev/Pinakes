@@ -111,6 +111,7 @@ class Updater
         'storage/cache',
         'storage/logs',
         'storage/calendar',
+        'storage/patron_photos',
         'storage/tmp',
         'storage/sessions',
         'public/uploads',
@@ -4012,6 +4013,22 @@ class Updater
                 $this->debugLog('WARNING', 'Pickup deadline backfill failed; it will retry on the next upgrade run');
             }
 
+            // 0.9.0 (plan §7): the migration converts at most 100000 legacy
+            // prestiti.sanzione amounts, and the debt block reads only the
+            // ledger. Finish the conversion here, after the triggers, so a
+            // patron over the threshold is blocked from the first request
+            // instead of from the next maintenance run (which stays the
+            // retry). Idempotent (penalty:<loan> keys) and non-fatal.
+            if (version_compare($toVersion, '0.9.0-rc.1', '>=')) {
+                try {
+                    if (!\App\Services\PatronLedger::completeLegacyPenaltyBackfill($this->db)) {
+                        $this->debugLog('WARNING', 'Legacy penalty backfill deferred; maintenance will retry');
+                    }
+                } catch (\Throwable $e) {
+                    $this->debugLog('WARNING', 'Legacy penalty backfill failed; maintenance will retry', ['error' => $e->getMessage()]);
+                }
+            }
+
             // 0.7.72: the edge-cache privacy block shipped in 0.7.70/0.7.71
             // WITHOUT `CacheLookup on`, so LSWS ignored the app's cache headers
             // and no page was ever served from edge cache — the admin toggle
@@ -4091,6 +4108,12 @@ class Updater
      */
     private function recalculateAfterMigrations(): void
     {
+        // Schema probes cached earlier in this request (before the migration
+        // created the circulation tables) must not survive into the recalc.
+        // This runs from the Updater of the release that ships the classes,
+        // so they are always there.
+        \App\Services\CirculationPolicy::resetSchemaCache();
+        \App\Services\PatronLedger::resetSchemaCache();
         try {
             $integrity = new \App\Support\DataIntegrity($this->db);
             $integrity->recalculateAllBookAvailability();

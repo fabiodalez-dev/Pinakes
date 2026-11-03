@@ -23,6 +23,7 @@ final class ConfigStore
      * keys) retry the connect and pay the full timeout N times.
      */
     private static bool $connectionFailed = false;
+    private static bool $scopedConnection = false;
 
     public static function all(): array
     {
@@ -153,8 +154,16 @@ final class ConfigStore
                 'litespeed_catalog_ttl' => 120,
                 'litespeed_book_ttl' => 300,
             ],
+            // Optional 0.9.0 modules (Settings → Modules / Loans). The default
+            // is the upgrade one: an install without the row behaves as an
+            // upgrade (Features::DEFAULTS is the single source).
+            'features' => array_map(static fn (string $v): bool => $v === '1', Features::DEFAULTS),
         ];
 
+        // NULL marks an absent granular preference, distinct from an explicit OFF.
+        foreach (Features::INHERITED as $key => $parent) {
+            $defaults['features'][$key] = null;
+        }
         $localizedDefaults = self::getLocaleDefaultTexts();
         if (!empty($localizedDefaults)) {
             $defaults = self::mergeRecursiveDistinct($defaults, $localizedDefaults);
@@ -257,6 +266,28 @@ final class ConfigStore
         self::$runtimeCache = null;
         self::$dbSettingsCache = null;
         QueryCache::delete(self::SETTINGS_CACHE_KEY);
+    }
+
+    /** Read the caller's uncommitted settings without publishing them to the
+     * shared cache. Always restore the ordinary connection after the scope.
+     * @template T
+     * @param callable(): T $work
+     * @return T
+     */
+    public static function usingConnection(\mysqli $db, callable $work): mixed
+    {
+        $previous = self::$sharedConnection;
+        $scoped = self::$scopedConnection;
+        self::$sharedConnection = $db;
+        self::$scopedConnection = true;
+        self::clearCache();
+        try {
+            return $work();
+        } finally {
+            self::$sharedConnection = $previous;
+            self::$scopedConnection = $scoped;
+            self::clearCache();
+        }
     }
 
     /**
@@ -468,6 +499,12 @@ final class ConfigStore
                 if (isset($raw['app']['timezone']) && $raw['app']['timezone'] !== '') {
                     self::$dbSettingsCache['app']['timezone'] = (string) $raw['app']['timezone'];
                 }
+                // app.currency (prices, sanzione, patron ledger): without this
+                // mapping a stored value would be inert (allowlist trap) and
+                // every reader would keep seeing the EUR default.
+                if (isset($raw['app']['currency']) && preg_match('/^[A-Za-z]{3}$/', (string) $raw['app']['currency']) === 1) {
+                    self::$dbSettingsCache['app']['currency'] = strtoupper((string) $raw['app']['currency']);
+                }
                 // Load social links
                 $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_linkedin', 'social_bluesky', 'social_telegram'];
                 foreach ($socialKeys as $socialKey) {
@@ -667,6 +704,23 @@ final class ConfigStore
                 }
             }
 
+            // features.* (optional modules): without this mapping a saved
+            // switch would be inert (allowlist trap). Only the known keys,
+            // as booleans.
+            if (!empty($raw['features'])) {
+                self::$dbSettingsCache['features'] = [];
+                foreach (array_keys(Features::DEFAULTS) as $featureKey) {
+                    if (!isset($raw['features'][$featureKey])) {
+                        continue;
+                    }
+                    $value = filter_var($raw['features'][$featureKey], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($value === null) {
+                        $value = in_array((string) $raw['features'][$featureKey], ['1', 'true', 'yes'], true);
+                    }
+                    self::$dbSettingsCache['features'][$featureKey] = $value;
+                }
+            }
+
             if (!empty($raw['system'])) {
                 self::$dbSettingsCache['system'] = [];
                 foreach ($raw['system'] as $key => $value) {
@@ -702,7 +756,7 @@ final class ConfigStore
      */
     private static function loadRawSettings(): array
     {
-        $cached = QueryCache::get(self::SETTINGS_CACHE_KEY);
+        $cached = self::$scopedConnection ? null : QueryCache::get(self::SETTINGS_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;
         }
@@ -726,7 +780,9 @@ final class ConfigStore
         }
         $result->free();
 
-        QueryCache::set(self::SETTINGS_CACHE_KEY, $raw, self::SETTINGS_CACHE_TTL);
+        if (!self::$scopedConnection) {
+            QueryCache::set(self::SETTINGS_CACHE_KEY, $raw, self::SETTINGS_CACHE_TTL);
+        }
 
         return $raw;
     }

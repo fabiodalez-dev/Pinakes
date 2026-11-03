@@ -888,7 +888,10 @@ class LibraryThingImportController
 
         $normalized = [];
         foreach ($this->splitContributorList($value, '/\s*[;|]\s*/u') as $part) {
-            $name = \App\Support\AuthorNormalizer::normalize($part);
+            // Written to the libri.* display cache only: whole-name quotes mean
+            // exact spelling (#501) and stay on the value ContributorSync gets
+            // from parseLibraryThingRow(), never in the stored text.
+            $name = \App\Support\AuthorNormalizer::normalizeStored($part);
             if ($name !== '' && !in_array($name, $normalized, true)) {
                 $normalized[] = $name;
             }
@@ -1245,16 +1248,13 @@ class LibraryThingImportController
     // Reuse methods from CsvImportController
     private function getOrCreatePublisher(\mysqli $db, string $name): array
     {
-        $stmt = $db->prepare("SELECT id FROM editori WHERE nome = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($row = $result->fetch_assoc()) {
-            $stmt->close();
-            return ['id' => (int) $row['id'], 'created' => false];
+        // Same lookup as the book form: the exact spelling wins, and a name in
+        // quotes reuses only that spelling (#501). The quotes are not stored.
+        $existingId = (new \App\Models\PublisherRepository($db))->findByName($name);
+        if ($existingId !== null) {
+            return ['id' => $existingId, 'created' => false];
         }
-        $stmt->close();
+        $name = \App\Support\ExactSearch::quotedValue($name) ?? $name;
 
         $stmt = $db->prepare("INSERT INTO editori (nome, created_at) VALUES (?, NOW())");
         $stmt->bind_param('s', $name);
@@ -2156,13 +2156,12 @@ class LibraryThingImportController
         $bindTypes = '';
         $bindValues = [];
 
-        if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
-            $searchParam = "%{$search}%";
-            for ($i = 0; $i < 6; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
+        // Quoted value = exact spelling, accents included (#501), as in the list.
+        $searchCond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', (string) $search);
+        if ($searchCond !== null) {
+            $whereClauses[] = $searchCond['sql'];
+            $bindTypes .= $searchCond['types'];
+            array_push($bindValues, ...$searchCond['params']);
         }
 
         if (!empty($stato)) {

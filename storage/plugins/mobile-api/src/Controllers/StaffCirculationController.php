@@ -93,7 +93,7 @@ final class StaffCirculationController
         try {
             $loan = $this->reader->loan($id);
 
-            return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $loan);
+            return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $this->withLateFine($loan));
         } catch (\Throwable $e) {
             return $this->fail($response, 'loan detail', $e);
         }
@@ -350,13 +350,23 @@ final class StaffCirculationController
 
     /**
      * @param array<string, mixed> $json
-     * @return array{stato:string, note:string, sanzione:string}|array{error_field:string, error_message:string}
+     * @return array{stato:string, note:string, sanzione:string, waive_fine:string, waive_reason:string}|array{error_field:string, error_message:string}
      */
     private function parseReturn(array $json): array
     {
         $outcome = $json['outcome'] ?? 'restituito';
         if (!is_string($outcome) || !in_array($outcome, CirculationOutcome::RETURN_OUTCOMES, true)) {
             return ['error_field' => 'outcome', 'error_message' => __('Stato non valido.')];
+        }
+        // Mobile API 1.10.0: waive the late fine at the desk, as the web return
+        // screen does (a reason is mandatory; the core re-checks it).
+        $waive = filter_var($json['waive_fine'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($waive === null) {
+            return ['error_field' => 'waive_fine', 'error_message' => __('Valore non valido.')];
+        }
+        $waiveReason = StaffPaging::text($json['waive_reason'] ?? null, 255) ?? '';
+        if ($waive && $waiveReason === '') {
+            return ['error_field' => 'waive_reason', 'error_message' => CirculationOutcome::message('waiver_reason_required')];
         }
         $penalty = '0';
         if (array_key_exists('penalty', $json) && $json['penalty'] !== null) {
@@ -369,14 +379,16 @@ final class StaffCirculationController
         }
 
         return [
-            'stato'    => $outcome,
-            'note'     => StaffPaging::text($json['notes'] ?? null, 2000) ?? '',
-            'sanzione' => in_array($outcome, ['perso', 'danneggiato'], true) ? $penalty : '0',
+            'stato'        => $outcome,
+            'note'         => StaffPaging::text($json['notes'] ?? null, 2000) ?? '',
+            'sanzione'     => in_array($outcome, ['perso', 'danneggiato'], true) ? $penalty : '0',
+            'waive_fine'   => $waive ? '1' : '0',
+            'waive_reason' => $waive ? $waiveReason : '',
         ];
     }
 
     /**
-     * @param array{stato:string, note:string, sanzione:string} $form
+     * @param array{stato:string, note:string, sanzione:string, waive_fine:string, waive_reason:string} $form
      */
     private function delegateReturn(ResponseInterface $response, int $id, array $form): ResponseInterface
     {
@@ -396,8 +408,43 @@ final class StaffCirculationController
         if ($error !== null) {
             return CirculationOutcome::error($response, CirculationOutcome::RETURN, $error, 'staff loan return');
         }
+        $loan = $this->reader->loan($id);
 
-        return $this->loanOr404($response, $id);
+        return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $this->withLateFine($loan));
+    }
+
+    /**
+     * Mobile API 1.10.0: the late fine of a loan, beside the StaffLoan fields
+     * (detail and return answers). Null while the fines module is off.
+     *   accruing_*  what a return today would charge (open overdue loans with
+     *               automatic fines on; PatronLedger::previewLateFine(), the
+     *               figure the web return screen shows before confirming);
+     *   charged_cents the late fine already written for this loan, net of
+     *               waivers and reversals (PatronLedger::lateFineNetCents()).
+     *
+     * @param array<string, mixed> $loan
+     * @return array<string, mixed>
+     */
+    private function withLateFine(array $loan): array
+    {
+        if (!\App\Services\PatronLedger::active($this->db)) {
+            $loan['late_fine'] = null;
+
+            return $loan;
+        }
+        $id = (int) $loan['id'];
+        $ledger = \App\Services\PatronLedger::forDb($this->db);
+        $open = in_array((string) $loan['status'], ['in_corso', 'in_ritardo'], true) && ($loan['returned_at'] ?? null) === null;
+        $preview = $open ? $ledger->previewLateFine($id) : ['days' => 0, 'cents' => 0, 'enabled' => false];
+        $loan['late_fine'] = [
+            'currency'         => \App\Services\FineParameters::forLoan($this->db, $id)->currency,
+            'automatic_fines'  => \App\Support\Features::enabled('automatic_fines'),
+            'accruing_days'    => (int) $preview['days'],
+            'accruing_cents'   => (int) $preview['cents'],
+            'charged_cents'    => $ledger->lateFineNetCents($id),
+        ];
+
+        return $loan;
     }
 
     // ─── Renew / bulk ───────────────────────────────────────────────────────
@@ -574,12 +621,23 @@ final class StaffCirculationController
     public function users(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $q = mb_substr(StaffPaging::query($request, 'q'), 0, 100);
-        if (mb_strlen($q) < 2) {
+        // Mobile API 1.10.0: `patron_type_id` narrows the search to one patron
+        // type (the web users list filter); with it the text is optional.
+        $rawType = StaffPaging::query($request, 'patron_type_id');
+        $patronTypeId = null;
+        if ($rawType !== '') {
+            $types = (new \App\Services\CirculationPolicy($this->db))->types();
+            if (preg_match('/^[0-9]+$/D', $rawType) !== 1 || !isset($types[(int) $rawType])) {
+                return ResponseEnvelope::error($response, 'validation_error', __('Tipologia lettore non trovata.'), 422, ['field' => 'patron_type_id']);
+            }
+            $patronTypeId = (int) $rawType;
+        }
+        if (mb_strlen($q) < 2 && ($patronTypeId === null || $q !== '')) {
             return ResponseEnvelope::error($response, 'validation_error', __('Inserisci almeno 2 caratteri.'), 422, ['field' => 'q']);
         }
         $limit = StaffPaging::limit($request, 20, 50);
         try {
-            $users = $this->reader->users($q, $limit);
+            $users = $this->reader->users($q, $limit, $patronTypeId);
 
             return ResponseEnvelope::success($response, $users, ['count' => count($users), 'limit' => $limit, 'next_cursor' => null, 'has_more' => false]);
         } catch (\Throwable $e) {

@@ -71,7 +71,8 @@ unset($workspaceHeader);
 ?>
 
     <form method="GET" action="<?= $e(url('/admin/archives/search')) ?>" class="card archive-search-form mb-6">
-        <input type="search" name="q" value="<?= $e($q) ?>"
+        <input id="archive-search-q" type="search" name="q" value="<?= $e($q) ?>"
+               aria-describedby="archive-search-q-hint"
                placeholder="<?= $e(__("Titolo, nome, descrizione… (minimo 2 caratteri)")) ?>"
                autofocus minlength="2"
                class="form-input">
@@ -79,6 +80,7 @@ unset($workspaceHeader);
                 class="btn-primary">
             <?= __("Cerca") ?>
         </button>
+        <p id="archive-search-q-hint" class="text-xs text-gray-500 mt-1"><?= $e(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.')) ?></p>
     </form>
 
     <?php if ($q === ''): ?>

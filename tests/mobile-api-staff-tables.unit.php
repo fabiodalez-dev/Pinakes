@@ -264,6 +264,46 @@ try {
     $db->query("DELETE FROM utenti WHERE id = {$op1}");
     $check((int) $db->query("SELECT COUNT(*) FROM mobile_idempotency_keys WHERE user_id = {$op1}")->fetch_row()[0] === 0, 'keys follow their operator (ON DELETE CASCADE)');
 
+    echo "\nF. 1.10.0 upgrade widens mobile_import_jobs.kind\n";
+    $kindType = static fn (): string => strtolower((string) $db->query(
+        "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mobile_import_jobs' AND COLUMN_NAME = 'kind'"
+    )->fetch_row()[0]);
+    $check($kindType() === 'varchar(32)', 'a fresh activation creates kind as VARCHAR(32)');
+    $db->query("DELETE FROM mobile_import_jobs");
+    $db->query("ALTER TABLE mobile_import_jobs MODIFY kind ENUM('csv','librarything') NOT NULL");
+    $oldJob = $jobs->create($op2, null, 'librarything', 'old.tsv', 3, 10, false, ['legacy' => true]);
+    $db->query("UPDATE plugins SET version = '1.9.0' WHERE name = 'mobile-api'");
+    $check($kindType() === "enum('csv','librarything')", 'rewound: a 1.9.0 installation has the two-value ENUM and a saved job');
+    $manager->autoRegisterBundledPlugins();
+    $check($kindType() === 'varchar(32)', 'the real bundled-plugin sync widens kind to VARCHAR(32)');
+    $legacy = $jobs->find($oldJob, $op2, false);
+    $check($legacy !== null && $legacy['kind'] === 'librarything' && $legacy['state'] === ['legacy' => true], 'the job saved before the upgrade keeps its kind and state');
+    $marcJob = $jobs->create($op2, null, 'marc', 'records.mrc', 5, 10, false, []);
+    $check(($jobs->find($marcJob, $op2, false)['kind'] ?? null) === 'marc', 'a 1.10.0 job kind (marc) is stored');
+    $ids = static fn (array $rows): array => array_map(static fn (array $r): string => (string) $r['id'], $rows);
+    $legacyList = $ids($jobs->listFor($op2, 0, 10, ['csv', 'librarything']));
+    $check(in_array($oldJob, $legacyList, true) && !in_array($marcJob, $legacyList, true), 'listFor() filtered by kind leaves the marc job out of the CSV/LibraryThing list');
+    $allList = $ids($jobs->listFor($op2, 0, 10));
+    $check(in_array($oldJob, $allList, true) && in_array($marcJob, $allList, true), 'listFor() without a filter lists every kind');
+    $check($jobs->listFor($op2, 0, 10, []) === [], 'an empty kind filter lists nothing');
+    $manager->autoRegisterBundledPlugins();
+    $check($kindType() === 'varchar(32)' && $jobs->find($oldJob, $op2, false) !== null, 'a second sync is a no-op');
+
+    // The admin-UI upgrade runs the OLD onActivate() (stale class), so the version
+    // is stamped 1.10.0 while kind is still the ENUM, and the boot sync sees a
+    // complete schema. The first job of a newer kind must widen it by itself.
+    $db->query("DELETE FROM mobile_import_jobs");
+    $db->query("ALTER TABLE mobile_import_jobs MODIFY kind ENUM('csv','librarything') NOT NULL");
+    (new \ReflectionProperty(\App\Plugins\MobileApi\Support\ImportJobStore::class, 'kindWide'))->setValue(null, false);
+    $manager->autoRegisterBundledPlugins();
+    $check($kindType() === "enum('csv','librarything')", 'stale-class upgrade: version already 1.10.0, kind still the ENUM after the boot sync');
+    $csvJob = $jobs->create($op2, null, 'csv', 'books.csv', 2, 10, false, []);
+    $check($kindType() === "enum('csv','librarything')" && $jobs->find($csvJob, $op2, false) !== null, 'a CSV job does not touch the column');
+    $userJob = $jobs->create($op2, null, 'users', 'patrons.csv', 4, 10, false, []);
+    $check($kindType() === 'varchar(32)', 'the first patron-import job widens kind to VARCHAR(32)');
+    $check(($jobs->find($userJob, $op2, false)['kind'] ?? null) === 'users' && $jobs->find($csvJob, $op2, false) !== null, 'the new job is stored and the earlier one is kept');
+
     $db->close();
 } catch (\Throwable $error) {
     $fatal = $error;

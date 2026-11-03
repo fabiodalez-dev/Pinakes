@@ -37,3 +37,8 @@ abbe641a9221c29f1ed009bde2873835b53c20f7:tests/mobile-webpush-encryption.unit.ph
 ac4fcabc00953f3fd5f5c9d59fe5fb5da7f744cb:tests/schema-integrity.spec.js:generic-api-key:91
 5eb52517f88d1ea3fadfffc1f92af21dbd9a1da2:tests/schema-integrity.spec.js:generic-api-key:117
 8cfea8b8d47a8df9efef4d203ca96d8697203908:tests/security-hardening.spec.js:generic-api-key:37
+#
+# seo-site-verification.spec.js: made-up Google and Bing verification tokens
+# the test pastes into Settings > Advanced (0.9.0 stack)
+8c61149bae9b82a4582337fc4220cd8b0968f3cb:tests/seo-site-verification.spec.js:generic-api-key:23
+8c61149bae9b82a4582337fc4220cd8b0968f3cb:tests/seo-site-verification.spec.js:generic-api-key:24

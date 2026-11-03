@@ -85,8 +85,10 @@ final class PeriodicalPublisherService
         foreach ($this->validate($values, $testataId) as $value) {
             if (str_starts_with($value, 'new:')) {
                 $name = substr($value, 4);
-                $existing = $this->rows('SELECT id FROM editori WHERE nome=? ORDER BY id LIMIT 1', [$name]);
-                $id = $existing !== [] ? (int)$existing[0]['id'] : (new PublisherRepository($this->db))->create(['nome'=>$name]);
+                // Same lookup as the book form: exact spelling first, and a
+                // name typed in quotes reuses only that spelling (#501).
+                $publishers = new PublisherRepository($this->db);
+                $id = $publishers->findByName($name) ?? $publishers->create(['nome'=>$name]);
             } else { $id = (int)$value; }
             if (!in_array($id, $ids, true)) { $ids[] = $id; }
         }

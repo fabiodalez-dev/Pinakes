@@ -119,6 +119,8 @@ storage/plugins/z39-server/*
 !storage/plugins/z39-server/*.md
 !storage/plugins/z39-server/classes/
 !storage/plugins/z39-server/classes/*.php
+!storage/plugins/z39-server/views/
+!storage/plugins/z39-server/views/*.php
 !storage/plugins/api-book-scraper/
 storage/plugins/api-book-scraper/*
 !storage/plugins/api-book-scraper/*.php
@@ -473,6 +475,9 @@ tests/fixtures/*
 !tests/fixtures/*.tsv
 !tests/fixtures/sru/
 !tests/fixtures/htaccess-history/
+!tests/fixtures/marc/
+!tests/fixtures/upgrades/
+!tests/fixtures/upgrades/*.sql
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php

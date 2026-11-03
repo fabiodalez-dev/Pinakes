@@ -97,6 +97,7 @@ include $corePartials . '/catalog-hero.php';
             'action' => $archiveHome,
             'value' => $q,
             'label' => __('Titolo, reference code, descrizione…'),
+            'hint' => __('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'),
             'hidden' => ['level' => $level, 'date_from' => $dateFrom, 'date_to' => $dateTo],
         ];
         $filterSections = [

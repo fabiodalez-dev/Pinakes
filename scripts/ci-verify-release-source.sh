@@ -4,6 +4,7 @@
 # Stable versions must already be contained in main. Prereleases may be cut
 # before merge, but only from the exact, merge-ready head of an internal
 # release/* pull request whose required checks (including CodeRabbit) passed.
+# The one exception is a CodeRabbit check skipped only for its file limit.
 
 set -euo pipefail
 
@@ -161,6 +162,29 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
     exit 1
   fi
 
+  # CodeRabbit refuses to review a PR with more than its file limit and now
+  # reports that as a skipped check instead of a successful status. A release
+  # PR carrying a stacked series always crosses that limit, while every PR of
+  # the series was reviewed on its own. Accept exactly that skip, read from the
+  # CodeRabbit app's own check run on the tagged commit; any other skip
+  # (rate limit, paused reviews, a skip posted by another app) still vetoes.
+  coderabbit_file_limit_skip=false
+  coderabbit_runs="$(gh api --method GET \
+    "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
+    -f check_name=CodeRabbit || true)"
+  if jq -e --arg sha "$GITHUB_SHA" '
+      (.check_runs // []) as $runs
+      | ($runs | length) > 0
+      and all($runs[];
+        .app.slug == "coderabbitai"
+        and .head_sha == $sha
+        and .conclusion == "skipped"
+        and ((.output.title // "") | test("^Review skipped: [0-9]+ files exceed the limit of [0-9]+$")))
+    ' >/dev/null 2>&1 <<<"$coderabbit_runs"; then
+    coderabbit_file_limit_skip=true
+    echo "CodeRabbit skipped PR #${pr_number} only because of its file limit; the stacked PRs were reviewed one by one" >&2
+  fi
+
   # Every required check except this release workflow's own run must be in the
   # "pass" bucket (pending/fail/cancel/skipping all veto). The self-exclusion
   # is defense in depth for the circularity above: should someone ever mark
@@ -169,14 +193,19 @@ elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
   # The decision is computed from the filtered JSON, not from gh's exit code,
   # because the exit code would also trip on the self check being "pending".
   failing_checks="$(jq -r --arg self_workflow "Verified Release" \
-    '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass") | "\(.name): \(.state)"' \
+    --argjson cr_skip "$coderabbit_file_limit_skip" \
+    '.[] | select(.workflow != $self_workflow) | select(.bucket != "pass")
+      | select(($cr_skip and .name == "CodeRabbit" and .bucket == "skipping") | not)
+      | "\(.name): \(.state)"' \
     <<<"$checks_json")"
   if [[ -n "$failing_checks" ]]; then
     echo "Prerelease PR #${pr_number} has required checks that did not pass:" >&2
     printf '%s\n' "$failing_checks" >&2
     exit 1
   fi
-  if ! jq -e 'any(.[]; .name == "CodeRabbit" and .bucket == "pass")' >/dev/null <<<"$checks_json"; then
+  if ! jq -e --argjson cr_skip "$coderabbit_file_limit_skip" \
+    'any(.[]; .name == "CodeRabbit" and (.bucket == "pass" or ($cr_skip and .bucket == "skipping")))' \
+    >/dev/null <<<"$checks_json"; then
     echo "Prerelease PR #${pr_number} is missing a passing required CodeRabbit check" >&2
     exit 1
   fi

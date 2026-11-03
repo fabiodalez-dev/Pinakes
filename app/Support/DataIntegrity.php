@@ -26,6 +26,9 @@ class DataIntegrity {
         // stored dates are app-tz, so CURDATE() (DB session tz) drifts by a day in the window
         // around local midnight. Validated Y-m-d string → safe to interpolate.
         $today = \App\Support\DateHelper::today();
+        // Consultation-only copies are never lendable capacity: the public
+        // counter excludes them like CapacityService and the allocators do.
+        $lendable = (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c');
 
         try {
             if (!$insideTransaction) {
@@ -74,6 +77,10 @@ class DataIntegrity {
             // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
             // - Esclude quelle con prestiti attivi già iniziati (in_corso, in_ritardo, da_ritirare, prenotato con data <= oggi)
             // - Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
+            // - Esclude le copie di sola consultazione (copie.solo_consultazione): non sono
+            //   capacità prestabile (CapacityService, allocatori), quindi non contano come
+            //   disponibili e non rendono 'disponibile' lo stato del libro. copie_totali
+            //   resta il numero di copie fisiche in circolazione, consultazione compresa.
             // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora in biblioteca
             $stmt = $this->db->prepare("
                 UPDATE libri l
@@ -91,6 +98,7 @@ class DataIntegrity {
                             )
                         WHERE c.libro_id = l.id
                         AND c.stato IN ('disponibile', 'prenotato')
+                        AND {$lendable}
                         AND p.id IS NULL
                     ) - (
                         SELECT COUNT(*)
@@ -124,6 +132,7 @@ class DataIntegrity {
                                 )
                             WHERE c.libro_id = l.id
                             AND c.stato IN ('disponibile', 'prenotato')
+                            AND {$lendable}
                             AND p.id IS NULL
                         ) - (
                             SELECT COUNT(*)
@@ -139,7 +148,7 @@ class DataIntegrity {
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prestato') > 0 THEN 'prestato'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prenotato') > 0 THEN 'prenotato'
                     -- Copia in biblioteca ma assorbita da una prenotazione attiva → riservata (A1)
-                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato IN ('disponibile', 'prenotato')) > 0 THEN 'prenotato'
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato IN ('disponibile', 'prenotato') AND {$lendable}) > 0 THEN 'prenotato'
                     -- Il libro HA copie ma nessuna è circolante (tutte in manutenzione/
                     -- in_restauro/perso/danneggiato/in_trasferimento) e nessuna è
                     -- prestata/prenotata → non è disponibile. Senza questo ramo lo stato
@@ -306,6 +315,7 @@ class DataIntegrity {
         // App-timezone "today" (see recalculateAllBookAvailability) — interpolated in place of
         // the DB CURDATE() so the availability comparisons don't drift around local midnight.
         $today = \App\Support\DateHelper::today();
+        $lendable = (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c');
         try {
             if (!$insideTransaction) {
                 $this->db->begin_transaction();
@@ -363,6 +373,10 @@ class DataIntegrity {
             // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
             // - Esclude quelle con prestiti attivi già iniziati (in_corso, in_ritardo, da_ritirare, prenotato con data <= oggi)
             // - Sottrae le prenotazioni attive che coprono la data odierna (slot-level)
+            // - Esclude le copie di sola consultazione (copie.solo_consultazione): non sono
+            //   capacità prestabile (CapacityService, allocatori), quindi non contano come
+            //   disponibili e non rendono 'disponibile' lo stato del libro. copie_totali
+            //   resta il numero di copie fisiche in circolazione, consultazione compresa.
             // Note: 'da_ritirare' conta come slot occupato anche se la copia fisica è ancora in biblioteca
             $stmt = $this->db->prepare("
                 UPDATE libri l
@@ -380,6 +394,7 @@ class DataIntegrity {
                             )
                         WHERE c.libro_id = ?
                         AND c.stato IN ('disponibile', 'prenotato')
+                        AND {$lendable}
                         AND p.id IS NULL
                     ) - (
                         SELECT COUNT(*)
@@ -413,6 +428,7 @@ class DataIntegrity {
                                 )
                             WHERE c.libro_id = ?
                             AND c.stato IN ('disponibile', 'prenotato')
+                            AND {$lendable}
                             AND p.id IS NULL
                         ) - (
                             SELECT COUNT(*)
@@ -430,7 +446,7 @@ class DataIntegrity {
                     -- Copia fisicamente in biblioteca ma assorbita da una prenotazione attiva:
                     -- è riservata, non 'disponibile' né stantia (A1). Evita di lasciare il libro
                     -- bloccato su uno stato precedente (es. 'prestato') dopo la restituzione.
-                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato IN ('disponibile', 'prenotato')) > 0 THEN 'prenotato'
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato IN ('disponibile', 'prenotato') AND {$lendable}) > 0 THEN 'prenotato'
                     -- Come nel ricalcolo globale: copie presenti ma tutte fuori
                     -- circolazione e nessuna prestata/prenotata → 'non_disponibile'.
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ?) > 0 THEN 'non_disponibile'

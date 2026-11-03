@@ -24,15 +24,14 @@ class UtentiApiController
         $params = [];
         $types = '';
 
-        if ($search_value !== '') {
-            $searchParam = "%$search_value%";
-            $where .= " AND (u.nome LIKE ?
-                          OR u.cognome LIKE ?
-                          OR u.email LIKE ?
-                          OR u.telefono LIKE ?
-                          OR u.codice_tessera LIKE ?)";
-            $params = array_fill(0, 5, $searchParam);
-            $types = 'sssss';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $search_value !== ''
+            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)", "CONCAT(u.cognome, ' ', u.nome)"], $search_value)
+            : null;
+        if ($search !== null) {
+            $where .= ' AND ' . $search['sql'];
+            $params = $search['params'];
+            $types = $search['types'];
         }
 
         // Additional filters
@@ -53,6 +52,12 @@ class UtentiApiController
             $where .= " AND DATE(u.created_at) >= ? ";
             $params[] = $createdFrom;
             $types .= 's';
+        }
+        $patronType = \App\Support\PatronTypeAssignment::filterCondition($db, $q['patron_type_filter'] ?? '', 'u.tipologia_id');
+        if ($patronType !== null) {
+            $where .= ' AND ' . $patronType['sql'] . ' ';
+            array_push($params, ...$patronType['params']);
+            $types .= $patronType['types'];
         }
 
         // Count total records with prepared statement
@@ -93,12 +98,13 @@ class UtentiApiController
 
         // Map column index to database column
         // 0: nome/cognome, 1: email, 2: telefono, 3: tipo_utente, 4: stato
+        // Column 0 of the on-screen table is the selection checkbox (not orderable).
         $columnMap = [
-            0 => 'u.cognome',      // Nome (sorts by cognome first)
-            1 => 'u.email',        // Email
-            2 => 'u.telefono',     // Telefono
-            3 => 'u.tipo_utente',  // Ruolo
-            4 => 'u.stato',        // Stato
+            1 => 'u.cognome',      // Nome (sorts by cognome first)
+            2 => 'u.email',        // Email
+            3 => 'u.telefono',     // Telefono
+            4 => 'u.tipo_utente',  // Ruolo
+            5 => 'u.stato',        // Stato
         ];
 
         // Parse order parameter from DataTables
@@ -110,7 +116,7 @@ class UtentiApiController
                 $orderColumn = $columnMap[$colIdx];
                 $orderDir = $dir;
                 // Only add secondary sort for nome column
-                $orderExtra = ($colIdx === 0) ? ', u.nome ' . $dir : '';
+                $orderExtra = ($colIdx === 1) ? ', u.nome ' . $dir : '';
             }
         }
 
@@ -180,11 +186,14 @@ class UtentiApiController
         $types = '';
 
         $search_value = trim((string)($q['search_text'] ?? ($q['search_value'] ?? '')));
-        if ($search_value !== '') {
-            $searchParam = "%$search_value%";
-            $where .= ' AND (u.nome LIKE ? OR u.cognome LIKE ? OR u.email LIKE ? OR u.telefono LIKE ? OR u.codice_tessera LIKE ?)';
-            $params = array_fill(0, 5, $searchParam);
-            $types = 'sssss';
+        // Quoted value = exact spelling, accents included (#501).
+        $search = $search_value !== ''
+            ? \App\Support\ExactSearch::filterCondition(['u.nome', 'u.cognome', 'u.email', 'u.telefono', 'u.codice_tessera', "CONCAT(u.nome, ' ', u.cognome)", "CONCAT(u.cognome, ' ', u.nome)"], $search_value)
+            : null;
+        if ($search !== null) {
+            $where .= ' AND ' . $search['sql'];
+            $params = $search['params'];
+            $types = $search['types'];
         }
         $role = trim((string)($q['role_filter'] ?? ''));
         if ($role !== '') {
@@ -203,6 +212,12 @@ class UtentiApiController
             $where .= ' AND DATE(u.created_at) >= ? ';
             $params[] = $createdFrom;
             $types .= 's';
+        }
+        $patronType = \App\Support\PatronTypeAssignment::filterCondition($db, $q['patron_type_filter'] ?? '', 'u.tipologia_id');
+        if ($patronType !== null) {
+            $where .= ' AND ' . $patronType['sql'] . ' ';
+            array_push($params, ...$patronType['params']);
+            $types .= $patronType['types'];
         }
 
         // Unfiltered total for the header summary ("N filtered out of M total").
