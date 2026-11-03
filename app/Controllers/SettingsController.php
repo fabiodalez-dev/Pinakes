@@ -1846,9 +1846,13 @@ class SettingsController
                 \App\Support\LibraryCalendar::reset();
                 try {
                     \App\Support\LibraryCalendar::extendDueDates($db);
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::warning('Calendar: due dates not extended: ' . $e->getMessage());
+                }
+                try {
                     \App\Support\LibraryCalendar::extendPickupDeadlines($db);
                 } catch (\Throwable $e) {
-                    \App\Support\SecureLogger::warning('Calendar: due dates or pickup deadlines not extended: ' . $e->getMessage());
+                    \App\Support\SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
                 }
             }
         }

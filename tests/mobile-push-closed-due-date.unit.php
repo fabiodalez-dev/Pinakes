@@ -93,6 +93,15 @@ try {
     $check(LibraryCalendar::isPastDue($db, $yesterday, null, $today), 'a due date of yesterday on an open day is past due');
     $check(!$claimed($ids['loans']['closed']), 'no overdue push for a loan whose due day its branch marked closed afterwards');
     $check($claimed($ids['loans']['open']), 'the same loan on an open branch gets the overdue push');
+
+    // Notices and recalls say how late the item is in open days, as the fine
+    // counts them: due two days ago with yesterday closed is one day late.
+    $twoDaysAgo = (new DateTimeImmutable($today))->modify('-2 day')->format('Y-m-d');
+    $closedCopy = (int) $db->query("SELECT copia_id FROM prestiti WHERE id={$ids['loans']['closed']}")->fetch_row()[0];
+    $openCopy = (int) $db->query("SELECT copia_id FROM prestiti WHERE id={$ids['loans']['open']}")->fetch_row()[0];
+    $check(LibraryCalendar::openDaysLate($db, $twoDaysAgo, $closedCopy, $today) === 1, 'a closed day inside the late period is not counted (1 day, not 2)');
+    $check(LibraryCalendar::openDaysLate($db, $twoDaysAgo, $openCopy, $today) === 2, 'with every day open the count is the plain number of days (2)');
+    $check(LibraryCalendar::openDaysLate($db, $yesterday, $closedCopy, $today) === 0, 'returned on the first open day after a closed due day: 0 days late');
 } finally {
     if ($ids['user'] > 0) {
         $db->query("DELETE FROM mobile_push_log WHERE user_id={$ids['user']}");

@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const F = require('./helpers/circulation-fixtures');
 const ft = require('./helpers/feature-toggles');
+const { snapshotLoans, restoreLoans } = require('./helpers/calendar-loan-snapshot');
 
 test.skip(!F.CONFIGURED, 'E2E credentials not configured');
 
@@ -45,6 +46,8 @@ const prev = {
   /** @type {number[]} */ activeCustomIds: [],
   /** @type {Record<string, string>} */ features: {},
 };
+/** Active loans of other readers, restored after the run. */
+let loanSnap = null;
 const created = { closures: /** @type {Set<number>} */ (new Set()), customs: /** @type {Set<number>} */ (new Set()) };
 const ids = (set) => [...set].join(',') || '0';
 /** @type {number[]} */ const titles = [];
@@ -139,6 +142,7 @@ test.describe.serial('Closures added after the loan', () => {
     prev.activeCustomIds = db('SELECT id FROM festivita_personalizzate WHERE attiva=1').split('\n').filter(Boolean).map(Number);
     prev.closureColumns = db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='calendario_chiusure' ORDER BY ORDINAL_POSITION").split('\n').filter(Boolean);
     db(`CREATE TABLE ${prev.closureBackup} AS SELECT * FROM calendario_chiusure`);
+    loanSnap = snapshotLoans(db, `e2e_retro_loans_${RUN}`);
     prev.features = ft.readFeatures(['closures_calendar', 'fines', 'automatic_fines']);
     prev.ready = true;
 
@@ -183,6 +187,7 @@ test.describe.serial('Closures added after the loan', () => {
       for (const [category, key] of SETTINGS) F.restoreSettingState(category, key, prev.settings[key]);
       await ft.writeFeatures(prev.features);
     }
+    restoreLoans(db, loanSnap);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
     for (const p of [patron, other]) {
       if (!p) continue;
@@ -198,9 +203,13 @@ test.describe.serial('Closures added after the loan', () => {
     const book = title('closure');
     const loanId = await deskLoan(page, book);
     const due = loanRow(loanId).split('|')[1];
+    // The due-soon reminder already went out for the old date.
+    db(`UPDATE prestiti SET warning_sent=1 WHERE id=${loanId}`);
     await addClosure(page, due);
     expect(loanRow(loanId)).toBe(`in_corso|${addDays(due, 1)}|-`);
     expect(dueMovedEvents(book.id)).toBe(1);
+    // ...and is sent again before the new one.
+    expect(db(`SELECT warning_sent FROM prestiti WHERE id=${loanId}`)).toBe('0');
     // The book page history says why the date changed.
     await page.goto(`${F.BASE}/admin/books/${book.id}`);
     await expect(page.getByText('Scadenza spostata: la biblioteca è chiusa quel giorno').first()).toBeVisible();
@@ -263,6 +272,40 @@ test.describe.serial('Closures added after the loan', () => {
     expect(dueMovedEvents(book.id)).toBe(0);
   });
 
+  test('Move 8: when the added day is promised to a reservation without a copy, the loan keeps its date', async () => {
+    const book = title('promised');
+    const loanId = await deskLoan(page, book);
+    const due = loanRow(loanId).split('|')[1];
+    // Another reader's booking of the title (no copy pinned yet) from the next day.
+    db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, NULL, ${other.id}, '${addDays(due, 1)}', '${addDays(due, 15)}', 'prenotato', 'prenotazione', 1)`);
+    await addClosure(page, due);
+    expect(loanRow(loanId).split('|')[1]).toBe(due);
+    expect(dueMovedEvents(book.id)).toBe(0);
+  });
+
+  test('Move 9: the maintenance an admin login runs moves a due date closed without a calendar save, as the system', async ({ browser }) => {
+    const book = title('cron');
+    const loanId = await deskLoan(page, book);
+    const due = loanRow(loanId).split('|')[1];
+    // A closure that reached the table without the calendar page (an import).
+    db(`INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, attiva) VALUES ('${due}', '${due}', '${TAG} cron', 1)`);
+    created.closures.add(F.dbInt(`SELECT id FROM calendario_chiusure WHERE descrizione='${TAG} cron'`));
+    expect(loanRow(loanId).split('|')[1]).toBe(due);
+    // An administrator logging in runs the maintenance pass (once an hour):
+    // with someone in session, the move must still be the system's.
+    const lastRun = F.readSettingState('maintenance', 'last_run');
+    const fresh = await browser.newContext();
+    try {
+      db("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('maintenance','last_run','0') ON DUPLICATE KEY UPDATE setting_value='0'");
+      await F.loginAsAdmin(await fresh.newPage());
+      await expect.poll(() => loanRow(loanId).split('|')[1], { timeout: 30000 }).toBe(addDays(due, 1));
+    } finally {
+      await fresh.close();
+      F.restoreSettingState('maintenance', 'last_run', lastRun);
+    }
+    expect(db(`SELECT IFNULL(utente_id, 'system') FROM log_modifiche WHERE tabella='libri' AND record_id=${book.id} AND JSON_UNQUOTE(JSON_EXTRACT(dati_nuovi, '$._activity.event'))='loan.due_moved'`)).toBe('system');
+  });
+
   test('Move 7: switching the closures module on moves a due date that falls on a stored closure', async () => {
     const book = title('module');
     await ft.setModuleInUi(page, 'closures_calendar', false);
@@ -300,6 +343,16 @@ test.describe.serial('Closures added after the loan', () => {
     await addClosure(page, yesterday);
     expect(loanRow(closedDue).split('|')[1]).toBe(yesterday);
     expect(await previewedFine(page, closedDue)).toBe(0);
+  });
+
+  test('Past 3: a loan already marked late goes back to "in corso" when its due day is closed afterwards', async () => {
+    const yesterday = addDays(today, -1);
+    const loanId = pastLoan(title('reconcile'), yesterday);
+    db(`UPDATE prestiti SET stato='in_ritardo', overdue_notification_sent=1 WHERE id=${loanId}`);
+    await addClosure(page, yesterday);
+    expect(loanRow(loanId).split('|')[0]).toBe('in_corso');
+    // The notice already sent stays recorded: no second overdue e-mail later.
+    expect(db(`SELECT overdue_notification_sent FROM prestiti WHERE id=${loanId}`)).toBe('1');
   });
 
   test('Past 2: the overdue sweep waits for the first open day after a due day closed afterwards', async () => {

@@ -840,15 +840,20 @@ body.admin-shell main .pk-books-mobile-actions .export-btn-mobile { height: 100%
 }
 
 /* .pk-stack-table: on phones a wide table becomes a stack of cards, one per
-   row, each value under its column name (data-label, copied from the header
-   by the layout script). Nothing to scroll sideways, nothing cut off. */
+   row, each value under its column name. The layout script writes that name
+   into every cell as real text (.pk-stack-label, read by screen readers once
+   the header is hidden) and as data-label. Hidden on wider screens, where
+   the header row names the columns. Nothing to scroll sideways. */
+.pk-stack-label { display: none; }
 @media (max-width: 767px) {
   .pk-stack-table, .pk-stack-table > tbody, .pk-stack-table > tbody > tr, .pk-stack-table > tbody > tr > td { display: block; width: 100%; }
   .pk-stack-table > thead { display: none; }
   .pk-stack-table > tbody > tr { padding: 10px 14px; border-bottom: 1px solid var(--pk-line); }
+  /* A row a filter hid (class "hidden") stays hidden as a card too. */
+  .pk-stack-table > tbody > tr.hidden { display: none; }
   .pk-stack-table > tbody > tr > td { padding: 3px 0 !important; border: 0; white-space: normal !important; text-align: left !important; }
-  .pk-stack-table > tbody > tr > td[data-label]::before {
-    content: attr(data-label); display: block; margin-bottom: 1px;
+  .pk-stack-table > tbody > tr > td > .pk-stack-label {
+    display: block; margin-bottom: 1px;
     font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--pk-muted);
   }
   .pk-stack-table > tbody > tr > td:first-child { font-weight: 600; color: var(--pk-ink); }

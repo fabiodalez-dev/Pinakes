@@ -566,11 +566,16 @@ class LibraryCalendarController
     private function calendarChanged(\mysqli $db): void
     {
         LibraryCalendar::reset();
+        // Two independent moves: a failure of one must not skip the other.
         try {
             LibraryCalendar::extendDueDates($db);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar: due dates not extended: ' . $e->getMessage());
+        }
+        try {
             LibraryCalendar::extendPickupDeadlines($db);
         } catch (\Throwable $e) {
-            SecureLogger::warning('Calendar: due dates or pickup deadlines not extended: ' . $e->getMessage());
+            SecureLogger::warning('Calendar: pickup deadlines not extended: ' . $e->getMessage());
         }
     }
 
@@ -639,16 +644,7 @@ class LibraryCalendarController
     /** Schema-scoped and under GET_LOCK()'s 64 characters (see CopyRepository). */
     private function lockName(\mysqli $db): string
     {
-        $dbName = '';
-        try {
-            $res = $db->query('SELECT DATABASE()');
-            if ($res instanceof \mysqli_result) {
-                $dbName = (string) ($res->fetch_row()[0] ?? '');
-                $res->free();
-            }
-        } catch (\Throwable) {
-        }
-        return 'pinakes-calendar:' . md5($dbName);
+        return LibraryCalendar::lockName($db);
     }
 
     /**

@@ -751,12 +751,26 @@ class NotificationService {
             while ($loan = $result->fetch_assoc()) {
                 $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
                 if (LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
+                    // Days late as the fine counts them: open days only.
+                    $loan['giorni_ritardo'] = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today);
                     $loans[] = $loan;
                 }
             }
             $stmt->close();
 
             foreach ($loans as $loan) {
+                // A closure saved since the list was read can make this loan
+                // not late any more: check again under the lock the calendar
+                // writes hold, and claim it before letting the calendar change.
+                $lockName = LibraryCalendar::lockName($this->db);
+                $lock = $this->db->prepare('SELECT GET_LOCK(?, 5)');
+                $lock->bind_param('s', $lockName);
+                $lock->execute();
+                $locked = (int) ($lock->get_result()->fetch_row()[0] ?? 0) === 1;
+                $lock->close();
+                if (!$locked) {
+                    continue; // a calendar change is running: the next run retries
+                }
                 // ATOMIC: Mark notification as sent BEFORE sending email
                 // Only proceed if we successfully claimed this loan (affected_rows == 1).
                 // Guardia di stato (M3): il loop di invio (retry SMTP con sleep) può
@@ -766,11 +780,23 @@ class NotificationService {
                 // Re-assert data_scadenza (#252): a renew() between the SELECT and this
                 // claim can push the due date into the future, so the loan is no longer
                 // overdue and must NOT be transitioned to 'in_ritardo' with a stale date.
-                $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND data_scadenza = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0) AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
-                $updateStmt->bind_param('is', $loan['id'], $loan['data_scadenza']);
-                $updateStmt->execute();
-                $claimed = $updateStmt->affected_rows === 1;
-                $updateStmt->close();
+                try {
+                    LibraryCalendar::reset();
+                    $claimed = false;
+                    $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                    if (LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
+                        $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND data_scadenza = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0) AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+                        $updateStmt->bind_param('is', $loan['id'], $loan['data_scadenza']);
+                        $updateStmt->execute();
+                        $claimed = $updateStmt->affected_rows === 1;
+                        $updateStmt->close();
+                    }
+                } finally {
+                    $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+                    $release->bind_param('s', $lockName);
+                    $release->execute();
+                    $release->close();
+                }
 
                 if (!$claimed) {
                     // Another process already claimed this loan, skip
@@ -1157,7 +1183,7 @@ class NotificationService {
             // CI-SOFT-DELETE-EXEMPT: an active overdue loan remains physically
             // owed to the library even when its catalog record is archived.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                SELECT p.id, p.data_scadenza, p.copia_id, p.recall_count, p.last_recall_at,
                        l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
@@ -1178,9 +1204,16 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            // The calendar-day filter above is a superset: the recall cadence
+            // counts open days late, as the fine does, so closed days in the
+            // overdue period never bring a recall forward.
             $loans = [];
             while ($loan = $result->fetch_assoc()) {
-                $loans[] = $loan;
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                $loan['giorni_ritardo'] = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                if ($loan['giorni_ritardo'] >= $intervalDays * ((int) $loan['recall_count'] + 1)) {
+                    $loans[] = $loan;
+                }
             }
             $stmt->close();
 
@@ -1212,7 +1245,7 @@ class NotificationService {
             // CI-SOFT-DELETE-EXEMPT: staff must be able to recall an outstanding
             // physical loan after the related catalog record is archived.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                SELECT p.id, p.data_scadenza, p.copia_id, p.recall_count, p.last_recall_at,
                        p.stato, p.attivo,
                        l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
@@ -1233,6 +1266,7 @@ class NotificationService {
             if ((int) $loan['attivo'] !== 1 || !in_array((string) $loan['stato'], ['in_corso', 'in_ritardo'], true)) {
                 return ['success' => false, 'message' => __('Il sollecito è disponibile solo per prestiti attivi con libro in mano all\'utente.')];
             }
+            $loan['giorni_ritardo'] = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, $today);
             if ((int) $loan['giorni_ritardo'] < 1) {
                 return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
             }

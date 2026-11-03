@@ -43,7 +43,7 @@ class MaintenanceService
      * non basta, due admin in sessioni diverse eseguirebbero entrambi runAll().
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, loan_recalls?: int, pickup_reminders?: int, card_expiry_warnings?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, invalid_ready_pickups_repaired?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, loan_recalls?: int, pickup_reminders?: int, card_expiry_warnings?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, pickup_notifications_retried?: int, ics_generated?: bool, due_dates_moved?: int, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -119,7 +119,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
+     * @return array{skipped: true, reason: 'in_progress'}|array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, due_dates_moved?: int, errors: array} Results for each maintenance task, or the skip marker when another connection holds the maintenance lock
      */
     public function runAll(): array
     {
@@ -159,7 +159,7 @@ class MaintenanceService
         }
     }
 
-    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, errors: array} */
+    /** @return array{scheduled_loans_activated: int, invalid_ready_pickups_repaired: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, loan_recalls: int, pickup_reminders: int, card_expiry_warnings: int, wishlist_notifications: int, reservation_notifications_retried: int, pickup_notifications_retried: int, queued_emails_retried: int, ics_generated: bool, attendance_purged?: int, holiday_rows_added?: int, due_dates_moved?: int, errors: array} */
     private function runAllLocked(): array
     {
         $results = [
@@ -225,7 +225,7 @@ class MaintenanceService
         try {
             if (Features::enabled('closures_calendar')) {
                 LibraryCalendar::reset();
-                $results['due_dates_moved'] = LibraryCalendar::extendDueDates($this->db);
+                $results['due_dates_moved'] = LibraryCalendar::extendDueDates($this->db, ActivityLog::SYSTEM_OPERATOR);
             }
         } catch (\Throwable $e) {
             $results['errors'][] = 'extendDueDates: ' . $e->getMessage();
@@ -279,6 +279,15 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'activateScheduledLoans: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore attivazione prestiti'), ['error' => $e->getMessage()]);
+        }
+        // An activation just gave a booked loan its copy: the due date is
+        // checked again against that copy's branch, not the whole library.
+        if ($results['scheduled_loans_activated'] > 0 && Features::enabled('closures_calendar')) {
+            try {
+                $results['due_dates_moved'] = ($results['due_dates_moved'] ?? 0) + LibraryCalendar::extendDueDates($this->db, ActivityLog::SYSTEM_OPERATOR);
+            } catch (\Throwable $e) {
+                $results['errors'][] = 'extendDueDates: ' . $e->getMessage();
+            }
         }
 
         try {
@@ -506,7 +515,11 @@ class MaintenanceService
         $added = \App\Support\Holidays\HolidayPresets::ensureYears($this->db);
         if ($added > 0) {
             LibraryCalendar::reset();
-            LibraryCalendar::extendDueDates($this->db);
+            try {
+                LibraryCalendar::extendDueDates($this->db, ActivityLog::SYSTEM_OPERATOR);
+            } catch (\Throwable $e) {
+                SecureLogger::error('MaintenanceService: due dates not moved', ['error' => $e->getMessage()]);
+            }
             LibraryCalendar::extendPickupDeadlines($this->db);
         }
         return $added;
@@ -1751,6 +1764,11 @@ class MaintenanceService
         // così ogni flip produce un evento loan.overdue con operatore SYSTEM
         // dentro la stessa transazione della mutazione. Il FOR UPDATE serializza
         // il set: nessuna riga può cambiare stato tra la SELECT e il flip.
+        // The calendar (settings, closures, holiday rules) is read before the
+        // rows are locked: under FOR UPDATE only the copies' branches are
+        // looked up, so concurrent writers on those loans wait less.
+        LibraryCalendar::forDb($this->db);
+
         if (!$insideTransaction) {
             $this->db->begin_transaction();
         }

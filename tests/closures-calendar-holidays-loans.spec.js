@@ -13,6 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const ft = require('./helpers/feature-toggles');
+const { snapshotLoans, restoreLoans } = require('./helpers/calendar-loan-snapshot');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -82,6 +83,8 @@ const prev = {
   features: /** @type {Record<string,string>} */ ({}),
 };
 /** Rows this run created, the only ones its cleanup deletes. */
+/** Active loans of other readers, restored after the run. */
+let loanSnap = null;
 const created = { closureIds: /** @type {Set<number>} */ (new Set()), customIds: /** @type {Set<number>} */ (new Set()) };
 const idList = (set) => [...set].join(',') || '0';
 function appToday() {
@@ -220,6 +223,7 @@ test.describe('Holidays in circulation', () => {
     const activeCustomIds = db('SELECT id FROM festivita_personalizzate WHERE attiva=1').split('\n').filter(Boolean).map(Number);
     const closureColumns = db("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='calendario_chiusure' ORDER BY ORDINAL_POSITION").split('\n').filter(Boolean);
     db(`CREATE TABLE ${prev.closureBackup} AS SELECT * FROM calendario_chiusure`);
+    loanSnap = snapshotLoans(db, `e2e_holloan_loans_${RUN}`);
     prev.features = ft.readFeatures(['closures_calendar']);
     Object.assign(prev, { weekdays, holidaySettings, activeCustomIds, closureColumns, ready: true });
 
@@ -271,6 +275,7 @@ test.describe('Holidays in circulation', () => {
       else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays',UNHEX('${prev.weekdays}')) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
       await ft.writeFeatures(prev.features);
     }
+    restoreLoans(db, loanSnap);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
     const ids = Object.values(books).map((b) => b.id).join(',') || '0';
     db(`DELETE FROM admin_notifications WHERE (type IN ('new_loan_request','overdue_loan') OR (type='general' AND link LIKE '%/admin/loans%')) AND related_id IN (SELECT id FROM prestiti WHERE libro_id IN (${ids}))`);
