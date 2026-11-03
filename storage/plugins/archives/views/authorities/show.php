@@ -141,10 +141,10 @@ unset($workspaceHeader);
                     $linkBadge = $levelBadge[$linkLevel] ?? 'bg-gray-100 text-gray-800';
                     $linkId = (int) ($link['id'] ?? 0);
                     ?>
-                    <li class="px-6 py-3 flex items-center justify-between text-sm">
-                        <div class="flex items-center gap-3">
+                    <li class="px-6 py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
                             <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $linkBadge ?>"><?= $e($linkLevel) ?></span>
-                            <a href="<?= $e(url('/admin/archives/' . $linkId)) ?>" class="text-blue-600 hover:underline">
+                            <a href="<?= $e(url('/admin/archives/' . $linkId)) ?>" class="break-words text-blue-600 hover:underline">
                                 <?= $e((string) ($link['constructed_title'] ?? '')) ?>
                             </a>
                             <span class="text-xs text-gray-400 font-mono">(<?= $e((string) ($link['reference_code'] ?? '')) ?>)</span>
@@ -173,9 +173,9 @@ unset($workspaceHeader);
             <ul class="divide-y divide-gray-200">
                 <?php foreach ($linked_autori as $a): ?>
                     <?php $aid = (int) ($a['id'] ?? 0); ?>
-                    <li class="px-6 py-3 flex items-center justify-between text-sm">
-                        <div class="flex items-center gap-3">
-                            <a href="<?= $e(url('/admin/authors/' . $aid)) ?>" class="text-blue-600 hover:underline">
+                    <li class="px-6 py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                            <a href="<?= $e(url('/admin/authors/' . $aid)) ?>" class="break-words text-blue-600 hover:underline">
                                 <?= $e((string) ($a['nome'] ?? '')) ?>
                             </a>
                             <?php if (!empty($a['data_nascita']) || !empty($a['data_morte'])): ?>

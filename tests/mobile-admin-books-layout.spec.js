@@ -5,7 +5,9 @@
 // show the borrower, the copy actions and the due date without scrolling, the
 // editor toolbar shows every button, the remove cross of a name chip can be
 // seen, the chip search field stays in its box, and a book whose cover is gone
-// shows no empty "current cover" card or "Rimuovi" link.
+// shows no empty "current cover" card or "Rimuovi" link. On the updates page,
+// the copy cataloguing catalogues and an archival authority, a long path, URL
+// or title wraps instead of running past the screen edge.
 //
 // Run: /tmp/run-e2e.sh tests/mobile-admin-books-layout.spec.js --config=tests/playwright.config.js --workers=1
 const { test, expect, devices } = require('@playwright/test');
@@ -41,6 +43,19 @@ async function expectNoSideways(page) {
   expect(d.blocks, 'blocks that scroll sideways').toEqual([]);
 }
 
+/** Text that runs past the right edge of the screen (cut off, since the page itself does not scroll). */
+async function pastTheEdge(page) {
+  return page.evaluate(() => {
+    const vw = window.innerWidth; const out = [];
+    for (const el of document.querySelectorAll('main *')) {
+      if (el.children.length || !(el.textContent || '').trim()) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height && r.right > vw + 1) out.push(`${el.tagName.toLowerCase()} "${el.textContent.trim().slice(0, 60)}" right=${Math.round(r.right)}`);
+    }
+    return out;
+  });
+}
+
 /** The element's box lies inside the viewport (left and right edge) and is shown. */
 async function expectOnScreen(locator, what) {
   await expect(locator, what).toBeVisible();
@@ -55,6 +70,8 @@ test.describe.serial('book pages on a phone', () => {
   let patron;
   let authorId = 0;
   let publisherId = 0;
+  let unitId = 0;
+  let authorityId = 0;
 
   test.beforeAll(async () => {
     book = F.createTitle(TAG, 'libro', 2);
@@ -73,6 +90,13 @@ test.describe.serial('book pages on a phone', () => {
     F.dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo, note) VALUES (${book.id}, ${book.copyIds[0]}, ${patron.id}, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 27 DAY), 'in_corso', 'diretto', 1, '${TAG} nota')`);
     // A change-log entry with a long unbreakable value (the cover path).
     const adminId = F.dbInt(`SELECT id FROM utenti WHERE email='${process.env.E2E_ADMIN_EMAIL}'`);
+    try {
+      F.dbQuery(`INSERT INTO authority_records (type, authorised_form) VALUES ('person', '${TAG} Autorità')`);
+      authorityId = F.dbInt(`SELECT id FROM authority_records WHERE authorised_form='${TAG} Autorità'`);
+      F.dbQuery(`INSERT INTO archival_units (reference_code, level, constructed_title) VALUES ('${TAG}_FONDO_0001', 'fonds', '${TAG} Corrispondenza della biblioteca con gli editori e i librai della provincia')`);
+      unitId = F.dbInt(`SELECT id FROM archival_units WHERE reference_code='${TAG}_FONDO_0001'`);
+      F.dbQuery(`INSERT INTO archival_unit_authority (archival_unit_id, authority_id, role) VALUES (${unitId}, ${authorityId}, 'creator')`);
+    } catch { /* archives plugin tables absent: that page is checked only where they exist */ }
     F.dbQuery(`INSERT INTO log_modifiche (tabella, record_id, azione, dati_precedenti, dati_nuovi, utente_id) VALUES ('libri', ${book.id}, 'aggiornamento', '{"copertina_url":""}', '{"copertina_url":"${MISSING_COVER}","_activity":{"type":"edit","event":"book.updated","source":"manual"}}', ${adminId || 'NULL'})`);
   });
 
@@ -83,6 +107,9 @@ test.describe.serial('book pages on a phone', () => {
     try { F.dbQuery(`DELETE FROM autori WHERE id=${authorId}`); } catch { /* */ }
     try { F.dbQuery(`DELETE FROM editori WHERE id=${publisherId}`); } catch { /* */ }
     if (patron) F.deletePatrons([patron.id]);
+    try { F.dbQuery(`DELETE FROM archival_unit_authority WHERE archival_unit_id=${unitId}`); } catch { /* */ }
+    try { F.dbQuery(`DELETE FROM archival_units WHERE id=${unitId}`); } catch { /* */ }
+    try { F.dbQuery(`DELETE FROM authority_records WHERE id=${authorityId}`); } catch { /* */ }
   });
 
   for (const [label, path] of [['books list', '/admin/books'], ['catalogue cards with no selection', '/admin/books/catalogue-cards']]) {
@@ -203,4 +230,19 @@ test.describe.serial('book pages on a phone', () => {
     await expect(page.getByText('Nessuna copertina caricata', { exact: true })).toHaveCount(0);
     await expect(page.locator('#cover-preview-container').getByRole('button', { name: 'Rimuovi' })).toHaveCount(0);
   });
+
+  for (const [label, path, sample] of [
+    ['updates requirements', () => '/admin/updates', /Cartella radice/],
+    ['copy cataloguing catalogues', () => '/admin/books/copy-cataloging', /https?:\/\//],
+    ['archival authority', () => (authorityId ? `/admin/archives/authorities/${authorityId}` : ''), /Corrispondenza della biblioteca/],
+  ]) {
+    test(`${label}: a long path, URL or title wraps inside the screen`, async ({ page }) => {
+      test.skip(!path(), 'archives plugin tables not installed');
+      await F.loginAsAdmin(page);
+      const response = await page.goto(path(), { waitUntil: 'networkidle' });
+      expect(response?.status()).toBe(200);
+      await expect(page.locator('main').getByText(sample).first()).toBeVisible();
+      expect(await pastTheEdge(page), 'text past the screen edge').toEqual([]);
+    });
+  }
 });
