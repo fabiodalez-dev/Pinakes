@@ -361,6 +361,19 @@ $cases = [
         // date the calendar save moved: the order of the two changes does not
         // matter, and a closure longer than the renewal cannot swallow it.
         SettingsReview25::eq($t->due($loan), $t->day(14), 'Fourteen-day renewal starts from the first open day after the closed due day');
+
+        // Refused because another reader's reservation starts tomorrow: the
+        // "renew until D" offer counts from the same usable day, so it never
+        // proposes today, a date the renewal bound would then refuse.
+        $held = $t->book($t->branchA); $heldLoan = $t->loan($held, $t->day(-1));
+        $tomorrow = $t->day(1);
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,data_scadenza_prenotazione,stato)
+            VALUES ({$held['id']},{$t->secondReader},'{$tomorrow}','{$t->day(8)}','{$tomorrow} 23:59:59','attiva')");
+        $refused = $t->renew($heldLoan)->getHeaderLine('Location');
+        SettingsReview25::check(str_contains($refused, 'error=extension_conflicts'), 'A reservation starting tomorrow refuses the renewal: ' . $refused);
+        parse_str((string) parse_url($refused, PHP_URL_QUERY), $offer);
+        SettingsReview25::check((int) ($offer['max_extension_days'] ?? 0) === 0, 'No "renew until" offer from the closed stored date: ' . $refused);
+        SettingsReview25::eq($t->due($heldLoan), $t->day(-1), 'The refused renewal leaves the loan as it was');
     },
     '03 Mobile feed must not call that on-time reader overdue' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-1), ['status' => 'in_ritardo']);

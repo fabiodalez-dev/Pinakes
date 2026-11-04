@@ -40,7 +40,9 @@ $check(
     'push date boundaries use the application timezone'
 );
 $check(
-    str_contains($dispatcher, "bind_param('ssi', \$today, \$today, \$days)")
+    // Due-soon candidates end at the application date + the horizon (the
+    // calendar then drops the late ones); overdue ones start before it.
+    str_contains($dispatcher, "bind_param('si', \$today, \$days)")
         && str_contains($dispatcher, "bind_param('s', \$today)"),
     'due and overdue push queries bind the authoritative application date'
 );

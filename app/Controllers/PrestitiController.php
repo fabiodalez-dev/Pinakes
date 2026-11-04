@@ -2434,9 +2434,11 @@ class PrestitiController
             $capacity = new \App\Services\CapacityService($db);
             // A refusal names the longest renewal still possible (LoanWindow),
             // and which loan it is about, so the page can offer "renew until D".
-            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $db, $copiaId): string {
+            // The offered "renew until D" counts from the usable return day, the
+            // same base the renewal bound above accepts.
+            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $usableDueDate, $db, $copiaId): string {
                 return http_build_query(['error' => 'extension_conflicts', 'loan_id' => $id]
-                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, null, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId)));
+                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, $usableDueDate, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId)));
             };
             if (!$capacity->hasFreeCapacity($libroId, $extensionStart, $extensionEnd, excludePrestitoId: $id)) {
                 $blocked = $capacity->renewalConflictDates($libroId, $id, $copiaId, (string) $currentDueDate, $extensionEnd);
