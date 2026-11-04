@@ -2,6 +2,28 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.0-rc.3]
+
+Release candidate: published as a GitHub prerelease, offered only to installations that opt in with `UPDATER_CHANNEL=rc` or `UPDATER_ALLOW_PRERELEASE=1`. No migration and no schema change.
+
+### Loans follow closures added later
+
+- **Existing due dates move.** Saving a closure, a weekly closed day or a holiday in Admin → Calendar now moves every active loan (out, waiting for pickup or booked ahead) whose due date, today or later, falls on a day that is now closed for the copy's branch to the next open day, as a loan made after the change would get; pickup deadlines follow. Each move is recorded in the loan history and re-arms the due-soon reminder. A move the book cannot take (the next reservation of that copy starts on the new date, or the added days are promised to another reservation) is left out and the loan keeps its date. A loan already marked late whose due date is now closed goes back to in progress. When a move is blocked by a lock (the book row held by another transaction) the calendar page warns that the moves are incomplete and the next save or the scheduled maintenance completes them; nothing is half-written.
+- **Overdue counts start from the first open day.** A loan due on a day that was closed afterwards is not late until the first open day after it: the overdue sweep, the overdue e-mail, the mobile overdue push and the fine all follow `LibraryCalendar::isPastDue()`. Notices and recalls state the days late in open days, as the fine counts them, and never say "0 days" for a loan that is late.
+- **Recalls and pushes re-read the loan under the lock.** A manual recall or an overdue push claimed on stale data (a loan renewed or returned in the meantime) no longer goes out; the librarian is asked to reload the page, or told that another recall for the same loan has just gone out. A failed release of the calendar lock is retried at once, so the next batch does not wait for the session to end.
+
+### The 0.9.0 admin on a phone
+
+- **Circulation settings.** The patron types table and the patron type × material rules matrix stack as cards below the `sm` breakpoint, with the same inputs; on desktop their labels no longer break mid-word.
+- **Patron photo.** On a phone or tablet "Scatta foto" opens the device's own camera app (either lens); the shot is cropped to the card's 4:5 format and scaled to 480 × 600 with the EXIF orientation honoured. Desktops keep the inline webcam.
+- **Visitor log.** The card field has the self-hosted camera scanner of the loan desk (Code128 and QR): a card read by the camera records the entry at once, a typed code still waits for "Registra ingresso".
+- **Every 0.9.0 page checked at 390 px.** Attendance, closures calendar, stocktake, MARC import, suppliers, patron import, the new settings tabs, the reader record with its ledger and the return with a fine: nothing scrolls sideways, no field is small enough to make iOS zoom, wide tables read as cards with each value under its column name (as real text, for screen readers), the calendar's month arrows sit side by side and a notification count over 99 shows as "99+".
+
+### Older admin pages on a phone
+
+- **Book list, book page and book form.** The row actions stay inside the book list at full size and titles are no longer clamped; the book page's reservations, copies, volumes and loan history stack as cards; the change log wraps long values; the TinyMCE toolbar wraps on several rows; the chip remove cross is readable in both themes; a cover whose file is gone shows no empty frame and keeps "Rimuovi".
+- **Long values wrap.** Write-permission paths in Admin → Updates, catalogue URLs in copy cataloguing and the linked records of an archival authority no longer run past the screen edge.
+
 ## [0.9.0-rc.2]
 
 Release candidate: published as a GitHub prerelease, offered only to installations that opt in with `UPDATER_CHANNEL=rc` or `UPDATER_ALLOW_PRERELEASE=1`. No migration: the only schema change is in the Mobile API plugin, which widens `mobile_import_jobs.kind` from an ENUM to `VARCHAR(32)` in its own `ensureSchema()` when it upgrades to 1.10.0.
